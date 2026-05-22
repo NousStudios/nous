@@ -1,17 +1,26 @@
-# nous
+# Nous
 
-A new Flutter project.
+Universal commercial and social self-management software
 
-## Getting Started
+Open Source Brazillian Anarcho-communist Project 🏴‍☠️
 
-This project is a starting point for a Flutter application.
+linktr.ee/nous72
 
-A few resources to get you started if this is your first Flutter project:
+## Description
 
-- [Learn Flutter](https://docs.flutter.dev/get-started/learn-flutter)
-- [Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Flutter learning resources](https://docs.flutter.dev/reference/learning-resources)
+Hi, everyone! My name is Léo, and this is my first project.
+I'm a beginner dev and i hope your help for all peoples well intentioned.
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+In linktree you will find all material and the book that expose the ideas for this project.
+The content is philosophical and is written in brazzilian-portuguese; 
+
+One of subtittle is "Universal commercial and social self-management software" 
+because it describes perfectly the function this new brazillian SuperApp. 
+
+More teorical informations you will find in link, here, let's focus on the code and your organization; 
+
+Thanks!
+
+## First Steps 
+
+???? HELP
