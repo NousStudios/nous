@@ -9,15 +9,15 @@ linktr.ee/nous72
 ## Description
 
 Hi, everyone! My name is Léo, and this is my first project.
-I'm a beginner dev and i hope your help for all peoples well intentioned.
+I'm a beginner dev and every help from people well intentioned is welcomed.
 
-In linktree you will find all material and the book that expose the ideas for this project.
-The content is philosophical and is written in brazzilian-portuguese; 
+On the linktree you will find all material and a book that show the ideas for this project.
+The content is philosophical and is written in Brazilian Portuguese.
 
-One of subtittle is "Universal commercial and social self-management software" 
-because it describes perfectly the function this new brazillian SuperApp. 
+The heading is "Universal commercial and social self-management software" 
+because it describes perfectly the function of this new Brazilian SuperApp. 
 
-More teorical informations you will find in link, here, let's focus on the code and your organization; 
+To find more theoretical information, click on the link, please. Here we're going to focus on the code and its organization.
 
 Thanks!
 
