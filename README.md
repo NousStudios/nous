@@ -23,4 +23,8 @@ Thanks!
 
 ## First Steps 
 
-???? HELP
+The first step was finishing the series of videos "Ei, você! este video te INTERESSA!", 22 simbolic episodes that serves to increase and direct viewers to the video "Ei, TRABALHADOR!, este video te INTERESSA!"; 
+
+In these videos I said things I wanted to say, but I also talk about the implementation of this Brazilian Anarchist Platformism
+
+The next step is to code Nous in its primary version, an efficient PDV system (Point of sale)
