@@ -4,9 +4,9 @@ Universal commercial and social self-management software
 
 Open Source Brazillian Anarcho-communist Project 🏴‍☠️
 
-linktr.ee/nous72
+🔗 **Links:** [linktr.ee/nous72](https://linktr.ee/nous72)
 
-## Description
+## 📌 Description
 
 Hi, everyone! My name is Léo, and this is my first project.
 I'm a beginner dev and every help from people well intentioned is welcomed.
@@ -21,10 +21,23 @@ To find more theoretical information, click on the link, please. Here we're goin
 
 Thanks!
 
-## First Steps 
+## 🚀 First Steps 
 
 The first step was finishing the series of videos "Ei, você! este video te INTERESSA!", 22 simbolic episodes that serves to increase and direct viewers to the video "Ei, TRABALHADOR!, este video te INTERESSA!"; 
 
 In these videos I said things I wanted to say, but I also talk about the implementation of this Brazilian Anarchist Platformism
 
-The next step is to code Nous in its primary version, an efficient PDV system (Point of sale)
+The next step is to code Nous in its primary version, an efficient PDV system (Point of sale) to be used jointly a local organizations allied for this platformism and not only that. 
+
+As a beginner developer, I’m going to document the steps I’m taking while writing the code — despite my lack of knowledge — so you can follow along and correct me.
+
+
+## 🚶 Steps Taken
+
+1 I create the nous Flutter Project and set up a Git-Hub.
+
+2 I created the `src` folder inside the `lib` folder and added the `controller`, `model`, and `view` folders inside it.
+
+3 I created the login_view.dart file and added it to the nous/lib/src/view folder.
+
+4 I asked the AI ​​to create a sample screen while I finished the videos in the series. 

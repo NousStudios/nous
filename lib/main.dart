@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:nous/view/login_view.dart'; // O import está certinho!
+import 'package:nous/src/view/login_view.dart'; // O import está certinho!
 
 void main() {
   runApp(const MyApp());
