@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'src/core/theme/app_theme.dart';
 import 'package:nous/src/view/login_view.dart'; // O import está certinho!
 
 void main() {
