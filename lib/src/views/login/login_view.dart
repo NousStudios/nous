@@ -1,9 +1,11 @@
+// IMPORTS: Trazem os arquivos que esse widget precisa para funcionar
 import 'package:flutter/material.dart';
-
-// Importe seus widgets das pastas locais
 import 'package:nous/src/views/login/widgets/cpf_input_widget.dart';
 import 'package:nous/src/views/login/widgets/login_buttons_widget.dart';
 import 'package:nous/src/views/login/widgets/logo_widget.dart';
+
+// IMPORT NOVO: Importamos a tela dos Termos de Uso criada para podermos navegar até ela
+import 'package:nous/src/views/terms/terms_view.dart';
 
 class LoginView extends StatelessWidget {
   const LoginView({super.key});
@@ -11,23 +13,31 @@ class LoginView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      // Define a cor de fundo da tela inteira como preta
       backgroundColor: Colors.black,
+      
+      // SafeArea garante que o conteúdo não fique sob barras do sistema (notificações, entalhes)
       body: SafeArea(
         child: Center(
+          // Permite rolar a tela se o teclado subir ou em telas menores
           child: SingleChildScrollView(
             padding: const EdgeInsets.all(24.0),
+            
+            // ConstrainedBox limita a largura máxima em 420px (para ficar bonito em desktop/tablet)
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 420),
+              
+              // Column organiza os elementos um embaixo do outro
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  const SizedBox(height: 20),
+                  const SizedBox(height: 20), // Espaçamento topo
                   
-                  // Componente do Logo
+                  // 1. COMPONENTE DA LOGO
                   const LogoWidget(),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 16), // Espaço abaixo da logo
 
-                  // Título e Subtítulo
+                  // 2. TÍTULO 'Nous'
                   const Text(
                     'Nous',
                     style: TextStyle(
@@ -37,30 +47,47 @@ class LoginView extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 8),
+
+                  // 3. SUBTÍTULO
                   const Text(
                     'Software Universal de Autogestão\nComercial e Social',
                     textAlign: TextAlign.center,
                     style: TextStyle(fontSize: 14, color: Colors.grey),
                   ),
-                  const SizedBox(height: 40),
+                  const SizedBox(height: 40), // Espaçamento grande antes do formulário
 
-                  // Componentes Modulares
+                  // 4. CAMPO DE ENTRADA DO CPF
                   const CpfInputWidget(),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 12), // Espaço pequeno entre o CPF e o botão dos termos
 
+                  // ====================================================================
+                  // 5. AQUI ESTÁ O BOTÃO DOS TERMOS DE USO!
+                  // ====================================================================
                   TextButton(
-                    onPressed: () {},
+                    // onPressed é a função executada ao clicar no botão
+                    onPressed: () {
+                      // Com o Navigator.push, ao clicar no texto ele abre a tela dos Termos
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const TermsView(),
+                        ),
+                      );
+                    },
+                    // Visual do texto do botão
                     child: const Text(
                       'Leia os Termos de Uso',
                       style: TextStyle(
-                        color: Colors.grey,
-                        decoration: TextDecoration.underline,
+                        color: Colors.grey, // Cor cinza discreta
+                        decoration: TextDecoration.underline, // Texto sublinhado
                       ),
                     ),
                   ),
-                  const SizedBox(height: 24),
+                  // ====================================================================
 
-                  // Botões de Ação
+                  const SizedBox(height: 24), // Espaço entre os termos e os botões de ação
+
+                  // 6. BOTÕES DE ENTRAR E ENTRAR COMO VISITANTE
                   const LoginButtonsWidget(),
                   const SizedBox(height: 20),
                 ],
