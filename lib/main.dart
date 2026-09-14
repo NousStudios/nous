@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'src/core/theme/app_theme.dart';
-import 'package:nous/src/view/login_view.dart'; // O import está certinho!
+import 'src/view/login_view.dart'; // Ou o caminho da sua view atual
 
 void main() {
   runApp(const MyApp());
@@ -12,9 +12,10 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
+      title: 'Nous',
       debugShowCheckedModeBanner: false,
-      theme: ThemeData.dark(), // Deixa o app em modo escuro
-      home: const LoginNousPage(), // Aqui ele chama a sua tela da pasta view
+      theme: AppTheme.darkTheme, // <-- Conecta o tema centralizado aqui
+      home: const LoginView(),
     );
   }
 }
