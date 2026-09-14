@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'src/core/theme/app_theme.dart';
-import 'src/view/login_view.dart'; // Ou o caminho da sua view atual
+import 'src/views/login/login_view.dart'; // Ou o caminho da sua view atual
 
 void main() {
   runApp(const MyApp());
