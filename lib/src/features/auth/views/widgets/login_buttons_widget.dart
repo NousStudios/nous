@@ -30,7 +30,6 @@ class LoginButtonsWidget extends StatelessWidget {
                 'Entrar',
                 style: theme.getTextStyle(
                   fontSize: 16,
-                  fontWeight: FontWeight.bold,
                   color: theme.textColor,
                 ),
               ),

@@ -15,6 +15,7 @@ class CpfInputWidget extends StatelessWidget {
         return TextField(
           controller: controller,
           keyboardType: TextInputType.number,
+          textAlign: TextAlign.center, // Centraliza tanto o hint quanto o texto digitado
           // Cor do texto digitado vem do tema, no lugar de Colors.white fixo
           style: theme.getTextStyle(fontSize: 16),
           decoration: InputDecoration(
@@ -30,12 +31,10 @@ class CpfInputWidget extends StatelessWidget {
             ),
             enabledBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(30),
-              // Agora usa a cor de aresta real do tema, personalizável pelo usuário
               borderSide: BorderSide(color: theme.borderColor),
             ),
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(30),
-              // Borda em foco com a cor cheia do tema
               borderSide: BorderSide(color: theme.textColor),
             ),
           ),
