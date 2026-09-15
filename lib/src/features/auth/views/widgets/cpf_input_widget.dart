@@ -30,8 +30,8 @@ class CpfInputWidget extends StatelessWidget {
             ),
             enabledBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(30),
-              // Borda "normal" com opacidade reduzida, igual ao padrão de transparência usado em TermsView
-              borderSide: BorderSide(color: theme.textColor.withAlpha(138)),
+              // Agora usa a cor de aresta real do tema, personalizável pelo usuário
+              borderSide: BorderSide(color: theme.borderColor),
             ),
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(30),

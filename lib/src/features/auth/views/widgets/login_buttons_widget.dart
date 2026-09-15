@@ -40,8 +40,8 @@ class LoginButtonsWidget extends StatelessWidget {
               style: OutlinedButton.styleFrom(
                 foregroundColor: theme.textColor,
                 minimumSize: const Size.fromHeight(55),
-                // Mesmo estilo de transparência de borda usado no CpfInputWidget
-                side: BorderSide(color: theme.textColor.withAlpha(138)),
+                // Agora usa a cor de aresta real do tema, personalizável pelo usuário
+                side: BorderSide(color: theme.borderColor),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(30),
                 ),
