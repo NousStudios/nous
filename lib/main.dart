@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:nous/src/core/theme/theme_controller.dart';
-import 'package:nous/src/views/login/login_view.dart';
+import 'package:nous/src/features/auth/views/login_view.dart';
 
 void main() {
   runApp(const MyApp());
@@ -21,7 +21,7 @@ class MyApp extends StatelessWidget {
           theme: ThemeData(
             // Define a cor de fundo padrão de todos os Scaffolds do app
             scaffoldBackgroundColor: theme.backgroundColor,
-            
+
             // Define a cor da AppBar globalmente
             appBarTheme: AppBarTheme(
               backgroundColor: theme.backgroundColor,

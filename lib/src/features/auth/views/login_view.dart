@@ -1,12 +1,12 @@
 // IMPORTS: Trazem os arquivos que esse widget precisa para funcionar
 import 'package:flutter/material.dart';
 import 'package:nous/src/core/theme/theme_controller.dart';
-import 'package:nous/src/views/login/widgets/cpf_input_widget.dart';
-import 'package:nous/src/views/login/widgets/login_buttons_widget.dart';
-import 'package:nous/src/views/login/widgets/logo_widget.dart';
+import 'package:nous/src/features/auth/views/widgets/cpf_input_widget.dart';
+import 'package:nous/src/features/auth/views/widgets/login_buttons_widget.dart';
+import 'package:nous/src/features/auth/views/widgets/logo_widget.dart';
 
 // IMPORT NOVO: Importamos a tela dos Termos de Uso criada para podermos navegar até ela
-import 'package:nous/src/views/terms/terms_view.dart';
+import 'package:nous/src/features/auth/views/terms_view.dart';
 
 class LoginView extends StatelessWidget {
   const LoginView({super.key});
@@ -19,24 +19,24 @@ class LoginView extends StatelessWidget {
         return Scaffold(
           // Define a cor de fundo com base no tema dinâmico
           backgroundColor: theme.backgroundColor,
-          
+
           // SafeArea garante que o conteúdo não fique sob barras do sistema (notificações, entalhes)
           body: SafeArea(
             child: Center(
               // Permite rolar a tela se o teclado subir ou em telas menores
               child: SingleChildScrollView(
                 padding: const EdgeInsets.all(24.0),
-                
+
                 // ConstrainedBox limita a largura máxima em 420px (para ficar bonito em desktop/tablet)
                 child: ConstrainedBox(
                   constraints: const BoxConstraints(maxWidth: 420),
-                  
+
                   // Column organiza os elementos um embaixo do outro
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       const SizedBox(height: 20), // Espaçamento topo
-                      
+
                       // 1. COMPONENTE DA LOGO
                       const LogoWidget(),
                       const SizedBox(height: 16), // Espaço abaixo da logo

@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_colorpicker/flutter_colorpicker.dart';
-import 'package:nous/src/core/theme/theme_controller.dart'; // Ajuste o caminho se necessário
+import 'package:nous/src/core/theme/theme_controller.dart'; 
 
 class ThemeCustomizerDialog extends StatelessWidget {
   const ThemeCustomizerDialog({super.key});
