@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:nous/src/core/theme/theme_controller.dart';
+import 'package:nous/src/core/theme/theme_customizer_dialog.dart';
 
 class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
   final String title;
@@ -10,62 +12,107 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
     this.showBackButton = true,
   });
 
-  // Função para exibir o pop-up de configurações
-  void _showSettingsDialog(BuildContext context) {
+  void _showThemeSelector(BuildContext context) {
+    final currentTheme = ThemeController.currentTheme.value;
+
     showDialog(
       context: context,
-      barrierDismissible: true, // Permite fechar clicando fora do pop-up
       builder: (BuildContext context) {
         return AlertDialog(
-          backgroundColor: const Color(0xFF1E1E1E), // Fundo escuro minimalista
+          backgroundColor: currentTheme.cardBackgroundColor,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(16.0),
+            side: BorderSide(color: currentTheme.borderColor),
           ),
-          
-          // Ajusta o espaçamento do título para manter o alinhamento perfeito
-          titlePadding: const EdgeInsets.fromLTRB(24.0, 24.0, 24.0, 8.0),
-          
-          // Título centralizado
-          title: const Text(
-            'Configurações',
-            textAlign: TextAlign.center, // <--- CENTRALIZA O TEXTO DO TÍTULO
-            style: TextStyle(
-              color: Colors.white,
-              fontWeight: FontWeight.bold,
-            ),
+          title: Text(
+            'Aparência',
+            textAlign: TextAlign.center,
+            style: currentTheme.getTextStyle(fontSize: 18, fontWeight: FontWeight.bold),
           ),
           content: Column(
-            mainAxisSize: MainAxisSize.min, // Ajusta a altura ao conteúdo
+            mainAxisSize: MainAxisSize.min,
             children: [
               ListTile(
-                leading: const Icon(Icons.palette_outlined, color: Colors.white70),
-                title: const Text('Tema', style: TextStyle(color: Colors.white)),
+                leading: Icon(Icons.dark_mode, color: currentTheme.textColor),
+                title: Text('Modo Escuro (Padrão)', style: currentTheme.getTextStyle()),
                 onTap: () {
-                  // Ação para trocar tema
+                  ThemeController.updateTheme(AppTheme.dark);
+                  Navigator.pop(context);
                 },
               ),
               ListTile(
-                leading: const Icon(Icons.language, color: Colors.white70),
-                title: const Text('Idioma', style: TextStyle(color: Colors.white)),
+                leading: Icon(Icons.light_mode, color: currentTheme.textColor),
+                title: Text('Modo Claro', style: currentTheme.getTextStyle()),
                 onTap: () {
-                  // Ação para trocar idioma
+                  ThemeController.updateTheme(AppTheme.light);
+                  Navigator.pop(context);
                 },
               ),
+              Divider(color: currentTheme.borderColor),
+              // NOVO BOTÃO PARA ABRIR A PALETA PERSONALIZADA
               ListTile(
-                leading: const Icon(Icons.info_outline, color: Colors.white70),
-                title: const Text('Sobre o App', style: TextStyle(color: Colors.white)),
+                leading: Icon(Icons.color_lens_outlined, color: currentTheme.textColor),
+                title: Text('Personalizar Cores e Fontes...', style: currentTheme.getTextStyle()),
                 onTap: () {
-                  // Ação sobre
+                  Navigator.pop(context); // Fecha o seletor simples
+                  showDialog(
+                    context: context,
+                    builder: (_) => const ThemeCustomizerDialog(), // Abre a paleta completa
+                  );
                 },
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  void _showSettingsDialog(BuildContext context) {
+    final currentTheme = ThemeController.currentTheme.value;
+
+    showDialog(
+      context: context,
+      barrierDismissible: true,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          backgroundColor: currentTheme.cardBackgroundColor,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16.0),
+            side: BorderSide(color: currentTheme.borderColor),
+          ),
+          titlePadding: const EdgeInsets.fromLTRB(24.0, 24.0, 24.0, 8.0),
+          title: Text(
+            'Configurações',
+            textAlign: TextAlign.center,
+            style: currentTheme.getTextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                leading: Icon(Icons.palette_outlined, color: currentTheme.secondaryTextColor),
+                title: Text('Tema', style: currentTheme.getTextStyle()),
+                onTap: () => _showThemeSelector(context),
+              ),
+              ListTile(
+                leading: Icon(Icons.language, color: currentTheme.secondaryTextColor),
+                title: Text('Idioma', style: currentTheme.getTextStyle()),
+                onTap: () {},
+              ),
+              ListTile(
+                leading: Icon(Icons.info_outline, color: currentTheme.secondaryTextColor),
+                title: Text('Sobre o App', style: currentTheme.getTextStyle()),
+                onTap: () {},
               ),
             ],
           ),
           actions: [
             TextButton(
-              onPressed: () => Navigator.of(context).pop(), // Fecha a janela
-              child: const Text(
+              onPressed: () => Navigator.of(context).pop(),
+              child: Text(
                 'Fechar',
-                style: TextStyle(color: Colors.white70),
+                style: currentTheme.getTextStyle(color: currentTheme.secondaryTextColor),
               ),
             ),
           ],
@@ -76,31 +123,37 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
 
   @override
   Widget build(BuildContext context) {
-    return AppBar(
-      backgroundColor: Colors.black, // Padrão minimalista
-      elevation: 0,
-      title: Text(
-        title,
-        style: const TextStyle(color: Colors.white),
-      ),
-      centerTitle: true,
-      leading: showBackButton
-          ? IconButton(
-              icon: const Icon(Icons.arrow_back, color: Colors.white),
-              onPressed: () => Navigator.of(context).pop(),
-            )
-          : null,
-      actions: [
-        IconButton(
-          tooltip: 'Configurações',
-          icon: Image.asset(
-            'assets/icons/settings_icon.png',
-            width: 24,
-            height: 24,
+    return ValueListenableBuilder<AppTheme>(
+      valueListenable: ThemeController.currentTheme,
+      builder: (context, theme, child) {
+        return AppBar(
+          backgroundColor: theme.backgroundColor,
+          elevation: 0,
+          title: Text(
+            title,
+            style: theme.getTextStyle(fontSize: 18, fontWeight: FontWeight.bold),
           ),
-          onPressed: () => _showSettingsDialog(context),
-        ),
-      ],
+          centerTitle: true,
+          leading: showBackButton
+              ? IconButton(
+                  icon: Icon(Icons.arrow_back, color: theme.textColor),
+                  onPressed: () => Navigator.of(context).pop(),
+                )
+              : null,
+          actions: [
+            IconButton(
+              tooltip: 'Configurações',
+              icon: Image.asset(
+                'assets/icons/settings_icon.png',
+                width: 24,
+                height: 24,
+                color: theme.textColor,
+              ),
+              onPressed: () => _showSettingsDialog(context),
+            ),
+          ],
+        );
+      },
     );
   }
 
