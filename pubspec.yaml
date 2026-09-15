@@ -28,6 +28,8 @@ dependencies:
   flex_color_picker: ^3.6.0
   # Adiciona a fonte de ícones no estilo Cupertino (iOS) ao seu aplicativo.
   cupertino_icons: ^1.0.8
+  #Cores como a do Canvas, adicionar gradiente etc
+  flutter_colorpicker: ^1.1.0
 
 # Dependências usadas apenas durante o desenvolvimento (não vão para o app final do usuário).
 dev_dependencies:

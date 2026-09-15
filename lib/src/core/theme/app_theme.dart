@@ -4,6 +4,9 @@ class AppTheme {
   // Construtor privado para evitar que a classe seja instanciada
   AppTheme._();
 
+  // Getter 'dark' para resolver a chamada 'AppTheme.dark'
+  static ThemeData get dark => darkTheme;
+
   static ThemeData get darkTheme {
     return ThemeData.dark().copyWith(
       scaffoldBackgroundColor: const Color(0xFF121212), // Fundo escuro principal
