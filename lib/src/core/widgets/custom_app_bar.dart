@@ -1,42 +1,104 @@
 import 'package:flutter/material.dart';
 
 class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
-  final String? title;
-  final VoidCallback? onSettingsPressed;
+  final String title;
+  final bool showBackButton;
 
   const CustomAppBar({
     super.key,
-    this.title,
-    this.onSettingsPressed,
+    required this.title,
+    this.showBackButton = true,
   });
+
+  // Função para exibir o pop-up de configurações
+  void _showSettingsDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      barrierDismissible: true, // Permite fechar clicando fora do pop-up
+      builder: (BuildContext context) {
+        return AlertDialog(
+          backgroundColor: const Color(0xFF1E1E1E), // Fundo escuro minimalista
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16.0),
+          ),
+          
+          // Ajusta o espaçamento do título para manter o alinhamento perfeito
+          titlePadding: const EdgeInsets.fromLTRB(24.0, 24.0, 24.0, 8.0),
+          
+          // Título centralizado
+          title: const Text(
+            'Configurações',
+            textAlign: TextAlign.center, // <--- CENTRALIZA O TEXTO DO TÍTULO
+            style: TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min, // Ajusta a altura ao conteúdo
+            children: [
+              ListTile(
+                leading: const Icon(Icons.palette_outlined, color: Colors.white70),
+                title: const Text('Tema', style: TextStyle(color: Colors.white)),
+                onTap: () {
+                  // Ação para trocar tema
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.language, color: Colors.white70),
+                title: const Text('Idioma', style: TextStyle(color: Colors.white)),
+                onTap: () {
+                  // Ação para trocar idioma
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.info_outline, color: Colors.white70),
+                title: const Text('Sobre o App', style: TextStyle(color: Colors.white)),
+                onTap: () {
+                  // Ação sobre
+                },
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(), // Fecha a janela
+              child: const Text(
+                'Fechar',
+                style: TextStyle(color: Colors.white70),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
     return AppBar(
-      title: title != null ? Text(title!) : null,
-      centerTitle: true,
+      backgroundColor: Colors.black, // Padrão minimalista
       elevation: 0,
+      title: Text(
+        title,
+        style: const TextStyle(color: Colors.white),
+      ),
+      centerTitle: true,
+      leading: showBackButton
+          ? IconButton(
+              icon: const Icon(Icons.arrow_back, color: Colors.white),
+              onPressed: () => Navigator.of(context).pop(),
+            )
+          : null,
       actions: [
-        Padding(
-          padding: const EdgeInsets.only(right: 16.0),
-          child: IconButton(
-            tooltip: 'Configurações',
-            icon: Image.asset(
-              'assets/icons/settings_icon.png', // Altere para o nome exato do seu PNG
-              width: 24,
-              height: 24,
-            ),
-            onPressed: onSettingsPressed ??
-                () {
-                  // Ação padrão ao clicar nas primeiras versões
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Configurações em desenvolvimento'),
-                      duration: Duration(seconds: 2),
-                    ),
-                  );
-                },
+        IconButton(
+          tooltip: 'Configurações',
+          icon: Image.asset(
+            'assets/icons/settings_icon.png',
+            width: 24,
+            height: 24,
           ),
+          onPressed: () => _showSettingsDialog(context),
         ),
       ],
     );
