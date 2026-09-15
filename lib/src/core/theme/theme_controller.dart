@@ -90,6 +90,8 @@ class ThemeController {
   static List<Color> recentBackgroundColors = [Colors.black, const Color(0xFF121212)];
   static List<Color> recentTextColors = [Colors.white, const Color(0xFFE2E8F0)];
   static List<Color> recentButtonColors = [Colors.white, const Color(0xFF38BDF8)];
+  static List<Color> recentCardColors = [const Color(0xFF1E1E1E), const Color(0xFF2A2A2A)];
+  static List<Color> recentBorderColors = [Colors.white24, Colors.grey];
 
   static void _addRecentColor(List<Color> history, Color color) {
     history.removeWhere((c) => c.toARGB32() == color.toARGB32());
@@ -104,6 +106,8 @@ class ThemeController {
     _addRecentColor(recentBackgroundColors, newTheme.backgroundColor);
     _addRecentColor(recentTextColors, newTheme.textColor);
     _addRecentColor(recentButtonColors, newTheme.buttonColor);
+    _addRecentColor(recentCardColors, newTheme.cardBackgroundColor);
+    _addRecentColor(recentBorderColors, newTheme.borderColor);
     currentTheme.value = newTheme;
   }
 
@@ -122,16 +126,20 @@ class ThemeController {
     currentTheme.value = currentTheme.value.copyWith(buttonColor: color);
   }
 
+  /// Atualiza a cor das janelas (Cards e Popups)
   static void updateCardColor(Color color) {
+    _addRecentColor(recentCardColors, color);
     currentTheme.value = currentTheme.value.copyWith(cardBackgroundColor: color);
+  }
+
+  /// Atualiza a cor das arestas / bordas
+  static void updateBorderColor(Color color) {
+    _addRecentColor(recentBorderColors, color);
+    currentTheme.value = currentTheme.value.copyWith(borderColor: color);
   }
 
   static void updateSecondaryTextColor(Color color) {
     currentTheme.value = currentTheme.value.copyWith(secondaryTextColor: color);
-  }
-
-  static void updateBorderColor(Color color) {
-    currentTheme.value = currentTheme.value.copyWith(borderColor: color);
   }
 
   static void updateFont(String fontName) {

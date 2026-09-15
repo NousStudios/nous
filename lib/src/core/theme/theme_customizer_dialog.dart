@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
-import 'package:nous/src/core/theme/theme_controller.dart';
+import 'package:nous/src/core/theme/theme_controller.dart'; // Ajuste o import do seu projeto se necessário
 
+/// Modal dialog responsável pela customização em tempo real do tema da aplicação.
 class ThemeCustomizerDialog extends StatelessWidget {
   const ThemeCustomizerDialog({super.key});
 
   static const List<String> fonts = ['Inter', 'Roboto', 'Poppins', 'Lato'];
 
-  // Utilitário para converter String Hexadecimal em Color
   static Color? _parseHexColor(String hexString) {
     final cleanHex = hexString.replaceAll('#', '').trim();
     if (cleanHex.length == 6) {
@@ -19,7 +19,6 @@ class ThemeCustomizerDialog extends StatelessWidget {
     return null;
   }
 
-  // Modal para escolher qualquer cor via Hexadecimal ou presets livres
   void _openCustomColorPicker(
     BuildContext context,
     AppTheme theme,
@@ -28,7 +27,7 @@ class ThemeCustomizerDialog extends StatelessWidget {
     Function(Color) onColorSelected,
   ) {
     final controller = TextEditingController(
-      text: '#${currentColor.toARGB32().toRadixString(16).substring(2).toUpperCase()}',
+      text: '#${currentColor.toARGB32().toRadixString(16).padLeft(8, '0').substring(2).toUpperCase()}',
     );
 
     showDialog(
@@ -43,13 +42,16 @@ class ThemeCustomizerDialog extends StatelessWidget {
                 borderRadius: BorderRadius.circular(16),
                 side: BorderSide(color: theme.borderColor),
               ),
-              title: Text(title, style: theme.getTextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+              title: Text(
+                title,
+                style: theme.getTextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+              ),
               content: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Container(
-                    width: 60,
-                    height: 60,
+                    width: 54,
+                    height: 54,
                     decoration: BoxDecoration(
                       color: tempColor,
                       shape: BoxShape.circle,
@@ -103,7 +105,7 @@ class ThemeCustomizerDialog extends StatelessWidget {
     );
   }
 
-  Widget _buildColorRow({
+  Widget _buildColorSection({
     required BuildContext context,
     required AppTheme theme,
     required String title,
@@ -114,11 +116,13 @@ class ThemeCustomizerDialog extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(title, style: theme.getTextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
+        Text(
+          title,
+          style: theme.getTextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+        ),
         const SizedBox(height: 8),
         Row(
           children: [
-            // Exibe as duas últimas cores selecionadas
             ...recentColors.map((color) {
               final isSelected = currentColor.toARGB32() == color.toARGB32();
               return GestureDetector(
@@ -138,7 +142,6 @@ class ThemeCustomizerDialog extends StatelessWidget {
                 ),
               );
             }),
-            // Botão "+" para abrir o menu de personalização Hex/Livre
             GestureDetector(
               onTap: () => _openCustomColorPicker(context, theme, 'Escolher $title', currentColor, onSelectColor),
               child: Container(
@@ -179,8 +182,8 @@ class ThemeCustomizerDialog extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
               children: [
-                // 1. Cor de Fundo
-                _buildColorRow(
+                // 1. COR DE FUNDO
+                _buildColorSection(
                   context: context,
                   theme: theme,
                   title: 'Cor de Fundo',
@@ -188,10 +191,21 @@ class ThemeCustomizerDialog extends StatelessWidget {
                   recentColors: ThemeController.recentBackgroundColors,
                   onSelectColor: ThemeController.updateBackgroundColor,
                 ),
-                const SizedBox(height: 20),
+                const SizedBox(height: 16),
 
-                // 2. Cor do Texto
-                _buildColorRow(
+                // 2. COR DAS JANELAS (CARDS / POPUPS)
+                _buildColorSection(
+                  context: context,
+                  theme: theme,
+                  title: 'Cor das Janelas',
+                  currentColor: theme.cardBackgroundColor,
+                  recentColors: ThemeController.recentCardColors,
+                  onSelectColor: ThemeController.updateCardColor,
+                ),
+                const SizedBox(height: 16),
+
+                // 3. COR DO TEXTO
+                _buildColorSection(
                   context: context,
                   theme: theme,
                   title: 'Cor do Texto',
@@ -199,10 +213,10 @@ class ThemeCustomizerDialog extends StatelessWidget {
                   recentColors: ThemeController.recentTextColors,
                   onSelectColor: ThemeController.updateTextColor,
                 ),
-                const SizedBox(height: 20),
+                const SizedBox(height: 16),
 
-                // 3. Cor dos Botões
-                _buildColorRow(
+                // 4. COR DOS BOTÕES
+                _buildColorSection(
                   context: context,
                   theme: theme,
                   title: 'Cor dos Botões',
@@ -210,11 +224,22 @@ class ThemeCustomizerDialog extends StatelessWidget {
                   recentColors: ThemeController.recentButtonColors,
                   onSelectColor: ThemeController.updateButtonColor,
                 ),
-                const SizedBox(height: 20),
+                const SizedBox(height: 16),
 
-                // 4. Fonte da Aplicação
+                // 5. COR DAS ARESTAS (BORDAS)
+                _buildColorSection(
+                  context: context,
+                  theme: theme,
+                  title: 'Cor das Arestas',
+                  currentColor: theme.borderColor,
+                  recentColors: ThemeController.recentBorderColors,
+                  onSelectColor: ThemeController.updateBorderColor,
+                ),
+                const SizedBox(height: 16),
+
+                // 6. FONTE DA APLICAÇÃO
                 Text(
-                  'Fonte da Aplicação',
+                  'Fonte do Texto',
                   style: theme.getTextStyle(fontSize: 14, fontWeight: FontWeight.w600),
                 ),
                 const SizedBox(height: 8),
