@@ -5,7 +5,7 @@ import 'package:nous/src/core/theme/theme_controller.dart';
 class ThemeCustomizerDialog extends StatelessWidget {
   const ThemeCustomizerDialog({super.key});
 
-  static const List<String> fonts = ['Inter', 'Roboto', 'Poppins', 'Lato'];
+  static const List<String> fonts = ['Belleza', 'Inter', 'Roboto', 'Poppins', 'Lato'];
 
   void _openCanvaStyleColorPicker({
     required BuildContext context,

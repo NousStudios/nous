@@ -52,10 +52,8 @@ flutter:
     - assets/images/
     - assets/icons/
 
-  # Para adicionar fontes personalizadas ao aplicativo, declare a seção fonts abaixo:
-  # fonts:
-  #   - family: MinhaFonte
-  #     fonts:
-  #       - asset: assets/fonts/MinhaFonte-Regular.ttf
-  #       - asset: assets/fonts/MinhaFonte-Bold.ttf
-  #         weight: 700
+  # Fonte personalizada do app: Belleza
+  fonts:
+    - family: Belleza
+      fonts:
+        - asset: assets/fonts/Belleza-Regular.ttf

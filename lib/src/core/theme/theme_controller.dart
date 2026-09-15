@@ -22,7 +22,7 @@ class AppTheme {
   final String fontName;
 
   const AppTheme({
-    this.backgroundColor = const Color(0xFF121212),
+    this.backgroundColor = const Color(0xFF030303),
     this.backgroundGradient,
     this.cardBackgroundColor = const Color(0xFF1E1E1E),
     this.cardGradient,
@@ -31,18 +31,18 @@ class AppTheme {
     this.buttonColor = Colors.blue,
     this.buttonGradient,
     this.borderColor = const Color(0xFF333333),
-    this.fontName = 'Inter',
+    this.fontName = 'Belleza',
   });
 
   /// Instância predefinida para Tema Escuro
   static AppTheme get dark => const AppTheme(
-        backgroundColor: Color(0xFF121212),
+        backgroundColor: Color(0xFF030303),
         cardBackgroundColor: Color(0xFF1E1E1E),
         textColor: Colors.white,
         secondaryTextColor: Colors.white70,
         buttonColor: Colors.blue,
         borderColor: Color(0xFF333333),
-        fontName: 'Inter',
+        fontName: 'Belleza',
       );
 
   /// Instância predefinida para Tema Claro
@@ -53,7 +53,7 @@ class AppTheme {
         secondaryTextColor: Color(0xFF6C757D),
         buttonColor: Colors.blue,
         borderColor: Color(0xFFE0E0E0),
-        fontName: 'Inter',
+        fontName: 'Belleza',
       );
 
   /// Método copyWith atualizado para permitir a substituição ou remoção dos gradientes
@@ -111,7 +111,7 @@ class ThemeController {
 
   // Listas de cores/gradientes recentes utilizando ColorOption
   static List<ColorOption> recentBackgroundColors = [
-    const ColorOption(color: Color(0xFF121212)),
+    const ColorOption(color: Color(0xFF030303)),
     const ColorOption(color: Color(0xFF1A1A2E)),
     const ColorOption(color: Color(0xFF0F172A)),
     const ColorOption(color: Colors.white),
@@ -155,10 +155,10 @@ class ThemeController {
     // Remove duplicadas idênticas se já existirem na lista
     list.removeWhere(
         (opt) => opt.color.toARGB32() == color.toARGB32() && opt.gradient == gradient);
-    
+
     // Insere no início
     list.insert(0, ColorOption(color: color, gradient: gradient));
-    
+
     // Mantém no máximo 4 itens salvos na memória
     if (list.length > 4) {
       list.removeLast();
