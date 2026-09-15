@@ -13,109 +13,128 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
   });
 
   void _showThemeSelector(BuildContext context) {
-    final currentTheme = ThemeController.currentTheme.value;
-
     showDialog(
       context: context,
       builder: (BuildContext context) {
-        return AlertDialog(
-          backgroundColor: currentTheme.cardBackgroundColor,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16.0),
-            side: BorderSide(color: currentTheme.borderColor),
-          ),
-          title: Text(
-            'Aparência',
-            textAlign: TextAlign.center,
-            style: currentTheme.getTextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-          ),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              ListTile(
-                leading: Icon(Icons.dark_mode, color: currentTheme.textColor),
-                title: Text('Modo Escuro (Padrão)', style: currentTheme.getTextStyle()),
-                onTap: () {
-                  ThemeController.updateTheme(AppTheme.dark);
-                  Navigator.pop(context);
-                },
+        return ValueListenableBuilder<AppTheme>(
+          valueListenable: ThemeController.currentTheme,
+          builder: (context, currentTheme, child) {
+            return AlertDialog(
+              backgroundColor: currentTheme.cardBackgroundColor,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16.0),
+                side: BorderSide(color: currentTheme.borderColor),
               ),
-              ListTile(
-                leading: Icon(Icons.light_mode, color: currentTheme.textColor),
-                title: Text('Modo Claro', style: currentTheme.getTextStyle()),
-                onTap: () {
-                  ThemeController.updateTheme(AppTheme.light);
-                  Navigator.pop(context);
-                },
+              title: Text(
+                'Aparência',
+                textAlign: TextAlign.center,
+                style: currentTheme.getTextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
-              Divider(color: currentTheme.borderColor),
-              // NOVO BOTÃO PARA ABRIR A PALETA PERSONALIZADA
-              ListTile(
-                leading: Icon(Icons.color_lens_outlined, color: currentTheme.textColor),
-                title: Text('Personalizar Cores e Fontes...', style: currentTheme.getTextStyle()),
-                onTap: () {
-                  Navigator.pop(context); // Fecha o seletor simples
-                  showDialog(
-                    context: context,
-                    builder: (_) => const ThemeCustomizerDialog(), // Abre a paleta completa
-                  );
-                },
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  ListTile(
+                    leading: Icon(Icons.dark_mode, color: currentTheme.textColor),
+                    title: Text('Modo Escuro (Padrão)', style: currentTheme.getTextStyle()),
+                    onTap: () {
+                      ThemeController.updateTheme(AppTheme.dark);
+                      Navigator.pop(context);
+                    },
+                  ),
+                  ListTile(
+                    leading: Icon(Icons.light_mode, color: currentTheme.textColor),
+                    title: Text('Modo Claro', style: currentTheme.getTextStyle()),
+                    onTap: () {
+                      ThemeController.updateTheme(AppTheme.light);
+                      Navigator.pop(context);
+                    },
+                  ),
+                  Divider(color: currentTheme.borderColor),
+                  
+                  // BOTÃO PARA ABRIR A PALETA PERSONALIZADA / CÍRCULO CROMÁTICO
+                  ListTile(
+                    leading: Icon(Icons.color_lens_outlined, color: currentTheme.textColor),
+                    title: Text(
+                      'Personalizar Cores e Fontes...',
+                      style: currentTheme.getTextStyle(),
+                    ),
+                    onTap: () {
+                      Navigator.pop(context); // Fecha o seletor simples
+                      showDialog(
+                        context: context,
+                        builder: (_) => const ThemeCustomizerDialog(), // Abre a paleta completa
+                      );
+                    },
+                  ),
+                ],
               ),
-            ],
-          ),
+            );
+          },
         );
       },
     );
   }
 
   void _showSettingsDialog(BuildContext context) {
-    final currentTheme = ThemeController.currentTheme.value;
-
     showDialog(
       context: context,
       barrierDismissible: true,
       builder: (BuildContext context) {
-        return AlertDialog(
-          backgroundColor: currentTheme.cardBackgroundColor,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16.0),
-            side: BorderSide(color: currentTheme.borderColor),
-          ),
-          titlePadding: const EdgeInsets.fromLTRB(24.0, 24.0, 24.0, 8.0),
-          title: Text(
-            'Configurações',
-            textAlign: TextAlign.center,
-            style: currentTheme.getTextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-          ),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              ListTile(
-                leading: Icon(Icons.palette_outlined, color: currentTheme.secondaryTextColor),
-                title: Text('Tema', style: currentTheme.getTextStyle()),
-                onTap: () => _showThemeSelector(context),
+        return ValueListenableBuilder<AppTheme>(
+          valueListenable: ThemeController.currentTheme,
+          builder: (context, currentTheme, child) {
+            return AlertDialog(
+              backgroundColor: currentTheme.cardBackgroundColor,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16.0),
+                side: BorderSide(color: currentTheme.borderColor),
               ),
-              ListTile(
-                leading: Icon(Icons.language, color: currentTheme.secondaryTextColor),
-                title: Text('Idioma', style: currentTheme.getTextStyle()),
-                onTap: () {},
+              titlePadding: const EdgeInsets.fromLTRB(24.0, 24.0, 24.0, 8.0),
+              title: Text(
+                'Configurações',
+                textAlign: TextAlign.center,
+                style: currentTheme.getTextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
-              ListTile(
-                leading: Icon(Icons.info_outline, color: currentTheme.secondaryTextColor),
-                title: Text('Sobre o App', style: currentTheme.getTextStyle()),
-                onTap: () {},
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  ListTile(
+                    leading: Icon(Icons.palette_outlined, color: currentTheme.secondaryTextColor),
+                    title: Text('Tema', style: currentTheme.getTextStyle()),
+                    onTap: () {
+                      Navigator.pop(context); // Fecha o menu principal de configurações antes de abrir a seleção de temas
+                      _showThemeSelector(context);
+                    },
+                  ),
+                  ListTile(
+                    leading: Icon(Icons.language, color: currentTheme.secondaryTextColor),
+                    title: Text('Idioma', style: currentTheme.getTextStyle()),
+                    onTap: () {},
+                  ),
+                  ListTile(
+                    leading: Icon(Icons.info_outline, color: currentTheme.secondaryTextColor),
+                    title: Text('Sobre o App', style: currentTheme.getTextStyle()),
+                    onTap: () {},
+                  ),
+                ],
               ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: Text(
-                'Fechar',
-                style: currentTheme.getTextStyle(color: currentTheme.secondaryTextColor),
-              ),
-            ),
-          ],
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  child: Text(
+                    'Fechar',
+                    style: currentTheme.getTextStyle(color: currentTheme.secondaryTextColor),
+                  ),
+                ),
+              ],
+            );
+          },
         );
       },
     );

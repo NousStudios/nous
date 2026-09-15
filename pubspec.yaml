@@ -25,7 +25,7 @@ dependencies:
   flutter:
     sdk: flutter
   google_fonts: ^6.1.0
-
+  flex_color_picker: ^3.6.0
   # Adiciona a fonte de ícones no estilo Cupertino (iOS) ao seu aplicativo.
   cupertino_icons: ^1.0.8
 
