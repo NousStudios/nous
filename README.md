@@ -41,3 +41,5 @@ As a beginner developer, I’m going to document the steps I’m taking while wr
 3 I created the login_view.dart file and added it to the nous/lib/src/view folder.
 
 4 I asked the AI ​​to create a sample screen while I finished the videos in the series. 
+
+5 I did a bit more research and decided to change the application's structure.
