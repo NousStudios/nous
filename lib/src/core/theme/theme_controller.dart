@@ -20,7 +20,6 @@ class AppTheme {
     required this.fontName,
   });
 
-  // Retorna o TextStyle correto baseado na fonte escolhida e aceita espaçamento de linha (height)
   TextStyle getTextStyle({
     double fontSize = 14,
     FontWeight fontWeight = FontWeight.normal,
@@ -31,45 +30,18 @@ class AppTheme {
 
     switch (fontName) {
       case 'Roboto':
-        return GoogleFonts.roboto(
-          fontSize: fontSize,
-          fontWeight: fontWeight,
-          color: targetColor,
-          height: height,
-        );
+        return GoogleFonts.roboto(fontSize: fontSize, fontWeight: fontWeight, color: targetColor, height: height);
       case 'Inter':
-        return GoogleFonts.inter(
-          fontSize: fontSize,
-          fontWeight: fontWeight,
-          color: targetColor,
-          height: height,
-        );
+        return GoogleFonts.inter(fontSize: fontSize, fontWeight: fontWeight, color: targetColor, height: height);
       case 'Poppins':
-        return GoogleFonts.poppins(
-          fontSize: fontSize,
-          fontWeight: fontWeight,
-          color: targetColor,
-          height: height,
-        );
+        return GoogleFonts.poppins(fontSize: fontSize, fontWeight: fontWeight, color: targetColor, height: height);
       case 'Lato':
-        return GoogleFonts.lato(
-          fontSize: fontSize,
-          fontWeight: fontWeight,
-          color: targetColor,
-          height: height,
-        );
+        return GoogleFonts.lato(fontSize: fontSize, fontWeight: fontWeight, color: targetColor, height: height);
       default:
-        return TextStyle(
-          fontFamily: fontName,
-          fontSize: fontSize,
-          fontWeight: fontWeight,
-          color: targetColor,
-          height: height,
-        );
+        return TextStyle(fontFamily: fontName, fontSize: fontSize, fontWeight: fontWeight, color: targetColor, height: height);
     }
   }
 
-  // Permite copiar o tema alterando apenas propriedades específicas
   AppTheme copyWith({
     Color? backgroundColor,
     Color? textColor,
@@ -90,7 +62,6 @@ class AppTheme {
     );
   }
 
-  // Presets Padrão
   static AppTheme dark = AppTheme(
     backgroundColor: Colors.black,
     textColor: Colors.white,
@@ -113,47 +84,56 @@ class AppTheme {
 }
 
 class ThemeController {
-  static final ValueNotifier<AppTheme> currentTheme =
-      ValueNotifier<AppTheme>(AppTheme.dark);
+  static final ValueNotifier<AppTheme> currentTheme = ValueNotifier<AppTheme>(AppTheme.dark);
 
-  // Atualiza todo o tema de uma só vez (ex: ao trocar entre Dark e Light)
+  // Histórico com até as duas últimas cores usadas por categoria
+  static List<Color> recentBackgroundColors = [Colors.black, const Color(0xFF121212)];
+  static List<Color> recentTextColors = [Colors.white, const Color(0xFFE2E8F0)];
+  static List<Color> recentButtonColors = [Colors.white, const Color(0xFF38BDF8)];
+
+  static void _addRecentColor(List<Color> history, Color color) {
+    history.removeWhere((c) => c.toARGB32() == color.toARGB32());
+    history.insert(0, color);
+    if (history.length > 2) {
+      history.removeLast();
+    }
+  }
+
+  /// Método `updateTheme` para aplicar um tema completo diretamente
   static void updateTheme(AppTheme newTheme) {
+    _addRecentColor(recentBackgroundColors, newTheme.backgroundColor);
+    _addRecentColor(recentTextColors, newTheme.textColor);
+    _addRecentColor(recentButtonColors, newTheme.buttonColor);
     currentTheme.value = newTheme;
   }
 
-  // Atualiza a cor de fundo predominante do aplicativo
   static void updateBackgroundColor(Color color) {
+    _addRecentColor(recentBackgroundColors, color);
     currentTheme.value = currentTheme.value.copyWith(backgroundColor: color);
   }
 
-  // Atualiza a cor principal do texto
   static void updateTextColor(Color color) {
+    _addRecentColor(recentTextColors, color);
     currentTheme.value = currentTheme.value.copyWith(textColor: color);
   }
 
-  // Atualiza a cor de cards, barras e pop-ups
+  static void updateButtonColor(Color color) {
+    _addRecentColor(recentButtonColors, color);
+    currentTheme.value = currentTheme.value.copyWith(buttonColor: color);
+  }
+
   static void updateCardColor(Color color) {
-    currentTheme.value =
-        currentTheme.value.copyWith(cardBackgroundColor: color);
+    currentTheme.value = currentTheme.value.copyWith(cardBackgroundColor: color);
   }
 
-  // Atualiza a cor secundária dos textos
   static void updateSecondaryTextColor(Color color) {
-    currentTheme.value =
-        currentTheme.value.copyWith(secondaryTextColor: color);
+    currentTheme.value = currentTheme.value.copyWith(secondaryTextColor: color);
   }
 
-  // Atualiza a cor das bordas de inputs e dividers (arestas)
   static void updateBorderColor(Color color) {
     currentTheme.value = currentTheme.value.copyWith(borderColor: color);
   }
 
-  // Atualiza a cor dos botões de ação
-  static void updateButtonColor(Color color) {
-    currentTheme.value = currentTheme.value.copyWith(buttonColor: color);
-  }
-
-  // Atualiza a família da fonte global
   static void updateFont(String fontName) {
     currentTheme.value = currentTheme.value.copyWith(fontName: fontName);
   }
