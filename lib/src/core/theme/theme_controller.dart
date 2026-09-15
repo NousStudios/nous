@@ -20,6 +20,7 @@ class AppTheme {
   final Gradient? buttonGradient;
   final Color borderColor;
   final String fontName;
+  final double fontScale;
 
   const AppTheme({
     this.backgroundColor = const Color(0xFF030303),
@@ -32,6 +33,7 @@ class AppTheme {
     this.buttonGradient,
     this.borderColor = const Color(0xFF333333),
     this.fontName = 'Belleza',
+    this.fontScale = 1.0,
   });
 
   /// Instância predefinida para Tema Escuro
@@ -71,6 +73,7 @@ class AppTheme {
     bool clearButtonGradient = false,
     Color? borderColor,
     String? fontName,
+    double? fontScale,
   }) {
     return AppTheme(
       backgroundColor: backgroundColor ?? this.backgroundColor,
@@ -87,6 +90,7 @@ class AppTheme {
           clearButtonGradient ? null : (buttonGradient ?? this.buttonGradient),
       borderColor: borderColor ?? this.borderColor,
       fontName: fontName ?? this.fontName,
+      fontScale: fontScale ?? this.fontScale,
     );
   }
 
@@ -97,7 +101,8 @@ class AppTheme {
   }) {
     return TextStyle(
       fontFamily: fontName,
-      fontSize: fontSize,
+      // Multiplica pelo fontScale: é isso que faz o "aumentar/diminuir fonte" valer para o app inteiro
+      fontSize: fontSize * fontScale,
       fontWeight: fontWeight,
       color: color ?? textColor,
     );
@@ -108,6 +113,11 @@ class AppTheme {
 class ThemeController {
   static final ValueNotifier<AppTheme> currentTheme =
       ValueNotifier<AppTheme>(AppTheme.dark);
+
+  // Limites da escala de fonte, para não deixar o texto pequeno demais nem gigante demais
+  static const double minFontScale = 0.8;
+  static const double maxFontScale = 1.6;
+  static const double fontScaleStep = 0.1;
 
   // Listas de cores/gradientes recentes utilizando ColorOption
   static List<ColorOption> recentBackgroundColors = [
@@ -205,5 +215,21 @@ class ThemeController {
 
   static void updateFont(String fontName) {
     currentTheme.value = currentTheme.value.copyWith(fontName: fontName);
+  }
+
+  /// Aumenta a escala de fonte em um "degrau", respeitando o limite máximo
+  static void increaseFontScale() {
+    final next = currentTheme.value.fontScale + fontScaleStep;
+    currentTheme.value = currentTheme.value.copyWith(
+      fontScale: next > maxFontScale ? maxFontScale : next,
+    );
+  }
+
+  /// Diminui a escala de fonte em um "degrau", respeitando o limite mínimo
+  static void decreaseFontScale() {
+    final next = currentTheme.value.fontScale - fontScaleStep;
+    currentTheme.value = currentTheme.value.copyWith(
+      fontScale: next < minFontScale ? minFontScale : next,
+    );
   }
 }

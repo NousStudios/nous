@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_colorpicker/flutter_colorpicker.dart';
-import 'package:nous/src/core/theme/theme_controller.dart'; 
+import 'package:nous/src/core/theme/theme_controller.dart'; // Ajuste o caminho se necessário
 
 class ThemeCustomizerDialog extends StatelessWidget {
   const ThemeCustomizerDialog({super.key});
@@ -215,6 +215,45 @@ class ThemeCustomizerDialog extends StatelessWidget {
                         }
                       },
                     ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  'Tamanho da Fonte',
+                  style: theme.getTextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+                ),
+                const SizedBox(height: 8),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                  decoration: BoxDecoration(
+                    border: Border.all(color: theme.borderColor),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      // Mostra o valor atual em porcentagem (ex: "100%")
+                      Text(
+                        '${(theme.fontScale * 100).round()}%',
+                        style: theme.getTextStyle(fontSize: 16),
+                      ),
+                      Row(
+                        children: [
+                          // Seta para diminuir a fonte
+                          IconButton(
+                            icon: Icon(Icons.keyboard_arrow_down, color: theme.textColor),
+                            onPressed: ThemeController.decreaseFontScale,
+                            tooltip: 'Diminuir fonte',
+                          ),
+                          // Seta para aumentar a fonte
+                          IconButton(
+                            icon: Icon(Icons.keyboard_arrow_up, color: theme.textColor),
+                            onPressed: ThemeController.increaseFontScale,
+                            tooltip: 'Aumentar fonte',
+                          ),
+                        ],
+                      ),
+                    ],
                   ),
                 ),
               ],
