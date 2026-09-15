@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:nous/src/core/theme/theme_controller.dart';
+import 'package:nous/src/core/theme/contrast_helper.dart';
 import 'package:nous/src/features/auth/views/login_view.dart';
 
 void main() {
@@ -37,9 +38,9 @@ class MyApp extends StatelessWidget {
             // Define o tema de cores base do Material
             colorScheme: ColorScheme.fromSeed(
               seedColor: Colors.blue,
-              brightness: theme.backgroundColor.toARGB32() == Colors.black.toARGB32()
-                  ? Brightness.dark
-                  : Brightness.light,
+              // Agora calculamos o brilho de verdade, com base na luminância
+              // da cor de fundo, em vez de comparar com preto puro
+              brightness: getBrightnessFor(theme.backgroundColor),
             ),
           ),
           home: const LoginView(),
