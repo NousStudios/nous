@@ -15,12 +15,14 @@ class LoginButtonsWidget extends StatelessWidget {
             // Botão Entrar
             ElevatedButton(
               style: ElevatedButton.styleFrom(
-                // Mesma combinação usada no botão "Entendi e Concordo" do TermsView
-                backgroundColor: theme.textColor,
-                foregroundColor: theme.backgroundColor,
+                // Fundo transparente, igual ao botão "Entrar como visitante"
+                backgroundColor: Colors.transparent,
+                foregroundColor: theme.textColor,
+                elevation: 0, // Remove a sombra, já que não faz sentido num botão transparente
                 minimumSize: const Size.fromHeight(55),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(30),
+                  side: BorderSide(color: theme.borderColor),
                 ),
               ),
               onPressed: () {},
@@ -29,7 +31,7 @@ class LoginButtonsWidget extends StatelessWidget {
                 style: theme.getTextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.bold,
-                  color: theme.backgroundColor,
+                  color: theme.textColor,
                 ),
               ),
             ),
@@ -40,7 +42,6 @@ class LoginButtonsWidget extends StatelessWidget {
               style: OutlinedButton.styleFrom(
                 foregroundColor: theme.textColor,
                 minimumSize: const Size.fromHeight(55),
-                // Agora usa a cor de aresta real do tema, personalizável pelo usuário
                 side: BorderSide(color: theme.borderColor),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(30),

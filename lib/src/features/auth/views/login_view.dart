@@ -41,15 +41,10 @@ class LoginView extends StatelessWidget {
                       const LogoWidget(),
                       const SizedBox(height: 16), // Espaço abaixo da logo
 
-                      // 2. TÍTULO 'Nous' (usando .copyWith para letterSpacing)
+                      // 2. TÍTULO 'Nous' (letterSpacing padrão da fonte, tamanho aumentado)
                       Text(
                         'Nous',
-                        style: theme.getTextStyle(
-                          fontSize: 32,
-                          fontWeight: FontWeight.bold,
-                        ).copyWith(
-                          letterSpacing: 1.2,
-                        ),
+                        style: theme.getTextStyle(fontSize: 36),
                       ),
                       const SizedBox(height: 8),
 
@@ -58,7 +53,7 @@ class LoginView extends StatelessWidget {
                         'Software Universal de Autogestão\nComercial e Social',
                         textAlign: TextAlign.center,
                         style: theme.getTextStyle(
-                          fontSize: 14,
+                          fontSize: 16,
                           color: theme.secondaryTextColor,
                         ),
                       ),
