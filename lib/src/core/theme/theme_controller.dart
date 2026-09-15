@@ -6,6 +6,7 @@ class AppTheme {
   final Color textColor;
   final Color secondaryTextColor;
   final Color borderColor;
+  final Color buttonColor;
   final Color cardBackgroundColor;
   final String fontName;
 
@@ -14,6 +15,7 @@ class AppTheme {
     required this.textColor,
     required this.secondaryTextColor,
     required this.borderColor,
+    required this.buttonColor,
     required this.cardBackgroundColor,
     required this.fontName,
   });
@@ -73,6 +75,7 @@ class AppTheme {
     Color? textColor,
     Color? secondaryTextColor,
     Color? borderColor,
+    Color? buttonColor,
     Color? cardBackgroundColor,
     String? fontName,
   }) {
@@ -81,6 +84,7 @@ class AppTheme {
       textColor: textColor ?? this.textColor,
       secondaryTextColor: secondaryTextColor ?? this.secondaryTextColor,
       borderColor: borderColor ?? this.borderColor,
+      buttonColor: buttonColor ?? this.buttonColor,
       cardBackgroundColor: cardBackgroundColor ?? this.cardBackgroundColor,
       fontName: fontName ?? this.fontName,
     );
@@ -92,6 +96,7 @@ class AppTheme {
     textColor: Colors.white,
     secondaryTextColor: Colors.grey,
     borderColor: Colors.white24,
+    buttonColor: Colors.white,
     cardBackgroundColor: const Color(0xFF1E1E1E),
     fontName: 'Inter',
   );
@@ -101,13 +106,15 @@ class AppTheme {
     textColor: Colors.black87,
     secondaryTextColor: Colors.black54,
     borderColor: Colors.black12,
+    buttonColor: Colors.black,
     cardBackgroundColor: Colors.white,
     fontName: 'Inter',
   );
 }
 
 class ThemeController {
-  static final ValueNotifier<AppTheme> currentTheme = ValueNotifier<AppTheme>(AppTheme.dark);
+  static final ValueNotifier<AppTheme> currentTheme =
+      ValueNotifier<AppTheme>(AppTheme.dark);
 
   // Atualiza todo o tema de uma só vez (ex: ao trocar entre Dark e Light)
   static void updateTheme(AppTheme newTheme) {
@@ -126,17 +133,24 @@ class ThemeController {
 
   // Atualiza a cor de cards, barras e pop-ups
   static void updateCardColor(Color color) {
-    currentTheme.value = currentTheme.value.copyWith(cardBackgroundColor: color);
+    currentTheme.value =
+        currentTheme.value.copyWith(cardBackgroundColor: color);
   }
 
   // Atualiza a cor secundária dos textos
   static void updateSecondaryTextColor(Color color) {
-    currentTheme.value = currentTheme.value.copyWith(secondaryTextColor: color);
+    currentTheme.value =
+        currentTheme.value.copyWith(secondaryTextColor: color);
   }
 
-  // Atualiza a cor das bordas de inputs e dividers
+  // Atualiza a cor das bordas de inputs e dividers (arestas)
   static void updateBorderColor(Color color) {
     currentTheme.value = currentTheme.value.copyWith(borderColor: color);
+  }
+
+  // Atualiza a cor dos botões de ação
+  static void updateButtonColor(Color color) {
+    currentTheme.value = currentTheme.value.copyWith(buttonColor: color);
   }
 
   // Atualiza a família da fonte global

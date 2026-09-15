@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:nous/src/core/theme/theme_controller.dart';
 
 /// Modal dialog responsável pela customização em tempo real do tema da aplicação.
-/// Permite alterar a cor de fundo, a cor do texto e a fonte tipográfica.
+/// Permite alterar cor de fundo, cor do texto, cor dos botões e a fonte tipográfica.
 class ThemeCustomizerDialog extends StatelessWidget {
   const ThemeCustomizerDialog({super.key});
 
@@ -25,6 +25,16 @@ class ThemeCustomizerDialog extends StatelessWidget {
     Color(0xFF38BDF8),
     Color(0xFF4ADE80),
     Colors.black87,
+  ];
+
+  // Lista de cores disponíveis para os Botões
+  static const List<Color> buttonColors = [
+    Colors.white,
+    Color(0xFF38BDF8),
+    Color(0xFF4ADE80),
+    Color(0xFFA855F7),
+    Color(0xFFF43F5E),
+    Colors.black,
   ];
 
   // Lista de fontes suportadas
@@ -63,7 +73,6 @@ class ThemeCustomizerDialog extends StatelessWidget {
                   spacing: 8,
                   runSpacing: 8,
                   children: backgroundColors.map((color) {
-                    // Comparação usando toARGB32() para evitar o aviso de 'value' descontinuado
                     final isSelected = theme.backgroundColor.toARGB32() == color.toARGB32();
                     return GestureDetector(
                       onTap: () => ThemeController.updateBackgroundColor(color),
@@ -94,7 +103,6 @@ class ThemeCustomizerDialog extends StatelessWidget {
                   spacing: 8,
                   runSpacing: 8,
                   children: textColors.map((color) {
-                    // Comparação usando toARGB32()
                     final isSelected = theme.textColor.toARGB32() == color.toARGB32();
                     return GestureDetector(
                       onTap: () => ThemeController.updateTextColor(color),
@@ -115,18 +123,45 @@ class ThemeCustomizerDialog extends StatelessWidget {
                 ),
                 const SizedBox(height: 20),
 
-                // --- 3. SELEÇÃO DA FONTE (DROPDOWN) ---
+                // --- 3. SELEÇÃO DA COR DOS BOTÕES ---
                 Text(
-                  'Fonte da Aplicação',
+                  'Cor dos Botões',
                   style: theme.getTextStyle(fontSize: 14, fontWeight: FontWeight.w600),
                 ),
                 const SizedBox(height: 8),
-                DropdownButtonFormField<String>(
-                  // Uso do 'initialValue' em vez do antigo 'value'
-                  initialValue: theme.fontName,
-                  dropdownColor: theme.cardBackgroundColor,
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: buttonColors.map((color) {
+                    final isSelected = theme.buttonColor.toARGB32() == color.toARGB32();
+                    return GestureDetector(
+                      onTap: () => ThemeController.updateButtonColor(color),
+                      child: Container(
+                        width: 36,
+                        height: 36,
+                        decoration: BoxDecoration(
+                          color: color,
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                            color: isSelected ? Colors.blue : theme.borderColor,
+                            width: isSelected ? 3 : 1,
+                          ),
+                        ),
+                      ),
+                    );
+                  }).toList(),
+                ),
+                const SizedBox(height: 20),
+
+                // --- 4. SELEÇÃO DA FONTE (DROPDOWN) ---
+                Text(
+                  'Fonte do Texto',
+                  style: theme.getTextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+                ),
+                const SizedBox(height: 8),
+                InputDecorator(
                   decoration: InputDecoration(
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
                     enabledBorder: OutlineInputBorder(
                       borderSide: BorderSide(color: theme.borderColor),
                       borderRadius: BorderRadius.circular(8),
@@ -136,20 +171,27 @@ class ThemeCustomizerDialog extends StatelessWidget {
                       borderRadius: BorderRadius.circular(8),
                     ),
                   ),
-                  items: fonts.map((font) {
-                    return DropdownMenuItem<String>(
-                      value: font,
-                      child: Text(
-                        font,
-                        style: theme.getTextStyle(color: theme.textColor),
-                      ),
-                    );
-                  }).toList(),
-                  onChanged: (newFont) {
-                    if (newFont != null) {
-                      ThemeController.updateFont(newFont);
-                    }
-                  },
+                  child: DropdownButtonHideUnderline(
+                    child: DropdownButton<String>(
+                      value: theme.fontName,
+                      dropdownColor: theme.cardBackgroundColor,
+                      isExpanded: true,
+                      items: fonts.map((font) {
+                        return DropdownMenuItem<String>(
+                          value: font,
+                          child: Text(
+                            font,
+                            style: theme.getTextStyle(color: theme.textColor),
+                          ),
+                        );
+                      }).toList(),
+                      onChanged: (newFont) {
+                        if (newFont != null) {
+                          ThemeController.updateFont(newFont);
+                        }
+                      },
+                    ),
+                  ),
                 ),
               ],
             ),
