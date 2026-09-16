@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:nous/src/core/theme/theme_controller.dart';
+import 'package:nous/src/features/pdv/views/cadastrar_loja_view.dart';
 
 // Função helper que abre o popup de "Criar Perfil". É ela que a tela de
 // Perfis chama quando o botão "Criar Perfil" é clicado.
@@ -75,6 +76,31 @@ class _CriarPerfilDialogState extends State<_CriarPerfilDialog> {
     if (categoriaEscolhida != null) {
       setState(() => _categoriaSelecionada = categoriaEscolhida);
     }
+  }
+
+  // Chamado ao clicar em "Selecionar". Fecha o popup de categoria e, se a
+  // categoria for "Loja Padrão", abre a tela de cadastro dela.
+  void _confirmarSelecao(BuildContext context) {
+    final categoria = _categoriaSelecionada!;
+
+    // Pegamos a referência do Navigator ANTES de fechar o popup. Isso
+    // importa porque, depois do pop(), o "context" deste widget pode não
+    // ser mais confiável (o widget está sendo removido da tela) — mas a
+    // variável "navigator" continua válida, pois já guardamos a
+    // referência que precisávamos dela.
+    final navigator = Navigator.of(context);
+    navigator.pop(); // fecha o popup de categoria
+
+    if (categoria == 'Loja Padrão') {
+      navigator.push(
+        MaterialPageRoute(
+          builder: (context) =>
+              CadastrarLojaView(categoriaInicial: categoria),
+        ),
+      );
+    }
+    // TODO: quando Motoboy, Motorista e Professor tiverem suas próprias
+    // telas de cadastro, adicionar os casos delas aqui.
   }
 
   @override
@@ -203,15 +229,7 @@ class _CriarPerfilDialogState extends State<_CriarPerfilDialog> {
                       ),
                       onPressed: _categoriaSelecionada == null
                           ? null
-                          : () {
-                              // todo (próximo passo): por enquanto só
-                              // fechamos o popup. Falta decidir o que
-                              // abrir a seguir dependendo da categoria
-                              // escolhida (por exemplo, abrir o
-                              // formulário da Loja Padrão quando for essa
-                              // a escolha).
-                              Navigator.of(context).pop();
-                            },
+                          : () => _confirmarSelecao(context),
                       child: Text(
                         'Selecionar',
                         style: theme.getTextStyle(

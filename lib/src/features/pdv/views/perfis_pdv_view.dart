@@ -3,6 +3,7 @@ import 'package:nous/src/core/theme/theme_controller.dart';
 import 'package:nous/src/core/widgets/custom_app_bar.dart';
 import 'package:nous/src/features/auth/views/login_view.dart';
 import 'package:nous/src/features/pdv/views/widgets/criar_perfil_dialog.dart';
+import 'package:nous/src/features/pdv/views/dados_perfil_view.dart';
 
 // Esta é a tela "raiz" do app, mostrada logo depois do login ou de
 // "Entrar como visitante". Ela lista os perfis profissionais do usuário
@@ -114,7 +115,19 @@ class PerfisPdvView extends StatelessWidget {
                               theme: theme,
                               icon: Icons.storefront,
                               label: 'Loja Padrão',
-                              onTap: () {},
+                              onTap: () {
+                                // Por enquanto não existe nenhum lugar
+                                // guardando os dados reais da loja (isso
+                                // vai vir com um PdvProvider no futuro),
+                                // então abrimos a tela sem nada
+                                // preenchido.
+                                Navigator.of(context).push(
+                                  MaterialPageRoute(
+                                    builder: (context) =>
+                                        const DadosPerfilView(),
+                                  ),
+                                );
+                              },
                             ),
 
                             const SizedBox(height: 20),
