@@ -66,11 +66,9 @@ class AppTheme {
   });
 
   /// Instância predefinida para Tema Escuro
-  /// Atualizado para os botões ficarem "vazados" por padrão (buttonColor transparente,
-  /// aparecendo só a borda) e títulos, texto normal e arestas ficarem totalmente brancos.
   static AppTheme get dark => const AppTheme(
         backgroundColor: Color(0xFF030303),
-        cardBackgroundColor: Color(0xFF1E1E1E),
+        cardBackgroundColor: Color(0xFF030303),
         textColor: Colors.white,
         secondaryTextColor: Colors.white,
         buttonColor: Colors.transparent,
@@ -80,14 +78,15 @@ class AppTheme {
       );
 
   /// Instância predefinida para Tema Claro
+  /// Cor dos Botões agora é branca, e Cor do Texto dos Botões, preta.
   static AppTheme get light => const AppTheme(
         backgroundColor: Color(0xFFF8F9FA),
         cardBackgroundColor: Colors.white,
-        textColor: Color(0xFF1A1A1A),
-        secondaryTextColor: Color(0xFF6C757D),
-        buttonColor: Colors.blue,
-        buttonTextColor: Colors.white,
-        borderColor: Color(0xFFE0E0E0),
+        textColor: Colors.black,
+        secondaryTextColor: Colors.black,
+        buttonColor: Colors.white,
+        buttonTextColor: Colors.black,
+        borderColor: Colors.black,
         fontName: 'Belleza',
       );
 
