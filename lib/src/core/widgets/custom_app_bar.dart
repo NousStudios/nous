@@ -6,10 +6,22 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
   final String title;
   final bool showBackButton;
 
+  // Função opcional. Se uma tela passar isso, o popup de Configurações
+  // ganha um botão "Sair" no final que chama essa função. Se a tela não
+  // passar nada (fica null), a opção "Sair" simplesmente não aparece —
+  // é o caso das telas de Login e Termos de Uso, por exemplo.
+  //
+  // Motivo de ser assim: o CustomAppBar fica em core/, que é compartilhado
+  // por todo o app. Ele não deveria "conhecer" a tela de Login
+  // especificamente (isso é assunto da feature auth/). Cada tela decide o
+  // que "sair" significa para ela, e entrega essa decisão pronta aqui.
+  final VoidCallback? onLogout;
+
   const CustomAppBar({
     super.key,
     required this.title,
     this.showBackButton = true,
+    this.onLogout,
   });
 
   void _showThemeSelector(BuildContext context) {
@@ -54,8 +66,6 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           // ============ TEMAS PRÉ-DEFINIDOS ============
-                          // Você pediu para os ícones de "Modo Escuro" e "Modo Claro"
-                          // usarem a cor de texto normal, não a cor de título.
                           ListTile(
                             leading: Icon(Icons.dark_mode, color: currentTheme.secondaryTextColor),
                             title: Text('Modo Escuro (Padrão)', style: currentTheme.getTextStyle()),
@@ -74,7 +84,6 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
                           ),
 
                           // ============ TEMAS SALVOS PELO USUÁRIO ============
-                          // Essa seção só aparece se existir pelo menos um tema salvo
                           if (savedThemesList.isNotEmpty) ...[
                             Divider(color: currentTheme.borderColor),
                             Padding(
@@ -91,14 +100,10 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
                                 ),
                               ),
                             ),
-                            // OBS: o ícone de "paleta" de cada tema salvo (abaixo) não foi
-                            // mencionado por você, então mantive como theme.textColor por
-                            // enquanto. Se quiser que ele também vire texto normal, me avise.
                             ...savedThemesList.map((saved) {
                               return ListTile(
                                 leading: Icon(Icons.palette, color: currentTheme.textColor),
                                 title: Text(saved.name, style: currentTheme.getTextStyle()),
-                                // Botão de lixeira para apagar esse tema salvo específico
                                 trailing: IconButton(
                                   icon: Icon(Icons.delete_outline, color: currentTheme.secondaryTextColor),
                                   tooltip: 'Excluir tema',
@@ -115,8 +120,6 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
                           Divider(color: currentTheme.borderColor),
 
                           // ============ ABRIR A PALETA COMPLETA DE PERSONALIZAÇÃO ============
-                          // É lá dentro que agora mora a opção "Salvar Tema Atual..."
-                          // Ícone de "Personalizar Cores e Fontes..." também vira texto normal, como você pediu.
                           ListTile(
                             leading: Icon(Icons.color_lens_outlined, color: currentTheme.secondaryTextColor),
                             title: Text(
@@ -190,6 +193,22 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
                     title: Text('Sobre o App', style: currentTheme.getTextStyle()),
                     onTap: () {},
                   ),
+
+                  // ============ BOTÃO "SAIR" (só aparece se onLogout foi passado) ============
+                  if (onLogout != null) ...[
+                    Divider(color: currentTheme.borderColor),
+                    ListTile(
+                      leading: const Icon(Icons.logout, color: Colors.redAccent),
+                      title: Text(
+                        'Sair',
+                        style: currentTheme.getTextStyle(color: Colors.redAccent),
+                      ),
+                      onTap: () {
+                        Navigator.pop(context); // Fecha o popup de Configurações primeiro
+                        onLogout!(); // Só então executa a navegação de volta ao Login
+                      },
+                    ),
+                  ],
                 ],
               ),
               actions: [
@@ -216,8 +235,6 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
         return AppBar(
           backgroundColor: theme.backgroundColor,
           elevation: 0,
-          // Título da barra superior (ex: "Termos de Uso") — é um cabeçalho de tela de verdade,
-          // então precisa da cor de título explícita agora que o padrão mudou.
           title: Text(
             title,
             style: theme.getTextStyle(
@@ -227,7 +244,6 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
             ),
           ),
           centerTitle: true,
-          // Seta de voltar: agora usa a cor de texto normal, como você pediu.
           leading: showBackButton
               ? IconButton(
                   icon: Icon(Icons.arrow_back, color: theme.secondaryTextColor),
@@ -235,7 +251,6 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
                 )
               : null,
           actions: [
-            // Ícone de configurações: agora usa a cor de texto normal, como você pediu.
             IconButton(
               tooltip: 'Configurações',
               icon: Image.asset(

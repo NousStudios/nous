@@ -59,8 +59,10 @@ class LoginButtonsWidget extends StatelessWidget {
             ),
             const SizedBox(height: 16),
 
-            // Botão Entrar como Visitante — agora leva até a tela de Perfis
-            // (PerfisPdvView). Não depende do CPF, continua sempre habilitado.
+            // Botão Entrar como Visitante.
+            // pushAndRemoveUntil (em vez de push) apaga a tela de Login da
+            // pilha de navegação ao entrar — não é só a seta que some, é o
+            // comportamento de voltar mesmo que deixa de existir.
             ElevatedButton(
               style: ElevatedButton.styleFrom(
                 backgroundColor: theme.buttonColor,
@@ -73,11 +75,12 @@ class LoginButtonsWidget extends StatelessWidget {
                 ),
               ),
               onPressed: () {
-                Navigator.push(
+                Navigator.pushAndRemoveUntil(
                   context,
                   MaterialPageRoute(
                     builder: (context) => const PerfisPdvView(),
                   ),
+                  (route) => false,
                 );
               },
               child: Text(
