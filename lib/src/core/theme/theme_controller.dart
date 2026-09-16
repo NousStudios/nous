@@ -18,6 +18,7 @@ class AppTheme {
   final Color secondaryTextColor;
   final Color buttonColor;
   final Gradient? buttonGradient;
+  final Color buttonTextColor;
   final Color borderColor;
   final String fontName;
   final double fontScale;
@@ -31,6 +32,7 @@ class AppTheme {
     this.secondaryTextColor = Colors.white70,
     this.buttonColor = Colors.blue,
     this.buttonGradient,
+    this.buttonTextColor = Colors.white,
     this.borderColor = const Color(0xFF333333),
     this.fontName = 'Belleza',
     this.fontScale = 1.0,
@@ -43,6 +45,7 @@ class AppTheme {
         textColor: Colors.white,
         secondaryTextColor: Colors.white70,
         buttonColor: Colors.blue,
+        buttonTextColor: Colors.white,
         borderColor: Color(0xFF333333),
         fontName: 'Belleza',
       );
@@ -54,6 +57,7 @@ class AppTheme {
         textColor: Color(0xFF1A1A1A),
         secondaryTextColor: Color(0xFF6C757D),
         buttonColor: Colors.blue,
+        buttonTextColor: Colors.white,
         borderColor: Color(0xFFE0E0E0),
         fontName: 'Belleza',
       );
@@ -71,6 +75,7 @@ class AppTheme {
     Color? buttonColor,
     Gradient? buttonGradient,
     bool clearButtonGradient = false,
+    Color? buttonTextColor,
     Color? borderColor,
     String? fontName,
     double? fontScale,
@@ -88,6 +93,7 @@ class AppTheme {
       buttonColor: buttonColor ?? this.buttonColor,
       buttonGradient:
           clearButtonGradient ? null : (buttonGradient ?? this.buttonGradient),
+      buttonTextColor: buttonTextColor ?? this.buttonTextColor,
       borderColor: borderColor ?? this.borderColor,
       fontName: fontName ?? this.fontName,
       fontScale: fontScale ?? this.fontScale,
@@ -148,6 +154,14 @@ class ThemeController {
     const ColorOption(color: Colors.orange),
   ];
 
+  // Lista de cores recentes específica para o texto dos botões
+  static List<ColorOption> recentButtonTextColors = [
+    const ColorOption(color: Colors.white),
+    const ColorOption(color: Colors.black),
+    const ColorOption(color: Color(0xFFE2E8F0)),
+    const ColorOption(color: Color(0xFF1A1A1A)),
+  ];
+
   static List<ColorOption> recentBorderColors = [
     const ColorOption(color: Color(0xFF333333)),
     const ColorOption(color: Color(0xFF475569)),
@@ -206,6 +220,12 @@ class ThemeController {
       clearButtonGradient: gradient == null,
     );
     _addRecent(recentButtonColors, color, gradient);
+  }
+
+  // Atualiza a cor do texto dos botões
+  static void updateButtonTextColor(Color color) {
+    currentTheme.value = currentTheme.value.copyWith(buttonTextColor: color);
+    _addRecent(recentButtonTextColors, color, null);
   }
 
   static void updateBorderColor(Color color) {
