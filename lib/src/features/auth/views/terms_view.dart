@@ -44,22 +44,24 @@ class TermsView extends StatelessWidget {
                           // Alinha os textos à esquerda
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            // Título principal do documento
+                            // Título principal do documento — é um título de verdade, então cor de título explícita
                             Text(
                               'Termos e Condições de Uso - Nous',
                               style: theme.getTextStyle(
                                 fontSize: 20,
                                 fontWeight: FontWeight.bold,
+                                color: theme.textColor,
                               ),
                             ),
                             const SizedBox(height: 16), // Espaçamento vertical
 
-                            // Data de revisão dos termos
+                            // Data de revisão dos termos — texto de apoio, então usa a cor de texto normal
+                            // (antes usava "textColor" com transparência, o que estava errado)
                             Text(
                               'Última atualização: Setembro de 2026',
                               style: theme.getTextStyle(
                                 fontSize: 12,
-                                color: theme.textColor.withAlpha(153), // Opacidade adaptativa (~60%)
+                                color: theme.secondaryTextColor,
                               ),
                             ),
                             const SizedBox(height: 24),
@@ -148,11 +150,15 @@ class _SectionTitle extends StatelessWidget {
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.only(top: 16.0, bottom: 8.0),
+      // Título de seção (ex: "1. Aceitação dos Termos") — você pediu para deixar como
+      // TEXTO NORMAL, não título. Deixei a cor explícita (mesmo sendo o mesmo valor do
+      // padrão) só para ficar bem claro no código que essa escolha foi intencional.
       child: Text(
         title,
         style: theme.getTextStyle(
           fontSize: 16,
           fontWeight: FontWeight.bold,
+          color: theme.secondaryTextColor,
         ),
       ),
     );
@@ -171,11 +177,13 @@ class _SectionBody extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Corpo do texto — texto normal. Antes usava "textColor" com transparência,
+    // o que estava errado; agora usa "secondaryTextColor" direto.
     return Text(
       text,
       style: theme.getTextStyle(
         fontSize: 14,
-        color: theme.textColor.withAlpha(179), // Transparência (~70%)
+        color: theme.secondaryTextColor,
       ),
     );
   }

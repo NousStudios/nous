@@ -42,9 +42,10 @@ class LoginView extends StatelessWidget {
                       const SizedBox(height: 16), // Espaço abaixo da logo
 
                       // 2. TÍTULO 'Nous' (letterSpacing padrão da fonte, tamanho aumentado)
+                      // É um título de verdade, então precisa dizer isso explicitamente.
                       Text(
                         'Nous',
-                        style: theme.getTextStyle(fontSize: 36),
+                        style: theme.getTextStyle(fontSize: 36, color: theme.textColor),
                       ),
                       const SizedBox(height: 8),
 

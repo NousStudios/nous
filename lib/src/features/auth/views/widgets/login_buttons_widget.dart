@@ -17,7 +17,10 @@ class LoginButtonsWidget extends StatelessWidget {
               style: ElevatedButton.styleFrom(
                 // Fundo transparente, igual ao botão "Entrar como visitante"
                 backgroundColor: Colors.transparent,
-                foregroundColor: theme.textColor,
+                // Antes usava theme.textColor (cor de título); agora usa
+                // theme.secondaryTextColor (cor de texto normal), pra ficar
+                // igual ao botão "Entrar como visitante" logo abaixo.
+                foregroundColor: theme.secondaryTextColor,
                 elevation: 0, // Remove a sombra, já que não faz sentido num botão transparente
                 minimumSize: const Size.fromHeight(55),
                 shape: RoundedRectangleBorder(
@@ -30,7 +33,7 @@ class LoginButtonsWidget extends StatelessWidget {
                 'Entrar',
                 style: theme.getTextStyle(
                   fontSize: 16,
-                  color: theme.textColor,
+                  color: theme.secondaryTextColor,
                 ),
               ),
             ),
@@ -39,7 +42,8 @@ class LoginButtonsWidget extends StatelessWidget {
             // Botão Entrar como Visitante
             OutlinedButton(
               style: OutlinedButton.styleFrom(
-                foregroundColor: theme.textColor,
+                // Também trocado para texto normal, mantendo os dois botões idênticos.
+                foregroundColor: theme.secondaryTextColor,
                 minimumSize: const Size.fromHeight(55),
                 side: BorderSide(color: theme.borderColor),
                 shape: RoundedRectangleBorder(
@@ -49,7 +53,13 @@ class LoginButtonsWidget extends StatelessWidget {
               onPressed: () {},
               child: Text(
                 'Entrar como visitante',
-                style: theme.getTextStyle(fontSize: 16),
+                // Antes esse texto já caía em "texto normal" por acidente (dependia
+                // do padrão do getTextStyle). Agora deixei explícito, pra não
+                // depender de padrão nenhum e não quebrar de novo no futuro.
+                style: theme.getTextStyle(
+                  fontSize: 16,
+                  color: theme.secondaryTextColor,
+                ),
               ),
             ),
           ],

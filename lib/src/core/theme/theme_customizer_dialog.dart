@@ -33,7 +33,6 @@ class ThemeCustomizerDialog extends StatelessWidget {
   }
 
   /// Abre um pequeno diálogo pedindo um nome, e salva o tema atual com esse nome.
-  /// (Movido para cá, já que "Personalizar Aparência" é onde o usuário monta o tema.)
   void _showSaveThemeDialog(BuildContext context, AppTheme theme) {
     final nameController = TextEditingController();
 
@@ -46,9 +45,14 @@ class ThemeCustomizerDialog extends StatelessWidget {
             borderRadius: BorderRadius.circular(16.0),
             side: BorderSide(color: theme.borderColor),
           ),
+          // Título do popup "Salvar Tema" — é um cabeçalho de janela, então usa a cor de título explicitamente
           title: Text(
             'Salvar Tema',
-            style: theme.getTextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            style: theme.getTextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+              color: theme.textColor,
+            ),
           ),
           content: TextField(
             controller: nameController,
@@ -114,6 +118,8 @@ class ThemeCustomizerDialog extends StatelessWidget {
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           Expanded(
+            // Rótulo da seção (ex: "Cor de Fundo") — é texto normal, não título.
+            // Como não passamos "color" aqui, ele usa o novo padrão: secondaryTextColor.
             child: Text(
               title,
               style: theme.getTextStyle(fontSize: 14, fontWeight: FontWeight.w500),
@@ -205,9 +211,14 @@ class ThemeCustomizerDialog extends StatelessWidget {
           title: Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
+              // Título do popup "Personalizar Aparência" — cabeçalho de janela, cor de título explícita
               Text(
                 'Personalizar Aparência',
-                style: theme.getTextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                style: theme.getTextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: theme.textColor,
+                ),
               ),
               IconButton(
                 onPressed: () => Navigator.of(context).pop(),
@@ -251,15 +262,28 @@ class ThemeCustomizerDialog extends StatelessWidget {
                         ThemeController.updateCardColor(color, gradient: gradient),
                   ),
                   const SizedBox(height: 10),
+                  // Cor dos textos de destaque, como o título "Nous"
                   _buildColorSection(
                     context: context,
                     theme: theme,
-                    title: 'Cor do Texto',
+                    title: 'Cor dos Títulos',
                     currentColor: theme.textColor,
                     currentGradient: null,
                     recentColors: ThemeController.recentTextColors,
                     allowGradient: false,
                     onSelect: (color, _) => ThemeController.updateTextColor(color),
+                  ),
+                  const SizedBox(height: 10),
+                  // Cor dos textos normais/secundários, como o subtítulo abaixo do título
+                  _buildColorSection(
+                    context: context,
+                    theme: theme,
+                    title: 'Cor do Texto Normal',
+                    currentColor: theme.secondaryTextColor,
+                    currentGradient: null,
+                    recentColors: ThemeController.recentSecondaryTextColors,
+                    allowGradient: false,
+                    onSelect: (color, _) => ThemeController.updateSecondaryTextColor(color),
                   ),
                   const SizedBox(height: 10),
                   _buildColorSection(
@@ -413,7 +437,6 @@ class ThemeCustomizerDialog extends StatelessWidget {
                   const SizedBox(height: 16),
 
                   // ============ SALVAR O TEMA ATUAL ============
-                  // Botão dedicado, ocupando toda a largura, para dar destaque a essa ação
                   SizedBox(
                     width: double.infinity,
                     child: OutlinedButton.icon(
@@ -427,9 +450,12 @@ class ThemeCustomizerDialog extends StatelessWidget {
                       ),
                       onPressed: () => _showSaveThemeDialog(context, theme),
                       icon: Icon(Icons.save_outlined, color: theme.textColor, size: 20),
+                      // O ícone e o "foregroundColor" do botão já usam theme.textColor.
+                      // Precisamos passar a cor explicitamente aqui também, senão o texto
+                      // (com o novo padrão) ficaria com uma cor diferente do ícone.
                       label: Text(
                         'Salvar Tema Atual...',
-                        style: theme.getTextStyle(fontSize: 14),
+                        style: theme.getTextStyle(fontSize: 14, color: theme.textColor),
                       ),
                     ),
                   ),
@@ -528,9 +554,14 @@ class _CanvaColorPickerModalState extends State<_CanvaColorPickerModal>
       ),
       titlePadding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      // Título desse popup (ex: "Personalizar Cor de Fundo") — cabeçalho de janela, cor de título explícita
       title: Text(
         widget.title,
-        style: theme.getTextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+        style: theme.getTextStyle(
+          fontSize: 16,
+          fontWeight: FontWeight.bold,
+          color: theme.textColor,
+        ),
       ),
       content: SizedBox(
         width: modalWidth,

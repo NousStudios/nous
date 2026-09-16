@@ -37,12 +37,14 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
                     borderRadius: BorderRadius.circular(16.0),
                     side: BorderSide(color: currentTheme.borderColor),
                   ),
+                  // Título do popup "Aparência" — cabeçalho de janela, cor de título explícita
                   title: Text(
                     'Aparência',
                     textAlign: TextAlign.center,
                     style: currentTheme.getTextStyle(
                       fontSize: 18,
                       fontWeight: FontWeight.bold,
+                      color: currentTheme.textColor,
                     ),
                   ),
                   content: SizedBox(
@@ -52,8 +54,10 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           // ============ TEMAS PRÉ-DEFINIDOS ============
+                          // Você pediu para os ícones de "Modo Escuro" e "Modo Claro"
+                          // usarem a cor de texto normal, não a cor de título.
                           ListTile(
-                            leading: Icon(Icons.dark_mode, color: currentTheme.textColor),
+                            leading: Icon(Icons.dark_mode, color: currentTheme.secondaryTextColor),
                             title: Text('Modo Escuro (Padrão)', style: currentTheme.getTextStyle()),
                             onTap: () {
                               ThemeController.updateTheme(AppTheme.dark);
@@ -61,7 +65,7 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
                             },
                           ),
                           ListTile(
-                            leading: Icon(Icons.light_mode, color: currentTheme.textColor),
+                            leading: Icon(Icons.light_mode, color: currentTheme.secondaryTextColor),
                             title: Text('Modo Claro', style: currentTheme.getTextStyle()),
                             onTap: () {
                               ThemeController.updateTheme(AppTheme.light);
@@ -87,6 +91,9 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
                                 ),
                               ),
                             ),
+                            // OBS: o ícone de "paleta" de cada tema salvo (abaixo) não foi
+                            // mencionado por você, então mantive como theme.textColor por
+                            // enquanto. Se quiser que ele também vire texto normal, me avise.
                             ...savedThemesList.map((saved) {
                               return ListTile(
                                 leading: Icon(Icons.palette, color: currentTheme.textColor),
@@ -109,8 +116,9 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
 
                           // ============ ABRIR A PALETA COMPLETA DE PERSONALIZAÇÃO ============
                           // É lá dentro que agora mora a opção "Salvar Tema Atual..."
+                          // Ícone de "Personalizar Cores e Fontes..." também vira texto normal, como você pediu.
                           ListTile(
-                            leading: Icon(Icons.color_lens_outlined, color: currentTheme.textColor),
+                            leading: Icon(Icons.color_lens_outlined, color: currentTheme.secondaryTextColor),
                             title: Text(
                               'Personalizar Cores e Fontes...',
                               style: currentTheme.getTextStyle(),
@@ -151,12 +159,14 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
                 side: BorderSide(color: currentTheme.borderColor),
               ),
               titlePadding: const EdgeInsets.fromLTRB(24.0, 24.0, 24.0, 8.0),
+              // Título do popup "Configurações" — cabeçalho de janela, cor de título explícita
               title: Text(
                 'Configurações',
                 textAlign: TextAlign.center,
                 style: currentTheme.getTextStyle(
                   fontSize: 18,
                   fontWeight: FontWeight.bold,
+                  color: currentTheme.textColor,
                 ),
               ),
               content: Column(
@@ -206,25 +216,33 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
         return AppBar(
           backgroundColor: theme.backgroundColor,
           elevation: 0,
+          // Título da barra superior (ex: "Termos de Uso") — é um cabeçalho de tela de verdade,
+          // então precisa da cor de título explícita agora que o padrão mudou.
           title: Text(
             title,
-            style: theme.getTextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            style: theme.getTextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+              color: theme.textColor,
+            ),
           ),
           centerTitle: true,
+          // Seta de voltar: agora usa a cor de texto normal, como você pediu.
           leading: showBackButton
               ? IconButton(
-                  icon: Icon(Icons.arrow_back, color: theme.textColor),
+                  icon: Icon(Icons.arrow_back, color: theme.secondaryTextColor),
                   onPressed: () => Navigator.of(context).pop(),
                 )
               : null,
           actions: [
+            // Ícone de configurações: agora usa a cor de texto normal, como você pediu.
             IconButton(
               tooltip: 'Configurações',
               icon: Image.asset(
                 'assets/icons/settings_icon.png',
                 width: 24,
                 height: 24,
-                color: theme.textColor,
+                color: theme.secondaryTextColor,
               ),
               onPressed: () => _showSettingsDialog(context),
             ),

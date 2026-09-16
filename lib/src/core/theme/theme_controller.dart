@@ -137,7 +137,12 @@ class AppTheme {
       // Multiplica pelo fontScale: é isso que faz o "aumentar/diminuir fonte" valer para o app inteiro
       fontSize: fontSize * fontScale,
       fontWeight: fontWeight,
-      color: color ?? textColor,
+      // MUDANÇA IMPORTANTE: antes o padrão era "textColor" (cor de título).
+      // Isso fazia QUALQUER texto que esquecesse de dizer sua cor virar título sem querer.
+      // Agora o padrão é "secondaryTextColor" (texto normal) — o comportamento mais seguro.
+      // Só os textos que passarem "color: theme.textColor" explicitamente (os títulos de
+      // verdade, como cabeçalhos de tela e de popups) vão continuar usando a cor de título.
+      color: color ?? secondaryTextColor,
     );
   }
 
@@ -233,11 +238,20 @@ class ThemeController {
     const ColorOption(color: Color(0xFFF1F5F9)),
   ];
 
+  // Cores recentes para o texto de títulos (theme.textColor)
   static List<ColorOption> recentTextColors = [
     const ColorOption(color: Colors.white),
     const ColorOption(color: Colors.black),
     const ColorOption(color: Color(0xFFE2E8F0)),
     const ColorOption(color: Color(0xFF94A3B8)),
+  ];
+
+  // Cores recentes para o texto normal/secundário (theme.secondaryTextColor)
+  static List<ColorOption> recentSecondaryTextColors = [
+    const ColorOption(color: Colors.white70),
+    const ColorOption(color: Color(0xFF6C757D)),
+    const ColorOption(color: Color(0xFF94A3B8)),
+    const ColorOption(color: Color(0xFFB0B0B0)),
   ];
 
   static List<ColorOption> recentButtonColors = [
@@ -301,9 +315,16 @@ class ThemeController {
     _addRecent(recentCardColors, color, gradient);
   }
 
+  // Atualiza a cor do texto de títulos (ex: "Nous")
   static void updateTextColor(Color color) {
     currentTheme.value = currentTheme.value.copyWith(textColor: color);
     _addRecent(recentTextColors, color, null);
+  }
+
+  // Atualiza a cor do texto normal (ex: o subtítulo "Software Universal de Autogestão...")
+  static void updateSecondaryTextColor(Color color) {
+    currentTheme.value = currentTheme.value.copyWith(secondaryTextColor: color);
+    _addRecent(recentSecondaryTextColors, color, null);
   }
 
   static void updateButtonColor(Color color, {Gradient? gradient}) {
