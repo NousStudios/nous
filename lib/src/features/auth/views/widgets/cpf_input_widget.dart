@@ -14,11 +14,13 @@ class CpfInputWidget extends StatefulWidget {
 }
 
 class _CpfInputWidgetState extends State<CpfInputWidget> {
-  // Se quem chamou este widget não mandou um controller de fora, criamos um
-  // por conta própria aqui dentro. Isso mantém o widget funcionando do mesmo
-  // jeito que antes, mesmo sem essa opção sendo usada em nenhum lugar ainda.
   late final TextEditingController _internalController;
   bool _createdInternalController = false;
+
+  // FocusNode: um objeto que "sabe" se este campo específico está com o
+  // foco (ou seja, se é nele que o teclado está escrevendo agora) ou não.
+  late final FocusNode _focusNode;
+  bool _isFocused = false;
 
   TextEditingController get _controller {
     return widget.controller ?? _internalController;
@@ -31,43 +33,37 @@ class _CpfInputWidgetState extends State<CpfInputWidget> {
       _internalController = TextEditingController();
       _createdInternalController = true;
     }
+
+    _focusNode = FocusNode();
+    // addListener registra uma função que vai ser chamada toda vez que o
+    // estado de foco mudar (ganhou foco ou perdeu foco). setState() avisa
+    // o Flutter para redesenhar o widget com o novo valor de _isFocused.
+    _focusNode.addListener(() {
+      setState(() {
+        _isFocused = _focusNode.hasFocus;
+      });
+    });
   }
 
   @override
   void dispose() {
-    // Só "destruímos" o controller se fomos nós que o criamos. Se ele veio
-    // de fora (da tela de login, por exemplo), quem criou é responsável por
-    // destruí-lo — destruir aqui de novo causaria um erro.
     if (_createdInternalController) {
       _internalController.dispose();
     }
+    // FocusNode também precisa ser "destruído" quando o widget sai de tela,
+    // assim como o TextEditingController.
+    _focusNode.dispose();
     super.dispose();
   }
 
-  void _handleChanged(String rawInput) {
-    // Aplica a máscara visual (123.456.789-09) no texto do campo.
-    final masked = CpfValidator.applyMask(rawInput);
-
-    // Atualiza o campo de texto com a versão mascarada, e reposiciona o
-    // cursor no final. Sem isso, o cursor "pularia" para o começo do campo
-    // toda vez que uma máscara fosse aplicada — uma armadilha clássica do
-    // Flutter que trava muita gente iniciante.
-    _controller.value = TextEditingValue(
-      text: masked,
-      selection: TextSelection.collapsed(offset: masked.length),
-    );
-
-    // context.read (e não context.watch) porque estamos dentro de uma
-    // função de callback (onChanged), não dentro do build(). Aqui só
-    // queremos CHAMAR um método do AuthProvider, não "escutar" mudanças
-    // nele.
-    context.read<AuthProvider>().updateCpf(rawInput);
+  void _handleChanged(String maskedText) {
+    // A máscara já foi aplicada pelo CpfInputFormatter antes de chegarmos
+    // aqui — então só precisamos avisar o AuthProvider do valor atual.
+    context.read<AuthProvider>().updateCpf(maskedText);
   }
 
   @override
   Widget build(BuildContext context) {
-    // context.watch aqui, dentro do build(), para que este widget seja
-    // redesenhado automaticamente sempre que a mensagem de erro mudar.
     final authProvider = context.watch<AuthProvider>();
 
     return ValueListenableBuilder<AppTheme>(
@@ -75,24 +71,26 @@ class _CpfInputWidgetState extends State<CpfInputWidget> {
       builder: (context, theme, child) {
         return TextField(
           controller: _controller,
+          focusNode: _focusNode,
           onChanged: _handleChanged,
+          // inputFormatters: lista de "filtros" aplicados ao texto sempre
+          // que ele muda. O CpfInputFormatter cuida de aplicar a máscara
+          // (123.456.789-09) e corrigir o comportamento do backspace.
+          inputFormatters: [CpfInputFormatter()],
           keyboardType: TextInputType.number,
           textAlign: TextAlign.center,
-          // Limita a digitação a 14 caracteres, que é o tamanho exato de
-          // "123.456.789-09" já com a máscara incluída.
           maxLength: 14,
           style: theme.getTextStyle(fontSize: 16),
           decoration: InputDecoration(
-            hintText: 'Digite seu CPF',
+            // Se o campo está focado, a dica não aparece — nem vazia, nem
+            // com texto — mesmo antes de o usuário digitar qualquer coisa.
+            // Se perder o foco e o campo continuar vazio, a dica volta.
+            hintText: _isFocused ? null : 'Digite seu CPF',
             hintStyle: theme.getTextStyle(
               fontSize: 16,
               color: theme.secondaryTextColor,
             ),
-            // Some com o contadorzinho "0/14" que o Flutter mostra por
-            // padrão quando existe um maxLength.
             counterText: '',
-            // Mostra a mensagem de erro guardada no AuthProvider embaixo do
-            // campo, se houver alguma.
             errorText: authProvider.errorMessage,
             contentPadding: const EdgeInsets.symmetric(
               horizontal: 20,
@@ -106,8 +104,6 @@ class _CpfInputWidgetState extends State<CpfInputWidget> {
               borderRadius: BorderRadius.circular(30),
               borderSide: BorderSide(color: theme.textColor),
             ),
-            // Bordas específicas para quando há erro — sem definir isso, o
-            // Flutter usa um vermelho padrão que pode destoar do tema.
             errorBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(30),
               borderSide: const BorderSide(color: Colors.redAccent),

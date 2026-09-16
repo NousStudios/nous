@@ -8,6 +8,8 @@
 // Não confirma que a pessoa existe de verdade — isso é a etapa 2 (o
 // servidor/backend), que ainda não existe no projeto.
 
+import 'package:flutter/services.dart';
+
 class CpfValidator {
   // Impede que essa classe seja "instanciada" (ex: CpfValidator()).
   // Ela só serve para agrupar funções relacionadas a CPF.
@@ -74,5 +76,55 @@ class CpfValidator {
     }
 
     return buffer.toString();
+  }
+}
+
+// ============================================================================
+// CpfInputFormatter
+// ============================================================================
+// Um TextInputFormatter é uma classe que o Flutter chama automaticamente
+// toda vez que o texto de um campo muda — antes de desenhar o resultado na
+// tela. Isso nos dá a chance de "corrigir" o texto no meio do caminho.
+//
+// Aqui usamos isso para resolver o bug do backspace "preso" nos separadores:
+// se o usuário apagou algo mas a quantidade de NÚMEROS não mudou, significa
+// que o que sumiu foi um ponto ou traço da máscara — então removemos também
+// o número anterior, para o backspace sempre funcionar de forma previsível.
+class CpfInputFormatter extends TextInputFormatter {
+  @override
+  TextEditingValue formatEditUpdate(
+    TextEditingValue oldValue,
+    TextEditingValue newValue,
+  ) {
+    final oldDigits = CpfValidator.onlyDigits(oldValue.text);
+    var newDigits = CpfValidator.onlyDigits(newValue.text);
+
+    // O texto ficou mais curto → o usuário apagou algo.
+    final isDeleting = newValue.text.length < oldValue.text.length;
+
+    // Apagou algo, mas a quantidade de números continua a mesma? Então o
+    // que foi removido foi um separador (. ou -), não um número de
+    // verdade. Removemos o último número também, para o backspace "valer".
+    if (isDeleting &&
+        newDigits.length == oldDigits.length &&
+        newDigits.isNotEmpty) {
+      newDigits = newDigits.substring(0, newDigits.length - 1);
+    }
+
+    // Nunca deixa passar de 11 dígitos, mesmo que o usuário cole um texto
+    // maior (ex: colar um número de telefone sem querer).
+    if (newDigits.length > 11) {
+      newDigits = newDigits.substring(0, 11);
+    }
+
+    final masked = CpfValidator.applyMask(newDigits);
+
+    return TextEditingValue(
+      text: masked,
+      // O cursor sempre fica no final do texto. Como o CPF é digitado da
+      // esquerda pra direita, sem necessidade de editar o meio do número,
+      // isso evita comportamentos estranhos quando o texto é remascarado.
+      selection: TextSelection.collapsed(offset: masked.length),
+    );
   }
 }
