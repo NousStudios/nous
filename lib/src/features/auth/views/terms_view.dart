@@ -13,38 +13,26 @@ class TermsView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Escuta as alterações no tema global para atualizar as cores da tela em tempo real
     return ValueListenableBuilder<AppTheme>(
       valueListenable: ThemeController.currentTheme,
       builder: (context, theme, child) {
         return Scaffold(
-          // Define a cor de fundo da tela de acordo com a escolha do usuário no ThemeController
           backgroundColor: theme.backgroundColor,
-
-          // Chamada da nossa CustomAppBar que possui o botão de configurações no canto superior direito
           appBar: const CustomAppBar(
             title: 'Termos de Uso',
           ),
-
-          // Corpo principal da tela
           body: Center(
-            // ConstrainedBox limita a largura máxima da área de leitura em 700px (ótimo para telas largas de tablets/PC)
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 700),
               child: Padding(
-                // Define o espaçamento interno nas laterais (24px) e topo/base (16px)
                 padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 16.0),
                 child: Column(
                   children: [
-                    // Expanded faz o conteúdo de texto ocupar todo o espaço vertical disponível acima do botão
                     Expanded(
-                      // SingleChildScrollView permite rolar o texto se ele for maior que a tela do celular
                       child: SingleChildScrollView(
                         child: Column(
-                          // Alinha os textos à esquerda
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            // Título principal do documento — é um título de verdade, então cor de título explícita
                             Text(
                               'Termos e Condições de Uso - Nous',
                               style: theme.getTextStyle(
@@ -53,10 +41,8 @@ class TermsView extends StatelessWidget {
                                 color: theme.textColor,
                               ),
                             ),
-                            const SizedBox(height: 16), // Espaçamento vertical
+                            const SizedBox(height: 16),
 
-                            // Data de revisão dos termos — texto de apoio, então usa a cor de texto normal
-                            // (antes usava "textColor" com transparência, o que estava errado)
                             Text(
                               'Última atualização: Setembro de 2026',
                               style: theme.getTextStyle(
@@ -66,7 +52,6 @@ class TermsView extends StatelessWidget {
                             ),
                             const SizedBox(height: 24),
 
-                            // SEÇÕES DOS TERMOS DE USO (usando nossos widgets auxiliares adaptados ao tema)
                             _SectionTitle(title: '1. Aceitação dos Termos', theme: theme),
                             _SectionBody(
                               text: 'Ao acessar e utilizar a plataforma Nous, você concorda em cumprir e respeitar os presentes Termos de Uso. Caso não concorde com qualquer disposição, você não deve utilizar a aplicação.',
@@ -96,26 +81,26 @@ class TermsView extends StatelessWidget {
                       ),
                     ),
 
-                    // ESPAÇO E BOTÃO DE CONFIRMAÇÃO (Fica fixo na parte inferior da tela)
                     const SizedBox(height: 16),
                     ElevatedButton(
-                      // Estilização visual do botão usando as cores padrão e textos invertidos para alto contraste
+                      // Botão "Entendi e Concordo" — agora com borda (Cor das Arestas) também,
+                      // além do fundo (Cor dos Botões) e do texto (Cor do Texto dos Botões).
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: theme.textColor, // Botão ganha destaque usando a cor de texto do tema
-                        foregroundColor: theme.backgroundColor, // O texto dentro do botão ganha o fundo oposto
-                        minimumSize: const Size.fromHeight(50), // Largura total e altura de 50px
+                        backgroundColor: theme.buttonColor,
+                        foregroundColor: theme.buttonTextColor,
+                        minimumSize: const Size.fromHeight(50),
+                        side: BorderSide(color: theme.borderColor),
                         shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(30), // Bordas bem arredondadas
+                          borderRadius: BorderRadius.circular(30),
                         ),
                       ),
-                      // Navigator.pop fecha a tela atual e retorna para a tela anterior (Login)
                       onPressed: () => Navigator.pop(context),
                       child: Text(
                         'Entendi e Concordo',
-                        style: TextStyle(
+                        style: theme.getTextStyle(
                           fontWeight: FontWeight.bold,
-                          color: theme.backgroundColor,
                           fontSize: 16,
+                          color: theme.buttonTextColor,
                         ),
                       ),
                     ),
@@ -133,10 +118,8 @@ class TermsView extends StatelessWidget {
 
 // ==============================================================================
 // WIDGETS AUXILIARES
-// Facilitam a reutilização do código dos títulos e textos para manter o padrão visual
 // ==============================================================================
 
-// Helper para títulos de seção
 class _SectionTitle extends StatelessWidget {
   final String title;
   final AppTheme theme;
@@ -150,9 +133,6 @@ class _SectionTitle extends StatelessWidget {
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.only(top: 16.0, bottom: 8.0),
-      // Título de seção (ex: "1. Aceitação dos Termos") — você pediu para deixar como
-      // TEXTO NORMAL, não título. Deixei a cor explícita (mesmo sendo o mesmo valor do
-      // padrão) só para ficar bem claro no código que essa escolha foi intencional.
       child: Text(
         title,
         style: theme.getTextStyle(
@@ -165,7 +145,6 @@ class _SectionTitle extends StatelessWidget {
   }
 }
 
-// Helper para o texto explicativo das seções
 class _SectionBody extends StatelessWidget {
   final String text;
   final AppTheme theme;
@@ -177,8 +156,6 @@ class _SectionBody extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Corpo do texto — texto normal. Antes usava "textColor" com transparência,
-    // o que estava errado; agora usa "secondaryTextColor" direto.
     return Text(
       text,
       style: theme.getTextStyle(

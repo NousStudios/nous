@@ -32,7 +32,6 @@ class ThemeCustomizerDialog extends StatelessWidget {
     );
   }
 
-  /// Abre um pequeno diálogo pedindo um nome, e salva o tema atual com esse nome.
   void _showSaveThemeDialog(BuildContext context, AppTheme theme) {
     final nameController = TextEditingController();
 
@@ -45,7 +44,6 @@ class ThemeCustomizerDialog extends StatelessWidget {
             borderRadius: BorderRadius.circular(16.0),
             side: BorderSide(color: theme.borderColor),
           ),
-          // Título do popup "Salvar Tema" — é um cabeçalho de janela, então usa a cor de título explicitamente
           title: Text(
             'Salvar Tema',
             style: theme.getTextStyle(
@@ -56,7 +54,7 @@ class ThemeCustomizerDialog extends StatelessWidget {
           ),
           content: TextField(
             controller: nameController,
-            autofocus: true, // Já abre o teclado, pronto para digitar
+            autofocus: true,
             style: theme.getTextStyle(),
             decoration: InputDecoration(
               hintText: 'Nome do tema (ex: Meu Tema Roxo)',
@@ -79,7 +77,7 @@ class ThemeCustomizerDialog extends StatelessWidget {
             TextButton(
               onPressed: () {
                 final name = nameController.text.trim();
-                if (name.isEmpty) return; // Não salva um tema sem nome
+                if (name.isEmpty) return;
                 ThemeController.saveCurrentThemeAs(name);
                 Navigator.of(dialogContext).pop();
               },
@@ -94,7 +92,6 @@ class ThemeCustomizerDialog extends StatelessWidget {
     );
   }
 
-  /// Constrói cada seção de cor dentro de um container com acabamento limpo
   Widget _buildColorSection({
     required BuildContext context,
     required AppTheme theme,
@@ -118,8 +115,6 @@ class ThemeCustomizerDialog extends StatelessWidget {
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           Expanded(
-            // Rótulo da seção (ex: "Cor de Fundo") — é texto normal, não título.
-            // Como não passamos "color" aqui, ele usa o novo padrão: secondaryTextColor.
             child: Text(
               title,
               style: theme.getTextStyle(fontSize: 14, fontWeight: FontWeight.w500),
@@ -194,8 +189,6 @@ class ThemeCustomizerDialog extends StatelessWidget {
         final canDecrease = currentScale > ThemeController.minFontScale;
         final canIncrease = currentScale < ThemeController.maxFontScale;
 
-        // Calcula a largura do popup com base no tamanho real da tela do aparelho,
-        // em vez de usar um número fixo (que estava causando overflow em telas pequenas).
         final screenWidth = MediaQuery.of(context).size.width;
         final dialogWidth = screenWidth < 440 ? screenWidth * 0.9 : 380.0;
 
@@ -211,7 +204,6 @@ class ThemeCustomizerDialog extends StatelessWidget {
           title: Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              // Título do popup "Personalizar Aparência" — cabeçalho de janela, cor de título explícita
               Text(
                 'Personalizar Aparência',
                 style: theme.getTextStyle(
@@ -237,7 +229,6 @@ class ThemeCustomizerDialog extends StatelessWidget {
                 children: [
                   const SizedBox(height: 8),
 
-                  // Seções de escolha de cores agrupadas
                   _buildColorSection(
                     context: context,
                     theme: theme,
@@ -262,7 +253,6 @@ class ThemeCustomizerDialog extends StatelessWidget {
                         ThemeController.updateCardColor(color, gradient: gradient),
                   ),
                   const SizedBox(height: 10),
-                  // Cor dos textos de destaque, como o título "Nous"
                   _buildColorSection(
                     context: context,
                     theme: theme,
@@ -274,7 +264,6 @@ class ThemeCustomizerDialog extends StatelessWidget {
                     onSelect: (color, _) => ThemeController.updateTextColor(color),
                   ),
                   const SizedBox(height: 10),
-                  // Cor dos textos normais/secundários, como o subtítulo abaixo do título
                   _buildColorSection(
                     context: context,
                     theme: theme,
@@ -298,7 +287,6 @@ class ThemeCustomizerDialog extends StatelessWidget {
                         ThemeController.updateButtonColor(color, gradient: gradient),
                   ),
                   const SizedBox(height: 10),
-                  // Cor do texto dentro dos botões (ex: "Concluído", "Aplicar")
                   _buildColorSection(
                     context: context,
                     theme: theme,
@@ -325,7 +313,6 @@ class ThemeCustomizerDialog extends StatelessWidget {
                   Divider(color: theme.borderColor.withValues(alpha: 0.5), height: 1),
                   const SizedBox(height: 16),
 
-                  // Configuração de Tipografia
                   Container(
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
@@ -436,7 +423,6 @@ class ThemeCustomizerDialog extends StatelessWidget {
 
                   const SizedBox(height: 16),
 
-                  // ============ SALVAR O TEMA ATUAL ============
                   SizedBox(
                     width: double.infinity,
                     child: OutlinedButton.icon(
@@ -450,9 +436,6 @@ class ThemeCustomizerDialog extends StatelessWidget {
                       ),
                       onPressed: () => _showSaveThemeDialog(context, theme),
                       icon: Icon(Icons.save_outlined, color: theme.textColor, size: 20),
-                      // O ícone e o "foregroundColor" do botão já usam theme.textColor.
-                      // Precisamos passar a cor explicitamente aqui também, senão o texto
-                      // (com o novo padrão) ficaria com uma cor diferente do ícone.
                       label: Text(
                         'Salvar Tema Atual...',
                         style: theme.getTextStyle(fontSize: 14, color: theme.textColor),
@@ -468,9 +451,12 @@ class ThemeCustomizerDialog extends StatelessWidget {
             SizedBox(
               width: double.infinity,
               child: ElevatedButton(
+                // Botão "Concluído" — agora também com borda (Cor das Arestas), igual aos
+                // outros botões sólidos do app.
                 style: ElevatedButton.styleFrom(
                   backgroundColor: theme.buttonColor,
                   foregroundColor: theme.buttonTextColor,
+                  side: BorderSide(color: theme.borderColor),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(10),
                   ),
@@ -540,8 +526,6 @@ class _CanvaColorPickerModalState extends State<_CanvaColorPickerModal>
   Widget build(BuildContext context) {
     final theme = widget.theme;
 
-    // Mesma lógica de largura responsiva aplicada aqui, já que esse modal também
-    // usava um valor fixo (300) que pode estourar em telas muito estreitas.
     final screenWidth = MediaQuery.of(context).size.width;
     final modalWidth = screenWidth < 360 ? screenWidth * 0.85 : 300.0;
 
@@ -554,7 +538,6 @@ class _CanvaColorPickerModalState extends State<_CanvaColorPickerModal>
       ),
       titlePadding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      // Título desse popup (ex: "Personalizar Cor de Fundo") — cabeçalho de janela, cor de título explícita
       title: Text(
         widget.title,
         style: theme.getTextStyle(
@@ -672,9 +655,11 @@ class _CanvaColorPickerModalState extends State<_CanvaColorPickerModal>
               style: theme.getTextStyle(color: theme.secondaryTextColor)),
         ),
         ElevatedButton(
+          // Botão "Aplicar" — também ganhou a borda, pela mesma razão dos outros.
           style: ElevatedButton.styleFrom(
             backgroundColor: theme.buttonColor,
             foregroundColor: theme.buttonTextColor,
+            side: BorderSide(color: theme.borderColor),
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
           ),
           onPressed: () {

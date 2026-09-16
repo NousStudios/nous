@@ -66,14 +66,16 @@ class AppTheme {
   });
 
   /// Instância predefinida para Tema Escuro
+  /// Atualizado para os botões ficarem "vazados" por padrão (buttonColor transparente,
+  /// aparecendo só a borda) e títulos, texto normal e arestas ficarem totalmente brancos.
   static AppTheme get dark => const AppTheme(
         backgroundColor: Color(0xFF030303),
         cardBackgroundColor: Color(0xFF1E1E1E),
         textColor: Colors.white,
-        secondaryTextColor: Colors.white70,
-        buttonColor: Colors.blue,
+        secondaryTextColor: Colors.white,
+        buttonColor: Colors.transparent,
         buttonTextColor: Colors.white,
-        borderColor: Color(0xFF333333),
+        borderColor: Colors.white,
         fontName: 'Belleza',
       );
 
@@ -134,14 +136,8 @@ class AppTheme {
   }) {
     return TextStyle(
       fontFamily: fontName,
-      // Multiplica pelo fontScale: é isso que faz o "aumentar/diminuir fonte" valer para o app inteiro
       fontSize: fontSize * fontScale,
       fontWeight: fontWeight,
-      // MUDANÇA IMPORTANTE: antes o padrão era "textColor" (cor de título).
-      // Isso fazia QUALQUER texto que esquecesse de dizer sua cor virar título sem querer.
-      // Agora o padrão é "secondaryTextColor" (texto normal) — o comportamento mais seguro.
-      // Só os textos que passarem "color: theme.textColor" explicitamente (os títulos de
-      // verdade, como cabeçalhos de tela e de popups) vão continuar usando a cor de título.
       color: color ?? secondaryTextColor,
     );
   }
@@ -210,20 +206,15 @@ class ThemeController {
   static final ValueNotifier<AppTheme> currentTheme =
       ValueNotifier<AppTheme>(AppTheme.dark);
 
-  // Lista reativa dos temas que o usuário salvou. Qualquer widget que "escutar"
-  // esse ValueNotifier é atualizado automaticamente quando um tema é salvo ou apagado.
   static final ValueNotifier<List<SavedTheme>> savedThemes =
       ValueNotifier<List<SavedTheme>>([]);
 
-  // Chave usada para guardar a lista de temas no armazenamento do aparelho
   static const String _savedThemesPrefsKey = 'nous_saved_themes';
 
-  // Limites da escala de fonte, para não deixar o texto pequeno demais nem gigante demais
   static const double minFontScale = 0.8;
   static const double maxFontScale = 1.6;
   static const double fontScaleStep = 0.1;
 
-  // Listas de cores/gradientes recentes utilizando ColorOption
   static List<ColorOption> recentBackgroundColors = [
     const ColorOption(color: Color(0xFF030303)),
     const ColorOption(color: Color(0xFF1A1A2E)),
@@ -238,7 +229,6 @@ class ThemeController {
     const ColorOption(color: Color(0xFFF1F5F9)),
   ];
 
-  // Cores recentes para o texto de títulos (theme.textColor)
   static List<ColorOption> recentTextColors = [
     const ColorOption(color: Colors.white),
     const ColorOption(color: Colors.black),
@@ -246,7 +236,6 @@ class ThemeController {
     const ColorOption(color: Color(0xFF94A3B8)),
   ];
 
-  // Cores recentes para o texto normal/secundário (theme.secondaryTextColor)
   static List<ColorOption> recentSecondaryTextColors = [
     const ColorOption(color: Colors.white70),
     const ColorOption(color: Color(0xFF6C757D)),
@@ -261,7 +250,6 @@ class ThemeController {
     const ColorOption(color: Colors.orange),
   ];
 
-  // Lista de cores recentes específica para o texto dos botões
   static List<ColorOption> recentButtonTextColors = [
     const ColorOption(color: Colors.white),
     const ColorOption(color: Colors.black),
@@ -276,27 +264,19 @@ class ThemeController {
     const ColorOption(color: Colors.transparent),
   ];
 
-  /// Método genérico updateTheme para atualizar o objeto AppTheme completo
   static void updateTheme(AppTheme newTheme) {
     currentTheme.value = newTheme;
   }
 
-  /// Auxiliar privado para inserir a nova opção na primeira posição da lista recente
   static void _addRecent(List<ColorOption> list, Color color, Gradient? gradient) {
-    // Remove duplicadas idênticas se já existirem na lista
     list.removeWhere(
         (opt) => opt.color.toARGB32() == color.toARGB32() && opt.gradient == gradient);
-
-    // Insere no início
     list.insert(0, ColorOption(color: color, gradient: gradient));
-
-    // Mantém no máximo 4 itens salvos na memória
     if (list.length > 4) {
       list.removeLast();
     }
   }
 
-  /// Métodos de atualização chamados pela interface:
   static void updateBackgroundColor(Color color, {Gradient? gradient}) {
     currentTheme.value = currentTheme.value.copyWith(
       backgroundColor: color,
@@ -315,13 +295,11 @@ class ThemeController {
     _addRecent(recentCardColors, color, gradient);
   }
 
-  // Atualiza a cor do texto de títulos (ex: "Nous")
   static void updateTextColor(Color color) {
     currentTheme.value = currentTheme.value.copyWith(textColor: color);
     _addRecent(recentTextColors, color, null);
   }
 
-  // Atualiza a cor do texto normal (ex: o subtítulo "Software Universal de Autogestão...")
   static void updateSecondaryTextColor(Color color) {
     currentTheme.value = currentTheme.value.copyWith(secondaryTextColor: color);
     _addRecent(recentSecondaryTextColors, color, null);
@@ -336,7 +314,6 @@ class ThemeController {
     _addRecent(recentButtonColors, color, gradient);
   }
 
-  // Atualiza a cor do texto dos botões
   static void updateButtonTextColor(Color color) {
     currentTheme.value = currentTheme.value.copyWith(buttonTextColor: color);
     _addRecent(recentButtonTextColors, color, null);
@@ -351,7 +328,6 @@ class ThemeController {
     currentTheme.value = currentTheme.value.copyWith(fontName: fontName);
   }
 
-  /// Aumenta a escala de fonte em um "degrau", respeitando o limite máximo
   static void increaseFontScale() {
     final next = currentTheme.value.fontScale + fontScaleStep;
     currentTheme.value = currentTheme.value.copyWith(
@@ -359,7 +335,6 @@ class ThemeController {
     );
   }
 
-  /// Diminui a escala de fonte em um "degrau", respeitando o limite mínimo
   static void decreaseFontScale() {
     final next = currentTheme.value.fontScale - fontScaleStep;
     currentTheme.value = currentTheme.value.copyWith(
@@ -367,13 +342,11 @@ class ThemeController {
     );
   }
 
-  /// Deve ser chamado uma única vez, antes do runApp(), para carregar do armazenamento
-  /// do aparelho os temas que o usuário salvou em sessões anteriores.
   static Future<void> init() async {
     final prefs = await SharedPreferences.getInstance();
     final rawList = prefs.getStringList(_savedThemesPrefsKey);
 
-    if (rawList == null) return; // Nenhum tema salvo ainda, mantém a lista vazia
+    if (rawList == null) return;
 
     savedThemes.value = rawList
         .map((jsonText) => SavedTheme.fromJson(
@@ -381,8 +354,6 @@ class ThemeController {
         .toList();
   }
 
-  /// Salva o tema atualmente em uso com o nome escolhido pelo usuário.
-  /// Se já existir um tema salvo com o mesmo nome, ele é substituído.
   static Future<void> saveCurrentThemeAs(String name) async {
     final newSavedTheme = SavedTheme(name: name, theme: currentTheme.value);
 
@@ -394,15 +365,12 @@ class ThemeController {
     await _persistSavedThemes();
   }
 
-  /// Remove um tema salvo pelo nome.
   static Future<void> deleteSavedTheme(String name) async {
     savedThemes.value =
         savedThemes.value.where((saved) => saved.name != name).toList();
     await _persistSavedThemes();
   }
 
-  /// Grava a lista atual de temas salvos no armazenamento do aparelho,
-  /// transformando cada tema em um texto (JSON) antes de guardar.
   static Future<void> _persistSavedThemes() async {
     final prefs = await SharedPreferences.getInstance();
     final rawList =
