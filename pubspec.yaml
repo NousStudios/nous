@@ -33,6 +33,11 @@ dependencies:
   # Permite guardar pequenos dados (como os temas salvos pelo usuário) no armazenamento
   # do próprio aparelho, para que sobrevivam mesmo depois de fechar o app.
   shared_preferences: ^2.2.0
+  # Gerenciamento de estado: é o pacote que vai deixar telas diferentes do app
+  # "conversarem" entre si sobre coisas como "o usuário está logado?" ou
+  # "qual CPF ele digitou?", sem a gente precisar passar essa informação
+  # manualmente de widget em widget.
+  provider: ^6.1.2
 
 # Dependências usadas apenas durante o desenvolvimento (não vão para o app final do usuário).
 dev_dependencies:
