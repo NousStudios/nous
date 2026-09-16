@@ -83,7 +83,7 @@ class ThemeCustomizerDialog extends StatelessWidget {
               },
               child: Text(
                 'Salvar',
-                style: theme.getTextStyle(color: theme.buttonColor, fontWeight: FontWeight.bold),
+                style: theme.getTextStyle(color: theme.textColor, fontWeight: FontWeight.bold),
               ),
             ),
           ],
@@ -114,13 +114,22 @@ class ThemeCustomizerDialog extends StatelessWidget {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
+          // Expanded: o texto ocupa todo o espaco que sobrar depois das bolinhas.
+          // Com maxLines + ellipsis ele nunca "empurra" a linha para fora da tela,
+          // mesmo com a fonte no tamanho maximo (1.6x).
           Expanded(
             child: Text(
               title,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
               style: theme.getTextStyle(fontSize: 14, fontWeight: FontWeight.w500),
             ),
           ),
+          const SizedBox(width: 8),
+          // Este Row tem tamanho FIXO e previsivel: cada bolinha mede 34 de largura.
+          // mainAxisSize.min faz ele ocupar so o necessario, nunca mais.
           Row(
+            mainAxisSize: MainAxisSize.min,
             children: [
               ...displayOptions.map((option) {
                 final isSelected = option.gradient == currentGradient &&
@@ -180,6 +189,41 @@ class ThemeCustomizerDialog extends StatelessWidget {
     );
   }
 
+  // Botao de "+" e "-" feito a mao, com tamanho FIXO de 32x32.
+  //
+  // Por que nao usar IconButton aqui? Porque o IconButton tem regras internas
+  // de "area minima de toque" (48x48 por padrao no Material) que entram em
+  // conflito quando a gente tenta reduzi-lo. O tamanho final dele fica
+  // imprevisivel, e era justamente isso que estourava a linha quando a fonte
+  // aumentava. Com um Container de tamanho fixo, a conta e sempre a mesma.
+  Widget _buildFontScaleButton({
+    required AppTheme theme,
+    required IconData icon,
+    required bool enabled,
+    required VoidCallback onPressed,
+    required String tooltip,
+  }) {
+    return Tooltip(
+      message: tooltip,
+      child: InkWell(
+        // Se "enabled" for falso, passamos null e o botao fica inativo.
+        onTap: enabled ? onPressed : null,
+        borderRadius: BorderRadius.circular(6),
+        child: SizedBox(
+          width: 32,
+          height: 32,
+          child: Icon(
+            icon,
+            size: 20,
+            color: enabled
+                ? theme.textColor
+                : theme.secondaryTextColor.withValues(alpha: 0.3),
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return ValueListenableBuilder<AppTheme>(
@@ -189,12 +233,33 @@ class ThemeCustomizerDialog extends StatelessWidget {
         final canDecrease = currentScale > ThemeController.minFontScale;
         final canIncrease = currentScale < ThemeController.maxFontScale;
 
-        final screenWidth = MediaQuery.of(context).size.width;
-        final dialogWidth = screenWidth < 440 ? screenWidth * 0.9 : 380.0;
+        // ============ CALCULO DA LARGURA (SEM LayoutBuilder) ============
+        // IMPORTANTE: nao usar LayoutBuilder dentro do "content" de um
+        // AlertDialog. O AlertDialog precisa MEDIR o conteudo antes de
+        // desenha-lo (ele usa IntrinsicWidth por dentro), e o LayoutBuilder
+        // so sabe se construir DEPOIS de saber o espaco disponivel.
+        // Os dois juntos criam um impasse: era isso que travava o app.
+        //
+        // Aqui usamos MediaQuery.sizeOf(context), que da a largura da tela
+        // de forma segura, e descontamos as margens que NOS MESMOS definimos
+        // logo abaixo (insetPadding e contentPadding) - ou seja, nao e chute,
+        // sao numeros que estao escritos neste proprio arquivo.
+        final screenWidth = MediaQuery.sizeOf(context).width;
+
+        // 32 = insetPadding horizontal (16 de cada lado)
+        // 40 = contentPadding horizontal (20 de cada lado)
+        final rawWidth = screenWidth - 32 - 40;
+
+        // clamp(0.0, 380.0) = "prenda esse numero entre 0 e 380".
+        // Isso protege contra dois desastres: largura negativa (que quebra o
+        // Flutter em telas muito estreitas) e largura exagerada em desktop.
+        final contentWidth = rawWidth.clamp(0.0, 380.0).toDouble();
+        // ================================================================
 
         return AlertDialog(
           backgroundColor: theme.cardBackgroundColor,
           surfaceTintColor: Colors.transparent,
+          insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(20.0),
             side: BorderSide(color: theme.borderColor, width: 1.5),
@@ -204,14 +269,19 @@ class ThemeCustomizerDialog extends StatelessWidget {
           title: Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(
-                'Personalizar Aparência',
-                style: theme.getTextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                  color: theme.textColor,
+              Expanded(
+                child: Text(
+                  'Personalizar Aparência',
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.getTextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: theme.textColor,
+                  ),
                 ),
               ),
+              const SizedBox(width: 8),
               IconButton(
                 onPressed: () => Navigator.of(context).pop(),
                 icon: Icon(Icons.close, color: theme.secondaryTextColor, size: 20),
@@ -221,7 +291,7 @@ class ThemeCustomizerDialog extends StatelessWidget {
             ],
           ),
           content: SizedBox(
-            width: dialogWidth,
+            width: contentWidth,
             child: SingleChildScrollView(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -346,6 +416,7 @@ class ThemeCustomizerDialog extends StatelessWidget {
                                   value: font,
                                   child: Text(
                                     font,
+                                    overflow: TextOverflow.ellipsis,
                                     style: theme.getTextStyle(
                                       color: theme.textColor,
                                       fontSize: 14,
@@ -367,6 +438,14 @@ class ThemeCustomizerDialog extends StatelessWidget {
                           style: theme.getTextStyle(fontSize: 13, fontWeight: FontWeight.w600),
                         ),
                         const SizedBox(height: 8),
+
+                        // ========== SECAO QUE ESTOURAVA (RECONSTRUIDA) ==========
+                        // A linha agora e 100% previsivel:
+                        //  - Expanded (texto da porcentagem) = pega o que sobrar
+                        //  - SizedBox de 8 = espaco fixo
+                        //  - Row de dois botoes de 32x32 + 4 de espaco = 68 fixos
+                        // Como o texto e o unico elemento "elastico", ele encolhe
+                        // sozinho quando a fonte cresce. Nao ha como estourar.
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
                           decoration: BoxDecoration(
@@ -375,41 +454,35 @@ class ThemeCustomizerDialog extends StatelessWidget {
                             border: Border.all(color: theme.borderColor),
                           ),
                           child: Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
-                              Text(
-                                '${(currentScale * 100).round()}%',
-                                style: theme.getTextStyle(
-                                  fontSize: 15,
-                                  fontWeight: FontWeight.bold,
+                              Expanded(
+                                child: Text(
+                                  '${(currentScale * 100).round()}%',
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: theme.getTextStyle(
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.bold,
+                                  ),
                                 ),
                               ),
+                              const SizedBox(width: 8),
                               Row(
+                                mainAxisSize: MainAxisSize.min,
                                 children: [
-                                  IconButton(
-                                    icon: Icon(
-                                      Icons.remove,
-                                      color: canDecrease
-                                          ? theme.textColor
-                                          : theme.secondaryTextColor.withValues(alpha: 0.3),
-                                      size: 20,
-                                    ),
-                                    onPressed: canDecrease
-                                        ? ThemeController.decreaseFontScale
-                                        : null,
+                                  _buildFontScaleButton(
+                                    theme: theme,
+                                    icon: Icons.remove,
+                                    enabled: canDecrease,
+                                    onPressed: ThemeController.decreaseFontScale,
                                     tooltip: 'Diminuir fonte',
                                   ),
-                                  IconButton(
-                                    icon: Icon(
-                                      Icons.add,
-                                      color: canIncrease
-                                          ? theme.textColor
-                                          : theme.secondaryTextColor.withValues(alpha: 0.3),
-                                      size: 20,
-                                    ),
-                                    onPressed: canIncrease
-                                        ? ThemeController.increaseFontScale
-                                        : null,
+                                  const SizedBox(width: 4),
+                                  _buildFontScaleButton(
+                                    theme: theme,
+                                    icon: Icons.add,
+                                    enabled: canIncrease,
+                                    onPressed: ThemeController.increaseFontScale,
                                     tooltip: 'Aumentar fonte',
                                   ),
                                 ],
@@ -417,6 +490,7 @@ class ThemeCustomizerDialog extends StatelessWidget {
                             ],
                           ),
                         ),
+                        // ========================================================
                       ],
                     ),
                   ),
@@ -438,6 +512,8 @@ class ThemeCustomizerDialog extends StatelessWidget {
                       icon: Icon(Icons.save_outlined, color: theme.textColor, size: 20),
                       label: Text(
                         'Salvar Tema Atual...',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                         style: theme.getTextStyle(fontSize: 14, color: theme.textColor),
                       ),
                     ),
@@ -451,8 +527,6 @@ class ThemeCustomizerDialog extends StatelessWidget {
             SizedBox(
               width: double.infinity,
               child: ElevatedButton(
-                // Botão "Concluído" — agora também com borda (Cor das Arestas), igual aos
-                // outros botões sólidos do app.
                 style: ElevatedButton.styleFrom(
                   backgroundColor: theme.buttonColor,
                   foregroundColor: theme.buttonTextColor,
@@ -465,6 +539,8 @@ class ThemeCustomizerDialog extends StatelessWidget {
                 onPressed: () => Navigator.of(context).pop(),
                 child: Text(
                   'Concluído',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                   style: theme.getTextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.bold,
@@ -526,12 +602,24 @@ class _CanvaColorPickerModalState extends State<_CanvaColorPickerModal>
   Widget build(BuildContext context) {
     final theme = widget.theme;
 
-    final screenWidth = MediaQuery.of(context).size.width;
-    final modalWidth = screenWidth < 360 ? screenWidth * 0.85 : 300.0;
+    // Mesmo raciocinio do popup principal: NADA de LayoutBuilder dentro do
+    // content de um AlertDialog. Este modal tambem estava com o problema,
+    // entao ele travaria assim que voce clicasse no botao "+" de qualquer cor.
+    final screenWidth = MediaQuery.sizeOf(context).width;
+
+    // 32 = insetPadding horizontal (16 de cada lado)
+    // 32 = contentPadding horizontal (16 de cada lado)
+    final rawWidth = screenWidth - 32 - 32;
+    final modalWidth = rawWidth.clamp(0.0, 300.0).toDouble();
+
+    // O seletor de cor precisa de uma folga interna para nao colar nas bordas.
+    // O clamp garante que esse valor nunca fique negativo em telas minusculas.
+    final pickerWidth = (modalWidth - 24).clamp(0.0, 300.0).toDouble();
 
     return AlertDialog(
       backgroundColor: theme.cardBackgroundColor,
       surfaceTintColor: Colors.transparent,
+      insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(16),
         side: BorderSide(color: theme.borderColor),
@@ -540,6 +628,8 @@ class _CanvaColorPickerModalState extends State<_CanvaColorPickerModal>
       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       title: Text(
         widget.title,
+        maxLines: 2,
+        overflow: TextOverflow.ellipsis,
         style: theme.getTextStyle(
           fontSize: 16,
           fontWeight: FontWeight.bold,
@@ -576,7 +666,7 @@ class _CanvaColorPickerModalState extends State<_CanvaColorPickerModal>
                         ColorPicker(
                           pickerColor: _solidColor,
                           onColorChanged: (c) => setState(() => _solidColor = c),
-                          colorPickerWidth: modalWidth - 40,
+                          colorPickerWidth: pickerWidth,
                           pickerAreaHeightPercent: 0.5,
                           enableAlpha: true,
                           displayThumbColor: true,
@@ -633,7 +723,7 @@ class _CanvaColorPickerModalState extends State<_CanvaColorPickerModal>
                                 }
                               });
                             },
-                            colorPickerWidth: modalWidth - 40,
+                            colorPickerWidth: pickerWidth,
                             pickerAreaHeightPercent: 0.4,
                             enableAlpha: false,
                             portraitOnly: true,
@@ -655,7 +745,6 @@ class _CanvaColorPickerModalState extends State<_CanvaColorPickerModal>
               style: theme.getTextStyle(color: theme.secondaryTextColor)),
         ),
         ElevatedButton(
-          // Botão "Aplicar" — também ganhou a borda, pela mesma razão dos outros.
           style: ElevatedButton.styleFrom(
             backgroundColor: theme.buttonColor,
             foregroundColor: theme.buttonTextColor,
