@@ -3,7 +3,14 @@ import 'package:nous/src/core/theme/theme_controller.dart';
 import 'package:nous/src/core/theme/contrast_helper.dart';
 import 'package:nous/src/features/auth/views/login_view.dart';
 
-void main() {
+Future<void> main() async {
+  // Garante que o Flutter está pronto para operações assíncronas antes do runApp,
+  // necessário porque vamos carregar os temas salvos do armazenamento do aparelho.
+  WidgetsFlutterBinding.ensureInitialized();
+
+  // Carrega os temas que o usuário salvou em sessões anteriores, antes de exibir qualquer tela.
+  await ThemeController.init();
+
   runApp(const MyApp());
 }
 
@@ -38,8 +45,7 @@ class MyApp extends StatelessWidget {
             // Define o tema de cores base do Material
             colorScheme: ColorScheme.fromSeed(
               seedColor: Colors.blue,
-              // Agora calculamos o brilho de verdade, com base na luminância
-              // da cor de fundo, em vez de comparar com preto puro
+              // Calcula o brilho de verdade, com base na luminância da cor de fundo
               brightness: getBrightnessFor(theme.backgroundColor),
             ),
           ),

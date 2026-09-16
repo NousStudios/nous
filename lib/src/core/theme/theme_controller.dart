@@ -1,4 +1,6 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 /// Modelo de dados para armazenar tanto cores sólidas quanto gradientes nas seleções rápidas
 class ColorOption {
@@ -6,6 +8,31 @@ class ColorOption {
   final Gradient? gradient;
 
   const ColorOption({required this.color, this.gradient});
+}
+
+/// Transforma um Gradient (só tratamos LinearGradient, que é o único tipo usado no app)
+/// em um Map simples, que pode ser convertido em texto (JSON) para ser salvo.
+Map<String, dynamic>? _gradientToJson(Gradient? gradient) {
+  if (gradient == null) return null;
+  if (gradient is LinearGradient) {
+    return {
+      'colors': gradient.colors.map((c) => c.toARGB32()).toList(),
+    };
+  }
+  return null;
+}
+
+/// Faz o caminho inverso: recebe o Map salvo e reconstrói o LinearGradient.
+Gradient? _gradientFromJson(Map<String, dynamic>? json) {
+  if (json == null) return null;
+  final colorsList = (json['colors'] as List)
+      .map((value) => Color(value as int))
+      .toList();
+  return LinearGradient(
+    colors: colorsList,
+    begin: Alignment.topLeft,
+    end: Alignment.bottomRight,
+  );
 }
 
 /// Modelo de dados para o Tema do aplicativo
@@ -113,12 +140,78 @@ class AppTheme {
       color: color ?? textColor,
     );
   }
+
+  /// Transforma esse tema em um Map simples (chave-valor), que dá pra converter em texto (JSON)
+  /// e guardar no armazenamento do aparelho.
+  Map<String, dynamic> toJson() {
+    return {
+      'backgroundColor': backgroundColor.toARGB32(),
+      'backgroundGradient': _gradientToJson(backgroundGradient),
+      'cardBackgroundColor': cardBackgroundColor.toARGB32(),
+      'cardGradient': _gradientToJson(cardGradient),
+      'textColor': textColor.toARGB32(),
+      'secondaryTextColor': secondaryTextColor.toARGB32(),
+      'buttonColor': buttonColor.toARGB32(),
+      'buttonGradient': _gradientToJson(buttonGradient),
+      'buttonTextColor': buttonTextColor.toARGB32(),
+      'borderColor': borderColor.toARGB32(),
+      'fontName': fontName,
+      'fontScale': fontScale,
+    };
+  }
+
+  /// Faz o caminho inverso do toJson(): recebe o Map salvo e reconstrói um AppTheme de verdade.
+  factory AppTheme.fromJson(Map<String, dynamic> json) {
+    return AppTheme(
+      backgroundColor: Color(json['backgroundColor'] as int),
+      backgroundGradient:
+          _gradientFromJson(json['backgroundGradient'] as Map<String, dynamic>?),
+      cardBackgroundColor: Color(json['cardBackgroundColor'] as int),
+      cardGradient: _gradientFromJson(json['cardGradient'] as Map<String, dynamic>?),
+      textColor: Color(json['textColor'] as int),
+      secondaryTextColor: Color(json['secondaryTextColor'] as int),
+      buttonColor: Color(json['buttonColor'] as int),
+      buttonGradient: _gradientFromJson(json['buttonGradient'] as Map<String, dynamic>?),
+      buttonTextColor: Color(json['buttonTextColor'] as int),
+      borderColor: Color(json['borderColor'] as int),
+      fontName: json['fontName'] as String,
+      fontScale: (json['fontScale'] as num).toDouble(),
+    );
+  }
+}
+
+/// Representa um tema personalizado que o usuário salvou, com um nome escolhido por ele.
+class SavedTheme {
+  final String name;
+  final AppTheme theme;
+
+  const SavedTheme({required this.name, required this.theme});
+
+  Map<String, dynamic> toJson() => {
+        'name': name,
+        'theme': theme.toJson(),
+      };
+
+  factory SavedTheme.fromJson(Map<String, dynamic> json) {
+    return SavedTheme(
+      name: json['name'] as String,
+      theme: AppTheme.fromJson(json['theme'] as Map<String, dynamic>),
+    );
+  }
 }
 
 /// Gerenciador de estado do Tema (ThemeController)
 class ThemeController {
   static final ValueNotifier<AppTheme> currentTheme =
       ValueNotifier<AppTheme>(AppTheme.dark);
+
+  // Lista reativa dos temas que o usuário salvou. Qualquer widget que "escutar"
+  // esse ValueNotifier é atualizado automaticamente quando um tema é salvo ou apagado.
+  static final ValueNotifier<List<SavedTheme>> savedThemes =
+      ValueNotifier<List<SavedTheme>>([]);
+
+  // Chave usada para guardar a lista de temas no armazenamento do aparelho
+  static const String _savedThemesPrefsKey = 'nous_saved_themes';
 
   // Limites da escala de fonte, para não deixar o texto pequeno demais nem gigante demais
   static const double minFontScale = 0.8;
@@ -251,5 +344,48 @@ class ThemeController {
     currentTheme.value = currentTheme.value.copyWith(
       fontScale: next < minFontScale ? minFontScale : next,
     );
+  }
+
+  /// Deve ser chamado uma única vez, antes do runApp(), para carregar do armazenamento
+  /// do aparelho os temas que o usuário salvou em sessões anteriores.
+  static Future<void> init() async {
+    final prefs = await SharedPreferences.getInstance();
+    final rawList = prefs.getStringList(_savedThemesPrefsKey);
+
+    if (rawList == null) return; // Nenhum tema salvo ainda, mantém a lista vazia
+
+    savedThemes.value = rawList
+        .map((jsonText) => SavedTheme.fromJson(
+            jsonDecode(jsonText) as Map<String, dynamic>))
+        .toList();
+  }
+
+  /// Salva o tema atualmente em uso com o nome escolhido pelo usuário.
+  /// Se já existir um tema salvo com o mesmo nome, ele é substituído.
+  static Future<void> saveCurrentThemeAs(String name) async {
+    final newSavedTheme = SavedTheme(name: name, theme: currentTheme.value);
+
+    final updatedList =
+        savedThemes.value.where((saved) => saved.name != name).toList();
+    updatedList.add(newSavedTheme);
+
+    savedThemes.value = updatedList;
+    await _persistSavedThemes();
+  }
+
+  /// Remove um tema salvo pelo nome.
+  static Future<void> deleteSavedTheme(String name) async {
+    savedThemes.value =
+        savedThemes.value.where((saved) => saved.name != name).toList();
+    await _persistSavedThemes();
+  }
+
+  /// Grava a lista atual de temas salvos no armazenamento do aparelho,
+  /// transformando cada tema em um texto (JSON) antes de guardar.
+  static Future<void> _persistSavedThemes() async {
+    final prefs = await SharedPreferences.getInstance();
+    final rawList =
+        savedThemes.value.map((saved) => jsonEncode(saved.toJson())).toList();
+    await prefs.setStringList(_savedThemesPrefsKey, rawList);
   }
 }

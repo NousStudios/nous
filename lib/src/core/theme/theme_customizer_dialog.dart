@@ -32,6 +32,64 @@ class ThemeCustomizerDialog extends StatelessWidget {
     );
   }
 
+  /// Abre um pequeno diálogo pedindo um nome, e salva o tema atual com esse nome.
+  /// (Movido para cá, já que "Personalizar Aparência" é onde o usuário monta o tema.)
+  void _showSaveThemeDialog(BuildContext context, AppTheme theme) {
+    final nameController = TextEditingController();
+
+    showDialog(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          backgroundColor: theme.cardBackgroundColor,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16.0),
+            side: BorderSide(color: theme.borderColor),
+          ),
+          title: Text(
+            'Salvar Tema',
+            style: theme.getTextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+          ),
+          content: TextField(
+            controller: nameController,
+            autofocus: true, // Já abre o teclado, pronto para digitar
+            style: theme.getTextStyle(),
+            decoration: InputDecoration(
+              hintText: 'Nome do tema (ex: Meu Tema Roxo)',
+              hintStyle: theme.getTextStyle(color: theme.secondaryTextColor),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(8),
+                borderSide: BorderSide(color: theme.borderColor),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(8),
+                borderSide: BorderSide(color: theme.textColor),
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: Text('Cancelar', style: theme.getTextStyle(color: theme.secondaryTextColor)),
+            ),
+            TextButton(
+              onPressed: () {
+                final name = nameController.text.trim();
+                if (name.isEmpty) return; // Não salva um tema sem nome
+                ThemeController.saveCurrentThemeAs(name);
+                Navigator.of(dialogContext).pop();
+              },
+              child: Text(
+                'Salvar',
+                style: theme.getTextStyle(color: theme.buttonColor, fontWeight: FontWeight.bold),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
   /// Constrói cada seção de cor dentro de um container com acabamento limpo
   Widget _buildColorSection({
     required BuildContext context,
@@ -132,8 +190,6 @@ class ThemeCustomizerDialog extends StatelessWidget {
 
         // Calcula a largura do popup com base no tamanho real da tela do aparelho,
         // em vez de usar um número fixo (que estava causando overflow em telas pequenas).
-        // Em telas largas, limita a 380px para não ficar exagerado; em telas estreitas,
-        // usa 90% da largura disponível, sempre com uma margem de segurança.
         final screenWidth = MediaQuery.of(context).size.width;
         final dialogWidth = screenWidth < 440 ? screenWidth * 0.9 : 380.0;
 
@@ -218,7 +274,7 @@ class ThemeCustomizerDialog extends StatelessWidget {
                         ThemeController.updateButtonColor(color, gradient: gradient),
                   ),
                   const SizedBox(height: 10),
-                  // NOVA SEÇÃO: cor do texto dentro dos botões (ex: "Concluído", "Aplicar")
+                  // Cor do texto dentro dos botões (ex: "Concluído", "Aplicar")
                   _buildColorSection(
                     context: context,
                     theme: theme,
@@ -353,6 +409,30 @@ class ThemeCustomizerDialog extends StatelessWidget {
                       ],
                     ),
                   ),
+
+                  const SizedBox(height: 16),
+
+                  // ============ SALVAR O TEMA ATUAL ============
+                  // Botão dedicado, ocupando toda a largura, para dar destaque a essa ação
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton.icon(
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: theme.textColor,
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        side: BorderSide(color: theme.borderColor),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                      ),
+                      onPressed: () => _showSaveThemeDialog(context, theme),
+                      icon: Icon(Icons.save_outlined, color: theme.textColor, size: 20),
+                      label: Text(
+                        'Salvar Tema Atual...',
+                        style: theme.getTextStyle(fontSize: 14),
+                      ),
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -482,8 +562,6 @@ class _CanvaColorPickerModalState extends State<_CanvaColorPickerModal>
                         ColorPicker(
                           pickerColor: _solidColor,
                           onColorChanged: (c) => setState(() => _solidColor = c),
-                          // A largura do seletor de cores também acompanha a largura
-                          // calculada do modal, em vez de um valor fixo de 240
                           colorPickerWidth: modalWidth - 40,
                           pickerAreaHeightPercent: 0.5,
                           enableAlpha: true,

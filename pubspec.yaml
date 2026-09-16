@@ -30,6 +30,9 @@ dependencies:
   cupertino_icons: ^1.0.8
   #Cores como a do Canvas, adicionar gradiente etc
   flutter_colorpicker: ^1.1.0
+  # Permite guardar pequenos dados (como os temas salvos pelo usuário) no armazenamento
+  # do próprio aparelho, para que sobrevivam mesmo depois de fechar o app.
+  shared_preferences: ^2.2.0
 
 # Dependências usadas apenas durante o desenvolvimento (não vão para o app final do usuário).
 dev_dependencies:
