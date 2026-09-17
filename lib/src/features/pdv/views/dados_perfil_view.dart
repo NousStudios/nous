@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'package:nous/src/core/theme/theme_controller.dart';
 import 'package:nous/src/core/widgets/custom_app_bar.dart';
 import 'package:nous/src/features/auth/views/login_view.dart';
+import 'package:nous/src/features/pdv/providers/pdv_provider.dart';
+import 'package:nous/src/features/pdv/views/perfis_pdv_view.dart';
 import 'package:nous/src/features/pdv/views/widgets/container_simbolico.dart';
 import 'package:nous/src/features/pdv/views/widgets/formulario_dados_loja.dart';
 
@@ -84,37 +87,166 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
     );
   }
 
+  // Abre o popup "Tem certeza?" antes de excluir a loja de verdade. Só um
+  // AlertDialog simples, seguindo o mesmo visual (cores, borda
+  // arredondada) dos outros popups do app, como o de Configurações.
+  void _confirmarExclusao(BuildContext context) {
+    showDialog<void>(
+      context: context,
+      builder: (dialogContext) {
+        return ValueListenableBuilder<AppTheme>(
+          valueListenable: ThemeController.currentTheme,
+          builder: (dialogContext, theme, child) {
+            return AlertDialog(
+              backgroundColor: theme.cardBackgroundColor,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16.0),
+                side: BorderSide(color: theme.borderColor),
+              ),
+              title: Text(
+                'Excluir Loja',
+                textAlign: TextAlign.center,
+                style: theme.getTextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: theme.textColor,
+                ),
+              ),
+              content: Text(
+                'Tem certeza que deseja excluir esta loja? Essa ação não '
+                'pode ser desfeita.',
+                textAlign: TextAlign.center,
+                style: theme.getTextStyle(fontSize: 14),
+              ),
+              actionsAlignment: MainAxisAlignment.center,
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(dialogContext).pop(),
+                  child: Text(
+                    'Cancelar',
+                    style: theme.getTextStyle(
+                      color: theme.secondaryTextColor,
+                    ),
+                  ),
+                ),
+                TextButton(
+                  onPressed: () => _executarExclusao(dialogContext),
+                  child: Text(
+                    'Excluir',
+                    style: theme.getTextStyle(color: Colors.redAccent),
+                  ),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  // Executa a exclusão de verdade, depois que o usuário já confirmou no
+  // popup. Apaga os dados no PdvProvider e leva o usuário de volta para
+  // "Meus Perfis" — já que a loja que estava sendo vista nesta tela não
+  // existe mais, não faz sentido deixar ele "voltar" para cá.
+  void _executarExclusao(BuildContext dialogContext) {
+    // Pegamos a referência do Navigator ANTES de fechar o popup e a tela,
+    // pelo mesmo motivo já usado no popup de categoria: depois do pop(),
+    // o context pode não ser mais confiável.
+    final navigator = Navigator.of(dialogContext);
+
+    dialogContext.read<PdvProvider>().excluirLoja();
+
+    navigator.pop(); // fecha o popup de confirmação
+
+    // pushAndRemoveUntil troca esta tela pela de "Meus Perfis" e apaga
+    // toda a pilha de navegação anterior (incluindo esta própria tela de
+    // Dados do Perfil) — assim o botão "voltar" não consegue mais chegar
+    // numa tela mostrando dados de uma loja que já foi excluída.
+    navigator.pushAndRemoveUntil(
+      MaterialPageRoute(builder: (context) => const PerfisPdvView()),
+      (route) => false,
+    );
+  }
+
   // Decide o que aparece no meio da tela, dependendo da aba escolhida.
   // Por enquanto só a aba "Dados" está completa; as outras três ainda
   // estão esperando você definir quais containers entram em cada uma.
   Widget _conteudoDaAba(AppTheme theme) {
     switch (_abaSelecionada) {
       case AbaLoja.dados:
+        // Decoração compartilhada por TODOS os blocos desta aba (o
+        // formulário e cada ContainerSimbolico): fundo semi-transparente
+        // + borda arredondada. Isso é a mesma decoração que já existia
+        // dentro do ContainerSimbolico — deixamos ela guardada aqui numa
+        // variável para não repetir o mesmo código várias vezes, e para
+        // os dois lugares ficarem sempre idênticos visualmente.
+        final decoracaoDoBloco = BoxDecoration(
+          color: theme.backgroundColor.withValues(alpha: 0.4),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: theme.borderColor.withValues(alpha: 0.6)),
+        );
+
         return Column(
           children: [
-            FormularioDadosLoja(theme: theme, controllers: _controllers),
-            const SizedBox(height: 20),
-            TextButton(
-              onPressed: () {
-                // todo: mostrar uma confirmação antes de excluir de
-                // verdade, e conectar isso a um PdvProvider quando ele
-                // existir.
-              },
-              child: Text(
-                'Excluir Loja',
-                style: theme.getTextStyle(fontSize: 13),
+            // Antes, o formulário e o botão "Excluir Loja" ficavam
+            // "soltos" na tela, sem nenhuma moldura ao redor. Agora eles
+            // estão dentro de um Container com a mesma borda usada nos
+            // containers seguintes (Dados Bancários, Galeria, etc.),
+            // exatamente como no protótipo do Figma que você mandou.
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(16),
+              decoration: decoracaoDoBloco,
+              child: Column(
+                children: [
+                  FormularioDadosLoja(
+                    theme: theme,
+                    controllers: _controllers,
+                  ),
+                  const SizedBox(height: 20),
+                  TextButton(
+                    onPressed: () => _confirmarExclusao(context),
+                    child: Text(
+                      'Excluir Loja',
+                      style: theme.getTextStyle(fontSize: 13),
+                    ),
+                  ),
+                ],
               ),
             ),
             const SizedBox(height: 16),
+
+            // Todos os containers abaixo seguem o mesmo padrão visual do
+            // formulário acima: mesmo ContainerSimbolico, com 16 de
+            // espaçamento entre um e outro. Como estão dentro do
+            // SingleChildScrollView do body (lá embaixo, no build), a
+            // tela toda rola normalmente quando o conteúdo não cabe.
             ContainerSimbolico(theme: theme, titulo: 'Dados Bancários'),
+            const SizedBox(height: 16),
+            ContainerSimbolico(
+              theme: theme,
+              titulo: 'Usuários Participantes',
+            ),
+            const SizedBox(height: 16),
+            ContainerSimbolico(theme: theme, titulo: 'Delivery'),
+            const SizedBox(height: 16),
+            ContainerSimbolico(theme: theme, titulo: 'Galeria'),
+            const SizedBox(height: 16),
+            ContainerSimbolico(theme: theme, titulo: 'Arquivos'),
+            const SizedBox(height: 16),
+            ContainerSimbolico(theme: theme, titulo: 'Músicas'),
+            const SizedBox(height: 16),
+            ContainerSimbolico(theme: theme, titulo: 'Vídeos'),
+            const SizedBox(height: 16),
+            ContainerSimbolico(theme: theme, titulo: 'Arquivos de Áudio'),
           ],
         );
 
       // As três abas abaixo ainda não têm seus containers definidos.
-      // Assim que soubermos quais dos containers (Usuários Participantes,
-      // Delivery, Galeria, Arquivos, Músicas, Vídeos, Arquivos de Áudio)
-      // pertencem a cada uma, é só substituir este texto pelos
-      // ContainerSimbolico() correspondentes.
+      // Assim que soubermos quais dos containers pertencem a cada uma
+      // (já que os sete de cima ficaram todos na aba "Dados" por
+      // enquanto), é só mover os ContainerSimbolico() correspondentes
+      // para cá.
       case AbaLoja.interface:
       case AbaLoja.loja:
       case AbaLoja.gestao:
@@ -139,9 +271,6 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
           backgroundColor: theme.backgroundColor,
           appBar: CustomAppBar(
             title: 'Dados do Perfil',
-            // Antes faltava esse parâmetro aqui — era exatamente por isso
-            // que o botão "Sair" não aparecia nesta tela: o CustomAppBar só
-            // mostra "Sair" quando a tela passa essa função para ele.
             onLogout: () => _handleLogout(context),
           ),
           body: SafeArea(
