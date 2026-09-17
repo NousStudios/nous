@@ -1,42 +1,39 @@
 import 'package:flutter/foundation.dart';
+import 'package:nous/src/features/pdv/models/loja.dart';
 
 // ChangeNotifier é a classe base do Flutter para "algo que guarda estado e
 // avisa quem está ouvindo quando esse estado muda" — o mesmo padrão já
-// usado no AuthProvider. Aqui guardamos os dados da loja (ou função) que o
-// usuário cadastrou no fluxo do PDV.
+// usado no AuthProvider. Aqui guardamos TODAS as lojas (ou outras funções,
+// no futuro) que o usuário cadastrou no fluxo do PDV.
 //
-// Por enquanto só guardamos UMA loja (a "Loja Padrão"). No futuro, quando o
-// app permitir vários perfis por usuário (Motoboy, Motorista, Professor,
-// mais de uma loja, etc.), isso provavelmente vai virar uma Lista de lojas
-// em vez de campos soltos como estão agora.
+// Antes, este provider guardava os dados de UMA loja só, como campos
+// soltos (nome, cnpj, etc.). Agora ele guarda uma LISTA de Loja, para o
+// usuário poder ter quantas quiser.
 class PdvProvider extends ChangeNotifier {
-  String _nome = '';
-  String _cnpj = '';
-  String _telefone = '';
-  String _endereco = '';
-  String _numero = '';
-  String _email = '';
-  String _categorias = '';
-  String _tags = '';
+  final List<Loja> _lojas = [];
 
-  String get nome => _nome;
-  String get cnpj => _cnpj;
-  String get telefone => _telefone;
-  String get endereco => _endereco;
-  String get numero => _numero;
-  String get email => _email;
-  String get categorias => _categorias;
-  String get tags => _tags;
+  // Contador simples, só para gerar um "id" diferente para cada loja nova
+  // (0, 1, 2, 3...). Não precisa ser sofisticado: o importante é que cada
+  // loja cadastrada NESTA sessão do app tenha um id diferente das outras.
+  int _proximoId = 0;
 
-  // true assim que existir uma loja salva (ou seja, assim que o nome não
-  // estiver mais vazio). É essa "bandeirinha" que a tela "Meus Perfis" vai
-  // usar para decidir se mostra o card da loja ou não.
-  bool get temLojaSalva => _nome.isNotEmpty;
+  // UnmodifiableListView: devolve a lista de lojas para quem pedir, mas
+  // "travada" contra alterações por fora (ninguém de fora consegue dar
+  // lojas.add(...) ou lojas.remove(...) diretamente). Isso obriga todo
+  // mundo a passar pelos métodos salvarLoja()/excluirLoja() abaixo, que são
+  // os únicos que sabem chamar notifyListeners() corretamente.
+  List<Loja> get lojas => List.unmodifiable(_lojas);
 
-  /// Chamado ao clicar em "Cadastrar" na tela de Cadastrar Loja. Guarda
-  /// todos os dados do formulário e avisa quem estiver "ouvindo" este
-  /// provider (a tela de Meus Perfis, por exemplo) para se redesenhar já
-  /// mostrando o card novo.
+  // true assim que existir pelo menos uma loja salva. É essa "bandeirinha"
+  // que a tela "Meus Perfis" vai usar para decidir se mostra a seção de
+  // cards ou não.
+  bool get temLojaSalva => _lojas.isNotEmpty;
+
+  /// Chamado ao clicar em "Cadastrar" na tela de Cadastrar Loja. Cria uma
+  /// Loja nova (com um id novo) e ADICIONA ela à lista — as lojas
+  /// cadastradas antes continuam intactas. Avisa quem estiver "ouvindo"
+  /// este provider (a tela de Meus Perfis, por exemplo) para se redesenhar
+  /// já mostrando o card novo.
   void salvarLoja({
     required String nome,
     required String cnpj,
@@ -47,31 +44,37 @@ class PdvProvider extends ChangeNotifier {
     required String categorias,
     required String tags,
   }) {
-    _nome = nome;
-    _cnpj = cnpj;
-    _telefone = telefone;
-    _endereco = endereco;
-    _numero = numero;
-    _email = email;
-    _categorias = categorias;
-    _tags = tags;
+    final novaLoja = Loja(
+      id: 'loja_${_proximoId++}',
+      nome: nome,
+      cnpj: cnpj,
+      telefone: telefone,
+      endereco: endereco,
+      numero: numero,
+      email: email,
+      categorias: categorias,
+      tags: tags,
+    );
 
+    _lojas.add(novaLoja);
     notifyListeners();
   }
 
-  /// Apaga os dados da loja salva. Ainda não é chamado de nenhum lugar —
-  /// fica pronto para quando conectarmos o botão "Excluir Loja" da tela de
-  /// Dados do Perfil numa próxima etapa.
-  void excluirLoja() {
-    _nome = '';
-    _cnpj = '';
-    _telefone = '';
-    _endereco = '';
-    _numero = '';
-    _email = '';
-    _categorias = '';
-    _tags = '';
+  /// Devolve a loja com o id informado, ou null se não existir (por
+  /// exemplo, se ela já tiver sido excluída). Usado pela tela de Dados do
+  /// Perfil para saber qual loja mostrar.
+  Loja? buscarPorId(String id) {
+    for (final loja in _lojas) {
+      if (loja.id == id) return loja;
+    }
+    return null;
+  }
 
+  /// Remove APENAS a loja com o id informado, mantendo todas as outras.
+  /// Antes, excluirLoja() apagava os únicos dados que existiam (não havia
+  /// lista); agora ele precisa saber qual das várias lojas remover.
+  void excluirLoja(String id) {
+    _lojas.removeWhere((loja) => loja.id == id);
     notifyListeners();
   }
 }

@@ -42,21 +42,25 @@ class _CadastrarLojaViewState extends State<CadastrarLojaView> {
     final valido = _formKey.currentState?.validate() ?? false;
     if (!valido) return;
 
-    // context.read<PdvProvider>(): pega a instância do PdvProvider que foi
-    // registrada lá no main.dart (dentro do MultiProvider), sem "ouvir"
-    // mudanças nela (é por isso que é .read e não .watch — aqui só
-    // queremos CHAMAR um método dela uma vez, não redesenhar esta tela
-    // toda vez que ela mudar).
-    context.read<PdvProvider>().salvarLoja(
-          nome: _controllers.nome.text,
-          cnpj: _controllers.cnpj.text,
-          telefone: _controllers.telefone.text,
-          endereco: _controllers.endereco.text,
-          numero: _controllers.numero.text,
-          email: _controllers.email.text,
-          categorias: _controllers.categorias.text,
-          tags: _controllers.tags.text,
-        );
+    final pdvProvider = context.read<PdvProvider>();
+
+    pdvProvider.salvarLoja(
+      nome: _controllers.nome.text,
+      cnpj: _controllers.cnpj.text,
+      telefone: _controllers.telefone.text,
+      endereco: _controllers.endereco.text,
+      numero: _controllers.numero.text,
+      email: _controllers.email.text,
+      categorias: _controllers.categorias.text,
+      tags: _controllers.tags.text,
+    );
+
+    // pdvProvider.lojas.last: como salvarLoja() acabou de ADICIONAR a
+    // loja nova no FINAL da lista, ".last" pega exatamente ela — mesmo
+    // que já existam outras lojas cadastradas antes. É assim que
+    // conseguimos o "id" da loja recém-criada sem precisar mudar a
+    // assinatura de salvarLoja().
+    final lojaRecemCriada = pdvProvider.lojas.last;
 
     // pushReplacement (em vez de push): troca esta tela de Cadastro pela
     // tela de Dados do Perfil na pilha de navegação. Assim, se o usuário
@@ -65,16 +69,7 @@ class _CadastrarLojaViewState extends State<CadastrarLojaView> {
     // cadastro depois que a loja já foi cadastrada.
     Navigator.of(context).pushReplacement(
       MaterialPageRoute(
-        builder: (context) => DadosPerfilView(
-          nomeInicial: _controllers.nome.text,
-          cnpjInicial: _controllers.cnpj.text,
-          telefoneInicial: _controllers.telefone.text,
-          enderecoInicial: _controllers.endereco.text,
-          numeroInicial: _controllers.numero.text,
-          emailInicial: _controllers.email.text,
-          categoriasInicial: _controllers.categorias.text,
-          tagsInicial: _controllers.tags.text,
-        ),
+        builder: (context) => DadosPerfilView(lojaId: lojaRecemCriada.id),
       ),
     );
   }

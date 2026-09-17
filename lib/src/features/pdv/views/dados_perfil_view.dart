@@ -8,31 +8,15 @@ import 'package:nous/src/features/pdv/views/perfis_pdv_view.dart';
 import 'package:nous/src/features/pdv/views/widgets/container_simbolico.dart';
 import 'package:nous/src/features/pdv/views/widgets/formulario_dados_loja.dart';
 
-// Tela "Dados do Perfil". É aberta de dois jeitos diferentes:
-// 1) Depois de cadastrar uma loja nova (vem com os dados já preenchidos).
-// 2) Ao clicar no card da loja salva, na tela de Perfis (vem preenchida
-//    com os dados reais guardados no PdvProvider).
+// Tela "Dados do Perfil". Antes, ela recebia os dados da loja soltos, um
+// parâmetro para cada campo (nome, cnpj, telefone...). Agora que o
+// PdvProvider guarda uma LISTA de lojas, essa tela passa a receber só o
+// "lojaId" — o identificador de QUAL loja da lista ela deve mostrar — e
+// busca os dados de verdade no PdvProvider.
 class DadosPerfilView extends StatefulWidget {
-  final String nomeInicial;
-  final String cnpjInicial;
-  final String telefoneInicial;
-  final String enderecoInicial;
-  final String numeroInicial;
-  final String emailInicial;
-  final String categoriasInicial;
-  final String tagsInicial;
+  final String lojaId;
 
-  const DadosPerfilView({
-    super.key,
-    this.nomeInicial = '',
-    this.cnpjInicial = '',
-    this.telefoneInicial = '',
-    this.enderecoInicial = '',
-    this.numeroInicial = '',
-    this.emailInicial = '',
-    this.categoriasInicial = 'Loja Padrão',
-    this.tagsInicial = '',
-  });
+  const DadosPerfilView({super.key, required this.lojaId});
 
   @override
   State<DadosPerfilView> createState() => _DadosPerfilViewState();
@@ -58,14 +42,25 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
   @override
   void initState() {
     super.initState();
-    _controllers.nome.text = widget.nomeInicial;
-    _controllers.cnpj.text = widget.cnpjInicial;
-    _controllers.telefone.text = widget.telefoneInicial;
-    _controllers.endereco.text = widget.enderecoInicial;
-    _controllers.numero.text = widget.numeroInicial;
-    _controllers.email.text = widget.emailInicial;
-    _controllers.categorias.text = widget.categoriasInicial;
-    _controllers.tags.text = widget.tagsInicial;
+
+    // context.read (não watch): aqui só precisamos LER os dados da loja
+    // uma vez, para preencher os campos de texto quando a tela abre. Não
+    // queremos que initState rode de novo toda vez que algo mudar no
+    // provider — isso nem seria permitido pelo Flutter dentro de
+    // initState.
+    final loja = context.read<PdvProvider>().buscarPorId(widget.lojaId);
+
+    // Se por algum motivo a loja não for encontrada (por exemplo, ela já
+    // foi excluída em outra aba do navegador), os campos ficam vazios em
+    // vez de quebrar o app.
+    _controllers.nome.text = loja?.nome ?? '';
+    _controllers.cnpj.text = loja?.cnpj ?? '';
+    _controllers.telefone.text = loja?.telefone ?? '';
+    _controllers.endereco.text = loja?.endereco ?? '';
+    _controllers.numero.text = loja?.numero ?? '';
+    _controllers.email.text = loja?.email ?? '';
+    _controllers.categorias.text = loja?.categorias ?? '';
+    _controllers.tags.text = loja?.tags ?? '';
   }
 
   @override
@@ -145,16 +140,17 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
   }
 
   // Executa a exclusão de verdade, depois que o usuário já confirmou no
-  // popup. Apaga os dados no PdvProvider e leva o usuário de volta para
-  // "Meus Perfis" — já que a loja que estava sendo vista nesta tela não
-  // existe mais, não faz sentido deixar ele "voltar" para cá.
+  // popup. Remove APENAS a loja com este lojaId (as outras lojas
+  // continuam intactas na lista) e leva o usuário de volta para "Meus
+  // Perfis" — já que a loja que estava sendo vista nesta tela não existe
+  // mais, não faz sentido deixar ele "voltar" para cá.
   void _executarExclusao(BuildContext dialogContext) {
     // Pegamos a referência do Navigator ANTES de fechar o popup e a tela,
     // pelo mesmo motivo já usado no popup de categoria: depois do pop(),
     // o context pode não ser mais confiável.
     final navigator = Navigator.of(dialogContext);
 
-    dialogContext.read<PdvProvider>().excluirLoja();
+    dialogContext.read<PdvProvider>().excluirLoja(widget.lojaId);
 
     navigator.pop(); // fecha o popup de confirmação
 
@@ -188,11 +184,10 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
 
         return Column(
           children: [
-            // Antes, o formulário e o botão "Excluir Loja" ficavam
-            // "soltos" na tela, sem nenhuma moldura ao redor. Agora eles
-            // estão dentro de um Container com a mesma borda usada nos
-            // containers seguintes (Dados Bancários, Galeria, etc.),
-            // exatamente como no protótipo do Figma que você mandou.
+            // O formulário e o botão "Excluir Loja" ficam dentro de um
+            // Container com a mesma borda usada nos containers seguintes
+            // (Dados Bancários, Galeria, etc.), como no protótipo do
+            // Figma.
             Container(
               width: double.infinity,
               padding: const EdgeInsets.all(16),
