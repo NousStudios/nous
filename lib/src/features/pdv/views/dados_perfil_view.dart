@@ -1,15 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:nous/src/core/theme/theme_controller.dart';
 import 'package:nous/src/core/widgets/custom_app_bar.dart';
+import 'package:nous/src/features/auth/views/login_view.dart';
 import 'package:nous/src/features/pdv/views/widgets/container_simbolico.dart';
 import 'package:nous/src/features/pdv/views/widgets/formulario_dados_loja.dart';
 
 // Tela "Dados do Perfil". É aberta de dois jeitos diferentes:
 // 1) Depois de cadastrar uma loja nova (vem com os dados já preenchidos).
-// 2) Ao clicar direto no card "Loja Padrão" na tela de Perfis (por
-//    enquanto vem tudo vazio, já que ainda não existe nenhum lugar
-//    guardando os dados de verdade — isso vai mudar quando criarmos um
-//    PdvProvider).
+// 2) Ao clicar no card da loja salva, na tela de Perfis (vem preenchida
+//    com os dados reais guardados no PdvProvider).
 class DadosPerfilView extends StatefulWidget {
   final String nomeInicial;
   final String cnpjInicial;
@@ -72,6 +71,19 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
     super.dispose();
   }
 
+  // Função chamada quando o usuário clica em "Sair" dentro do popup de
+  // Configurações. Idêntica à que já existe em perfis_pdv_view.dart:
+  // pushAndRemoveUntil troca de tela E apaga toda a pilha de navegação
+  // anterior, então depois disso não existe mais "voltar" para nenhuma
+  // tela do PDV por engano — a única forma de voltar é fazendo
+  // login/entrando como visitante de novo.
+  void _handleLogout(BuildContext context) {
+    Navigator.of(context).pushAndRemoveUntil(
+      MaterialPageRoute(builder: (context) => const LoginView()),
+      (route) => false, // false para TODAS as rotas = apaga tudo
+    );
+  }
+
   // Decide o que aparece no meio da tela, dependendo da aba escolhida.
   // Por enquanto só a aba "Dados" está completa; as outras três ainda
   // estão esperando você definir quais containers entram em cada uma.
@@ -125,7 +137,13 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
       builder: (context, theme, child) {
         return Scaffold(
           backgroundColor: theme.backgroundColor,
-          appBar: CustomAppBar(title: 'Dados do Perfil'),
+          appBar: CustomAppBar(
+            title: 'Dados do Perfil',
+            // Antes faltava esse parâmetro aqui — era exatamente por isso
+            // que o botão "Sair" não aparecia nesta tela: o CustomAppBar só
+            // mostra "Sair" quando a tela passa essa função para ele.
+            onLogout: () => _handleLogout(context),
+          ),
           body: SafeArea(
             child: Center(
               child: ConstrainedBox(
