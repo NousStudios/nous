@@ -41,6 +41,11 @@ class DadosPerfilView extends StatefulWidget {
 // (aba == 2)", a gente escreve "if (aba == AbaLoja.loja)".
 enum AbaLoja { dados, interface, loja, gestao }
 
+// Largura máxima do conteúdo da tela. O formulário (no body) e a barra de
+// abas (embaixo) usam esse mesmo número, então os dois ficam com a mesma
+// largura.
+const double _larguraMaximaConteudo = 500;
+
 class _DadosPerfilViewState extends State<DadosPerfilView> {
   final _controllers = ControllersDadosLoja();
 
@@ -124,7 +129,8 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
           body: SafeArea(
             child: Center(
               child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 500),
+                constraints:
+                    const BoxConstraints(maxWidth: _larguraMaximaConteudo),
                 child: SingleChildScrollView(
                   padding: const EdgeInsets.all(16),
                   child: _conteudoDaAba(theme),
@@ -133,10 +139,9 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
             ),
           ),
           // bottomNavigationBar fica sempre fixo na parte de baixo da
-          // tela, não rola junto com o conteúdo. É aqui que colocamos a
-          // barra de navegação própria da loja — a barra de navegação
-          // GERAL do app (com os 5 botões) ainda não existe, então por
-          // enquanto esta é a única barra fixa na tela.
+          // tela, não rola junto com o conteúdo. Nada é embrulhado em
+          // volta dele aqui — a limitação de largura acontece dentro do
+          // próprio _BarraDeAbasDaLoja, pelo cálculo de margem.
           bottomNavigationBar: _BarraDeAbasDaLoja(
             theme: theme,
             abaSelecionada: _abaSelecionada,
@@ -180,11 +185,43 @@ class _BarraDeAbasDaLoja extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // ---------------------------------------------------------------
+    // NOVA ABORDAGEM PARA A LARGURA
+    //
+    // As tentativas anteriores usavam Center + ConstrainedBox, que é o
+    // jeito "normal" de limitar largura no Flutter — mas dentro do slot
+    // bottomNavigationBar do Scaffold isso não pegou.
+    //
+    // Então aqui a conta é feita na mão, com o mesmo recurso que já
+    // resolveu o bug do popup "Personalizar Aparência" neste projeto:
+    // MediaQuery.sizeOf(context) + .clamp().
+    //
+    // Como funciona, em português:
+    // 1. Pega a largura total da tela.
+    // 2. Descobre quanto "sobra" além dos 500px do conteúdo.
+    // 3. Divide essa sobra por 2 — esse é o espaço de cada lado.
+    // 4. O .clamp(0, ...) garante que o número nunca fique negativo
+    //    (se a tela for menor que 500px, a sobra daria negativo, e
+    //    margem negativa quebra o app).
+    // ---------------------------------------------------------------
+    final larguraDaTela = MediaQuery.sizeOf(context).width;
+    final sobra = larguraDaTela - _larguraMaximaConteudo;
+    final margemLateral = (sobra / 2).clamp(0.0, larguraDaTela / 2);
+
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      // A cor de fundo e a borda de cima continuam ocupando a tela
+      // inteira; só o conteúdo de dentro é que fica estreito.
       decoration: BoxDecoration(
         color: theme.backgroundColor,
         border: Border(top: BorderSide(color: theme.borderColor)),
+      ),
+      padding: EdgeInsets.only(
+        // 12 é o espaçamento que já existia antes nas laterais; a
+        // margemLateral calculada acima é somada a ele.
+        left: margemLateral + 12,
+        right: margemLateral + 12,
+        top: 10,
+        bottom: 10,
       ),
       child: SafeArea(
         top: false,
@@ -202,9 +239,8 @@ class _BarraDeAbasDaLoja extends StatelessWidget {
                     // botões "vazados" do app.
                     backgroundColor:
                         selecionada ? theme.buttonColor : Colors.transparent,
-                    foregroundColor: selecionada
-                        ? theme.buttonTextColor
-                        : theme.textColor,
+                    foregroundColor:
+                        selecionada ? theme.buttonTextColor : theme.textColor,
                     side: BorderSide(color: theme.borderColor),
                     padding: const EdgeInsets.symmetric(vertical: 10),
                     shape: RoundedRectangleBorder(
@@ -216,7 +252,8 @@ class _BarraDeAbasDaLoja extends StatelessWidget {
                     _rotulo(aba),
                     style: theme.getTextStyle(
                       fontSize: 12,
-                      color: selecionada ? theme.buttonTextColor : theme.textColor,
+                      color:
+                          selecionada ? theme.buttonTextColor : theme.textColor,
                     ),
                   ),
                 ),
