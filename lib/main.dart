@@ -4,6 +4,7 @@ import 'package:nous/src/core/theme/theme_controller.dart';
 import 'package:nous/src/core/theme/contrast_helper.dart';
 import 'package:nous/src/features/auth/providers/auth_provider.dart';
 import 'package:nous/src/features/auth/views/login_view.dart';
+import 'package:nous/src/features/pdv/providers/pdv_provider.dart';
 
 Future<void> main() async {
   // Garante que o Flutter está pronto para operações assíncronas antes do runApp,
@@ -21,21 +22,27 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // ChangeNotifierProvider "disponibiliza" o AuthProvider para toda a
-    // árvore de widgets abaixo dele — ou seja, para o app inteiro, já que
-    // ele envolve o MaterialApp. Qualquer tela vai poder acessá-lo com
-    // context.watch<AuthProvider>() ou context.read<AuthProvider>(),
-    // sem precisar receber ele por parâmetro.
+    // MultiProvider serve para registrar VÁRIOS providers de uma vez, sem
+    // precisar aninhar um ChangeNotifierProvider dentro do outro à mão.
+    // Cada item da lista "providers" abaixo funciona exatamente como o
+    // ChangeNotifierProvider único que já existia antes — cada um cria UMA
+    // instância da sua classe quando o app abre, e disponibiliza ela para
+    // toda a árvore de widgets abaixo (ou seja, para o app inteiro, já que
+    // isso envolve o MaterialApp).
     //
-    // create: (_) => AuthProvider() significa "crie UMA instância desse
-    // provider quando o app abrir, e reaproveite ela sempre" (em vez de criar
-    // uma nova toda vez que alguém pedir).
-    return ChangeNotifierProvider(
-      create: (_) => AuthProvider(),
+    // Qualquer tela vai poder acessar tanto o AuthProvider (dados de login)
+    // quanto o PdvProvider (dados da loja/perfil) com context.watch<...>()
+    // ou context.read<...>(), sem precisar receber nada por parâmetro.
+    return MultiProvider(
+      providers: [
+        ChangeNotifierProvider(create: (_) => AuthProvider()),
+        ChangeNotifierProvider(create: (_) => PdvProvider()),
+      ],
       child: ValueListenableBuilder<AppTheme>(
         // ValueListenableBuilder continua aqui do mesmo jeito que estava —
-        // ele cuida do TEMA (cores/fonte), que é um assunto separado do
-        // AuthProvider (que cuida do LOGIN). Cada um cuida da sua parte.
+        // ele cuida do TEMA (cores/fonte), que é um assunto separado dos
+        // providers acima (que cuidam de LOGIN e de DADOS DO PDV). Cada um
+        // cuida da sua parte.
         valueListenable: ThemeController.currentTheme,
         builder: (context, theme, child) {
           return MaterialApp(

@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'package:nous/src/core/theme/theme_controller.dart';
 import 'package:nous/src/core/widgets/custom_app_bar.dart';
+import 'package:nous/src/features/pdv/providers/pdv_provider.dart';
 import 'package:nous/src/features/pdv/views/dados_perfil_view.dart';
 import 'package:nous/src/features/pdv/views/widgets/formulario_dados_loja.dart';
 
@@ -39,6 +41,22 @@ class _CadastrarLojaViewState extends State<CadastrarLojaView> {
   void _handleCadastrar() {
     final valido = _formKey.currentState?.validate() ?? false;
     if (!valido) return;
+
+    // context.read<PdvProvider>(): pega a instância do PdvProvider que foi
+    // registrada lá no main.dart (dentro do MultiProvider), sem "ouvir"
+    // mudanças nela (é por isso que é .read e não .watch — aqui só
+    // queremos CHAMAR um método dela uma vez, não redesenhar esta tela
+    // toda vez que ela mudar).
+    context.read<PdvProvider>().salvarLoja(
+          nome: _controllers.nome.text,
+          cnpj: _controllers.cnpj.text,
+          telefone: _controllers.telefone.text,
+          endereco: _controllers.endereco.text,
+          numero: _controllers.numero.text,
+          email: _controllers.email.text,
+          categorias: _controllers.categorias.text,
+          tags: _controllers.tags.text,
+        );
 
     // pushReplacement (em vez de push): troca esta tela de Cadastro pela
     // tela de Dados do Perfil na pilha de navegação. Assim, se o usuário

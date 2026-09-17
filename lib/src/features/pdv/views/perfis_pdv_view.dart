@@ -1,13 +1,15 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'package:nous/src/core/theme/theme_controller.dart';
 import 'package:nous/src/core/widgets/custom_app_bar.dart';
 import 'package:nous/src/features/auth/views/login_view.dart';
+import 'package:nous/src/features/pdv/providers/pdv_provider.dart';
 import 'package:nous/src/features/pdv/views/widgets/criar_perfil_dialog.dart';
 import 'package:nous/src/features/pdv/views/dados_perfil_view.dart';
 
 // Esta é a tela "raiz" do app, mostrada logo depois do login ou de
 // "Entrar como visitante". Ela lista os perfis profissionais do usuário
-// (por enquanto só a "Loja Padrão") e permite criar novos perfis.
+// (por enquanto só a loja salva, se existir) e permite criar novos perfis.
 class PerfisPdvView extends StatelessWidget {
   const PerfisPdvView({super.key});
 
@@ -32,6 +34,13 @@ class PerfisPdvView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // context.watch<PdvProvider>(): diferente do context.read() usado na
+    // tela de Cadastrar Loja, aqui usamos "watch" de propósito — queremos
+    // que ESTA tela se redesenhe automaticamente sempre que os dados da
+    // loja mudarem (por exemplo, assim que o usuário cadastra uma loja
+    // nova), sem precisar navegar para longe e voltar.
+    final pdvProvider = context.watch<PdvProvider>();
+
     // ValueListenableBuilder reconstrói essa tela toda vez que o tema
     // (cores, fonte, etc.) muda — é assim que o app troca de tema em
     // tempo real, sem precisar recarregar a tela.
@@ -88,9 +97,9 @@ class PerfisPdvView extends StatelessWidget {
                         ),
                         child: Column(
                           // Aqui dentro mantemos .start: queremos que o
-                          // título e o card "Loja Padrão" fiquem alinhados
-                          // à esquerda DENTRO do card, só o card inteiro
-                          // que fica centralizado na tela.
+                          // título e o card fiquem alinhados à esquerda
+                          // DENTRO do card, só o card inteiro que fica
+                          // centralizado na tela.
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             // Center aqui centraliza o título dentro da
@@ -111,26 +120,45 @@ class PerfisPdvView extends StatelessWidget {
                             ),
                             const SizedBox(height: 16),
 
-                            _PerfilCard(
-                              theme: theme,
-                              icon: Icons.storefront,
-                              label: 'Loja Padrão',
-                              onTap: () {
-                                // Por enquanto não existe nenhum lugar
-                                // guardando os dados reais da loja (isso
-                                // vai vir com um PdvProvider no futuro),
-                                // então abrimos a tela sem nada
-                                // preenchido.
-                                Navigator.of(context).push(
-                                  MaterialPageRoute(
-                                    builder: (context) =>
-                                        const DadosPerfilView(),
-                                  ),
-                                );
-                              },
-                            ),
-
-                            const SizedBox(height: 20),
+                            // O card só aparece se realmente existir uma
+                            // loja salva no PdvProvider (temLojaSalva).
+                            // Antes disso, esse espaço fica vazio — nada
+                            // de card de exemplo.
+                            if (pdvProvider.temLojaSalva) ...[
+                              _PerfilCard(
+                                theme: theme,
+                                icon: Icons.storefront,
+                                // Antes era o texto fixo 'Loja Padrão'.
+                                // Agora usamos o nome real que o usuário
+                                // digitou e salvou no formulário de
+                                // Cadastrar Loja.
+                                label: pdvProvider.nome,
+                                onTap: () {
+                                  // Agora, em vez de abrir a tela vazia,
+                                  // preenchemos DadosPerfilView com todos
+                                  // os dados reais guardados no
+                                  // PdvProvider.
+                                  Navigator.of(context).push(
+                                    MaterialPageRoute(
+                                      builder: (context) => DadosPerfilView(
+                                        nomeInicial: pdvProvider.nome,
+                                        cnpjInicial: pdvProvider.cnpj,
+                                        telefoneInicial:
+                                            pdvProvider.telefone,
+                                        enderecoInicial:
+                                            pdvProvider.endereco,
+                                        numeroInicial: pdvProvider.numero,
+                                        emailInicial: pdvProvider.email,
+                                        categoriasInicial:
+                                            pdvProvider.categorias,
+                                        tagsInicial: pdvProvider.tags,
+                                      ),
+                                    ),
+                                  );
+                                },
+                              ),
+                              const SizedBox(height: 20),
+                            ],
 
                             // Center aqui dentro do card centraliza só o
                             // botão "Criar Perfil" dentro da largura do
@@ -186,14 +214,14 @@ class PerfisPdvView extends StatelessWidget {
   }
 }
 
-// Widget que representa um "cartão" clicável de perfil (ex: a Loja Padrão).
-// É reaproveitável: no futuro, cada novo perfil criado pelo usuário pode
-// usar esse mesmo widget, só mudando o ícone e o texto.
+// Widget que representa um "cartão" clicável de perfil (ex: a loja
+// salva). É reaproveitável: no futuro, cada novo perfil criado pelo
+// usuário pode usar esse mesmo widget, só mudando o ícone e o texto.
 //
-// Agora ele é um StatefulWidget (antes era Stateless) porque precisa
-// guardar uma informação que muda com o tempo: se o mouse está ou não em
-// cima do card neste exato momento (_hovering, lá na classe de Estado
-// abaixo). Um StatelessWidget não tem como "lembrar" disso.
+// Ele é um StatefulWidget (não Stateless) porque precisa guardar uma
+// informação que muda com o tempo: se o mouse está ou não em cima do card
+// neste exato momento (_hovering, lá na classe de Estado abaixo). Um
+// StatelessWidget não tem como "lembrar" disso.
 class _PerfilCard extends StatefulWidget {
   final AppTheme theme;
   final IconData icon;
