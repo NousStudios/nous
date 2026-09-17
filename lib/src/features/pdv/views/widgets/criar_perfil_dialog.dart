@@ -40,31 +40,43 @@ class _CriarPerfilDialogState extends State<_CriarPerfilDialog> {
   // no início.
   String? _categoriaSelecionada;
 
-  // Abre uma listinha simples, subindo de baixo pra cima da tela
-  // (showModalBottomSheet), com as opções de categoria. Ao tocar numa
-  // opção, guardamos a escolha e fechamos essa listinha.
+  // Abre uma listinha simples com as opções de categoria, centralizada na
+  // tela. Ao tocar numa opção, guardamos a escolha e fechamos essa
+  // listinha.
+  //
+  // Antes isso usava showModalBottomSheet, que é o widget do Flutter
+  // feito justamente para abrir coisas "subindo" da parte de baixo da
+  // tela — por isso a lista aparecia embaixo. Trocamos para showDialog,
+  // que abre centralizado, igual ao popup principal de categorias.
   Future<void> _abrirListaDeCategorias(AppTheme theme) async {
-    final categoriaEscolhida = await showModalBottomSheet<String>(
+    final categoriaEscolhida = await showDialog<String>(
       context: context,
-      backgroundColor: theme.backgroundColor,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-      ),
       builder: (context) {
-        return SafeArea(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: _categorias.map((categoria) {
-              return ListTile(
-                title: Text(
-                  categoria,
-                  style: theme.getTextStyle(fontSize: 15),
-                ),
-                // pop(categoria): fecha a listinha E já devolve o valor
-                // escolhido para quem chamou showModalBottomSheet.
-                onTap: () => Navigator.of(context).pop(categoria),
-              );
-            }).toList(),
+        return Dialog(
+          backgroundColor: theme.backgroundColor,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(24),
+            side: BorderSide(color: theme.borderColor),
+          ),
+          child: ConstrainedBox(
+            // Mesma largura máxima do popup principal, para os dois
+            // ficarem consistentes visualmente.
+            constraints: const BoxConstraints(maxWidth: 380),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: _categorias.map((categoria) {
+                return ListTile(
+                  title: Text(
+                    categoria,
+                    textAlign: TextAlign.center,
+                    style: theme.getTextStyle(fontSize: 15),
+                  ),
+                  // pop(categoria): fecha a listinha E já devolve o valor
+                  // escolhido para quem chamou showDialog.
+                  onTap: () => Navigator.of(context).pop(categoria),
+                );
+              }).toList(),
+            ),
           ),
         );
       },
@@ -99,7 +111,7 @@ class _CriarPerfilDialogState extends State<_CriarPerfilDialog> {
         ),
       );
     }
-    // TODO: quando Motoboy, Motorista e Professor tiverem suas próprias
+    // todo: quando Motoboy, Motorista e Professor tiverem suas próprias
     // telas de cadastro, adicionar os casos delas aqui.
   }
 

@@ -58,7 +58,7 @@ class FormularioDadosLoja extends StatelessWidget {
         // ainda não abre nada.
         InkWell(
           onTap: () {
-            // TODO: quando o pacote image_picker for adicionado ao
+            // todo: quando o pacote image_picker for adicionado ao
             // projeto, abrir aqui a galeria/câmera para escolher a logo.
           },
           customBorder: const CircleBorder(),

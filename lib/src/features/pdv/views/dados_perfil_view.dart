@@ -84,7 +84,7 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
             const SizedBox(height: 20),
             TextButton(
               onPressed: () {
-                // TODO: mostrar uma confirmação antes de excluir de
+                // todo: mostrar uma confirmação antes de excluir de
                 // verdade, e conectar isso a um PdvProvider quando ele
                 // existir.
               },
