@@ -43,11 +43,6 @@ class _CriarPerfilDialogState extends State<_CriarPerfilDialog> {
   // Abre uma listinha simples com as opções de categoria, centralizada na
   // tela. Ao tocar numa opção, guardamos a escolha e fechamos essa
   // listinha.
-  //
-  // Antes isso usava showModalBottomSheet, que é o widget do Flutter
-  // feito justamente para abrir coisas "subindo" da parte de baixo da
-  // tela — por isso a lista aparecia embaixo. Trocamos para showDialog,
-  // que abre centralizado, igual ao popup principal de categorias.
   Future<void> _abrirListaDeCategorias(AppTheme theme) async {
     final categoriaEscolhida = await showDialog<String>(
       context: context,
@@ -142,44 +137,6 @@ class _CriarPerfilDialogState extends State<_CriarPerfilDialog> {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  // Barra de pesquisa: por enquanto só visual, sem lógica
-                  // de busca ou de "Criar Categoria" de verdade ainda.
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 10,
-                    ),
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(color: theme.borderColor),
-                    ),
-                    child: Row(
-                      children: [
-                        Icon(
-                          Icons.search,
-                          color: theme.secondaryTextColor,
-                          size: 18,
-                        ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Text(
-                            'Pesquise ou crie a melhor categoria para sua '
-                            'loja',
-                            style: theme.getTextStyle(fontSize: 11),
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        Icon(
-                          Icons.add_circle_outline,
-                          color: theme.secondaryTextColor,
-                          size: 18,
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 24),
-
                   // Título do popup — usa textColor por ser um cabeçalho
                   // de janela, seguindo a mesma regra usada em "Termos de
                   // Uso" e "Personalizar Aparência".
