@@ -250,9 +250,9 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
   }
 
   // Botão de ação "vazado" (só borda), usado nos três botões da aba Loja
-  // (Nova Categoria / Novo Item / Grupo de Componentes) — mesmo visual
-  // dos botões "não selecionados" da barra de abas Dados/Interface/
-  // Loja/Gestão, pra manter a identidade visual do app.
+  // (Nova Categoria / Novo Item / Novo Grupo de Componentes) — mesmo
+  // visual dos botões "não selecionados" da barra de abas Dados/
+  // Interface/Loja/Gestão, pra manter a identidade visual do app.
   Widget _botaoAcaoLoja(AppTheme theme, String rotulo, VoidCallback onPressed) {
     return OutlinedButton(
       style: OutlinedButton.styleFrom(
@@ -395,8 +395,12 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
                 children: [
                   _botaoAcaoLoja(theme, 'Nova Categoria', _adicionarCategoria),
                   _botaoAcaoLoja(theme, 'Novo Item', _adicionarItem),
-                  _botaoAcaoLoja(theme, 'Grupo de Componentes', () {
-                    // todo: ainda não decidimos o que este botão faz.
+                  _botaoAcaoLoja(theme, 'Novo Grupo de Componentes', () {
+                    // todo: sem um produto "selecionado" na tela, ainda
+                    // não sabemos a qual produto este grupo pertenceria.
+                    // Por enquanto, grupos são criados pelo menu "⋮" de
+                    // cada produto individual (dentro da categoria
+                    // expandida).
                   }),
                 ],
               ),
@@ -456,7 +460,7 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
                 aoTrocarAba: (novaAba) =>
                     setState(() => _abaSelecionada = novaAba),
               ),
-                            FloatingBottomNavBar(maxWidth: _larguraMaximaConteudo),
+              FloatingBottomNavBar(maxWidth: _larguraMaximaConteudo),
             ],
           ),
         );
@@ -497,39 +501,16 @@ class _BarraDeAbasDaLoja extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // ---------------------------------------------------------------
-    // NOVA ABORDAGEM PARA A LARGURA
-    //
-    // As tentativas anteriores usavam Center + ConstrainedBox, que é o
-    // jeito "normal" de limitar largura no Flutter — mas dentro do slot
-    // bottomNavigationBar do Scaffold isso não pegou.
-    //
-    // Então aqui a conta é feita na mão, com o mesmo recurso que já
-    // resolveu o bug do popup "Personalizar Aparência" neste projeto:
-    // MediaQuery.sizeOf(context) + .clamp().
-    //
-    // Como funciona, em português:
-    // 1. Pega a largura total da tela.
-    // 2. Descobre quanto "sobra" além dos 500px do conteúdo.
-    // 3. Divide essa sobra por 2 — esse é o espaço de cada lado.
-    // 4. O .clamp(0, ...) garante que o número nunca fique negativo
-    //    (se a tela for menor que 500px, a sobra daria negativo, e
-    //    margem negativa quebra o app).
-    // ---------------------------------------------------------------
     final larguraDaTela = MediaQuery.sizeOf(context).width;
     final sobra = larguraDaTela - _larguraMaximaConteudo;
     final margemLateral = (sobra / 2).clamp(0.0, larguraDaTela / 2);
 
     return Container(
-      // A cor de fundo e a borda de cima continuam ocupando a tela
-      // inteira; só o conteúdo de dentro é que fica estreito.
       decoration: BoxDecoration(
         color: theme.backgroundColor,
         border: Border(top: BorderSide(color: theme.borderColor)),
       ),
       padding: EdgeInsets.only(
-        // 12 é o espaçamento que já existia antes nas laterais; a
-        // margemLateral calculada acima é somada a ele.
         left: margemLateral + 12,
         right: margemLateral + 12,
         top: 10,
@@ -543,10 +524,6 @@ class _BarraDeAbasDaLoja extends StatelessWidget {
               padding: const EdgeInsets.symmetric(horizontal: 4),
               child: OutlinedButton(
                 style: OutlinedButton.styleFrom(
-                  // Selecionada: fundo buttonColor (igual ao hover do
-                  // card). Não selecionada: fundo transparente, só a
-                  // borda aparece — o mesmo truque usado em todos os
-                  // botões "vazados" do app.
                   backgroundColor:
                       selecionada ? theme.buttonColor : Colors.transparent,
                   foregroundColor:
