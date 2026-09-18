@@ -13,7 +13,14 @@ import 'package:nous/src/core/theme/theme_controller.dart';
 // barra não é exclusiva do PDV: a ideia é ela aparecer também no chat,
 // na timeline, etc., no futuro.
 class FloatingBottomNavBar extends StatefulWidget {
-  const FloatingBottomNavBar({super.key});
+  // Largura máxima do bloco de CONTEÚDO da tela que está usando essa
+  // barra (ex: 500 na tela de Dados do Perfil, 600 em Meus Perfis).
+  // Cada tela passa o próprio número aqui, para a barra flutuante ficar
+  // sempre alinhada com a largura do container de conteúdo dela — em
+  // vez de usar uma margem fixa igual em toda tela.
+  final double maxWidth;
+
+  const FloatingBottomNavBar({super.key, required this.maxWidth});
 
   @override
   State<FloatingBottomNavBar> createState() => _FloatingBottomNavBarState();
@@ -38,14 +45,32 @@ class _FloatingBottomNavBarState extends State<FloatingBottomNavBar> {
 
   @override
   Widget build(BuildContext context) {
+    // ---------------------------------------------------------------
+    // Mesmo cálculo de margem usado em _BarraDeAbasDaLoja
+    // (dados_perfil_view.dart): pega a largura total da tela, descobre
+    // quanto "sobra" além da largura máxima de conteúdo pedida, e
+    // divide essa sobra por 2 — esse é o espaço de cada lado. O
+    // .clamp(0, ...) evita margem negativa em telas menores que
+    // maxWidth.
+    // ---------------------------------------------------------------
+    final larguraDaTela = MediaQuery.sizeOf(context).width;
+    final sobra = larguraDaTela - widget.maxWidth;
+    final margemLateral = (sobra / 2).clamp(0.0, larguraDaTela / 2);
+
     return ValueListenableBuilder<AppTheme>(
       valueListenable: ThemeController.currentTheme,
       builder: (context, theme, child) {
         return Padding(
           // Espaço em volta da barra pra ela ficar "flutuando" — sem
           // tocar nas bordas da tela nem grudar no que tiver em cima
-          // dela (no nosso caso, a barra Dados/Interface/Loja/Gestão).
-          padding: const EdgeInsets.fromLTRB(24, 0, 24, 16),
+          // dela. margemLateral garante que a largura da barra bate
+          // com a largura do container de conteúdo da tela.
+          padding: EdgeInsets.fromLTRB(
+            margemLateral + 24,
+            0,
+            margemLateral + 24,
+            16,
+          ),
           child: Container(
             height: 56,
             decoration: BoxDecoration(

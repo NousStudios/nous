@@ -456,7 +456,7 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
                 aoTrocarAba: (novaAba) =>
                     setState(() => _abaSelecionada = novaAba),
               ),
-              const FloatingBottomNavBar(),
+                            FloatingBottomNavBar(maxWidth: _larguraMaximaConteudo),
             ],
           ),
         );

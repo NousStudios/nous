@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:nous/src/core/theme/theme_controller.dart';
 import 'package:nous/src/core/widgets/custom_app_bar.dart';
+import 'package:nous/src/core/widgets/floating_bottom_nav_bar.dart';
 import 'package:nous/src/features/auth/views/login_view.dart';
 import 'package:nous/src/features/pdv/providers/pdv_provider.dart';
 import 'package:nous/src/features/pdv/views/widgets/criar_perfil_dialog.dart';
@@ -208,6 +209,16 @@ class PerfisPdvView extends StatelessWidget {
                 ],
               ),
             ),
+          ),
+          // Barra de navegação flutuante do app inteiro, agora também
+          // presente nesta tela — igual já estava em Dados do Perfil.
+          // Como PerfisPdvView é a tela "raiz" pós-login, ela é o
+          // primeiro lugar onde essa barra passa a aparecer para o
+          // usuário; as próximas telas do app (chat, timeline, etc.)
+          // devem seguir o mesmo padrão de adicionar essa mesma barra,
+          // passando a largura máxima de conteúdo da tela em questão.
+          bottomNavigationBar: const FloatingBottomNavBar(
+            maxWidth: _larguraMaximaConteudo,
           ),
         );
       },
