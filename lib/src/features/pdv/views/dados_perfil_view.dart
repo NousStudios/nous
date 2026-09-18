@@ -2,14 +2,17 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:nous/src/core/theme/theme_controller.dart';
 import 'package:nous/src/core/widgets/custom_app_bar.dart';
+import 'package:nous/src/core/widgets/floating_bottom_nav_bar.dart';
 import 'package:nous/src/features/auth/views/login_view.dart';
 import 'package:nous/src/features/pdv/providers/pdv_provider.dart';
 import 'package:nous/src/features/pdv/views/perfis_pdv_view.dart';
+import 'package:nous/src/features/pdv/views/widgets/categoria_loja_container.dart';
 import 'package:nous/src/features/pdv/views/widgets/container_simbolico.dart';
 import 'package:nous/src/features/pdv/views/widgets/dados_bancarios_container.dart';
 import 'package:nous/src/features/pdv/views/widgets/delivery_container.dart';
 import 'package:nous/src/features/pdv/views/widgets/formulario_dados_loja.dart';
 import 'package:nous/src/features/pdv/views/widgets/galeria_estilo_container.dart';
+import 'package:nous/src/features/pdv/views/widgets/item_loja_card.dart';
 import 'package:nous/src/features/pdv/views/widgets/usuarios_participantes_container.dart';
 
 // Tela "Dados do Perfil". Antes, ela recebia os dados da loja soltos, um
@@ -31,9 +34,8 @@ class DadosPerfilView extends StatefulWidget {
 // (aba == 2)", a gente escreve "if (aba == AbaLoja.loja)".
 enum AbaLoja { dados, interface, loja, gestao }
 
-// Largura máxima do conteúdo da tela. O formulário (no body) e a barra de
-// abas (embaixo) usam esse mesmo número, então os dois ficam com a mesma
-// largura.
+// Largura máxima do conteúdo da tela. O formulário (no body) e as barras
+// de baixo usam esse mesmo número, então tudo fica com a mesma largura.
 const double _larguraMaximaConteudo = 500;
 
 class _DadosPerfilViewState extends State<DadosPerfilView> {
@@ -50,6 +52,43 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
   // Guarda qual aba da navegação própria da loja está selecionada agora.
   // Começa em "dados", que é a aba inicial pedida.
   AbaLoja _abaSelecionada = AbaLoja.dados;
+
+  // ---------------------------------------------------------------
+  // Aba "Loja" — ainda sem provider de categorias/itens. Por enquanto
+  // guardamos só uma LISTA DE IDS em memória (perdida se a tela fechar),
+  // só pra podermos mostrar vários cards e testar os botões "Nova
+  // Categoria"/"Novo Item" visualmente, igual foi feito com os outros
+  // containers antes de ganharem provider de verdade.
+  //
+  // Começamos com 4 categorias e 3 itens pra já bater com o protótipo.
+  // ---------------------------------------------------------------
+  final List<int> _categoriaIds = [0, 1, 2, 3];
+  int _proximoIdCategoria = 4;
+
+  final List<int> _itemIds = [0, 1, 2];
+  int _proximoIdItem = 3;
+
+  void _adicionarCategoria() {
+    setState(() {
+      _categoriaIds.add(_proximoIdCategoria);
+      _proximoIdCategoria++;
+    });
+  }
+
+  void _removerCategoria(int id) {
+    setState(() => _categoriaIds.remove(id));
+  }
+
+  void _adicionarItem() {
+    setState(() {
+      _itemIds.add(_proximoIdItem);
+      _proximoIdItem++;
+    });
+  }
+
+  void _removerItem(int id) {
+    setState(() => _itemIds.remove(id));
+  }
 
   @override
   void initState() {
@@ -198,23 +237,55 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
     }
   }
 
+  // Decoração compartilhada por todos os "blocos grandes" da tela (o
+  // formulário principal, e agora também o bloco da aba Loja): fundo
+  // semi-transparente + borda arredondada, o padrão visual de
+  // bloco/container do app inteiro.
+  BoxDecoration _decoracaoDoBloco(AppTheme theme) {
+    return BoxDecoration(
+      color: theme.backgroundColor.withValues(alpha: 0.4),
+      borderRadius: BorderRadius.circular(12),
+      border: Border.all(color: theme.borderColor.withValues(alpha: 0.6)),
+    );
+  }
+
+  // Botão de ação "vazado" (só borda), usado nos três botões da aba Loja
+  // (Nova Categoria / Novo Item / Grupo de Componentes) — mesmo visual
+  // dos botões "não selecionados" da barra de abas Dados/Interface/
+  // Loja/Gestão, pra manter a identidade visual do app.
+  Widget _botaoAcaoLoja(AppTheme theme, String rotulo, VoidCallback onPressed) {
+    return OutlinedButton(
+      style: OutlinedButton.styleFrom(
+        foregroundColor: theme.textColor,
+        side: BorderSide(color: theme.borderColor),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      ),
+      onPressed: onPressed,
+      child: Text(rotulo, style: theme.getTextStyle(fontSize: 12)),
+    );
+  }
+
+  // Título centralizado usado no topo de cada seção do bloco (ex:
+  // "Categorias", "Itens") — mesmo estilo de título já usado em todos os
+  // outros containers do app (fontSize 15, w600, textColor).
+  Widget _tituloDeSecao(AppTheme theme, String texto) {
+    return Text(
+      texto,
+      textAlign: TextAlign.center,
+      style: theme.getTextStyle(
+        fontSize: 15,
+        fontWeight: FontWeight.w600,
+        color: theme.textColor,
+      ),
+    );
+  }
+
   // Decide o que aparece no meio da tela, dependendo da aba escolhida.
-  // Por enquanto só a aba "Dados" está completa; as outras três ainda
-  // estão esperando você definir quais containers entram em cada uma.
   Widget _conteudoDaAba(AppTheme theme) {
     switch (_abaSelecionada) {
       case AbaLoja.dados:
-        // Decoração compartilhada pelo bloco do formulário principal
-        // (nome, CNPJ, etc. + botão Excluir Loja). Os containers de
-        // Dados Bancários, Usuários Participantes, Delivery e os quatro
-        // no "estilo Galeria" já têm essa mesma decoração embutida
-        // dentro deles mesmos, então não precisam mais receber ela por
-        // fora como o ContainerSimbolico exigia.
-        final decoracaoDoBloco = BoxDecoration(
-          color: theme.backgroundColor.withValues(alpha: 0.4),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: theme.borderColor.withValues(alpha: 0.6)),
-        );
+        final decoracaoDoBloco = _decoracaoDoBloco(theme);
 
         return Column(
           children: [
@@ -279,12 +350,62 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
           ],
         );
 
-      // As três abas abaixo ainda não têm seus containers definidos.
-      // Assim que soubermos quais dos containers pertencem a cada uma
-      // (já que os oito de cima ficaram todos na aba "Dados" por
-      // enquanto), é só mover os widgets correspondentes para cá.
-      case AbaLoja.interface:
       case AbaLoja.loja:
+        // Bloco "Categorias" + bloco "Itens" + botões de ação, seguindo
+        // o print que você mandou. Ainda tudo em memória (sem provider):
+        // "Nova Categoria" e "Novo Item" só adicionam um card na tela,
+        // pra você conseguir ver o layout funcionando com mais itens.
+        return Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(16),
+          decoration: _decoracaoDoBloco(theme),
+          child: Column(
+            children: [
+              _tituloDeSecao(theme, 'Categorias'),
+              const SizedBox(height: 12),
+              for (final id in _categoriaIds) ...[
+                CategoriaLojaContainer(
+                  key: ValueKey('categoria_$id'),
+                  theme: theme,
+                  onExcluir: () => _removerCategoria(id),
+                ),
+                const SizedBox(height: 8),
+              ],
+              const SizedBox(height: 12),
+              _tituloDeSecao(theme, 'Itens'),
+              const SizedBox(height: 12),
+              Wrap(
+                spacing: 12,
+                runSpacing: 12,
+                alignment: WrapAlignment.center,
+                children: [
+                  for (final id in _itemIds)
+                    ItemLojaCard(
+                      key: ValueKey('item_$id'),
+                      theme: theme,
+                      onExcluir: () => _removerItem(id),
+                    ),
+                ],
+              ),
+              const SizedBox(height: 20),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                alignment: WrapAlignment.center,
+                children: [
+                  _botaoAcaoLoja(theme, 'Nova Categoria', _adicionarCategoria),
+                  _botaoAcaoLoja(theme, 'Novo Item', _adicionarItem),
+                  _botaoAcaoLoja(theme, 'Grupo de Componentes', () {
+                    // todo: ainda não decidimos o que este botão faz.
+                  }),
+                ],
+              ),
+            ],
+          ),
+        );
+
+      // As duas abas abaixo ainda não têm seus containers definidos.
+      case AbaLoja.interface:
       case AbaLoja.gestao:
         return Padding(
           padding: const EdgeInsets.symmetric(vertical: 40),
@@ -321,14 +442,22 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
               ),
             ),
           ),
-          // bottomNavigationBar fica sempre fixo na parte de baixo da
-          // tela, não rola junto com o conteúdo. Nada é embrulhado em
-          // volta dele aqui — a limitação de largura acontece dentro do
-          // próprio _BarraDeAbasDaLoja, pelo cálculo de margem.
-          bottomNavigationBar: _BarraDeAbasDaLoja(
-            theme: theme,
-            abaSelecionada: _abaSelecionada,
-            aoTrocarAba: (novaAba) => setState(() => _abaSelecionada = novaAba),
+          // Column com as duas barras de baixo: primeiro a de abas da
+          // loja (Dados/Interface/Loja/Gestão), depois a flutuante do
+          // app inteiro — igual ao protótipo. mainAxisSize.min faz a
+          // Column ocupar só a altura que as duas juntas precisam, sem
+          // esticar o resto da tela.
+          bottomNavigationBar: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _BarraDeAbasDaLoja(
+                theme: theme,
+                abaSelecionada: _abaSelecionada,
+                aoTrocarAba: (novaAba) =>
+                    setState(() => _abaSelecionada = novaAba),
+              ),
+              const FloatingBottomNavBar(),
+            ],
           ),
         );
       },
@@ -406,44 +535,41 @@ class _BarraDeAbasDaLoja extends StatelessWidget {
         top: 10,
         bottom: 10,
       ),
-      child: SafeArea(
-        top: false,
-        child: Row(
-          children: AbaLoja.values.map((aba) {
-            final selecionada = aba == abaSelecionada;
-            return Expanded(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 4),
-                child: OutlinedButton(
-                  style: OutlinedButton.styleFrom(
-                    // Selecionada: fundo buttonColor (igual ao hover do
-                    // card). Não selecionada: fundo transparente, só a
-                    // borda aparece — o mesmo truque usado em todos os
-                    // botões "vazados" do app.
-                    backgroundColor:
-                        selecionada ? theme.buttonColor : Colors.transparent,
-                    foregroundColor:
-                        selecionada ? theme.buttonTextColor : theme.textColor,
-                    side: BorderSide(color: theme.borderColor),
-                    padding: const EdgeInsets.symmetric(vertical: 10),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10),
-                    ),
+      child: Row(
+        children: AbaLoja.values.map((aba) {
+          final selecionada = aba == abaSelecionada;
+          return Expanded(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 4),
+              child: OutlinedButton(
+                style: OutlinedButton.styleFrom(
+                  // Selecionada: fundo buttonColor (igual ao hover do
+                  // card). Não selecionada: fundo transparente, só a
+                  // borda aparece — o mesmo truque usado em todos os
+                  // botões "vazados" do app.
+                  backgroundColor:
+                      selecionada ? theme.buttonColor : Colors.transparent,
+                  foregroundColor:
+                      selecionada ? theme.buttonTextColor : theme.textColor,
+                  side: BorderSide(color: theme.borderColor),
+                  padding: const EdgeInsets.symmetric(vertical: 10),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10),
                   ),
-                  onPressed: () => aoTrocarAba(aba),
-                  child: Text(
-                    _rotulo(aba),
-                    style: theme.getTextStyle(
-                      fontSize: 12,
-                      color:
-                          selecionada ? theme.buttonTextColor : theme.textColor,
-                    ),
+                ),
+                onPressed: () => aoTrocarAba(aba),
+                child: Text(
+                  _rotulo(aba),
+                  style: theme.getTextStyle(
+                    fontSize: 12,
+                    color:
+                        selecionada ? theme.buttonTextColor : theme.textColor,
                   ),
                 ),
               ),
-            );
-          }).toList(),
-        ),
+            ),
+          );
+        }).toList(),
       ),
     );
   }
