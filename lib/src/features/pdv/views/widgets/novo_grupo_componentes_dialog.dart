@@ -9,6 +9,11 @@ import 'package:nous/src/features/pdv/models/item_loja.dart';
 // com o NovaCategoriaDialog, mas sem Produto/Serviço, e com uma seção
 // para escolher, entre os Itens já criados pelo botão "Novo Item",
 // quais fazem parte deste grupo.
+//
+// NOVO: agora também serve para EDITAR um grupo já existente. Se
+// grupoParaEditar vier preenchido, o popup nasce com os campos já
+// carregados e, ao confirmar, atualiza esse grupo (mesmo id) em vez de
+// criar um novo — mesmo padrão usado no NovoItemDialog.
 class NovoGrupoComponentesDialog extends StatefulWidget {
   final AppTheme theme;
 
@@ -16,12 +21,17 @@ class NovoGrupoComponentesDialog extends StatefulWidget {
   // usuário escolher quais entram neste grupo.
   final List<ItemLoja> itensDisponiveis;
 
+  // NOVO: se vier preenchido, o popup abre em modo de EDIÇÃO deste
+  // grupo (em vez de criar um novo).
+  final GrupoComponentesLoja? grupoParaEditar;
+
   final void Function(GrupoComponentesLoja grupo) onCriar;
 
   const NovoGrupoComponentesDialog({
     super.key,
     required this.theme,
     required this.itensDisponiveis,
+    this.grupoParaEditar,
     required this.onCriar,
   });
 
@@ -30,6 +40,7 @@ class NovoGrupoComponentesDialog extends StatefulWidget {
     BuildContext context, {
     required AppTheme theme,
     required List<ItemLoja> itensDisponiveis,
+    GrupoComponentesLoja? grupoParaEditar,
     required void Function(GrupoComponentesLoja grupo) onCriar,
   }) {
     return showDialog<void>(
@@ -37,6 +48,7 @@ class NovoGrupoComponentesDialog extends StatefulWidget {
       builder: (context) => NovoGrupoComponentesDialog(
         theme: theme,
         itensDisponiveis: itensDisponiveis,
+        grupoParaEditar: grupoParaEditar,
         onCriar: onCriar,
       ),
     );
@@ -54,6 +66,18 @@ class _NovoGrupoComponentesDialogState
   // Ids dos itens que o usuário já escolheu para este grupo, na ordem
   // em que foram adicionados.
   final List<String> _itemIdsSelecionados = [];
+
+  // NOVO: se estamos editando um grupo já existente, pré-carrega o
+  // nome e os itens dele nos campos, assim que o popup é criado.
+  @override
+  void initState() {
+    super.initState();
+    final grupo = widget.grupoParaEditar;
+    if (grupo != null) {
+      _nomeController.text = grupo.nome;
+      _itemIdsSelecionados.addAll(grupo.itemIds);
+    }
+  }
 
   @override
   void dispose() {
@@ -150,14 +174,24 @@ class _NovoGrupoComponentesDialogState
         'Item removido';
   }
 
+  // NOVO: se widget.grupoParaEditar não for nulo, estamos editando —
+  // então usamos copyWith para manter o mesmo id e só trocar os campos
+  // que o usuário alterou. Caso contrário, criamos um grupo novo do
+  // zero (com GrupoComponentesLoja.novo, que gera um id novo).
   void _criar() {
     final nome = _nomeController.text.trim();
     if (nome.isEmpty) return;
 
-    final grupo = GrupoComponentesLoja.novo(
-      nome: nome,
-      itemIds: List.of(_itemIdsSelecionados),
-    );
+    final grupoExistente = widget.grupoParaEditar;
+    final grupo = grupoExistente != null
+        ? grupoExistente.copyWith(
+            nome: nome,
+            itemIds: List.of(_itemIdsSelecionados),
+          )
+        : GrupoComponentesLoja.novo(
+            nome: nome,
+            itemIds: List.of(_itemIdsSelecionados),
+          );
 
     widget.onCriar(grupo);
     Navigator.of(context).pop();
@@ -166,6 +200,7 @@ class _NovoGrupoComponentesDialogState
   @override
   Widget build(BuildContext context) {
     final theme = widget.theme;
+    final editando = widget.grupoParaEditar != null;
 
     final larguraTela = MediaQuery.sizeOf(context).width;
     final larguraPopup = larguraTela < 380 ? larguraTela * 0.9 : 340.0;
@@ -178,7 +213,7 @@ class _NovoGrupoComponentesDialogState
         side: BorderSide(color: theme.borderColor, width: 1.5),
       ),
       title: Text(
-        'Novo Grupo de Componentes',
+        editando ? 'Editar Grupo de Componentes' : 'Novo Grupo de Componentes',
         textAlign: TextAlign.center,
         style: theme.getTextStyle(
           fontSize: 18,
@@ -292,7 +327,7 @@ class _NovoGrupoComponentesDialogState
             ),
             onPressed: _criar,
             child: Text(
-              'Criar',
+              editando ? 'Salvar' : 'Criar',
               style: theme.getTextStyle(
                 fontWeight: FontWeight.bold,
                 color: theme.buttonTextColor,

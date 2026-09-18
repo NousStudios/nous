@@ -13,6 +13,7 @@ import 'package:nous/src/features/pdv/views/widgets/dados_bancarios_container.da
 import 'package:nous/src/features/pdv/views/widgets/delivery_container.dart';
 import 'package:nous/src/features/pdv/views/widgets/formulario_dados_loja.dart';
 import 'package:nous/src/features/pdv/views/widgets/galeria_estilo_container.dart';
+import 'package:nous/src/features/pdv/views/widgets/grupo_componentes_loja_container.dart';
 import 'package:nous/src/features/pdv/views/widgets/item_loja_card.dart';
 import 'package:nous/src/features/pdv/views/widgets/nova_categoria_dialog.dart';
 import 'package:nous/src/features/pdv/views/widgets/novo_grupo_componentes_dialog.dart';
@@ -60,6 +61,27 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
       itensDisponiveis: _itens,
       onCriar: (grupo) {
         setState(() => _gruposComponentes.add(grupo));
+        _persistirListasLoja();
+      },
+    );
+  }
+
+  // NOVO: abre o mesmo popup de "Novo Grupo de Componentes", mas em
+  // modo de edição (passando grupoParaEditar). O onCriar, nesse caso,
+  // substitui o grupo antigo pelo editado na lista, em vez de
+  // adicionar um novo.
+  void _abrirPopupEditarGrupoComponentes(GrupoComponentesLoja grupo) {
+    NovoGrupoComponentesDialog.mostrar(
+      context,
+      theme: ThemeController.currentTheme.value,
+      itensDisponiveis: _itens,
+      grupoParaEditar: grupo,
+      onCriar: (grupoEditado) {
+        setState(() {
+          final indice =
+              _gruposComponentes.indexWhere((g) => g.id == grupoEditado.id);
+          if (indice != -1) _gruposComponentes[indice] = grupoEditado;
+        });
         _persistirListasLoja();
       },
     );
@@ -117,6 +139,14 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
     _persistirListasLoja();
   }
 
+  // NOVO: mesma ideia de _removerCategoria, mas para a lista de
+  // Grupos de Componentes.
+  void _removerGrupoComponentes(String id) {
+    setState(
+        () => _gruposComponentes.removeWhere((grupo) => grupo.id == id));
+    _persistirListasLoja();
+  }
+
   void _adicionarItemNaCategoria(CategoriaLoja categoria, String itemId) {
     setState(() {
       final indice = _categorias.indexWhere((c) => c.id == categoria.id);
@@ -134,6 +164,31 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
       final novosIds =
           categoria.itemIds.where((id) => id != itemId).toList();
       _categorias[indice] = categoria.copyWith(itemIds: novosIds);
+    });
+    _persistirListasLoja();
+  }
+
+  // NOVO: mesma lógica de _adicionarItemNaCategoria /
+  // _removerItemDaCategoria, só que trabalhando na lista
+  // _gruposComponentes em vez de _categorias.
+  void _adicionarItemNoGrupoComponentes(
+      GrupoComponentesLoja grupo, String itemId) {
+    setState(() {
+      final indice = _gruposComponentes.indexWhere((g) => g.id == grupo.id);
+      if (indice == -1) return;
+      final novosIds = [...grupo.itemIds, itemId];
+      _gruposComponentes[indice] = grupo.copyWith(itemIds: novosIds);
+    });
+    _persistirListasLoja();
+  }
+
+  void _removerItemDoGrupoComponentes(
+      GrupoComponentesLoja grupo, String itemId) {
+    setState(() {
+      final indice = _gruposComponentes.indexWhere((g) => g.id == grupo.id);
+      if (indice == -1) return;
+      final novosIds = grupo.itemIds.where((id) => id != itemId).toList();
+      _gruposComponentes[indice] = grupo.copyWith(itemIds: novosIds);
     });
     _persistirListasLoja();
   }
@@ -350,6 +405,47 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
           decoration: _decoracaoDoBloco(theme),
           child: Column(
             children: [
+              // 1) ITENS — agora numa lista HORIZONTAL (rolagem
+              // lateral), em vez do Wrap antigo que quebrava linha.
+              _tituloDeSecao(theme, 'Itens'),
+              const SizedBox(height: 12),
+              if (_itens.isNotEmpty)
+                SizedBox(
+                  // Altura fixa: necessária porque uma ListView
+                  // horizontal, sozinha, não sabe o quão "alta" ela
+                  // deve ser — diferente do Wrap de antes, que se
+                  // ajustava sozinho porque crescia na vertical.
+                  height: 150,
+                  child: ListView.separated(
+                    scrollDirection: Axis.horizontal,
+                    itemCount: _itens.length,
+                    separatorBuilder: (context, index) =>
+                        const SizedBox(width: 12),
+                    itemBuilder: (context, index) {
+                      final item = _itens[index];
+                      return ItemLojaCard(
+                        key: ValueKey('item_${item.id}'),
+                        theme: theme,
+                        nome: item.nome,
+                        preco: item.preco,
+                        onEditar: () => _abrirPopupEditarItem(item),
+                        onExcluir: () => _removerItem(item.id),
+                      );
+                    },
+                  ),
+                )
+              else
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 6),
+                  child: Text(
+                    'Nenhum item criado ainda.',
+                    style: theme.getTextStyle(
+                        fontSize: 11, color: theme.secondaryTextColor),
+                  ),
+                ),
+
+              // 2) CATEGORIAS
+              const SizedBox(height: 24),
               _tituloDeSecao(theme, 'Categorias'),
               const SizedBox(height: 12),
               for (final categoria in _categorias) ...[
@@ -367,25 +463,29 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
                 ),
                 const SizedBox(height: 8),
               ],
+
+              // 3) GRUPOS DE COMPONENTES (novo bloco)
               const SizedBox(height: 24),
-              _tituloDeSecao(theme, 'Itens'),
+              _tituloDeSecao(theme, 'Grupos de Componentes'),
               const SizedBox(height: 12),
-              Wrap(
-                spacing: 12,
-                runSpacing: 12,
-                alignment: WrapAlignment.center,
-                children: [
-                  for (final item in _itens)
-                    ItemLojaCard(
-                      key: ValueKey('item_${item.id}'),
-                      theme: theme,
-                      nome: item.nome,
-                      preco: item.preco,
-                      onEditar: () => _abrirPopupEditarItem(item),
-                      onExcluir: () => _removerItem(item.id),
-                    ),
-                ],
-              ),
+              for (final grupo in _gruposComponentes) ...[
+                GrupoComponentesLojaContainer(
+                  key: ValueKey('grupo_${grupo.id}'),
+                  theme: theme,
+                  nome: grupo.nome,
+                  itemIds: grupo.itemIds,
+                  itensDisponiveis: _itens,
+                  onAdicionarItem: (itemId) =>
+                      _adicionarItemNoGrupoComponentes(grupo, itemId),
+                  onRemoverItem: (itemId) =>
+                      _removerItemDoGrupoComponentes(grupo, itemId),
+                  onEditar: () => _abrirPopupEditarGrupoComponentes(grupo),
+                  onExcluir: () => _removerGrupoComponentes(grupo.id),
+                ),
+                const SizedBox(height: 8),
+              ],
+
+              // Botões de criar, na mesma ordem das listas acima deles.
               const SizedBox(height: 20),
               Wrap(
                 spacing: 8,
@@ -394,8 +494,8 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
                 children: [
                   _botaoAcaoLoja(
                     theme,
-                    'Novo Grupo de Componentes',
-                    _abrirPopupNovoGrupoComponentes,
+                    'Novo Item',
+                    _abrirPopupNovoItem,
                   ),
                   _botaoAcaoLoja(
                     theme,
@@ -404,8 +504,8 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
                   ),
                   _botaoAcaoLoja(
                     theme,
-                    'Novo Item',
-                    _abrirPopupNovoItem,
+                    'Novo Grupo de Componentes',
+                    _abrirPopupNovoGrupoComponentes,
                   ),
                 ],
               ),
