@@ -497,7 +497,16 @@ class _NovoItemDialogState extends State<NovoItemDialog> {
     return Column(
       children: [
         Text(rotulo, style: theme.getTextStyle(fontSize: 13)),
-        Radio<TipoItemLoja>(value: valor, activeColor: theme.buttonColor),
+        // ALTERADO: era "activeColor: theme.buttonColor". No tema
+        // escuro padrão, buttonColor é TRANSPARENTE (ele foi pensado
+        // pra ser o fundo de botões "vazados", não uma cor visível
+        // sozinha). Isso fazia o pontinho do Radio ficar invisível
+        // assim que você selecionava — parecia que o botão "sumia",
+        // mas ele continuava lá, só que pintado de transparente.
+        // theme.borderColor sempre é uma cor sólida (branco no tema
+        // escuro, preto no tema claro), então o Radio fica visível
+        // nos dois temas.
+        Radio<TipoItemLoja>(value: valor, activeColor: theme.borderColor),
       ],
     );
   }

@@ -1,3 +1,4 @@
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:nous/src/core/theme/theme_controller.dart';
@@ -5,6 +6,24 @@ import 'package:nous/src/core/theme/contrast_helper.dart';
 import 'package:nous/src/features/auth/providers/auth_provider.dart';
 import 'package:nous/src/features/auth/views/login_view.dart';
 import 'package:nous/src/features/pdv/providers/pdv_provider.dart';
+
+// NOVO: classe que ensina o Flutter a tratar o MOUSE também como um
+// jeito válido de "arrastar para rolar" uma lista. Por padrão, o
+// Flutter só reconhece toque (dedo) e caneta para isso — no
+// computador, com mouse, o comportamento padrão é só usar a barra de
+// rolagem ou a rodinha, sem poder clicar-e-arrastar. Essa classe
+// herda o comportamento padrão do Material (MaterialScrollBehavior) e
+// só adiciona o mouse (e o trackpad) na lista de "dispositivos que
+// podem arrastar para rolar".
+class AppScrollBehavior extends MaterialScrollBehavior {
+  @override
+  Set<PointerDeviceKind> get dragDevices => {
+        PointerDeviceKind.touch,
+        PointerDeviceKind.mouse,
+        PointerDeviceKind.trackpad,
+        PointerDeviceKind.stylus,
+      };
+}
 
 Future<void> main() async {
   // Garante que o Flutter está pronto para operações assíncronas antes do runApp,
@@ -48,6 +67,11 @@ class MyApp extends StatelessWidget {
           return MaterialApp(
             debugShowCheckedModeBanner: false,
             title: 'Nous',
+            // NOVO: diz para o app inteiro usar o comportamento de
+            // rolagem customizado acima, que libera o mouse para
+            // "clicar e arrastar" em qualquer lista rolável do app
+            // (inclusive a lista horizontal de "Itens").
+            scrollBehavior: AppScrollBehavior(),
             theme: ThemeData(
               // Define a cor de fundo padrão de todos os Scaffolds do app
               scaffoldBackgroundColor: theme.backgroundColor,

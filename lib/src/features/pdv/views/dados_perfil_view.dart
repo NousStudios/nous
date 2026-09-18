@@ -33,6 +33,16 @@ enum AbaLoja { dados, interface, loja, gestao }
 
 const double _larguraMaximaConteudo = 500;
 
+// NOVO: altura máxima (em pixels) que as listas de "Categorias" e de
+// "Grupos de Componentes" podem ocupar na tela. Quando a lista tem
+// mais itens do que cabe nessa altura, em vez de continuar
+// crescendo e empurrando o resto da tela pra baixo, ela ganha uma
+// rolagem PRÓPRIA (interna), então o restante da tela (e os botões
+// "Novo Item"/"Nova Categoria"/etc.) fica sempre perto, sem precisar
+// rolar muito. Esse número dá pra ver, em média, uns 2 a 3 blocos de
+// cada vez — ajuste esse valor livremente se quiser ver mais ou menos.
+const double _alturaMaximaListaSecundaria = 220;
+
 class _DadosPerfilViewState extends State<DadosPerfilView> {
   final _controllers = ControllersDadosLoja();
   final _controllersBancarios = ControllersDadosBancarios();
@@ -342,6 +352,20 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
     );
   }
 
+  // NOVO: widget auxiliar para o texto de "lista vazia", já que agora
+  // usamos essa mesma mensagem em Itens, Categorias e Grupos de
+  // Componentes. Evita repetir o mesmo Padding/Text três vezes.
+  Widget _textoListaVazia(AppTheme theme, String texto) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      child: Text(
+        texto,
+        style:
+            theme.getTextStyle(fontSize: 11, color: theme.secondaryTextColor),
+      ),
+    );
+  }
+
   Widget _conteudoDaAba(AppTheme theme) {
     switch (_abaSelecionada) {
       case AbaLoja.dados:
@@ -405,8 +429,7 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
           decoration: _decoracaoDoBloco(theme),
           child: Column(
             children: [
-              // 1) ITENS — agora numa lista HORIZONTAL (rolagem
-              // lateral), em vez do Wrap antigo que quebrava linha.
+              // 1) ITENS — lista HORIZONTAL (rolagem lateral).
               _tituloDeSecao(theme, 'Itens'),
               const SizedBox(height: 12),
               if (_itens.isNotEmpty)
@@ -435,55 +458,91 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
                   ),
                 )
               else
-                Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 6),
-                  child: Text(
-                    'Nenhum item criado ainda.',
-                    style: theme.getTextStyle(
-                        fontSize: 11, color: theme.secondaryTextColor),
-                  ),
-                ),
+                _textoListaVazia(theme, 'Nenhum item criado ainda.'),
 
               // 2) CATEGORIAS
+              // ALTERADO: antes, cada CategoriaLojaContainer era
+              // empilhado direto num "for" dentro da Column, então a
+              // lista crescia pra sempre e empurrava tudo que vinha
+              // depois (inclusive os botões de criar) pra cada vez
+              // mais longe. Agora a lista fica dentro de uma caixa
+              // com altura máxima (_alturaMaximaListaSecundaria): se
+              // couber tudo, ótimo; se não couber, aparece uma
+              // rolagem SÓ dentro dessa caixa (o Scrollbar deixa essa
+              // rolagem visível), sem afetar o resto da tela.
               const SizedBox(height: 24),
               _tituloDeSecao(theme, 'Categorias'),
               const SizedBox(height: 12),
-              for (final categoria in _categorias) ...[
-                CategoriaLojaContainer(
-                  key: ValueKey('categoria_${categoria.id}'),
-                  theme: theme,
-                  nome: categoria.nome,
-                  itemIds: categoria.itemIds,
-                  itensDisponiveis: _itens,
-                  onAdicionarItem: (itemId) =>
-                      _adicionarItemNaCategoria(categoria, itemId),
-                  onRemoverItem: (itemId) =>
-                      _removerItemDaCategoria(categoria, itemId),
-                  onExcluir: () => _removerCategoria(categoria.id),
-                ),
-                const SizedBox(height: 8),
-              ],
+              if (_categorias.isNotEmpty)
+                SizedBox(
+                  height: _alturaMaximaListaSecundaria,
+                  child: Scrollbar(
+                    thumbVisibility: true,
+                    child: ListView.separated(
+                      padding: const EdgeInsets.only(right: 8),
+                      itemCount: _categorias.length,
+                      separatorBuilder: (context, index) =>
+                          const SizedBox(height: 8),
+                      itemBuilder: (context, index) {
+                        final categoria = _categorias[index];
+                        return CategoriaLojaContainer(
+                          key: ValueKey('categoria_${categoria.id}'),
+                          theme: theme,
+                          nome: categoria.nome,
+                          itemIds: categoria.itemIds,
+                          itensDisponiveis: _itens,
+                          onAdicionarItem: (itemId) =>
+                              _adicionarItemNaCategoria(categoria, itemId),
+                          onRemoverItem: (itemId) =>
+                              _removerItemDaCategoria(categoria, itemId),
+                          onExcluir: () => _removerCategoria(categoria.id),
+                        );
+                      },
+                    ),
+                  ),
+                )
+              else
+                _textoListaVazia(theme, 'Nenhuma categoria criada ainda.'),
 
-              // 3) GRUPOS DE COMPONENTES (novo bloco)
+              // 3) GRUPOS DE COMPONENTES — mesma ideia da lista de
+              // Categorias logo acima: altura máxima + rolagem interna.
               const SizedBox(height: 24),
               _tituloDeSecao(theme, 'Grupos de Componentes'),
               const SizedBox(height: 12),
-              for (final grupo in _gruposComponentes) ...[
-                GrupoComponentesLojaContainer(
-                  key: ValueKey('grupo_${grupo.id}'),
-                  theme: theme,
-                  nome: grupo.nome,
-                  itemIds: grupo.itemIds,
-                  itensDisponiveis: _itens,
-                  onAdicionarItem: (itemId) =>
-                      _adicionarItemNoGrupoComponentes(grupo, itemId),
-                  onRemoverItem: (itemId) =>
-                      _removerItemDoGrupoComponentes(grupo, itemId),
-                  onEditar: () => _abrirPopupEditarGrupoComponentes(grupo),
-                  onExcluir: () => _removerGrupoComponentes(grupo.id),
-                ),
-                const SizedBox(height: 8),
-              ],
+              if (_gruposComponentes.isNotEmpty)
+                SizedBox(
+                  height: _alturaMaximaListaSecundaria,
+                  child: Scrollbar(
+                    thumbVisibility: true,
+                    child: ListView.separated(
+                      padding: const EdgeInsets.only(right: 8),
+                      itemCount: _gruposComponentes.length,
+                      separatorBuilder: (context, index) =>
+                          const SizedBox(height: 8),
+                      itemBuilder: (context, index) {
+                        final grupo = _gruposComponentes[index];
+                        return GrupoComponentesLojaContainer(
+                          key: ValueKey('grupo_${grupo.id}'),
+                          theme: theme,
+                          nome: grupo.nome,
+                          itemIds: grupo.itemIds,
+                          itensDisponiveis: _itens,
+                          onAdicionarItem: (itemId) =>
+                              _adicionarItemNoGrupoComponentes(grupo, itemId),
+                          onRemoverItem: (itemId) =>
+                              _removerItemDoGrupoComponentes(grupo, itemId),
+                          onEditar: () =>
+                              _abrirPopupEditarGrupoComponentes(grupo),
+                          onExcluir: () =>
+                              _removerGrupoComponentes(grupo.id),
+                        );
+                      },
+                    ),
+                  ),
+                )
+              else
+                _textoListaVazia(
+                    theme, 'Nenhum grupo de componentes criado ainda.'),
 
               // Botões de criar, na mesma ordem das listas acima deles.
               const SizedBox(height: 20),
