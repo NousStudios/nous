@@ -60,13 +60,15 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
   // Categoria"/"Novo Item" visualmente, igual foi feito com os outros
   // containers antes de ganharem provider de verdade.
   //
-  // Começamos com 4 categorias e 3 itens pra já bater com o protótipo.
+  // Começam VAZIAS: a tela só deve mostrar categorias/itens que o
+  // próprio usuário cadastrar através dos botões "Nova Categoria" e
+  // "Novo Item" — nenhum dado de exemplo deve aparecer sozinho.
   // ---------------------------------------------------------------
-  final List<int> _categoriaIds = [0, 1, 2, 3];
-  int _proximoIdCategoria = 4;
+  final List<int> _categoriaIds = [];
+  int _proximoIdCategoria = 0;
 
-  final List<int> _itemIds = [0, 1, 2];
-  int _proximoIdItem = 3;
+  final List<int> _itemIds = [];
+  int _proximoIdItem = 0;
 
   void _adicionarCategoria() {
     setState(() {
@@ -371,7 +373,13 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
                 ),
                 const SizedBox(height: 8),
               ],
-              const SizedBox(height: 12),
+              // Espaço fixo antes do próximo título. Aumentado de 12 para
+              // 24: antes, quando a lista de categorias estava vazia, esse
+              // espaço somava só 24px no total (12 + 12), o que deixava os
+              // dois títulos "Categorias" e "Itens" colados um no outro.
+              // Agora o espaço é maior, então mesmo sem nenhuma categoria
+              // cadastrada, os títulos ficam com uma distância confortável.
+              const SizedBox(height: 24),
               _tituloDeSecao(theme, 'Itens'),
               const SizedBox(height: 12),
               Wrap(
