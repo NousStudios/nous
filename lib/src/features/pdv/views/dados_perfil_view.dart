@@ -179,6 +179,25 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
     );
   }
 
+  // Título mostrado no topo da tela (ao lado da seta de voltar e do ícone
+  // de Configurações), de acordo com a aba selecionada agora. É chamada
+  // dentro do build(), então toda vez que _abaSelecionada muda (e o
+  // setState() da barra de abas dispara um novo build), esse texto é
+  // recalculado e o CustomAppBar exibe o valor novo automaticamente —
+  // sem precisar navegar para nenhuma tela nova.
+  String _tituloDaAba() {
+    switch (_abaSelecionada) {
+      case AbaLoja.dados:
+        return 'Dados do Perfil';
+      case AbaLoja.interface:
+        return 'Interface do Perfil';
+      case AbaLoja.loja:
+        return 'Loja do Perfil';
+      case AbaLoja.gestao:
+        return 'Gestão do Perfil';
+    }
+  }
+
   // Decide o que aparece no meio da tela, dependendo da aba escolhida.
   // Por enquanto só a aba "Dados" está completa; as outras três ainda
   // estão esperando você definir quais containers entram em cada uma.
@@ -287,7 +306,7 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
         return Scaffold(
           backgroundColor: theme.backgroundColor,
           appBar: CustomAppBar(
-            title: 'Dados do Perfil',
+            title: _tituloDaAba(),
             onLogout: () => _handleLogout(context),
           ),
           body: SafeArea(
