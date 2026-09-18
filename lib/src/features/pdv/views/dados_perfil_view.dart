@@ -6,7 +6,11 @@ import 'package:nous/src/features/auth/views/login_view.dart';
 import 'package:nous/src/features/pdv/providers/pdv_provider.dart';
 import 'package:nous/src/features/pdv/views/perfis_pdv_view.dart';
 import 'package:nous/src/features/pdv/views/widgets/container_simbolico.dart';
+import 'package:nous/src/features/pdv/views/widgets/dados_bancarios_container.dart';
+import 'package:nous/src/features/pdv/views/widgets/delivery_container.dart';
 import 'package:nous/src/features/pdv/views/widgets/formulario_dados_loja.dart';
+import 'package:nous/src/features/pdv/views/widgets/galeria_estilo_container.dart';
+import 'package:nous/src/features/pdv/views/widgets/usuarios_participantes_container.dart';
 
 // Tela "Dados do Perfil". Antes, ela recebia os dados da loja soltos, um
 // parâmetro para cada campo (nome, cnpj, telefone...). Agora que o
@@ -34,6 +38,14 @@ const double _larguraMaximaConteudo = 500;
 
 class _DadosPerfilViewState extends State<DadosPerfilView> {
   final _controllers = ControllersDadosLoja();
+
+  // Controllers dos formulários novos. Cada um segue o mesmo padrão do
+  // ControllersDadosLoja: um "agrupador" que guarda os TextEditingController
+  // daquele formulário específico, e que precisa ser liberado da memória
+  // no dispose() desta tela.
+  final _controllersBancarios = ControllersDadosBancarios();
+  final _controllersUsuarios = ControllersUsuariosParticipantes();
+  final _controllersDelivery = ControllersDelivery();
 
   // Guarda qual aba da navegação própria da loja está selecionada agora.
   // Começa em "dados", que é a aba inicial pedida.
@@ -66,6 +78,9 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
   @override
   void dispose() {
     _controllers.dispose();
+    _controllersBancarios.dispose();
+    _controllersUsuarios.dispose();
+    _controllersDelivery.dispose();
     super.dispose();
   }
 
@@ -170,12 +185,12 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
   Widget _conteudoDaAba(AppTheme theme) {
     switch (_abaSelecionada) {
       case AbaLoja.dados:
-        // Decoração compartilhada por TODOS os blocos desta aba (o
-        // formulário e cada ContainerSimbolico): fundo semi-transparente
-        // + borda arredondada. Isso é a mesma decoração que já existia
-        // dentro do ContainerSimbolico — deixamos ela guardada aqui numa
-        // variável para não repetir o mesmo código várias vezes, e para
-        // os dois lugares ficarem sempre idênticos visualmente.
+        // Decoração compartilhada pelo bloco do formulário principal
+        // (nome, CNPJ, etc. + botão Excluir Loja). Os containers de
+        // Dados Bancários, Usuários Participantes, Delivery e os quatro
+        // no "estilo Galeria" já têm essa mesma decoração embutida
+        // dentro deles mesmos, então não precisam mais receber ela por
+        // fora como o ContainerSimbolico exigia.
         final decoracaoDoBloco = BoxDecoration(
           color: theme.backgroundColor.withValues(alpha: 0.4),
           borderRadius: BorderRadius.circular(12),
@@ -211,37 +226,44 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
             ),
             const SizedBox(height: 16),
 
-            // Todos os containers abaixo seguem o mesmo padrão visual do
-            // formulário acima: mesmo ContainerSimbolico, com 16 de
-            // espaçamento entre um e outro. Como estão dentro do
-            // SingleChildScrollView do body (lá embaixo, no build), a
-            // tela toda rola normalmente quando o conteúdo não cabe.
-            ContainerSimbolico(theme: theme, titulo: 'Dados Bancários'),
-            const SizedBox(height: 16),
-            ContainerSimbolico(
+            // Os 7 containers pedidos, cada um no seu widget dedicado.
+            // Todos seguem o mesmo espaçamento de 16 entre um e outro,
+            // dentro do SingleChildScrollView do body (lá embaixo, no
+            // build), então a tela toda continua rolando normalmente.
+            DadosBancariosContainer(
               theme: theme,
-              titulo: 'Usuários Participantes',
+              controllers: _controllersBancarios,
             ),
             const SizedBox(height: 16),
-            ContainerSimbolico(theme: theme, titulo: 'Delivery'),
+            UsuariosParticipantesContainer(
+              theme: theme,
+              controllers: _controllersUsuarios,
+            ),
             const SizedBox(height: 16),
-            ContainerSimbolico(theme: theme, titulo: 'Galeria'),
+            DeliveryContainer(
+              theme: theme,
+              controllers: _controllersDelivery,
+            ),
             const SizedBox(height: 16),
-            ContainerSimbolico(theme: theme, titulo: 'Arquivos'),
+            GaleriaEstiloContainer(theme: theme, titulo: 'Galeria'),
             const SizedBox(height: 16),
-            ContainerSimbolico(theme: theme, titulo: 'Músicas'),
+            GaleriaEstiloContainer(theme: theme, titulo: 'Arquivos'),
             const SizedBox(height: 16),
-            ContainerSimbolico(theme: theme, titulo: 'Vídeos'),
+            GaleriaEstiloContainer(theme: theme, titulo: 'Músicas'),
             const SizedBox(height: 16),
+            GaleriaEstiloContainer(theme: theme, titulo: 'Vídeos'),
+            const SizedBox(height: 16),
+
+            // Este ainda não tinha print no protótipo, então continua
+            // como container simbólico por enquanto.
             ContainerSimbolico(theme: theme, titulo: 'Arquivos de Áudio'),
           ],
         );
 
       // As três abas abaixo ainda não têm seus containers definidos.
       // Assim que soubermos quais dos containers pertencem a cada uma
-      // (já que os sete de cima ficaram todos na aba "Dados" por
-      // enquanto), é só mover os ContainerSimbolico() correspondentes
-      // para cá.
+      // (já que os oito de cima ficaram todos na aba "Dados" por
+      // enquanto), é só mover os widgets correspondentes para cá.
       case AbaLoja.interface:
       case AbaLoja.loja:
       case AbaLoja.gestao:
