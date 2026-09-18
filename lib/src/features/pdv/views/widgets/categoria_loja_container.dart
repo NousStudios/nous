@@ -1,29 +1,43 @@
 import 'package:flutter/material.dart';
 import 'package:nous/src/core/theme/theme_controller.dart';
+import 'package:nous/src/features/pdv/models/item_loja.dart';
 import 'package:nous/src/features/pdv/views/widgets/produto_loja_row.dart';
 
 // Um "card" de categoria dentro da aba Loja (ex: "Bebidas", "Lanches").
-// Guarda sua própria lista de Produtos, criada pelo link "Adicionar
-// item" no cabeçalho. Ao expandir (seta), mostra esses produtos, cada
-// um podendo ser expandido de novo para mostrar seus grupos de
-// componentes — é a árvore Categoria > Produto > Grupo > Componente.
+// Mostra os Itens de verdade que já foram associados a ela (a lista
+// vem de fora, em itemIds) e, ao expandir, cada um pode virar
+// ProdutoLojaRow com seus grupos de componentes.
 class CategoriaLojaContainer extends StatefulWidget {
   final AppTheme theme;
-
-  // Antes tinha um valor padrão fixo ('Nome da Categoria'). Agora é
-  // obrigatório: cada categoria mostra seu nome real, vindo do modelo
-  // CategoriaLoja.
   final String nome;
 
-  // Chamado quando o usuário escolhe "Excluir Categoria" no menu "⋮".
-  // Quem decide o que fazer com isso é a tela que criou este card (ela
-  // que sabe tirar este card da lista).
+  // NOVO: em vez de a categoria inventar seus próprios "produtos
+  // vazios", ela recebe os ids dos itens já escolhidos (itemIds, que
+  // vem do modelo CategoriaLoja) e a lista completa de itens
+  // disponíveis na Loja (itensDisponiveis, que vem de _itens na tela),
+  // pra poder mostrar o nome real de cada um.
+  final List<String> itemIds;
+  final List<ItemLoja> itensDisponiveis;
+
+  // Chamado quando o usuário escolhe um item no seletor de "Adicionar
+  // item". Quem decide guardar esse id na categoria (via copyWith) é a
+  // tela que criou este card.
+  final ValueChanged<String> onAdicionarItem;
+
+  // Chamado quando o usuário exclui um produto da lista da categoria
+  // (remove só o vínculo, não apaga o Item da Loja).
+  final ValueChanged<String> onRemoverItem;
+
   final VoidCallback onExcluir;
 
   const CategoriaLojaContainer({
     super.key,
     required this.theme,
     required this.nome,
+    required this.itemIds,
+    required this.itensDisponiveis,
+    required this.onAdicionarItem,
+    required this.onRemoverItem,
     required this.onExcluir,
   });
 
@@ -33,28 +47,67 @@ class CategoriaLojaContainer extends StatefulWidget {
 }
 
 class _CategoriaLojaContainerState extends State<CategoriaLojaContainer> {
-  // Se a categoria está "ativa" (toggle da esquerda no protótipo).
   bool _ativa = true;
-
-  // Se a seta está apontando pra cima (expandida) ou pra baixo
-  // (fechada).
   bool _expandida = false;
 
-  // Produtos desta categoria. Ainda em memória (sem provider) — cada
-  // categoria guarda sua própria lista, criada pelo link "Adicionar
-  // item".
-  final List<int> _produtoIds = [];
-  int _proximoIdProduto = 0;
+  // Abre um seletor com os itens da Loja que AINDA NÃO estão nesta
+  // categoria. Ao tocar em um, ele entra na lista via onAdicionarItem.
+  void _abrirSeletorDeItem() {
+    final theme = widget.theme;
+    final disponiveis = widget.itensDisponiveis
+        .where((item) => !widget.itemIds.contains(item.id))
+        .toList();
 
-  void _adicionarProduto() {
-    setState(() {
-      _produtoIds.add(_proximoIdProduto);
-      _proximoIdProduto++;
-    });
-  }
-
-  void _removerProduto(int id) {
-    setState(() => _produtoIds.remove(id));
+    showDialog<void>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          backgroundColor: theme.cardBackgroundColor,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16.0),
+            side: BorderSide(color: theme.borderColor),
+          ),
+          title: Text(
+            'Adicionar item',
+            textAlign: TextAlign.center,
+            style: theme.getTextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.bold,
+              color: theme.textColor,
+            ),
+          ),
+          content: SizedBox(
+            width: 280,
+            child: disponiveis.isEmpty
+                ? Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    child: Text(
+                      'Nenhum item disponível. Crie um item primeiro pelo '
+                      'botão "Novo Item".',
+                      textAlign: TextAlign.center,
+                      style: theme.getTextStyle(
+                          fontSize: 13, color: theme.secondaryTextColor),
+                    ),
+                  )
+                : SingleChildScrollView(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        for (final item in disponiveis)
+                          ListTile(
+                            title: Text(item.nome, style: theme.getTextStyle()),
+                            onTap: () {
+                              widget.onAdicionarItem(item.id);
+                              Navigator.of(dialogContext).pop();
+                            },
+                          ),
+                      ],
+                    ),
+                  ),
+          ),
+        );
+      },
+    );
   }
 
   @override
@@ -85,7 +138,7 @@ class _CategoriaLojaContainerState extends State<CategoriaLojaContainer> {
                 onChanged: (valor) => setState(() => _ativa = valor),
               ),
               GestureDetector(
-                onTap: _adicionarProduto,
+                onTap: _abrirSeletorDeItem,
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
@@ -122,15 +175,9 @@ class _CategoriaLojaContainerState extends State<CategoriaLojaContainer> {
               ),
             ],
           ),
-
-          // Lista de produtos desta categoria, só aparece com a
-          // categoria expandida.
           if (_expandida) ...[
             const SizedBox(height: 8),
-            if (_produtoIds.isNotEmpty) ...[
-              // Cabeçalho das colunas — só texto, sem interação, pra dar
-              // contexto visual (igual ao protótipo: "Produto | Ativo |
-              // Preços").
+            if (widget.itemIds.isNotEmpty) ...[
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 4),
                 child: Row(
@@ -163,13 +210,30 @@ class _CategoriaLojaContainerState extends State<CategoriaLojaContainer> {
                 ),
               ),
               const SizedBox(height: 6),
-              for (final id in _produtoIds) ...[
-                ProdutoLojaRow(
-                  key: ValueKey('produto_$id'),
-                  theme: theme,
-                  onExcluir: () => _removerProduto(id),
-                ),
-                const SizedBox(height: 6),
+              // Pra cada id guardado na categoria, busca o ItemLoja
+              // correspondente na lista de disponíveis. Se por algum
+              // motivo o item tiver sido excluído em outro lugar
+              // (firstWhereOrNull não achou nada), simplesmente pula
+              // essa linha em vez de quebrar o app.
+              for (final id in widget.itemIds) ...[
+                Builder(builder: (context) {
+                  final item = widget.itensDisponiveis
+                      .where((i) => i.id == id)
+                      .firstOrNull;
+                  if (item == null) return const SizedBox.shrink();
+
+                  return Column(
+                    children: [
+                      ProdutoLojaRow(
+                        key: ValueKey('produto_$id'),
+                        theme: theme,
+                        item: item,
+                        onExcluir: () => widget.onRemoverItem(id),
+                      ),
+                      const SizedBox(height: 6),
+                    ],
+                  );
+                }),
               ],
             ] else
               Padding(

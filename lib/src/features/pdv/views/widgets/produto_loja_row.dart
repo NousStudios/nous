@@ -1,21 +1,28 @@
 import 'package:flutter/material.dart';
 import 'package:nous/src/core/theme/theme_controller.dart';
+import 'package:nous/src/features/pdv/models/item_loja.dart';
 import 'package:nous/src/features/pdv/views/widgets/grupo_componentes_container.dart';
 
-// Uma linha de "Produto" dentro de uma Categoria expandida (ex: um item
-// do cardápio). Guarda sua própria lista de Grupos de Componentes,
-// criada pela opção "Adicionar Grupo de Componentes" no menu "⋮". Ao
-// expandir (seta), mostra esses grupos, cada um com seus componentes.
+// Uma linha de "Produto" dentro de uma Categoria expandida. Mostra o
+// ItemLoja de verdade (escolhido no seletor da categoria). Continua
+// guardando sua própria lista de Grupos de Componentes, criada pela
+// opção "Adicionar Grupo de Componentes" no menu "⋮" — essa parte
+// ainda não persiste (fica só na memória da tela), é um próximo passo
+// separado.
 class ProdutoLojaRow extends StatefulWidget {
   final AppTheme theme;
+  final ItemLoja item;
 
   // Chamado quando o usuário escolhe "Excluir Produto" no "⋮". Quem
-  // decide tirar este produto da lista é a CategoriaLojaContainer (pai).
+  // decide tirar este produto da categoria é a CategoriaLojaContainer
+  // (pai) — na prática, remove o id deste item da lista itemIds da
+  // categoria.
   final VoidCallback onExcluir;
 
   const ProdutoLojaRow({
     super.key,
     required this.theme,
+    required this.item,
     required this.onExcluir,
   });
 
@@ -30,9 +37,6 @@ class _ProdutoLojaRowState extends State<ProdutoLojaRow> {
   final List<int> _grupoIds = [];
   int _proximoIdGrupo = 0;
 
-  // Transforma a posição do grupo na lista (0, 1, 2...) na letra
-  // correspondente (A, B, C...) usada no título, igual ao protótipo
-  // ("Grupo de componentes A"). 65 é o código da letra 'A'.
   String _letraDoGrupo(int indice) => String.fromCharCode(65 + indice);
 
   void _adicionarGrupo() {
@@ -46,9 +50,45 @@ class _ProdutoLojaRowState extends State<ProdutoLojaRow> {
     setState(() => _grupoIds.remove(id));
   }
 
+  Future<void> _abrirMenuOpcoes(BuildContext context, Offset posicaoToque) async {
+    final theme = widget.theme;
+
+    final selecionado = await showMenu<String>(
+      context: context,
+      color: theme.cardBackgroundColor,
+      position: RelativeRect.fromLTRB(
+        posicaoToque.dx,
+        posicaoToque.dy,
+        posicaoToque.dx,
+        posicaoToque.dy,
+      ),
+      items: [
+        PopupMenuItem(
+          value: 'grupo',
+          child: Text('Adicionar Grupo de Componentes',
+              style: theme.getTextStyle()),
+        ),
+        PopupMenuItem(
+          value: 'excluir',
+          child: Text('Excluir Produto', style: theme.getTextStyle()),
+        ),
+      ],
+    );
+
+    if (selecionado == 'grupo') _adicionarGrupo();
+    if (selecionado == 'excluir') widget.onExcluir();
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = widget.theme;
+
+    // NOVO: monta o texto do preço. Se o item não tiver preço definido
+    // (campo vazio, caso comum em itens criados antes desta mudança),
+    // mostra "R$ 00,00" como valor de reserva, em vez de deixar em
+    // branco.
+    final textoPreco =
+        widget.item.preco.isEmpty ? 'R\$ 00,00' : 'R\$ ${widget.item.preco}';
 
     return Container(
       padding: const EdgeInsets.all(8),
@@ -61,8 +101,6 @@ class _ProdutoLojaRowState extends State<ProdutoLojaRow> {
         children: [
           Row(
             children: [
-              // Quadrado de imagem — só um ícone de placeholder por
-              // enquanto, até existir upload de imagem de verdade.
               Container(
                 width: 36,
                 height: 36,
@@ -78,58 +116,52 @@ class _ProdutoLojaRowState extends State<ProdutoLojaRow> {
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
-                  'Nome do Produto',
+                  widget.item.nome,
                   overflow: TextOverflow.ellipsis,
                   style: theme.getTextStyle(fontSize: 12),
                 ),
               ),
-              Switch(
-                value: _ativo,
-                activeThumbColor: theme.buttonColor,
-                onChanged: (valor) => setState(() => _ativo = valor),
-              ),
-              SizedBox(
-                width: 60,
-                child: Text(
-                  'R\$ 00,00',
-                  textAlign: TextAlign.center,
-                  style: theme.getTextStyle(fontSize: 11),
+              Transform.scale(
+                scale: 0.85,
+                child: Switch(
+                  value: _ativo,
+                  activeThumbColor: theme.buttonColor,
+                  onChanged: (valor) => setState(() => _ativo = valor),
                 ),
               ),
-              IconButton(
-                icon: Icon(
+              SizedBox(
+                width: 52,
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Text(
+                    textoPreco,
+                    style: theme.getTextStyle(fontSize: 11),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 4),
+              GestureDetector(
+                onTap: () => setState(() => _expandido = !_expandido),
+                child: Icon(
                   _expandido
                       ? Icons.keyboard_arrow_up
                       : Icons.keyboard_arrow_down,
+                  size: 20,
                   color: theme.secondaryTextColor,
                 ),
-                onPressed: () => setState(() => _expandido = !_expandido),
               ),
-              PopupMenuButton<String>(
-                icon: Icon(Icons.more_vert, color: theme.secondaryTextColor),
-                color: theme.cardBackgroundColor,
-                onSelected: (valor) {
-                  if (valor == 'grupo') _adicionarGrupo();
-                  if (valor == 'excluir') widget.onExcluir();
-                },
-                itemBuilder: (context) => [
-                  PopupMenuItem(
-                    value: 'grupo',
-                    child: Text('Adicionar Grupo de Componentes',
-                        style: theme.getTextStyle()),
-                  ),
-                  PopupMenuItem(
-                    value: 'excluir',
-                    child:
-                        Text('Excluir Produto', style: theme.getTextStyle()),
-                  ),
-                ],
+              const SizedBox(width: 8),
+              GestureDetector(
+                onTapDown: (details) =>
+                    _abrirMenuOpcoes(context, details.globalPosition),
+                child: Icon(
+                  Icons.more_vert,
+                  size: 18,
+                  color: theme.secondaryTextColor,
+                ),
               ),
             ],
           ),
-
-          // Grupos de componentes deste produto, só aparecem quando o
-          // produto está expandido.
           if (_expandido && _grupoIds.isNotEmpty) ...[
             const SizedBox(height: 8),
             for (final id in _grupoIds) ...[

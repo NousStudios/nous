@@ -19,11 +19,6 @@ import 'package:nous/src/features/pdv/views/widgets/novo_grupo_componentes_dialo
 import 'package:nous/src/features/pdv/views/widgets/novo_item_dialog.dart';
 import 'package:nous/src/features/pdv/views/widgets/usuarios_participantes_container.dart';
 
-// Tela "Dados do Perfil". Antes, ela recebia os dados da loja soltos, um
-// parâmetro para cada campo (nome, cnpj, telefone...). Agora que o
-// PdvProvider guarda uma LISTA de lojas, essa tela passa a receber só o
-// "lojaId" — o identificador de QUAL loja da lista ela deve mostrar — e
-// busca os dados de verdade no PdvProvider.
 class DadosPerfilView extends StatefulWidget {
   final String lojaId;
 
@@ -33,47 +28,31 @@ class DadosPerfilView extends StatefulWidget {
   State<DadosPerfilView> createState() => _DadosPerfilViewState();
 }
 
-// As quatro abas da navegação própria da loja. Usar um enum em vez de só
-// um número (0, 1, 2, 3) deixa o código mais fácil de ler: em vez de "if
-// (aba == 2)", a gente escreve "if (aba == AbaLoja.loja)".
 enum AbaLoja { dados, interface, loja, gestao }
 
-// Largura máxima do conteúdo da tela. O formulário (no body) e as barras
-// de baixo usam esse mesmo número, então tudo fica com a mesma largura.
 const double _larguraMaximaConteudo = 500;
 
 class _DadosPerfilViewState extends State<DadosPerfilView> {
   final _controllers = ControllersDadosLoja();
-
-  // Controllers dos formulários novos. Cada um segue o mesmo padrão do
-  // ControllersDadosLoja: um "agrupador" que guarda os TextEditingController
-  // daquele formulário específico, e que precisa ser liberado da memória
-  // no dispose() desta tela.
   final _controllersBancarios = ControllersDadosBancarios();
   final _controllersUsuarios = ControllersUsuariosParticipantes();
   final _controllersDelivery = ControllersDelivery();
 
-  // Guarda qual aba da navegação própria da loja está selecionada agora.
-  // Começa em "dados", que é a aba inicial pedida.
   AbaLoja _abaSelecionada = AbaLoja.dados;
 
-  // ---------------------------------------------------------------
-  // Aba "Loja" — ainda sem provider (guardamos em memória, perdido se
-  // a tela fechar), mas agora com os MODELOS DE VERDADE (ItemLoja,
-  // CategoriaLoja, GrupoComponentesLoja), em vez de simples números.
-  // Cada botão ("Nova Categoria", "Novo Item", "Novo Grupo de
-  // Componentes") abre o popup correspondente ANTES de adicionar
-  // qualquer coisa a estas listas — só depois que o usuário preenche o
-  // popup e aperta "Criar" é que o item de verdade entra na lista.
-  // ---------------------------------------------------------------
   final List<CategoriaLoja> _categorias = [];
   final List<ItemLoja> _itens = [];
   final List<GrupoComponentesLoja> _gruposComponentes = [];
 
-  // Abre o popup "Novo Grupo de Componentes". Ao criar, o grupo entra
-  // na lista _gruposComponentes — ele não aparece em nenhum card na
-  // tela (a árvore visual da aba Loja não pede isso), mas passa a
-  // ficar disponível nos seletores dos popups de Categoria e Item.
+  void _persistirListasLoja() {
+    context.read<PdvProvider>().atualizarListasLoja(
+          widget.lojaId,
+          categorias: _categorias,
+          itens: _itens,
+          gruposComponentes: _gruposComponentes,
+        );
+  }
+
   void _abrirPopupNovoGrupoComponentes() {
     NovoGrupoComponentesDialog.mostrar(
       context,
@@ -81,12 +60,11 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
       itensDisponiveis: _itens,
       onCriar: (grupo) {
         setState(() => _gruposComponentes.add(grupo));
+        _persistirListasLoja();
       },
     );
   }
 
-  // Abre o popup "Nova Categoria". Ao criar, a categoria vira um novo
-  // CategoriaLojaContainer na lista visível da tela.
   void _abrirPopupNovaCategoria() {
     NovaCategoriaDialog.mostrar(
       context,
@@ -94,13 +72,11 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
       gruposComponentes: _gruposComponentes,
       onCriar: (categoria) {
         setState(() => _categorias.add(categoria));
+        _persistirListasLoja();
       },
     );
   }
 
-  // Abre o popup "Novo Item". Ao criar, o item vira um novo
-  // ItemLojaCard na lista visível da tela, e também passa a estar
-  // disponível para ser escolhido dentro de um Grupo de Componentes.
   void _abrirPopupNovoItem() {
     NovoItemDialog.mostrar(
       context,
@@ -109,32 +85,65 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
       gruposComponentes: _gruposComponentes,
       onCriar: (item) {
         setState(() => _itens.add(item));
+        _persistirListasLoja();
+      },
+    );
+  }
+
+  void _abrirPopupEditarItem(ItemLoja item) {
+    NovoItemDialog.mostrar(
+      context,
+      theme: ThemeController.currentTheme.value,
+      categorias: _categorias,
+      gruposComponentes: _gruposComponentes,
+      itemParaEditar: item,
+      onCriar: (itemEditado) {
+        setState(() {
+          final indice = _itens.indexWhere((i) => i.id == itemEditado.id);
+          if (indice != -1) _itens[indice] = itemEditado;
+        });
+        _persistirListasLoja();
       },
     );
   }
 
   void _removerCategoria(String id) {
     setState(() => _categorias.removeWhere((categoria) => categoria.id == id));
+    _persistirListasLoja();
   }
 
   void _removerItem(String id) {
     setState(() => _itens.removeWhere((item) => item.id == id));
+    _persistirListasLoja();
+  }
+
+  void _adicionarItemNaCategoria(CategoriaLoja categoria, String itemId) {
+    setState(() {
+      final indice = _categorias.indexWhere((c) => c.id == categoria.id);
+      if (indice == -1) return;
+      final novosIds = [...categoria.itemIds, itemId];
+      _categorias[indice] = categoria.copyWith(itemIds: novosIds);
+    });
+    _persistirListasLoja();
+  }
+
+  void _removerItemDaCategoria(CategoriaLoja categoria, String itemId) {
+    setState(() {
+      final indice = _categorias.indexWhere((c) => c.id == categoria.id);
+      if (indice == -1) return;
+      final novosIds =
+          categoria.itemIds.where((id) => id != itemId).toList();
+      _categorias[indice] = categoria.copyWith(itemIds: novosIds);
+    });
+    _persistirListasLoja();
   }
 
   @override
   void initState() {
     super.initState();
 
-    // context.read (não watch): aqui só precisamos LER os dados da loja
-    // uma vez, para preencher os campos de texto quando a tela abre. Não
-    // queremos que initState rode de novo toda vez que algo mudar no
-    // provider — isso nem seria permitido pelo Flutter dentro de
-    // initState.
     final loja = context.read<PdvProvider>().buscarPorId(widget.lojaId);
 
-    // Se por algum motivo a loja não for encontrada (por exemplo, ela já
-    // foi excluída em outra aba do navegador), os campos ficam vazios em
-    // vez de quebrar o app.
     _controllers.nome.text = loja?.nome ?? '';
     _controllers.cnpj.text = loja?.cnpj ?? '';
     _controllers.telefone.text = loja?.telefone ?? '';
@@ -143,6 +152,10 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
     _controllers.email.text = loja?.email ?? '';
     _controllers.categorias.text = loja?.categorias ?? '';
     _controllers.tags.text = loja?.tags ?? '';
+
+    _categorias.addAll(loja?.categoriasLoja ?? []);
+    _itens.addAll(loja?.itensLoja ?? []);
+    _gruposComponentes.addAll(loja?.gruposComponentesLoja ?? []);
   }
 
   @override
@@ -154,22 +167,13 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
     super.dispose();
   }
 
-  // Função chamada quando o usuário clica em "Sair" dentro do popup de
-  // Configurações. Idêntica à que já existe em perfis_pdv_view.dart:
-  // pushAndRemoveUntil troca de tela E apaga toda a pilha de navegação
-  // anterior, então depois disso não existe mais "voltar" para nenhuma
-  // tela do PDV por engano — a única forma de voltar é fazendo
-  // login/entrando como visitante de novo.
   void _handleLogout(BuildContext context) {
     Navigator.of(context).pushAndRemoveUntil(
       MaterialPageRoute(builder: (context) => const LoginView()),
-      (route) => false, // false para TODAS as rotas = apaga tudo
+      (route) => false,
     );
   }
 
-  // Abre o popup "Tem certeza?" antes de excluir a loja de verdade. Só um
-  // AlertDialog simples, seguindo o mesmo visual (cores, borda
-  // arredondada) dos outros popups do app, como o de Configurações.
   void _confirmarExclusao(BuildContext context) {
     showDialog<void>(
       context: context,
@@ -224,37 +228,19 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
     );
   }
 
-  // Executa a exclusão de verdade, depois que o usuário já confirmou no
-  // popup. Remove APENAS a loja com este lojaId (as outras lojas
-  // continuam intactas na lista) e leva o usuário de volta para "Meus
-  // Perfis" — já que a loja que estava sendo vista nesta tela não existe
-  // mais, não faz sentido deixar ele "voltar" para cá.
   void _executarExclusao(BuildContext dialogContext) {
-    // Pegamos a referência do Navigator ANTES de fechar o popup e a tela,
-    // pelo mesmo motivo já usado no popup de categoria: depois do pop(),
-    // o context pode não ser mais confiável.
     final navigator = Navigator.of(dialogContext);
 
     dialogContext.read<PdvProvider>().excluirLoja(widget.lojaId);
 
-    navigator.pop(); // fecha o popup de confirmação
+    navigator.pop();
 
-    // pushAndRemoveUntil troca esta tela pela de "Meus Perfis" e apaga
-    // toda a pilha de navegação anterior (incluindo esta própria tela de
-    // Dados do Perfil) — assim o botão "voltar" não consegue mais chegar
-    // numa tela mostrando dados de uma loja que já foi excluída.
     navigator.pushAndRemoveUntil(
       MaterialPageRoute(builder: (context) => const PerfisPdvView()),
       (route) => false,
     );
   }
 
-  // Título mostrado no topo da tela (ao lado da seta de voltar e do ícone
-  // de Configurações), de acordo com a aba selecionada agora. É chamada
-  // dentro do build(), então toda vez que _abaSelecionada muda (e o
-  // setState() da barra de abas dispara um novo build), esse texto é
-  // recalculado e o CustomAppBar exibe o valor novo automaticamente —
-  // sem precisar navegar para nenhuma tela nova.
   String _tituloDaAba() {
     switch (_abaSelecionada) {
       case AbaLoja.dados:
@@ -268,10 +254,6 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
     }
   }
 
-  // Decoração compartilhada por todos os "blocos grandes" da tela (o
-  // formulário principal, e agora também o bloco da aba Loja): fundo
-  // semi-transparente + borda arredondada, o padrão visual de
-  // bloco/container do app inteiro.
   BoxDecoration _decoracaoDoBloco(AppTheme theme) {
     return BoxDecoration(
       color: theme.backgroundColor.withValues(alpha: 0.4),
@@ -280,10 +262,6 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
     );
   }
 
-  // Botão de ação "vazado" (só borda), usado nos três botões da aba Loja
-  // (Novo Grupo de Componentes / Nova Categoria / Novo Item) — mesmo
-  // visual dos botões "não selecionados" da barra de abas Dados/
-  // Interface/Loja/Gestão, pra manter a identidade visual do app.
   Widget _botaoAcaoLoja(AppTheme theme, String rotulo, VoidCallback onPressed) {
     return OutlinedButton(
       style: OutlinedButton.styleFrom(
@@ -297,9 +275,6 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
     );
   }
 
-  // Título centralizado usado no topo de cada seção do bloco (ex:
-  // "Categorias", "Itens") — mesmo estilo de título já usado em todos os
-  // outros containers do app (fontSize 15, w600, textColor).
   Widget _tituloDeSecao(AppTheme theme, String texto) {
     return Text(
       texto,
@@ -312,7 +287,6 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
     );
   }
 
-  // Decide o que aparece no meio da tela, dependendo da aba escolhida.
   Widget _conteudoDaAba(AppTheme theme) {
     switch (_abaSelecionada) {
       case AbaLoja.dados:
@@ -320,10 +294,6 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
 
         return Column(
           children: [
-            // O formulário e o botão "Excluir Loja" ficam dentro de um
-            // Container com a mesma borda usada nos containers seguintes
-            // (Dados Bancários, Galeria, etc.), como no protótipo do
-            // Figma.
             Container(
               width: double.infinity,
               padding: const EdgeInsets.all(16),
@@ -346,11 +316,6 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
               ),
             ),
             const SizedBox(height: 16),
-
-            // Os 7 containers pedidos, cada um no seu widget dedicado.
-            // Todos seguem o mesmo espaçamento de 16 entre um e outro,
-            // dentro do SingleChildScrollView do body (lá embaixo, no
-            // build), então a tela toda continua rolando normalmente.
             DadosBancariosContainer(
               theme: theme,
               controllers: _controllersBancarios,
@@ -374,18 +339,11 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
             const SizedBox(height: 16),
             GaleriaEstiloContainer(theme: theme, titulo: 'Vídeos'),
             const SizedBox(height: 16),
-
-            // Este ainda não tinha print no protótipo, então continua
-            // como container simbólico por enquanto.
             ContainerSimbolico(theme: theme, titulo: 'Arquivos de Áudio'),
           ],
         );
 
       case AbaLoja.loja:
-        // Bloco "Categorias" + bloco "Itens" + botões de ação, seguindo
-        // o print que você mandou. Agora com os modelos de verdade
-        // (CategoriaLoja, ItemLoja): cada botão abre seu popup, e só
-        // depois de "Criar" é que o card aparece na tela.
         return Container(
           width: double.infinity,
           padding: const EdgeInsets.all(16),
@@ -399,6 +357,12 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
                   key: ValueKey('categoria_${categoria.id}'),
                   theme: theme,
                   nome: categoria.nome,
+                  itemIds: categoria.itemIds,
+                  itensDisponiveis: _itens,
+                  onAdicionarItem: (itemId) =>
+                      _adicionarItemNaCategoria(categoria, itemId),
+                  onRemoverItem: (itemId) =>
+                      _removerItemDaCategoria(categoria, itemId),
                   onExcluir: () => _removerCategoria(categoria.id),
                 ),
                 const SizedBox(height: 8),
@@ -416,14 +380,13 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
                       key: ValueKey('item_${item.id}'),
                       theme: theme,
                       nome: item.nome,
+                      preco: item.preco,
+                      onEditar: () => _abrirPopupEditarItem(item),
                       onExcluir: () => _removerItem(item.id),
                     ),
                 ],
               ),
               const SizedBox(height: 20),
-              // Ordem: Novo Grupo de Componentes primeiro, Nova
-              // Categoria no meio, Novo Item por último. Cada botão
-              // agora abre seu popup em vez de adicionar o card direto.
               Wrap(
                 spacing: 8,
                 runSpacing: 8,
@@ -450,7 +413,6 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
           ),
         );
 
-      // As duas abas abaixo ainda não têm seus containers definidos.
       case AbaLoja.interface:
       case AbaLoja.gestao:
         return Padding(
@@ -488,11 +450,6 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
               ),
             ),
           ),
-          // Column com as duas barras de baixo: primeiro a de abas da
-          // loja (Dados/Interface/Loja/Gestão), depois a flutuante do
-          // app inteiro — igual ao protótipo. mainAxisSize.min faz a
-          // Column ocupar só a altura que as duas juntas precisam, sem
-          // esticar o resto da tela.
           bottomNavigationBar: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -511,10 +468,6 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
   }
 }
 
-// Barra com os 4 botões de navegação própria da loja (Dados, Interface,
-// Loja, Gestão). O botão da aba atual fica com o mesmo visual de "hover"
-// já usado no card de perfil (fundo buttonColor) — só que aqui é
-// permanente enquanto a aba estiver selecionada, não depende do mouse.
 class _BarraDeAbasDaLoja extends StatelessWidget {
   final AppTheme theme;
   final AbaLoja abaSelecionada;
@@ -526,8 +479,6 @@ class _BarraDeAbasDaLoja extends StatelessWidget {
     required this.aoTrocarAba,
   });
 
-  // Nome de exibição de cada aba, já que o enum usa nomes em minúsculo
-  // sem acento (interface, gestao) por convenção do Dart.
   String _rotulo(AbaLoja aba) {
     switch (aba) {
       case AbaLoja.dados:

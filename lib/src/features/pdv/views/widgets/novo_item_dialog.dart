@@ -3,22 +3,17 @@ import 'package:nous/src/core/theme/theme_controller.dart';
 import 'package:nous/src/core/widgets/themed_text_field.dart';
 import 'package:nous/src/features/pdv/models/item_loja.dart';
 
-// Popup "Novo Item", seguindo o print do protótipo, mas com o visual
-// padrão da aplicação (cores do tema, ThemedTextField, botões com
-// borda). Ele NÃO salva nada por conta própria: quando o usuário
-// termina de preencher e aperta "Criar", este popup só monta o objeto
-// ItemLoja e entrega para quem chamou (via onCriar) — quem decide o
-// que fazer com esse item de verdade é a tela que abriu o popup.
+// Popup "Novo Item" / "Editar Item". Mesma tela para os dois casos:
+// se "itemParaEditar" vier preenchido, os campos começam já
+// preenchidos com os dados dele, o título vira "Editar Item" e o botão
+// vira "Salvar" em vez de "Criar". Continua não salvando nada por
+// conta própria: ao terminar, só monta o ItemLoja (novo ou editado) e
+// entrega para quem chamou via onCriar.
 class NovoItemDialog extends StatefulWidget {
   final AppTheme theme;
-
-  // Listas usadas para preencher os seletores de "Categoria do item" e
-  // "Grupo de componentes". Podem estar vazias (o usuário ainda não
-  // criou nenhuma categoria/grupo) — nesse caso, o seletor mostra só a
-  // opção "Nenhuma".
   final List<CategoriaLoja> categorias;
   final List<GrupoComponentesLoja> gruposComponentes;
-
+  final ItemLoja? itemParaEditar;
   final void Function(ItemLoja item) onCriar;
 
   const NovoItemDialog({
@@ -26,17 +21,16 @@ class NovoItemDialog extends StatefulWidget {
     required this.theme,
     required this.categorias,
     required this.gruposComponentes,
+    this.itemParaEditar,
     required this.onCriar,
   });
 
-  // Função de conveniência: abre o popup sem quem chama precisar saber
-  // os detalhes do showDialog. Segue o mesmo padrão usado em outros
-  // popups do app (ex: _confirmarExclusao na tela de Dados do Perfil).
   static Future<void> mostrar(
     BuildContext context, {
     required AppTheme theme,
     required List<CategoriaLoja> categorias,
     required List<GrupoComponentesLoja> gruposComponentes,
+    ItemLoja? itemParaEditar,
     required void Function(ItemLoja item) onCriar,
   }) {
     return showDialog<void>(
@@ -45,6 +39,7 @@ class NovoItemDialog extends StatefulWidget {
         theme: theme,
         categorias: categorias,
         gruposComponentes: gruposComponentes,
+        itemParaEditar: itemParaEditar,
         onCriar: onCriar,
       ),
     );
@@ -56,6 +51,8 @@ class NovoItemDialog extends StatefulWidget {
 
 class _NovoItemDialogState extends State<NovoItemDialog> {
   final _nomeController = TextEditingController();
+  // NOVO: controller do campo de preço.
+  final _precoController = TextEditingController();
   final _descricaoController = TextEditingController();
   final _freteGratisAteController = TextEditingController();
   final _valorPorKmController = TextEditingController();
@@ -65,20 +62,37 @@ class _NovoItemDialogState extends State<NovoItemDialog> {
   String? _grupoSelecionadoId;
   bool _possuiDelivery = false;
 
-  // Cada variante é só um texto (ex: "Tamanho P"). Guardamos uma lista
-  // de controllers, um para cada variante que o usuário for
-  // adicionando com o botão "+ Adicionar variante".
   final List<TextEditingController> _variantesControllers = [];
+
+  @override
+  void initState() {
+    super.initState();
+
+    final item = widget.itemParaEditar;
+    if (item == null) return; // modo criação: campos começam vazios
+
+    _nomeController.text = item.nome;
+    _precoController.text = item.preco;
+    _descricaoController.text = item.descricao;
+    _freteGratisAteController.text = item.freteGratisAte;
+    _valorPorKmController.text = item.valorPorKm;
+    _tipo = item.tipo;
+    _categoriaSelecionadaId = item.categoriaId;
+    _grupoSelecionadoId = item.grupoComponentesId;
+    _possuiDelivery = item.possuiDelivery;
+
+    for (final variante in item.variantes) {
+      _variantesControllers.add(TextEditingController(text: variante));
+    }
+  }
 
   @override
   void dispose() {
     _nomeController.dispose();
+    _precoController.dispose();
     _descricaoController.dispose();
     _freteGratisAteController.dispose();
     _valorPorKmController.dispose();
-    // Cada controller de variante também precisa ser liberado da
-    // memória — senão o Flutter mantém eles "vivos" mesmo depois do
-    // popup fechar.
     for (final controller in _variantesControllers) {
       controller.dispose();
     }
@@ -96,13 +110,6 @@ class _NovoItemDialogState extends State<NovoItemDialog> {
     });
   }
 
-  // Abre um popup simples de seleção (lista de opções), reaproveitado
-  // tanto para "Categoria do item" quanto para "Grupo de componentes".
-  // titulo: texto do cabeçalho do popup.
-  // opcoes: mapa de id -> nome, das opções disponíveis.
-  // selecionadoId: o id atualmente escolhido (ou null, se nenhum).
-  // aoSelecionar: chamado com o novo id escolhido (ou null, para
-  // "Nenhuma").
   void _abrirSeletor({
     required String titulo,
     required Map<String, String> opcoes,
@@ -165,9 +172,6 @@ class _NovoItemDialogState extends State<NovoItemDialog> {
     );
   }
 
-  // Campo "de mentirinha": parece um ThemedTextField, mas ao ser
-  // tocado não abre o teclado — abre o popup de seleção. Usado para
-  // "Categoria do item" e "Grupo de componentes".
   Widget _campoSelecao({
     required String label,
     required String? valorExibido,
@@ -214,17 +218,33 @@ class _NovoItemDialogState extends State<NovoItemDialog> {
         .where((texto) => texto.isNotEmpty)
         .toList();
 
-    final item = ItemLoja.novo(
-      nome: nome,
-      tipo: _tipo,
-      categoriaId: _categoriaSelecionadaId,
-      grupoComponentesId: _grupoSelecionadoId,
-      variantes: variantes,
-      descricao: _descricaoController.text.trim(),
-      possuiDelivery: _possuiDelivery,
-      freteGratisAte: _freteGratisAteController.text.trim(),
-      valorPorKm: _valorPorKmController.text.trim(),
-    );
+    final itemExistente = widget.itemParaEditar;
+
+    final item = itemExistente != null
+        ? itemExistente.copyWith(
+            nome: nome,
+            tipo: _tipo,
+            preco: _precoController.text.trim(),
+            categoriaId: _categoriaSelecionadaId,
+            grupoComponentesId: _grupoSelecionadoId,
+            variantes: variantes,
+            descricao: _descricaoController.text.trim(),
+            possuiDelivery: _possuiDelivery,
+            freteGratisAte: _freteGratisAteController.text.trim(),
+            valorPorKm: _valorPorKmController.text.trim(),
+          )
+        : ItemLoja.novo(
+            nome: nome,
+            tipo: _tipo,
+            preco: _precoController.text.trim(),
+            categoriaId: _categoriaSelecionadaId,
+            grupoComponentesId: _grupoSelecionadoId,
+            variantes: variantes,
+            descricao: _descricaoController.text.trim(),
+            possuiDelivery: _possuiDelivery,
+            freteGratisAte: _freteGratisAteController.text.trim(),
+            valorPorKm: _valorPorKmController.text.trim(),
+          );
 
     widget.onCriar(item);
     Navigator.of(context).pop();
@@ -233,16 +253,11 @@ class _NovoItemDialogState extends State<NovoItemDialog> {
   @override
   Widget build(BuildContext context) {
     final theme = widget.theme;
+    final editando = widget.itemParaEditar != null;
 
-    // Largura do popup: 90% da tela em telas pequenas, no máximo 340 em
-    // telas maiores — mesmo raciocínio simples que já usamos antes,
-    // sem LayoutBuilder (lição aprendida: LayoutBuilder dentro do
-    // content de um AlertDialog pode travar o app).
     final larguraTela = MediaQuery.sizeOf(context).width;
     final larguraPopup = larguraTela < 380 ? larguraTela * 0.9 : 340.0;
 
-    // Monta o mapa id->nome das categorias e grupos existentes, para
-    // alimentar os seletores.
     final opcoesCategorias = {
       for (final categoria in widget.categorias) categoria.id: categoria.nome,
     };
@@ -267,7 +282,7 @@ class _NovoItemDialogState extends State<NovoItemDialog> {
         side: BorderSide(color: theme.borderColor, width: 1.5),
       ),
       title: Text(
-        'Novo Item',
+        editando ? 'Editar Item' : 'Novo Item',
         textAlign: TextAlign.center,
         style: theme.getTextStyle(
           fontSize: 18,
@@ -281,9 +296,6 @@ class _NovoItemDialogState extends State<NovoItemDialog> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              // Quadrado de foto — por enquanto só decorativo, seguindo
-              // o mesmo estágio dos containers de Galeria/Arquivos
-              // (ainda sem upload de verdade).
               Container(
                 width: 80,
                 height: 80,
@@ -307,11 +319,16 @@ class _NovoItemDialogState extends State<NovoItemDialog> {
               ),
               const SizedBox(height: 16),
 
-              // Produto / Serviço. Seguindo a regra técnica já
-              // aprendida: em versões recentes do Flutter, o Radio não
-              // recebe mais groupValue/onChanged direto — os dois
-              // Radio ficam dentro de um RadioGroup, que é quem sabe
-              // qual está selecionado.
+              // NOVO: campo de preço, logo abaixo do nome. Teclado
+              // numérico pra facilitar a digitação num celular.
+              ThemedTextField(
+                theme: theme,
+                controller: _precoController,
+                label: 'Preço (ex: 12,50)',
+                tipoDeTeclado: TextInputType.number,
+              ),
+              const SizedBox(height: 16),
+
               RadioGroup<TipoItemLoja>(
                 groupValue: _tipo,
                 onChanged: (valor) => setState(() => _tipo = valor),
@@ -352,8 +369,6 @@ class _NovoItemDialogState extends State<NovoItemDialog> {
               ),
               const SizedBox(height: 16),
 
-              // Lista de variantes já adicionadas, cada uma com um "x"
-              // para remover.
               for (var i = 0; i < _variantesControllers.length; i++) ...[
                 Row(
                   children: [
@@ -399,9 +414,6 @@ class _NovoItemDialogState extends State<NovoItemDialog> {
               ),
               const SizedBox(height: 16),
 
-              // Toggle de delivery. Os campos de frete só aparecem
-              // quando ativado — igual ao container Delivery que já
-              // existe na aba Dados.
               Row(
                 children: [
                   Expanded(
@@ -469,7 +481,7 @@ class _NovoItemDialogState extends State<NovoItemDialog> {
             ),
             onPressed: _criar,
             child: Text(
-              'Criar',
+              editando ? 'Salvar' : 'Criar',
               style: theme.getTextStyle(
                 fontWeight: FontWeight.bold,
                 color: theme.buttonTextColor,
@@ -481,9 +493,6 @@ class _NovoItemDialogState extends State<NovoItemDialog> {
     );
   }
 
-  // Um "botão de rádio" com o rótulo em cima e a bolinha embaixo,
-  // exatamente como no print do protótipo (texto "Produto"/"Serviço"
-  // acima da bolinha, não ao lado).
   Widget _opcaoTipo(AppTheme theme, String rotulo, TipoItemLoja valor) {
     return Column(
       children: [

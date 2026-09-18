@@ -1,19 +1,6 @@
-// "Molde" (modelo de dados) que representa UMA loja cadastrada pelo
-// usuário. Antes, o PdvProvider guardava os dados de uma loja direto como
-// campos soltos (nome, cnpj, etc.). Agora que o usuário pode ter VÁRIAS
-// lojas, precisamos de uma "caixinha" para cada loja individual, e o
-// PdvProvider vai guardar uma LISTA dessas caixinhas.
-//
-// Usamos uma classe "imutável" (todos os campos são "final", ou seja,
-// não mudam depois de criados) porque isso deixa o código mais previsível:
-// para "editar" uma loja no futuro, vamos criar uma Loja nova com os dados
-// atualizados e substituir a antiga na lista, em vez de alterar os campos
-// dela escondido por aí.
+import 'package:nous/src/features/pdv/models/item_loja.dart';
+
 class Loja {
-  // Identificador único de cada loja. É o que permite ao app saber
-  // exatamente QUAL loja o usuário está vendo ou querendo excluir, mesmo
-  // que duas lojas tenham o mesmo nome. Gerado automaticamente quando a
-  // loja é criada (veja o PdvProvider).
   final String id;
 
   final String nome;
@@ -25,6 +12,10 @@ class Loja {
   final String categorias;
   final String tags;
 
+  final List<CategoriaLoja> categoriasLoja;
+  final List<ItemLoja> itensLoja;
+  final List<GrupoComponentesLoja> gruposComponentesLoja;
+
   const Loja({
     required this.id,
     required this.nome,
@@ -35,5 +26,37 @@ class Loja {
     required this.email,
     required this.categorias,
     required this.tags,
+    this.categoriasLoja = const [],
+    this.itensLoja = const [],
+    this.gruposComponentesLoja = const [],
   });
+
+  Loja copyWith({
+    String? nome,
+    String? cnpj,
+    String? telefone,
+    String? endereco,
+    String? numero,
+    String? email,
+    String? categorias,
+    String? tags,
+    List<CategoriaLoja>? categoriasLoja,
+    List<ItemLoja>? itensLoja,
+    List<GrupoComponentesLoja>? gruposComponentesLoja,
+  }) {
+    return Loja(
+      id: id,
+      nome: nome ?? this.nome,
+      cnpj: cnpj ?? this.cnpj,
+      telefone: telefone ?? this.telefone,
+      endereco: endereco ?? this.endereco,
+      numero: numero ?? this.numero,
+      email: email ?? this.email,
+      categorias: categorias ?? this.categorias,
+      tags: tags ?? this.tags,
+      categoriasLoja: categoriasLoja ?? this.categoriasLoja,
+      itensLoja: itensLoja ?? this.itensLoja,
+      gruposComponentesLoja: gruposComponentesLoja ?? this.gruposComponentesLoja,
+    );
+  }
 }

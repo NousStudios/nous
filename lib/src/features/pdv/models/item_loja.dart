@@ -7,12 +7,6 @@
 // precisar mudar (por exemplo, editar o nome de um item depois), a
 // gente cria um objeto NOVO com o campo atualizado, usando o método
 // copyWith — nunca alteramos o objeto antigo por dentro.
-//
-// Por que fazer assim, em vez de só mudar o campo direto? Porque isso
-// deixa bem claro, no código, todo lugar em que um dado mudou (sempre
-// que aparece um "objeto novo" sendo criado), o que facilita muito
-// achar bugs no futuro, e é o mesmo padrão que o PdvProvider já usa
-// para a lista de Lojas.
 
 // Um Item pode ser um Produto (algo físico) ou um Serviço (algo que
 // não se entrega, como um corte de cabelo). Usamos um "enum" (uma
@@ -34,6 +28,13 @@ class ItemLoja {
   final String id;
   final String nome;
   final TipoItemLoja? tipo;
+
+  // NOVO: preço do item, guardado como texto (ex: "12,50"), assim como
+  // já fazíamos com valorPorKm — evita ter que lidar com formatação de
+  // número/moeda por enquanto. Quando o app tiver de fato um carrinho
+  // de compras somando valores, aí sim vale a pena trocar para um tipo
+  // numérico (double).
+  final String preco;
 
   // Guardamos só o ID da categoria/grupo escolhido (não o objeto
   // inteiro). Isso evita duplicar dados: se o nome de uma categoria
@@ -57,6 +58,7 @@ class ItemLoja {
     required this.id,
     required this.nome,
     this.tipo,
+    this.preco = '',
     this.categoriaId,
     this.grupoComponentesId,
     this.variantes = const [],
@@ -72,6 +74,7 @@ class ItemLoja {
   factory ItemLoja.novo({
     required String nome,
     TipoItemLoja? tipo,
+    String preco = '',
     String? categoriaId,
     String? grupoComponentesId,
     List<String> variantes = const [],
@@ -84,6 +87,7 @@ class ItemLoja {
       id: _gerarIdUnico(),
       nome: nome,
       tipo: tipo,
+      preco: preco,
       categoriaId: categoriaId,
       grupoComponentesId: grupoComponentesId,
       variantes: variantes,
@@ -100,6 +104,7 @@ class ItemLoja {
   ItemLoja copyWith({
     String? nome,
     TipoItemLoja? tipo,
+    String? preco,
     String? categoriaId,
     String? grupoComponentesId,
     List<String>? variantes,
@@ -112,6 +117,7 @@ class ItemLoja {
       id: id,
       nome: nome ?? this.nome,
       tipo: tipo ?? this.tipo,
+      preco: preco ?? this.preco,
       categoriaId: categoriaId ?? this.categoriaId,
       grupoComponentesId: grupoComponentesId ?? this.grupoComponentesId,
       variantes: variantes ?? this.variantes,
@@ -131,23 +137,30 @@ class CategoriaLoja {
   final String? grupoComponentesId;
   final TipoItemLoja? tipo;
 
+  // Lista dos ids dos Itens que foram adicionados a esta categoria
+  // pelo botão "Adicionar item" (na tela da Loja).
+  final List<String> itemIds;
+
   const CategoriaLoja({
     required this.id,
     required this.nome,
     this.grupoComponentesId,
     this.tipo,
+    this.itemIds = const [],
   });
 
   factory CategoriaLoja.nova({
     required String nome,
     String? grupoComponentesId,
     TipoItemLoja? tipo,
+    List<String> itemIds = const [],
   }) {
     return CategoriaLoja(
       id: _gerarIdUnico(),
       nome: nome,
       grupoComponentesId: grupoComponentesId,
       tipo: tipo,
+      itemIds: itemIds,
     );
   }
 
@@ -155,12 +168,14 @@ class CategoriaLoja {
     String? nome,
     String? grupoComponentesId,
     TipoItemLoja? tipo,
+    List<String>? itemIds,
   }) {
     return CategoriaLoja(
       id: id,
       nome: nome ?? this.nome,
       grupoComponentesId: grupoComponentesId ?? this.grupoComponentesId,
       tipo: tipo ?? this.tipo,
+      itemIds: itemIds ?? this.itemIds,
     );
   }
 }
