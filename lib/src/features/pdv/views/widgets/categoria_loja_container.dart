@@ -10,6 +10,11 @@ import 'package:nous/src/features/pdv/views/widgets/produto_loja_row.dart';
 class CategoriaLojaContainer extends StatefulWidget {
   final AppTheme theme;
 
+  // Antes tinha um valor padrão fixo ('Nome da Categoria'). Agora é
+  // obrigatório: cada categoria mostra seu nome real, vindo do modelo
+  // CategoriaLoja.
+  final String nome;
+
   // Chamado quando o usuário escolhe "Excluir Categoria" no menu "⋮".
   // Quem decide o que fazer com isso é a tela que criou este card (ela
   // que sabe tirar este card da lista).
@@ -18,6 +23,7 @@ class CategoriaLojaContainer extends StatefulWidget {
   const CategoriaLojaContainer({
     super.key,
     required this.theme,
+    required this.nome,
     required this.onExcluir,
   });
 
@@ -68,7 +74,7 @@ class _CategoriaLojaContainerState extends State<CategoriaLojaContainer> {
             children: [
               Expanded(
                 child: Text(
-                  'Nome da Categoria',
+                  widget.nome,
                   overflow: TextOverflow.ellipsis,
                   style: theme.getTextStyle(fontSize: 13),
                 ),
@@ -83,7 +89,8 @@ class _CategoriaLojaContainerState extends State<CategoriaLojaContainer> {
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Text('Adicionar item', style: theme.getTextStyle(fontSize: 11)),
+                    Text('Adicionar item',
+                        style: theme.getTextStyle(fontSize: 11)),
                     const SizedBox(width: 2),
                     Icon(Icons.add_circle_outline,
                         size: 14, color: theme.secondaryTextColor),
@@ -92,7 +99,9 @@ class _CategoriaLojaContainerState extends State<CategoriaLojaContainer> {
               ),
               IconButton(
                 icon: Icon(
-                  _expandida ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_down,
+                  _expandida
+                      ? Icons.keyboard_arrow_up
+                      : Icons.keyboard_arrow_down,
                   color: theme.secondaryTextColor,
                 ),
                 onPressed: () => setState(() => _expandida = !_expandida),
@@ -106,7 +115,8 @@ class _CategoriaLojaContainerState extends State<CategoriaLojaContainer> {
                 itemBuilder: (context) => [
                   PopupMenuItem(
                     value: 'excluir',
-                    child: Text('Excluir Categoria', style: theme.getTextStyle()),
+                    child: Text('Excluir Categoria',
+                        style: theme.getTextStyle()),
                   ),
                 ],
               ),
@@ -129,21 +139,24 @@ class _CategoriaLojaContainerState extends State<CategoriaLojaContainer> {
                     Expanded(
                       child: Text('Produto',
                           style: theme.getTextStyle(
-                              fontSize: 10, color: theme.secondaryTextColor)),
+                              fontSize: 10,
+                              color: theme.secondaryTextColor)),
                     ),
                     SizedBox(
                       width: 60,
                       child: Text('Ativo',
                           textAlign: TextAlign.center,
                           style: theme.getTextStyle(
-                              fontSize: 10, color: theme.secondaryTextColor)),
+                              fontSize: 10,
+                              color: theme.secondaryTextColor)),
                     ),
                     SizedBox(
                       width: 60,
                       child: Text('Preços',
                           textAlign: TextAlign.center,
                           style: theme.getTextStyle(
-                              fontSize: 10, color: theme.secondaryTextColor)),
+                              fontSize: 10,
+                              color: theme.secondaryTextColor)),
                     ),
                     const SizedBox(width: 64),
                   ],

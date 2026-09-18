@@ -4,6 +4,7 @@ import 'package:nous/src/core/theme/theme_controller.dart';
 import 'package:nous/src/core/widgets/custom_app_bar.dart';
 import 'package:nous/src/core/widgets/floating_bottom_nav_bar.dart';
 import 'package:nous/src/features/auth/views/login_view.dart';
+import 'package:nous/src/features/pdv/models/item_loja.dart';
 import 'package:nous/src/features/pdv/providers/pdv_provider.dart';
 import 'package:nous/src/features/pdv/views/perfis_pdv_view.dart';
 import 'package:nous/src/features/pdv/views/widgets/categoria_loja_container.dart';
@@ -13,6 +14,9 @@ import 'package:nous/src/features/pdv/views/widgets/delivery_container.dart';
 import 'package:nous/src/features/pdv/views/widgets/formulario_dados_loja.dart';
 import 'package:nous/src/features/pdv/views/widgets/galeria_estilo_container.dart';
 import 'package:nous/src/features/pdv/views/widgets/item_loja_card.dart';
+import 'package:nous/src/features/pdv/views/widgets/nova_categoria_dialog.dart';
+import 'package:nous/src/features/pdv/views/widgets/novo_grupo_componentes_dialog.dart';
+import 'package:nous/src/features/pdv/views/widgets/novo_item_dialog.dart';
 import 'package:nous/src/features/pdv/views/widgets/usuarios_participantes_container.dart';
 
 // Tela "Dados do Perfil". Antes, ela recebia os dados da loja soltos, um
@@ -54,42 +58,67 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
   AbaLoja _abaSelecionada = AbaLoja.dados;
 
   // ---------------------------------------------------------------
-  // Aba "Loja" — ainda sem provider de categorias/itens. Por enquanto
-  // guardamos só uma LISTA DE IDS em memória (perdida se a tela fechar),
-  // só pra podermos mostrar vários cards e testar os botões "Nova
-  // Categoria"/"Novo Item" visualmente, igual foi feito com os outros
-  // containers antes de ganharem provider de verdade.
-  //
-  // Começam VAZIAS: a tela só deve mostrar categorias/itens que o
-  // próprio usuário cadastrar através dos botões "Nova Categoria" e
-  // "Novo Item" — nenhum dado de exemplo deve aparecer sozinho.
+  // Aba "Loja" — ainda sem provider (guardamos em memória, perdido se
+  // a tela fechar), mas agora com os MODELOS DE VERDADE (ItemLoja,
+  // CategoriaLoja, GrupoComponentesLoja), em vez de simples números.
+  // Cada botão ("Nova Categoria", "Novo Item", "Novo Grupo de
+  // Componentes") abre o popup correspondente ANTES de adicionar
+  // qualquer coisa a estas listas — só depois que o usuário preenche o
+  // popup e aperta "Criar" é que o item de verdade entra na lista.
   // ---------------------------------------------------------------
-  final List<int> _categoriaIds = [];
-  int _proximoIdCategoria = 0;
+  final List<CategoriaLoja> _categorias = [];
+  final List<ItemLoja> _itens = [];
+  final List<GrupoComponentesLoja> _gruposComponentes = [];
 
-  final List<int> _itemIds = [];
-  int _proximoIdItem = 0;
-
-  void _adicionarCategoria() {
-    setState(() {
-      _categoriaIds.add(_proximoIdCategoria);
-      _proximoIdCategoria++;
-    });
+  // Abre o popup "Novo Grupo de Componentes". Ao criar, o grupo entra
+  // na lista _gruposComponentes — ele não aparece em nenhum card na
+  // tela (a árvore visual da aba Loja não pede isso), mas passa a
+  // ficar disponível nos seletores dos popups de Categoria e Item.
+  void _abrirPopupNovoGrupoComponentes() {
+    NovoGrupoComponentesDialog.mostrar(
+      context,
+      theme: ThemeController.currentTheme.value,
+      itensDisponiveis: _itens,
+      onCriar: (grupo) {
+        setState(() => _gruposComponentes.add(grupo));
+      },
+    );
   }
 
-  void _removerCategoria(int id) {
-    setState(() => _categoriaIds.remove(id));
+  // Abre o popup "Nova Categoria". Ao criar, a categoria vira um novo
+  // CategoriaLojaContainer na lista visível da tela.
+  void _abrirPopupNovaCategoria() {
+    NovaCategoriaDialog.mostrar(
+      context,
+      theme: ThemeController.currentTheme.value,
+      gruposComponentes: _gruposComponentes,
+      onCriar: (categoria) {
+        setState(() => _categorias.add(categoria));
+      },
+    );
   }
 
-  void _adicionarItem() {
-    setState(() {
-      _itemIds.add(_proximoIdItem);
-      _proximoIdItem++;
-    });
+  // Abre o popup "Novo Item". Ao criar, o item vira um novo
+  // ItemLojaCard na lista visível da tela, e também passa a estar
+  // disponível para ser escolhido dentro de um Grupo de Componentes.
+  void _abrirPopupNovoItem() {
+    NovoItemDialog.mostrar(
+      context,
+      theme: ThemeController.currentTheme.value,
+      categorias: _categorias,
+      gruposComponentes: _gruposComponentes,
+      onCriar: (item) {
+        setState(() => _itens.add(item));
+      },
+    );
   }
 
-  void _removerItem(int id) {
-    setState(() => _itemIds.remove(id));
+  void _removerCategoria(String id) {
+    setState(() => _categorias.removeWhere((categoria) => categoria.id == id));
+  }
+
+  void _removerItem(String id) {
+    setState(() => _itens.removeWhere((item) => item.id == id));
   }
 
   @override
@@ -252,7 +281,7 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
   }
 
   // Botão de ação "vazado" (só borda), usado nos três botões da aba Loja
-  // (Nova Categoria / Novo Item / Novo Grupo de Componentes) — mesmo
+  // (Novo Grupo de Componentes / Nova Categoria / Novo Item) — mesmo
   // visual dos botões "não selecionados" da barra de abas Dados/
   // Interface/Loja/Gestão, pra manter a identidade visual do app.
   Widget _botaoAcaoLoja(AppTheme theme, String rotulo, VoidCallback onPressed) {
@@ -354,9 +383,9 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
 
       case AbaLoja.loja:
         // Bloco "Categorias" + bloco "Itens" + botões de ação, seguindo
-        // o print que você mandou. Ainda tudo em memória (sem provider):
-        // "Nova Categoria" e "Novo Item" só adicionam um card na tela,
-        // pra você conseguir ver o layout funcionando com mais itens.
+        // o print que você mandou. Agora com os modelos de verdade
+        // (CategoriaLoja, ItemLoja): cada botão abre seu popup, e só
+        // depois de "Criar" é que o card aparece na tela.
         return Container(
           width: double.infinity,
           padding: const EdgeInsets.all(16),
@@ -365,20 +394,15 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
             children: [
               _tituloDeSecao(theme, 'Categorias'),
               const SizedBox(height: 12),
-              for (final id in _categoriaIds) ...[
+              for (final categoria in _categorias) ...[
                 CategoriaLojaContainer(
-                  key: ValueKey('categoria_$id'),
+                  key: ValueKey('categoria_${categoria.id}'),
                   theme: theme,
-                  onExcluir: () => _removerCategoria(id),
+                  nome: categoria.nome,
+                  onExcluir: () => _removerCategoria(categoria.id),
                 ),
                 const SizedBox(height: 8),
               ],
-              // Espaço fixo antes do próximo título. Aumentado de 12 para
-              // 24: antes, quando a lista de categorias estava vazia, esse
-              // espaço somava só 24px no total (12 + 12), o que deixava os
-              // dois títulos "Categorias" e "Itens" colados um no outro.
-              // Agora o espaço é maior, então mesmo sem nenhuma categoria
-              // cadastrada, os títulos ficam com uma distância confortável.
               const SizedBox(height: 24),
               _tituloDeSecao(theme, 'Itens'),
               const SizedBox(height: 12),
@@ -387,29 +411,39 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
                 runSpacing: 12,
                 alignment: WrapAlignment.center,
                 children: [
-                  for (final id in _itemIds)
+                  for (final item in _itens)
                     ItemLojaCard(
-                      key: ValueKey('item_$id'),
+                      key: ValueKey('item_${item.id}'),
                       theme: theme,
-                      onExcluir: () => _removerItem(id),
+                      nome: item.nome,
+                      onExcluir: () => _removerItem(item.id),
                     ),
                 ],
               ),
               const SizedBox(height: 20),
+              // Ordem: Novo Grupo de Componentes primeiro, Nova
+              // Categoria no meio, Novo Item por último. Cada botão
+              // agora abre seu popup em vez de adicionar o card direto.
               Wrap(
                 spacing: 8,
                 runSpacing: 8,
                 alignment: WrapAlignment.center,
                 children: [
-                  _botaoAcaoLoja(theme, 'Nova Categoria', _adicionarCategoria),
-                  _botaoAcaoLoja(theme, 'Novo Item', _adicionarItem),
-                  _botaoAcaoLoja(theme, 'Novo Grupo de Componentes', () {
-                    // todo: sem um produto "selecionado" na tela, ainda
-                    // não sabemos a qual produto este grupo pertenceria.
-                    // Por enquanto, grupos são criados pelo menu "⋮" de
-                    // cada produto individual (dentro da categoria
-                    // expandida).
-                  }),
+                  _botaoAcaoLoja(
+                    theme,
+                    'Novo Grupo de Componentes',
+                    _abrirPopupNovoGrupoComponentes,
+                  ),
+                  _botaoAcaoLoja(
+                    theme,
+                    'Nova Categoria',
+                    _abrirPopupNovaCategoria,
+                  ),
+                  _botaoAcaoLoja(
+                    theme,
+                    'Novo Item',
+                    _abrirPopupNovoItem,
+                  ),
                 ],
               ),
             ],
