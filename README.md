@@ -2,7 +2,7 @@
 
 **The State in the hands of the people, as software.**
 
-:brazil: An open-source Brazilian SuperApp for commercial and social self-management —
+<img src="https://raw.githubusercontent.com/lipis/flag-icons/main/flags/4x3/br.svg" alt="Brasil" width="20" /> An open-source Brazilian SuperApp for commercial and social self-management —
 built on anarchist platformism 🏴‍☠️
 
 🔗 **Links:** [linktr.ee/nous72](https://linktr.ee/nous72)
@@ -187,7 +187,7 @@ argue about the politics, but the code speaks for itself.
 
 
 
-##  :brazil: PORTUGUÊS DO BRASIL  :brazil: ## 
+##  <img src="https://raw.githubusercontent.com/lipis/flag-icons/main/flags/4x3/br.svg" alt="Brasil" width="20" /> PORTUGUÊS DO BRASIL  <img src="https://raw.githubusercontent.com/lipis/flag-icons/main/flags/4x3/br.svg" alt="Brasil" width="20" /> ## 
 
 
 
@@ -197,7 +197,7 @@ argue about the politics, but the code speaks for itself.
 
 **O Estado na mão do povo, como um software.**
 
-Um SuperApp brasileiro de código aberto para autogestão comercial e social —
+<img src="https://raw.githubusercontent.com/lipis/flag-icons/main/flags/4x3/br.svg" alt="Brasil" width="20" /> Um SuperApp brasileiro de código aberto para autogestão comercial e social —
 construído sobre o plataformismo anarquista 🏴‍☠️
 
 🔗 **Links:** [linktr.ee/nous72](https://linktr.ee/nous72)
