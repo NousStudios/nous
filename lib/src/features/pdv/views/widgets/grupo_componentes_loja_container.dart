@@ -3,40 +3,40 @@ import 'package:nous/src/core/theme/theme_controller.dart';
 import 'package:nous/src/features/pdv/models/item_loja.dart';
 import 'package:nous/src/features/pdv/views/widgets/produto_loja_row.dart';
 
-// Um "card" de Grupo de Componentes dentro da aba Loja (grupos criados
-// direto pelo botão "Novo Grupo de Componentes", diferente dos grupos
-// que já existem dentro de Categoria > Produto > Grupo). É basicamente
+// Um "card" de Grupo de Componentes dentro da aba Loja. É basicamente
 // uma cópia do CategoriaLojaContainer — mesmo layout, mesma lógica de
 // mostrar os Itens já vinculados a ele — mas com "Editar Grupo" e
 // "Excluir Grupo" no menu "⋮".
+//
+// ALTERADO: assim como a Categoria, este widget deixou de guardar
+// sozinho se está "expandido" (bool interno). Agora recebe isso de
+// fora, pela propriedade "expandida" e pelo callback
+// "aoAlternarExpansao" — a tela DadosPerfilView é quem decide,
+// justamente para poder tirar o limite de altura da lista e rolar até
+// aqui quando o grupo expande.
 class GrupoComponentesLojaContainer extends StatefulWidget {
   final AppTheme theme;
   final String nome;
 
-  // Ids dos itens já escolhidos para este grupo (vem do modelo
-  // GrupoComponentesLoja) e a lista completa de itens disponíveis na
-  // Loja, pra poder mostrar o nome real de cada um.
   final List<String> itemIds;
   final List<ItemLoja> itensDisponiveis;
 
-  // Chamado quando o usuário escolhe um item no seletor de "Adicionar
-  // item". Quem decide guardar esse id no grupo (via copyWith) é a
-  // tela que criou este card.
+  // NOVO: estado de expansão e o callback pra alternar, controlados
+  // por fora.
+  final bool expandida;
+  final VoidCallback aoAlternarExpansao;
+
   final ValueChanged<String> onAdicionarItem;
-
-  // Chamado quando o usuário exclui um item da lista do grupo (remove
-  // só o vínculo, não apaga o Item da Loja).
   final ValueChanged<String> onRemoverItem;
-
-  // Abre o popup de edição deste grupo.
   final VoidCallback onEditar;
-
   final VoidCallback onExcluir;
 
-  // NOVO: repassados até o ProdutoLojaRow de cada item, para permitir
-  // editar nome/preço direto na lista, sem abrir nenhum popup.
   final void Function(String itemId, String novoNome) onEditarNomeItem;
   final void Function(String itemId, String novoPreco) onEditarPrecoItem;
+
+  // NOVO: chamado quando o usuário escolhe "Editar Item" no "⋮" de um
+  // produto dentro deste grupo.
+  final void Function(ItemLoja item) onEditarItem;
 
   const GrupoComponentesLojaContainer({
     super.key,
@@ -44,12 +44,15 @@ class GrupoComponentesLojaContainer extends StatefulWidget {
     required this.nome,
     required this.itemIds,
     required this.itensDisponiveis,
+    required this.expandida,
+    required this.aoAlternarExpansao,
     required this.onAdicionarItem,
     required this.onRemoverItem,
     required this.onEditar,
     required this.onExcluir,
     required this.onEditarNomeItem,
     required this.onEditarPrecoItem,
+    required this.onEditarItem,
   });
 
   @override
@@ -60,10 +63,7 @@ class GrupoComponentesLojaContainer extends StatefulWidget {
 class _GrupoComponentesLojaContainerState
     extends State<GrupoComponentesLojaContainer> {
   bool _ativa = true;
-  bool _expandida = false;
 
-  // Abre um seletor com os itens da Loja que AINDA NÃO estão neste
-  // grupo. Ao tocar em um, ele entra na lista via onAdicionarItem.
   void _abrirSeletorDeItem() {
     final theme = widget.theme;
     final disponiveis = widget.itensDisponiveis
@@ -138,9 +138,6 @@ class _GrupoComponentesLojaContainerState
           Row(
             children: [
               Expanded(
-                // ALTERADO: adicionado textAlign: TextAlign.center,
-                // para o nome do grupo ficar centralizado dentro do
-                // espaço reservado para ele na linha.
                 child: Text(
                   widget.nome,
                   textAlign: TextAlign.center,
@@ -166,14 +163,15 @@ class _GrupoComponentesLojaContainerState
                   ],
                 ),
               ),
+              // ALTERADO: era "setState(() => _expandida = !_expandida)".
               IconButton(
                 icon: Icon(
-                  _expandida
+                  widget.expandida
                       ? Icons.keyboard_arrow_up
                       : Icons.keyboard_arrow_down,
                   color: theme.secondaryTextColor,
                 ),
-                onPressed: () => setState(() => _expandida = !_expandida),
+                onPressed: widget.aoAlternarExpansao,
               ),
               PopupMenuButton<String>(
                 icon: Icon(Icons.more_vert, color: theme.secondaryTextColor),
@@ -195,7 +193,8 @@ class _GrupoComponentesLojaContainerState
               ),
             ],
           ),
-          if (_expandida) ...[
+          // ALTERADO: era "if (_expandida)".
+          if (widget.expandida) ...[
             const SizedBox(height: 8),
             if (widget.itemIds.isNotEmpty) ...[
               Padding(
@@ -204,8 +203,6 @@ class _GrupoComponentesLojaContainerState
                   children: [
                     const SizedBox(width: 44),
                     Expanded(
-                      // ALTERADO: era 'Produto' (singular); agora
-                      // 'Produtos' (plural).
                       child: Text('Produtos',
                           style: theme.getTextStyle(
                               fontSize: 10,
@@ -232,10 +229,6 @@ class _GrupoComponentesLojaContainerState
                 ),
               ),
               const SizedBox(height: 6),
-              // Pra cada id guardado no grupo, busca o ItemLoja
-              // correspondente na lista de disponíveis. Se por algum
-              // motivo o item tiver sido excluído em outro lugar,
-              // simplesmente pula essa linha em vez de quebrar o app.
               for (final id in widget.itemIds) ...[
                 Builder(builder: (context) {
                   final item = widget.itensDisponiveis
@@ -250,6 +243,7 @@ class _GrupoComponentesLojaContainerState
                         theme: theme,
                         item: item,
                         onExcluir: () => widget.onRemoverItem(id),
+                        onEditar: () => widget.onEditarItem(item),
                         onNomeAlterado: (novoNome) =>
                             widget.onEditarNomeItem(id, novoNome),
                         onPrecoAlterado: (novoPreco) =>

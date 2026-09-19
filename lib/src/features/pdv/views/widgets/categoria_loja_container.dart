@@ -7,37 +7,43 @@ import 'package:nous/src/features/pdv/views/widgets/produto_loja_row.dart';
 // Mostra os Itens de verdade que já foram associados a ela (a lista
 // vem de fora, em itemIds) e, ao expandir, cada um pode virar
 // ProdutoLojaRow com seus grupos de componentes.
+//
+// ALTERADO: este widget deixou de decidir sozinho se está "expandido"
+// ou não. Antes, isso era um bool guardado aqui dentro (_expandida).
+// Agora, quem manda nisso é a tela DadosPerfilView, através da
+// propriedade "expandida" (o estado atual) e do callback
+// "aoAlternarExpansao" (avisa a tela que o usuário quer abrir/fechar).
+// Isso é chamado de "widget controlado": a tela de fora enxerga e
+// decide o estado, em vez de ele ficar escondido aqui dentro. Foi
+// necessário porque, quando uma categoria expande, a TELA precisa
+// saber disso pra tirar o limite de altura da lista e rolar até ela —
+// coisa que o container, sozinho, não tem como fazer.
 class CategoriaLojaContainer extends StatefulWidget {
   final AppTheme theme;
   final String nome;
 
-  // NOVO: em vez de a categoria inventar seus próprios "produtos
-  // vazios", ela recebe os ids dos itens já escolhidos (itemIds, que
-  // vem do modelo CategoriaLoja) e a lista completa de itens
-  // disponíveis na Loja (itensDisponiveis, que vem de _itens na tela),
-  // pra poder mostrar o nome real de cada um.
   final List<String> itemIds;
   final List<ItemLoja> itensDisponiveis;
 
-  // Chamado quando o usuário escolhe um item no seletor de "Adicionar
-  // item". Quem decide guardar esse id na categoria (via copyWith) é a
-  // tela que criou este card.
+  // NOVO: estado de expansão e o callback pra alternar (abrir/fechar),
+  // controlados por fora.
+  final bool expandida;
+  final VoidCallback aoAlternarExpansao;
+
   final ValueChanged<String> onAdicionarItem;
-
-  // Chamado quando o usuário exclui um produto da lista da categoria
-  // (remove só o vínculo, não apaga o Item da Loja).
   final ValueChanged<String> onRemoverItem;
-
-  // NOVO: abre o popup de edição desta categoria (mesmo padrão já
-  // usado pelo Grupo de Componentes).
   final VoidCallback onEditar;
-
   final VoidCallback onExcluir;
 
-  // NOVO: repassados até o ProdutoLojaRow de cada item, para permitir
-  // editar nome/preço direto na lista, sem abrir nenhum popup.
+  // Repassados até o ProdutoLojaRow de cada item, para permitir editar
+  // nome/preço direto na lista, sem abrir nenhum popup.
   final void Function(String itemId, String novoNome) onEditarNomeItem;
   final void Function(String itemId, String novoPreco) onEditarPrecoItem;
+
+  // NOVO: chamado quando o usuário escolhe "Editar Item" no "⋮" de um
+  // produto dentro desta categoria. Recebe o ItemLoja inteiro, porque
+  // é isso que o popup completo de edição precisa.
+  final void Function(ItemLoja item) onEditarItem;
 
   const CategoriaLojaContainer({
     super.key,
@@ -45,12 +51,15 @@ class CategoriaLojaContainer extends StatefulWidget {
     required this.nome,
     required this.itemIds,
     required this.itensDisponiveis,
+    required this.expandida,
+    required this.aoAlternarExpansao,
     required this.onAdicionarItem,
     required this.onRemoverItem,
     required this.onEditar,
     required this.onExcluir,
     required this.onEditarNomeItem,
     required this.onEditarPrecoItem,
+    required this.onEditarItem,
   });
 
   @override
@@ -59,11 +68,12 @@ class CategoriaLojaContainer extends StatefulWidget {
 }
 
 class _CategoriaLojaContainerState extends State<CategoriaLojaContainer> {
+  // _ativa continua sendo um estado só "de tela" (visual, não
+  // persistido ainda) — diferente da expansão, ninguém mais precisa
+  // saber se o switch está ligado, então ele pode continuar guardado
+  // aqui dentro, sem problema.
   bool _ativa = true;
-  bool _expandida = false;
 
-  // Abre um seletor com os itens da Loja que AINDA NÃO estão nesta
-  // categoria. Ao tocar em um, ele entra na lista via onAdicionarItem.
   void _abrirSeletorDeItem() {
     final theme = widget.theme;
     final disponiveis = widget.itensDisponiveis
@@ -138,9 +148,6 @@ class _CategoriaLojaContainerState extends State<CategoriaLojaContainer> {
           Row(
             children: [
               Expanded(
-                // ALTERADO: adicionado textAlign: TextAlign.center,
-                // para o nome da categoria ficar centralizado dentro
-                // do espaço reservado para ele na linha.
                 child: Text(
                   widget.nome,
                   textAlign: TextAlign.center,
@@ -166,18 +173,18 @@ class _CategoriaLojaContainerState extends State<CategoriaLojaContainer> {
                   ],
                 ),
               ),
+              // ALTERADO: era "setState(() => _expandida = !_expandida)".
+              // Agora só avisa a tela de fora, que decide o novo
+              // estado e também cuida de rolar até aqui.
               IconButton(
                 icon: Icon(
-                  _expandida
+                  widget.expandida
                       ? Icons.keyboard_arrow_up
                       : Icons.keyboard_arrow_down,
                   color: theme.secondaryTextColor,
                 ),
-                onPressed: () => setState(() => _expandida = !_expandida),
+                onPressed: widget.aoAlternarExpansao,
               ),
-              // ALTERADO: agora o menu tem "Editar Categoria" além de
-              // "Excluir Categoria" — igual já acontecia no Grupo de
-              // Componentes.
               PopupMenuButton<String>(
                 icon: Icon(Icons.more_vert, color: theme.secondaryTextColor),
                 color: theme.cardBackgroundColor,
@@ -199,7 +206,9 @@ class _CategoriaLojaContainerState extends State<CategoriaLojaContainer> {
               ),
             ],
           ),
-          if (_expandida) ...[
+          // ALTERADO: era "if (_expandida)"; agora usa a propriedade
+          // vinda de fora.
+          if (widget.expandida) ...[
             const SizedBox(height: 8),
             if (widget.itemIds.isNotEmpty) ...[
               Padding(
@@ -208,9 +217,6 @@ class _CategoriaLojaContainerState extends State<CategoriaLojaContainer> {
                   children: [
                     const SizedBox(width: 44),
                     Expanded(
-                      // ALTERADO: era 'Produto' (singular); agora
-                      // 'Produtos' (plural), já que a coluna lista
-                      // vários produtos, não só um.
                       child: Text('Produtos',
                           style: theme.getTextStyle(
                               fontSize: 10,
@@ -237,11 +243,6 @@ class _CategoriaLojaContainerState extends State<CategoriaLojaContainer> {
                 ),
               ),
               const SizedBox(height: 6),
-              // Pra cada id guardado na categoria, busca o ItemLoja
-              // correspondente na lista de disponíveis. Se por algum
-              // motivo o item tiver sido excluído em outro lugar
-              // (firstWhereOrNull não achou nada), simplesmente pula
-              // essa linha em vez de quebrar o app.
               for (final id in widget.itemIds) ...[
                 Builder(builder: (context) {
                   final item = widget.itensDisponiveis
@@ -256,6 +257,7 @@ class _CategoriaLojaContainerState extends State<CategoriaLojaContainer> {
                         theme: theme,
                         item: item,
                         onExcluir: () => widget.onRemoverItem(id),
+                        onEditar: () => widget.onEditarItem(item),
                         onNomeAlterado: (novoNome) =>
                             widget.onEditarNomeItem(id, novoNome),
                         onPrecoAlterado: (novoPreco) =>

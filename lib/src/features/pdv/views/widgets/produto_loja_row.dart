@@ -6,11 +6,13 @@ import 'package:nous/src/features/pdv/views/widgets/grupo_componentes_container.
 // Uma linha de "Produto" dentro de uma Categoria (ou Grupo de
 // Componentes) expandida. Mostra o ItemLoja de verdade (escolhido no
 // seletor da categoria/grupo). Nome e preço podem ser editados DIRETO
-// aqui, na própria linha — sem precisar abrir nenhum popup. Continua
-// guardando sua própria lista de Grupos de Componentes, criada pela
-// opção "Adicionar Grupo de Componentes" no menu "⋮" — essa parte
-// ainda não persiste (fica só na memória da tela), é um próximo passo
-// separado.
+// aqui, na própria linha, sem precisar abrir nenhum popup — e o menu
+// "⋮" também tem a opção "Editar Item", que abre o popup completo (com
+// descrição, variantes, etc.), igual já acontece na lista "Itens".
+// Continua guardando sua própria lista de Grupos de Componentes,
+// criada pela opção "Adicionar Grupo de Componentes" no menu "⋮" —
+// essa parte ainda não persiste (fica só na memória da tela), é um
+// próximo passo separado.
 class ProdutoLojaRow extends StatefulWidget {
   final AppTheme theme;
   final ItemLoja item;
@@ -21,9 +23,12 @@ class ProdutoLojaRow extends StatefulWidget {
   // grupo).
   final VoidCallback onExcluir;
 
-  // NOVO: chamados a cada mudança no nome/preço editado direto nesta
-  // linha. Quem decide o que fazer com o novo valor (achar o item
-  // certo pelo id e atualizar a lista _itens) é a tela DadosPerfilView.
+  // Chamado quando o usuário escolhe "Editar Item" no "⋮". Abre o
+  // popup completo de edição do item (a tela DadosPerfilView decide
+  // isso, reaproveitando o mesmo popup usado pela lista "Itens").
+  final VoidCallback onEditar;
+
+  // Chamados a cada mudança no nome/preço editado direto nesta linha.
   final ValueChanged<String> onNomeAlterado;
   final ValueChanged<String> onPrecoAlterado;
 
@@ -32,6 +37,7 @@ class ProdutoLojaRow extends StatefulWidget {
     required this.theme,
     required this.item,
     required this.onExcluir,
+    required this.onEditar,
     required this.onNomeAlterado,
     required this.onPrecoAlterado,
   });
@@ -69,9 +75,9 @@ class _ProdutoLojaRowState extends State<ProdutoLojaRow> {
   void didUpdateWidget(covariant ProdutoLojaRow oldWidget) {
     super.didUpdateWidget(oldWidget);
 
-    // Mesma ideia do ItemLojaCard: se o nome/preço deste item mudou
-    // por FORA desta linha (por exemplo, editado no card da lista
-    // "Itens"), atualiza o texto mostrado aqui também.
+    // Se o nome/preço deste item mudou por FORA desta linha (por
+    // exemplo, editado no card da lista "Itens", ou pelo popup
+    // "Editar Item"), atualiza o texto mostrado aqui também.
     if (widget.item.nome != oldWidget.item.nome &&
         widget.item.nome != _nomeController.text) {
       _nomeController.text = widget.item.nome;
@@ -103,6 +109,10 @@ class _ProdutoLojaRowState extends State<ProdutoLojaRow> {
       ),
       items: [
         PopupMenuItem(
+          value: 'editar',
+          child: Text('Editar Item', style: theme.getTextStyle()),
+        ),
+        PopupMenuItem(
           value: 'grupo',
           child: Text('Adicionar Grupo de Componentes',
               style: theme.getTextStyle()),
@@ -114,6 +124,7 @@ class _ProdutoLojaRowState extends State<ProdutoLojaRow> {
       ],
     );
 
+    if (selecionado == 'editar') widget.onEditar();
     if (selecionado == 'grupo') _adicionarGrupo();
     if (selecionado == 'excluir') widget.onExcluir();
   }
@@ -146,9 +157,6 @@ class _ProdutoLojaRowState extends State<ProdutoLojaRow> {
                     size: 18, color: theme.secondaryTextColor),
               ),
               const SizedBox(width: 8),
-              // ALTERADO: era um Text simples; agora é um campo de
-              // texto editável, com a mesma aparência de antes (sem
-              // borda, sem fundo).
               Expanded(
                 child: TextField(
                   controller: _nomeController,
@@ -170,8 +178,6 @@ class _ProdutoLojaRowState extends State<ProdutoLojaRow> {
                   onChanged: (valor) => setState(() => _ativo = valor),
                 ),
               ),
-              // ALTERADO: preço também editável, com o prefixo "R$"
-              // fixo (não editável) e só o número dentro do campo.
               SizedBox(
                 width: 66,
                 child: Row(
