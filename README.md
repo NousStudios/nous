@@ -2,7 +2,7 @@
 
 **The State in the hands of the people, as software.**
 
-🇧🇷 An open-source Brazilian SuperApp for commercial and social self-management —
+:brazil: An open-source Brazilian SuperApp for commercial and social self-management —
 built on anarchist platformism 🏴‍☠️
 
 🔗 **Links:** [linktr.ee/nous72](https://linktr.ee/nous72)
@@ -187,7 +187,7 @@ argue about the politics, but the code speaks for itself.
 
 
 
-##  🇧🇷 PORTUGUÊS DO BRASIL  🇧🇷 ## 
+##  :brazil: PORTUGUÊS DO BRASIL  :brazil: ## 
 
 
 
