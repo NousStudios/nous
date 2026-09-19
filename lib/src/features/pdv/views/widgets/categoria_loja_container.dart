@@ -28,7 +28,16 @@ class CategoriaLojaContainer extends StatefulWidget {
   // (remove só o vínculo, não apaga o Item da Loja).
   final ValueChanged<String> onRemoverItem;
 
+  // NOVO: abre o popup de edição desta categoria (mesmo padrão já
+  // usado pelo Grupo de Componentes).
+  final VoidCallback onEditar;
+
   final VoidCallback onExcluir;
+
+  // NOVO: repassados até o ProdutoLojaRow de cada item, para permitir
+  // editar nome/preço direto na lista, sem abrir nenhum popup.
+  final void Function(String itemId, String novoNome) onEditarNomeItem;
+  final void Function(String itemId, String novoPreco) onEditarPrecoItem;
 
   const CategoriaLojaContainer({
     super.key,
@@ -38,7 +47,10 @@ class CategoriaLojaContainer extends StatefulWidget {
     required this.itensDisponiveis,
     required this.onAdicionarItem,
     required this.onRemoverItem,
+    required this.onEditar,
     required this.onExcluir,
+    required this.onEditarNomeItem,
+    required this.onEditarPrecoItem,
   });
 
   @override
@@ -126,8 +138,12 @@ class _CategoriaLojaContainerState extends State<CategoriaLojaContainer> {
           Row(
             children: [
               Expanded(
+                // ALTERADO: adicionado textAlign: TextAlign.center,
+                // para o nome da categoria ficar centralizado dentro
+                // do espaço reservado para ele na linha.
                 child: Text(
                   widget.nome,
+                  textAlign: TextAlign.center,
                   overflow: TextOverflow.ellipsis,
                   style: theme.getTextStyle(fontSize: 13),
                 ),
@@ -159,13 +175,21 @@ class _CategoriaLojaContainerState extends State<CategoriaLojaContainer> {
                 ),
                 onPressed: () => setState(() => _expandida = !_expandida),
               ),
+              // ALTERADO: agora o menu tem "Editar Categoria" além de
+              // "Excluir Categoria" — igual já acontecia no Grupo de
+              // Componentes.
               PopupMenuButton<String>(
                 icon: Icon(Icons.more_vert, color: theme.secondaryTextColor),
                 color: theme.cardBackgroundColor,
                 onSelected: (valor) {
+                  if (valor == 'editar') widget.onEditar();
                   if (valor == 'excluir') widget.onExcluir();
                 },
                 itemBuilder: (context) => [
+                  PopupMenuItem(
+                    value: 'editar',
+                    child: Text('Editar Categoria', style: theme.getTextStyle()),
+                  ),
                   PopupMenuItem(
                     value: 'excluir',
                     child: Text('Excluir Categoria',
@@ -184,7 +208,10 @@ class _CategoriaLojaContainerState extends State<CategoriaLojaContainer> {
                   children: [
                     const SizedBox(width: 44),
                     Expanded(
-                      child: Text('Produto',
+                      // ALTERADO: era 'Produto' (singular); agora
+                      // 'Produtos' (plural), já que a coluna lista
+                      // vários produtos, não só um.
+                      child: Text('Produtos',
                           style: theme.getTextStyle(
                               fontSize: 10,
                               color: theme.secondaryTextColor)),
@@ -229,6 +256,10 @@ class _CategoriaLojaContainerState extends State<CategoriaLojaContainer> {
                         theme: theme,
                         item: item,
                         onExcluir: () => widget.onRemoverItem(id),
+                        onNomeAlterado: (novoNome) =>
+                            widget.onEditarNomeItem(id, novoNome),
+                        onPrecoAlterado: (novoPreco) =>
+                            widget.onEditarPrecoItem(id, novoPreco),
                       ),
                       const SizedBox(height: 6),
                     ],

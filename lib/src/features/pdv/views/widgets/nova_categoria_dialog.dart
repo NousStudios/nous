@@ -3,16 +3,22 @@ import 'package:nous/src/core/theme/theme_controller.dart';
 import 'package:nous/src/core/widgets/themed_text_field.dart';
 import 'package:nous/src/features/pdv/models/item_loja.dart';
 
-// Popup "Nova Categoria", seguindo o print do protótipo: foto
-// (decorativa por enquanto), nome da categoria, seletor de Grupo de
-// Componentes, Produto/Serviço, e o botão Criar. Segue o mesmo padrão
-// do NovoItemDialog: não salva nada por conta própria, só monta o
-// objeto CategoriaLoja e entrega para quem chamou via onCriar.
+// Popup "Nova Categoria" / "Editar Categoria". Mesma tela para os dois
+// casos: se "categoriaParaEditar" vier preenchida, os campos começam
+// já preenchidos com os dados dela, o título vira "Editar Categoria" e
+// o botão vira "Salvar" em vez de "Criar" — mesmo padrão já usado no
+// NovoItemDialog e no NovoGrupoComponentesDialog. Continua não
+// salvando nada por conta própria, só monta o objeto CategoriaLoja
+// (novo ou editado) e entrega para quem chamou via onCriar.
 class NovaCategoriaDialog extends StatefulWidget {
   final AppTheme theme;
 
   // Grupos de componentes já existentes, para preencher o seletor.
   final List<GrupoComponentesLoja> gruposComponentes;
+
+  // NOVO: quando preenchida, o popup abre em modo de EDIÇÃO desta
+  // categoria em vez de criação de uma nova.
+  final CategoriaLoja? categoriaParaEditar;
 
   final void Function(CategoriaLoja categoria) onCriar;
 
@@ -20,6 +26,7 @@ class NovaCategoriaDialog extends StatefulWidget {
     super.key,
     required this.theme,
     required this.gruposComponentes,
+    this.categoriaParaEditar,
     required this.onCriar,
   });
 
@@ -28,6 +35,7 @@ class NovaCategoriaDialog extends StatefulWidget {
     BuildContext context, {
     required AppTheme theme,
     required List<GrupoComponentesLoja> gruposComponentes,
+    CategoriaLoja? categoriaParaEditar,
     required void Function(CategoriaLoja categoria) onCriar,
   }) {
     return showDialog<void>(
@@ -35,6 +43,7 @@ class NovaCategoriaDialog extends StatefulWidget {
       builder: (context) => NovaCategoriaDialog(
         theme: theme,
         gruposComponentes: gruposComponentes,
+        categoriaParaEditar: categoriaParaEditar,
         onCriar: onCriar,
       ),
     );
@@ -49,6 +58,18 @@ class _NovaCategoriaDialogState extends State<NovaCategoriaDialog> {
 
   String? _grupoSelecionadoId;
   TipoItemLoja? _tipo;
+
+  @override
+  void initState() {
+    super.initState();
+
+    final categoria = widget.categoriaParaEditar;
+    if (categoria == null) return; // modo criação: campos começam vazios
+
+    _nomeController.text = categoria.nome;
+    _grupoSelecionadoId = categoria.grupoComponentesId;
+    _tipo = categoria.tipo;
+  }
 
   @override
   void dispose() {
@@ -125,11 +146,19 @@ class _NovaCategoriaDialogState extends State<NovaCategoriaDialog> {
     final nome = _nomeController.text.trim();
     if (nome.isEmpty) return;
 
-    final categoria = CategoriaLoja.nova(
-      nome: nome,
-      grupoComponentesId: _grupoSelecionadoId,
-      tipo: _tipo,
-    );
+    final categoriaExistente = widget.categoriaParaEditar;
+
+    final categoria = categoriaExistente != null
+        ? categoriaExistente.copyWith(
+            nome: nome,
+            grupoComponentesId: _grupoSelecionadoId,
+            tipo: _tipo,
+          )
+        : CategoriaLoja.nova(
+            nome: nome,
+            grupoComponentesId: _grupoSelecionadoId,
+            tipo: _tipo,
+          );
 
     widget.onCriar(categoria);
     Navigator.of(context).pop();
@@ -138,6 +167,7 @@ class _NovaCategoriaDialogState extends State<NovaCategoriaDialog> {
   @override
   Widget build(BuildContext context) {
     final theme = widget.theme;
+    final editando = widget.categoriaParaEditar != null;
 
     final larguraTela = MediaQuery.sizeOf(context).width;
     final larguraPopup = larguraTela < 380 ? larguraTela * 0.9 : 340.0;
@@ -155,7 +185,7 @@ class _NovaCategoriaDialogState extends State<NovaCategoriaDialog> {
         side: BorderSide(color: theme.borderColor, width: 1.5),
       ),
       title: Text(
-        'Nova Categoria',
+        editando ? 'Editar Categoria' : 'Nova Categoria',
         textAlign: TextAlign.center,
         style: theme.getTextStyle(
           fontSize: 18,
@@ -270,7 +300,7 @@ class _NovaCategoriaDialogState extends State<NovaCategoriaDialog> {
             ),
             onPressed: _criar,
             child: Text(
-              'Criar',
+              editando ? 'Salvar' : 'Criar',
               style: theme.getTextStyle(
                 fontWeight: FontWeight.bold,
                 color: theme.buttonTextColor,
@@ -286,7 +316,11 @@ class _NovaCategoriaDialogState extends State<NovaCategoriaDialog> {
     return Column(
       children: [
         Text(rotulo, style: theme.getTextStyle(fontSize: 13)),
-        Radio<TipoItemLoja>(value: valor, activeColor: theme.buttonColor),
+        // ALTERADO: mesmo ajuste já feito no NovoItemDialog —
+        // buttonColor é transparente no tema escuro padrão, o que
+        // fazia a bolinha do Radio "sumir" ao selecionar. borderColor
+        // é sempre uma cor sólida (branco no escuro, preto no claro).
+        Radio<TipoItemLoja>(value: valor, activeColor: theme.borderColor),
       ],
     );
   }

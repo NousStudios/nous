@@ -8,8 +8,7 @@ import 'package:nous/src/features/pdv/views/widgets/produto_loja_row.dart';
 // que já existem dentro de Categoria > Produto > Grupo). É basicamente
 // uma cópia do CategoriaLojaContainer — mesmo layout, mesma lógica de
 // mostrar os Itens já vinculados a ele — mas com "Editar Grupo" e
-// "Excluir Grupo" no menu "⋮" (a Categoria, por enquanto, só tem
-// excluir).
+// "Excluir Grupo" no menu "⋮".
 class GrupoComponentesLojaContainer extends StatefulWidget {
   final AppTheme theme;
   final String nome;
@@ -29,10 +28,15 @@ class GrupoComponentesLojaContainer extends StatefulWidget {
   // só o vínculo, não apaga o Item da Loja).
   final ValueChanged<String> onRemoverItem;
 
-  // NOVO em relação à Categoria: abre o popup de edição deste grupo.
+  // Abre o popup de edição deste grupo.
   final VoidCallback onEditar;
 
   final VoidCallback onExcluir;
+
+  // NOVO: repassados até o ProdutoLojaRow de cada item, para permitir
+  // editar nome/preço direto na lista, sem abrir nenhum popup.
+  final void Function(String itemId, String novoNome) onEditarNomeItem;
+  final void Function(String itemId, String novoPreco) onEditarPrecoItem;
 
   const GrupoComponentesLojaContainer({
     super.key,
@@ -44,6 +48,8 @@ class GrupoComponentesLojaContainer extends StatefulWidget {
     required this.onRemoverItem,
     required this.onEditar,
     required this.onExcluir,
+    required this.onEditarNomeItem,
+    required this.onEditarPrecoItem,
   });
 
   @override
@@ -132,8 +138,12 @@ class _GrupoComponentesLojaContainerState
           Row(
             children: [
               Expanded(
+                // ALTERADO: adicionado textAlign: TextAlign.center,
+                // para o nome do grupo ficar centralizado dentro do
+                // espaço reservado para ele na linha.
                 child: Text(
                   widget.nome,
+                  textAlign: TextAlign.center,
                   overflow: TextOverflow.ellipsis,
                   style: theme.getTextStyle(fontSize: 13),
                 ),
@@ -194,7 +204,9 @@ class _GrupoComponentesLojaContainerState
                   children: [
                     const SizedBox(width: 44),
                     Expanded(
-                      child: Text('Produto',
+                      // ALTERADO: era 'Produto' (singular); agora
+                      // 'Produtos' (plural).
+                      child: Text('Produtos',
                           style: theme.getTextStyle(
                               fontSize: 10,
                               color: theme.secondaryTextColor)),
@@ -238,6 +250,10 @@ class _GrupoComponentesLojaContainerState
                         theme: theme,
                         item: item,
                         onExcluir: () => widget.onRemoverItem(id),
+                        onNomeAlterado: (novoNome) =>
+                            widget.onEditarNomeItem(id, novoNome),
+                        onPrecoAlterado: (novoPreco) =>
+                            widget.onEditarPrecoItem(id, novoPreco),
                       ),
                       const SizedBox(height: 6),
                     ],

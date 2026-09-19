@@ -34,14 +34,15 @@ enum AbaLoja { dados, interface, loja, gestao }
 const double _larguraMaximaConteudo = 500;
 
 // NOVO: altura máxima (em pixels) que as listas de "Categorias" e de
-// "Grupos de Componentes" podem ocupar na tela. Quando a lista tem
-// mais itens do que cabe nessa altura, em vez de continuar
-// crescendo e empurrando o resto da tela pra baixo, ela ganha uma
-// rolagem PRÓPRIA (interna), então o restante da tela (e os botões
-// "Novo Item"/"Nova Categoria"/etc.) fica sempre perto, sem precisar
-// rolar muito. Esse número dá pra ver, em média, uns 2 a 3 blocos de
-// cada vez — ajuste esse valor livremente se quiser ver mais ou menos.
-const double _alturaMaximaListaSecundaria = 220;
+// "Grupos de Componentes" podem ocupar na tela. Calculada para caber
+// EXATAMENTE 2 itens fechados (não expandidos) de cada vez: cada linha
+// fechada tem uns 64px de altura (por causa dos botões redondos de
+// "expandir" e do menu "⋮", que têm uma área mínima de toque de 48px),
+// mais 8px do espaço entre as duas. Do 3º item em diante, quem rola é
+// só essa caixinha (por dentro), não a tela inteira. Se no seu
+// aparelho a fonte ou os ícones ficarem um pouco maiores/menores e
+// "vazar" um pouco além do 2º item, é só ajustar esse número.
+const double _alturaMaximaListaSecundaria = 136;
 
 class _DadosPerfilViewState extends State<DadosPerfilView> {
   final _controllers = ControllersDadosLoja();
@@ -76,8 +77,8 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
     );
   }
 
-  // NOVO: abre o mesmo popup de "Novo Grupo de Componentes", mas em
-  // modo de edição (passando grupoParaEditar). O onCriar, nesse caso,
+  // Abre o mesmo popup de "Novo Grupo de Componentes", mas em modo de
+  // edição (passando grupoParaEditar). O onCriar, nesse caso,
   // substitui o grupo antigo pelo editado na lista, em vez de
   // adicionar um novo.
   void _abrirPopupEditarGrupoComponentes(GrupoComponentesLoja grupo) {
@@ -104,6 +105,27 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
       gruposComponentes: _gruposComponentes,
       onCriar: (categoria) {
         setState(() => _categorias.add(categoria));
+        _persistirListasLoja();
+      },
+    );
+  }
+
+  // NOVO: abre o mesmo popup de "Nova Categoria", mas em modo de
+  // edição (passando categoriaParaEditar). O onCriar, nesse caso,
+  // substitui a categoria antiga pela editada na lista, em vez de
+  // adicionar uma nova.
+  void _abrirPopupEditarCategoria(CategoriaLoja categoria) {
+    NovaCategoriaDialog.mostrar(
+      context,
+      theme: ThemeController.currentTheme.value,
+      gruposComponentes: _gruposComponentes,
+      categoriaParaEditar: categoria,
+      onCriar: (categoriaEditada) {
+        setState(() {
+          final indice =
+              _categorias.indexWhere((c) => c.id == categoriaEditada.id);
+          if (indice != -1) _categorias[indice] = categoriaEditada;
+        });
         _persistirListasLoja();
       },
     );
@@ -139,6 +161,29 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
     );
   }
 
+  // NOVO: chamado a cada letra digitada no campo de nome, direto na
+  // lista (seja no card horizontal de "Itens", seja na linha dentro de
+  // uma categoria/grupo expandido). Acha o item pelo id, cria uma
+  // cópia com o nome novo (copyWith) e substitui na lista.
+  void _editarNomeItem(String id, String novoNome) {
+    setState(() {
+      final indice = _itens.indexWhere((i) => i.id == id);
+      if (indice == -1) return;
+      _itens[indice] = _itens[indice].copyWith(nome: novoNome);
+    });
+    _persistirListasLoja();
+  }
+
+  // NOVO: mesma ideia de _editarNomeItem, mas para o campo de preço.
+  void _editarPrecoItem(String id, String novoPreco) {
+    setState(() {
+      final indice = _itens.indexWhere((i) => i.id == id);
+      if (indice == -1) return;
+      _itens[indice] = _itens[indice].copyWith(preco: novoPreco);
+    });
+    _persistirListasLoja();
+  }
+
   void _removerCategoria(String id) {
     setState(() => _categorias.removeWhere((categoria) => categoria.id == id));
     _persistirListasLoja();
@@ -149,8 +194,6 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
     _persistirListasLoja();
   }
 
-  // NOVO: mesma ideia de _removerCategoria, mas para a lista de
-  // Grupos de Componentes.
   void _removerGrupoComponentes(String id) {
     setState(
         () => _gruposComponentes.removeWhere((grupo) => grupo.id == id));
@@ -178,9 +221,6 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
     _persistirListasLoja();
   }
 
-  // NOVO: mesma lógica de _adicionarItemNaCategoria /
-  // _removerItemDaCategoria, só que trabalhando na lista
-  // _gruposComponentes em vez de _categorias.
   void _adicionarItemNoGrupoComponentes(
       GrupoComponentesLoja grupo, String itemId) {
     setState(() {
@@ -352,9 +392,6 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
     );
   }
 
-  // NOVO: widget auxiliar para o texto de "lista vazia", já que agora
-  // usamos essa mesma mensagem em Itens, Categorias e Grupos de
-  // Componentes. Evita repetir o mesmo Padding/Text três vezes.
   Widget _textoListaVazia(AppTheme theme, String texto) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 6),
@@ -362,6 +399,46 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
         texto,
         style:
             theme.getTextStyle(fontSize: 11, color: theme.secondaryTextColor),
+      ),
+    );
+  }
+
+  // NOVO: barra fixa com os botões "Novo Item", "Nova Categoria" e
+  // "Novo Grupo de Componentes". Antes, esses botões ficavam DENTRO da
+  // área que rola (junto com as listas) — agora ficam numa faixa FIXA
+  // da tela, logo acima da barra "Dados/Interface/Loja/Gestão", então
+  // nunca somem de vista, não importa quantos itens/categorias/grupos
+  // existam. Só aparece quando a aba "Loja" está selecionada.
+  Widget _barraDeAcoesLoja(AppTheme theme) {
+    return Container(
+      width: double.infinity,
+      color: theme.backgroundColor,
+      padding: const EdgeInsets.symmetric(vertical: 10),
+      child: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: _larguraMaximaConteudo),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              alignment: WrapAlignment.center,
+              children: [
+                _botaoAcaoLoja(theme, 'Novo Item', _abrirPopupNovoItem),
+                _botaoAcaoLoja(
+                  theme,
+                  'Nova Categoria',
+                  _abrirPopupNovaCategoria,
+                ),
+                _botaoAcaoLoja(
+                  theme,
+                  'Novo Grupo de Componentes',
+                  _abrirPopupNovoGrupoComponentes,
+                ),
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }
@@ -434,10 +511,6 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
               const SizedBox(height: 12),
               if (_itens.isNotEmpty)
                 SizedBox(
-                  // Altura fixa: necessária porque uma ListView
-                  // horizontal, sozinha, não sabe o quão "alta" ela
-                  // deve ser — diferente do Wrap de antes, que se
-                  // ajustava sozinho porque crescia na vertical.
                   height: 150,
                   child: ListView.separated(
                     scrollDirection: Axis.horizontal,
@@ -451,8 +524,13 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
                         theme: theme,
                         nome: item.nome,
                         preco: item.preco,
+                        tipo: item.tipo,
                         onEditar: () => _abrirPopupEditarItem(item),
                         onExcluir: () => _removerItem(item.id),
+                        onNomeAlterado: (novoNome) =>
+                            _editarNomeItem(item.id, novoNome),
+                        onPrecoAlterado: (novoPreco) =>
+                            _editarPrecoItem(item.id, novoPreco),
                       );
                     },
                   ),
@@ -460,16 +538,9 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
               else
                 _textoListaVazia(theme, 'Nenhum item criado ainda.'),
 
-              // 2) CATEGORIAS
-              // ALTERADO: antes, cada CategoriaLojaContainer era
-              // empilhado direto num "for" dentro da Column, então a
-              // lista crescia pra sempre e empurrava tudo que vinha
-              // depois (inclusive os botões de criar) pra cada vez
-              // mais longe. Agora a lista fica dentro de uma caixa
-              // com altura máxima (_alturaMaximaListaSecundaria): se
-              // couber tudo, ótimo; se não couber, aparece uma
-              // rolagem SÓ dentro dessa caixa (o Scrollbar deixa essa
-              // rolagem visível), sem afetar o resto da tela.
+              // 2) CATEGORIAS — altura máxima de 2 itens
+              // (_alturaMaximaListaSecundaria), com rolagem interna a
+              // partir do 3º.
               const SizedBox(height: 24),
               _tituloDeSecao(theme, 'Categorias'),
               const SizedBox(height: 12),
@@ -495,7 +566,10 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
                               _adicionarItemNaCategoria(categoria, itemId),
                           onRemoverItem: (itemId) =>
                               _removerItemDaCategoria(categoria, itemId),
+                          onEditar: () => _abrirPopupEditarCategoria(categoria),
                           onExcluir: () => _removerCategoria(categoria.id),
+                          onEditarNomeItem: _editarNomeItem,
+                          onEditarPrecoItem: _editarPrecoItem,
                         );
                       },
                     ),
@@ -535,6 +609,8 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
                               _abrirPopupEditarGrupoComponentes(grupo),
                           onExcluir: () =>
                               _removerGrupoComponentes(grupo.id),
+                          onEditarNomeItem: _editarNomeItem,
+                          onEditarPrecoItem: _editarPrecoItem,
                         );
                       },
                     ),
@@ -543,31 +619,6 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
               else
                 _textoListaVazia(
                     theme, 'Nenhum grupo de componentes criado ainda.'),
-
-              // Botões de criar, na mesma ordem das listas acima deles.
-              const SizedBox(height: 20),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                alignment: WrapAlignment.center,
-                children: [
-                  _botaoAcaoLoja(
-                    theme,
-                    'Novo Item',
-                    _abrirPopupNovoItem,
-                  ),
-                  _botaoAcaoLoja(
-                    theme,
-                    'Nova Categoria',
-                    _abrirPopupNovaCategoria,
-                  ),
-                  _botaoAcaoLoja(
-                    theme,
-                    'Novo Grupo de Componentes',
-                    _abrirPopupNovoGrupoComponentes,
-                  ),
-                ],
-              ),
             ],
           ),
         );
@@ -612,6 +663,9 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
           bottomNavigationBar: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
+              // NOVO: os botões de criar só aparecem na aba "Loja",
+              // fixos acima da barra de abas.
+              if (_abaSelecionada == AbaLoja.loja) _barraDeAcoesLoja(theme),
               _BarraDeAbasDaLoja(
                 theme: theme,
                 abaSelecionada: _abaSelecionada,

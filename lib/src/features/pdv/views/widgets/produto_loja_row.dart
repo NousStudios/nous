@@ -3,8 +3,10 @@ import 'package:nous/src/core/theme/theme_controller.dart';
 import 'package:nous/src/features/pdv/models/item_loja.dart';
 import 'package:nous/src/features/pdv/views/widgets/grupo_componentes_container.dart';
 
-// Uma linha de "Produto" dentro de uma Categoria expandida. Mostra o
-// ItemLoja de verdade (escolhido no seletor da categoria). Continua
+// Uma linha de "Produto" dentro de uma Categoria (ou Grupo de
+// Componentes) expandida. Mostra o ItemLoja de verdade (escolhido no
+// seletor da categoria/grupo). Nome e preço podem ser editados DIRETO
+// aqui, na própria linha — sem precisar abrir nenhum popup. Continua
 // guardando sua própria lista de Grupos de Componentes, criada pela
 // opção "Adicionar Grupo de Componentes" no menu "⋮" — essa parte
 // ainda não persiste (fica só na memória da tela), é um próximo passo
@@ -14,16 +16,24 @@ class ProdutoLojaRow extends StatefulWidget {
   final ItemLoja item;
 
   // Chamado quando o usuário escolhe "Excluir Produto" no "⋮". Quem
-  // decide tirar este produto da categoria é a CategoriaLojaContainer
-  // (pai) — na prática, remove o id deste item da lista itemIds da
-  // categoria.
+  // decide tirar este produto da categoria é o container pai (na
+  // prática, remove o id deste item da lista itemIds da categoria/
+  // grupo).
   final VoidCallback onExcluir;
+
+  // NOVO: chamados a cada mudança no nome/preço editado direto nesta
+  // linha. Quem decide o que fazer com o novo valor (achar o item
+  // certo pelo id e atualizar a lista _itens) é a tela DadosPerfilView.
+  final ValueChanged<String> onNomeAlterado;
+  final ValueChanged<String> onPrecoAlterado;
 
   const ProdutoLojaRow({
     super.key,
     required this.theme,
     required this.item,
     required this.onExcluir,
+    required this.onNomeAlterado,
+    required this.onPrecoAlterado,
   });
 
   @override
@@ -37,6 +47,11 @@ class _ProdutoLojaRowState extends State<ProdutoLojaRow> {
   final List<int> _grupoIds = [];
   int _proximoIdGrupo = 0;
 
+  late final TextEditingController _nomeController =
+      TextEditingController(text: widget.item.nome);
+  late final TextEditingController _precoController =
+      TextEditingController(text: widget.item.preco);
+
   String _letraDoGrupo(int indice) => String.fromCharCode(65 + indice);
 
   void _adicionarGrupo() {
@@ -48,6 +63,30 @@ class _ProdutoLojaRowState extends State<ProdutoLojaRow> {
 
   void _removerGrupo(int id) {
     setState(() => _grupoIds.remove(id));
+  }
+
+  @override
+  void didUpdateWidget(covariant ProdutoLojaRow oldWidget) {
+    super.didUpdateWidget(oldWidget);
+
+    // Mesma ideia do ItemLojaCard: se o nome/preço deste item mudou
+    // por FORA desta linha (por exemplo, editado no card da lista
+    // "Itens"), atualiza o texto mostrado aqui também.
+    if (widget.item.nome != oldWidget.item.nome &&
+        widget.item.nome != _nomeController.text) {
+      _nomeController.text = widget.item.nome;
+    }
+    if (widget.item.preco != oldWidget.item.preco &&
+        widget.item.preco != _precoController.text) {
+      _precoController.text = widget.item.preco;
+    }
+  }
+
+  @override
+  void dispose() {
+    _nomeController.dispose();
+    _precoController.dispose();
+    super.dispose();
   }
 
   Future<void> _abrirMenuOpcoes(BuildContext context, Offset posicaoToque) async {
@@ -83,13 +122,6 @@ class _ProdutoLojaRowState extends State<ProdutoLojaRow> {
   Widget build(BuildContext context) {
     final theme = widget.theme;
 
-    // NOVO: monta o texto do preço. Se o item não tiver preço definido
-    // (campo vazio, caso comum em itens criados antes desta mudança),
-    // mostra "R$ 00,00" como valor de reserva, em vez de deixar em
-    // branco.
-    final textoPreco =
-        widget.item.preco.isEmpty ? 'R\$ 00,00' : 'R\$ ${widget.item.preco}';
-
     return Container(
       padding: const EdgeInsets.all(8),
       decoration: BoxDecoration(
@@ -114,11 +146,20 @@ class _ProdutoLojaRowState extends State<ProdutoLojaRow> {
                     size: 18, color: theme.secondaryTextColor),
               ),
               const SizedBox(width: 8),
+              // ALTERADO: era um Text simples; agora é um campo de
+              // texto editável, com a mesma aparência de antes (sem
+              // borda, sem fundo).
               Expanded(
-                child: Text(
-                  widget.item.nome,
-                  overflow: TextOverflow.ellipsis,
+                child: TextField(
+                  controller: _nomeController,
+                  maxLines: 1,
                   style: theme.getTextStyle(fontSize: 12),
+                  decoration: const InputDecoration(
+                    isDense: true,
+                    contentPadding: EdgeInsets.zero,
+                    border: InputBorder.none,
+                  ),
+                  onChanged: widget.onNomeAlterado,
                 ),
               ),
               Transform.scale(
@@ -129,14 +170,33 @@ class _ProdutoLojaRowState extends State<ProdutoLojaRow> {
                   onChanged: (valor) => setState(() => _ativo = valor),
                 ),
               ),
+              // ALTERADO: preço também editável, com o prefixo "R$"
+              // fixo (não editável) e só o número dentro do campo.
               SizedBox(
-                width: 52,
-                child: FittedBox(
-                  fit: BoxFit.scaleDown,
-                  child: Text(
-                    textoPreco,
-                    style: theme.getTextStyle(fontSize: 11),
-                  ),
+                width: 66,
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      'R\$',
+                      style: theme.getTextStyle(fontSize: 11),
+                    ),
+                    Expanded(
+                      child: TextField(
+                        controller: _precoController,
+                        textAlign: TextAlign.center,
+                        keyboardType: TextInputType.number,
+                        style: theme.getTextStyle(fontSize: 11),
+                        decoration: const InputDecoration(
+                          isDense: true,
+                          contentPadding: EdgeInsets.zero,
+                          border: InputBorder.none,
+                          hintText: '00,00',
+                        ),
+                        onChanged: widget.onPrecoAlterado,
+                      ),
+                    ),
+                  ],
                 ),
               ),
               const SizedBox(width: 4),
