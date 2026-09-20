@@ -13,7 +13,7 @@ import 'package:nous/src/features/pdv/models/item_loja.dart';
 //      muda conforme o tipo), com o rótulo Produto/Serviço como uma
 //      "etiqueta" no canto e o menu "⋮" no outro canto;
 //   2) o nome em destaque e o preço dentro de uma "pílula" com borda.
-// A área de imagem ocupa TODO o espaço vertical que sobrar, então o
+// A área de imagem ocupa todo o espaço vertical que sobrar, então o
 // card não fica mais com um vazio embaixo quando a lista dá a ele uma
 // altura maior do que o conteúdo precisa.
 //

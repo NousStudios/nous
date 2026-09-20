@@ -5,6 +5,7 @@ import 'package:nous/src/core/widgets/custom_app_bar.dart';
 import 'package:nous/src/core/widgets/floating_bottom_nav_bar.dart';
 import 'package:nous/src/features/auth/views/login_view.dart';
 import 'package:nous/src/features/pdv/models/item_loja.dart';
+import 'package:nous/src/features/pdv/models/pedido_loja.dart';
 import 'package:nous/src/features/pdv/providers/pdv_provider.dart';
 import 'package:nous/src/features/pdv/views/perfis_pdv_view.dart';
 import 'package:nous/src/features/pdv/views/widgets/categoria_loja_container.dart';
@@ -14,6 +15,7 @@ import 'package:nous/src/features/pdv/views/widgets/delivery_container.dart';
 import 'package:nous/src/features/pdv/views/widgets/estado_vazio_container.dart';
 import 'package:nous/src/features/pdv/views/widgets/formulario_dados_loja.dart';
 import 'package:nous/src/features/pdv/views/widgets/galeria_estilo_container.dart';
+import 'package:nous/src/features/pdv/views/widgets/gestao_loja_container.dart';
 import 'package:nous/src/features/pdv/views/widgets/grupo_componentes_loja_container.dart';
 import 'package:nous/src/features/pdv/views/widgets/item_loja_card.dart';
 import 'package:nous/src/features/pdv/views/widgets/nova_categoria_dialog.dart';
@@ -34,13 +36,50 @@ enum AbaLoja { dados, interface, loja, gestao }
 
 const double _larguraMaximaConteudo = 500;
 
-// Altura máxima (em pixels) que as listas de "Categorias" e de "Grupos
-// de Componentes" ocupam ENQUANTO NENHUMA delas está expandida — dá
-// pra ver 2 de cada vez, com rolagem interna a partir da 3ª. Quando
-// uma categoria/grupo é expandida, esse limite deixa de ser usado
-// (veja _listaCategorias/_listaGrupos), pra caber todos os
-// subcomponentes dela na tela.
 const double _alturaMaximaListaSecundaria = 136;
+
+const bool _mostrarPedidosDeExemplo = true;
+
+List<PedidoLoja> _pedidosDeExemplo() {
+  final agora = DateTime.now();
+  return [
+    PedidoLoja(
+      id: 'exemplo_1',
+      numero: 1,
+      clienteNome: 'Maria',
+      produtoNome: 'Camiseta preta',
+      dataHora: agora.subtract(const Duration(minutes: 10)),
+      valor: 59.9,
+      temMensagem: true,
+    ),
+    PedidoLoja(
+      id: 'exemplo_2',
+      numero: 2,
+      clienteNome: 'João',
+      produtoNome: 'Corte de cabelo',
+      dataHora: agora.subtract(const Duration(hours: 1)),
+      valor: 35,
+    ),
+    PedidoLoja(
+      id: 'exemplo_3',
+      numero: 3,
+      clienteNome: 'Ana',
+      produtoNome: 'Bolo de chocolate',
+      dataHora: agora.subtract(const Duration(hours: 3)),
+      valor: 80,
+      status: StatusPedido.aceito,
+    ),
+    PedidoLoja(
+      id: 'exemplo_4',
+      numero: 4,
+      clienteNome: 'Pedro',
+      produtoNome: 'Marmita completa',
+      dataHora: agora.subtract(const Duration(days: 1)),
+      valor: 22.5,
+      status: StatusPedido.concluido,
+    ),
+  ];
+}
 
 class _DadosPerfilViewState extends State<DadosPerfilView> {
   final _controllers = ControllersDadosLoja();
@@ -54,22 +93,13 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
   final List<ItemLoja> _itens = [];
   final List<GrupoComponentesLoja> _gruposComponentes = [];
 
-  // NOVO: guarda o id da categoria/grupo que está expandido no
-  // momento (ou null, se nenhum estiver). Antes, cada
-  // CategoriaLojaContainer/GrupoComponentesLojaContainer cuidava disso
-  // sozinho, por dentro. Agora é a TELA que sabe disso, porque
-  // precisa reagir: tirar o limite de altura da lista e rolar até o
-  // item expandido.
+  final List<PedidoLoja> _pedidos = [];
+  bool _lojaOnline = true;
+  AbaPedidos _abaPedidos = AbaPedidos.novos;
+
   String? _categoriaExpandidaId;
   String? _grupoExpandidoId;
 
-  // NOVO: cada categoria/grupo tem uma "chave" própria (GlobalKey), um
-  // jeito do Flutter de "marcar" um widget específico na árvore para
-  // conseguirmos achar sua posição na tela depois (usado para rolar
-  // até ele). Guardamos num mapa (id -> chave) para reutilizar a MESMA
-  // chave sempre que aquela categoria/grupo for desenhado de novo —
-  // se criássemos uma chave nova a cada vez, o Flutter não conseguiria
-  // saber que é o "mesmo" widget de antes.
   final Map<String, GlobalKey> _chavesCategorias = {};
   final Map<String, GlobalKey> _chavesGrupos = {};
 
@@ -79,13 +109,6 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
   GlobalKey _chaveGrupo(String id) =>
       _chavesGrupos.putIfAbsent(id, () => GlobalKey());
 
-  // NOVO: rola a tela até a categoria/grupo identificado por "chave",
-  // encostando-o no topo da área visível. addPostFrameCallback espera
-  // o Flutter terminar de desenhar o novo layout (sem o limite de
-  // altura) antes de calcular a posição certa para rolar — se
-  // tentássemos rolar ANTES do redesenho, a posição calculada ainda
-  // seria a antiga (com a caixinha pequena), e a rolagem sairia
-  // errada.
   void _rolarAteOTopo(GlobalKey chave) {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final contextoDoWidget = chave.currentContext;
@@ -94,17 +117,11 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
         contextoDoWidget,
         duration: const Duration(milliseconds: 300),
         curve: Curves.easeInOut,
-        // alignment 0.0 significa "encostado no topo" da área visível
-        // da rolagem (1.0 seria encostado embaixo).
         alignment: 0.0,
       );
     });
   }
 
-  // NOVO: alterna a categoria expandida. Se a categoria clicada já
-  // estava expandida, fecha (volta pra null). Se era outra (ou
-  // nenhuma), expande só essa — ou seja, só uma categoria fica aberta
-  // "por completo" de cada vez.
   void _alternarExpansaoCategoria(String id) {
     final vaiExpandir = _categoriaExpandidaId != id;
     setState(() => _categoriaExpandidaId = vaiExpandir ? id : null);
@@ -124,6 +141,18 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
           itens: _itens,
           gruposComponentes: _gruposComponentes,
         );
+  }
+
+  void _alterarStatusPedido(String id, StatusPedido novoStatus) {
+    setState(() {
+      final indice = _pedidos.indexWhere((p) => p.id == id);
+      if (indice == -1) return;
+      _pedidos[indice] = _pedidos[indice].copyWith(status: novoStatus);
+    });
+  }
+
+  void _recusarPedido(String id) {
+    setState(() => _pedidos.removeWhere((p) => p.id == id));
   }
 
   void _abrirPopupNovoGrupoComponentes() {
@@ -232,9 +261,6 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
     _persistirListasLoja();
   }
 
-  // NOVO: mesma lógica de _editarNomeItem, só que para o nome da
-  // própria categoria — chamado pelo TextField inline adicionado em
-  // CategoriaLojaContainer (widget.onNomeAlterado).
   void _editarNomeCategoria(String id, String novoNome) {
     setState(() {
       final indice = _categorias.indexWhere((c) => c.id == id);
@@ -244,9 +270,6 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
     _persistirListasLoja();
   }
 
-  // NOVO: mesma lógica de _editarNomeCategoria, para o nome do Grupo
-  // de Componentes — chamado pelo TextField inline adicionado em
-  // GrupoComponentesLojaContainer (widget.onNomeAlterado).
   void _editarNomeGrupoComponentes(String id, String novoNome) {
     setState(() {
       final indice = _gruposComponentes.indexWhere((g) => g.id == id);
@@ -260,10 +283,6 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
   void _removerCategoria(String id) {
     setState(() {
       _categorias.removeWhere((categoria) => categoria.id == id);
-      // NOVO: se a categoria excluída era a que estava expandida,
-      // "esquece" essa expansão — sem isso, a tela ficaria travada no
-      // modo "expandido" (lista sem limite de altura) mesmo sem
-      // nenhuma categoria realmente aberta.
       if (_categoriaExpandidaId == id) _categoriaExpandidaId = null;
     });
     _persistirListasLoja();
@@ -343,6 +362,8 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
     _categorias.addAll(loja?.categoriasLoja ?? []);
     _itens.addAll(loja?.itensLoja ?? []);
     _gruposComponentes.addAll(loja?.gruposComponentesLoja ?? []);
+
+    if (_mostrarPedidosDeExemplo) _pedidos.addAll(_pedidosDeExemplo());
   }
 
   @override
@@ -474,9 +495,6 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
     );
   }
 
-  // Texto simples de "lista vazia". Hoje só a seção "Itens" ainda o
-  // usa; Categorias e Grupos de Componentes usam EstadoVazioContainer
-  // (barra horizontal).
   Widget _textoListaVazia(AppTheme theme, String texto) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 6),
@@ -488,11 +506,6 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
     );
   }
 
-  // ALTERADO: era um Wrap (que quebrava para uma segunda linha quando
-  // não cabia). Agora é uma Row dentro de um SingleChildScrollView
-  // horizontal, então os três botões ficam SEMPRE na mesma linha — se
-  // não couberem na largura da tela, aparece rolagem lateral em vez de
-  // quebrar linha.
   Widget _barraDeAcoesLoja(AppTheme theme) {
     return Container(
       width: double.infinity,
@@ -528,17 +541,6 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
     );
   }
 
-  // NOVO: monta um CategoriaLojaContainer, já ligado a todos os
-  // callbacks necessários. Extraído num método próprio porque agora
-  // ele é usado em DOIS lugares diferentes (lista pequena com limite
-  // de altura, e coluna cheia quando uma categoria está expandida) —
-  // sem isso, teríamos que repetir o mesmo bloco de código duas vezes.
-  //
-  // ALTERADO: adicionado onNomeAlterado, ligado a _editarNomeCategoria
-  // — é isso que faz o TextField inline do nome, adicionado em
-  // CategoriaLojaContainer, realmente persistir a mudança (antes, o
-  // parâmetro existia no widget mas nada aqui o preenchia, então a
-  // edição funcionava só visualmente).
   Widget _construirCategoria(AppTheme theme, CategoriaLoja categoria) {
     return CategoriaLojaContainer(
       key: _chaveCategoria(categoria.id),
@@ -560,20 +562,6 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
     );
   }
 
-  // NOVO: decide como mostrar a lista de Categorias. Enquanto nenhuma
-  // está expandida, usa a caixinha de altura fixa (cabe 2, com
-  // rolagem interna). Assim que uma expande, troca para uma coluna
-  // comum — sem altura fixa, sem rolagem própria — para que TODOS os
-  // subcomponentes da categoria aberta caibam por inteiro; a rolagem
-  // passa a ser a da tela toda, e é isso que permite ela "subir até o
-  // topo" (feito em _alternarExpansaoCategoria).
-  //
-  // ALTERADO: quando não há nenhuma categoria, mostra o aviso dentro
-  // de uma barra horizontal (EstadoVazioContainer), no mesmo molde das
-  // categorias já criadas. O padding à direita (8) é o mesmo que a
-  // lista usa quando há categorias (espaço da barra de rolagem), então
-  // a barra vazia fica exatamente da mesma largura da primeira
-  // categoria criada.
   Widget _listaCategorias(AppTheme theme) {
     if (_categorias.isEmpty) {
       return Padding(
@@ -611,12 +599,6 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
     );
   }
 
-  // Mesma ideia de _construirCategoria, só que para Grupos de
-  // Componentes.
-  //
-  // ALTERADO: adicionado onNomeAlterado, ligado a
-  // _editarNomeGrupoComponentes, pelo mesmo motivo do comentário em
-  // _construirCategoria.
   Widget _construirGrupo(AppTheme theme, GrupoComponentesLoja grupo) {
     return GrupoComponentesLojaContainer(
       key: _chaveGrupo(grupo.id),
@@ -638,9 +620,6 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
     );
   }
 
-  // Mesma ideia de _listaCategorias, só que para Grupos de
-  // Componentes (inclusive a barra horizontal quando a lista está
-  // vazia).
   Widget _listaGrupos(AppTheme theme) {
     if (_gruposComponentes.isEmpty) {
       return Padding(
@@ -741,7 +720,6 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
           decoration: _decoracaoDoBloco(theme),
           child: Column(
             children: [
-              // 1) ITENS — lista HORIZONTAL (rolagem lateral).
               _tituloDeSecao(theme, 'Itens'),
               const SizedBox(height: 12),
               if (_itens.isNotEmpty)
@@ -773,13 +751,11 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
               else
                 _textoListaVazia(theme, 'Nenhum item criado ainda.'),
 
-              // 2) CATEGORIAS
               const SizedBox(height: 24),
               _tituloDeSecao(theme, 'Categorias'),
               const SizedBox(height: 12),
               _listaCategorias(theme),
 
-              // 3) GRUPOS DE COMPONENTES
               const SizedBox(height: 24),
               _tituloDeSecao(theme, 'Grupos de Componentes'),
               const SizedBox(height: 12),
@@ -788,8 +764,20 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
           ),
         );
 
-      case AbaLoja.interface:
       case AbaLoja.gestao:
+        return GestaoLojaContainer(
+          theme: theme,
+          lojaOnline: _lojaOnline,
+          aoAlterarOnline: (valor) => setState(() => _lojaOnline = valor),
+          abaPedidos: _abaPedidos,
+          aoTrocarAbaPedidos: (aba) => setState(() => _abaPedidos = aba),
+          pedidos: _pedidos,
+          aoAceitar: (id) => _alterarStatusPedido(id, StatusPedido.aceito),
+          aoRecusar: _recusarPedido,
+          aoConcluir: (id) => _alterarStatusPedido(id, StatusPedido.concluido),
+        );
+
+      case AbaLoja.interface:
         return Padding(
           padding: const EdgeInsets.symmetric(vertical: 40),
           child: Center(
