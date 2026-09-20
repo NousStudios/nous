@@ -142,8 +142,8 @@ class _CategoriaLojaContainerState extends State<CategoriaLojaContainer> {
           Row(
             children: [
               Container(
-                width: 36,
-                height: 36,
+                width: 32,
+                height: 32,
                 alignment: Alignment.center,
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(8),
@@ -151,7 +151,7 @@ class _CategoriaLojaContainerState extends State<CategoriaLojaContainer> {
                       color: theme.borderColor.withValues(alpha: 0.6)),
                 ),
                 child: Icon(Icons.image_outlined,
-                    size: 18, color: theme.secondaryTextColor),
+                    size: 16, color: theme.secondaryTextColor),
               ),
               const SizedBox(width: 6),
               Expanded(
@@ -168,18 +168,23 @@ class _CategoriaLojaContainerState extends State<CategoriaLojaContainer> {
                   onChanged: (valor) => widget.onNomeAlterado?.call(valor),
                 ),
               ),
-              Transform.scale(
-                scale: 0.8,
-                child: Switch(
-                  value: _ativa,
-                  activeThumbColor: theme.buttonColor,
-                  onChanged: (valor) => setState(() => _ativa = valor),
+              SizedBox(
+                width: 32,
+                height: 20,
+                child: FittedBox(
+                  fit: BoxFit.fill,
+                  child: Switch(
+                    value: _ativa,
+                    activeThumbColor: theme.buttonColor,
+                    materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    onChanged: (valor) => setState(() => _ativa = valor),
+                  ),
                 ),
               ),
               IconButton(
                 padding: EdgeInsets.zero,
                 constraints: const BoxConstraints(),
-                iconSize: 20,
+                iconSize: 18,
                 tooltip: 'Adicionar item',
                 icon: Icon(Icons.add_circle_outline,
                     color: theme.secondaryTextColor),
@@ -189,7 +194,7 @@ class _CategoriaLojaContainerState extends State<CategoriaLojaContainer> {
               IconButton(
                 padding: EdgeInsets.zero,
                 constraints: const BoxConstraints(),
-                iconSize: 20,
+                iconSize: 18,
                 icon: Icon(
                   widget.expandida
                       ? Icons.keyboard_arrow_up
@@ -201,7 +206,7 @@ class _CategoriaLojaContainerState extends State<CategoriaLojaContainer> {
               const SizedBox(width: 2),
               PopupMenuButton<String>(
                 padding: EdgeInsets.zero,
-                iconSize: 20,
+                iconSize: 18,
                 icon: Icon(Icons.more_vert, color: theme.secondaryTextColor),
                 color: theme.cardBackgroundColor,
                 onSelected: (valor) {
@@ -229,30 +234,44 @@ class _CategoriaLojaContainerState extends State<CategoriaLojaContainer> {
                 padding: const EdgeInsets.symmetric(horizontal: 4),
                 child: Row(
                   children: [
-                    const SizedBox(width: 44),
+                    const SizedBox(width: 40),
                     Expanded(
-                      child: Text('Produtos',
+                      child: FittedBox(
+                        fit: BoxFit.scaleDown,
+                        alignment: Alignment.centerLeft,
+                        child: Text(
+                          'Produtos',
                           style: theme.getTextStyle(
                               fontSize: 10,
-                              color: theme.secondaryTextColor)),
+                              color: theme.secondaryTextColor),
+                        ),
+                      ),
                     ),
                     SizedBox(
-                      width: 60,
-                      child: Text('Ativo',
-                          textAlign: TextAlign.center,
+                      width: 56,
+                      child: FittedBox(
+                        fit: BoxFit.scaleDown,
+                        child: Text(
+                          'Ativo',
                           style: theme.getTextStyle(
                               fontSize: 10,
-                              color: theme.secondaryTextColor)),
+                              color: theme.secondaryTextColor),
+                        ),
+                      ),
                     ),
                     SizedBox(
-                      width: 60,
-                      child: Text('Preços',
-                          textAlign: TextAlign.center,
+                      width: 56,
+                      child: FittedBox(
+                        fit: BoxFit.scaleDown,
+                        child: Text(
+                          'Preços',
                           style: theme.getTextStyle(
                               fontSize: 10,
-                              color: theme.secondaryTextColor)),
+                              color: theme.secondaryTextColor),
+                        ),
+                      ),
                     ),
-                    const SizedBox(width: 64),
+                    const SizedBox(width: 60),
                   ],
                 ),
               ),
