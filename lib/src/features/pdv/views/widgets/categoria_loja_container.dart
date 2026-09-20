@@ -3,38 +3,6 @@ import 'package:nous/src/core/theme/theme_controller.dart';
 import 'package:nous/src/features/pdv/models/item_loja.dart';
 import 'package:nous/src/features/pdv/views/widgets/produto_loja_row.dart';
 
-// Um "card" de categoria dentro da aba Loja (ex: "Bebidas", "Lanches").
-// Mostra os Itens de verdade que já foram associados a ela (a lista
-// vem de fora, em itemIds) e, ao expandir, cada um pode virar
-// ProdutoLojaRow com seus grupos de componentes.
-//
-// ALTERADO: este widget deixou de decidir sozinho se está "expandido"
-// ou não. Antes, isso era um bool guardado aqui dentro (_expandida).
-// Agora, quem manda nisso é a tela DadosPerfilView, através da
-// propriedade "expandida" (o estado atual) e do callback
-// "aoAlternarExpansao" (avisa a tela que o usuário quer abrir/fechar).
-// Isso é chamado de "widget controlado": a tela de fora enxerga e
-// decide o estado, em vez de ele ficar escondido aqui dentro. Foi
-// necessário porque, quando uma categoria expande, a TELA precisa
-// saber disso pra tirar o limite de altura da lista e rolar até ela —
-// coisa que o container, sozinho, não tem como fazer.
-//
-// ALTERADO (edição inline do nome): o nome da categoria, que antes era
-// só um Text estático (só editável pelo popup "Editar Categoria"),
-// agora é um TextField sem borda — igual ao nome/preço dos produtos em
-// ProdutoLojaRow. Dá pra editar tocando direto nele, sem abrir nada. O
-// popup "Editar Categoria" continua existindo (widget.onEditar), caso
-// a tela queira abrir algo mais completo no futuro. onNomeAlterado é
-// opcional de propósito: se a tela que usa este widget ainda não
-// tiver essa persistência pronta, o campo continua editável na tela
-// (localmente) sem quebrar a compilação — mas o ideal é a tela passar
-// esse callback para salvar a mudança de verdade.
-//
-// ALTERADO (ícone de imagem): adicionado um quadrado de 36x36 no
-// início da barra, hoje só com um ícone de placeholder
-// (Icons.image_outlined) — igual ao que já existe em ProdutoLojaRow —
-// preparado para, numa atualização futura, o usuário poder colocar
-// uma imagem de verdade ali.
 class CategoriaLojaContainer extends StatefulWidget {
   final AppTheme theme;
   final String nome;
@@ -42,8 +10,6 @@ class CategoriaLojaContainer extends StatefulWidget {
   final List<String> itemIds;
   final List<ItemLoja> itensDisponiveis;
 
-  // NOVO: estado de expansão e o callback pra alternar (abrir/fechar),
-  // controlados por fora.
   final bool expandida;
   final VoidCallback aoAlternarExpansao;
 
@@ -52,19 +18,11 @@ class CategoriaLojaContainer extends StatefulWidget {
   final VoidCallback onEditar;
   final VoidCallback onExcluir;
 
-  // NOVO: chamado a cada mudança no nome desta categoria, editado
-  // direto no campo da barra. Opcional para não quebrar telas que
-  // ainda não passam esse callback.
   final ValueChanged<String>? onNomeAlterado;
 
-  // Repassados até o ProdutoLojaRow de cada item, para permitir editar
-  // nome/preço direto na lista, sem abrir nenhum popup.
   final void Function(String itemId, String novoNome) onEditarNomeItem;
   final void Function(String itemId, String novoPreco) onEditarPrecoItem;
 
-  // NOVO: chamado quando o usuário escolhe "Editar Item" no "⋮" de um
-  // produto dentro desta categoria. Recebe o ItemLoja inteiro, porque
-  // é isso que o popup completo de edição precisa.
   final void Function(ItemLoja item) onEditarItem;
 
   const CategoriaLojaContainer({
@@ -91,10 +49,6 @@ class CategoriaLojaContainer extends StatefulWidget {
 }
 
 class _CategoriaLojaContainerState extends State<CategoriaLojaContainer> {
-  // _ativa continua sendo um estado só "de tela" (visual, não
-  // persistido ainda) — diferente da expansão, ninguém mais precisa
-  // saber se o switch está ligado, então ele pode continuar guardado
-  // aqui dentro, sem problema.
   bool _ativa = true;
 
   late final TextEditingController _nomeController =
@@ -103,10 +57,6 @@ class _CategoriaLojaContainerState extends State<CategoriaLojaContainer> {
   @override
   void didUpdateWidget(covariant CategoriaLojaContainer oldWidget) {
     super.didUpdateWidget(oldWidget);
-
-    // Se o nome mudou por FORA deste campo (ex: editado pelo popup
-    // "Editar Categoria" em outra tela), atualiza o texto mostrado
-    // aqui também — mesmo padrão usado em ProdutoLojaRow.
     if (widget.nome != oldWidget.nome && widget.nome != _nomeController.text) {
       _nomeController.text = widget.nome;
     }
@@ -191,9 +141,6 @@ class _CategoriaLojaContainerState extends State<CategoriaLojaContainer> {
         children: [
           Row(
             children: [
-              // NOVO: placeholder de imagem, mesmo padrão visual do
-              // ícone usado em ProdutoLojaRow. Sem função ainda — só
-              // reserva o espaço para a foto da categoria no futuro.
               Container(
                 width: 36,
                 height: 36,
@@ -206,10 +153,7 @@ class _CategoriaLojaContainerState extends State<CategoriaLojaContainer> {
                 child: Icon(Icons.image_outlined,
                     size: 18, color: theme.secondaryTextColor),
               ),
-              const SizedBox(width: 8),
-              // ALTERADO: era um Text estático; agora é um TextField
-              // sem borda, editável direto na barra (mesmo padrão do
-              // nome do produto em ProdutoLojaRow).
+              const SizedBox(width: 6),
               Expanded(
                 child: TextField(
                   controller: _nomeController,
@@ -224,28 +168,28 @@ class _CategoriaLojaContainerState extends State<CategoriaLojaContainer> {
                   onChanged: (valor) => widget.onNomeAlterado?.call(valor),
                 ),
               ),
-              Switch(
-                value: _ativa,
-                activeThumbColor: theme.buttonColor,
-                onChanged: (valor) => setState(() => _ativa = valor),
-              ),
-              GestureDetector(
-                onTap: _abrirSeletorDeItem,
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text('Adicionar item',
-                        style: theme.getTextStyle(fontSize: 11)),
-                    const SizedBox(width: 2),
-                    Icon(Icons.add_circle_outline,
-                        size: 14, color: theme.secondaryTextColor),
-                  ],
+              Transform.scale(
+                scale: 0.8,
+                child: Switch(
+                  value: _ativa,
+                  activeThumbColor: theme.buttonColor,
+                  onChanged: (valor) => setState(() => _ativa = valor),
                 ),
               ),
-              // ALTERADO: era "setState(() => _expandida = !_expandida)".
-              // Agora só avisa a tela de fora, que decide o novo
-              // estado e também cuida de rolar até aqui.
               IconButton(
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(),
+                iconSize: 20,
+                tooltip: 'Adicionar item',
+                icon: Icon(Icons.add_circle_outline,
+                    color: theme.secondaryTextColor),
+                onPressed: _abrirSeletorDeItem,
+              ),
+              const SizedBox(width: 2),
+              IconButton(
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(),
+                iconSize: 20,
                 icon: Icon(
                   widget.expandida
                       ? Icons.keyboard_arrow_up
@@ -254,7 +198,10 @@ class _CategoriaLojaContainerState extends State<CategoriaLojaContainer> {
                 ),
                 onPressed: widget.aoAlternarExpansao,
               ),
+              const SizedBox(width: 2),
               PopupMenuButton<String>(
+                padding: EdgeInsets.zero,
+                iconSize: 20,
                 icon: Icon(Icons.more_vert, color: theme.secondaryTextColor),
                 color: theme.cardBackgroundColor,
                 onSelected: (valor) {
@@ -275,8 +222,6 @@ class _CategoriaLojaContainerState extends State<CategoriaLojaContainer> {
               ),
             ],
           ),
-          // ALTERADO: era "if (_expandida)"; agora usa a propriedade
-          // vinda de fora.
           if (widget.expandida) ...[
             const SizedBox(height: 8),
             if (widget.itemIds.isNotEmpty) ...[
