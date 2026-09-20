@@ -11,6 +11,7 @@ import 'package:nous/src/features/pdv/views/widgets/categoria_loja_container.dar
 import 'package:nous/src/features/pdv/views/widgets/container_simbolico.dart';
 import 'package:nous/src/features/pdv/views/widgets/dados_bancarios_container.dart';
 import 'package:nous/src/features/pdv/views/widgets/delivery_container.dart';
+import 'package:nous/src/features/pdv/views/widgets/estado_vazio_container.dart';
 import 'package:nous/src/features/pdv/views/widgets/formulario_dados_loja.dart';
 import 'package:nous/src/features/pdv/views/widgets/galeria_estilo_container.dart';
 import 'package:nous/src/features/pdv/views/widgets/grupo_componentes_loja_container.dart';
@@ -473,6 +474,9 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
     );
   }
 
+  // Texto simples de "lista vazia". Hoje só a seção "Itens" ainda o
+  // usa; Categorias e Grupos de Componentes usam EstadoVazioContainer
+  // (barra horizontal).
   Widget _textoListaVazia(AppTheme theme, String texto) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 6),
@@ -563,9 +567,22 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
   // subcomponentes da categoria aberta caibam por inteiro; a rolagem
   // passa a ser a da tela toda, e é isso que permite ela "subir até o
   // topo" (feito em _alternarExpansaoCategoria).
+  //
+  // ALTERADO: quando não há nenhuma categoria, mostra o aviso dentro
+  // de uma barra horizontal (EstadoVazioContainer), no mesmo molde das
+  // categorias já criadas. O padding à direita (8) é o mesmo que a
+  // lista usa quando há categorias (espaço da barra de rolagem), então
+  // a barra vazia fica exatamente da mesma largura da primeira
+  // categoria criada.
   Widget _listaCategorias(AppTheme theme) {
     if (_categorias.isEmpty) {
-      return _textoListaVazia(theme, 'Nenhuma categoria criada ainda.');
+      return Padding(
+        padding: const EdgeInsets.only(right: 8),
+        child: EstadoVazioContainer(
+          theme: theme,
+          mensagem: 'Nenhuma categoria criada ainda.',
+        ),
+      );
     }
 
     if (_categoriaExpandidaId == null) {
@@ -622,11 +639,17 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
   }
 
   // Mesma ideia de _listaCategorias, só que para Grupos de
-  // Componentes.
+  // Componentes (inclusive a barra horizontal quando a lista está
+  // vazia).
   Widget _listaGrupos(AppTheme theme) {
     if (_gruposComponentes.isEmpty) {
-      return _textoListaVazia(
-          theme, 'Nenhum grupo de componentes criado ainda.');
+      return Padding(
+        padding: const EdgeInsets.only(right: 8),
+        child: EstadoVazioContainer(
+          theme: theme,
+          mensagem: 'Nenhum grupo de componentes criado ainda.',
+        ),
+      );
     }
 
     if (_grupoExpandidoId == null) {
