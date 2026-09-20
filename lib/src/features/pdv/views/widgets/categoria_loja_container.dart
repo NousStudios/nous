@@ -18,6 +18,23 @@ import 'package:nous/src/features/pdv/views/widgets/produto_loja_row.dart';
 // necessário porque, quando uma categoria expande, a TELA precisa
 // saber disso pra tirar o limite de altura da lista e rolar até ela —
 // coisa que o container, sozinho, não tem como fazer.
+//
+// ALTERADO (edição inline do nome): o nome da categoria, que antes era
+// só um Text estático (só editável pelo popup "Editar Categoria"),
+// agora é um TextField sem borda — igual ao nome/preço dos produtos em
+// ProdutoLojaRow. Dá pra editar tocando direto nele, sem abrir nada. O
+// popup "Editar Categoria" continua existindo (widget.onEditar), caso
+// a tela queira abrir algo mais completo no futuro. onNomeAlterado é
+// opcional de propósito: se a tela que usa este widget ainda não
+// tiver essa persistência pronta, o campo continua editável na tela
+// (localmente) sem quebrar a compilação — mas o ideal é a tela passar
+// esse callback para salvar a mudança de verdade.
+//
+// ALTERADO (ícone de imagem): adicionado um quadrado de 36x36 no
+// início da barra, hoje só com um ícone de placeholder
+// (Icons.image_outlined) — igual ao que já existe em ProdutoLojaRow —
+// preparado para, numa atualização futura, o usuário poder colocar
+// uma imagem de verdade ali.
 class CategoriaLojaContainer extends StatefulWidget {
   final AppTheme theme;
   final String nome;
@@ -34,6 +51,11 @@ class CategoriaLojaContainer extends StatefulWidget {
   final ValueChanged<String> onRemoverItem;
   final VoidCallback onEditar;
   final VoidCallback onExcluir;
+
+  // NOVO: chamado a cada mudança no nome desta categoria, editado
+  // direto no campo da barra. Opcional para não quebrar telas que
+  // ainda não passam esse callback.
+  final ValueChanged<String>? onNomeAlterado;
 
   // Repassados até o ProdutoLojaRow de cada item, para permitir editar
   // nome/preço direto na lista, sem abrir nenhum popup.
@@ -60,6 +82,7 @@ class CategoriaLojaContainer extends StatefulWidget {
     required this.onEditarNomeItem,
     required this.onEditarPrecoItem,
     required this.onEditarItem,
+    this.onNomeAlterado,
   });
 
   @override
@@ -73,6 +96,27 @@ class _CategoriaLojaContainerState extends State<CategoriaLojaContainer> {
   // saber se o switch está ligado, então ele pode continuar guardado
   // aqui dentro, sem problema.
   bool _ativa = true;
+
+  late final TextEditingController _nomeController =
+      TextEditingController(text: widget.nome);
+
+  @override
+  void didUpdateWidget(covariant CategoriaLojaContainer oldWidget) {
+    super.didUpdateWidget(oldWidget);
+
+    // Se o nome mudou por FORA deste campo (ex: editado pelo popup
+    // "Editar Categoria" em outra tela), atualiza o texto mostrado
+    // aqui também — mesmo padrão usado em ProdutoLojaRow.
+    if (widget.nome != oldWidget.nome && widget.nome != _nomeController.text) {
+      _nomeController.text = widget.nome;
+    }
+  }
+
+  @override
+  void dispose() {
+    _nomeController.dispose();
+    super.dispose();
+  }
 
   void _abrirSeletorDeItem() {
     final theme = widget.theme;
@@ -147,12 +191,37 @@ class _CategoriaLojaContainerState extends State<CategoriaLojaContainer> {
         children: [
           Row(
             children: [
+              // NOVO: placeholder de imagem, mesmo padrão visual do
+              // ícone usado em ProdutoLojaRow. Sem função ainda — só
+              // reserva o espaço para a foto da categoria no futuro.
+              Container(
+                width: 36,
+                height: 36,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                      color: theme.borderColor.withValues(alpha: 0.6)),
+                ),
+                child: Icon(Icons.image_outlined,
+                    size: 18, color: theme.secondaryTextColor),
+              ),
+              const SizedBox(width: 8),
+              // ALTERADO: era um Text estático; agora é um TextField
+              // sem borda, editável direto na barra (mesmo padrão do
+              // nome do produto em ProdutoLojaRow).
               Expanded(
-                child: Text(
-                  widget.nome,
+                child: TextField(
+                  controller: _nomeController,
                   textAlign: TextAlign.center,
-                  overflow: TextOverflow.ellipsis,
+                  maxLines: 1,
                   style: theme.getTextStyle(fontSize: 13),
+                  decoration: const InputDecoration(
+                    isDense: true,
+                    contentPadding: EdgeInsets.zero,
+                    border: InputBorder.none,
+                  ),
+                  onChanged: (valor) => widget.onNomeAlterado?.call(valor),
                 ),
               ),
               Switch(

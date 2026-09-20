@@ -13,6 +13,17 @@ import 'package:nous/src/features/pdv/views/widgets/grupo_componentes_container.
 // criada pela opção "Adicionar Grupo de Componentes" no menu "⋮" —
 // essa parte ainda não persiste (fica só na memória da tela), é um
 // próximo passo separado.
+//
+// ALTERADO: antes, o título de cada grupo (ex: "Grupo de componentes
+// A") era calculado toda vez, na hora de montar a lista, a partir da
+// posição do grupo em _grupoIds (_letraDoGrupo(indice)). Isso
+// funcionava bem enquanto o título era só um texto fixo — mas agora
+// que o GrupoComponentesContainer deixa o título editável, ele precisa
+// de um "dono" que lembre o valor atual de cada grupo, e não
+// recalcule a letra e sobrescreva o que o usuário digitou. Por isso
+// _gruposTitulos guarda o título atual de cada id de grupo, começando
+// com a letra automática no momento da criação e podendo ser
+// sobrescrito livremente depois, via onTituloAlterado.
 class ProdutoLojaRow extends StatefulWidget {
   final AppTheme theme;
   final ItemLoja item;
@@ -53,6 +64,10 @@ class _ProdutoLojaRowState extends State<ProdutoLojaRow> {
   final List<int> _grupoIds = [];
   int _proximoIdGrupo = 0;
 
+  // NOVO: título atual de cada grupo, por id. Ver comentário no topo
+  // do arquivo.
+  final Map<int, String> _gruposTitulos = {};
+
   late final TextEditingController _nomeController =
       TextEditingController(text: widget.item.nome);
   late final TextEditingController _precoController =
@@ -62,13 +77,31 @@ class _ProdutoLojaRowState extends State<ProdutoLojaRow> {
 
   void _adicionarGrupo() {
     setState(() {
-      _grupoIds.add(_proximoIdGrupo);
+      final id = _proximoIdGrupo;
+      // A letra automática só é usada como valor INICIAL do título,
+      // calculada a partir de quantos grupos já existem agora. Depois
+      // de criado, o título vive independente em _gruposTitulos e só
+      // muda se o usuário editar o campo.
+      _gruposTitulos[id] = 'Grupo de componentes ${_letraDoGrupo(_grupoIds.length)}';
+      _grupoIds.add(id);
       _proximoIdGrupo++;
     });
   }
 
   void _removerGrupo(int id) {
-    setState(() => _grupoIds.remove(id));
+    setState(() {
+      _grupoIds.remove(id);
+      _gruposTitulos.remove(id);
+    });
+  }
+
+  void _renomearGrupo(int id, String novoTitulo) {
+    // Não precisa de setState aqui: o TextField do
+    // GrupoComponentesContainer já mostra o texto digitado sozinho
+    // (via seu próprio controller). Isso só mantém _gruposTitulos
+    // sincronizado, pra caso a lista precise ser reconstruída (ex:
+    // outro grupo é excluído) e o título customizado não se perca.
+    _gruposTitulos[id] = novoTitulo;
   }
 
   @override
@@ -234,8 +267,15 @@ class _ProdutoLojaRowState extends State<ProdutoLojaRow> {
               GrupoComponentesContainer(
                 key: ValueKey('grupo_$id'),
                 theme: theme,
-                titulo:
+                // ALTERADO: era "_letraDoGrupo(_grupoIds.indexOf(id))"
+                // calculado direto aqui; agora lê o título atual (que
+                // pode já ter sido editado pelo usuário) de
+                // _gruposTitulos, com a letra automática só como
+                // último recurso de segurança.
+                titulo: _gruposTitulos[id] ??
                     'Grupo de componentes ${_letraDoGrupo(_grupoIds.indexOf(id))}',
+                onTituloAlterado: (novoTitulo) =>
+                    _renomearGrupo(id, novoTitulo),
                 onExcluir: () => _removerGrupo(id),
               ),
               const SizedBox(height: 6),
