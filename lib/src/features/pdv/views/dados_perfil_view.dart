@@ -231,6 +231,31 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
     _persistirListasLoja();
   }
 
+  // NOVO: mesma lógica de _editarNomeItem, só que para o nome da
+  // própria categoria — chamado pelo TextField inline adicionado em
+  // CategoriaLojaContainer (widget.onNomeAlterado).
+  void _editarNomeCategoria(String id, String novoNome) {
+    setState(() {
+      final indice = _categorias.indexWhere((c) => c.id == id);
+      if (indice == -1) return;
+      _categorias[indice] = _categorias[indice].copyWith(nome: novoNome);
+    });
+    _persistirListasLoja();
+  }
+
+  // NOVO: mesma lógica de _editarNomeCategoria, para o nome do Grupo
+  // de Componentes — chamado pelo TextField inline adicionado em
+  // GrupoComponentesLojaContainer (widget.onNomeAlterado).
+  void _editarNomeGrupoComponentes(String id, String novoNome) {
+    setState(() {
+      final indice = _gruposComponentes.indexWhere((g) => g.id == id);
+      if (indice == -1) return;
+      _gruposComponentes[indice] =
+          _gruposComponentes[indice].copyWith(nome: novoNome);
+    });
+    _persistirListasLoja();
+  }
+
   void _removerCategoria(String id) {
     setState(() {
       _categorias.removeWhere((categoria) => categoria.id == id);
@@ -504,6 +529,12 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
   // ele é usado em DOIS lugares diferentes (lista pequena com limite
   // de altura, e coluna cheia quando uma categoria está expandida) —
   // sem isso, teríamos que repetir o mesmo bloco de código duas vezes.
+  //
+  // ALTERADO: adicionado onNomeAlterado, ligado a _editarNomeCategoria
+  // — é isso que faz o TextField inline do nome, adicionado em
+  // CategoriaLojaContainer, realmente persistir a mudança (antes, o
+  // parâmetro existia no widget mas nada aqui o preenchia, então a
+  // edição funcionava só visualmente).
   Widget _construirCategoria(AppTheme theme, CategoriaLoja categoria) {
     return CategoriaLojaContainer(
       key: _chaveCategoria(categoria.id),
@@ -517,6 +548,8 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
       onRemoverItem: (itemId) => _removerItemDaCategoria(categoria, itemId),
       onEditar: () => _abrirPopupEditarCategoria(categoria),
       onExcluir: () => _removerCategoria(categoria.id),
+      onNomeAlterado: (novoNome) =>
+          _editarNomeCategoria(categoria.id, novoNome),
       onEditarNomeItem: _editarNomeItem,
       onEditarPrecoItem: _editarPrecoItem,
       onEditarItem: _abrirPopupEditarItem,
@@ -563,6 +596,10 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
 
   // Mesma ideia de _construirCategoria, só que para Grupos de
   // Componentes.
+  //
+  // ALTERADO: adicionado onNomeAlterado, ligado a
+  // _editarNomeGrupoComponentes, pelo mesmo motivo do comentário em
+  // _construirCategoria.
   Widget _construirGrupo(AppTheme theme, GrupoComponentesLoja grupo) {
     return GrupoComponentesLojaContainer(
       key: _chaveGrupo(grupo.id),
@@ -576,6 +613,8 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
       onRemoverItem: (itemId) => _removerItemDoGrupoComponentes(grupo, itemId),
       onEditar: () => _abrirPopupEditarGrupoComponentes(grupo),
       onExcluir: () => _removerGrupoComponentes(grupo.id),
+      onNomeAlterado: (novoNome) =>
+          _editarNomeGrupoComponentes(grupo.id, novoNome),
       onEditarNomeItem: _editarNomeItem,
       onEditarPrecoItem: _editarPrecoItem,
       onEditarItem: _abrirPopupEditarItem,
