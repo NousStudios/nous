@@ -24,6 +24,7 @@ import 'package:nous/src/features/pdv/views/widgets/nova_categoria_dialog.dart';
 import 'package:nous/src/features/pdv/views/widgets/nova_venda_dialog.dart';
 import 'package:nous/src/features/pdv/views/widgets/novo_grupo_componentes_dialog.dart';
 import 'package:nous/src/features/pdv/views/widgets/novo_item_dialog.dart';
+import 'package:nous/src/features/pdv/views/widgets/relatorios_dialog.dart';
 import 'package:nous/src/features/pdv/views/widgets/usuarios_participantes_container.dart';
 
 class DadosPerfilView extends StatefulWidget {
@@ -152,6 +153,14 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
       onSalvar: _salvarCliente,
       onPagar: _pagarCliente,
       onExcluir: _excluirCliente,
+    );
+  }
+
+  Future<void> _abrirPopupRelatorios() {
+    return RelatoriosDialog.mostrar(
+      context,
+      theme: ThemeController.currentTheme.value,
+      pedidos: List.of(_pedidos),
     );
   }
 
@@ -802,6 +811,7 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
           aoConcluir: (id) => _alterarStatusPedido(id, StatusPedido.concluido),
           aoNovaVenda: _abrirPopupNovaVenda,
           aoClientes: _abrirPopupClientes,
+          aoRelatorios: _abrirPopupRelatorios,
         );
 
       case AbaLoja.interface:

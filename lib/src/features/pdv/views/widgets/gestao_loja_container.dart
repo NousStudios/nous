@@ -30,6 +30,7 @@ class GestaoLojaContainer extends StatelessWidget {
   final ValueChanged<String> aoConcluir;
   final VoidCallback aoNovaVenda;
   final VoidCallback aoClientes;
+  final VoidCallback aoRelatorios;
 
   const GestaoLojaContainer({
     super.key,
@@ -44,6 +45,7 @@ class GestaoLojaContainer extends StatelessWidget {
     required this.aoConcluir,
     required this.aoNovaVenda,
     required this.aoClientes,
+    required this.aoRelatorios,
   });
 
   BoxDecoration get _decoracaoDoBloco => BoxDecoration(
@@ -170,7 +172,7 @@ class GestaoLojaContainer extends StatelessWidget {
           const SizedBox(height: 8),
           Row(
             children: [
-              _botaoDeGestao(context, 'Relatórios'),
+              _botaoDeGestao(context, 'Relatórios', aoPressionar: aoRelatorios),
               espaco,
               _botaoDeGestao(context, 'Perfil'),
               espaco,

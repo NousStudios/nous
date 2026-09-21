@@ -5,16 +5,9 @@ import 'package:nous/src/features/pdv/models/cliente.dart';
 import 'package:nous/src/features/pdv/models/pedido_loja.dart';
 import 'package:nous/src/features/pdv/services/cnpj_input_formatter.dart';
 import 'package:nous/src/features/pdv/views/widgets/estado_vazio_container.dart';
-
-String _doisDigitos(int n) => n.toString().padLeft(2, '0');
-
-String _dataHora(DateTime d) =>
-    '${_doisDigitos(d.day)}/${_doisDigitos(d.month)}/${d.year} '
-    '${_doisDigitos(d.hour)}:${_doisDigitos(d.minute)}';
+import 'package:nous/src/features/pdv/views/widgets/venda_registrada_dialog.dart';
 
 String _valor(double v) => 'R\$ ${v.toStringAsFixed(2).replaceAll('.', ',')}';
-
-String _numero(int n) => '#${n.toString().padLeft(4, '0')}';
 
 class ClientesDialog {
   static Future<void> mostrar(
@@ -515,44 +508,6 @@ class _ClientesConteudoState extends State<_ClientesConteudo> {
     );
   }
 
-  Widget _linhaHistorico(PedidoLoja pedido) {
-    final fonte = theme.getTextStyle(fontSize: 11);
-    final detalhe = [
-      _dataHora(pedido.dataHora),
-      if (pedido.formaPagamento.isNotEmpty) pedido.formaPagamento,
-      if (pedido.aPrazoEmAberto) 'em aberto',
-      if (pedido.aPrazoEmAberto && pedido.valorPago > 0)
-        'pago ${_valor(pedido.valorPago)}',
-      if (pedido.formaPagamento == 'À Prazo' && pedido.quitado) 'quitado',
-    ].join(' • ');
-
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 6),
-      child: Row(
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  '${_numero(pedido.numero)}  ${pedido.produtoNome}',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: theme.getTextStyle(
-                    fontSize: 12,
-                    color: theme.textColor,
-                  ),
-                ),
-                Text(detalhe, style: fonte),
-              ],
-            ),
-          ),
-          Text(_valor(pedido.valor), style: fonte),
-        ],
-      ),
-    );
-  }
-
   Widget _blocoHistorico(Cliente cliente) {
     final historico = _historico(cliente.id);
     return Container(
@@ -568,7 +523,11 @@ class _ClientesConteudoState extends State<_ClientesConteudo> {
               mensagem: 'Nenhuma compra registrada.',
             )
           else
-            for (final pedido in historico) _linhaHistorico(pedido),
+            for (final pedido in historico)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: BarraVenda(theme: theme, pedido: pedido),
+              ),
         ],
       ),
     );
