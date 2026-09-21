@@ -39,49 +39,6 @@ const double _larguraMaximaConteudo = 500;
 
 const double _alturaMaximaListaSecundaria = 136;
 
-const bool _mostrarPedidosDeExemplo = true;
-
-List<PedidoLoja> _pedidosDeExemplo() {
-  final agora = DateTime.now();
-  return [
-    PedidoLoja(
-      id: 'exemplo_1',
-      numero: 1,
-      clienteNome: 'Maria',
-      produtoNome: 'Camiseta preta',
-      dataHora: agora.subtract(const Duration(minutes: 10)),
-      valor: 59.9,
-      temMensagem: true,
-    ),
-    PedidoLoja(
-      id: 'exemplo_2',
-      numero: 2,
-      clienteNome: 'João',
-      produtoNome: 'Corte de cabelo',
-      dataHora: agora.subtract(const Duration(hours: 1)),
-      valor: 35,
-    ),
-    PedidoLoja(
-      id: 'exemplo_3',
-      numero: 3,
-      clienteNome: 'Ana',
-      produtoNome: 'Bolo de chocolate',
-      dataHora: agora.subtract(const Duration(hours: 3)),
-      valor: 80,
-      status: StatusPedido.aceito,
-    ),
-    PedidoLoja(
-      id: 'exemplo_4',
-      numero: 4,
-      clienteNome: 'Pedro',
-      produtoNome: 'Marmita completa',
-      dataHora: agora.subtract(const Duration(days: 1)),
-      valor: 22.5,
-      status: StatusPedido.concluido,
-    ),
-  ];
-}
-
 class _DadosPerfilViewState extends State<DadosPerfilView> {
   final _controllers = ControllersDadosLoja();
   final _controllersBancarios = ControllersDadosBancarios();
@@ -388,7 +345,6 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
     _itens.addAll(loja?.itensLoja ?? []);
     _gruposComponentes.addAll(loja?.gruposComponentesLoja ?? []);
 
-    if (_mostrarPedidosDeExemplo) _pedidos.addAll(_pedidosDeExemplo());
   }
 
   @override

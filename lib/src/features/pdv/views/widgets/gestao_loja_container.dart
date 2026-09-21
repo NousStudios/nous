@@ -83,15 +83,23 @@ class GestaoLojaContainer extends StatelessWidget {
     );
   }
 
-  Widget _blocoStatus() {
+  Widget _blocoStatus(BuildContext context) {
     return Expanded(
       flex: 2,
-      child: Container(
+      child: _ComHover(
+        cursor: SystemMouseCursors.click,
+        aoClicar: () => _emConstrucao(context, 'Status'),
+        builder: (hover) => Container(
         height: 56,
         padding: const EdgeInsets.symmetric(horizontal: 8),
         decoration: BoxDecoration(
+          color: hover
+              ? theme.borderColor.withValues(alpha: 0.18)
+              : Colors.transparent,
           borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: theme.borderColor),
+          border: Border.all(
+            color: hover ? theme.textColor : theme.borderColor,
+          ),
         ),
         child: FittedBox(
           fit: BoxFit.scaleDown,
@@ -135,6 +143,7 @@ class GestaoLojaContainer extends StatelessWidget {
             ],
           ),
         ),
+        ),
       ),
     );
   }
@@ -171,7 +180,7 @@ class GestaoLojaContainer extends StatelessWidget {
             children: [
               _botaoDeGestao(context, 'Mensagens'),
               espaco,
-              _blocoStatus(),
+              _blocoStatus(context),
             ],
           ),
         ],
@@ -276,11 +285,17 @@ class GestaoLojaContainer extends StatelessWidget {
   Widget _barraDoPedido(BuildContext context, PedidoLoja pedido) {
     final fonteMiuda = theme.getTextStyle(fontSize: 9);
 
-    return Container(
+    return _ComHover(
+      builder: (hover) => Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
+        color: hover
+            ? theme.borderColor.withValues(alpha: 0.18)
+            : Colors.transparent,
         borderRadius: BorderRadius.circular(30),
-        border: Border.all(color: theme.borderColor),
+        border: Border.all(
+          color: hover ? theme.textColor : theme.borderColor,
+        ),
       ),
       child: Row(
         children: [
@@ -341,6 +356,7 @@ class GestaoLojaContainer extends StatelessWidget {
               onPressed: () => _abrirMenuDoPedido(context, pedido),
             ),
         ],
+      ),
       ),
     );
   }
@@ -403,6 +419,39 @@ class GestaoLojaContainer extends StatelessWidget {
         const SizedBox(height: 16),
         _blocoDePedidos(context),
       ],
+    );
+  }
+}
+
+class _ComHover extends StatefulWidget {
+  final Widget Function(bool hover) builder;
+  final VoidCallback? aoClicar;
+  final MouseCursor cursor;
+
+  const _ComHover({
+    required this.builder,
+    this.aoClicar,
+    this.cursor = SystemMouseCursors.basic,
+  });
+
+  @override
+  State<_ComHover> createState() => _ComHoverState();
+}
+
+class _ComHoverState extends State<_ComHover> {
+  bool _hover = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return MouseRegion(
+      cursor: widget.cursor,
+      onEnter: (_) => setState(() => _hover = true),
+      onExit: (_) => setState(() => _hover = false),
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: widget.aoClicar,
+        child: widget.builder(_hover),
+      ),
     );
   }
 }

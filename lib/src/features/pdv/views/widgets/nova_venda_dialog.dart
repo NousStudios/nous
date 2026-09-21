@@ -86,6 +86,7 @@ class _NovaVendaConteudoState extends State<_NovaVendaConteudo> {
   final _clienteController = TextEditingController();
   final _buscaController = TextEditingController();
   final _comandaController = TextEditingController();
+  final _comandaScrollController = ScrollController();
 
   final Map<String, int> _quantidades = {};
   String? _formaPagamento;
@@ -106,6 +107,7 @@ class _NovaVendaConteudoState extends State<_NovaVendaConteudo> {
     _clienteController.dispose();
     _buscaController.dispose();
     _comandaController.dispose();
+    _comandaScrollController.dispose();
     super.dispose();
   }
 
@@ -448,20 +450,31 @@ class _NovaVendaConteudoState extends State<_NovaVendaConteudo> {
       child: Column(
         children: [
           _tituloDoBloco('Comanda'),
-          TextField(
-            controller: _comandaController,
-            minLines: 14,
-            maxLines: null,
-            keyboardType: TextInputType.multiline,
-            cursorColor: theme.textColor,
-            style: theme
-                .getTextStyle(fontSize: 12)
-                .copyWith(fontFamily: 'monospace', height: 1.3),
-            decoration: InputDecoration(
-              isDense: true,
-              contentPadding: const EdgeInsets.all(12),
-              enabledBorder: borda(theme.borderColor),
-              focusedBorder: borda(theme.textColor),
+          SizedBox(
+            height: 280,
+            child: Scrollbar(
+              controller: _comandaScrollController,
+              thumbVisibility: true,
+              child: TextField(
+                controller: _comandaController,
+                scrollController: _comandaScrollController,
+                expands: true,
+                minLines: null,
+                maxLines: null,
+                textAlign: TextAlign.center,
+                textAlignVertical: TextAlignVertical.top,
+                keyboardType: TextInputType.multiline,
+                cursorColor: theme.textColor,
+                style: theme
+                    .getTextStyle(fontSize: 12)
+                    .copyWith(fontFamily: 'monospace', height: 1.3),
+                decoration: InputDecoration(
+                  isDense: true,
+                  contentPadding: const EdgeInsets.all(12),
+                  enabledBorder: borda(theme.borderColor),
+                  focusedBorder: borda(theme.textColor),
+                ),
+              ),
             ),
           ),
         ],
