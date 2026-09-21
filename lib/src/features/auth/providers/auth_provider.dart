@@ -1,29 +1,24 @@
 import 'package:flutter/foundation.dart';
+import 'package:nous/src/features/auth/models/usuario_nous.dart';
+import 'package:nous/src/features/auth/services/contas_nous_service.dart';
 import 'package:nous/src/features/auth/services/cpf_validator.dart';
 
-// ChangeNotifier é a classe base do Flutter para "algo que guarda estado e
-// avisa quem está ouvindo quando esse estado muda". O Provider usa isso por
-// baixo dos panos.
 class AuthProvider extends ChangeNotifier {
-  String _cpf = ''; // CPF só com números, sem máscara
-  String? _errorMessage; // null = sem erro
-  bool _isCheckingWithServer = false; // reservado para a ETAPA 2 (futuro)
+  String _cpf = '';
+  String? _errorMessage;
+  bool _carregando = false;
+  UsuarioNous? _contaAtual;
 
   String get cpf => _cpf;
   String? get errorMessage => _errorMessage;
-  bool get isCheckingWithServer => _isCheckingWithServer;
+  bool get carregando => _carregando;
+  UsuarioNous? get contaAtual => _contaAtual;
 
-  // O campo é considerado "válido" quando tem os 11 dígitos E passou na
-  // validação matemática local.
   bool get isValid => CpfValidator.isValid(_cpf);
 
-  /// Chamado toda vez que o usuário digita algo no campo de CPF.
   void updateCpf(String rawInput) {
     _cpf = CpfValidator.onlyDigits(rawInput);
 
-    // Só mostramos erro quando o usuário já terminou de digitar os 11
-    // dígitos. Antes disso, mostrar "CPF inválido" enquanto a pessoa ainda
-    // está no meio da digitação seria confuso e irritante.
     if (_cpf.length < 11) {
       _errorMessage = null;
     } else if (!CpfValidator.isValid(_cpf)) {
@@ -32,26 +27,68 @@ class AuthProvider extends ChangeNotifier {
       _errorMessage = null;
     }
 
-    // notifyListeners() avisa todos os widgets que estão "ouvindo" este
-    // provider (via context.watch ou Consumer) para se redesenharem agora,
-    // refletindo o novo estado.
     notifyListeners();
   }
 
-  /// Placeholder para a ETAPA 2 (checagem real com um backend/servidor).
-  /// Ainda não faz nada de verdade — só deixa o "encaixe" pronto para quando
-  /// esse backend existir.
-  Future<void> submitCpf() async {
-    if (!isValid) return;
+  Future<bool> buscarConta() async {
+    if (!isValid) return false;
 
-    _isCheckingWithServer = true;
+    _carregando = true;
     notifyListeners();
 
-    // todo: no futuro, chamar aqui um serviço de backend próprio do Nous
-    // (não a Receita Federal diretamente) que verifica o CPF e decide se é
-    // cadastro novo ou login existente.
+    final conta = await ContasNousService.buscarPorCpf(_cpf);
+    _contaAtual = conta;
 
-    _isCheckingWithServer = false;
+    _carregando = false;
+    notifyListeners();
+
+    return conta != null;
+  }
+
+  Future<void> associarConta({
+    required String nome,
+    required String dataNascimento,
+  }) async {
+    final conta = UsuarioNous(
+      cpf: _cpf,
+      nome: nome.trim(),
+      dataNascimento: dataNascimento.trim(),
+    );
+
+    await ContasNousService.salvar(conta);
+
+    _contaAtual = conta;
+    notifyListeners();
+  }
+
+  Future<String?> adicionarEmail(String email) async {
+    final conta = _contaAtual;
+    if (conta == null) return 'Nenhuma conta carregada.';
+
+    final emailLimpo = email.trim().toLowerCase();
+    if (emailLimpo.isEmpty || !emailLimpo.contains('@')) {
+      return 'Informe um e-mail válido.';
+    }
+    if (conta.emails.contains(emailLimpo)) {
+      return 'Este e-mail já está nesta conta.';
+    }
+
+    final donoAtual = await ContasNousService.buscarCpfDoEmail(emailLimpo);
+    if (donoAtual != null && donoAtual != conta.cpf) {
+      return 'Este e-mail já está associado a outro CPF.';
+    }
+
+    final atualizado = conta.copyWith(emails: [...conta.emails, emailLimpo]);
+    await ContasNousService.salvar(atualizado);
+    _contaAtual = atualizado;
+    notifyListeners();
+    return null;
+  }
+
+  void sair() {
+    _cpf = '';
+    _errorMessage = null;
+    _contaAtual = null;
     notifyListeners();
   }
 }
