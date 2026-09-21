@@ -9,6 +9,7 @@ class PedidoLoja {
   final double valor;
   final bool temMensagem;
   final StatusPedido status;
+  final String comanda;
 
   const PedidoLoja({
     required this.id,
@@ -19,11 +20,13 @@ class PedidoLoja {
     required this.valor,
     this.temMensagem = false,
     this.status = StatusPedido.novo,
+    this.comanda = '',
   });
 
   PedidoLoja copyWith({
     bool? temMensagem,
     StatusPedido? status,
+    String? comanda,
   }) {
     return PedidoLoja(
       id: id,
@@ -34,6 +37,7 @@ class PedidoLoja {
       valor: valor,
       temMensagem: temMensagem ?? this.temMensagem,
       status: status ?? this.status,
+      comanda: comanda ?? this.comanda,
     );
   }
 }

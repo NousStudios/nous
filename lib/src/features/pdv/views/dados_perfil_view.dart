@@ -19,6 +19,7 @@ import 'package:nous/src/features/pdv/views/widgets/gestao_loja_container.dart';
 import 'package:nous/src/features/pdv/views/widgets/grupo_componentes_loja_container.dart';
 import 'package:nous/src/features/pdv/views/widgets/item_loja_card.dart';
 import 'package:nous/src/features/pdv/views/widgets/nova_categoria_dialog.dart';
+import 'package:nous/src/features/pdv/views/widgets/nova_venda_dialog.dart';
 import 'package:nous/src/features/pdv/views/widgets/novo_grupo_componentes_dialog.dart';
 import 'package:nous/src/features/pdv/views/widgets/novo_item_dialog.dart';
 import 'package:nous/src/features/pdv/views/widgets/usuarios_participantes_container.dart';
@@ -153,6 +154,30 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
 
   void _recusarPedido(String id) {
     setState(() => _pedidos.removeWhere((p) => p.id == id));
+  }
+
+  void _abrirPopupNovaVenda() {
+    final loja = context.read<PdvProvider>().buscarPorId(widget.lojaId);
+    final proximoNumero = _pedidos.fold<int>(
+          0,
+          (maior, pedido) => pedido.numero > maior ? pedido.numero : maior,
+        ) +
+        1;
+
+    NovaVendaDialog.mostrar(
+      context,
+      theme: ThemeController.currentTheme.value,
+      itensDisponiveis: _itens,
+      nomeVendedor: loja?.nome ?? '',
+      cnpjVendedor: loja?.cnpj ?? '',
+      proximoNumero: proximoNumero,
+      onConcluir: (pedido) {
+        setState(() {
+          _pedidos.add(pedido);
+          _abaPedidos = AbaPedidos.aceitos;
+        });
+      },
+    );
   }
 
   void _abrirPopupNovoGrupoComponentes() {
@@ -775,6 +800,7 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
           aoAceitar: (id) => _alterarStatusPedido(id, StatusPedido.aceito),
           aoRecusar: _recusarPedido,
           aoConcluir: (id) => _alterarStatusPedido(id, StatusPedido.concluido),
+          aoNovaVenda: _abrirPopupNovaVenda,
         );
 
       case AbaLoja.interface:

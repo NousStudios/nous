@@ -28,6 +28,7 @@ class GestaoLojaContainer extends StatelessWidget {
   final ValueChanged<String> aoAceitar;
   final ValueChanged<String> aoRecusar;
   final ValueChanged<String> aoConcluir;
+  final VoidCallback aoNovaVenda;
 
   const GestaoLojaContainer({
     super.key,
@@ -40,6 +41,7 @@ class GestaoLojaContainer extends StatelessWidget {
     required this.aoAceitar,
     required this.aoRecusar,
     required this.aoConcluir,
+    required this.aoNovaVenda,
   });
 
   BoxDecoration get _decoracaoDoBloco => BoxDecoration(
@@ -54,7 +56,11 @@ class GestaoLojaContainer extends StatelessWidget {
     );
   }
 
-  Widget _botaoDeGestao(BuildContext context, String rotulo) {
+  Widget _botaoDeGestao(
+    BuildContext context,
+    String rotulo, {
+    VoidCallback? aoPressionar,
+  }) {
     return Expanded(
       child: SizedBox(
         height: 56,
@@ -67,7 +73,7 @@ class GestaoLojaContainer extends StatelessWidget {
               borderRadius: BorderRadius.circular(10),
             ),
           ),
-          onPressed: () => _emConstrucao(context, rotulo),
+          onPressed: aoPressionar ?? () => _emConstrucao(context, rotulo),
           child: FittedBox(
             fit: BoxFit.scaleDown,
             child: Text(rotulo, style: theme.getTextStyle(fontSize: 12)),
@@ -143,7 +149,7 @@ class GestaoLojaContainer extends StatelessWidget {
         children: [
           Row(
             children: [
-              _botaoDeGestao(context, 'Nova Venda'),
+              _botaoDeGestao(context, 'Nova Venda', aoPressionar: aoNovaVenda),
               espaco,
               _botaoDeGestao(context, 'Clientes'),
               espaco,
