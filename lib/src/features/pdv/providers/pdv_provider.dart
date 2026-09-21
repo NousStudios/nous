@@ -2,15 +2,37 @@ import 'package:flutter/foundation.dart';
 import 'package:nous/src/features/pdv/models/cliente.dart';
 import 'package:nous/src/features/pdv/models/item_loja.dart';
 import 'package:nous/src/features/pdv/models/loja.dart';
+import 'package:nous/src/features/pdv/services/lojas_service.dart';
 
 class PdvProvider extends ChangeNotifier {
   final List<Loja> _lojas = [];
 
-  int _proximoId = 0;
+  String? _cpfAtual;
 
   List<Loja> get lojas => List.unmodifiable(_lojas);
 
   bool get temLojaSalva => _lojas.isNotEmpty;
+
+  Future<void> entrarComCpf(String cpf) async {
+    _cpfAtual = cpf;
+    final lojasSalvas = await LojasService.carregar(cpf);
+    _lojas
+      ..clear()
+      ..addAll(lojasSalvas);
+    notifyListeners();
+  }
+
+  void entrarComoVisitante() {
+    _cpfAtual = null;
+    _lojas.clear();
+    notifyListeners();
+  }
+
+  void _persistir() {
+    final cpf = _cpfAtual;
+    if (cpf == null) return;
+    LojasService.salvar(cpf, _lojas);
+  }
 
   void salvarLoja({
     required String nome,
@@ -23,7 +45,7 @@ class PdvProvider extends ChangeNotifier {
     required String tags,
   }) {
     final novaLoja = Loja(
-      id: 'loja_${_proximoId++}',
+      id: DateTime.now().millisecondsSinceEpoch.toString(),
       nome: nome,
       cnpj: cnpj,
       telefone: telefone,
@@ -36,6 +58,7 @@ class PdvProvider extends ChangeNotifier {
 
     _lojas.add(novaLoja);
     notifyListeners();
+    _persistir();
   }
 
   Loja? buscarPorId(String id) {
@@ -48,6 +71,7 @@ class PdvProvider extends ChangeNotifier {
   void excluirLoja(String id) {
     _lojas.removeWhere((loja) => loja.id == id);
     notifyListeners();
+    _persistir();
   }
 
   void atualizarListasLoja(
@@ -68,5 +92,6 @@ class PdvProvider extends ChangeNotifier {
     );
 
     notifyListeners();
+    _persistir();
   }
 }

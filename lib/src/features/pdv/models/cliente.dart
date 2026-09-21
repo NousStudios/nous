@@ -27,4 +27,24 @@ class Cliente {
       cnpj: cnpj ?? this.cnpj,
     );
   }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'nome': nome,
+      'endereco': endereco,
+      'telefone': telefone,
+      'cnpj': cnpj,
+    };
+  }
+
+  factory Cliente.fromJson(Map<String, dynamic> json) {
+    return Cliente(
+      id: json['id'] as String,
+      nome: json['nome'] as String,
+      endereco: json['endereco'] as String? ?? '',
+      telefone: json['telefone'] as String? ?? '',
+      cnpj: json['cnpj'] as String? ?? '',
+    );
+  }
 }

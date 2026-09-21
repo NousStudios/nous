@@ -64,4 +64,51 @@ class Loja {
       clientesLoja: clientesLoja ?? this.clientesLoja,
     );
   }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'nome': nome,
+      'cnpj': cnpj,
+      'telefone': telefone,
+      'endereco': endereco,
+      'numero': numero,
+      'email': email,
+      'categorias': categorias,
+      'tags': tags,
+      'categoriasLoja': categoriasLoja.map((c) => c.toJson()).toList(),
+      'itensLoja': itensLoja.map((i) => i.toJson()).toList(),
+      'gruposComponentesLoja':
+          gruposComponentesLoja.map((g) => g.toJson()).toList(),
+      'clientesLoja': clientesLoja.map((c) => c.toJson()).toList(),
+    };
+  }
+
+  factory Loja.fromJson(Map<String, dynamic> json) {
+    return Loja(
+      id: json['id'] as String,
+      nome: json['nome'] as String,
+      cnpj: json['cnpj'] as String,
+      telefone: json['telefone'] as String,
+      endereco: json['endereco'] as String,
+      numero: json['numero'] as String,
+      email: json['email'] as String,
+      categorias: json['categorias'] as String,
+      tags: json['tags'] as String,
+      categoriasLoja: (json['categoriasLoja'] as List<dynamic>? ?? const [])
+          .map((item) => CategoriaLoja.fromJson(item as Map<String, dynamic>))
+          .toList(),
+      itensLoja: (json['itensLoja'] as List<dynamic>? ?? const [])
+          .map((item) => ItemLoja.fromJson(item as Map<String, dynamic>))
+          .toList(),
+      gruposComponentesLoja:
+          (json['gruposComponentesLoja'] as List<dynamic>? ?? const [])
+              .map((item) =>
+                  GrupoComponentesLoja.fromJson(item as Map<String, dynamic>))
+              .toList(),
+      clientesLoja: (json['clientesLoja'] as List<dynamic>? ?? const [])
+          .map((item) => Cliente.fromJson(item as Map<String, dynamic>))
+          .toList(),
+    );
+  }
 }

@@ -4,6 +4,7 @@ import 'package:nous/src/core/theme/theme_controller.dart';
 import 'package:nous/src/features/auth/providers/auth_provider.dart';
 import 'package:nous/src/features/auth/views/associar_cpf_view.dart';
 import 'package:nous/src/features/auth/views/contas_usuario_view.dart';
+import 'package:nous/src/features/pdv/providers/pdv_provider.dart';
 import 'package:nous/src/features/pdv/views/perfis_pdv_view.dart';
 
 class LoginButtonsWidget extends StatelessWidget {
@@ -27,6 +28,15 @@ class LoginButtonsWidget extends StatelessWidget {
         MaterialPageRoute(builder: (context) => const AssociarCpfView()),
       );
     }
+  }
+
+  void _entrarComoVisitante(BuildContext context) {
+    context.read<PdvProvider>().entrarComoVisitante();
+    Navigator.pushAndRemoveUntil(
+      context,
+      MaterialPageRoute(builder: (context) => const PerfisPdvView()),
+      (route) => false,
+    );
   }
 
   @override
@@ -91,15 +101,7 @@ class LoginButtonsWidget extends StatelessWidget {
                   borderRadius: BorderRadius.circular(30),
                 ),
               ),
-              onPressed: () {
-                Navigator.pushAndRemoveUntil(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => const PerfisPdvView(),
-                  ),
-                  (route) => false,
-                );
-              },
+              onPressed: () => _entrarComoVisitante(context),
               child: Text(
                 'Entrar como visitante',
                 style: theme.getTextStyle(

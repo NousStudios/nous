@@ -3,13 +3,18 @@ import 'package:provider/provider.dart';
 import 'package:nous/src/core/theme/theme_controller.dart';
 import 'package:nous/src/features/auth/providers/auth_provider.dart';
 import 'package:nous/src/features/auth/views/widgets/adicionar_email_dialog.dart';
+import 'package:nous/src/features/pdv/providers/pdv_provider.dart';
 import 'package:nous/src/features/pdv/views/perfis_pdv_view.dart';
 import 'package:nous/src/features/pdv/views/widgets/estado_vazio_container.dart';
 
 class ContasUsuarioView extends StatelessWidget {
   const ContasUsuarioView({super.key});
 
-  void _entrarComEmail(BuildContext context) {
+  Future<void> _entrarComEmail(BuildContext context) async {
+    final cpf = context.read<AuthProvider>().cpf;
+    await context.read<PdvProvider>().entrarComCpf(cpf);
+
+    if (!context.mounted) return;
     Navigator.pushAndRemoveUntil(
       context,
       MaterialPageRoute(builder: (context) => const PerfisPdvView()),
@@ -22,7 +27,7 @@ class ContasUsuarioView extends StatelessWidget {
       context,
       theme: ThemeController.currentTheme.value,
     );
-    if (sucesso == true && context.mounted) _entrarComEmail(context);
+    if (sucesso == true && context.mounted) await _entrarComEmail(context);
   }
 
   @override
