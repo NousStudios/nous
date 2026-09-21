@@ -129,15 +129,18 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
     _persistirListasLoja();
   }
 
-  void _quitarCliente(String clienteId) {
+  void _pagarCliente(String clienteId, double valor) {
+    final atualizados = aplicarPagamentoAPrazo(_pedidos, clienteId, valor);
     setState(() {
-      for (var i = 0; i < _pedidos.length; i++) {
-        final pedido = _pedidos[i];
-        if (pedido.clienteId == clienteId && pedido.aPrazoEmAberto) {
-          _pedidos[i] = pedido.copyWith(quitado: true);
-        }
-      }
+      _pedidos
+        ..clear()
+        ..addAll(atualizados);
     });
+  }
+
+  void _excluirCliente(String clienteId) {
+    setState(() => _clientes.removeWhere((c) => c.id == clienteId));
+    _persistirListasLoja();
   }
 
   Future<void> _abrirPopupClientes() {
@@ -147,7 +150,8 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
       clientes: _clientes,
       pedidos: _pedidos,
       onSalvar: _salvarCliente,
-      onQuitar: _quitarCliente,
+      onPagar: _pagarCliente,
+      onExcluir: _excluirCliente,
     );
   }
 

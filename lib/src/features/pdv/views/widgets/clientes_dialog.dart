@@ -23,7 +23,8 @@ class ClientesDialog {
     required List<Cliente> clientes,
     required List<PedidoLoja> pedidos,
     required ValueChanged<Cliente> onSalvar,
-    required ValueChanged<String> onQuitar,
+    required void Function(String clienteId, double valor) onPagar,
+    required ValueChanged<String> onExcluir,
   }) {
     return showDialog<void>(
       context: context,
@@ -42,7 +43,8 @@ class ClientesDialog {
               clientes: clientes,
               pedidos: pedidos,
               onSalvar: onSalvar,
-              onQuitar: onQuitar,
+              onPagar: onPagar,
+              onExcluir: onExcluir,
             ),
           ),
         );
@@ -56,14 +58,16 @@ class _ClientesConteudo extends StatefulWidget {
   final List<Cliente> clientes;
   final List<PedidoLoja> pedidos;
   final ValueChanged<Cliente> onSalvar;
-  final ValueChanged<String> onQuitar;
+  final void Function(String clienteId, double valor) onPagar;
+  final ValueChanged<String> onExcluir;
 
   const _ClientesConteudo({
     required this.theme,
     required this.clientes,
     required this.pedidos,
     required this.onSalvar,
-    required this.onQuitar,
+    required this.onPagar,
+    required this.onExcluir,
   });
 
   @override
@@ -75,11 +79,13 @@ class _ClientesConteudoState extends State<_ClientesConteudo> {
   final _enderecoController = TextEditingController();
   final _telefoneController = TextEditingController();
   final _cnpjController = TextEditingController();
+  final _pagamentoController = TextEditingController();
 
   late List<Cliente> _clientes;
   late List<PedidoLoja> _pedidos;
   Cliente? _editando;
   String? _aviso;
+  String? _avisoPagamento;
 
   AppTheme get theme => widget.theme;
 
@@ -96,6 +102,7 @@ class _ClientesConteudoState extends State<_ClientesConteudo> {
     _enderecoController.dispose();
     _telefoneController.dispose();
     _cnpjController.dispose();
+    _pagamentoController.dispose();
     super.dispose();
   }
 
@@ -104,12 +111,16 @@ class _ClientesConteudoState extends State<_ClientesConteudo> {
     _enderecoController.clear();
     _telefoneController.clear();
     _cnpjController.clear();
+    _pagamentoController.clear();
+    _avisoPagamento = null;
   }
 
   void _abrirEdicao(Cliente cliente) {
     setState(() {
       _editando = cliente;
       _aviso = null;
+      _avisoPagamento = null;
+      _pagamentoController.clear();
       _nomeController.text = cliente.nome;
       _enderecoController.text = cliente.endereco;
       _telefoneController.text = cliente.telefone;
@@ -155,24 +166,117 @@ class _ClientesConteudoState extends State<_ClientesConteudo> {
     });
   }
 
-  void _quitar() {
+  void _aplicarPagamento(String clienteId, double valor) {
+    widget.onPagar(clienteId, valor);
+    setState(() {
+      _pedidos = aplicarPagamentoAPrazo(_pedidos, clienteId, valor);
+      _pagamentoController.clear();
+      _avisoPagamento = null;
+    });
+  }
+
+  void _quitarTudo() {
     final id = _editando?.id;
     if (id == null) return;
-    widget.onQuitar(id);
+    final devido = _devido(id);
+    if (devido <= 0) return;
+    _aplicarPagamento(id, devido);
+  }
+
+  void _quitarValor() {
+    final id = _editando?.id;
+    if (id == null) return;
+
+    final texto = _pagamentoController.text.trim().replaceAll(',', '.');
+    final valor = double.tryParse(texto);
+    if (valor == null || valor <= 0) {
+      setState(() => _avisoPagamento = 'Informe um valor válido.');
+      return;
+    }
+
+    final devido = _devido(id);
+    if (valor > devido + 0.005) {
+      setState(() => _avisoPagamento = 'Valor maior que o devido.');
+      return;
+    }
+
+    _aplicarPagamento(id, valor);
+  }
+
+  Future<void> _confirmarExclusao(Cliente cliente) async {
+    final devido = _devido(cliente.id);
+    final aviso = devido > 0
+        ? 'Este cliente tem ${_valor(devido)} em aberto. '
+            'Deseja excluir mesmo assim? Essa ação não pode ser desfeita.'
+        : 'Tem certeza que deseja excluir este cliente? Essa ação não '
+            'pode ser desfeita.';
+
+    final confirmou = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          backgroundColor: theme.cardBackgroundColor,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+            side: BorderSide(color: theme.borderColor),
+          ),
+          title: Text(
+            'Excluir Cliente',
+            textAlign: TextAlign.center,
+            style: theme.getTextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+              color: theme.textColor,
+            ),
+          ),
+          content: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 500),
+            child: Text(
+              aviso,
+              textAlign: TextAlign.center,
+              style: theme.getTextStyle(fontSize: 14),
+            ),
+          ),
+          actionsAlignment: MainAxisAlignment.center,
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: Text(
+                'Cancelar',
+                style: theme.getTextStyle(color: theme.secondaryTextColor),
+              ),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(true),
+              child: Text(
+                'Excluir',
+                style: theme.getTextStyle(color: Colors.redAccent),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirmou != true) return;
+
+    widget.onExcluir(cliente.id);
+
+    if (!mounted) return;
     setState(() {
-      _pedidos = _pedidos
-          .map((p) =>
-              p.clienteId == id && p.aPrazoEmAberto
-                  ? p.copyWith(quitado: true)
-                  : p)
-          .toList();
+      _clientes.removeWhere((c) => c.id == cliente.id);
+      _editando = null;
+      _aviso = null;
+      _limparCampos();
     });
   }
 
   double _devido(String clienteId) {
     var soma = 0.0;
     for (final p in _pedidos) {
-      if (p.clienteId == clienteId && p.aPrazoEmAberto) soma += p.valor;
+      if (p.clienteId == clienteId && p.aPrazoEmAberto) {
+        soma += p.valorRestante;
+      }
     }
     return soma;
   }
@@ -261,14 +365,14 @@ class _ClientesConteudoState extends State<_ClientesConteudo> {
   }
 
   Widget _blocoFormulario() {
-    final editando = _editando != null;
+    final editando = _editando;
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(12),
       decoration: _decoracaoDoBloco,
       child: Column(
         children: [
-          _tituloDoBloco(editando ? 'Editar Cliente' : 'Novo Cliente'),
+          _tituloDoBloco(editando != null ? 'Editar Cliente' : 'Novo Cliente'),
           _campo(_nomeController, 'Nome'),
           _campo(_enderecoController, 'Endereço (Rua, número e cidade)'),
           _campo(
@@ -290,16 +394,79 @@ class _ClientesConteudoState extends State<_ClientesConteudo> {
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              if (editando) ...[
+              if (editando != null) ...[
                 _botao('Cancelar', _cancelarEdicao),
                 const SizedBox(width: 8),
               ],
-              _botao(editando ? 'Salvar' : 'Cadastrar', _salvar,
+              _botao(editando != null ? 'Salvar' : 'Cadastrar', _salvar,
                   destaque: true),
             ],
           ),
+          if (editando != null) ...[
+            const SizedBox(height: 8),
+            TextButton(
+              onPressed: () => _confirmarExclusao(editando),
+              child: Text(
+                'Excluir Cliente',
+                style: theme.getTextStyle(
+                  fontSize: 12,
+                  color: Colors.redAccent,
+                ),
+              ),
+            ),
+          ],
         ],
       ),
+    );
+  }
+
+  Widget _painelPagamento() {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        TextField(
+          controller: _pagamentoController,
+          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+          inputFormatters: [
+            FilteringTextInputFormatter.allow(RegExp(r'[0-9,]')),
+          ],
+          cursorColor: theme.textColor,
+          style: theme.getTextStyle(fontSize: 12),
+          decoration: _decoracaoCampo('Valor (R\$)'),
+        ),
+        if (_avisoPagamento != null)
+          Padding(
+            padding: const EdgeInsets.only(top: 6),
+            child: Text(
+              _avisoPagamento!,
+              textAlign: TextAlign.center,
+              style: theme.getTextStyle(fontSize: 10),
+            ),
+          ),
+        const SizedBox(height: 8),
+        _botao('Quitar valor', _quitarValor),
+        const SizedBox(height: 6),
+        _botao('Quitar tudo', _quitarTudo, destaque: true),
+      ],
+    );
+  }
+
+  Widget _informacaoDivida(double devido) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text('Valor em aberto', style: theme.getTextStyle(fontSize: 11)),
+        const SizedBox(height: 4),
+        Text(
+          _valor(devido),
+          style: theme.getTextStyle(
+            fontSize: 20,
+            fontWeight: FontWeight.bold,
+            color: theme.textColor,
+          ),
+        ),
+      ],
     );
   }
 
@@ -312,20 +479,37 @@ class _ClientesConteudoState extends State<_ClientesConteudo> {
       child: Column(
         children: [
           _tituloDoBloco('A Prazo'),
-          Text('Valor em aberto', style: theme.getTextStyle(fontSize: 11)),
-          const SizedBox(height: 4),
-          Text(
-            _valor(devido),
-            style: theme.getTextStyle(
-              fontSize: 20,
-              fontWeight: FontWeight.bold,
-              color: theme.textColor,
-            ),
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final largo = constraints.maxWidth >= 400;
+              if (!largo) {
+                return Column(
+                  children: [
+                    _informacaoDivida(devido),
+                    if (devido > 0) ...[
+                      const SizedBox(height: 12),
+                      SizedBox(width: 160, child: _painelPagamento()),
+                    ],
+                  ],
+                );
+              }
+              return Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  Expanded(
+                    child: Align(
+                      alignment: Alignment.centerLeft,
+                      child: devido > 0
+                          ? SizedBox(width: 140, child: _painelPagamento())
+                          : const SizedBox.shrink(),
+                    ),
+                  ),
+                  _informacaoDivida(devido),
+                  const Expanded(child: SizedBox.shrink()),
+                ],
+              );
+            },
           ),
-          if (devido > 0) ...[
-            const SizedBox(height: 10),
-            _botao('Quitar', _quitar),
-          ],
         ],
       ),
     );
@@ -337,6 +521,8 @@ class _ClientesConteudoState extends State<_ClientesConteudo> {
       _dataHora(pedido.dataHora),
       if (pedido.formaPagamento.isNotEmpty) pedido.formaPagamento,
       if (pedido.aPrazoEmAberto) 'em aberto',
+      if (pedido.aPrazoEmAberto && pedido.valorPago > 0)
+        'pago ${_valor(pedido.valorPago)}',
       if (pedido.formaPagamento == 'À Prazo' && pedido.quitado) 'quitado',
     ].join(' • ');
 

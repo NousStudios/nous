@@ -13,6 +13,7 @@ class PedidoLoja {
   final String comanda;
   final String formaPagamento;
   final bool quitado;
+  final double valorPago;
 
   const PedidoLoja({
     required this.id,
@@ -27,15 +28,22 @@ class PedidoLoja {
     this.comanda = '',
     this.formaPagamento = '',
     this.quitado = false,
+    this.valorPago = 0,
   });
 
   bool get aPrazoEmAberto => formaPagamento == 'À Prazo' && !quitado;
+
+  double get valorRestante {
+    final restante = valor - valorPago;
+    return restante < 0 ? 0 : restante;
+  }
 
   PedidoLoja copyWith({
     bool? temMensagem,
     StatusPedido? status,
     String? comanda,
     bool? quitado,
+    double? valorPago,
   }) {
     return PedidoLoja(
       id: id,
@@ -50,6 +58,37 @@ class PedidoLoja {
       comanda: comanda ?? this.comanda,
       formaPagamento: formaPagamento,
       quitado: quitado ?? this.quitado,
+      valorPago: valorPago ?? this.valorPago,
     );
   }
+}
+
+List<PedidoLoja> aplicarPagamentoAPrazo(
+  List<PedidoLoja> pedidos,
+  String clienteId,
+  double valor,
+) {
+  final abertos = pedidos
+      .where((p) => p.clienteId == clienteId && p.aPrazoEmAberto)
+      .toList();
+  abertos.sort((a, b) => a.dataHora.compareTo(b.dataHora));
+
+  var restante = valor;
+  final atualizados = <String, PedidoLoja>{};
+
+  for (final pedido in abertos) {
+    if (restante <= 0.0001) break;
+    final falta = pedido.valorRestante;
+    if (restante >= falta - 0.005) {
+      atualizados[pedido.id] =
+          pedido.copyWith(quitado: true, valorPago: pedido.valor);
+      restante -= falta;
+    } else {
+      atualizados[pedido.id] =
+          pedido.copyWith(valorPago: pedido.valorPago + restante);
+      restante = 0;
+    }
+  }
+
+  return pedidos.map((p) => atualizados[p.id] ?? p).toList();
 }
