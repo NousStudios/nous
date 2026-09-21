@@ -1,9 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:nous/src/core/theme/theme_controller.dart';
+import 'package:nous/src/features/pdv/models/cliente.dart';
 import 'package:nous/src/features/pdv/models/item_loja.dart';
 import 'package:nous/src/features/pdv/models/pedido_loja.dart';
 
-const List<String> _formasDePagamento = ['Pix', 'Dinheiro', 'Débito', 'Crédito'];
+const List<String> _formasDePagamento = [
+  'Pix',
+  'Dinheiro',
+  'Débito',
+  'Crédito',
+  'À Prazo',
+];
+
+const String _formaAPrazo = 'À Prazo';
 
 const int _colunasComanda = 32;
 
@@ -29,6 +38,8 @@ class NovaVendaDialog {
     BuildContext context, {
     required AppTheme theme,
     required List<ItemLoja> itensDisponiveis,
+    required List<Cliente> Function() obterClientes,
+    required Future<void> Function() aoAbrirClientes,
     required String nomeVendedor,
     required String cnpjVendedor,
     required int proximoNumero,
@@ -49,6 +60,8 @@ class NovaVendaDialog {
             child: _NovaVendaConteudo(
               theme: theme,
               itensDisponiveis: itensDisponiveis,
+              obterClientes: obterClientes,
+              aoAbrirClientes: aoAbrirClientes,
               nomeVendedor: nomeVendedor,
               cnpjVendedor: cnpjVendedor,
               proximoNumero: proximoNumero,
@@ -64,6 +77,8 @@ class NovaVendaDialog {
 class _NovaVendaConteudo extends StatefulWidget {
   final AppTheme theme;
   final List<ItemLoja> itensDisponiveis;
+  final List<Cliente> Function() obterClientes;
+  final Future<void> Function() aoAbrirClientes;
   final String nomeVendedor;
   final String cnpjVendedor;
   final int proximoNumero;
@@ -72,6 +87,8 @@ class _NovaVendaConteudo extends StatefulWidget {
   const _NovaVendaConteudo({
     required this.theme,
     required this.itensDisponiveis,
+    required this.obterClientes,
+    required this.aoAbrirClientes,
     required this.nomeVendedor,
     required this.cnpjVendedor,
     required this.proximoNumero,
@@ -87,8 +104,10 @@ class _NovaVendaConteudoState extends State<_NovaVendaConteudo> {
   final _buscaController = TextEditingController();
   final _comandaController = TextEditingController();
   final _comandaScrollController = ScrollController();
+  final _pagamentoScrollController = ScrollController();
 
   final Map<String, int> _quantidades = {};
+  Cliente? _clienteSelecionado;
   String? _formaPagamento;
   String? _aviso;
   late final DateTime _dataHora;
@@ -108,12 +127,20 @@ class _NovaVendaConteudoState extends State<_NovaVendaConteudo> {
     _buscaController.dispose();
     _comandaController.dispose();
     _comandaScrollController.dispose();
+    _pagamentoScrollController.dispose();
     super.dispose();
   }
 
   ItemLoja? _buscarItem(String id) {
     for (final item in widget.itensDisponiveis) {
       if (item.id == id) return item;
+    }
+    return null;
+  }
+
+  Cliente? _buscarCliente(String id) {
+    for (final cliente in widget.obterClientes()) {
+      if (cliente.id == id) return cliente;
     }
     return null;
   }
@@ -133,6 +160,17 @@ class _NovaVendaConteudoState extends State<_NovaVendaConteudo> {
     return widget.itensDisponiveis
         .where((item) => item.nome.toLowerCase().contains(termo))
         .take(4)
+        .toList();
+  }
+
+  List<Cliente> get _sugestoesDeCliente {
+    if (_clienteSelecionado != null) return [];
+    final termo = _clienteController.text.trim().toLowerCase();
+    if (termo.isEmpty) return [];
+    return widget
+        .obterClientes()
+        .where((cliente) => cliente.nome.toLowerCase().contains(termo))
+        .take(3)
         .toList();
   }
 
@@ -158,7 +196,7 @@ class _NovaVendaConteudoState extends State<_NovaVendaConteudo> {
     buffer.writeln('Data: ${_dataHoraCompleta(_dataHora)}');
     buffer.writeln(simples);
     buffer.writeln('Cliente: ${_clienteController.text.trim()}');
-    buffer.writeln('Endereço: ');
+    buffer.writeln('Endereço: ${_clienteSelecionado?.endereco ?? ''}');
     buffer.writeln(simples);
     buffer.writeln('ITENS');
 
@@ -198,9 +236,52 @@ class _NovaVendaConteudoState extends State<_NovaVendaConteudo> {
     });
   }
 
+  void _aoDigitarCliente(String texto) {
+    setState(() {
+      final selecionado = _clienteSelecionado;
+      if (selecionado != null && selecionado.nome != texto) {
+        _clienteSelecionado = null;
+        if (_formaPagamento == _formaAPrazo) _formaPagamento = null;
+      }
+      _atualizarComanda();
+    });
+  }
+
+  void _selecionarCliente(Cliente cliente) {
+    setState(() {
+      _clienteSelecionado = cliente;
+      _clienteController.text = cliente.nome;
+      _aviso = null;
+      _atualizarComanda();
+    });
+  }
+
+  Future<void> _abrirClientes() async {
+    await widget.aoAbrirClientes();
+    if (!mounted) return;
+    setState(() {
+      final id = _clienteSelecionado?.id;
+      if (id != null) {
+        final atualizado = _buscarCliente(id);
+        _clienteSelecionado = atualizado;
+        if (atualizado != null) {
+          _clienteController.text = atualizado.nome;
+        } else if (_formaPagamento == _formaAPrazo) {
+          _formaPagamento = null;
+        }
+      }
+      _atualizarComanda();
+    });
+  }
+
   void _escolherPagamento(String forma) {
+    if (forma == _formaAPrazo && _clienteSelecionado == null) {
+      _mostrarAviso('Selecione um cliente cadastrado para vender a prazo.');
+      return;
+    }
     setState(() {
       _formaPagamento = _formaPagamento == forma ? null : forma;
+      _aviso = null;
       _atualizarComanda();
     });
   }
@@ -212,6 +293,11 @@ class _NovaVendaConteudoState extends State<_NovaVendaConteudo> {
   void _concluir() {
     if (_quantidades.isEmpty) {
       _mostrarAviso('Adicione ao menos um produto.');
+      return;
+    }
+
+    if (_formaPagamento == _formaAPrazo && _clienteSelecionado == null) {
+      _mostrarAviso('Selecione um cliente cadastrado para vender a prazo.');
       return;
     }
 
@@ -227,12 +313,14 @@ class _NovaVendaConteudoState extends State<_NovaVendaConteudo> {
     final pedido = PedidoLoja(
       id: DateTime.now().millisecondsSinceEpoch.toString(),
       numero: widget.proximoNumero,
+      clienteId: _clienteSelecionado?.id,
       clienteNome: cliente.isEmpty ? 'Cliente' : cliente,
       produtoNome: resumo,
       dataHora: _dataHora,
       valor: _total,
       status: StatusPedido.aceito,
       comanda: _comandaController.text,
+      formaPagamento: _formaPagamento ?? '',
     );
 
     Navigator.of(context).pop();
@@ -289,7 +377,31 @@ class _NovaVendaConteudoState extends State<_NovaVendaConteudo> {
     );
   }
 
+  Widget _linhaDeCliente(Cliente cliente) {
+    return InkWell(
+      onTap: () => _selecionarCliente(cliente),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+        child: Row(
+          children: [
+            Expanded(
+              child: Text(
+                cliente.nome,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: theme.getTextStyle(fontSize: 12, color: theme.textColor),
+              ),
+            ),
+            if (cliente.telefone.isNotEmpty)
+              Text(cliente.telefone, style: theme.getTextStyle(fontSize: 11)),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _blocoCliente() {
+    final sugestoes = _sugestoesDeCliente;
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(12),
@@ -305,16 +417,25 @@ class _NovaVendaConteudoState extends State<_NovaVendaConteudo> {
                   cursorColor: theme.textColor,
                   style: theme.getTextStyle(fontSize: 12),
                   decoration: _decoracaoCampo('Nome do cliente'),
-                  onChanged: (_) => setState(_atualizarComanda),
+                  onChanged: _aoDigitarCliente,
                 ),
               ),
               const SizedBox(width: 8),
-              _botaoPequeno(
-                'Novo Cliente',
-                () => _mostrarAviso('Cadastro de clientes: em construção.'),
-              ),
+              _botaoPequeno('Novo Cliente', _abrirClientes),
             ],
           ),
+          if (sugestoes.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            for (final cliente in sugestoes) _linhaDeCliente(cliente),
+          ],
+          if (_clienteSelecionado != null)
+            Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: Text(
+                'Cliente cadastrado selecionado.',
+                style: theme.getTextStyle(fontSize: 11),
+              ),
+            ),
         ],
       ),
     );
@@ -490,16 +611,26 @@ class _NovaVendaConteudoState extends State<_NovaVendaConteudo> {
       child: Column(
         children: [
           _tituloDoBloco('Forma de Pagamento'),
-          Row(
-            children: [
-              for (final forma in _formasDePagamento)
-                Expanded(
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 3),
-                    child: _botaoDePagamento(forma),
-                  ),
-                ),
-            ],
+          Scrollbar(
+            controller: _pagamentoScrollController,
+            thumbVisibility: true,
+            child: SingleChildScrollView(
+              controller: _pagamentoScrollController,
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.only(bottom: 12),
+              child: Row(
+                children: [
+                  for (final forma in _formasDePagamento)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 3),
+                      child: SizedBox(
+                        width: 84,
+                        child: _botaoDePagamento(forma),
+                      ),
+                    ),
+                ],
+              ),
+            ),
           ),
         ],
       ),

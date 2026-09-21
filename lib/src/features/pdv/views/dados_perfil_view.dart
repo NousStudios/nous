@@ -4,11 +4,13 @@ import 'package:nous/src/core/theme/theme_controller.dart';
 import 'package:nous/src/core/widgets/custom_app_bar.dart';
 import 'package:nous/src/core/widgets/floating_bottom_nav_bar.dart';
 import 'package:nous/src/features/auth/views/login_view.dart';
+import 'package:nous/src/features/pdv/models/cliente.dart';
 import 'package:nous/src/features/pdv/models/item_loja.dart';
 import 'package:nous/src/features/pdv/models/pedido_loja.dart';
 import 'package:nous/src/features/pdv/providers/pdv_provider.dart';
 import 'package:nous/src/features/pdv/views/perfis_pdv_view.dart';
 import 'package:nous/src/features/pdv/views/widgets/categoria_loja_container.dart';
+import 'package:nous/src/features/pdv/views/widgets/clientes_dialog.dart';
 import 'package:nous/src/features/pdv/views/widgets/container_simbolico.dart';
 import 'package:nous/src/features/pdv/views/widgets/dados_bancarios_container.dart';
 import 'package:nous/src/features/pdv/views/widgets/delivery_container.dart';
@@ -50,6 +52,7 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
   final List<CategoriaLoja> _categorias = [];
   final List<ItemLoja> _itens = [];
   final List<GrupoComponentesLoja> _gruposComponentes = [];
+  final List<Cliente> _clientes = [];
 
   final List<PedidoLoja> _pedidos = [];
   bool _lojaOnline = true;
@@ -98,6 +101,7 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
           categorias: _categorias,
           itens: _itens,
           gruposComponentes: _gruposComponentes,
+          clientes: _clientes,
         );
   }
 
@@ -113,6 +117,40 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
     setState(() => _pedidos.removeWhere((p) => p.id == id));
   }
 
+  void _salvarCliente(Cliente cliente) {
+    setState(() {
+      final indice = _clientes.indexWhere((c) => c.id == cliente.id);
+      if (indice == -1) {
+        _clientes.add(cliente);
+      } else {
+        _clientes[indice] = cliente;
+      }
+    });
+    _persistirListasLoja();
+  }
+
+  void _quitarCliente(String clienteId) {
+    setState(() {
+      for (var i = 0; i < _pedidos.length; i++) {
+        final pedido = _pedidos[i];
+        if (pedido.clienteId == clienteId && pedido.aPrazoEmAberto) {
+          _pedidos[i] = pedido.copyWith(quitado: true);
+        }
+      }
+    });
+  }
+
+  Future<void> _abrirPopupClientes() {
+    return ClientesDialog.mostrar(
+      context,
+      theme: ThemeController.currentTheme.value,
+      clientes: _clientes,
+      pedidos: _pedidos,
+      onSalvar: _salvarCliente,
+      onQuitar: _quitarCliente,
+    );
+  }
+
   void _abrirPopupNovaVenda() {
     final loja = context.read<PdvProvider>().buscarPorId(widget.lojaId);
     final proximoNumero = _pedidos.fold<int>(
@@ -125,6 +163,8 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
       context,
       theme: ThemeController.currentTheme.value,
       itensDisponiveis: _itens,
+      obterClientes: () => _clientes,
+      aoAbrirClientes: _abrirPopupClientes,
       nomeVendedor: loja?.nome ?? '',
       cnpjVendedor: loja?.cnpj ?? '',
       proximoNumero: proximoNumero,
@@ -344,7 +384,7 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
     _categorias.addAll(loja?.categoriasLoja ?? []);
     _itens.addAll(loja?.itensLoja ?? []);
     _gruposComponentes.addAll(loja?.gruposComponentesLoja ?? []);
-
+    _clientes.addAll(loja?.clientesLoja ?? []);
   }
 
   @override
@@ -757,6 +797,7 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
           aoRecusar: _recusarPedido,
           aoConcluir: (id) => _alterarStatusPedido(id, StatusPedido.concluido),
           aoNovaVenda: _abrirPopupNovaVenda,
+          aoClientes: _abrirPopupClientes,
         );
 
       case AbaLoja.interface:

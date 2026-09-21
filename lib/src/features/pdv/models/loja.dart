@@ -1,3 +1,4 @@
+import 'package:nous/src/features/pdv/models/cliente.dart';
 import 'package:nous/src/features/pdv/models/item_loja.dart';
 
 class Loja {
@@ -15,6 +16,7 @@ class Loja {
   final List<CategoriaLoja> categoriasLoja;
   final List<ItemLoja> itensLoja;
   final List<GrupoComponentesLoja> gruposComponentesLoja;
+  final List<Cliente> clientesLoja;
 
   const Loja({
     required this.id,
@@ -29,6 +31,7 @@ class Loja {
     this.categoriasLoja = const [],
     this.itensLoja = const [],
     this.gruposComponentesLoja = const [],
+    this.clientesLoja = const [],
   });
 
   Loja copyWith({
@@ -43,6 +46,7 @@ class Loja {
     List<CategoriaLoja>? categoriasLoja,
     List<ItemLoja>? itensLoja,
     List<GrupoComponentesLoja>? gruposComponentesLoja,
+    List<Cliente>? clientesLoja,
   }) {
     return Loja(
       id: id,
@@ -57,6 +61,7 @@ class Loja {
       categoriasLoja: categoriasLoja ?? this.categoriasLoja,
       itensLoja: itensLoja ?? this.itensLoja,
       gruposComponentesLoja: gruposComponentesLoja ?? this.gruposComponentesLoja,
+      clientesLoja: clientesLoja ?? this.clientesLoja,
     );
   }
 }

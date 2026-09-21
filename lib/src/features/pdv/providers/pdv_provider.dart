@@ -1,11 +1,8 @@
 import 'package:flutter/foundation.dart';
+import 'package:nous/src/features/pdv/models/cliente.dart';
 import 'package:nous/src/features/pdv/models/item_loja.dart';
 import 'package:nous/src/features/pdv/models/loja.dart';
 
-// ChangeNotifier é a classe base do Flutter para "algo que guarda estado e
-// avisa quem está ouvindo quando esse estado muda" — o mesmo padrão já
-// usado no AuthProvider. Aqui guardamos TODAS as lojas (ou outras funções,
-// no futuro) que o usuário cadastrou no fluxo do PDV.
 class PdvProvider extends ChangeNotifier {
   final List<Loja> _lojas = [];
 
@@ -53,15 +50,12 @@ class PdvProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Guarda as listas de Categorias/Itens/Grupos de Componentes da aba
-  /// "Loja" dentro da loja correspondente. É assim que esses dados
-  /// deixam de morar só na memória da tela DadosPerfilView e passam a
-  /// sobreviver quando o usuário sai e volta pra tela.
   void atualizarListasLoja(
     String id, {
     List<CategoriaLoja>? categorias,
     List<ItemLoja>? itens,
     List<GrupoComponentesLoja>? gruposComponentes,
+    List<Cliente>? clientes,
   }) {
     final indice = _lojas.indexWhere((loja) => loja.id == id);
     if (indice == -1) return;
@@ -70,6 +64,7 @@ class PdvProvider extends ChangeNotifier {
       categoriasLoja: categorias,
       itensLoja: itens,
       gruposComponentesLoja: gruposComponentes,
+      clientesLoja: clientes,
     );
 
     notifyListeners();
