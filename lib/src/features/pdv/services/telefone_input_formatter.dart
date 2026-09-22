@@ -1,6 +1,6 @@
 import 'package:flutter/services.dart';
 
-class CnpjInputFormatter extends TextInputFormatter {
+class TelefoneInputFormatter extends TextInputFormatter {
   @override
   TextEditingValue formatEditUpdate(
     TextEditingValue oldValue,
@@ -16,17 +16,21 @@ class CnpjInputFormatter extends TextInputFormatter {
       digitos = digitos.substring(0, digitos.length - 1);
     }
 
-    if (digitos.length > 14) {
-      digitos = digitos.substring(0, 14);
+    if (digitos.length > 11) {
+      digitos = digitos.substring(0, 11);
     }
 
     final textoFormatado = StringBuffer();
     for (var i = 0; i < digitos.length; i++) {
+      if (i == 0) textoFormatado.write('(');
       textoFormatado.write(digitos[i]);
-      final posicao = i + 1;
-      if (posicao == 2 || posicao == 5) textoFormatado.write('.');
-      if (posicao == 8) textoFormatado.write('/');
-      if (posicao == 12) textoFormatado.write('-');
+      if (i == 1) textoFormatado.write(') ');
+
+      final restantes = digitos.length - (i + 1);
+      final metade = digitos.length == 11 ? 7 : 6;
+      if (i + 1 == metade && restantes > 0) {
+        textoFormatado.write('-');
+      }
     }
 
     final resultado = textoFormatado.toString();
