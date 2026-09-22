@@ -85,6 +85,24 @@ class AuthProvider extends ChangeNotifier {
     return null;
   }
 
+  Future<void> removerEmail(String email) async {
+    final conta = _contaAtual;
+    if (conta == null) return;
+
+    final novosEmails = conta.emails.where((e) => e != email).toList();
+    final atualizado = conta.copyWith(emails: novosEmails);
+    await ContasNousService.salvar(atualizado);
+    _contaAtual = atualizado;
+    notifyListeners();
+  }
+
+  Future<void> excluirConta() async {
+    final conta = _contaAtual;
+    if (conta == null) return;
+    await ContasNousService.excluir(conta.cpf);
+    sair();
+  }
+
   void sair() {
     _cpf = '';
     _errorMessage = null;

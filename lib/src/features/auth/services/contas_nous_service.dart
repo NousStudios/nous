@@ -50,4 +50,10 @@ class ContasNousService {
     }
     await _salvarTodas(contas);
   }
+
+  static Future<void> excluir(String cpf) async {
+    final contas = await _carregarTodas();
+    contas.removeWhere((c) => c.cpf == cpf);
+    await _salvarTodas(contas);
+  }
 }

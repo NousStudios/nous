@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:nous/src/core/theme/theme_controller.dart';
 import 'package:nous/src/features/auth/providers/auth_provider.dart';
+import 'package:nous/src/features/auth/views/login_view.dart';
 import 'package:nous/src/features/auth/views/widgets/adicionar_email_dialog.dart';
 import 'package:nous/src/features/pdv/providers/pdv_provider.dart';
 import 'package:nous/src/features/pdv/views/perfis_pdv_view.dart';
@@ -30,6 +31,127 @@ class ContasUsuarioView extends StatelessWidget {
     if (sucesso == true && context.mounted) await _entrarComEmail(context);
   }
 
+  void _voltar(BuildContext context) {
+    context.read<AuthProvider>().sair();
+    Navigator.pushAndRemoveUntil(
+      context,
+      MaterialPageRoute(builder: (context) => const LoginView()),
+      (route) => false,
+    );
+  }
+
+  Future<void> _removerEmail(BuildContext context, String email) async {
+    final theme = ThemeController.currentTheme.value;
+
+    final confirmar = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          backgroundColor: theme.cardBackgroundColor,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16.0),
+            side: BorderSide(color: theme.borderColor),
+          ),
+          title: Text(
+            'Excluir E-mail',
+            textAlign: TextAlign.center,
+            style: theme.getTextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+              color: theme.textColor,
+            ),
+          ),
+          content: Text(
+            'Tem certeza que deseja remover o e-mail "$email" desta '
+            'conta?',
+            textAlign: TextAlign.center,
+            style: theme.getTextStyle(fontSize: 14),
+          ),
+          actionsAlignment: MainAxisAlignment.center,
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: Text(
+                'Cancelar',
+                style: theme.getTextStyle(color: theme.secondaryTextColor),
+              ),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(true),
+              child: Text(
+                'Excluir',
+                style: theme.getTextStyle(color: Colors.redAccent),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirmar == true && context.mounted) {
+      await context.read<AuthProvider>().removerEmail(email);
+    }
+  }
+
+  Future<void> _excluirConta(BuildContext context) async {
+    final theme = ThemeController.currentTheme.value;
+
+    final confirmar = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          backgroundColor: theme.cardBackgroundColor,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16.0),
+            side: BorderSide(color: theme.borderColor),
+          ),
+          title: Text(
+            'Excluir Cadastro',
+            textAlign: TextAlign.center,
+            style: theme.getTextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+              color: theme.textColor,
+            ),
+          ),
+          content: Text(
+            'Tem certeza que deseja excluir este CPF do Nous? Essa ação '
+            'não pode ser desfeita.',
+            textAlign: TextAlign.center,
+            style: theme.getTextStyle(fontSize: 14),
+          ),
+          actionsAlignment: MainAxisAlignment.center,
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: Text(
+                'Cancelar',
+                style: theme.getTextStyle(color: theme.secondaryTextColor),
+              ),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(true),
+              child: Text(
+                'Excluir',
+                style: theme.getTextStyle(color: Colors.redAccent),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirmar == true && context.mounted) {
+      await context.read<AuthProvider>().excluirConta();
+      if (!context.mounted) return;
+      Navigator.pushAndRemoveUntil(
+        context,
+        MaterialPageRoute(builder: (context) => const LoginView()),
+        (route) => false,
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final conta = context.watch<AuthProvider>().contaAtual;
@@ -48,7 +170,14 @@ class ContasUsuarioView extends StatelessWidget {
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      const SizedBox(height: 12),
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: IconButton(
+                          icon: Icon(Icons.arrow_back, color: theme.textColor),
+                          onPressed: () => _voltar(context),
+                        ),
+                      ),
+                      const SizedBox(height: 4),
                       _CardConta(theme: theme, nome: conta?.nome ?? ''),
                       const SizedBox(height: 24),
                       Text(
@@ -75,6 +204,8 @@ class ContasUsuarioView extends StatelessWidget {
                                   theme: theme,
                                   email: email,
                                   aoClicar: () => _entrarComEmail(context),
+                                  aoExcluir: () =>
+                                      _removerEmail(context, email),
                                 ),
                               ),
                           ],
@@ -95,6 +226,14 @@ class ContasUsuarioView extends StatelessWidget {
                         onPressed: () => _abrirAdicionarEmail(context),
                         child: Text(
                           'Adicionar email',
+                          style: theme.getTextStyle(fontSize: 13),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      TextButton(
+                        onPressed: () => _excluirConta(context),
+                        child: Text(
+                          'Excluir Cadastro',
                           style: theme.getTextStyle(fontSize: 13),
                         ),
                       ),
@@ -165,11 +304,13 @@ class _BarraEmail extends StatefulWidget {
   final AppTheme theme;
   final String email;
   final VoidCallback aoClicar;
+  final VoidCallback aoExcluir;
 
   const _BarraEmail({
     required this.theme,
     required this.email,
     required this.aoClicar,
+    required this.aoExcluir,
   });
 
   @override
@@ -191,7 +332,7 @@ class _BarraEmailState extends State<_BarraEmail> {
         onTap: widget.aoClicar,
         child: Container(
           width: double.infinity,
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
           decoration: BoxDecoration(
             color: _hover
                 ? theme.borderColor.withValues(alpha: 0.18)
@@ -212,6 +353,26 @@ class _BarraEmailState extends State<_BarraEmail> {
                   overflow: TextOverflow.ellipsis,
                   style: theme.getTextStyle(fontSize: 13, color: theme.textColor),
                 ),
+              ),
+              PopupMenuButton<String>(
+                icon: Icon(Icons.more_vert, color: theme.secondaryTextColor),
+                color: theme.cardBackgroundColor,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  side: BorderSide(color: theme.borderColor),
+                ),
+                onSelected: (valor) {
+                  if (valor == 'excluir') widget.aoExcluir();
+                },
+                itemBuilder: (context) => [
+                  PopupMenuItem(
+                    value: 'excluir',
+                    child: Text(
+                      'Excluir e-mail',
+                      style: theme.getTextStyle(color: Colors.redAccent),
+                    ),
+                  ),
+                ],
               ),
             ],
           ),
