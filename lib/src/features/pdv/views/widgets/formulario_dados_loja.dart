@@ -2,12 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:nous/src/core/theme/theme_controller.dart';
 import 'package:nous/src/core/widgets/themed_text_field.dart';
 import 'package:nous/src/features/pdv/services/cnpj_input_formatter.dart';
+import 'package:nous/src/features/pdv/services/telefone_input_formatter.dart';
 
-// Agrupa todos os controllers usados pelo formulário da loja num único
-// lugar. Assim, tanto a tela de Cadastrar Loja quanto a de Dados do
-// Perfil podem criar um conjunto desses controllers, passar para este
-// widget, e depois ler os valores digitados (ex: para navegar levando os
-// dados adiante, ou futuramente para salvar de verdade).
 class ControllersDadosLoja {
   final nome = TextEditingController();
   final cnpj = TextEditingController();
@@ -18,8 +14,6 @@ class ControllersDadosLoja {
   final categorias = TextEditingController();
   final tags = TextEditingController();
 
-  // Libera a memória de todos os controllers de uma vez. Deve ser chamado
-  // dentro do dispose() da tela que criou esse grupo de controllers.
   void dispose() {
     nome.dispose();
     cnpj.dispose();
@@ -32,11 +26,6 @@ class ControllersDadosLoja {
   }
 }
 
-// Conjunto visual completo de campos do formulário da loja: foto/logo,
-// nome, CNPJ, telefone, endereço, número, email, categorias e tags.
-// Não inclui o botão de ação (Cadastrar / Excluir Loja) nem o Form/
-// SingleChildScrollView em volta — isso fica a cargo de cada tela que usa
-// este widget, para manter esta peça só com os campos em si.
 class FormularioDadosLoja extends StatelessWidget {
   final AppTheme theme;
   final ControllersDadosLoja controllers;
@@ -51,16 +40,8 @@ class FormularioDadosLoja extends StatelessWidget {
   Widget build(BuildContext context) {
     return Column(
       children: [
-        // Foto/logo da loja. Por enquanto é só um círculo com um ícone de
-        // placeholder — selecionar uma imagem de verdade da galeria do
-        // celular vai exigir adicionar o pacote "image_picker" ao
-        // pubspec.yaml, o que ainda não foi feito. Por isso o toque aqui
-        // ainda não abre nada.
         InkWell(
-          onTap: () {
-            // todo: quando o pacote image_picker for adicionado ao
-            // projeto, abrir aqui a galeria/câmera para escolher a logo.
-          },
+          onTap: () {},
           customBorder: const CircleBorder(),
           child: CircleAvatar(
             radius: 40,
@@ -82,7 +63,6 @@ class FormularioDadosLoja extends StatelessWidget {
         ),
         const SizedBox(height: 12),
 
-        // CNPJ e Telefone lado a lado, como no design.
         Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -92,8 +72,6 @@ class FormularioDadosLoja extends StatelessWidget {
                 controller: controllers.cnpj,
                 label: 'CNPJ',
                 tipoDeTeclado: TextInputType.number,
-                // Aqui está a formatação pedida: aplica a máscara
-                // 00.000.000/0000-00 automaticamente enquanto digita.
                 formatadores: [CnpjInputFormatter()],
               ),
             ),
@@ -104,13 +82,13 @@ class FormularioDadosLoja extends StatelessWidget {
                 controller: controllers.telefone,
                 label: 'Telefone',
                 tipoDeTeclado: TextInputType.phone,
+                formatadores: [TelefoneInputFormatter()],
               ),
             ),
           ],
         ),
         const SizedBox(height: 12),
 
-        // Endereço (mais largo) e Número (mais estreito) lado a lado.
         Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
