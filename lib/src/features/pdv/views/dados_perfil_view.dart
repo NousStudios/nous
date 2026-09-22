@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import 'package:nous/src/core/theme/theme_controller.dart';
 import 'package:nous/src/core/widgets/custom_app_bar.dart';
 import 'package:nous/src/core/widgets/floating_bottom_nav_bar.dart';
+import 'package:nous/src/features/auth/providers/auth_provider.dart';
 import 'package:nous/src/features/auth/views/login_view.dart';
 import 'package:nous/src/features/pdv/models/cliente.dart';
 import 'package:nous/src/features/pdv/models/item_loja.dart';
@@ -441,6 +442,7 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
   }
 
   void _handleLogout(BuildContext context) {
+    context.read<AuthProvider>().sair();
     Navigator.of(context).pushAndRemoveUntil(
       MaterialPageRoute(builder: (context) => const LoginView()),
       (route) => false,
