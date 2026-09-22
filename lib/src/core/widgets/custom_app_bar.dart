@@ -1,20 +1,18 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'package:nous/src/core/theme/theme_controller.dart';
 import 'package:nous/src/core/theme/theme_customizer_dialog.dart';
+import 'package:nous/src/features/auth/providers/auth_provider.dart';
+
+String _formatarCpf(String cpf) {
+  if (cpf.length != 11) return cpf;
+  return '${cpf.substring(0, 3)}.${cpf.substring(3, 6)}.'
+      '${cpf.substring(6, 9)}-${cpf.substring(9, 11)}';
+}
 
 class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
   final String title;
   final bool showBackButton;
-
-  // Função opcional. Se uma tela passar isso, o popup de Configurações
-  // ganha um botão "Sair" no final que chama essa função. Se a tela não
-  // passar nada (fica null), a opção "Sair" simplesmente não aparece —
-  // é o caso das telas de Login e Termos de Uso, por exemplo.
-  //
-  // Motivo de ser assim: o CustomAppBar fica em core/, que é compartilhado
-  // por todo o app. Ele não deveria "conhecer" a tela de Login
-  // especificamente (isso é assunto da feature auth/). Cada tela decide o
-  // que "sair" significa para ela, e entrega essa decisão pronta aqui.
   final VoidCallback? onLogout;
 
   const CustomAppBar({
@@ -28,17 +26,12 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
     showDialog(
       context: context,
       builder: (BuildContext context) {
-        // Escutamos DOIS ValueNotifiers ao mesmo tempo: o tema atual (para saber
-        // as cores certas de desenhar o próprio seletor) e a lista de temas salvos
-        // (para exibi-los e atualizar a lista assim que um novo tema é salvo/apagado).
         return ValueListenableBuilder<AppTheme>(
           valueListenable: ThemeController.currentTheme,
           builder: (context, currentTheme, child) {
             return ValueListenableBuilder<List<SavedTheme>>(
               valueListenable: ThemeController.savedThemes,
               builder: (context, savedThemesList, child) {
-                // Largura responsiva, para não repetir o mesmo bug de overflow em
-                // telas pequenas que já corrigimos no popup de personalização.
                 final screenWidth = MediaQuery.of(context).size.width;
                 final selectorWidth =
                     screenWidth < 360 ? screenWidth * 0.9 : 320.0;
@@ -49,7 +42,6 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
                     borderRadius: BorderRadius.circular(16.0),
                     side: BorderSide(color: currentTheme.borderColor),
                   ),
-                  // Título do popup "Aparência" — cabeçalho de janela, cor de título explícita
                   title: Text(
                     'Aparência',
                     textAlign: TextAlign.center,
@@ -65,7 +57,6 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
                       child: Column(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          // ============ TEMAS PRÉ-DEFINIDOS ============
                           ListTile(
                             leading: Icon(Icons.dark_mode, color: currentTheme.secondaryTextColor),
                             title: Text('Modo Escuro (Padrão)', style: currentTheme.getTextStyle()),
@@ -82,8 +73,6 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
                               Navigator.pop(context);
                             },
                           ),
-
-                          // ============ TEMAS SALVOS PELO USUÁRIO ============
                           if (savedThemesList.isNotEmpty) ...[
                             Divider(color: currentTheme.borderColor),
                             Padding(
@@ -116,10 +105,7 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
                               );
                             }),
                           ],
-
                           Divider(color: currentTheme.borderColor),
-
-                          // ============ ABRIR A PALETA COMPLETA DE PERSONALIZAÇÃO ============
                           ListTile(
                             leading: Icon(Icons.color_lens_outlined, color: currentTheme.secondaryTextColor),
                             title: Text(
@@ -127,10 +113,10 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
                               style: currentTheme.getTextStyle(),
                             ),
                             onTap: () {
-                              Navigator.pop(context); // Fecha o seletor simples
+                              Navigator.pop(context);
                               showDialog(
                                 context: context,
-                                builder: (_) => const ThemeCustomizerDialog(), // Abre a paleta completa
+                                builder: (_) => const ThemeCustomizerDialog(),
                               );
                             },
                           ),
@@ -148,6 +134,8 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
   }
 
   void _showSettingsDialog(BuildContext context) {
+    final authProvider = context.read<AuthProvider>();
+
     showDialog(
       context: context,
       barrierDismissible: true,
@@ -155,6 +143,9 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
         return ValueListenableBuilder<AppTheme>(
           valueListenable: ThemeController.currentTheme,
           builder: (context, currentTheme, child) {
+            final conta = authProvider.contaAtual;
+            final mostrarGrupoConta = conta != null || onLogout != null;
+
             return AlertDialog(
               backgroundColor: currentTheme.cardBackgroundColor,
               shape: RoundedRectangleBorder(
@@ -162,7 +153,6 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
                 side: BorderSide(color: currentTheme.borderColor),
               ),
               titlePadding: const EdgeInsets.fromLTRB(24.0, 24.0, 24.0, 8.0),
-              // Título do popup "Configurações" — cabeçalho de janela, cor de título explícita
               title: Text(
                 'Configurações',
                 textAlign: TextAlign.center,
@@ -179,7 +169,7 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
                     leading: Icon(Icons.palette_outlined, color: currentTheme.secondaryTextColor),
                     title: Text('Tema', style: currentTheme.getTextStyle()),
                     onTap: () {
-                      Navigator.pop(context); // Fecha o menu principal de configurações antes de abrir a seleção de temas
+                      Navigator.pop(context);
                       _showThemeSelector(context);
                     },
                   ),
@@ -193,21 +183,44 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
                     title: Text('Sobre o App', style: currentTheme.getTextStyle()),
                     onTap: () {},
                   ),
-
-                  // ============ BOTÃO "SAIR" (só aparece se onLogout foi passado) ============
-                  if (onLogout != null) ...[
+                  if (mostrarGrupoConta) ...[
                     Divider(color: currentTheme.borderColor),
-                    ListTile(
-                      leading: const Icon(Icons.logout, color: Colors.redAccent),
-                      title: Text(
-                        'Sair',
-                        style: currentTheme.getTextStyle(color: Colors.redAccent),
+                    if (conta != null)
+                      Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 4),
+                        child: Column(
+                          children: [
+                            Text(
+                              conta.nome,
+                              textAlign: TextAlign.center,
+                              style: currentTheme.getTextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
+                                color: currentTheme.textColor,
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              _formatarCpf(conta.cpf),
+                              textAlign: TextAlign.center,
+                              style: currentTheme.getTextStyle(fontSize: 12),
+                            ),
+                          ],
+                        ),
                       ),
-                      onTap: () {
-                        Navigator.pop(context); // Fecha o popup de Configurações primeiro
-                        onLogout!(); // Só então executa a navegação de volta ao Login
-                      },
-                    ),
+                    if (onLogout != null)
+                      ListTile(
+                        leading: const Icon(Icons.logout, color: Colors.redAccent),
+                        title: Text(
+                          'Sair',
+                          style: currentTheme.getTextStyle(color: Colors.redAccent),
+                        ),
+                        onTap: () {
+                          Navigator.pop(context);
+                          onLogout!();
+                        },
+                      ),
+                    Divider(color: currentTheme.borderColor),
                   ],
                 ],
               ),
