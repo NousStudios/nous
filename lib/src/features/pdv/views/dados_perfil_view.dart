@@ -107,6 +107,31 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
         );
   }
 
+  void _salvarDadosLoja() {
+    context.read<PdvProvider>().atualizarDadosLoja(
+          widget.lojaId,
+          nome: _controllers.nome.text,
+          cnpj: _controllers.cnpj.text,
+          telefone: _controllers.telefone.text,
+          endereco: _controllers.endereco.text,
+          numero: _controllers.numero.text,
+          email: _controllers.email.text,
+          categorias: _controllers.categorias.text,
+          tags: _controllers.tags.text,
+        );
+
+    final theme = ThemeController.currentTheme.value;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        backgroundColor: theme.cardBackgroundColor,
+        content: Text(
+          'Dados salvos.',
+          style: theme.getTextStyle(color: theme.textColor),
+        ),
+      ),
+    );
+  }
+
   void _alterarStatusPedido(String id, StatusPedido novoStatus) {
     setState(() {
       final indice = _pedidos.indexWhere((p) => p.id == id);
@@ -715,6 +740,28 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
                     controllers: _controllers,
                   ),
                   const SizedBox(height: 20),
+                  SizedBox(
+                    width: double.infinity,
+                    child: FilledButton(
+                      style: FilledButton.styleFrom(
+                        backgroundColor: theme.buttonColor,
+                        foregroundColor: theme.buttonTextColor,
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                      ),
+                      onPressed: _salvarDadosLoja,
+                      child: Text(
+                        'Salvar Dados',
+                        style: theme.getTextStyle(
+                          fontSize: 13,
+                          color: theme.buttonTextColor,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
                   TextButton(
                     onPressed: () => _confirmarExclusao(context),
                     child: Text(

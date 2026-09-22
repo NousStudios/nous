@@ -75,6 +75,35 @@ class PdvProvider extends ChangeNotifier {
     _persistir();
   }
 
+  void atualizarDadosLoja(
+    String id, {
+    required String nome,
+    required String cnpj,
+    required String telefone,
+    required String endereco,
+    required String numero,
+    required String email,
+    required String categorias,
+    required String tags,
+  }) {
+    final indice = _lojas.indexWhere((loja) => loja.id == id);
+    if (indice == -1) return;
+
+    _lojas[indice] = _lojas[indice].copyWith(
+      nome: nome,
+      cnpj: cnpj,
+      telefone: telefone,
+      endereco: endereco,
+      numero: numero,
+      email: email,
+      categorias: categorias,
+      tags: tags,
+    );
+
+    notifyListeners();
+    _persistir();
+  }
+
   void atualizarListasLoja(
     String id, {
     List<CategoriaLoja>? categorias,
