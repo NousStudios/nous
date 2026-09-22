@@ -103,6 +103,7 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
           itens: _itens,
           gruposComponentes: _gruposComponentes,
           clientes: _clientes,
+          pedidos: _pedidos,
         );
   }
 
@@ -112,10 +113,12 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
       if (indice == -1) return;
       _pedidos[indice] = _pedidos[indice].copyWith(status: novoStatus);
     });
+    _persistirListasLoja();
   }
 
   void _recusarPedido(String id) {
     setState(() => _pedidos.removeWhere((p) => p.id == id));
+    _persistirListasLoja();
   }
 
   void _salvarCliente(Cliente cliente) {
@@ -137,6 +140,7 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
         ..clear()
         ..addAll(atualizados);
     });
+    _persistirListasLoja();
   }
 
   void _excluirCliente(String clienteId) {
@@ -186,6 +190,7 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
           _pedidos.add(pedido);
           _abaPedidos = AbaPedidos.aceitos;
         });
+        _persistirListasLoja();
       },
     );
   }
@@ -398,6 +403,7 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
     _itens.addAll(loja?.itensLoja ?? []);
     _gruposComponentes.addAll(loja?.gruposComponentesLoja ?? []);
     _clientes.addAll(loja?.clientesLoja ?? []);
+    _pedidos.addAll(loja?.pedidosLoja ?? []);
   }
 
   @override

@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:nous/src/features/pdv/models/cliente.dart';
 import 'package:nous/src/features/pdv/models/item_loja.dart';
 import 'package:nous/src/features/pdv/models/loja.dart';
+import 'package:nous/src/features/pdv/models/pedido_loja.dart';
 import 'package:nous/src/features/pdv/services/lojas_service.dart';
 
 class PdvProvider extends ChangeNotifier {
@@ -80,6 +81,7 @@ class PdvProvider extends ChangeNotifier {
     List<ItemLoja>? itens,
     List<GrupoComponentesLoja>? gruposComponentes,
     List<Cliente>? clientes,
+    List<PedidoLoja>? pedidos,
   }) {
     final indice = _lojas.indexWhere((loja) => loja.id == id);
     if (indice == -1) return;
@@ -89,6 +91,7 @@ class PdvProvider extends ChangeNotifier {
       itensLoja: itens,
       gruposComponentesLoja: gruposComponentes,
       clientesLoja: clientes,
+      pedidosLoja: pedidos,
     );
 
     notifyListeners();

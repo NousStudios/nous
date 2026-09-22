@@ -61,6 +61,42 @@ class PedidoLoja {
       valorPago: valorPago ?? this.valorPago,
     );
   }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'numero': numero,
+      'clienteId': clienteId,
+      'clienteNome': clienteNome,
+      'produtoNome': produtoNome,
+      'dataHora': dataHora.toIso8601String(),
+      'valor': valor,
+      'temMensagem': temMensagem,
+      'status': status.name,
+      'comanda': comanda,
+      'formaPagamento': formaPagamento,
+      'quitado': quitado,
+      'valorPago': valorPago,
+    };
+  }
+
+  factory PedidoLoja.fromJson(Map<String, dynamic> json) {
+    return PedidoLoja(
+      id: json['id'] as String,
+      numero: json['numero'] as int,
+      clienteId: json['clienteId'] as String?,
+      clienteNome: json['clienteNome'] as String,
+      produtoNome: json['produtoNome'] as String,
+      dataHora: DateTime.parse(json['dataHora'] as String),
+      valor: (json['valor'] as num).toDouble(),
+      temMensagem: json['temMensagem'] as bool? ?? false,
+      status: StatusPedido.values.byName(json['status'] as String),
+      comanda: json['comanda'] as String? ?? '',
+      formaPagamento: json['formaPagamento'] as String? ?? '',
+      quitado: json['quitado'] as bool? ?? false,
+      valorPago: (json['valorPago'] as num?)?.toDouble() ?? 0,
+    );
+  }
 }
 
 List<PedidoLoja> aplicarPagamentoAPrazo(

@@ -1,5 +1,6 @@
 import 'package:nous/src/features/pdv/models/cliente.dart';
 import 'package:nous/src/features/pdv/models/item_loja.dart';
+import 'package:nous/src/features/pdv/models/pedido_loja.dart';
 
 class Loja {
   final String id;
@@ -17,6 +18,7 @@ class Loja {
   final List<ItemLoja> itensLoja;
   final List<GrupoComponentesLoja> gruposComponentesLoja;
   final List<Cliente> clientesLoja;
+  final List<PedidoLoja> pedidosLoja;
 
   const Loja({
     required this.id,
@@ -32,6 +34,7 @@ class Loja {
     this.itensLoja = const [],
     this.gruposComponentesLoja = const [],
     this.clientesLoja = const [],
+    this.pedidosLoja = const [],
   });
 
   Loja copyWith({
@@ -47,6 +50,7 @@ class Loja {
     List<ItemLoja>? itensLoja,
     List<GrupoComponentesLoja>? gruposComponentesLoja,
     List<Cliente>? clientesLoja,
+    List<PedidoLoja>? pedidosLoja,
   }) {
     return Loja(
       id: id,
@@ -62,6 +66,7 @@ class Loja {
       itensLoja: itensLoja ?? this.itensLoja,
       gruposComponentesLoja: gruposComponentesLoja ?? this.gruposComponentesLoja,
       clientesLoja: clientesLoja ?? this.clientesLoja,
+      pedidosLoja: pedidosLoja ?? this.pedidosLoja,
     );
   }
 
@@ -81,6 +86,7 @@ class Loja {
       'gruposComponentesLoja':
           gruposComponentesLoja.map((g) => g.toJson()).toList(),
       'clientesLoja': clientesLoja.map((c) => c.toJson()).toList(),
+      'pedidosLoja': pedidosLoja.map((p) => p.toJson()).toList(),
     };
   }
 
@@ -108,6 +114,9 @@ class Loja {
               .toList(),
       clientesLoja: (json['clientesLoja'] as List<dynamic>? ?? const [])
           .map((item) => Cliente.fromJson(item as Map<String, dynamic>))
+          .toList(),
+      pedidosLoja: (json['pedidosLoja'] as List<dynamic>? ?? const [])
+          .map((item) => PedidoLoja.fromJson(item as Map<String, dynamic>))
           .toList(),
     );
   }
