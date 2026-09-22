@@ -75,6 +75,15 @@ class PdvProvider extends ChangeNotifier {
     _persistir();
   }
 
+  Future<void> excluirDadosDoCpf(String cpf) async {
+    await LojasService.excluirTodas(cpf);
+    if (_cpfAtual == cpf) {
+      _cpfAtual = null;
+      _lojas.clear();
+      notifyListeners();
+    }
+  }
+
   void atualizarDadosLoja(
     String id, {
     required String nome,

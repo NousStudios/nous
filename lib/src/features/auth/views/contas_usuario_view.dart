@@ -115,8 +115,9 @@ class ContasUsuarioView extends StatelessWidget {
             ),
           ),
           content: Text(
-            'Tem certeza que deseja excluir este CPF do Nous? Essa ação '
-            'não pode ser desfeita.',
+            'Tem certeza que deseja excluir este CPF do Nous? Isso também '
+            'apaga todas as lojas criadas por ele. Essa ação não pode ser '
+            'desfeita.',
             textAlign: TextAlign.center,
             style: theme.getTextStyle(fontSize: 14),
           ),
@@ -142,7 +143,12 @@ class ContasUsuarioView extends StatelessWidget {
     );
 
     if (confirmar == true && context.mounted) {
+      final cpf = context.read<AuthProvider>().cpf;
+      await context.read<PdvProvider>().excluirDadosDoCpf(cpf);
+
+      if (!context.mounted) return;
       await context.read<AuthProvider>().excluirConta();
+
       if (!context.mounted) return;
       Navigator.pushAndRemoveUntil(
         context,

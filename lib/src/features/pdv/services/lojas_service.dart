@@ -23,4 +23,9 @@ class LojasService {
     final texto = jsonEncode(lojas.map((l) => l.toJson()).toList());
     await prefs.setString(_chave(cpf), texto);
   }
+
+  static Future<void> excluirTodas(String cpf) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_chave(cpf));
+  }
 }
