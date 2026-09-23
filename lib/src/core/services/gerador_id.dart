@@ -1,0 +1,1 @@
+String gerarIdUnico() => DateTime.now().millisecondsSinceEpoch.toString();

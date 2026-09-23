@@ -1,28 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:nous/src/core/theme/theme_controller.dart';
 import 'package:nous/src/core/widgets/themed_text_field.dart';
+import 'package:nous/src/features/pdv/models/grupo_componentes_loja.dart';
 import 'package:nous/src/features/pdv/models/item_loja.dart';
 
-// Popup "Novo Grupo de Componentes", criado direto pelo botão da aba
-// Loja (diferente do grupo de componentes que já existe dentro da
-// árvore Categoria > Produto > Grupo, esse aqui é "solto"). Parecido
-// com o NovaCategoriaDialog, mas sem Produto/Serviço, e com uma seção
-// para escolher, entre os Itens já criados pelo botão "Novo Item",
-// quais fazem parte deste grupo.
-//
-// NOVO: agora também serve para EDITAR um grupo já existente. Se
-// grupoParaEditar vier preenchido, o popup nasce com os campos já
-// carregados e, ao confirmar, atualiza esse grupo (mesmo id) em vez de
-// criar um novo — mesmo padrão usado no NovoItemDialog.
 class NovoGrupoComponentesDialog extends StatefulWidget {
   final AppTheme theme;
 
-  // Itens já existentes (criados antes pelo botão "Novo Item"), para o
-  // usuário escolher quais entram neste grupo.
   final List<ItemLoja> itensDisponiveis;
 
-  // NOVO: se vier preenchido, o popup abre em modo de EDIÇÃO deste
-  // grupo (em vez de criar um novo).
   final GrupoComponentesLoja? grupoParaEditar;
 
   final void Function(GrupoComponentesLoja grupo) onCriar;
@@ -35,7 +21,6 @@ class NovoGrupoComponentesDialog extends StatefulWidget {
     required this.onCriar,
   });
 
-  // Função de conveniência, mesmo padrão dos outros dois popups.
   static Future<void> mostrar(
     BuildContext context, {
     required AppTheme theme,
@@ -63,12 +48,8 @@ class _NovoGrupoComponentesDialogState
     extends State<NovoGrupoComponentesDialog> {
   final _nomeController = TextEditingController();
 
-  // Ids dos itens que o usuário já escolheu para este grupo, na ordem
-  // em que foram adicionados.
   final List<String> _itemIdsSelecionados = [];
 
-  // NOVO: se estamos editando um grupo já existente, pré-carrega o
-  // nome e os itens dele nos campos, assim que o popup é criado.
   @override
   void initState() {
     super.initState();
@@ -85,11 +66,6 @@ class _NovoGrupoComponentesDialogState
     super.dispose();
   }
 
-  // Abre um popup de seleção com os itens que AINDA NÃO foram
-  // adicionados a este grupo (para não deixar escolher o mesmo item
-  // duas vezes). Ao tocar num item da lista, ele é adicionado e o
-  // popup de seleção fecha — se o usuário quiser adicionar mais de um,
-  // basta tocar em "Adicionar item" novamente.
   void _abrirSeletorDeItem() {
     final theme = widget.theme;
     final itensAindaNaoEscolhidos = widget.itensDisponiveis
@@ -117,10 +93,6 @@ class _NovoGrupoComponentesDialogState
           content: SizedBox(
             width: 280,
             child: itensAindaNaoEscolhidos.isEmpty
-                // Mensagem clara para os dois motivos possíveis de a
-                // lista estar vazia: ou não existe nenhum item ainda
-                // (usuário precisa criar um primeiro com o botão "Novo
-                // Item"), ou todos já foram adicionados a este grupo.
                 ? Padding(
                     padding: const EdgeInsets.symmetric(vertical: 12),
                     child: Text(
@@ -162,10 +134,6 @@ class _NovoGrupoComponentesDialogState
     setState(() => _itemIdsSelecionados.remove(itemId));
   }
 
-  // Busca o nome de exibição de um item selecionado, a partir do seu
-  // id. Como guardamos só o id na lista (não o objeto ItemLoja inteiro,
-  // pelo mesmo motivo já explicado no modelo de dados), precisamos
-  // encontrar o item correspondente na lista completa recebida.
   String _nomeDoItem(String itemId) {
     return widget.itensDisponiveis
         .where((item) => item.id == itemId)
@@ -174,10 +142,6 @@ class _NovoGrupoComponentesDialogState
         'Item removido';
   }
 
-  // NOVO: se widget.grupoParaEditar não for nulo, estamos editando —
-  // então usamos copyWith para manter o mesmo id e só trocar os campos
-  // que o usuário alterou. Caso contrário, criamos um grupo novo do
-  // zero (com GrupoComponentesLoja.novo, que gera um id novo).
   void _criar() {
     final nome = _nomeController.text.trim();
     if (nome.isEmpty) return;
@@ -227,8 +191,6 @@ class _NovoGrupoComponentesDialogState
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              // Quadrado de foto — decorativo por enquanto, mesmo
-              // estágio dos outros dois popups.
               Container(
                 width: 80,
                 height: 80,
@@ -252,9 +214,6 @@ class _NovoGrupoComponentesDialogState
               ),
               const SizedBox(height: 16),
 
-              // Lista de itens já adicionados a este grupo, cada um com
-              // um "x" para remover — mesmo padrão visual da lista de
-              // variantes do NovoItemDialog.
               for (final itemId in _itemIdsSelecionados) ...[
                 Container(
                   width: double.infinity,

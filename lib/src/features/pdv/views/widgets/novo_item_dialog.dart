@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:nous/src/core/theme/theme_controller.dart';
 import 'package:nous/src/core/widgets/themed_text_field.dart';
+import 'package:nous/src/features/pdv/models/categoria_loja.dart';
+import 'package:nous/src/features/pdv/models/grupo_componentes_loja.dart';
 import 'package:nous/src/features/pdv/models/item_loja.dart';
 
 class NovoItemDialog extends StatefulWidget {

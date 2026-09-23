@@ -5,7 +5,9 @@ import 'package:nous/src/core/widgets/custom_app_bar.dart';
 import 'package:nous/src/core/widgets/floating_bottom_nav_bar.dart';
 import 'package:nous/src/features/auth/providers/auth_provider.dart';
 import 'package:nous/src/features/auth/views/login_view.dart';
+import 'package:nous/src/features/pdv/models/categoria_loja.dart';
 import 'package:nous/src/features/pdv/models/cliente.dart';
+import 'package:nous/src/features/pdv/models/grupo_componentes_loja.dart';
 import 'package:nous/src/features/pdv/models/item_loja.dart';
 import 'package:nous/src/features/pdv/models/pedido_loja.dart';
 import 'package:nous/src/features/pdv/providers/pdv_provider.dart';
@@ -254,7 +256,6 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
     NovaCategoriaDialog.mostrar(
       context,
       theme: ThemeController.currentTheme.value,
-      gruposComponentes: _gruposComponentes,
       onCriar: (categoria) {
         setState(() => _categorias.add(categoria));
         _persistirListasLoja();
@@ -266,7 +267,6 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
     NovaCategoriaDialog.mostrar(
       context,
       theme: ThemeController.currentTheme.value,
-      gruposComponentes: _gruposComponentes,
       categoriaParaEditar: categoria,
       onCriar: (categoriaEditada) {
         setState(() {

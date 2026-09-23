@@ -1,6 +1,6 @@
-enum TipoItemLoja { produto, servico }
+import 'package:nous/src/core/services/gerador_id.dart';
 
-String _gerarIdUnico() => DateTime.now().millisecondsSinceEpoch.toString();
+enum TipoItemLoja { produto, servico }
 
 class ItemLoja {
   final String id;
@@ -36,7 +36,7 @@ class ItemLoja {
     String valorPorKm = '',
   }) {
     return ItemLoja(
-      id: _gerarIdUnico(),
+      id: gerarIdUnico(),
       nome: nome,
       tipo: tipo,
       preco: preco,
@@ -101,129 +101,6 @@ class ItemLoja {
       possuiDelivery: json['possuiDelivery'] as bool? ?? false,
       freteGratisAte: json['freteGratisAte'] as String? ?? '',
       valorPorKm: json['valorPorKm'] as String? ?? '',
-    );
-  }
-}
-
-class CategoriaLoja {
-  final String id;
-  final String nome;
-  final String? grupoComponentesId;
-  final TipoItemLoja? tipo;
-  final List<String> itemIds;
-
-  const CategoriaLoja({
-    required this.id,
-    required this.nome,
-    this.grupoComponentesId,
-    this.tipo,
-    this.itemIds = const [],
-  });
-
-  factory CategoriaLoja.nova({
-    required String nome,
-    String? grupoComponentesId,
-    TipoItemLoja? tipo,
-    List<String> itemIds = const [],
-  }) {
-    return CategoriaLoja(
-      id: _gerarIdUnico(),
-      nome: nome,
-      grupoComponentesId: grupoComponentesId,
-      tipo: tipo,
-      itemIds: itemIds,
-    );
-  }
-
-  CategoriaLoja copyWith({
-    String? nome,
-    String? grupoComponentesId,
-    TipoItemLoja? tipo,
-    List<String>? itemIds,
-  }) {
-    return CategoriaLoja(
-      id: id,
-      nome: nome ?? this.nome,
-      grupoComponentesId: grupoComponentesId ?? this.grupoComponentesId,
-      tipo: tipo ?? this.tipo,
-      itemIds: itemIds ?? this.itemIds,
-    );
-  }
-
-  Map<String, dynamic> toJson() {
-    return {
-      'id': id,
-      'nome': nome,
-      'grupoComponentesId': grupoComponentesId,
-      'tipo': tipo?.name,
-      'itemIds': itemIds,
-    };
-  }
-
-  factory CategoriaLoja.fromJson(Map<String, dynamic> json) {
-    final tipoTexto = json['tipo'] as String?;
-    return CategoriaLoja(
-      id: json['id'] as String,
-      nome: json['nome'] as String,
-      grupoComponentesId: json['grupoComponentesId'] as String?,
-      tipo: tipoTexto == null
-          ? null
-          : TipoItemLoja.values.firstWhere((t) => t.name == tipoTexto),
-      itemIds: (json['itemIds'] as List<dynamic>? ?? const [])
-          .map((item) => item as String)
-          .toList(),
-    );
-  }
-}
-
-class GrupoComponentesLoja {
-  final String id;
-  final String nome;
-  final List<String> itemIds;
-
-  const GrupoComponentesLoja({
-    required this.id,
-    required this.nome,
-    this.itemIds = const [],
-  });
-
-  factory GrupoComponentesLoja.novo({
-    required String nome,
-    List<String> itemIds = const [],
-  }) {
-    return GrupoComponentesLoja(
-      id: _gerarIdUnico(),
-      nome: nome,
-      itemIds: itemIds,
-    );
-  }
-
-  GrupoComponentesLoja copyWith({
-    String? nome,
-    List<String>? itemIds,
-  }) {
-    return GrupoComponentesLoja(
-      id: id,
-      nome: nome ?? this.nome,
-      itemIds: itemIds ?? this.itemIds,
-    );
-  }
-
-  Map<String, dynamic> toJson() {
-    return {
-      'id': id,
-      'nome': nome,
-      'itemIds': itemIds,
-    };
-  }
-
-  factory GrupoComponentesLoja.fromJson(Map<String, dynamic> json) {
-    return GrupoComponentesLoja(
-      id: json['id'] as String,
-      nome: json['nome'] as String,
-      itemIds: (json['itemIds'] as List<dynamic>? ?? const [])
-          .map((item) => item as String)
-          .toList(),
     );
   }
 }
