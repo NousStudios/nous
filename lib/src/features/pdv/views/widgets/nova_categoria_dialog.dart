@@ -2,10 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:nous/src/core/theme/theme_controller.dart';
 import 'package:nous/src/core/widgets/themed_text_field.dart';
 import 'package:nous/src/features/pdv/models/categoria_loja.dart';
+import 'package:nous/src/features/pdv/models/grupo_componentes_loja.dart';
 import 'package:nous/src/features/pdv/models/item_loja.dart';
 
 class NovaCategoriaDialog extends StatefulWidget {
   final AppTheme theme;
+
+  final List<GrupoComponentesLoja> gruposComponentes;
 
   final CategoriaLoja? categoriaParaEditar;
 
@@ -14,6 +17,7 @@ class NovaCategoriaDialog extends StatefulWidget {
   const NovaCategoriaDialog({
     super.key,
     required this.theme,
+    required this.gruposComponentes,
     this.categoriaParaEditar,
     required this.onCriar,
   });
@@ -21,6 +25,7 @@ class NovaCategoriaDialog extends StatefulWidget {
   static Future<void> mostrar(
     BuildContext context, {
     required AppTheme theme,
+    required List<GrupoComponentesLoja> gruposComponentes,
     CategoriaLoja? categoriaParaEditar,
     required void Function(CategoriaLoja categoria) onCriar,
   }) {
@@ -28,6 +33,7 @@ class NovaCategoriaDialog extends StatefulWidget {
       context: context,
       builder: (context) => NovaCategoriaDialog(
         theme: theme,
+        gruposComponentes: gruposComponentes,
         categoriaParaEditar: categoriaParaEditar,
         onCriar: onCriar,
       ),
@@ -43,6 +49,7 @@ class _NovaCategoriaDialogState extends State<NovaCategoriaDialog> {
   final _precoController = TextEditingController();
 
   TipoItemLoja? _tipo;
+  final Set<String> _gruposSelecionados = {};
 
   @override
   void initState() {
@@ -54,6 +61,7 @@ class _NovaCategoriaDialogState extends State<NovaCategoriaDialog> {
     _nomeController.text = categoria.nome;
     _precoController.text = categoria.preco;
     _tipo = categoria.tipo;
+    _gruposSelecionados.addAll(categoria.grupoIds);
   }
 
   @override
@@ -63,26 +71,119 @@ class _NovaCategoriaDialogState extends State<NovaCategoriaDialog> {
     super.dispose();
   }
 
+  void _abrirSeletorDeGrupos() {
+    final theme = widget.theme;
+
+    showDialog<void>(
+      context: context,
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (dialogContext, setDialogState) {
+            return AlertDialog(
+              backgroundColor: theme.cardBackgroundColor,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16.0),
+                side: BorderSide(color: theme.borderColor),
+              ),
+              title: Text(
+                'Grupos de componentes',
+                textAlign: TextAlign.center,
+                style: theme.getTextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: theme.textColor,
+                ),
+              ),
+              content: SizedBox(
+                width: 280,
+                child: widget.gruposComponentes.isEmpty
+                    ? Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        child: Text(
+                          'Nenhum grupo de componentes criado ainda.',
+                          textAlign: TextAlign.center,
+                          style: theme.getTextStyle(
+                            fontSize: 13,
+                            color: theme.secondaryTextColor,
+                          ),
+                        ),
+                      )
+                    : SingleChildScrollView(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            for (final grupo in widget.gruposComponentes)
+                              CheckboxListTile(
+                                value: _gruposSelecionados.contains(grupo.id),
+                                title: Text(grupo.nome,
+                                    style: theme.getTextStyle()),
+                                activeColor: theme.buttonColor,
+                                checkColor: theme.buttonTextColor,
+                                controlAffinity:
+                                    ListTileControlAffinity.leading,
+                                onChanged: (marcado) {
+                                  setDialogState(() {
+                                    if (marcado == true) {
+                                      _gruposSelecionados.add(grupo.id);
+                                    } else {
+                                      _gruposSelecionados.remove(grupo.id);
+                                    }
+                                  });
+                                  setState(() {});
+                                },
+                              ),
+                          ],
+                        ),
+                      ),
+              ),
+              actionsAlignment: MainAxisAlignment.center,
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(dialogContext).pop(),
+                  child: Text(
+                    'Concluir',
+                    style: theme.getTextStyle(color: theme.textColor),
+                  ),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
   void _criar() {
     final nome = _nomeController.text.trim();
     if (nome.isEmpty) return;
 
     final categoriaExistente = widget.categoriaParaEditar;
+    final grupoIds = _gruposSelecionados.toList();
 
     final categoria = categoriaExistente != null
         ? categoriaExistente.copyWith(
             nome: nome,
             preco: _precoController.text.trim(),
             tipo: _tipo,
+            grupoIds: grupoIds,
           )
         : CategoriaLoja.nova(
             nome: nome,
             preco: _precoController.text.trim(),
             tipo: _tipo,
+            grupoIds: grupoIds,
           );
 
     widget.onCriar(categoria);
     Navigator.of(context).pop();
+  }
+
+  String get _resumoGrupos {
+    if (_gruposSelecionados.isEmpty) return '';
+    return widget.gruposComponentes
+        .where((g) => _gruposSelecionados.contains(g.id))
+        .map((g) => g.nome)
+        .join(', ');
   }
 
   @override
@@ -92,6 +193,8 @@ class _NovaCategoriaDialogState extends State<NovaCategoriaDialog> {
 
     final larguraTela = MediaQuery.sizeOf(context).width;
     final larguraPopup = larguraTela < 380 ? larguraTela * 0.9 : 340.0;
+
+    final resumoGrupos = _resumoGrupos;
 
     return AlertDialog(
       backgroundColor: theme.cardBackgroundColor,
@@ -143,6 +246,42 @@ class _NovaCategoriaDialogState extends State<NovaCategoriaDialog> {
                 controller: _precoController,
                 label: 'Preço base (ex: 5,00)',
                 tipoDeTeclado: TextInputType.number,
+              ),
+              const SizedBox(height: 12),
+
+              GestureDetector(
+                onTap: _abrirSeletorDeGrupos,
+                child: Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 14, vertical: 14),
+                  decoration: BoxDecoration(
+                    color: theme.cardBackgroundColor,
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: theme.borderColor),
+                  ),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          resumoGrupos.isEmpty
+                              ? 'Grupos de componentes'
+                              : resumoGrupos,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: theme.getTextStyle(
+                            fontSize: 14,
+                            color: resumoGrupos.isEmpty
+                                ? theme.secondaryTextColor
+                                : theme.textColor,
+                          ),
+                        ),
+                      ),
+                      Icon(Icons.keyboard_arrow_down,
+                          color: theme.secondaryTextColor),
+                    ],
+                  ),
+                ),
               ),
               const SizedBox(height: 16),
 

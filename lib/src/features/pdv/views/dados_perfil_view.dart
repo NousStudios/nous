@@ -258,6 +258,7 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
     NovaCategoriaDialog.mostrar(
       context,
       theme: ThemeController.currentTheme.value,
+      gruposComponentes: _gruposComponentes,
       onCriar: (categoria) {
         setState(() => _categorias.add(categoria));
         _persistirListasLoja();
@@ -269,6 +270,7 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
     NovaCategoriaDialog.mostrar(
       context,
       theme: ThemeController.currentTheme.value,
+      gruposComponentes: _gruposComponentes,
       categoriaParaEditar: categoria,
       onCriar: (categoriaEditada) {
         setState(() {
@@ -437,6 +439,15 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
     setState(() {
       _gruposComponentes.removeWhere((grupo) => grupo.id == id);
       if (_grupoExpandidoId == id) _grupoExpandidoId = null;
+
+      for (var i = 0; i < _categorias.length; i++) {
+        if (_categorias[i].grupoIds.contains(id)) {
+          _categorias[i] = _categorias[i].copyWith(
+            grupoIds:
+                _categorias[i].grupoIds.where((gId) => gId != id).toList(),
+          );
+        }
+      }
     });
     _persistirListasLoja();
   }
@@ -746,7 +757,6 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
       key: _chaveGrupo(grupo.id),
       theme: theme,
       nome: grupo.nome,
-      preco: grupo.preco,
       itemIds: grupo.itemIds,
       itensDisponiveis: _itens,
       expandida: grupo.id == _grupoExpandidoId,

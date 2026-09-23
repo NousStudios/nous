@@ -1,5 +1,37 @@
 enum StatusPedido { novo, aceito, concluido }
 
+class AcompanhamentoEscolhido {
+  final String itemId;
+  final String nomeItem;
+  final double precoItem;
+  final int quantidadePorUnidade;
+
+  const AcompanhamentoEscolhido({
+    required this.itemId,
+    required this.nomeItem,
+    required this.precoItem,
+    required this.quantidadePorUnidade,
+  });
+
+  Map<String, dynamic> toJson() {
+    return {
+      'itemId': itemId,
+      'nomeItem': nomeItem,
+      'precoItem': precoItem,
+      'quantidadePorUnidade': quantidadePorUnidade,
+    };
+  }
+
+  factory AcompanhamentoEscolhido.fromJson(Map<String, dynamic> json) {
+    return AcompanhamentoEscolhido(
+      itemId: json['itemId'] as String,
+      nomeItem: json['nomeItem'] as String,
+      precoItem: (json['precoItem'] as num).toDouble(),
+      quantidadePorUnidade: json['quantidadePorUnidade'] as int,
+    );
+  }
+}
+
 class ItemVendido {
   final String itemId;
   final String nomeItem;
@@ -8,7 +40,7 @@ class ItemVendido {
   final double precoItem;
   final double precoCategoria;
   final int quantidade;
-  final List<GrupoEscolhido> grupos;
+  final List<AcompanhamentoEscolhido> acompanhamentos;
 
   const ItemVendido({
     required this.itemId,
@@ -18,17 +50,21 @@ class ItemVendido {
     required this.precoItem,
     this.precoCategoria = 0,
     required this.quantidade,
-    this.grupos = const [],
+    this.acompanhamentos = const [],
   });
 
-  double get precoUnitarioSemGrupos => precoItem + precoCategoria;
+  double get totalDosAcompanhamentosPorUnidade => acompanhamentos.fold<double>(
+        0,
+        (soma, a) => soma + (a.precoItem * a.quantidadePorUnidade),
+      );
 
-  double get totalDosGruposPorUnidade =>
-      grupos.fold<double>(0, (soma, g) => soma + g.precoGrupo);
-
-  double get precoUnitario => precoUnitarioSemGrupos + totalDosGruposPorUnidade;
+  double get precoUnitario =>
+      precoItem + precoCategoria + totalDosAcompanhamentosPorUnidade;
 
   double get subtotal => precoUnitario * quantidade;
+
+  double get subtotalDosAcompanhamentos =>
+      totalDosAcompanhamentosPorUnidade * quantidade;
 
   String get nomeExibicao {
     if (nomeCategoria == null || nomeCategoria!.isEmpty) return nomeItem;
@@ -44,7 +80,7 @@ class ItemVendido {
       'precoItem': precoItem,
       'precoCategoria': precoCategoria,
       'quantidade': quantidade,
-      'grupos': grupos.map((g) => g.toJson()).toList(),
+      'acompanhamentos': acompanhamentos.map((a) => a.toJson()).toList(),
     };
   }
 
@@ -57,37 +93,10 @@ class ItemVendido {
       precoItem: (json['precoItem'] as num).toDouble(),
       precoCategoria: (json['precoCategoria'] as num?)?.toDouble() ?? 0,
       quantidade: json['quantidade'] as int,
-      grupos: (json['grupos'] as List<dynamic>? ?? const [])
-          .map((g) => GrupoEscolhido.fromJson(g as Map<String, dynamic>))
+      acompanhamentos: (json['acompanhamentos'] as List<dynamic>? ?? const [])
+          .map((a) =>
+              AcompanhamentoEscolhido.fromJson(a as Map<String, dynamic>))
           .toList(),
-    );
-  }
-}
-
-class GrupoEscolhido {
-  final String grupoId;
-  final String nomeGrupo;
-  final double precoGrupo;
-
-  const GrupoEscolhido({
-    required this.grupoId,
-    required this.nomeGrupo,
-    required this.precoGrupo,
-  });
-
-  Map<String, dynamic> toJson() {
-    return {
-      'grupoId': grupoId,
-      'nomeGrupo': nomeGrupo,
-      'precoGrupo': precoGrupo,
-    };
-  }
-
-  factory GrupoEscolhido.fromJson(Map<String, dynamic> json) {
-    return GrupoEscolhido(
-      grupoId: json['grupoId'] as String,
-      nomeGrupo: json['nomeGrupo'] as String,
-      precoGrupo: (json['precoGrupo'] as num).toDouble(),
     );
   }
 }

@@ -47,7 +47,6 @@ class NovoGrupoComponentesDialog extends StatefulWidget {
 class _NovoGrupoComponentesDialogState
     extends State<NovoGrupoComponentesDialog> {
   final _nomeController = TextEditingController();
-  final _precoController = TextEditingController();
 
   final List<String> _itemIdsSelecionados = [];
 
@@ -57,7 +56,6 @@ class _NovoGrupoComponentesDialogState
     final grupo = widget.grupoParaEditar;
     if (grupo != null) {
       _nomeController.text = grupo.nome;
-      _precoController.text = grupo.preco;
       _itemIdsSelecionados.addAll(grupo.itemIds);
     }
   }
@@ -65,7 +63,6 @@ class _NovoGrupoComponentesDialogState
   @override
   void dispose() {
     _nomeController.dispose();
-    _precoController.dispose();
     super.dispose();
   }
 
@@ -153,12 +150,10 @@ class _NovoGrupoComponentesDialogState
     final grupo = grupoExistente != null
         ? grupoExistente.copyWith(
             nome: nome,
-            preco: _precoController.text.trim(),
             itemIds: List.of(_itemIdsSelecionados),
           )
         : GrupoComponentesLoja.novo(
             nome: nome,
-            preco: _precoController.text.trim(),
             itemIds: List.of(_itemIdsSelecionados),
           );
 
@@ -216,14 +211,6 @@ class _NovoGrupoComponentesDialogState
                 theme: theme,
                 controller: _nomeController,
                 label: 'Nome do grupo de componentes',
-              ),
-              const SizedBox(height: 12),
-
-              ThemedTextField(
-                theme: theme,
-                controller: _precoController,
-                label: 'Preço base (ex: 2,00)',
-                tipoDeTeclado: TextInputType.number,
               ),
               const SizedBox(height: 16),
 

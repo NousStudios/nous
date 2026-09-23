@@ -120,11 +120,91 @@ class _VendaConteudo extends StatelessWidget {
                 : pedido.formaPagamento,
           ),
           _linha('Situação', _situacao),
+          if (pedido.frete > 0) _linha('Frete', _valor(pedido.frete)),
+          if (pedido.desconto > 0)
+            _linha('Desconto', '-${_valor(pedido.desconto)}'),
+          if (pedido.acrescimo > 0)
+            _linha('Acréscimo', _valor(pedido.acrescimo)),
           _linha('Valor total', _valor(pedido.valor)),
           if (aPrazo) ...[
             _linha('Pagamento', pedido.quitado ? 'Quitado' : 'Em aberto'),
             _linha('Já pago', _valor(pago)),
             _linha('Restante', _valor(restante)),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _blocoItens() {
+    if (pedido.itens.isEmpty) {
+      return Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(12),
+        decoration: _decoracaoDoBloco,
+        child: Column(
+          children: [
+            _tituloDoBloco('Itens'),
+            EstadoVazioContainer(
+              theme: theme,
+              mensagem: 'Sem itens detalhados nesta venda.',
+            ),
+          ],
+        ),
+      );
+    }
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: _decoracaoDoBloco,
+      child: Column(
+        children: [
+          _tituloDoBloco('Itens'),
+          for (final item in pedido.itens) ...[
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 4),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          '${item.quantidade}x ${item.nomeExibicao}',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: theme.getTextStyle(
+                            fontSize: 12,
+                            color: theme.textColor,
+                          ),
+                        ),
+                      ),
+                      Text(
+                        _valor(item.subtotal),
+                        style: theme.getTextStyle(fontSize: 12),
+                      ),
+                    ],
+                  ),
+                  if (item.acompanhamentos.isNotEmpty)
+                    Padding(
+                      padding: const EdgeInsets.only(left: 8, top: 2),
+                      child: Text(
+                        item.acompanhamentos
+                            .map((a) =>
+                                '${a.quantidadePorUnidade}x ${a.nomeItem} por unidade')
+                            .join(', '),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: theme.getTextStyle(
+                          fontSize: 10,
+                          color: theme.secondaryTextColor,
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ),
           ],
         ],
       ),
@@ -194,6 +274,8 @@ class _VendaConteudo extends StatelessWidget {
             child: Column(
               children: [
                 _blocoResumo(),
+                const SizedBox(height: 12),
+                _blocoItens(),
                 const SizedBox(height: 12),
                 _blocoComanda(),
               ],

@@ -7,6 +7,7 @@ class CategoriaLoja {
   final String preco;
   final TipoItemLoja? tipo;
   final List<String> itemIds;
+  final List<String> grupoIds;
 
   const CategoriaLoja({
     required this.id,
@@ -14,6 +15,7 @@ class CategoriaLoja {
     this.preco = '',
     this.tipo,
     this.itemIds = const [],
+    this.grupoIds = const [],
   });
 
   factory CategoriaLoja.nova({
@@ -21,6 +23,7 @@ class CategoriaLoja {
     String preco = '',
     TipoItemLoja? tipo,
     List<String> itemIds = const [],
+    List<String> grupoIds = const [],
   }) {
     return CategoriaLoja(
       id: gerarIdUnico(),
@@ -28,6 +31,7 @@ class CategoriaLoja {
       preco: preco,
       tipo: tipo,
       itemIds: itemIds,
+      grupoIds: grupoIds,
     );
   }
 
@@ -36,6 +40,7 @@ class CategoriaLoja {
     String? preco,
     TipoItemLoja? tipo,
     List<String>? itemIds,
+    List<String>? grupoIds,
   }) {
     return CategoriaLoja(
       id: id,
@@ -43,6 +48,7 @@ class CategoriaLoja {
       preco: preco ?? this.preco,
       tipo: tipo ?? this.tipo,
       itemIds: itemIds ?? this.itemIds,
+      grupoIds: grupoIds ?? this.grupoIds,
     );
   }
 
@@ -53,6 +59,7 @@ class CategoriaLoja {
       'preco': preco,
       'tipo': tipo?.name,
       'itemIds': itemIds,
+      'grupoIds': grupoIds,
     };
   }
 
@@ -66,6 +73,9 @@ class CategoriaLoja {
           ? null
           : TipoItemLoja.values.firstWhere((t) => t.name == tipoTexto),
       itemIds: (json['itemIds'] as List<dynamic>? ?? const [])
+          .map((item) => item as String)
+          .toList(),
+      grupoIds: (json['grupoIds'] as List<dynamic>? ?? const [])
           .map((item) => item as String)
           .toList(),
     );

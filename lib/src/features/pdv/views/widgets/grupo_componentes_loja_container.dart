@@ -6,7 +6,6 @@ import 'package:nous/src/features/pdv/views/widgets/produto_loja_row.dart';
 class GrupoComponentesLojaContainer extends StatefulWidget {
   final AppTheme theme;
   final String nome;
-  final String preco;
 
   final List<String> itemIds;
   final List<ItemLoja> itensDisponiveis;
@@ -30,7 +29,6 @@ class GrupoComponentesLojaContainer extends StatefulWidget {
     super.key,
     required this.theme,
     required this.nome,
-    required this.preco,
     required this.itemIds,
     required this.itensDisponiveis,
     required this.expandida,
@@ -171,25 +169,6 @@ class _GrupoComponentesLojaContainerState
                   onChanged: (valor) => widget.onNomeAlterado?.call(valor),
                 ),
               ),
-              if (widget.preco.isNotEmpty) ...[
-                const SizedBox(width: 6),
-                Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(
-                        color: theme.borderColor.withValues(alpha: 0.5)),
-                  ),
-                  child: Text(
-                    'R\$ ${widget.preco}',
-                    style: theme.getTextStyle(
-                      fontSize: 10,
-                      color: theme.secondaryTextColor,
-                    ),
-                  ),
-                ),
-              ],
               SizedBox(
                 width: 32,
                 height: 20,

@@ -114,25 +114,15 @@ class _LinhaCarrinho {
   final String itemId;
   final String? categoriaId;
   int quantidade;
-  final List<String> grupoIds;
+  final Map<String, int> acompanhamentosPorItemId;
 
   _LinhaCarrinho({
     required this.chave,
     required this.itemId,
     this.categoriaId,
-    this.quantidade = 1,
-    List<String>? grupoIds,
-  }) : grupoIds = grupoIds ?? [];
-
-  _LinhaCarrinho copia() {
-    return _LinhaCarrinho(
-      chave: chave,
-      itemId: itemId,
-      categoriaId: categoriaId,
-      quantidade: quantidade,
-      grupoIds: List.of(grupoIds),
-    );
-  }
+    Map<String, int>? acompanhamentos,
+  })  : quantidade = 1,
+        acompanhamentosPorItemId = acompanhamentos ?? {};
 }
 
 class _NovaVendaConteudoState extends State<_NovaVendaConteudo> {
@@ -209,6 +199,27 @@ class _NovaVendaConteudoState extends State<_NovaVendaConteudo> {
     return '$_prefixoCategoria$categoriaId|$_prefixoItem$itemId';
   }
 
+  List<GrupoComponentesLoja> _gruposDaCategoria(_LinhaCarrinho linha) {
+    final categoriaId = linha.categoriaId;
+    if (categoriaId == null) return [];
+    final categoria = _buscarCategoria(categoriaId);
+    if (categoria == null) return [];
+    return categoria.grupoIds
+        .map((id) => _buscarGrupo(id))
+        .whereType<GrupoComponentesLoja>()
+        .toList();
+  }
+
+  double _precoDosAcompanhamentosPorUnidade(_LinhaCarrinho linha) {
+    var soma = 0.0;
+    linha.acompanhamentosPorItemId.forEach((itemId, quantidade) {
+      final item = _buscarItem(itemId);
+      if (item == null) return;
+      soma += _precoComoNumero(item.preco) * quantidade;
+    });
+    return soma;
+  }
+
   double _precoUnitarioDaLinha(_LinhaCarrinho linha) {
     final item = _buscarItem(linha.itemId);
     if (item == null) return 0;
@@ -217,10 +228,7 @@ class _NovaVendaConteudoState extends State<_NovaVendaConteudo> {
       final categoria = _buscarCategoria(linha.categoriaId!);
       if (categoria != null) soma += _precoComoNumero(categoria.preco);
     }
-    for (final grupoId in linha.grupoIds) {
-      final grupo = _buscarGrupo(grupoId);
-      if (grupo != null) soma += _precoComoNumero(grupo.preco);
-    }
+    soma += _precoDosAcompanhamentosPorUnidade(linha);
     return soma;
   }
 
@@ -253,16 +261,6 @@ class _NovaVendaConteudoState extends State<_NovaVendaConteudo> {
     final categoria = _buscarCategoria(linha.categoriaId!);
     if (categoria == null) return item.nome;
     return '${categoria.nome} ${item.nome}';
-  }
-
-  String _resumoDosGrupos(_LinhaCarrinho linha) {
-    if (linha.grupoIds.isEmpty) return '';
-    final nomes = linha.grupoIds
-        .map((id) => _buscarGrupo(id)?.nome ?? '')
-        .where((nome) => nome.isNotEmpty)
-        .toList();
-    if (nomes.isEmpty) return '';
-    return 'com ${nomes.join(', ')}';
   }
 
   _LinhaCarrinho? _linhaPorChave(String chave) {
@@ -341,10 +339,19 @@ class _NovaVendaConteudoState extends State<_NovaVendaConteudo> {
       buffer.writeln(
         _linhaComValor('${linha.quantidade}x $nome', _valorComVirgula(subtotal)),
       );
-      final resumo = _resumoDosGrupos(linha);
-      if (resumo.isNotEmpty) {
-        buffer.writeln('   $resumo');
-      }
+      linha.acompanhamentosPorItemId.forEach((itemId, quantidade) {
+        final acompanhamento = _buscarItem(itemId);
+        if (acompanhamento == null || quantidade <= 0) return;
+        final totalAcompanhamento = _precoComoNumero(acompanhamento.preco) *
+            quantidade *
+            linha.quantidade;
+        buffer.writeln(
+          _linhaComValor(
+            '   ${quantidade}x ${acompanhamento.nome} por unidade',
+            _valorComVirgula(totalAcompanhamento),
+          ),
+        );
+      });
       buffer.writeln('   Obs: ');
     }
 
@@ -407,15 +414,23 @@ class _NovaVendaConteudoState extends State<_NovaVendaConteudo> {
     });
   }
 
-  void _editarGruposDaLinha(String chave) {
+  void _editarAcompanhamentosDaLinha(String chave) {
     final linha = _linhaPorChave(chave);
     if (linha == null) return;
+
+    final grupos = _gruposDaCategoria(linha);
     final theme = widget.theme;
+
+    if (grupos.isEmpty) {
+      _mostrarAviso(
+          'Esta categoria não tem grupos de componentes associados.');
+      return;
+    }
 
     showDialog<void>(
       context: context,
       builder: (dialogContext) {
-        final selecionados = Set<String>.of(linha.grupoIds);
+        final selecionados = Map<String, int>.of(linha.acompanhamentosPorItemId);
         return StatefulBuilder(
           builder: (dialogContext, setDialogState) {
             return AlertDialog(
@@ -425,7 +440,7 @@ class _NovaVendaConteudoState extends State<_NovaVendaConteudo> {
                 side: BorderSide(color: theme.borderColor),
               ),
               title: Text(
-                'Grupos de componentes',
+                'Acompanhamentos',
                 textAlign: TextAlign.center,
                 style: theme.getTextStyle(
                   fontSize: 16,
@@ -434,54 +449,96 @@ class _NovaVendaConteudoState extends State<_NovaVendaConteudo> {
                 ),
               ),
               content: SizedBox(
-                width: 280,
-                child: widget.gruposDisponiveis.isEmpty
-                    ? Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 12),
-                        child: Text(
-                          'Nenhum grupo de componentes criado ainda.',
-                          textAlign: TextAlign.center,
-                          style: theme.getTextStyle(
-                            fontSize: 13,
-                            color: theme.secondaryTextColor,
+                width: 320,
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      for (final grupo in grupos) ...[
+                        Padding(
+                          padding: const EdgeInsets.only(top: 6, bottom: 6),
+                          child: Text(
+                            grupo.nome,
+                            textAlign: TextAlign.center,
+                            style: theme.getTextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                              color: theme.textColor,
+                            ),
                           ),
                         ),
-                      )
-                    : SingleChildScrollView(
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            for (final grupo in widget.gruposDisponiveis)
-                              CheckboxListTile(
-                                value: selecionados.contains(grupo.id),
-                                title: Text(grupo.nome,
-                                    style: theme.getTextStyle()),
-                                subtitle: grupo.preco.isEmpty
-                                    ? null
-                                    : Text(
-                                        'R\$ ${grupo.preco}',
-                                        style: theme.getTextStyle(
-                                          fontSize: 11,
-                                          color: theme.secondaryTextColor,
-                                        ),
-                                      ),
-                                activeColor: theme.buttonColor,
-                                checkColor: theme.buttonTextColor,
-                                controlAffinity:
-                                    ListTileControlAffinity.leading,
-                                onChanged: (marcado) {
-                                  setDialogState(() {
-                                    if (marcado == true) {
-                                      selecionados.add(grupo.id);
-                                    } else {
-                                      selecionados.remove(grupo.id);
-                                    }
-                                  });
-                                },
+                        for (final itemId in grupo.itemIds)
+                          Builder(builder: (context) {
+                            final item = _buscarItem(itemId);
+                            if (item == null) return const SizedBox.shrink();
+                            final quantidade = selecionados[itemId] ?? 0;
+                            return Padding(
+                              padding: const EdgeInsets.symmetric(vertical: 4),
+                              child: Row(
+                                children: [
+                                  Expanded(
+                                    child: Text(
+                                      item.nome,
+                                      style: theme.getTextStyle(fontSize: 12),
+                                    ),
+                                  ),
+                                  Text(
+                                    'R\$ ${item.preco}',
+                                    style: theme.getTextStyle(fontSize: 11),
+                                  ),
+                                  const SizedBox(width: 6),
+                                  IconButton(
+                                    padding: EdgeInsets.zero,
+                                    visualDensity: VisualDensity.compact,
+                                    constraints: const BoxConstraints(
+                                        minWidth: 30, minHeight: 30),
+                                    icon: Icon(Icons.remove,
+                                        size: 16, color: theme.textColor),
+                                    onPressed: () {
+                                      setDialogState(() {
+                                        final atual = selecionados[itemId] ?? 0;
+                                        if (atual <= 1) {
+                                          selecionados.remove(itemId);
+                                        } else {
+                                          selecionados[itemId] = atual - 1;
+                                        }
+                                      });
+                                    },
+                                  ),
+                                  SizedBox(
+                                    width: 18,
+                                    child: Text(
+                                      '$quantidade',
+                                      textAlign: TextAlign.center,
+                                      style: theme.getTextStyle(fontSize: 12),
+                                    ),
+                                  ),
+                                  IconButton(
+                                    padding: EdgeInsets.zero,
+                                    visualDensity: VisualDensity.compact,
+                                    constraints: const BoxConstraints(
+                                        minWidth: 30, minHeight: 30),
+                                    icon: Icon(Icons.add,
+                                        size: 16, color: theme.textColor),
+                                    onPressed: () {
+                                      setDialogState(() {
+                                        selecionados[itemId] =
+                                            (selecionados[itemId] ?? 0) + 1;
+                                      });
+                                    },
+                                  ),
+                                ],
                               ),
-                          ],
-                        ),
-                      ),
+                            );
+                          }),
+                        Divider(
+                            color:
+                                theme.borderColor.withValues(alpha: 0.6)),
+                      ],
+                    ],
+                  ),
+                ),
               ),
               actionsAlignment: MainAxisAlignment.center,
               actions: [
@@ -495,7 +552,7 @@ class _NovaVendaConteudoState extends State<_NovaVendaConteudo> {
                 TextButton(
                   onPressed: () {
                     setState(() {
-                      linha.grupoIds
+                      linha.acompanhamentosPorItemId
                         ..clear()
                         ..addAll(selecionados);
                       _atualizarComanda();
@@ -656,16 +713,18 @@ class _NovaVendaConteudoState extends State<_NovaVendaConteudo> {
       final categoria = linha.categoriaId == null
           ? null
           : _buscarCategoria(linha.categoriaId!);
-      final grupos = <GrupoEscolhido>[];
-      for (final grupoId in linha.grupoIds) {
-        final grupo = _buscarGrupo(grupoId);
-        if (grupo == null) continue;
-        grupos.add(GrupoEscolhido(
-          grupoId: grupo.id,
-          nomeGrupo: grupo.nome,
-          precoGrupo: _precoComoNumero(grupo.preco),
+      final acompanhamentos = <AcompanhamentoEscolhido>[];
+      linha.acompanhamentosPorItemId.forEach((itemId, quantidade) {
+        if (quantidade <= 0) return;
+        final acompanhamento = _buscarItem(itemId);
+        if (acompanhamento == null) return;
+        acompanhamentos.add(AcompanhamentoEscolhido(
+          itemId: acompanhamento.id,
+          nomeItem: acompanhamento.nome,
+          precoItem: _precoComoNumero(acompanhamento.preco),
+          quantidadePorUnidade: quantidade,
         ));
-      }
+      });
       itensVendidos.add(ItemVendido(
         itemId: item.id,
         nomeItem: item.nome,
@@ -675,7 +734,7 @@ class _NovaVendaConteudoState extends State<_NovaVendaConteudo> {
         precoCategoria:
             categoria == null ? 0 : _precoComoNumero(categoria.preco),
         quantidade: linha.quantidade,
-        grupos: grupos,
+        acompanhamentos: acompanhamentos,
       ));
     }
 
@@ -873,7 +932,10 @@ class _NovaVendaConteudoState extends State<_NovaVendaConteudo> {
   }
 
   Widget _linhaDoItemSelecionado(_LinhaCarrinho linha) {
-    final resumo = _resumoDosGrupos(linha);
+    final grupos = _gruposDaCategoria(linha);
+    final temGrupos = grupos.isNotEmpty;
+    final acompanhamentos = linha.acompanhamentosPorItemId;
+
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: Column(
@@ -922,28 +984,46 @@ class _NovaVendaConteudoState extends State<_NovaVendaConteudo> {
             child: Row(
               children: [
                 Expanded(
-                  child: Text(
-                    resumo.isEmpty ? 'sem grupos' : resumo,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: theme.getTextStyle(
-                      fontSize: 10,
-                      color: theme.secondaryTextColor,
+                  child: acompanhamentos.isEmpty
+                      ? Text(
+                          temGrupos ? 'sem acompanhamentos' : '',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: theme.getTextStyle(
+                            fontSize: 10,
+                            color: theme.secondaryTextColor,
+                          ),
+                        )
+                      : Text(
+                          acompanhamentos.entries
+                              .map((entrada) {
+                                final item = _buscarItem(entrada.key);
+                                if (item == null) return '';
+                                return '${entrada.value}x ${item.nome}';
+                              })
+                              .where((s) => s.isNotEmpty)
+                              .join(', '),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: theme.getTextStyle(
+                            fontSize: 10,
+                            color: theme.secondaryTextColor,
+                          ),
+                        ),
+                ),
+                if (temGrupos)
+                  TextButton(
+                    onPressed: () => _editarAcompanhamentosDaLinha(linha.chave),
+                    style: TextButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(horizontal: 8),
+                      minimumSize: const Size(0, 28),
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    ),
+                    child: Text(
+                      'Editar acompanhamentos',
+                      style: theme.getTextStyle(fontSize: 10),
                     ),
                   ),
-                ),
-                TextButton(
-                  onPressed: () => _editarGruposDaLinha(linha.chave),
-                  style: TextButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(horizontal: 8),
-                    minimumSize: const Size(0, 28),
-                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                  ),
-                  child: Text(
-                    'Editar grupos',
-                    style: theme.getTextStyle(fontSize: 10),
-                  ),
-                ),
               ],
             ),
           ),
