@@ -208,6 +208,7 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
       context,
       theme: ThemeController.currentTheme.value,
       itensDisponiveis: _itens,
+      categoriasDisponiveis: _categorias,
       obterClientes: () => _clientes,
       aoAbrirClientes: _abrirPopupClientes,
       nomeVendedor: loja?.nome ?? '',

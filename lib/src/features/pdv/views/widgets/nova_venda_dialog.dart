@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:nous/src/core/theme/theme_controller.dart';
+import 'package:nous/src/features/pdv/models/categoria_loja.dart';
 import 'package:nous/src/features/pdv/models/cliente.dart';
 import 'package:nous/src/features/pdv/models/item_loja.dart';
 import 'package:nous/src/features/pdv/models/pedido_loja.dart';
@@ -38,6 +39,7 @@ class NovaVendaDialog {
     BuildContext context, {
     required AppTheme theme,
     required List<ItemLoja> itensDisponiveis,
+    required List<CategoriaLoja> categoriasDisponiveis,
     required List<Cliente> Function() obterClientes,
     required Future<void> Function() aoAbrirClientes,
     required String nomeVendedor,
@@ -60,6 +62,7 @@ class NovaVendaDialog {
             child: _NovaVendaConteudo(
               theme: theme,
               itensDisponiveis: itensDisponiveis,
+              categoriasDisponiveis: categoriasDisponiveis,
               obterClientes: obterClientes,
               aoAbrirClientes: aoAbrirClientes,
               nomeVendedor: nomeVendedor,
@@ -77,6 +80,7 @@ class NovaVendaDialog {
 class _NovaVendaConteudo extends StatefulWidget {
   final AppTheme theme;
   final List<ItemLoja> itensDisponiveis;
+  final List<CategoriaLoja> categoriasDisponiveis;
   final List<Cliente> Function() obterClientes;
   final Future<void> Function() aoAbrirClientes;
   final String nomeVendedor;
@@ -87,6 +91,7 @@ class _NovaVendaConteudo extends StatefulWidget {
   const _NovaVendaConteudo({
     required this.theme,
     required this.itensDisponiveis,
+    required this.categoriasDisponiveis,
     required this.obterClientes,
     required this.aoAbrirClientes,
     required this.nomeVendedor,
@@ -103,6 +108,9 @@ class _NovaVendaConteudoState extends State<_NovaVendaConteudo> {
   final _clienteController = TextEditingController();
   final _buscaController = TextEditingController();
   final _comandaController = TextEditingController();
+  final _freteController = TextEditingController();
+  final _descontoController = TextEditingController();
+  final _acrescimoController = TextEditingController();
   final _comandaScrollController = ScrollController();
   final _pagamentoScrollController = ScrollController();
 
@@ -113,6 +121,31 @@ class _NovaVendaConteudoState extends State<_NovaVendaConteudo> {
   late final DateTime _dataHora;
 
   AppTheme get theme => widget.theme;
+
+  static const String _prefixoItem = 'item:';
+  static const String _prefixoCategoria = 'cat:';
+
+  String _chaveItemAvulso(String itemId) => '$_prefixoItem$itemId';
+
+  String _chaveItemComCategoria(String categoriaId, String itemId) =>
+      '$_prefixoCategoria$categoriaId|$_prefixoItem$itemId';
+
+  bool _chaveTemCategoria(String chave) =>
+      chave.startsWith(_prefixoCategoria);
+
+  String _itemIdDaChave(String chave) {
+    final indice = chave.indexOf(_prefixoItem);
+    if (indice == -1) return chave;
+    return chave.substring(indice + _prefixoItem.length);
+  }
+
+  String? _categoriaIdDaChave(String chave) {
+    if (!_chaveTemCategoria(chave)) return null;
+    final semPrefixo = chave.substring(_prefixoCategoria.length);
+    final separador = semPrefixo.indexOf('|');
+    if (separador == -1) return semPrefixo;
+    return semPrefixo.substring(0, separador);
+  }
 
   @override
   void initState() {
@@ -126,6 +159,9 @@ class _NovaVendaConteudoState extends State<_NovaVendaConteudo> {
     _clienteController.dispose();
     _buscaController.dispose();
     _comandaController.dispose();
+    _freteController.dispose();
+    _descontoController.dispose();
+    _acrescimoController.dispose();
     _comandaScrollController.dispose();
     _pagamentoScrollController.dispose();
     super.dispose();
@@ -138,6 +174,13 @@ class _NovaVendaConteudoState extends State<_NovaVendaConteudo> {
     return null;
   }
 
+  CategoriaLoja? _buscarCategoria(String id) {
+    for (final categoria in widget.categoriasDisponiveis) {
+      if (categoria.id == id) return categoria;
+    }
+    return null;
+  }
+
   Cliente? _buscarCliente(String id) {
     for (final cliente in widget.obterClientes()) {
       if (cliente.id == id) return cliente;
@@ -145,23 +188,75 @@ class _NovaVendaConteudoState extends State<_NovaVendaConteudo> {
     return null;
   }
 
-  double get _total {
+  double _precoDaChave(String chave) {
+    final itemId = _itemIdDaChave(chave);
+    final item = _buscarItem(itemId);
+    if (item == null) return 0;
+    final categoriaId = _categoriaIdDaChave(chave);
+    if (categoriaId == null) return _precoComoNumero(item.preco);
+    final categoria = _buscarCategoria(categoriaId);
+    final precoItem = _precoComoNumero(item.preco);
+    final precoCategoria =
+        categoria == null ? 0.0 : _precoComoNumero(categoria.preco);
+    return precoItem + precoCategoria;
+  }
+
+  double get _subtotalDosItens {
     var soma = 0.0;
-    _quantidades.forEach((id, quantidade) {
-      final item = _buscarItem(id);
-      if (item != null) soma += _precoComoNumero(item.preco) * quantidade;
+    _quantidades.forEach((chave, quantidade) {
+      soma += _precoDaChave(chave) * quantidade;
     });
     return soma;
   }
 
-  List<ItemLoja> get _resultadosDaBusca {
+  double get _frete => _precoComoNumero(_freteController.text);
+
+  double get _desconto => _precoComoNumero(_descontoController.text);
+
+  double get _acrescimo => _precoComoNumero(_acrescimoController.text);
+
+  double get _total {
+    final total =
+        _subtotalDosItens + _frete + _acrescimo - _desconto;
+    return total < 0 ? 0 : total;
+  }
+
+  String _nomeExibicaoDaChave(String chave) {
+    final itemId = _itemIdDaChave(chave);
+    final item = _buscarItem(itemId);
+    if (item == null) return 'Item removido';
+    final categoriaId = _categoriaIdDaChave(chave);
+    if (categoriaId == null) return item.nome;
+    final categoria = _buscarCategoria(categoriaId);
+    if (categoria == null) return item.nome;
+    return '${categoria.nome} ${item.nome}';
+  }
+
+  List<CategoriaLoja> get _categoriasEncontradas {
     final termo = _buscaController.text.trim().toLowerCase();
     if (termo.isEmpty) return [];
-    return widget.itensDisponiveis
-        .where((item) => item.nome.toLowerCase().contains(termo))
+    return widget.categoriasDisponiveis
+        .where((c) => c.nome.toLowerCase().contains(termo))
         .take(4)
         .toList();
   }
+
+  List<ItemLoja> get _itensEncontrados {
+    final termo = _buscaController.text.trim().toLowerCase();
+    if (termo.isEmpty) return [];
+    final idsDeItensEmCategoriasEncontradas = <String>{};
+    for (final categoria in _categoriasEncontradas) {
+      idsDeItensEmCategoriasEncontradas.addAll(categoria.itemIds);
+    }
+    return widget.itensDisponiveis
+        .where((item) => item.nome.toLowerCase().contains(termo))
+        .where((item) => !idsDeItensEmCategoriasEncontradas.contains(item.id))
+        .take(4)
+        .toList();
+  }
+
+  bool get _temResultadoDeBusca =>
+      _categoriasEncontradas.isNotEmpty || _itensEncontrados.isNotEmpty;
 
   List<Cliente> get _sugestoesDeCliente {
     if (_clienteSelecionado != null) return [];
@@ -200,19 +295,35 @@ class _NovaVendaConteudoState extends State<_NovaVendaConteudo> {
     buffer.writeln(simples);
     buffer.writeln('ITENS');
 
-    _quantidades.forEach((id, quantidade) {
-      final item = _buscarItem(id);
-      if (item == null) return;
-      final subtotal = _precoComoNumero(item.preco) * quantidade;
+    _quantidades.forEach((chave, quantidade) {
+      final nome = _nomeExibicaoDaChave(chave);
+      final subtotal = _precoDaChave(chave) * quantidade;
       buffer.writeln(
-        _linhaComValor('${quantidade}x ${item.nome}', _valorComVirgula(subtotal)),
+        _linhaComValor('${quantidade}x $nome', _valorComVirgula(subtotal)),
       );
       buffer.writeln('   Obs: ');
     });
 
     buffer.writeln(simples);
-    buffer.writeln('Frete: R\$ ${_valorComVirgula(0)}');
-    buffer.writeln('TOTAL: R\$ ${_valorComVirgula(_total)}');
+    buffer.writeln(
+      _linhaComValor('Subtotal', _valorComVirgula(_subtotalDosItens)),
+    );
+    buffer.writeln(
+      _linhaComValor('Frete', _valorComVirgula(_frete)),
+    );
+    if (_desconto > 0) {
+      buffer.writeln(
+        _linhaComValor('Desconto', '-${_valorComVirgula(_desconto)}'),
+      );
+    }
+    if (_acrescimo > 0) {
+      buffer.writeln(
+        _linhaComValor('Acréscimo', _valorComVirgula(_acrescimo)),
+      );
+    }
+    buffer.writeln(
+      _linhaComValor('TOTAL', _valorComVirgula(_total)),
+    );
     buffer.writeln('Pagamento: ${_formaPagamento ?? ''}');
     buffer.write(duplo);
 
@@ -223,13 +334,13 @@ class _NovaVendaConteudoState extends State<_NovaVendaConteudo> {
     _comandaController.text = _montarComanda();
   }
 
-  void _alterarQuantidade(String id, int variacao) {
+  void _alterarQuantidade(String chave, int variacao) {
     setState(() {
-      final nova = (_quantidades[id] ?? 0) + variacao;
+      final nova = (_quantidades[chave] ?? 0) + variacao;
       if (nova <= 0) {
-        _quantidades.remove(id);
+        _quantidades.remove(chave);
       } else {
-        _quantidades[id] = nova;
+        _quantidades[chave] = nova;
       }
       _aviso = null;
       _atualizarComanda();
@@ -290,6 +401,74 @@ class _NovaVendaConteudoState extends State<_NovaVendaConteudo> {
     setState(() => _aviso = texto);
   }
 
+  void _abrirSeletorDeItemDaCategoria(CategoriaLoja categoria) {
+    final theme = widget.theme;
+    final itens = categoria.itemIds
+        .map((id) => _buscarItem(id))
+        .whereType<ItemLoja>()
+        .toList();
+
+    showDialog<void>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          backgroundColor: theme.cardBackgroundColor,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16.0),
+            side: BorderSide(color: theme.borderColor),
+          ),
+          title: Text(
+            categoria.nome,
+            textAlign: TextAlign.center,
+            style: theme.getTextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.bold,
+              color: theme.textColor,
+            ),
+          ),
+          content: SizedBox(
+            width: 280,
+            child: itens.isEmpty
+                ? Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    child: Text(
+                      'Nenhum item nesta categoria ainda.',
+                      textAlign: TextAlign.center,
+                      style: theme.getTextStyle(
+                        fontSize: 13,
+                        color: theme.secondaryTextColor,
+                      ),
+                    ),
+                  )
+                : SingleChildScrollView(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        for (final item in itens)
+                          ListTile(
+                            title: Text(item.nome,
+                                style: theme.getTextStyle()),
+                            trailing: Text(
+                              'R\$ ${_valorComVirgula(_precoComoNumero(item.preco) + _precoComoNumero(categoria.preco))}',
+                              style: theme.getTextStyle(fontSize: 11),
+                            ),
+                            onTap: () {
+                              final chave = _chaveItemComCategoria(
+                                  categoria.id, item.id);
+                              _buscaController.clear();
+                              _alterarQuantidade(chave, 1);
+                              Navigator.of(dialogContext).pop();
+                            },
+                          ),
+                      ],
+                    ),
+                  ),
+          ),
+        );
+      },
+    );
+  }
+
   void _concluir() {
     if (_quantidades.isEmpty) {
       _mostrarAviso('Adicione ao menos um produto.');
@@ -302,7 +481,7 @@ class _NovaVendaConteudoState extends State<_NovaVendaConteudo> {
     }
 
     final nomes = _quantidades.keys
-        .map((id) => _buscarItem(id)?.nome ?? '')
+        .map((chave) => _nomeExibicaoDaChave(chave))
         .where((nome) => nome.isNotEmpty)
         .toList();
     final resumo = nomes.length > 1
@@ -441,11 +620,36 @@ class _NovaVendaConteudoState extends State<_NovaVendaConteudo> {
     );
   }
 
+  Widget _linhaDeCategoriaNaBusca(CategoriaLoja categoria) {
+    return InkWell(
+      onTap: () => _abrirSeletorDeItemDaCategoria(categoria),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+        child: Row(
+          children: [
+            Icon(Icons.category_outlined,
+                size: 16, color: theme.secondaryTextColor),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                'Categoria: ${categoria.nome}',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: theme.getTextStyle(fontSize: 12, color: theme.textColor),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _linhaDeResultado(ItemLoja item) {
     return InkWell(
       onTap: () {
+        final chave = _chaveItemAvulso(item.id);
         _buscaController.clear();
-        _alterarQuantidade(item.id, 1);
+        _alterarQuantidade(chave, 1);
       },
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
@@ -469,12 +673,12 @@ class _NovaVendaConteudoState extends State<_NovaVendaConteudo> {
     );
   }
 
-  Widget _linhaDoItemSelecionado(ItemLoja item, int quantidade) {
+  Widget _linhaDoItemSelecionado(String chave, int quantidade) {
     return Row(
       children: [
         Expanded(
           child: Text(
-            item.nome,
+            _nomeExibicaoDaChave(chave),
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: theme.getTextStyle(fontSize: 12, color: theme.textColor),
@@ -485,7 +689,7 @@ class _NovaVendaConteudoState extends State<_NovaVendaConteudo> {
           visualDensity: VisualDensity.compact,
           constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
           icon: Icon(Icons.remove, size: 18, color: theme.textColor),
-          onPressed: () => _alterarQuantidade(item.id, -1),
+          onPressed: () => _alterarQuantidade(chave, -1),
         ),
         Text('$quantidade', style: theme.getTextStyle(fontSize: 12)),
         IconButton(
@@ -493,14 +697,15 @@ class _NovaVendaConteudoState extends State<_NovaVendaConteudo> {
           visualDensity: VisualDensity.compact,
           constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
           icon: Icon(Icons.add, size: 18, color: theme.textColor),
-          onPressed: () => _alterarQuantidade(item.id, 1),
+          onPressed: () => _alterarQuantidade(chave, 1),
         ),
       ],
     );
   }
 
   Widget _blocoProduto() {
-    final resultados = _resultadosDaBusca;
+    final categorias = _categoriasEncontradas;
+    final itens = _itensEncontrados;
     final buscando = _buscaController.text.trim().isNotEmpty;
 
     return Container(
@@ -530,28 +735,28 @@ class _NovaVendaConteudoState extends State<_NovaVendaConteudo> {
           ),
           if (buscando) ...[
             const SizedBox(height: 8),
-            if (resultados.isEmpty)
+            if (!_temResultadoDeBusca)
               Padding(
                 padding: const EdgeInsets.symmetric(vertical: 6),
                 child: Text(
-                  widget.itensDisponiveis.isEmpty
-                      ? 'Nenhum item criado na aba Loja ainda.'
+                  widget.itensDisponiveis.isEmpty &&
+                          widget.categoriasDisponiveis.isEmpty
+                      ? 'Nenhum item ou categoria criado na aba Loja ainda.'
                       : 'Nenhum resultado.',
                   style: theme.getTextStyle(fontSize: 11),
                 ),
               )
-            else
-              for (final item in resultados) _linhaDeResultado(item),
+            else ...[
+              for (final categoria in categorias)
+                _linhaDeCategoriaNaBusca(categoria),
+              for (final item in itens) _linhaDeResultado(item),
+            ],
           ],
           if (_quantidades.isNotEmpty) ...[
             const SizedBox(height: 8),
             Divider(color: theme.borderColor.withValues(alpha: 0.6)),
             for (final entrada in _quantidades.entries)
-              if (_buscarItem(entrada.key) != null)
-                _linhaDoItemSelecionado(
-                  _buscarItem(entrada.key)!,
-                  entrada.value,
-                ),
+              _linhaDoItemSelecionado(entrada.key, entrada.value),
           ],
         ],
       ),
@@ -597,6 +802,45 @@ class _NovaVendaConteudoState extends State<_NovaVendaConteudo> {
                 ),
               ),
             ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _campoValor({
+    required TextEditingController controller,
+    required String rotulo,
+  }) {
+    return Expanded(
+      child: TextField(
+        controller: controller,
+        keyboardType: const TextInputType.numberWithOptions(decimal: true),
+        cursorColor: theme.textColor,
+        style: theme.getTextStyle(fontSize: 12),
+        decoration: _decoracaoCampo(rotulo),
+        onChanged: (_) => setState(_atualizarComanda),
+      ),
+    );
+  }
+
+  Widget _blocoAjustes() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: _decoracaoDoBloco,
+      child: Column(
+        children: [
+          _tituloDoBloco('Frete, Desconto e Acréscimo'),
+          Row(
+            children: [
+              _campoValor(controller: _freteController, rotulo: 'Frete'),
+              const SizedBox(width: 8),
+              _campoValor(controller: _descontoController, rotulo: 'Desconto'),
+              const SizedBox(width: 8),
+              _campoValor(
+                  controller: _acrescimoController, rotulo: 'Acréscimo'),
+            ],
           ),
         ],
       ),
@@ -723,6 +967,8 @@ class _NovaVendaConteudoState extends State<_NovaVendaConteudo> {
                 _blocoProduto(),
                 const SizedBox(height: 12),
                 _blocoComanda(),
+                const SizedBox(height: 12),
+                _blocoAjustes(),
                 const SizedBox(height: 12),
                 _blocoPagamento(),
                 const SizedBox(height: 12),
