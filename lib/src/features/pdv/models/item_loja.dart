@@ -7,8 +7,6 @@ class ItemLoja {
   final String nome;
   final TipoItemLoja? tipo;
   final String preco;
-  final String? categoriaId;
-  final String? grupoComponentesId;
   final List<String> variantes;
   final String descricao;
   final bool possuiDelivery;
@@ -20,8 +18,6 @@ class ItemLoja {
     required this.nome,
     this.tipo,
     this.preco = '',
-    this.categoriaId,
-    this.grupoComponentesId,
     this.variantes = const [],
     this.descricao = '',
     this.possuiDelivery = false,
@@ -33,8 +29,6 @@ class ItemLoja {
     required String nome,
     TipoItemLoja? tipo,
     String preco = '',
-    String? categoriaId,
-    String? grupoComponentesId,
     List<String> variantes = const [],
     String descricao = '',
     bool possuiDelivery = false,
@@ -46,8 +40,6 @@ class ItemLoja {
       nome: nome,
       tipo: tipo,
       preco: preco,
-      categoriaId: categoriaId,
-      grupoComponentesId: grupoComponentesId,
       variantes: variantes,
       descricao: descricao,
       possuiDelivery: possuiDelivery,
@@ -60,8 +52,6 @@ class ItemLoja {
     String? nome,
     TipoItemLoja? tipo,
     String? preco,
-    String? categoriaId,
-    String? grupoComponentesId,
     List<String>? variantes,
     String? descricao,
     bool? possuiDelivery,
@@ -73,8 +63,6 @@ class ItemLoja {
       nome: nome ?? this.nome,
       tipo: tipo ?? this.tipo,
       preco: preco ?? this.preco,
-      categoriaId: categoriaId ?? this.categoriaId,
-      grupoComponentesId: grupoComponentesId ?? this.grupoComponentesId,
       variantes: variantes ?? this.variantes,
       descricao: descricao ?? this.descricao,
       possuiDelivery: possuiDelivery ?? this.possuiDelivery,
@@ -89,8 +77,6 @@ class ItemLoja {
       'nome': nome,
       'tipo': tipo?.name,
       'preco': preco,
-      'categoriaId': categoriaId,
-      'grupoComponentesId': grupoComponentesId,
       'variantes': variantes,
       'descricao': descricao,
       'possuiDelivery': possuiDelivery,
@@ -108,8 +94,6 @@ class ItemLoja {
           ? null
           : TipoItemLoja.values.firstWhere((t) => t.name == tipoTexto),
       preco: json['preco'] as String? ?? '',
-      categoriaId: json['categoriaId'] as String?,
-      grupoComponentesId: json['grupoComponentesId'] as String?,
       variantes: (json['variantes'] as List<dynamic>? ?? const [])
           .map((item) => item as String)
           .toList(),

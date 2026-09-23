@@ -3,18 +3,18 @@ import 'package:nous/src/core/theme/theme_controller.dart';
 import 'package:nous/src/core/widgets/themed_text_field.dart';
 import 'package:nous/src/features/pdv/models/item_loja.dart';
 
-// Popup "Novo Item" / "Editar Item". Mesma tela para os dois casos:
-// se "itemParaEditar" vier preenchido, os campos começam já
-// preenchidos com os dados dele, o título vira "Editar Item" e o botão
-// vira "Salvar" em vez de "Criar". Continua não salvando nada por
-// conta própria: ao terminar, só monta o ItemLoja (novo ou editado) e
-// entrega para quem chamou via onCriar.
 class NovoItemDialog extends StatefulWidget {
   final AppTheme theme;
   final List<CategoriaLoja> categorias;
   final List<GrupoComponentesLoja> gruposComponentes;
   final ItemLoja? itemParaEditar;
-  final void Function(ItemLoja item) onCriar;
+  final List<String> categoriaIdsIniciais;
+  final List<String> grupoIdsIniciais;
+  final void Function(
+    ItemLoja item,
+    List<String> categoriaIds,
+    List<String> grupoIds,
+  ) onCriar;
 
   const NovoItemDialog({
     super.key,
@@ -22,6 +22,8 @@ class NovoItemDialog extends StatefulWidget {
     required this.categorias,
     required this.gruposComponentes,
     this.itemParaEditar,
+    this.categoriaIdsIniciais = const [],
+    this.grupoIdsIniciais = const [],
     required this.onCriar,
   });
 
@@ -31,7 +33,13 @@ class NovoItemDialog extends StatefulWidget {
     required List<CategoriaLoja> categorias,
     required List<GrupoComponentesLoja> gruposComponentes,
     ItemLoja? itemParaEditar,
-    required void Function(ItemLoja item) onCriar,
+    List<String> categoriaIdsIniciais = const [],
+    List<String> grupoIdsIniciais = const [],
+    required void Function(
+      ItemLoja item,
+      List<String> categoriaIds,
+      List<String> grupoIds,
+    ) onCriar,
   }) {
     return showDialog<void>(
       context: context,
@@ -40,6 +48,8 @@ class NovoItemDialog extends StatefulWidget {
         categorias: categorias,
         gruposComponentes: gruposComponentes,
         itemParaEditar: itemParaEditar,
+        categoriaIdsIniciais: categoriaIdsIniciais,
+        grupoIdsIniciais: grupoIdsIniciais,
         onCriar: onCriar,
       ),
     );
@@ -51,16 +61,18 @@ class NovoItemDialog extends StatefulWidget {
 
 class _NovoItemDialogState extends State<NovoItemDialog> {
   final _nomeController = TextEditingController();
-  // NOVO: controller do campo de preço.
   final _precoController = TextEditingController();
   final _descricaoController = TextEditingController();
   final _freteGratisAteController = TextEditingController();
   final _valorPorKmController = TextEditingController();
 
   TipoItemLoja? _tipo;
-  String? _categoriaSelecionadaId;
-  String? _grupoSelecionadoId;
   bool _possuiDelivery = false;
+
+  late final Set<String> _categoriasSelecionadas =
+      widget.categoriaIdsIniciais.toSet();
+  late final Set<String> _gruposSelecionados =
+      widget.grupoIdsIniciais.toSet();
 
   final List<TextEditingController> _variantesControllers = [];
 
@@ -69,7 +81,7 @@ class _NovoItemDialogState extends State<NovoItemDialog> {
     super.initState();
 
     final item = widget.itemParaEditar;
-    if (item == null) return; // modo criação: campos começam vazios
+    if (item == null) return;
 
     _nomeController.text = item.nome;
     _precoController.text = item.preco;
@@ -77,8 +89,6 @@ class _NovoItemDialogState extends State<NovoItemDialog> {
     _freteGratisAteController.text = item.freteGratisAte;
     _valorPorKmController.text = item.valorPorKm;
     _tipo = item.tipo;
-    _categoriaSelecionadaId = item.categoriaId;
-    _grupoSelecionadoId = item.grupoComponentesId;
     _possuiDelivery = item.possuiDelivery;
 
     for (final variante in item.variantes) {
@@ -110,63 +120,87 @@ class _NovoItemDialogState extends State<NovoItemDialog> {
     });
   }
 
-  void _abrirSeletor({
+  void _abrirSeletorMultiplo({
     required String titulo,
     required Map<String, String> opcoes,
-    required String? selecionadoId,
-    required ValueChanged<String?> aoSelecionar,
+    required Set<String> selecionados,
   }) {
     final theme = widget.theme;
 
     showDialog<void>(
       context: context,
       builder: (dialogContext) {
-        return AlertDialog(
-          backgroundColor: theme.cardBackgroundColor,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16.0),
-            side: BorderSide(color: theme.borderColor),
-          ),
-          title: Text(
-            titulo,
-            textAlign: TextAlign.center,
-            style: theme.getTextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.bold,
-              color: theme.textColor,
-            ),
-          ),
-          content: SizedBox(
-            width: 280,
-            child: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  ListTile(
-                    title: Text('Nenhuma', style: theme.getTextStyle()),
-                    trailing: selecionadoId == null
-                        ? Icon(Icons.check, color: theme.buttonColor)
-                        : null,
-                    onTap: () {
-                      aoSelecionar(null);
-                      Navigator.of(dialogContext).pop();
-                    },
-                  ),
-                  for (final entrada in opcoes.entries)
-                    ListTile(
-                      title: Text(entrada.value, style: theme.getTextStyle()),
-                      trailing: selecionadoId == entrada.key
-                          ? Icon(Icons.check, color: theme.buttonColor)
-                          : null,
-                      onTap: () {
-                        aoSelecionar(entrada.key);
-                        Navigator.of(dialogContext).pop();
-                      },
-                    ),
-                ],
+        return StatefulBuilder(
+          builder: (dialogContext, setDialogState) {
+            return AlertDialog(
+              backgroundColor: theme.cardBackgroundColor,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16.0),
+                side: BorderSide(color: theme.borderColor),
               ),
-            ),
-          ),
+              title: Text(
+                titulo,
+                textAlign: TextAlign.center,
+                style: theme.getTextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: theme.textColor,
+                ),
+              ),
+              content: SizedBox(
+                width: 280,
+                child: opcoes.isEmpty
+                    ? Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        child: Text(
+                          'Nenhuma opção disponível ainda.',
+                          textAlign: TextAlign.center,
+                          style: theme.getTextStyle(
+                            fontSize: 13,
+                            color: theme.secondaryTextColor,
+                          ),
+                        ),
+                      )
+                    : SingleChildScrollView(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            for (final entrada in opcoes.entries)
+                              CheckboxListTile(
+                                value: selecionados.contains(entrada.key),
+                                title:
+                                    Text(entrada.value, style: theme.getTextStyle()),
+                                activeColor: theme.buttonColor,
+                                checkColor: theme.buttonTextColor,
+                                controlAffinity:
+                                    ListTileControlAffinity.leading,
+                                onChanged: (marcado) {
+                                  setDialogState(() {
+                                    if (marcado == true) {
+                                      selecionados.add(entrada.key);
+                                    } else {
+                                      selecionados.remove(entrada.key);
+                                    }
+                                  });
+                                  setState(() {});
+                                },
+                              ),
+                          ],
+                        ),
+                      ),
+              ),
+              actionsAlignment: MainAxisAlignment.center,
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(dialogContext).pop(),
+                  child: Text(
+                    'Concluir',
+                    style: theme.getTextStyle(color: theme.textColor),
+                  ),
+                ),
+              ],
+            );
+          },
         );
       },
     );
@@ -193,12 +227,16 @@ class _NovoItemDialogState extends State<NovoItemDialog> {
           children: [
             Expanded(
               child: Text(
-                valorExibido ?? label,
+                (valorExibido == null || valorExibido.isEmpty)
+                    ? label
+                    : valorExibido,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
                 style: theme.getTextStyle(
                   fontSize: 14,
-                  color: valorExibido != null
-                      ? theme.textColor
-                      : theme.secondaryTextColor,
+                  color: (valorExibido == null || valorExibido.isEmpty)
+                      ? theme.secondaryTextColor
+                      : theme.textColor,
                 ),
               ),
             ),
@@ -211,7 +249,7 @@ class _NovoItemDialogState extends State<NovoItemDialog> {
 
   void _criar() {
     final nome = _nomeController.text.trim();
-    if (nome.isEmpty) return; // nome é o único campo realmente obrigatório
+    if (nome.isEmpty) return;
 
     final variantes = _variantesControllers
         .map((controller) => controller.text.trim())
@@ -225,8 +263,6 @@ class _NovoItemDialogState extends State<NovoItemDialog> {
             nome: nome,
             tipo: _tipo,
             preco: _precoController.text.trim(),
-            categoriaId: _categoriaSelecionadaId,
-            grupoComponentesId: _grupoSelecionadoId,
             variantes: variantes,
             descricao: _descricaoController.text.trim(),
             possuiDelivery: _possuiDelivery,
@@ -237,8 +273,6 @@ class _NovoItemDialogState extends State<NovoItemDialog> {
             nome: nome,
             tipo: _tipo,
             preco: _precoController.text.trim(),
-            categoriaId: _categoriaSelecionadaId,
-            grupoComponentesId: _grupoSelecionadoId,
             variantes: variantes,
             descricao: _descricaoController.text.trim(),
             possuiDelivery: _possuiDelivery,
@@ -246,7 +280,11 @@ class _NovoItemDialogState extends State<NovoItemDialog> {
             valorPorKm: _valorPorKmController.text.trim(),
           );
 
-    widget.onCriar(item);
+    widget.onCriar(
+      item,
+      _categoriasSelecionadas.toList(),
+      _gruposSelecionados.toList(),
+    );
     Navigator.of(context).pop();
   }
 
@@ -265,14 +303,14 @@ class _NovoItemDialogState extends State<NovoItemDialog> {
       for (final grupo in widget.gruposComponentes) grupo.id: grupo.nome,
     };
 
-    final nomeCategoriaSelecionada = widget.categorias
-        .where((c) => c.id == _categoriaSelecionadaId)
+    final nomesCategoriasSelecionadas = widget.categorias
+        .where((c) => _categoriasSelecionadas.contains(c.id))
         .map((c) => c.nome)
-        .firstOrNull;
-    final nomeGrupoSelecionado = widget.gruposComponentes
-        .where((g) => g.id == _grupoSelecionadoId)
+        .join(', ');
+    final nomesGruposSelecionados = widget.gruposComponentes
+        .where((g) => _gruposSelecionados.contains(g.id))
         .map((g) => g.nome)
-        .firstOrNull;
+        .join(', ');
 
     return AlertDialog(
       backgroundColor: theme.cardBackgroundColor,
@@ -319,8 +357,6 @@ class _NovoItemDialogState extends State<NovoItemDialog> {
               ),
               const SizedBox(height: 16),
 
-              // NOVO: campo de preço, logo abaixo do nome. Teclado
-              // numérico pra facilitar a digitação num celular.
               ThemedTextField(
                 theme: theme,
                 controller: _precoController,
@@ -344,27 +380,23 @@ class _NovoItemDialogState extends State<NovoItemDialog> {
               const SizedBox(height: 16),
 
               _campoSelecao(
-                label: 'Categoria do item',
-                valorExibido: nomeCategoriaSelecionada,
-                onTap: () => _abrirSeletor(
-                  titulo: 'Categoria do item',
+                label: 'Categorias do item',
+                valorExibido: nomesCategoriasSelecionadas,
+                onTap: () => _abrirSeletorMultiplo(
+                  titulo: 'Categorias do item',
                   opcoes: opcoesCategorias,
-                  selecionadoId: _categoriaSelecionadaId,
-                  aoSelecionar: (id) =>
-                      setState(() => _categoriaSelecionadaId = id),
+                  selecionados: _categoriasSelecionadas,
                 ),
               ),
               const SizedBox(height: 12),
 
               _campoSelecao(
-                label: 'Grupo de componentes',
-                valorExibido: nomeGrupoSelecionado,
-                onTap: () => _abrirSeletor(
-                  titulo: 'Grupo de componentes',
+                label: 'Grupos de componentes',
+                valorExibido: nomesGruposSelecionados,
+                onTap: () => _abrirSeletorMultiplo(
+                  titulo: 'Grupos de componentes',
                   opcoes: opcoesGrupos,
-                  selecionadoId: _grupoSelecionadoId,
-                  aoSelecionar: (id) =>
-                      setState(() => _grupoSelecionadoId = id),
+                  selecionados: _gruposSelecionados,
                 ),
               ),
               const SizedBox(height: 16),
@@ -497,15 +529,6 @@ class _NovoItemDialogState extends State<NovoItemDialog> {
     return Column(
       children: [
         Text(rotulo, style: theme.getTextStyle(fontSize: 13)),
-        // ALTERADO: era "activeColor: theme.buttonColor". No tema
-        // escuro padrão, buttonColor é TRANSPARENTE (ele foi pensado
-        // pra ser o fundo de botões "vazados", não uma cor visível
-        // sozinha). Isso fazia o pontinho do Radio ficar invisível
-        // assim que você selecionava — parecia que o botão "sumia",
-        // mas ele continuava lá, só que pintado de transparente.
-        // theme.borderColor sempre é uma cor sólida (branco no tema
-        // escuro, preto no tema claro), então o Radio fica visível
-        // nos dois temas.
         Radio<TipoItemLoja>(value: valor, activeColor: theme.borderColor),
       ],
     );

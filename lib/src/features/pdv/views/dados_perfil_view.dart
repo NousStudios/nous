@@ -279,31 +279,81 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
     );
   }
 
+  void _sincronizarVinculosItem(
+    String itemId,
+    List<String> categoriaIds,
+    List<String> grupoIds,
+  ) {
+    setState(() {
+      for (var i = 0; i < _categorias.length; i++) {
+        final categoria = _categorias[i];
+        final deveConter = categoriaIds.contains(categoria.id);
+        final contem = categoria.itemIds.contains(itemId);
+        if (deveConter && !contem) {
+          _categorias[i] =
+              categoria.copyWith(itemIds: [...categoria.itemIds, itemId]);
+        } else if (!deveConter && contem) {
+          _categorias[i] = categoria.copyWith(
+            itemIds:
+                categoria.itemIds.where((id) => id != itemId).toList(),
+          );
+        }
+      }
+
+      for (var i = 0; i < _gruposComponentes.length; i++) {
+        final grupo = _gruposComponentes[i];
+        final deveConter = grupoIds.contains(grupo.id);
+        final contem = grupo.itemIds.contains(itemId);
+        if (deveConter && !contem) {
+          _gruposComponentes[i] =
+              grupo.copyWith(itemIds: [...grupo.itemIds, itemId]);
+        } else if (!deveConter && contem) {
+          _gruposComponentes[i] = grupo.copyWith(
+            itemIds: grupo.itemIds.where((id) => id != itemId).toList(),
+          );
+        }
+      }
+    });
+  }
+
   void _abrirPopupNovoItem() {
     NovoItemDialog.mostrar(
       context,
       theme: ThemeController.currentTheme.value,
       categorias: _categorias,
       gruposComponentes: _gruposComponentes,
-      onCriar: (item) {
+      onCriar: (item, categoriaIds, grupoIds) {
         setState(() => _itens.add(item));
+        _sincronizarVinculosItem(item.id, categoriaIds, grupoIds);
         _persistirListasLoja();
       },
     );
   }
 
   void _abrirPopupEditarItem(ItemLoja item) {
+    final categoriaIdsIniciais = _categorias
+        .where((c) => c.itemIds.contains(item.id))
+        .map((c) => c.id)
+        .toList();
+    final grupoIdsIniciais = _gruposComponentes
+        .where((g) => g.itemIds.contains(item.id))
+        .map((g) => g.id)
+        .toList();
+
     NovoItemDialog.mostrar(
       context,
       theme: ThemeController.currentTheme.value,
       categorias: _categorias,
       gruposComponentes: _gruposComponentes,
       itemParaEditar: item,
-      onCriar: (itemEditado) {
+      categoriaIdsIniciais: categoriaIdsIniciais,
+      grupoIdsIniciais: grupoIdsIniciais,
+      onCriar: (itemEditado, categoriaIds, grupoIds) {
         setState(() {
           final indice = _itens.indexWhere((i) => i.id == itemEditado.id);
           if (indice != -1) _itens[indice] = itemEditado;
         });
+        _sincronizarVinculosItem(itemEditado.id, categoriaIds, grupoIds);
         _persistirListasLoja();
       },
     );
@@ -355,7 +405,29 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
   }
 
   void _removerItem(String id) {
-    setState(() => _itens.removeWhere((item) => item.id == id));
+    setState(() {
+      _itens.removeWhere((item) => item.id == id);
+
+      for (var i = 0; i < _categorias.length; i++) {
+        if (_categorias[i].itemIds.contains(id)) {
+          _categorias[i] = _categorias[i].copyWith(
+            itemIds:
+                _categorias[i].itemIds.where((itemId) => itemId != id).toList(),
+          );
+        }
+      }
+
+      for (var i = 0; i < _gruposComponentes.length; i++) {
+        if (_gruposComponentes[i].itemIds.contains(id)) {
+          _gruposComponentes[i] = _gruposComponentes[i].copyWith(
+            itemIds: _gruposComponentes[i]
+                .itemIds
+                .where((itemId) => itemId != id)
+                .toList(),
+          );
+        }
+      }
+    });
     _persistirListasLoja();
   }
 
