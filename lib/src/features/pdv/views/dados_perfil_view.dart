@@ -222,6 +222,11 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
         });
         _persistirListasLoja();
       },
+      aoCriarItem: (item, categoriaIds, grupoIds) async {
+        setState(() => _itens.add(item));
+        _sincronizarVinculosItem(item.id, categoriaIds, grupoIds);
+        _persistirListasLoja();
+      },
     );
   }
 
