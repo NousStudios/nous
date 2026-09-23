@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:nous/src/core/theme/theme_controller.dart';
 import 'package:nous/src/features/pdv/models/categoria_loja.dart';
 import 'package:nous/src/features/pdv/models/cliente.dart';
+import 'package:nous/src/features/pdv/models/grupo_componentes_loja.dart';
 import 'package:nous/src/features/pdv/models/item_loja.dart';
 import 'package:nous/src/features/pdv/models/pedido_loja.dart';
 
@@ -40,6 +41,7 @@ class NovaVendaDialog {
     required AppTheme theme,
     required List<ItemLoja> itensDisponiveis,
     required List<CategoriaLoja> categoriasDisponiveis,
+    required List<GrupoComponentesLoja> gruposDisponiveis,
     required List<Cliente> Function() obterClientes,
     required Future<void> Function() aoAbrirClientes,
     required String nomeVendedor,
@@ -63,6 +65,7 @@ class NovaVendaDialog {
               theme: theme,
               itensDisponiveis: itensDisponiveis,
               categoriasDisponiveis: categoriasDisponiveis,
+              gruposDisponiveis: gruposDisponiveis,
               obterClientes: obterClientes,
               aoAbrirClientes: aoAbrirClientes,
               nomeVendedor: nomeVendedor,
@@ -81,6 +84,7 @@ class _NovaVendaConteudo extends StatefulWidget {
   final AppTheme theme;
   final List<ItemLoja> itensDisponiveis;
   final List<CategoriaLoja> categoriasDisponiveis;
+  final List<GrupoComponentesLoja> gruposDisponiveis;
   final List<Cliente> Function() obterClientes;
   final Future<void> Function() aoAbrirClientes;
   final String nomeVendedor;
@@ -92,6 +96,7 @@ class _NovaVendaConteudo extends StatefulWidget {
     required this.theme,
     required this.itensDisponiveis,
     required this.categoriasDisponiveis,
+    required this.gruposDisponiveis,
     required this.obterClientes,
     required this.aoAbrirClientes,
     required this.nomeVendedor,
@@ -104,6 +109,32 @@ class _NovaVendaConteudo extends StatefulWidget {
   State<_NovaVendaConteudo> createState() => _NovaVendaConteudoState();
 }
 
+class _LinhaCarrinho {
+  final String chave;
+  final String itemId;
+  final String? categoriaId;
+  int quantidade;
+  final List<String> grupoIds;
+
+  _LinhaCarrinho({
+    required this.chave,
+    required this.itemId,
+    this.categoriaId,
+    this.quantidade = 1,
+    List<String>? grupoIds,
+  }) : grupoIds = grupoIds ?? [];
+
+  _LinhaCarrinho copia() {
+    return _LinhaCarrinho(
+      chave: chave,
+      itemId: itemId,
+      categoriaId: categoriaId,
+      quantidade: quantidade,
+      grupoIds: List.of(grupoIds),
+    );
+  }
+}
+
 class _NovaVendaConteudoState extends State<_NovaVendaConteudo> {
   final _clienteController = TextEditingController();
   final _buscaController = TextEditingController();
@@ -114,7 +145,7 @@ class _NovaVendaConteudoState extends State<_NovaVendaConteudo> {
   final _comandaScrollController = ScrollController();
   final _pagamentoScrollController = ScrollController();
 
-  final Map<String, int> _quantidades = {};
+  final List<_LinhaCarrinho> _carrinho = [];
   Cliente? _clienteSelecionado;
   String? _formaPagamento;
   String? _aviso;
@@ -124,28 +155,6 @@ class _NovaVendaConteudoState extends State<_NovaVendaConteudo> {
 
   static const String _prefixoItem = 'item:';
   static const String _prefixoCategoria = 'cat:';
-
-  String _chaveItemAvulso(String itemId) => '$_prefixoItem$itemId';
-
-  String _chaveItemComCategoria(String categoriaId, String itemId) =>
-      '$_prefixoCategoria$categoriaId|$_prefixoItem$itemId';
-
-  bool _chaveTemCategoria(String chave) =>
-      chave.startsWith(_prefixoCategoria);
-
-  String _itemIdDaChave(String chave) {
-    final indice = chave.indexOf(_prefixoItem);
-    if (indice == -1) return chave;
-    return chave.substring(indice + _prefixoItem.length);
-  }
-
-  String? _categoriaIdDaChave(String chave) {
-    if (!_chaveTemCategoria(chave)) return null;
-    final semPrefixo = chave.substring(_prefixoCategoria.length);
-    final separador = semPrefixo.indexOf('|');
-    if (separador == -1) return semPrefixo;
-    return semPrefixo.substring(0, separador);
-  }
 
   @override
   void initState() {
@@ -181,6 +190,13 @@ class _NovaVendaConteudoState extends State<_NovaVendaConteudo> {
     return null;
   }
 
+  GrupoComponentesLoja? _buscarGrupo(String id) {
+    for (final grupo in widget.gruposDisponiveis) {
+      if (grupo.id == id) return grupo;
+    }
+    return null;
+  }
+
   Cliente? _buscarCliente(String id) {
     for (final cliente in widget.obterClientes()) {
       if (cliente.id == id) return cliente;
@@ -188,24 +204,34 @@ class _NovaVendaConteudoState extends State<_NovaVendaConteudo> {
     return null;
   }
 
-  double _precoDaChave(String chave) {
-    final itemId = _itemIdDaChave(chave);
-    final item = _buscarItem(itemId);
-    if (item == null) return 0;
-    final categoriaId = _categoriaIdDaChave(chave);
-    if (categoriaId == null) return _precoComoNumero(item.preco);
-    final categoria = _buscarCategoria(categoriaId);
-    final precoItem = _precoComoNumero(item.preco);
-    final precoCategoria =
-        categoria == null ? 0.0 : _precoComoNumero(categoria.preco);
-    return precoItem + precoCategoria;
+  String _montarChave({required String itemId, String? categoriaId}) {
+    if (categoriaId == null) return '$_prefixoItem$itemId';
+    return '$_prefixoCategoria$categoriaId|$_prefixoItem$itemId';
   }
+
+  double _precoUnitarioDaLinha(_LinhaCarrinho linha) {
+    final item = _buscarItem(linha.itemId);
+    if (item == null) return 0;
+    var soma = _precoComoNumero(item.preco);
+    if (linha.categoriaId != null) {
+      final categoria = _buscarCategoria(linha.categoriaId!);
+      if (categoria != null) soma += _precoComoNumero(categoria.preco);
+    }
+    for (final grupoId in linha.grupoIds) {
+      final grupo = _buscarGrupo(grupoId);
+      if (grupo != null) soma += _precoComoNumero(grupo.preco);
+    }
+    return soma;
+  }
+
+  double _subtotalDaLinha(_LinhaCarrinho linha) =>
+      _precoUnitarioDaLinha(linha) * linha.quantidade;
 
   double get _subtotalDosItens {
     var soma = 0.0;
-    _quantidades.forEach((chave, quantidade) {
-      soma += _precoDaChave(chave) * quantidade;
-    });
+    for (final linha in _carrinho) {
+      soma += _subtotalDaLinha(linha);
+    }
     return soma;
   }
 
@@ -216,20 +242,34 @@ class _NovaVendaConteudoState extends State<_NovaVendaConteudo> {
   double get _acrescimo => _precoComoNumero(_acrescimoController.text);
 
   double get _total {
-    final total =
-        _subtotalDosItens + _frete + _acrescimo - _desconto;
+    final total = _subtotalDosItens + _frete + _acrescimo - _desconto;
     return total < 0 ? 0 : total;
   }
 
-  String _nomeExibicaoDaChave(String chave) {
-    final itemId = _itemIdDaChave(chave);
-    final item = _buscarItem(itemId);
+  String _nomeExibicaoDaLinha(_LinhaCarrinho linha) {
+    final item = _buscarItem(linha.itemId);
     if (item == null) return 'Item removido';
-    final categoriaId = _categoriaIdDaChave(chave);
-    if (categoriaId == null) return item.nome;
-    final categoria = _buscarCategoria(categoriaId);
+    if (linha.categoriaId == null) return item.nome;
+    final categoria = _buscarCategoria(linha.categoriaId!);
     if (categoria == null) return item.nome;
     return '${categoria.nome} ${item.nome}';
+  }
+
+  String _resumoDosGrupos(_LinhaCarrinho linha) {
+    if (linha.grupoIds.isEmpty) return '';
+    final nomes = linha.grupoIds
+        .map((id) => _buscarGrupo(id)?.nome ?? '')
+        .where((nome) => nome.isNotEmpty)
+        .toList();
+    if (nomes.isEmpty) return '';
+    return 'com ${nomes.join(', ')}';
+  }
+
+  _LinhaCarrinho? _linhaPorChave(String chave) {
+    for (final linha in _carrinho) {
+      if (linha.chave == chave) return linha;
+    }
+    return null;
   }
 
   List<CategoriaLoja> get _categoriasEncontradas {
@@ -295,22 +335,24 @@ class _NovaVendaConteudoState extends State<_NovaVendaConteudo> {
     buffer.writeln(simples);
     buffer.writeln('ITENS');
 
-    _quantidades.forEach((chave, quantidade) {
-      final nome = _nomeExibicaoDaChave(chave);
-      final subtotal = _precoDaChave(chave) * quantidade;
+    for (final linha in _carrinho) {
+      final nome = _nomeExibicaoDaLinha(linha);
+      final subtotal = _subtotalDaLinha(linha);
       buffer.writeln(
-        _linhaComValor('${quantidade}x $nome', _valorComVirgula(subtotal)),
+        _linhaComValor('${linha.quantidade}x $nome', _valorComVirgula(subtotal)),
       );
+      final resumo = _resumoDosGrupos(linha);
+      if (resumo.isNotEmpty) {
+        buffer.writeln('   $resumo');
+      }
       buffer.writeln('   Obs: ');
-    });
+    }
 
     buffer.writeln(simples);
     buffer.writeln(
       _linhaComValor('Subtotal', _valorComVirgula(_subtotalDosItens)),
     );
-    buffer.writeln(
-      _linhaComValor('Frete', _valorComVirgula(_frete)),
-    );
+    buffer.writeln(_linhaComValor('Frete', _valorComVirgula(_frete)));
     if (_desconto > 0) {
       buffer.writeln(
         _linhaComValor('Desconto', '-${_valorComVirgula(_desconto)}'),
@@ -321,9 +363,7 @@ class _NovaVendaConteudoState extends State<_NovaVendaConteudo> {
         _linhaComValor('Acréscimo', _valorComVirgula(_acrescimo)),
       );
     }
-    buffer.writeln(
-      _linhaComValor('TOTAL', _valorComVirgula(_total)),
-    );
+    buffer.writeln(_linhaComValor('TOTAL', _valorComVirgula(_total)));
     buffer.writeln('Pagamento: ${_formaPagamento ?? ''}');
     buffer.write(duplo);
 
@@ -334,17 +374,145 @@ class _NovaVendaConteudoState extends State<_NovaVendaConteudo> {
     _comandaController.text = _montarComanda();
   }
 
-  void _alterarQuantidade(String chave, int variacao) {
+  void _adicionarLinhaAoCarrinho({required String itemId, String? categoriaId}) {
+    final chave = _montarChave(itemId: itemId, categoriaId: categoriaId);
     setState(() {
-      final nova = (_quantidades[chave] ?? 0) + variacao;
-      if (nova <= 0) {
-        _quantidades.remove(chave);
+      final existente = _linhaPorChave(chave);
+      if (existente != null) {
+        existente.quantidade++;
       } else {
-        _quantidades[chave] = nova;
+        _carrinho.add(_LinhaCarrinho(
+          chave: chave,
+          itemId: itemId,
+          categoriaId: categoriaId,
+        ));
       }
       _aviso = null;
       _atualizarComanda();
     });
+  }
+
+  void _alterarQuantidade(String chave, int variacao) {
+    setState(() {
+      final linha = _linhaPorChave(chave);
+      if (linha == null) return;
+      final nova = linha.quantidade + variacao;
+      if (nova <= 0) {
+        _carrinho.remove(linha);
+      } else {
+        linha.quantidade = nova;
+      }
+      _aviso = null;
+      _atualizarComanda();
+    });
+  }
+
+  void _editarGruposDaLinha(String chave) {
+    final linha = _linhaPorChave(chave);
+    if (linha == null) return;
+    final theme = widget.theme;
+
+    showDialog<void>(
+      context: context,
+      builder: (dialogContext) {
+        final selecionados = Set<String>.of(linha.grupoIds);
+        return StatefulBuilder(
+          builder: (dialogContext, setDialogState) {
+            return AlertDialog(
+              backgroundColor: theme.cardBackgroundColor,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16.0),
+                side: BorderSide(color: theme.borderColor),
+              ),
+              title: Text(
+                'Grupos de componentes',
+                textAlign: TextAlign.center,
+                style: theme.getTextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: theme.textColor,
+                ),
+              ),
+              content: SizedBox(
+                width: 280,
+                child: widget.gruposDisponiveis.isEmpty
+                    ? Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        child: Text(
+                          'Nenhum grupo de componentes criado ainda.',
+                          textAlign: TextAlign.center,
+                          style: theme.getTextStyle(
+                            fontSize: 13,
+                            color: theme.secondaryTextColor,
+                          ),
+                        ),
+                      )
+                    : SingleChildScrollView(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            for (final grupo in widget.gruposDisponiveis)
+                              CheckboxListTile(
+                                value: selecionados.contains(grupo.id),
+                                title: Text(grupo.nome,
+                                    style: theme.getTextStyle()),
+                                subtitle: grupo.preco.isEmpty
+                                    ? null
+                                    : Text(
+                                        'R\$ ${grupo.preco}',
+                                        style: theme.getTextStyle(
+                                          fontSize: 11,
+                                          color: theme.secondaryTextColor,
+                                        ),
+                                      ),
+                                activeColor: theme.buttonColor,
+                                checkColor: theme.buttonTextColor,
+                                controlAffinity:
+                                    ListTileControlAffinity.leading,
+                                onChanged: (marcado) {
+                                  setDialogState(() {
+                                    if (marcado == true) {
+                                      selecionados.add(grupo.id);
+                                    } else {
+                                      selecionados.remove(grupo.id);
+                                    }
+                                  });
+                                },
+                              ),
+                          ],
+                        ),
+                      ),
+              ),
+              actionsAlignment: MainAxisAlignment.center,
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(dialogContext).pop(),
+                  child: Text(
+                    'Cancelar',
+                    style: theme.getTextStyle(color: theme.secondaryTextColor),
+                  ),
+                ),
+                TextButton(
+                  onPressed: () {
+                    setState(() {
+                      linha.grupoIds
+                        ..clear()
+                        ..addAll(selecionados);
+                      _atualizarComanda();
+                    });
+                    Navigator.of(dialogContext).pop();
+                  },
+                  child: Text(
+                    'Concluir',
+                    style: theme.getTextStyle(color: theme.textColor),
+                  ),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
   }
 
   void _aoDigitarCliente(String texto) {
@@ -453,10 +621,11 @@ class _NovaVendaConteudoState extends State<_NovaVendaConteudo> {
                               style: theme.getTextStyle(fontSize: 11),
                             ),
                             onTap: () {
-                              final chave = _chaveItemComCategoria(
-                                  categoria.id, item.id);
                               _buscaController.clear();
-                              _alterarQuantidade(chave, 1);
+                              _adicionarLinhaAoCarrinho(
+                                itemId: item.id,
+                                categoriaId: categoria.id,
+                              );
                               Navigator.of(dialogContext).pop();
                             },
                           ),
@@ -470,7 +639,7 @@ class _NovaVendaConteudoState extends State<_NovaVendaConteudo> {
   }
 
   void _concluir() {
-    if (_quantidades.isEmpty) {
+    if (_carrinho.isEmpty) {
       _mostrarAviso('Adicione ao menos um produto.');
       return;
     }
@@ -480,10 +649,37 @@ class _NovaVendaConteudoState extends State<_NovaVendaConteudo> {
       return;
     }
 
-    final nomes = _quantidades.keys
-        .map((chave) => _nomeExibicaoDaChave(chave))
-        .where((nome) => nome.isNotEmpty)
-        .toList();
+    final itensVendidos = <ItemVendido>[];
+    for (final linha in _carrinho) {
+      final item = _buscarItem(linha.itemId);
+      if (item == null) continue;
+      final categoria = linha.categoriaId == null
+          ? null
+          : _buscarCategoria(linha.categoriaId!);
+      final grupos = <GrupoEscolhido>[];
+      for (final grupoId in linha.grupoIds) {
+        final grupo = _buscarGrupo(grupoId);
+        if (grupo == null) continue;
+        grupos.add(GrupoEscolhido(
+          grupoId: grupo.id,
+          nomeGrupo: grupo.nome,
+          precoGrupo: _precoComoNumero(grupo.preco),
+        ));
+      }
+      itensVendidos.add(ItemVendido(
+        itemId: item.id,
+        nomeItem: item.nome,
+        categoriaId: categoria?.id,
+        nomeCategoria: categoria?.nome,
+        precoItem: _precoComoNumero(item.preco),
+        precoCategoria:
+            categoria == null ? 0 : _precoComoNumero(categoria.preco),
+        quantidade: linha.quantidade,
+        grupos: grupos,
+      ));
+    }
+
+    final nomes = itensVendidos.map((i) => i.nomeExibicao).toList();
     final resumo = nomes.length > 1
         ? '${nomes.first} +${nomes.length - 1}'
         : (nomes.isEmpty ? 'Venda' : nomes.first);
@@ -500,6 +696,10 @@ class _NovaVendaConteudoState extends State<_NovaVendaConteudo> {
       status: StatusPedido.aceito,
       comanda: _comandaController.text,
       formaPagamento: _formaPagamento ?? '',
+      itens: itensVendidos,
+      frete: _frete,
+      desconto: _desconto,
+      acrescimo: _acrescimo,
     );
 
     Navigator.of(context).pop();
@@ -647,9 +847,8 @@ class _NovaVendaConteudoState extends State<_NovaVendaConteudo> {
   Widget _linhaDeResultado(ItemLoja item) {
     return InkWell(
       onTap: () {
-        final chave = _chaveItemAvulso(item.id);
         _buscaController.clear();
-        _alterarQuantidade(chave, 1);
+        _adicionarLinhaAoCarrinho(itemId: item.id);
       },
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
@@ -673,33 +872,83 @@ class _NovaVendaConteudoState extends State<_NovaVendaConteudo> {
     );
   }
 
-  Widget _linhaDoItemSelecionado(String chave, int quantidade) {
-    return Row(
-      children: [
-        Expanded(
-          child: Text(
-            _nomeExibicaoDaChave(chave),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: theme.getTextStyle(fontSize: 12, color: theme.textColor),
+  Widget _linhaDoItemSelecionado(_LinhaCarrinho linha) {
+    final resumo = _resumoDosGrupos(linha);
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  _nomeExibicaoDaLinha(linha),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.getTextStyle(
+                    fontSize: 12,
+                    color: theme.textColor,
+                  ),
+                ),
+              ),
+              Text(
+                'R\$ ${_valorComVirgula(_precoUnitarioDaLinha(linha))}',
+                style: theme.getTextStyle(fontSize: 11),
+              ),
+              const SizedBox(width: 6),
+              IconButton(
+                padding: EdgeInsets.zero,
+                visualDensity: VisualDensity.compact,
+                constraints:
+                    const BoxConstraints(minWidth: 32, minHeight: 32),
+                icon: Icon(Icons.remove, size: 18, color: theme.textColor),
+                onPressed: () => _alterarQuantidade(linha.chave, -1),
+              ),
+              Text('${linha.quantidade}',
+                  style: theme.getTextStyle(fontSize: 12)),
+              IconButton(
+                padding: EdgeInsets.zero,
+                visualDensity: VisualDensity.compact,
+                constraints:
+                    const BoxConstraints(minWidth: 32, minHeight: 32),
+                icon: Icon(Icons.add, size: 18, color: theme.textColor),
+                onPressed: () => _alterarQuantidade(linha.chave, 1),
+              ),
+            ],
           ),
-        ),
-        IconButton(
-          padding: EdgeInsets.zero,
-          visualDensity: VisualDensity.compact,
-          constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
-          icon: Icon(Icons.remove, size: 18, color: theme.textColor),
-          onPressed: () => _alterarQuantidade(chave, -1),
-        ),
-        Text('$quantidade', style: theme.getTextStyle(fontSize: 12)),
-        IconButton(
-          padding: EdgeInsets.zero,
-          visualDensity: VisualDensity.compact,
-          constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
-          icon: Icon(Icons.add, size: 18, color: theme.textColor),
-          onPressed: () => _alterarQuantidade(chave, 1),
-        ),
-      ],
+          Padding(
+            padding: const EdgeInsets.only(left: 4, top: 2),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    resumo.isEmpty ? 'sem grupos' : resumo,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.getTextStyle(
+                      fontSize: 10,
+                      color: theme.secondaryTextColor,
+                    ),
+                  ),
+                ),
+                TextButton(
+                  onPressed: () => _editarGruposDaLinha(linha.chave),
+                  style: TextButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                    minimumSize: const Size(0, 28),
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  ),
+                  child: Text(
+                    'Editar grupos',
+                    style: theme.getTextStyle(fontSize: 10),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -752,11 +1001,10 @@ class _NovaVendaConteudoState extends State<_NovaVendaConteudo> {
               for (final item in itens) _linhaDeResultado(item),
             ],
           ],
-          if (_quantidades.isNotEmpty) ...[
+          if (_carrinho.isNotEmpty) ...[
             const SizedBox(height: 8),
             Divider(color: theme.borderColor.withValues(alpha: 0.6)),
-            for (final entrada in _quantidades.entries)
-              _linhaDoItemSelecionado(entrada.key, entrada.value),
+            for (final linha in _carrinho) _linhaDoItemSelecionado(linha),
           ],
         ],
       ),

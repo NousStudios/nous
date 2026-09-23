@@ -1,5 +1,97 @@
 enum StatusPedido { novo, aceito, concluido }
 
+class ItemVendido {
+  final String itemId;
+  final String nomeItem;
+  final String? categoriaId;
+  final String? nomeCategoria;
+  final double precoItem;
+  final double precoCategoria;
+  final int quantidade;
+  final List<GrupoEscolhido> grupos;
+
+  const ItemVendido({
+    required this.itemId,
+    required this.nomeItem,
+    this.categoriaId,
+    this.nomeCategoria,
+    required this.precoItem,
+    this.precoCategoria = 0,
+    required this.quantidade,
+    this.grupos = const [],
+  });
+
+  double get precoUnitarioSemGrupos => precoItem + precoCategoria;
+
+  double get totalDosGruposPorUnidade =>
+      grupos.fold<double>(0, (soma, g) => soma + g.precoGrupo);
+
+  double get precoUnitario => precoUnitarioSemGrupos + totalDosGruposPorUnidade;
+
+  double get subtotal => precoUnitario * quantidade;
+
+  String get nomeExibicao {
+    if (nomeCategoria == null || nomeCategoria!.isEmpty) return nomeItem;
+    return '$nomeCategoria $nomeItem';
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'itemId': itemId,
+      'nomeItem': nomeItem,
+      'categoriaId': categoriaId,
+      'nomeCategoria': nomeCategoria,
+      'precoItem': precoItem,
+      'precoCategoria': precoCategoria,
+      'quantidade': quantidade,
+      'grupos': grupos.map((g) => g.toJson()).toList(),
+    };
+  }
+
+  factory ItemVendido.fromJson(Map<String, dynamic> json) {
+    return ItemVendido(
+      itemId: json['itemId'] as String,
+      nomeItem: json['nomeItem'] as String,
+      categoriaId: json['categoriaId'] as String?,
+      nomeCategoria: json['nomeCategoria'] as String?,
+      precoItem: (json['precoItem'] as num).toDouble(),
+      precoCategoria: (json['precoCategoria'] as num?)?.toDouble() ?? 0,
+      quantidade: json['quantidade'] as int,
+      grupos: (json['grupos'] as List<dynamic>? ?? const [])
+          .map((g) => GrupoEscolhido.fromJson(g as Map<String, dynamic>))
+          .toList(),
+    );
+  }
+}
+
+class GrupoEscolhido {
+  final String grupoId;
+  final String nomeGrupo;
+  final double precoGrupo;
+
+  const GrupoEscolhido({
+    required this.grupoId,
+    required this.nomeGrupo,
+    required this.precoGrupo,
+  });
+
+  Map<String, dynamic> toJson() {
+    return {
+      'grupoId': grupoId,
+      'nomeGrupo': nomeGrupo,
+      'precoGrupo': precoGrupo,
+    };
+  }
+
+  factory GrupoEscolhido.fromJson(Map<String, dynamic> json) {
+    return GrupoEscolhido(
+      grupoId: json['grupoId'] as String,
+      nomeGrupo: json['nomeGrupo'] as String,
+      precoGrupo: (json['precoGrupo'] as num).toDouble(),
+    );
+  }
+}
+
 class PedidoLoja {
   final String id;
   final int numero;
@@ -14,6 +106,10 @@ class PedidoLoja {
   final String formaPagamento;
   final bool quitado;
   final double valorPago;
+  final List<ItemVendido> itens;
+  final double frete;
+  final double desconto;
+  final double acrescimo;
 
   const PedidoLoja({
     required this.id,
@@ -29,6 +125,10 @@ class PedidoLoja {
     this.formaPagamento = '',
     this.quitado = false,
     this.valorPago = 0,
+    this.itens = const [],
+    this.frete = 0,
+    this.desconto = 0,
+    this.acrescimo = 0,
   });
 
   bool get aPrazoEmAberto => formaPagamento == 'À Prazo' && !quitado;
@@ -59,6 +159,10 @@ class PedidoLoja {
       formaPagamento: formaPagamento,
       quitado: quitado ?? this.quitado,
       valorPago: valorPago ?? this.valorPago,
+      itens: itens,
+      frete: frete,
+      desconto: desconto,
+      acrescimo: acrescimo,
     );
   }
 
@@ -77,6 +181,10 @@ class PedidoLoja {
       'formaPagamento': formaPagamento,
       'quitado': quitado,
       'valorPago': valorPago,
+      'itens': itens.map((i) => i.toJson()).toList(),
+      'frete': frete,
+      'desconto': desconto,
+      'acrescimo': acrescimo,
     };
   }
 
@@ -95,6 +203,12 @@ class PedidoLoja {
       formaPagamento: json['formaPagamento'] as String? ?? '',
       quitado: json['quitado'] as bool? ?? false,
       valorPago: (json['valorPago'] as num?)?.toDouble() ?? 0,
+      itens: (json['itens'] as List<dynamic>? ?? const [])
+          .map((i) => ItemVendido.fromJson(i as Map<String, dynamic>))
+          .toList(),
+      frete: (json['frete'] as num?)?.toDouble() ?? 0,
+      desconto: (json['desconto'] as num?)?.toDouble() ?? 0,
+      acrescimo: (json['acrescimo'] as num?)?.toDouble() ?? 0,
     );
   }
 }
