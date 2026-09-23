@@ -4,24 +4,28 @@ import 'package:nous/src/features/pdv/models/item_loja.dart';
 class CategoriaLoja {
   final String id;
   final String nome;
+  final String preco;
   final TipoItemLoja? tipo;
   final List<String> itemIds;
 
   const CategoriaLoja({
     required this.id,
     required this.nome,
+    this.preco = '',
     this.tipo,
     this.itemIds = const [],
   });
 
   factory CategoriaLoja.nova({
     required String nome,
+    String preco = '',
     TipoItemLoja? tipo,
     List<String> itemIds = const [],
   }) {
     return CategoriaLoja(
       id: gerarIdUnico(),
       nome: nome,
+      preco: preco,
       tipo: tipo,
       itemIds: itemIds,
     );
@@ -29,12 +33,14 @@ class CategoriaLoja {
 
   CategoriaLoja copyWith({
     String? nome,
+    String? preco,
     TipoItemLoja? tipo,
     List<String>? itemIds,
   }) {
     return CategoriaLoja(
       id: id,
       nome: nome ?? this.nome,
+      preco: preco ?? this.preco,
       tipo: tipo ?? this.tipo,
       itemIds: itemIds ?? this.itemIds,
     );
@@ -44,6 +50,7 @@ class CategoriaLoja {
     return {
       'id': id,
       'nome': nome,
+      'preco': preco,
       'tipo': tipo?.name,
       'itemIds': itemIds,
     };
@@ -54,6 +61,7 @@ class CategoriaLoja {
     return CategoriaLoja(
       id: json['id'] as String,
       nome: json['nome'] as String,
+      preco: json['preco'] as String? ?? '',
       tipo: tipoTexto == null
           ? null
           : TipoItemLoja.values.firstWhere((t) => t.name == tipoTexto),

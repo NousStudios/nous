@@ -40,6 +40,7 @@ class NovaCategoriaDialog extends StatefulWidget {
 
 class _NovaCategoriaDialogState extends State<NovaCategoriaDialog> {
   final _nomeController = TextEditingController();
+  final _precoController = TextEditingController();
 
   TipoItemLoja? _tipo;
 
@@ -51,12 +52,14 @@ class _NovaCategoriaDialogState extends State<NovaCategoriaDialog> {
     if (categoria == null) return;
 
     _nomeController.text = categoria.nome;
+    _precoController.text = categoria.preco;
     _tipo = categoria.tipo;
   }
 
   @override
   void dispose() {
     _nomeController.dispose();
+    _precoController.dispose();
     super.dispose();
   }
 
@@ -69,10 +72,12 @@ class _NovaCategoriaDialogState extends State<NovaCategoriaDialog> {
     final categoria = categoriaExistente != null
         ? categoriaExistente.copyWith(
             nome: nome,
+            preco: _precoController.text.trim(),
             tipo: _tipo,
           )
         : CategoriaLoja.nova(
             nome: nome,
+            preco: _precoController.text.trim(),
             tipo: _tipo,
           );
 
@@ -130,6 +135,14 @@ class _NovaCategoriaDialogState extends State<NovaCategoriaDialog> {
                 theme: theme,
                 controller: _nomeController,
                 label: 'Nome da nova categoria',
+              ),
+              const SizedBox(height: 12),
+
+              ThemedTextField(
+                theme: theme,
+                controller: _precoController,
+                label: 'Preço base (ex: 5,00)',
+                tipoDeTeclado: TextInputType.number,
               ),
               const SizedBox(height: 16),
 
