@@ -73,6 +73,7 @@ class _ClientesConteudoState extends State<_ClientesConteudo> {
   final _telefoneController = TextEditingController();
   final _cnpjController = TextEditingController();
   final _pagamentoController = TextEditingController();
+  final _pesquisaController = TextEditingController();
 
   late List<Cliente> _clientes;
   late List<PedidoLoja> _pedidos;
@@ -96,6 +97,7 @@ class _ClientesConteudoState extends State<_ClientesConteudo> {
     _telefoneController.dispose();
     _cnpjController.dispose();
     _pagamentoController.dispose();
+    _pesquisaController.dispose();
     super.dispose();
   }
 
@@ -297,6 +299,28 @@ class _ClientesConteudoState extends State<_ClientesConteudo> {
           theme.getTextStyle(fontSize: 12, color: theme.secondaryTextColor),
       isDense: true,
       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      enabledBorder: borda(theme.borderColor),
+      focusedBorder: borda(theme.textColor),
+    );
+  }
+
+  InputDecoration _decoracaoPesquisa(String dica) {
+    OutlineInputBorder borda(Color cor) => OutlineInputBorder(
+          borderRadius: BorderRadius.circular(30),
+          borderSide: BorderSide(color: cor),
+        );
+    return InputDecoration(
+      hintText: dica,
+      hintStyle:
+          theme.getTextStyle(fontSize: 12, color: theme.secondaryTextColor),
+      isDense: true,
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      prefixIcon: Icon(
+        Icons.search,
+        size: 18,
+        color: theme.secondaryTextColor,
+      ),
+      prefixIconConstraints: const BoxConstraints(minWidth: 36),
       enabledBorder: borda(theme.borderColor),
       focusedBorder: borda(theme.textColor),
     );
@@ -534,6 +558,13 @@ class _ClientesConteudoState extends State<_ClientesConteudo> {
   }
 
   Widget _blocoLista() {
+    final termo = _pesquisaController.text.trim().toLowerCase();
+    final filtrados = termo.isEmpty
+        ? _clientes
+        : _clientes
+            .where((c) => c.nome.toLowerCase().contains(termo))
+            .toList();
+
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(12),
@@ -541,20 +572,35 @@ class _ClientesConteudoState extends State<_ClientesConteudo> {
       child: Column(
         children: [
           _tituloDoBloco('Clientes Cadastrados'),
+          Padding(
+            padding: const EdgeInsets.only(bottom: 10),
+            child: TextField(
+              controller: _pesquisaController,
+              onChanged: (_) => setState(() {}),
+              cursorColor: theme.textColor,
+              style: theme.getTextStyle(fontSize: 12),
+              decoration: _decoracaoPesquisa('Pesquisar clientes...'),
+            ),
+          ),
           if (_clientes.isEmpty)
             EstadoVazioContainer(
               theme: theme,
               mensagem: 'Nenhum cliente cadastrado ainda.',
+            )
+          else if (filtrados.isEmpty)
+            EstadoVazioContainer(
+              theme: theme,
+              mensagem: 'Nenhum cliente encontrado.',
             )
           else
             ConstrainedBox(
               constraints: const BoxConstraints(maxHeight: 260),
               child: ListView.separated(
                 shrinkWrap: true,
-                itemCount: _clientes.length,
+                itemCount: filtrados.length,
                 separatorBuilder: (context, index) => const SizedBox(height: 8),
                 itemBuilder: (context, index) {
-                  final cliente = _clientes[index];
+                  final cliente = filtrados[index];
                   return _LinhaComHover(
                     aoClicar: () => _abrirEdicao(cliente),
                     builder: (hover) => Container(
