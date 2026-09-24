@@ -6,6 +6,7 @@ import 'package:nous/src/features/pdv/models/grupo_componentes_loja.dart';
 import 'package:nous/src/features/pdv/models/item_loja.dart';
 import 'package:nous/src/features/pdv/models/pedido_loja.dart';
 import 'package:nous/src/features/pdv/views/widgets/novo_item_dialog.dart';
+import 'package:nous/src/features/pdv/views/widgets/venda_concluida_dialog.dart';
 
 const List<String> _formasDePagamento = [
   'Pix',
@@ -17,6 +18,8 @@ const List<String> _formasDePagamento = [
 
 const String _formaAPrazo = 'À Prazo';
 const String _formaDinheiro = 'Dinheiro';
+
+const double _larguraComanda = 220;
 
 double _precoComoNumero(String texto) {
   var limpo = texto.replaceAll(RegExp(r'[^0-9,.]'), '');
@@ -405,6 +408,8 @@ class _NovaVendaConteudoState extends State<_NovaVendaConteudo> {
       );
       buffer.writeln(linha('Troco', _valorComVirgula(_troco)));
     }
+    buffer.writeln(duplo);
+    buffer.writeln('linktr.ee/nous72');
     buffer.write(duplo);
 
     return buffer.toString();
@@ -733,7 +738,7 @@ class _NovaVendaConteudoState extends State<_NovaVendaConteudo> {
     );
   }
 
-  void _concluir() {
+  Future<void> _concluir() async {
     if (_carrinho.isEmpty) {
       _mostrarAviso('Adicione ao menos um produto.');
       return;
@@ -804,8 +809,19 @@ class _NovaVendaConteudoState extends State<_NovaVendaConteudo> {
       acrescimo: _acrescimo,
     );
 
-    Navigator.of(context).pop();
-    widget.onConcluir(pedido);
+    final confirmou = await VendaConcluidaDialog.mostrar(
+      context,
+      theme: theme,
+      numeroPedido: widget.proximoNumero,
+      valorTotal: _total,
+    );
+
+    if (!mounted) return;
+
+    if (confirmou) {
+      Navigator.of(context).pop();
+      widget.onConcluir(pedido);
+    }
   }
 
   BoxDecoration get _decoracaoDoBloco => BoxDecoration(
@@ -1200,132 +1216,168 @@ class _NovaVendaConteudoState extends State<_NovaVendaConteudo> {
               thumbVisibility: true,
               child: SingleChildScrollView(
                 controller: _comandaScrollController,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Center(
-                      child: Text(
-                        widget.nomeVendedor.isEmpty
-                            ? 'Nome do vendedor'
-                            : widget.nomeVendedor,
-                        style: theme.getTextStyle(
-                            fontSize: 12, color: theme.textColor),
+                child: Center(
+                  child: Container(
+                    width: _larguraComanda,
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 16, vertical: 12),
+                    decoration: BoxDecoration(
+                      color: theme.backgroundColor.withValues(alpha: 0.4),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(
+                        color: theme.borderColor.withValues(alpha: 0.6),
                       ),
                     ),
-                    Center(
-                      child: Text(
-                        'CNPJ: ${widget.cnpjVendedor}',
-                        style: theme.getTextStyle(
-                            fontSize: 11, color: theme.secondaryTextColor),
-                      ),
-                    ),
-                    const SizedBox(height: 6),
-                    Center(
-                      child: Text(
-                        'Pedido #${widget.proximoNumero.toString().padLeft(4, '0')}',
-                        style: theme.getTextStyle(
-                            fontSize: 12, color: theme.textColor),
-                      ),
-                    ),
-                    Center(
-                      child: Text(
-                        'Data: ${_dataHoraCompleta(_dataHora)}',
-                        style: theme.getTextStyle(
-                            fontSize: 11, color: theme.secondaryTextColor),
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    _linhaComanda('Cliente',
-                        _clienteController.text.trim().isEmpty
-                            ? '-'
-                            : _clienteController.text.trim()),
-                    _linhaComanda(
-                        'Endereço', _clienteSelecionado?.endereco ?? '-'),
-                    const SizedBox(height: 8),
-                    Text(
-                      'ITENS',
-                      style: theme.getTextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                          color: theme.textColor),
-                    ),
-                    const SizedBox(height: 4),
-                    if (totalLinhas == 0)
-                      Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 8),
-                        child: Text(
-                          'Nenhum item adicionado.',
-                          textAlign: TextAlign.center,
-                          style: theme.getTextStyle(
-                              fontSize: 11,
-                              color: theme.secondaryTextColor),
-                        ),
-                      )
-                    else
-                      for (final linha in _carrinho)
-                        Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 6),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            children: [
-                              _linhaComanda(
-                                '${linha.quantidade}x ${_nomeExibicaoDaLinha(linha)}',
-                                'R\$ ${_valorComVirgula(_subtotalDaLinha(linha))}',
-                              ),
-                              for (final entrada
-                                  in linha.acompanhamentosPorItemId.entries)
-                                Builder(builder: (context) {
-                                  final item = _buscarItem(entrada.key);
-                                  if (item == null || entrada.value <= 0) {
-                                    return const SizedBox.shrink();
-                                  }
-                                  final total = _precoComoNumero(item.preco) *
-                                      entrada.value *
-                                      linha.quantidade;
-                                  return _linhaComanda(
-                                    '   ${entrada.value}x ${item.nome} por unidade',
-                                    'R\$ ${_valorComVirgula(total)}',
-                                  );
-                                }),
-                              if (linha.observacaoController.text
-                                  .trim()
-                                  .isNotEmpty)
-                                Padding(
-                                  padding: const EdgeInsets.only(top: 2),
-                                  child: Text(
-                                    'Obs: ${linha.observacaoController.text.trim()}',
-                                    style: theme.getTextStyle(
-                                        fontSize: 11,
-                                        color: theme.secondaryTextColor),
-                                  ),
-                                ),
-                            ],
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Center(
+                          child: Text(
+                            widget.nomeVendedor.isEmpty
+                                ? 'Nome do vendedor'
+                                : widget.nomeVendedor,
+                            textAlign: TextAlign.center,
+                            style: theme.getTextStyle(
+                                fontSize: 12, color: theme.textColor),
                           ),
                         ),
-                    const SizedBox(height: 8),
-                    Divider(color: theme.borderColor.withValues(alpha: 0.6)),
-                    _linhaComanda('Subtotal',
-                        'R\$ ${_valorComVirgula(_subtotalDosItens)}'),
-                    _linhaComanda(
-                        'Frete', 'R\$ ${_valorComVirgula(_frete)}'),
-                    if (_desconto > 0)
-                      _linhaComanda('Desconto',
-                          '-R\$ ${_valorComVirgula(_desconto)}'),
-                    if (_acrescimo > 0)
-                      _linhaComanda('Acréscimo',
-                          'R\$ ${_valorComVirgula(_acrescimo)}'),
-                    _linhaComanda('TOTAL', 'R\$ ${_valorComVirgula(_total)}',
-                        destaque: true),
-                    const SizedBox(height: 4),
-                    _linhaComanda('Pagamento', _formaPagamento ?? '-'),
-                    if (_formaPagamento == _formaDinheiro) ...[
-                      _linhaComanda('Valor recebido',
-                          'R\$ ${_valorComVirgula(_valorRecebido)}'),
-                      _linhaComanda('Troco',
-                          'R\$ ${_valorComVirgula(_troco)}',
-                          destaque: true),
-                    ],
-                  ],
+                        Center(
+                          child: Text(
+                            'CNPJ: ${widget.cnpjVendedor}',
+                            textAlign: TextAlign.center,
+                            style: theme.getTextStyle(
+                                fontSize: 11,
+                                color: theme.secondaryTextColor),
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        Center(
+                          child: Text(
+                            'Pedido #${widget.proximoNumero.toString().padLeft(4, '0')}',
+                            textAlign: TextAlign.center,
+                            style: theme.getTextStyle(
+                                fontSize: 12, color: theme.textColor),
+                          ),
+                        ),
+                        Center(
+                          child: Text(
+                            'Data: ${_dataHoraCompleta(_dataHora)}',
+                            textAlign: TextAlign.center,
+                            style: theme.getTextStyle(
+                                fontSize: 11,
+                                color: theme.secondaryTextColor),
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        _linhaComanda('Cliente',
+                            _clienteController.text.trim().isEmpty
+                                ? '-'
+                                : _clienteController.text.trim()),
+                        _linhaComanda(
+                            'Endereço', _clienteSelecionado?.endereco ?? '-'),
+                        const SizedBox(height: 8),
+                        Center(
+                          child: Text(
+                            'ITENS',
+                            style: theme.getTextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                                color: theme.textColor),
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        if (totalLinhas == 0)
+                          Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 8),
+                            child: Text(
+                              'Nenhum item adicionado.',
+                              textAlign: TextAlign.center,
+                              style: theme.getTextStyle(
+                                  fontSize: 11,
+                                  color: theme.secondaryTextColor),
+                            ),
+                          )
+                        else
+                          for (final linha in _carrinho)
+                            Padding(
+                              padding:
+                                  const EdgeInsets.symmetric(vertical: 6),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.stretch,
+                                children: [
+                                  _linhaComanda(
+                                    '${linha.quantidade}x ${_nomeExibicaoDaLinha(linha)}',
+                                    'R\$ ${_valorComVirgula(_subtotalDaLinha(linha))}',
+                                  ),
+                                  for (final entrada
+                                      in linha.acompanhamentosPorItemId.entries)
+                                    Builder(builder: (context) {
+                                      final item = _buscarItem(entrada.key);
+                                      if (item == null || entrada.value <= 0) {
+                                        return const SizedBox.shrink();
+                                      }
+                                      final total =
+                                          _precoComoNumero(item.preco) *
+                                              entrada.value *
+                                              linha.quantidade;
+                                      return _linhaComanda(
+                                        '   ${entrada.value}x ${item.nome} por unidade',
+                                        'R\$ ${_valorComVirgula(total)}',
+                                      );
+                                    }),
+                                  if (linha.observacaoController.text
+                                      .trim()
+                                      .isNotEmpty)
+                                    Padding(
+                                      padding: const EdgeInsets.only(top: 2),
+                                      child: Text(
+                                        'Obs: ${linha.observacaoController.text.trim()}',
+                                        style: theme.getTextStyle(
+                                            fontSize: 11,
+                                            color: theme.secondaryTextColor),
+                                      ),
+                                    ),
+                                ],
+                              ),
+                            ),
+                        const SizedBox(height: 8),
+                        Divider(
+                            color: theme.borderColor.withValues(alpha: 0.6)),
+                        _linhaComanda('Subtotal',
+                            'R\$ ${_valorComVirgula(_subtotalDosItens)}'),
+                        _linhaComanda(
+                            'Frete', 'R\$ ${_valorComVirgula(_frete)}'),
+                        if (_desconto > 0)
+                          _linhaComanda('Desconto',
+                              '-R\$ ${_valorComVirgula(_desconto)}'),
+                        if (_acrescimo > 0)
+                          _linhaComanda('Acréscimo',
+                              'R\$ ${_valorComVirgula(_acrescimo)}'),
+                        _linhaComanda(
+                            'TOTAL', 'R\$ ${_valorComVirgula(_total)}',
+                            destaque: true),
+                        const SizedBox(height: 4),
+                        _linhaComanda('Pagamento', _formaPagamento ?? '-'),
+                        if (_formaPagamento == _formaDinheiro) ...[
+                          _linhaComanda('Valor recebido',
+                              'R\$ ${_valorComVirgula(_valorRecebido)}'),
+                          _linhaComanda('Troco',
+                              'R\$ ${_valorComVirgula(_troco)}',
+                              destaque: true),
+                        ],
+                        const SizedBox(height: 12),
+                        Center(
+                          child: Text(
+                            'linktr.ee/nous72',
+                            textAlign: TextAlign.center,
+                            style: theme.getTextStyle(
+                                fontSize: 11,
+                                color: theme.secondaryTextColor),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
                 ),
               ),
             ),
