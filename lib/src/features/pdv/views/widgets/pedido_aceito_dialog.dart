@@ -86,9 +86,10 @@ class _PedidoAceitoConteudo extends StatelessWidget {
     return soma;
   }
 
-  Widget _linhaComanda(String esquerda, String direita, {bool destaque = false}) {
+  Widget _linhaComanda(String esquerda, String direita,
+      {bool destaque = false}) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 3),
+      padding: const EdgeInsets.symmetric(vertical: 4),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -121,17 +122,17 @@ class _PedidoAceitoConteudo extends StatelessWidget {
 
     return Center(
       child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.all(12),
+        width: 360,
+        padding: const EdgeInsets.all(16),
         decoration: _decoracaoDoBloco,
         child: Column(
           children: [
             _tituloDoBloco('Comanda'),
             Center(
               child: Container(
-                width: 320,
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 24, vertical: 18),
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 24, vertical: 20),
                 decoration: BoxDecoration(
                   color: theme.backgroundColor.withValues(alpha: 0.4),
                   borderRadius: BorderRadius.circular(8),
@@ -142,6 +143,26 @@ class _PedidoAceitoConteudo extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
+                    if (pedido.nomeVendedor.isNotEmpty)
+                      Center(
+                        child: Text(
+                          pedido.nomeVendedor,
+                          textAlign: TextAlign.center,
+                          style: theme.getTextStyle(
+                              fontSize: 14, color: theme.textColor),
+                        ),
+                      ),
+                    if (pedido.cnpjVendedor.isNotEmpty)
+                      Center(
+                        child: Text(
+                          'CNPJ: ${pedido.cnpjVendedor}',
+                          textAlign: TextAlign.center,
+                          style: theme.getTextStyle(
+                              fontSize: 12,
+                              color: theme.secondaryTextColor),
+                        ),
+                      ),
+                    const SizedBox(height: 10),
                     Center(
                       child: Text(
                         'Pedido ${_numero(pedido.numero)}',
@@ -202,7 +223,7 @@ class _PedidoAceitoConteudo extends StatelessWidget {
                                 ),
                               if (item.observacao.trim().isNotEmpty)
                                 Padding(
-                                  padding: const EdgeInsets.only(top: 3),
+                                  padding: const EdgeInsets.only(top: 4),
                                   child: Text(
                                     'Obs: ${item.observacao.trim()}',
                                     style: theme.getTextStyle(

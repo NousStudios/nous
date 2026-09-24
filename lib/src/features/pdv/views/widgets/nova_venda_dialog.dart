@@ -808,6 +808,8 @@ class _NovaVendaConteudoState extends State<_NovaVendaConteudo> {
       frete: _frete,
       desconto: _desconto,
       acrescimo: _acrescimo,
+      nomeVendedor: widget.nomeVendedor,
+      cnpjVendedor: widget.cnpjVendedor,
     );
 
     final confirmou = await VendaConcluidaDialog.mostrar(
@@ -1171,9 +1173,10 @@ class _NovaVendaConteudoState extends State<_NovaVendaConteudo> {
     );
   }
 
-  Widget _linhaComanda(String esquerda, String direita, {bool destaque = false}) {
+  Widget _linhaComanda(String esquerda, String direita,
+      {bool destaque = false}) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 3),
+      padding: const EdgeInsets.symmetric(vertical: 4),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -1221,7 +1224,7 @@ class _NovaVendaConteudoState extends State<_NovaVendaConteudo> {
                   child: Container(
                     width: _larguraComanda,
                     padding: const EdgeInsets.symmetric(
-                        horizontal: 16, vertical: 12),
+                        horizontal: 20, vertical: 16),
                     decoration: BoxDecoration(
                       color: theme.backgroundColor.withValues(alpha: 0.4),
                       borderRadius: BorderRadius.circular(8),
@@ -1251,7 +1254,7 @@ class _NovaVendaConteudoState extends State<_NovaVendaConteudo> {
                                 color: theme.secondaryTextColor),
                           ),
                         ),
-                        const SizedBox(height: 6),
+                        const SizedBox(height: 8),
                         Center(
                           child: Text(
                             'Pedido #${widget.proximoNumero.toString().padLeft(4, '0')}',
@@ -1302,7 +1305,7 @@ class _NovaVendaConteudoState extends State<_NovaVendaConteudo> {
                           for (final linha in _carrinho)
                             Padding(
                               padding:
-                                  const EdgeInsets.symmetric(vertical: 6),
+                                  const EdgeInsets.symmetric(vertical: 8),
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.stretch,
                                 children: [
@@ -1330,7 +1333,7 @@ class _NovaVendaConteudoState extends State<_NovaVendaConteudo> {
                                       .trim()
                                       .isNotEmpty)
                                     Padding(
-                                      padding: const EdgeInsets.only(top: 2),
+                                      padding: const EdgeInsets.only(top: 3),
                                       child: Text(
                                         'Obs: ${linha.observacaoController.text.trim()}',
                                         style: theme.getTextStyle(

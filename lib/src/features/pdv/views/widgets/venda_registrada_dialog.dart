@@ -13,12 +13,7 @@ String _valor(double v) => 'R\$ ${v.toStringAsFixed(2).replaceAll('.', ',')}';
 
 String _numero(int n) => '#${n.toString().padLeft(4, '0')}';
 
-double _paddingAdaptavel(BuildContext context) {
-  final largura = MediaQuery.sizeOf(context).width;
-  if (largura < 380) return 12;
-  if (largura < 500) return 18;
-  return 24;
-}
+const double _larguraBloco = 320;
 
 class VendaRegistradaDialog {
   static Future<void> mostrar(
@@ -73,10 +68,9 @@ class _VendaConteudo extends StatelessWidget {
     );
   }
 
-  Widget _linha(BuildContext context, String rotulo, String valor) {
-    final padding = _paddingAdaptavel(context);
+  Widget _linha(String rotulo, String valor) {
     return Padding(
-      padding: EdgeInsets.symmetric(horizontal: padding, vertical: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -105,43 +99,40 @@ class _VendaConteudo extends StatelessWidget {
     }
   }
 
-  Widget _blocoResumo(BuildContext context) {
+  Widget _blocoResumo() {
     final aPrazo = pedido.formaPagamento == 'À Prazo';
     final pago = pedido.quitado ? pedido.valor : pedido.valorPago;
     final restante = pedido.quitado ? 0.0 : pedido.valorRestante;
 
     return Center(
       child: Container(
-        width: double.infinity,
+        width: _larguraBloco,
         padding: const EdgeInsets.symmetric(vertical: 12),
         decoration: _decoracaoDoBloco,
         child: Column(
           children: [
             _tituloDoBloco('Resumo'),
-            _linha(context, 'Pedido', _numero(pedido.numero)),
-            _linha(context, 'Data', _dataHora(pedido.dataHora)),
-            _linha(context, 'Cliente', pedido.clienteNome),
-            _linha(context, 'Produtos', pedido.produtoNome),
+            _linha('Pedido', _numero(pedido.numero)),
+            _linha('Data', _dataHora(pedido.dataHora)),
+            _linha('Cliente', pedido.clienteNome),
+            _linha('Produtos', pedido.produtoNome),
             _linha(
-              context,
               'Forma de pagamento',
               pedido.formaPagamento.isEmpty
                   ? 'Não informada'
                   : pedido.formaPagamento,
             ),
-            _linha(context, 'Situação', _situacao),
-            if (pedido.frete > 0)
-              _linha(context, 'Frete', _valor(pedido.frete)),
+            _linha('Situação', _situacao),
+            if (pedido.frete > 0) _linha('Frete', _valor(pedido.frete)),
             if (pedido.desconto > 0)
-              _linha(context, 'Desconto', '-${_valor(pedido.desconto)}'),
+              _linha('Desconto', '-${_valor(pedido.desconto)}'),
             if (pedido.acrescimo > 0)
-              _linha(context, 'Acréscimo', _valor(pedido.acrescimo)),
-            _linha(context, 'Valor total', _valor(pedido.valor)),
+              _linha('Acréscimo', _valor(pedido.acrescimo)),
+            _linha('Valor total', _valor(pedido.valor)),
             if (aPrazo) ...[
-              _linha(context, 'Pagamento',
-                  pedido.quitado ? 'Quitado' : 'Em aberto'),
-              _linha(context, 'Já pago', _valor(pago)),
-              _linha(context, 'Restante', _valor(restante)),
+              _linha('Pagamento', pedido.quitado ? 'Quitado' : 'Em aberto'),
+              _linha('Já pago', _valor(pago)),
+              _linha('Restante', _valor(restante)),
             ],
           ],
         ),
@@ -149,12 +140,11 @@ class _VendaConteudo extends StatelessWidget {
     );
   }
 
-  Widget _blocoItens(BuildContext context) {
-    final padding = _paddingAdaptavel(context);
+  Widget _blocoItens() {
     if (pedido.itens.isEmpty) {
       return Center(
         child: Container(
-          width: double.infinity,
+          width: _larguraBloco,
           padding: const EdgeInsets.symmetric(vertical: 12),
           decoration: _decoracaoDoBloco,
           child: Column(
@@ -172,7 +162,7 @@ class _VendaConteudo extends StatelessWidget {
 
     return Center(
       child: Container(
-        width: double.infinity,
+        width: _larguraBloco,
         padding: const EdgeInsets.symmetric(vertical: 12),
         decoration: _decoracaoDoBloco,
         child: Column(
@@ -180,8 +170,10 @@ class _VendaConteudo extends StatelessWidget {
             _tituloDoBloco('Itens'),
             for (final item in pedido.itens) ...[
               Padding(
-                padding: EdgeInsets.symmetric(
-                    horizontal: padding, vertical: 4),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 20,
+                  vertical: 6,
+                ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
@@ -206,7 +198,7 @@ class _VendaConteudo extends StatelessWidget {
                     ),
                     if (item.acompanhamentos.isNotEmpty)
                       Padding(
-                        padding: const EdgeInsets.only(left: 8, top: 2),
+                        padding: const EdgeInsets.only(left: 8, top: 3),
                         child: Text(
                           item.acompanhamentos
                               .map((a) =>
@@ -222,7 +214,7 @@ class _VendaConteudo extends StatelessWidget {
                       ),
                     if (item.observacao.trim().isNotEmpty)
                       Padding(
-                        padding: const EdgeInsets.only(left: 8, top: 2),
+                        padding: const EdgeInsets.only(left: 8, top: 3),
                         child: Text(
                           'Obs: ${item.observacao.trim()}',
                           maxLines: 2,
@@ -251,9 +243,10 @@ class _VendaConteudo extends StatelessWidget {
     return soma;
   }
 
-  Widget _linhaComanda(String esquerda, String direita, {bool destaque = false}) {
+  Widget _linhaComanda(String esquerda, String direita,
+      {bool destaque = false}) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 3),
+      padding: const EdgeInsets.symmetric(vertical: 4),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -286,7 +279,7 @@ class _VendaConteudo extends StatelessWidget {
 
     return Center(
       child: Container(
-        width: double.infinity,
+        width: _larguraBloco,
         padding: const EdgeInsets.all(12),
         decoration: _decoracaoDoBloco,
         child: Column(
@@ -294,9 +287,9 @@ class _VendaConteudo extends StatelessWidget {
             _tituloDoBloco('Comanda'),
             Center(
               child: Container(
-                width: 280,
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 20, vertical: 16),
                 decoration: BoxDecoration(
                   color: theme.backgroundColor.withValues(alpha: 0.4),
                   borderRadius: BorderRadius.circular(8),
@@ -307,6 +300,26 @@ class _VendaConteudo extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
+                    if (pedido.nomeVendedor.isNotEmpty)
+                      Center(
+                        child: Text(
+                          pedido.nomeVendedor,
+                          textAlign: TextAlign.center,
+                          style: theme.getTextStyle(
+                              fontSize: 12, color: theme.textColor),
+                        ),
+                      ),
+                    if (pedido.cnpjVendedor.isNotEmpty)
+                      Center(
+                        child: Text(
+                          'CNPJ: ${pedido.cnpjVendedor}',
+                          textAlign: TextAlign.center,
+                          style: theme.getTextStyle(
+                              fontSize: 11,
+                              color: theme.secondaryTextColor),
+                        ),
+                      ),
+                    const SizedBox(height: 8),
                     Center(
                       child: Text(
                         'Pedido ${_numero(pedido.numero)}',
@@ -367,7 +380,7 @@ class _VendaConteudo extends StatelessWidget {
                                 ),
                               if (item.observacao.trim().isNotEmpty)
                                 Padding(
-                                  padding: const EdgeInsets.only(top: 2),
+                                  padding: const EdgeInsets.only(top: 3),
                                   child: Text(
                                     'Obs: ${item.observacao.trim()}',
                                     style: theme.getTextStyle(
@@ -452,9 +465,9 @@ class _VendaConteudo extends StatelessWidget {
             padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
             child: Column(
               children: [
-                _blocoResumo(context),
+                _blocoResumo(),
                 const SizedBox(height: 12),
-                _blocoItens(context),
+                _blocoItens(),
                 const SizedBox(height: 12),
                 _blocoComanda(),
               ],
@@ -550,7 +563,8 @@ class _BarraVendaState extends State<BarraVenda> {
                 ),
               ),
               const SizedBox(width: 8),
-              Text(_valor(pedido.valor), style: theme.getTextStyle(fontSize: 11)),
+              Text(_valor(pedido.valor),
+                  style: theme.getTextStyle(fontSize: 11)),
             ],
           ),
         ),
