@@ -7,6 +7,7 @@ import 'package:nous/src/features/auth/providers/auth_provider.dart';
 import 'package:nous/src/features/auth/views/login_view.dart';
 import 'package:nous/src/features/pdv/models/categoria_loja.dart';
 import 'package:nous/src/features/pdv/models/cliente.dart';
+import 'package:nous/src/features/pdv/models/configuracoes_impressora.dart';
 import 'package:nous/src/features/pdv/models/grupo_componentes_loja.dart';
 import 'package:nous/src/features/pdv/models/item_loja.dart';
 import 'package:nous/src/features/pdv/models/pedido_loja.dart';
@@ -22,6 +23,7 @@ import 'package:nous/src/features/pdv/views/widgets/formulario_dados_loja.dart';
 import 'package:nous/src/features/pdv/views/widgets/galeria_estilo_container.dart';
 import 'package:nous/src/features/pdv/views/widgets/gestao_loja_container.dart';
 import 'package:nous/src/features/pdv/views/widgets/grupo_componentes_loja_container.dart';
+import 'package:nous/src/features/pdv/views/widgets/impressora_dialog.dart';
 import 'package:nous/src/features/pdv/views/widgets/item_loja_card.dart';
 import 'package:nous/src/features/pdv/views/widgets/nova_categoria_dialog.dart';
 import 'package:nous/src/features/pdv/views/widgets/nova_venda_dialog.dart';
@@ -206,6 +208,23 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
       context,
       theme: ThemeController.currentTheme.value,
       pedidos: List.of(_pedidos),
+    );
+  }
+
+  void _abrirPopupImpressora() {
+    final loja = context.read<PdvProvider>().buscarPorId(widget.lojaId);
+    final atuais =
+        loja?.configuracoesImpressora ?? const ConfiguracoesImpressora();
+
+    ImpressoraDialog.mostrar(
+      context,
+      theme: ThemeController.currentTheme.value,
+      configuracoes: atuais,
+      onSalvar: (configuracoes) {
+        context
+            .read<PdvProvider>()
+            .atualizarConfiguracoesImpressora(widget.lojaId, configuracoes);
+      },
     );
   }
 
@@ -1065,6 +1084,7 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
           aoNovaVenda: _abrirPopupNovaVenda,
           aoClientes: _abrirPopupClientes,
           aoRelatorios: _abrirPopupRelatorios,
+          aoImpressora: _abrirPopupImpressora,
         );
 
       case AbaLoja.interface:

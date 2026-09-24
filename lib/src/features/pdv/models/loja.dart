@@ -1,5 +1,6 @@
 import 'package:nous/src/features/pdv/models/categoria_loja.dart';
 import 'package:nous/src/features/pdv/models/cliente.dart';
+import 'package:nous/src/features/pdv/models/configuracoes_impressora.dart';
 import 'package:nous/src/features/pdv/models/grupo_componentes_loja.dart';
 import 'package:nous/src/features/pdv/models/item_loja.dart';
 import 'package:nous/src/features/pdv/models/pedido_loja.dart';
@@ -22,6 +23,8 @@ class Loja {
   final List<Cliente> clientesLoja;
   final List<PedidoLoja> pedidosLoja;
 
+  final ConfiguracoesImpressora configuracoesImpressora;
+
   const Loja({
     required this.id,
     required this.nome,
@@ -37,6 +40,7 @@ class Loja {
     this.gruposComponentesLoja = const [],
     this.clientesLoja = const [],
     this.pedidosLoja = const [],
+    this.configuracoesImpressora = const ConfiguracoesImpressora(),
   });
 
   Loja copyWith({
@@ -53,6 +57,7 @@ class Loja {
     List<GrupoComponentesLoja>? gruposComponentesLoja,
     List<Cliente>? clientesLoja,
     List<PedidoLoja>? pedidosLoja,
+    ConfiguracoesImpressora? configuracoesImpressora,
   }) {
     return Loja(
       id: id,
@@ -69,6 +74,8 @@ class Loja {
       gruposComponentesLoja: gruposComponentesLoja ?? this.gruposComponentesLoja,
       clientesLoja: clientesLoja ?? this.clientesLoja,
       pedidosLoja: pedidosLoja ?? this.pedidosLoja,
+      configuracoesImpressora:
+          configuracoesImpressora ?? this.configuracoesImpressora,
     );
   }
 
@@ -89,6 +96,7 @@ class Loja {
           gruposComponentesLoja.map((g) => g.toJson()).toList(),
       'clientesLoja': clientesLoja.map((c) => c.toJson()).toList(),
       'pedidosLoja': pedidosLoja.map((p) => p.toJson()).toList(),
+      'configuracoesImpressora': configuracoesImpressora.toJson(),
     };
   }
 
@@ -120,6 +128,11 @@ class Loja {
       pedidosLoja: (json['pedidosLoja'] as List<dynamic>? ?? const [])
           .map((item) => PedidoLoja.fromJson(item as Map<String, dynamic>))
           .toList(),
+      configuracoesImpressora: json['configuracoesImpressora'] == null
+          ? const ConfiguracoesImpressora()
+          : ConfiguracoesImpressora.fromJson(
+              json['configuracoesImpressora'] as Map<String, dynamic>,
+            ),
     );
   }
 }

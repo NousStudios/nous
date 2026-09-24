@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:nous/src/features/pdv/models/categoria_loja.dart';
 import 'package:nous/src/features/pdv/models/cliente.dart';
+import 'package:nous/src/features/pdv/models/configuracoes_impressora.dart';
 import 'package:nous/src/features/pdv/models/grupo_componentes_loja.dart';
 import 'package:nous/src/features/pdv/models/item_loja.dart';
 import 'package:nous/src/features/pdv/models/loja.dart';
@@ -132,6 +133,21 @@ class PdvProvider extends ChangeNotifier {
       gruposComponentesLoja: gruposComponentes,
       clientesLoja: clientes,
       pedidosLoja: pedidos,
+    );
+
+    notifyListeners();
+    _persistir();
+  }
+
+  void atualizarConfiguracoesImpressora(
+    String id,
+    ConfiguracoesImpressora configuracoes,
+  ) {
+    final indice = _lojas.indexWhere((loja) => loja.id == id);
+    if (indice == -1) return;
+
+    _lojas[indice] = _lojas[indice].copyWith(
+      configuracoesImpressora: configuracoes,
     );
 
     notifyListeners();
