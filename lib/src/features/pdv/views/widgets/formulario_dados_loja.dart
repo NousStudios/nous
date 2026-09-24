@@ -132,8 +132,7 @@ class FormularioDadosLoja extends StatelessWidget {
         ThemedTextField(
           theme: theme,
           controller: controllers.tags,
-          label: 'Escreva as #tags em ordem de importância para melhor '
-              'descrever sua loja',
+          label: 'Descrição',
           linhas: 4,
         ),
       ],

@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:nous/src/core/theme/theme_controller.dart';
+import 'package:nous/src/core/widgets/themed_text_field.dart';
 import 'package:nous/src/features/pdv/models/cliente.dart';
 import 'package:nous/src/features/pdv/models/pedido_loja.dart';
 import 'package:nous/src/features/pdv/services/cnpj_input_formatter.dart';
+import 'package:nous/src/features/pdv/services/telefone_input_formatter.dart';
 import 'package:nous/src/features/pdv/views/widgets/estado_vazio_container.dart';
 import 'package:nous/src/features/pdv/views/widgets/venda_registrada_dialog.dart';
 
@@ -69,9 +71,13 @@ class _ClientesConteudo extends StatefulWidget {
 
 class _ClientesConteudoState extends State<_ClientesConteudo> {
   final _nomeController = TextEditingController();
-  final _enderecoController = TextEditingController();
-  final _telefoneController = TextEditingController();
   final _cnpjController = TextEditingController();
+  final _telefoneController = TextEditingController();
+  final _enderecoController = TextEditingController();
+  final _numeroController = TextEditingController();
+  final _emailController = TextEditingController();
+  final _redesSociaisController = TextEditingController();
+  final _descricaoController = TextEditingController();
   final _pagamentoController = TextEditingController();
   final _pesquisaController = TextEditingController();
 
@@ -93,9 +99,13 @@ class _ClientesConteudoState extends State<_ClientesConteudo> {
   @override
   void dispose() {
     _nomeController.dispose();
-    _enderecoController.dispose();
-    _telefoneController.dispose();
     _cnpjController.dispose();
+    _telefoneController.dispose();
+    _enderecoController.dispose();
+    _numeroController.dispose();
+    _emailController.dispose();
+    _redesSociaisController.dispose();
+    _descricaoController.dispose();
     _pagamentoController.dispose();
     _pesquisaController.dispose();
     super.dispose();
@@ -103,9 +113,13 @@ class _ClientesConteudoState extends State<_ClientesConteudo> {
 
   void _limparCampos() {
     _nomeController.clear();
-    _enderecoController.clear();
-    _telefoneController.clear();
     _cnpjController.clear();
+    _telefoneController.clear();
+    _enderecoController.clear();
+    _numeroController.clear();
+    _emailController.clear();
+    _redesSociaisController.clear();
+    _descricaoController.clear();
     _pagamentoController.clear();
     _avisoPagamento = null;
   }
@@ -117,9 +131,13 @@ class _ClientesConteudoState extends State<_ClientesConteudo> {
       _avisoPagamento = null;
       _pagamentoController.clear();
       _nomeController.text = cliente.nome;
-      _enderecoController.text = cliente.endereco;
-      _telefoneController.text = cliente.telefone;
       _cnpjController.text = cliente.cnpj;
+      _telefoneController.text = cliente.telefone;
+      _enderecoController.text = cliente.endereco;
+      _numeroController.text = cliente.numero;
+      _emailController.text = cliente.email;
+      _redesSociaisController.text = cliente.redesSociais;
+      _descricaoController.text = cliente.descricao;
     });
   }
 
@@ -141,9 +159,13 @@ class _ClientesConteudoState extends State<_ClientesConteudo> {
     final cliente = Cliente(
       id: _editando?.id ?? DateTime.now().millisecondsSinceEpoch.toString(),
       nome: nome,
-      endereco: _enderecoController.text.trim(),
-      telefone: _telefoneController.text.trim(),
       cnpj: _cnpjController.text.trim(),
+      telefone: _telefoneController.text.trim(),
+      endereco: _enderecoController.text.trim(),
+      numero: _numeroController.text.trim(),
+      email: _emailController.text.trim(),
+      redesSociais: _redesSociaisController.text.trim(),
+      descricao: _descricaoController.text.trim(),
     );
 
     widget.onSalvar(cliente);
@@ -341,25 +363,6 @@ class _ClientesConteudoState extends State<_ClientesConteudo> {
     );
   }
 
-  Widget _campo(
-    TextEditingController controller,
-    String dica, {
-    TextInputType? teclado,
-    List<TextInputFormatter>? formatadores,
-  }) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
-      child: TextField(
-        controller: controller,
-        keyboardType: teclado,
-        inputFormatters: formatadores,
-        cursorColor: theme.textColor,
-        style: theme.getTextStyle(fontSize: 12),
-        decoration: _decoracaoCampo(dica),
-      ),
-    );
-  }
-
   Widget _botao(String rotulo, VoidCallback aoPressionar,
       {bool destaque = false}) {
     return OutlinedButton(
@@ -390,24 +393,110 @@ class _ClientesConteudoState extends State<_ClientesConteudo> {
       child: Column(
         children: [
           _tituloDoBloco(editando != null ? 'Editar Cliente' : 'Novo Cliente'),
-          _campo(_nomeController, 'Nome'),
-          _campo(_enderecoController, 'Endereço (Rua, número e cidade)'),
-          _campo(
-            _telefoneController,
-            'Telefone',
-            teclado: TextInputType.phone,
+
+          InkWell(
+            onTap: () {},
+            customBorder: const CircleBorder(),
+            child: CircleAvatar(
+              radius: 40,
+              backgroundColor: theme.cardBackgroundColor,
+              child: Icon(
+                Icons.person,
+                size: 44,
+                color: theme.secondaryTextColor,
+              ),
+            ),
           ),
-          _campo(
-            _cnpjController,
-            'CNPJ',
-            teclado: TextInputType.number,
-            formatadores: [CnpjInputFormatter()],
+          const SizedBox(height: 20),
+
+          ThemedTextField(
+            theme: theme,
+            controller: _nomeController,
+            label: 'Nome do Cliente',
+            obrigatorio: true,
           ),
+          const SizedBox(height: 12),
+
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: ThemedTextField(
+                  theme: theme,
+                  controller: _cnpjController,
+                  label: 'CNPJ',
+                  tipoDeTeclado: TextInputType.number,
+                  formatadores: [CnpjInputFormatter()],
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: ThemedTextField(
+                  theme: theme,
+                  controller: _telefoneController,
+                  label: 'Telefone',
+                  tipoDeTeclado: TextInputType.phone,
+                  formatadores: [TelefoneInputFormatter()],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                flex: 3,
+                child: ThemedTextField(
+                  theme: theme,
+                  controller: _enderecoController,
+                  label: 'Endereço',
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                flex: 1,
+                child: ThemedTextField(
+                  theme: theme,
+                  controller: _numeroController,
+                  label: 'Nº',
+                  tipoDeTeclado: TextInputType.number,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+
+          ThemedTextField(
+            theme: theme,
+            controller: _emailController,
+            label: 'Email',
+            tipoDeTeclado: TextInputType.emailAddress,
+          ),
+          const SizedBox(height: 12),
+
+          ThemedTextField(
+            theme: theme,
+            controller: _redesSociaisController,
+            label: 'Redes Sociais',
+          ),
+          const SizedBox(height: 12),
+
+          ThemedTextField(
+            theme: theme,
+            controller: _descricaoController,
+            label: 'Descrição',
+            linhas: 4,
+          ),
+
           if (_aviso != null)
             Padding(
-              padding: const EdgeInsets.only(bottom: 8),
+              padding: const EdgeInsets.only(top: 12),
               child: Text(_aviso!, style: theme.getTextStyle(fontSize: 12)),
             ),
+
+          const SizedBox(height: 16),
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
@@ -594,7 +683,7 @@ class _ClientesConteudoState extends State<_ClientesConteudo> {
             )
           else
             ConstrainedBox(
-              constraints: const BoxConstraints(maxHeight: 260),
+              constraints: const BoxConstraints(maxHeight: 200),
               child: ListView.separated(
                 shrinkWrap: true,
                 itemCount: filtrados.length,
@@ -687,14 +776,17 @@ class _ClientesConteudoState extends State<_ClientesConteudo> {
             padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
             child: Column(
               children: [
-                _blocoFormulario(),
-                const SizedBox(height: 12),
                 if (editando != null) ...[
+                  _blocoFormulario(),
+                  const SizedBox(height: 12),
                   _blocoDivida(editando),
                   const SizedBox(height: 12),
                   _blocoHistorico(editando),
-                ] else
+                ] else ...[
                   _blocoLista(),
+                  const SizedBox(height: 12),
+                  _blocoFormulario(),
+                ],
               ],
             ),
           ),
