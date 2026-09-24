@@ -51,6 +51,10 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
   final _controllersUsuarios = ControllersUsuariosParticipantes();
   final _controllersDelivery = ControllersDelivery();
 
+  final _pesquisaItens = TextEditingController();
+  final _pesquisaCategorias = TextEditingController();
+  final _pesquisaGrupos = TextEditingController();
+
   AbaLoja _abaSelecionada = AbaLoja.dados;
 
   final List<CategoriaLoja> _categorias = [];
@@ -528,6 +532,9 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
     _controllersBancarios.dispose();
     _controllersUsuarios.dispose();
     _controllersDelivery.dispose();
+    _pesquisaItens.dispose();
+    _pesquisaCategorias.dispose();
+    _pesquisaGrupos.dispose();
     super.dispose();
   }
 
@@ -663,6 +670,46 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
     );
   }
 
+  Widget _campoDePesquisa(
+    AppTheme theme,
+    TextEditingController controller,
+    String dica,
+  ) {
+    return TextField(
+      controller: controller,
+      style: theme.getTextStyle(fontSize: 13),
+      onChanged: (_) => setState(() {}),
+      decoration: InputDecoration(
+        hintText: dica,
+        hintStyle: theme.getTextStyle(
+          fontSize: 13,
+          color: theme.secondaryTextColor,
+        ),
+        isDense: true,
+        contentPadding:
+            const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        prefixIcon: Icon(
+          Icons.search,
+          size: 18,
+          color: theme.secondaryTextColor,
+        ),
+        prefixIconConstraints: const BoxConstraints(minWidth: 36),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(10),
+          borderSide: BorderSide(color: theme.borderColor),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(10),
+          borderSide: BorderSide(color: theme.borderColor),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(10),
+          borderSide: BorderSide(color: theme.textColor),
+        ),
+      ),
+    );
+  }
+
   Widget _barraDeAcoesLoja(AppTheme theme) {
     return Container(
       width: double.infinity,
@@ -720,13 +767,15 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
     );
   }
 
-  Widget _listaCategorias(AppTheme theme) {
-    if (_categorias.isEmpty) {
+  Widget _listaCategorias(AppTheme theme, List<CategoriaLoja> categorias) {
+    if (categorias.isEmpty) {
       return Padding(
         padding: const EdgeInsets.only(right: 8),
         child: EstadoVazioContainer(
           theme: theme,
-          mensagem: 'Nenhuma categoria criada ainda.',
+          mensagem: _categorias.isEmpty
+              ? 'Nenhuma categoria criada ainda.'
+              : 'Nenhuma categoria encontrada.',
         ),
       );
     }
@@ -738,10 +787,10 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
           thumbVisibility: true,
           child: ListView.separated(
             padding: const EdgeInsets.only(right: 8),
-            itemCount: _categorias.length,
+            itemCount: categorias.length,
             separatorBuilder: (context, index) => const SizedBox(height: 8),
             itemBuilder: (context, index) =>
-                _construirCategoria(theme, _categorias[index]),
+                _construirCategoria(theme, categorias[index]),
           ),
         ),
       );
@@ -749,7 +798,7 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
 
     return Column(
       children: [
-        for (final categoria in _categorias) ...[
+        for (final categoria in categorias) ...[
           _construirCategoria(theme, categoria),
           const SizedBox(height: 8),
         ],
@@ -778,13 +827,15 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
     );
   }
 
-  Widget _listaGrupos(AppTheme theme) {
-    if (_gruposComponentes.isEmpty) {
+  Widget _listaGrupos(AppTheme theme, List<GrupoComponentesLoja> grupos) {
+    if (grupos.isEmpty) {
       return Padding(
         padding: const EdgeInsets.only(right: 8),
         child: EstadoVazioContainer(
           theme: theme,
-          mensagem: 'Nenhum grupo de componentes criado ainda.',
+          mensagem: _gruposComponentes.isEmpty
+              ? 'Nenhum grupo de componentes criado ainda.'
+              : 'Nenhum grupo de componentes encontrado.',
         ),
       );
     }
@@ -796,10 +847,10 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
           thumbVisibility: true,
           child: ListView.separated(
             padding: const EdgeInsets.only(right: 8),
-            itemCount: _gruposComponentes.length,
+            itemCount: grupos.length,
             separatorBuilder: (context, index) => const SizedBox(height: 8),
             itemBuilder: (context, index) =>
-                _construirGrupo(theme, _gruposComponentes[index]),
+                _construirGrupo(theme, grupos[index]),
           ),
         ),
       );
@@ -807,11 +858,105 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
 
     return Column(
       children: [
-        for (final grupo in _gruposComponentes) ...[
+        for (final grupo in grupos) ...[
           _construirGrupo(theme, grupo),
           const SizedBox(height: 8),
         ],
       ],
+    );
+  }
+
+  Widget _abaLoja(AppTheme theme) {
+    final termoItens = _pesquisaItens.text.trim().toLowerCase();
+    final termoCategorias = _pesquisaCategorias.text.trim().toLowerCase();
+    final termoGrupos = _pesquisaGrupos.text.trim().toLowerCase();
+
+    final itensFiltrados = termoItens.isEmpty
+        ? _itens
+        : _itens
+            .where((i) => i.nome.toLowerCase().contains(termoItens))
+            .toList();
+
+    final categoriasFiltradas = termoCategorias.isEmpty
+        ? _categorias
+        : _categorias
+            .where((c) => c.nome.toLowerCase().contains(termoCategorias))
+            .toList();
+
+    final gruposFiltrados = termoGrupos.isEmpty
+        ? _gruposComponentes
+        : _gruposComponentes
+            .where((g) => g.nome.toLowerCase().contains(termoGrupos))
+            .toList();
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: _decoracaoDoBloco(theme),
+      child: Column(
+        children: [
+          _tituloDeSecao(theme, 'Itens'),
+          const SizedBox(height: 12),
+          _campoDePesquisa(
+            theme,
+            _pesquisaItens,
+            'Pesquisar itens...',
+          ),
+          const SizedBox(height: 12),
+          if (itensFiltrados.isNotEmpty)
+            SizedBox(
+              height: 150,
+              child: ListView.separated(
+                scrollDirection: Axis.horizontal,
+                itemCount: itensFiltrados.length,
+                separatorBuilder: (context, index) =>
+                    const SizedBox(width: 12),
+                itemBuilder: (context, index) {
+                  final item = itensFiltrados[index];
+                  return ItemLojaCard(
+                    key: ValueKey('item_${item.id}'),
+                    theme: theme,
+                    nome: item.nome,
+                    preco: item.preco,
+                    tipo: item.tipo,
+                    onEditar: () => _abrirPopupEditarItem(item),
+                    onExcluir: () => _removerItem(item.id),
+                    onNomeAlterado: (novoNome) =>
+                        _editarNomeItem(item.id, novoNome),
+                    onPrecoAlterado: (novoPreco) =>
+                        _editarPrecoItem(item.id, novoPreco),
+                  );
+                },
+              ),
+            )
+          else if (_itens.isEmpty)
+            _textoListaVazia(theme, 'Nenhum item criado ainda.')
+          else
+            _textoListaVazia(theme, 'Nenhum item encontrado.'),
+
+          const SizedBox(height: 24),
+          _tituloDeSecao(theme, 'Categorias'),
+          const SizedBox(height: 12),
+          _campoDePesquisa(
+            theme,
+            _pesquisaCategorias,
+            'Pesquisar categorias...',
+          ),
+          const SizedBox(height: 12),
+          _listaCategorias(theme, categoriasFiltradas),
+
+          const SizedBox(height: 24),
+          _tituloDeSecao(theme, 'Grupos de Componentes'),
+          const SizedBox(height: 12),
+          _campoDePesquisa(
+            theme,
+            _pesquisaGrupos,
+            'Pesquisar grupos...',
+          ),
+          const SizedBox(height: 12),
+          _listaGrupos(theme, gruposFiltrados),
+        ],
+      ),
     );
   }
 
@@ -894,55 +1039,7 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
         );
 
       case AbaLoja.loja:
-        return Container(
-          width: double.infinity,
-          padding: const EdgeInsets.all(16),
-          decoration: _decoracaoDoBloco(theme),
-          child: Column(
-            children: [
-              _tituloDeSecao(theme, 'Itens'),
-              const SizedBox(height: 12),
-              if (_itens.isNotEmpty)
-                SizedBox(
-                  height: 150,
-                  child: ListView.separated(
-                    scrollDirection: Axis.horizontal,
-                    itemCount: _itens.length,
-                    separatorBuilder: (context, index) =>
-                        const SizedBox(width: 12),
-                    itemBuilder: (context, index) {
-                      final item = _itens[index];
-                      return ItemLojaCard(
-                        key: ValueKey('item_${item.id}'),
-                        theme: theme,
-                        nome: item.nome,
-                        preco: item.preco,
-                        tipo: item.tipo,
-                        onEditar: () => _abrirPopupEditarItem(item),
-                        onExcluir: () => _removerItem(item.id),
-                        onNomeAlterado: (novoNome) =>
-                            _editarNomeItem(item.id, novoNome),
-                        onPrecoAlterado: (novoPreco) =>
-                            _editarPrecoItem(item.id, novoPreco),
-                      );
-                    },
-                  ),
-                )
-              else
-                _textoListaVazia(theme, 'Nenhum item criado ainda.'),
-
-              const SizedBox(height: 24),
-              _tituloDeSecao(theme, 'Categorias'),
-              const SizedBox(height: 12),
-              _listaCategorias(theme),
-
-              const SizedBox(height: 24),
-              _tituloDeSecao(theme, 'Grupos de Componentes'),
-              const SizedBox(height: 12),
-              _listaGrupos(theme),
-            ],
-          ),
-        );
+        return _abaLoja(theme);
 
       case AbaLoja.gestao:
         return GestaoLojaContainer(
