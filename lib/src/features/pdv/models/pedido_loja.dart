@@ -41,6 +41,7 @@ class ItemVendido {
   final double precoCategoria;
   final int quantidade;
   final List<AcompanhamentoEscolhido> acompanhamentos;
+  final String observacao;
 
   const ItemVendido({
     required this.itemId,
@@ -51,6 +52,7 @@ class ItemVendido {
     this.precoCategoria = 0,
     required this.quantidade,
     this.acompanhamentos = const [],
+    this.observacao = '',
   });
 
   double get totalDosAcompanhamentosPorUnidade => acompanhamentos.fold<double>(
@@ -81,6 +83,7 @@ class ItemVendido {
       'precoCategoria': precoCategoria,
       'quantidade': quantidade,
       'acompanhamentos': acompanhamentos.map((a) => a.toJson()).toList(),
+      'observacao': observacao,
     };
   }
 
@@ -97,6 +100,7 @@ class ItemVendido {
           .map((a) =>
               AcompanhamentoEscolhido.fromJson(a as Map<String, dynamic>))
           .toList(),
+      observacao: json['observacao'] as String? ?? '',
     );
   }
 }

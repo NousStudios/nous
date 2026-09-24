@@ -783,6 +783,7 @@ class _NovaVendaConteudoState extends State<_NovaVendaConteudo> {
             categoria == null ? 0 : _precoComoNumero(categoria.preco),
         quantidade: linha.quantidade,
         acompanhamentos: acompanhamentos,
+        observacao: linha.observacaoController.text.trim(),
       ));
     }
 
@@ -1172,7 +1173,7 @@ class _NovaVendaConteudoState extends State<_NovaVendaConteudo> {
 
   Widget _linhaComanda(String esquerda, String direita, {bool destaque = false}) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 1),
+      padding: const EdgeInsets.symmetric(vertical: 3),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [

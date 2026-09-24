@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:nous/src/core/theme/theme_controller.dart';
 import 'package:nous/src/features/pdv/models/pedido_loja.dart';
 import 'package:nous/src/features/pdv/views/widgets/estado_vazio_container.dart';
+import 'package:nous/src/features/pdv/views/widgets/pedido_aceito_dialog.dart';
 
 enum AbaPedidos { novos, aceitos, concluidos }
 
@@ -286,10 +287,25 @@ class GestaoLojaContainer extends StatelessWidget {
     );
   }
 
+  void _aoClicarPedido(BuildContext context, PedidoLoja pedido) {
+    if (pedido.status == StatusPedido.aceito) {
+      PedidoAceitoDialog.mostrar(
+        context,
+        theme: theme,
+        pedido: pedido,
+        aoConcluir: () => aoConcluir(pedido.id),
+      );
+      return;
+    }
+    _abrirMenuDoPedido(context, pedido);
+  }
+
   Widget _barraDoPedido(BuildContext context, PedidoLoja pedido) {
     final fonteMiuda = theme.getTextStyle(fontSize: 9);
 
     return _ComHover(
+      cursor: SystemMouseCursors.click,
+      aoClicar: () => _aoClicarPedido(context, pedido),
       builder: (hover) => Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(

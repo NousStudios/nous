@@ -13,6 +13,13 @@ String _valor(double v) => 'R\$ ${v.toStringAsFixed(2).replaceAll('.', ',')}';
 
 String _numero(int n) => '#${n.toString().padLeft(4, '0')}';
 
+double _paddingAdaptavel(BuildContext context) {
+  final largura = MediaQuery.sizeOf(context).width;
+  if (largura < 380) return 12;
+  if (largura < 500) return 18;
+  return 24;
+}
+
 class VendaRegistradaDialog {
   static Future<void> mostrar(
     BuildContext context, {
@@ -66,9 +73,10 @@ class _VendaConteudo extends StatelessWidget {
     );
   }
 
-  Widget _linha(String rotulo, String valor) {
+  Widget _linha(BuildContext context, String rotulo, String valor) {
+    final padding = _paddingAdaptavel(context);
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
+      padding: EdgeInsets.symmetric(horizontal: padding, vertical: 4),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -97,145 +105,316 @@ class _VendaConteudo extends StatelessWidget {
     }
   }
 
-  Widget _blocoResumo() {
+  Widget _blocoResumo(BuildContext context) {
     final aPrazo = pedido.formaPagamento == 'À Prazo';
     final pago = pedido.quitado ? pedido.valor : pedido.valorPago;
     final restante = pedido.quitado ? 0.0 : pedido.valorRestante;
 
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(12),
-      decoration: _decoracaoDoBloco,
-      child: Column(
-        children: [
-          _tituloDoBloco('Resumo'),
-          _linha('Pedido', _numero(pedido.numero)),
-          _linha('Data', _dataHora(pedido.dataHora)),
-          _linha('Cliente', pedido.clienteNome),
-          _linha('Produtos', pedido.produtoNome),
-          _linha(
-            'Forma de pagamento',
-            pedido.formaPagamento.isEmpty
-                ? 'Não informada'
-                : pedido.formaPagamento,
-          ),
-          _linha('Situação', _situacao),
-          if (pedido.frete > 0) _linha('Frete', _valor(pedido.frete)),
-          if (pedido.desconto > 0)
-            _linha('Desconto', '-${_valor(pedido.desconto)}'),
-          if (pedido.acrescimo > 0)
-            _linha('Acréscimo', _valor(pedido.acrescimo)),
-          _linha('Valor total', _valor(pedido.valor)),
-          if (aPrazo) ...[
-            _linha('Pagamento', pedido.quitado ? 'Quitado' : 'Em aberto'),
-            _linha('Já pago', _valor(pago)),
-            _linha('Restante', _valor(restante)),
+    return Center(
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(vertical: 12),
+        decoration: _decoracaoDoBloco,
+        child: Column(
+          children: [
+            _tituloDoBloco('Resumo'),
+            _linha(context, 'Pedido', _numero(pedido.numero)),
+            _linha(context, 'Data', _dataHora(pedido.dataHora)),
+            _linha(context, 'Cliente', pedido.clienteNome),
+            _linha(context, 'Produtos', pedido.produtoNome),
+            _linha(
+              context,
+              'Forma de pagamento',
+              pedido.formaPagamento.isEmpty
+                  ? 'Não informada'
+                  : pedido.formaPagamento,
+            ),
+            _linha(context, 'Situação', _situacao),
+            if (pedido.frete > 0)
+              _linha(context, 'Frete', _valor(pedido.frete)),
+            if (pedido.desconto > 0)
+              _linha(context, 'Desconto', '-${_valor(pedido.desconto)}'),
+            if (pedido.acrescimo > 0)
+              _linha(context, 'Acréscimo', _valor(pedido.acrescimo)),
+            _linha(context, 'Valor total', _valor(pedido.valor)),
+            if (aPrazo) ...[
+              _linha(context, 'Pagamento',
+                  pedido.quitado ? 'Quitado' : 'Em aberto'),
+              _linha(context, 'Já pago', _valor(pago)),
+              _linha(context, 'Restante', _valor(restante)),
+            ],
           ],
-        ],
+        ),
       ),
     );
   }
 
-  Widget _blocoItens() {
+  Widget _blocoItens(BuildContext context) {
+    final padding = _paddingAdaptavel(context);
     if (pedido.itens.isEmpty) {
-      return Container(
-        width: double.infinity,
-        padding: const EdgeInsets.all(12),
-        decoration: _decoracaoDoBloco,
-        child: Column(
-          children: [
-            _tituloDoBloco('Itens'),
-            EstadoVazioContainer(
-              theme: theme,
-              mensagem: 'Sem itens detalhados nesta venda.',
-            ),
-          ],
+      return Center(
+        child: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(vertical: 12),
+          decoration: _decoracaoDoBloco,
+          child: Column(
+            children: [
+              _tituloDoBloco('Itens'),
+              EstadoVazioContainer(
+                theme: theme,
+                mensagem: 'Sem itens detalhados nesta venda.',
+              ),
+            ],
+          ),
         ),
       );
     }
 
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(12),
-      decoration: _decoracaoDoBloco,
-      child: Column(
-        children: [
-          _tituloDoBloco('Itens'),
-          for (final item in pedido.itens) ...[
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: 4),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Row(
-                    children: [
-                      Expanded(
+    return Center(
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(vertical: 12),
+        decoration: _decoracaoDoBloco,
+        child: Column(
+          children: [
+            _tituloDoBloco('Itens'),
+            for (final item in pedido.itens) ...[
+              Padding(
+                padding: EdgeInsets.symmetric(
+                    horizontal: padding, vertical: 4),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            '${item.quantidade}x ${item.nomeExibicao}',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: theme.getTextStyle(
+                              fontSize: 12,
+                              color: theme.textColor,
+                            ),
+                          ),
+                        ),
+                        Text(
+                          _valor(item.subtotal),
+                          style: theme.getTextStyle(fontSize: 12),
+                        ),
+                      ],
+                    ),
+                    if (item.acompanhamentos.isNotEmpty)
+                      Padding(
+                        padding: const EdgeInsets.only(left: 8, top: 2),
                         child: Text(
-                          '${item.quantidade}x ${item.nomeExibicao}',
+                          item.acompanhamentos
+                              .map((a) =>
+                                  '${a.quantidadePorUnidade}x ${a.nomeItem} por unidade')
+                              .join(', '),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: theme.getTextStyle(
-                            fontSize: 12,
-                            color: theme.textColor,
+                            fontSize: 10,
+                            color: theme.secondaryTextColor,
                           ),
                         ),
                       ),
-                      Text(
-                        _valor(item.subtotal),
-                        style: theme.getTextStyle(fontSize: 12),
-                      ),
-                    ],
-                  ),
-                  if (item.acompanhamentos.isNotEmpty)
-                    Padding(
-                      padding: const EdgeInsets.only(left: 8, top: 2),
-                      child: Text(
-                        item.acompanhamentos
-                            .map((a) =>
-                                '${a.quantidadePorUnidade}x ${a.nomeItem} por unidade')
-                            .join(', '),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: theme.getTextStyle(
-                          fontSize: 10,
-                          color: theme.secondaryTextColor,
+                    if (item.observacao.trim().isNotEmpty)
+                      Padding(
+                        padding: const EdgeInsets.only(left: 8, top: 2),
+                        child: Text(
+                          'Obs: ${item.observacao.trim()}',
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: theme.getTextStyle(
+                            fontSize: 10,
+                            color: theme.secondaryTextColor,
+                          ),
                         ),
                       ),
-                    ),
-                ],
+                  ],
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  double get _subtotalDosItens {
+    var soma = 0.0;
+    for (final item in pedido.itens) {
+      soma += item.subtotal;
+    }
+    return soma;
+  }
+
+  Widget _linhaComanda(String esquerda, String direita, {bool destaque = false}) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 3),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(
+            child: Text(
+              esquerda,
+              style: theme.getTextStyle(
+                fontSize: 12,
+                color: destaque ? theme.textColor : theme.secondaryTextColor,
+                fontWeight: destaque ? FontWeight.bold : FontWeight.normal,
               ),
             ),
-          ],
+          ),
+          Text(
+            direita,
+            style: theme.getTextStyle(
+              fontSize: 12,
+              color: destaque ? theme.textColor : theme.secondaryTextColor,
+              fontWeight: destaque ? FontWeight.bold : FontWeight.normal,
+            ),
+          ),
         ],
       ),
     );
   }
 
   Widget _blocoComanda() {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(12),
-      decoration: _decoracaoDoBloco,
-      child: Column(
-        children: [
-          _tituloDoBloco('Comanda'),
-          if (pedido.comanda.trim().isEmpty)
-            EstadoVazioContainer(
-              theme: theme,
-              mensagem: 'Sem comanda registrada.',
-            )
-          else
-            SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: SelectableText(
-                pedido.comanda,
-                textAlign: TextAlign.center,
-                style: theme
-                    .getTextStyle(fontSize: 12)
-                    .copyWith(fontFamily: 'monospace', height: 1.3),
+    final totalLinhas = pedido.itens.length;
+    final isDinheiro = pedido.formaPagamento == 'Dinheiro';
+
+    return Center(
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(12),
+        decoration: _decoracaoDoBloco,
+        child: Column(
+          children: [
+            _tituloDoBloco('Comanda'),
+            Center(
+              child: Container(
+                width: 280,
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                decoration: BoxDecoration(
+                  color: theme.backgroundColor.withValues(alpha: 0.4),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                    color: theme.borderColor.withValues(alpha: 0.6),
+                  ),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Center(
+                      child: Text(
+                        'Pedido ${_numero(pedido.numero)}',
+                        textAlign: TextAlign.center,
+                        style: theme.getTextStyle(
+                            fontSize: 12, color: theme.textColor),
+                      ),
+                    ),
+                    Center(
+                      child: Text(
+                        'Data: ${_dataHora(pedido.dataHora)}',
+                        textAlign: TextAlign.center,
+                        style: theme.getTextStyle(
+                            fontSize: 11, color: theme.secondaryTextColor),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    _linhaComanda('Cliente', pedido.clienteNome),
+                    const SizedBox(height: 8),
+                    Center(
+                      child: Text(
+                        'ITENS',
+                        style: theme.getTextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: theme.textColor),
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    if (totalLinhas == 0)
+                      Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 8),
+                        child: Text(
+                          'Nenhum item registrado.',
+                          textAlign: TextAlign.center,
+                          style: theme.getTextStyle(
+                              fontSize: 11,
+                              color: theme.secondaryTextColor),
+                        ),
+                      )
+                    else
+                      for (final item in pedido.itens)
+                        Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 8),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              _linhaComanda(
+                                '${item.quantidade}x ${item.nomeExibicao}',
+                                _valor(item.subtotal),
+                              ),
+                              for (final a in item.acompanhamentos)
+                                _linhaComanda(
+                                  '   ${a.quantidadePorUnidade}x ${a.nomeItem} por unidade',
+                                  _valor(a.precoItem *
+                                      a.quantidadePorUnidade *
+                                      item.quantidade),
+                                ),
+                              if (item.observacao.trim().isNotEmpty)
+                                Padding(
+                                  padding: const EdgeInsets.only(top: 2),
+                                  child: Text(
+                                    'Obs: ${item.observacao.trim()}',
+                                    style: theme.getTextStyle(
+                                        fontSize: 11,
+                                        color: theme.secondaryTextColor),
+                                  ),
+                                ),
+                            ],
+                          ),
+                        ),
+                    const SizedBox(height: 8),
+                    Divider(color: theme.borderColor.withValues(alpha: 0.6)),
+                    _linhaComanda('Subtotal', _valor(_subtotalDosItens)),
+                    _linhaComanda('Frete', _valor(pedido.frete)),
+                    if (pedido.desconto > 0)
+                      _linhaComanda('Desconto', '-${_valor(pedido.desconto)}'),
+                    if (pedido.acrescimo > 0)
+                      _linhaComanda('Acréscimo', _valor(pedido.acrescimo)),
+                    _linhaComanda('TOTAL', _valor(pedido.valor),
+                        destaque: true),
+                    const SizedBox(height: 4),
+                    _linhaComanda(
+                      'Pagamento',
+                      pedido.formaPagamento.isEmpty
+                          ? '-'
+                          : pedido.formaPagamento,
+                    ),
+                    if (isDinheiro) ...[
+                      _linhaComanda('Valor recebido', '-'),
+                      _linhaComanda('Troco', '-', destaque: true),
+                    ],
+                    const SizedBox(height: 12),
+                    Center(
+                      child: Text(
+                        'linktr.ee/nous72',
+                        textAlign: TextAlign.center,
+                        style: theme.getTextStyle(
+                            fontSize: 11,
+                            color: theme.secondaryTextColor),
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -273,9 +452,9 @@ class _VendaConteudo extends StatelessWidget {
             padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
             child: Column(
               children: [
-                _blocoResumo(),
+                _blocoResumo(context),
                 const SizedBox(height: 12),
-                _blocoItens(),
+                _blocoItens(context),
                 const SizedBox(height: 12),
                 _blocoComanda(),
               ],
