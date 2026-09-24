@@ -3,6 +3,7 @@ import 'package:nous/src/core/theme/theme_controller.dart';
 import 'package:nous/src/features/pdv/models/pedido_loja.dart';
 import 'package:nous/src/features/pdv/views/widgets/estado_vazio_container.dart';
 import 'package:nous/src/features/pdv/views/widgets/pedido_aceito_dialog.dart';
+import 'package:nous/src/features/pdv/views/widgets/venda_registrada_dialog.dart';
 
 enum AbaPedidos { novos, aceitos, concluidos }
 
@@ -29,6 +30,7 @@ class GestaoLojaContainer extends StatelessWidget {
   final ValueChanged<String> aoAceitar;
   final ValueChanged<String> aoRecusar;
   final ValueChanged<String> aoConcluir;
+  final void Function(String pedidoId, String comentario)? aoSalvarComentario;
   final VoidCallback aoNovaVenda;
   final VoidCallback aoClientes;
   final VoidCallback aoRelatorios;
@@ -44,6 +46,7 @@ class GestaoLojaContainer extends StatelessWidget {
     required this.aoAceitar,
     required this.aoRecusar,
     required this.aoConcluir,
+    this.aoSalvarComentario,
     required this.aoNovaVenda,
     required this.aoClientes,
     required this.aoRelatorios,
@@ -294,6 +297,17 @@ class GestaoLojaContainer extends StatelessWidget {
         theme: theme,
         pedido: pedido,
         aoConcluir: () => aoConcluir(pedido.id),
+      );
+      return;
+    }
+    if (pedido.status == StatusPedido.concluido) {
+      VendaRegistradaDialog.mostrar(
+        context,
+        theme: theme,
+        pedido: pedido,
+        onSalvarComentario: aoSalvarComentario == null
+            ? null
+            : (comentario) => aoSalvarComentario!(pedido.id, comentario),
       );
       return;
     }

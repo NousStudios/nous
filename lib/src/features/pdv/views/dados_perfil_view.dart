@@ -148,6 +148,15 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
     _persistirListasLoja();
   }
 
+  void _salvarComentarioPedido(String id, String comentario) {
+    setState(() {
+      final indice = _pedidos.indexWhere((p) => p.id == id);
+      if (indice == -1) return;
+      _pedidos[indice] = _pedidos[indice].copyWith(comentario: comentario);
+    });
+    _persistirListasLoja();
+  }
+
   void _recusarPedido(String id) {
     setState(() => _pedidos.removeWhere((p) => p.id == id));
     _persistirListasLoja();
@@ -1052,6 +1061,7 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
           aoAceitar: (id) => _alterarStatusPedido(id, StatusPedido.aceito),
           aoRecusar: _recusarPedido,
           aoConcluir: (id) => _alterarStatusPedido(id, StatusPedido.concluido),
+          aoSalvarComentario: _salvarComentarioPedido,
           aoNovaVenda: _abrirPopupNovaVenda,
           aoClientes: _abrirPopupClientes,
           aoRelatorios: _abrirPopupRelatorios,

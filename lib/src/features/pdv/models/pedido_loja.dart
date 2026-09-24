@@ -125,6 +125,7 @@ class PedidoLoja {
   final double acrescimo;
   final String nomeVendedor;
   final String cnpjVendedor;
+  final String comentario;
 
   const PedidoLoja({
     required this.id,
@@ -146,6 +147,7 @@ class PedidoLoja {
     this.acrescimo = 0,
     this.nomeVendedor = '',
     this.cnpjVendedor = '',
+    this.comentario = '',
   });
 
   bool get aPrazoEmAberto => formaPagamento == 'À Prazo' && !quitado;
@@ -161,6 +163,7 @@ class PedidoLoja {
     String? comanda,
     bool? quitado,
     double? valorPago,
+    String? comentario,
   }) {
     return PedidoLoja(
       id: id,
@@ -182,6 +185,7 @@ class PedidoLoja {
       acrescimo: acrescimo,
       nomeVendedor: nomeVendedor,
       cnpjVendedor: cnpjVendedor,
+      comentario: comentario ?? this.comentario,
     );
   }
 
@@ -206,6 +210,7 @@ class PedidoLoja {
       'acrescimo': acrescimo,
       'nomeVendedor': nomeVendedor,
       'cnpjVendedor': cnpjVendedor,
+      'comentario': comentario,
     };
   }
 
@@ -232,6 +237,7 @@ class PedidoLoja {
       acrescimo: (json['acrescimo'] as num?)?.toDouble() ?? 0,
       nomeVendedor: json['nomeVendedor'] as String? ?? '',
       cnpjVendedor: json['cnpjVendedor'] as String? ?? '',
+      comentario: json['comentario'] as String? ?? '',
     );
   }
 }

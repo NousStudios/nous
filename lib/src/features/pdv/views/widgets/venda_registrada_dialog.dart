@@ -20,6 +20,7 @@ class VendaRegistradaDialog {
     BuildContext context, {
     required AppTheme theme,
     required PedidoLoja pedido,
+    ValueChanged<String>? onSalvarComentario,
   }) {
     return showDialog<void>(
       context: context,
@@ -33,7 +34,11 @@ class VendaRegistradaDialog {
           ),
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 500),
-            child: _VendaConteudo(theme: theme, pedido: pedido),
+            child: _VendaConteudo(
+              theme: theme,
+              pedido: pedido,
+              onSalvarComentario: onSalvarComentario,
+            ),
           ),
         );
       },
@@ -41,11 +46,40 @@ class VendaRegistradaDialog {
   }
 }
 
-class _VendaConteudo extends StatelessWidget {
+class _VendaConteudo extends StatefulWidget {
   final AppTheme theme;
   final PedidoLoja pedido;
+  final ValueChanged<String>? onSalvarComentario;
 
-  const _VendaConteudo({required this.theme, required this.pedido});
+  const _VendaConteudo({
+    required this.theme,
+    required this.pedido,
+    this.onSalvarComentario,
+  });
+
+  @override
+  State<_VendaConteudo> createState() => _VendaConteudoState();
+}
+
+class _VendaConteudoState extends State<_VendaConteudo> {
+  late final TextEditingController _comentarioController;
+  late String _comentarioSalvo;
+
+  AppTheme get theme => widget.theme;
+  PedidoLoja get pedido => widget.pedido;
+
+  @override
+  void initState() {
+    super.initState();
+    _comentarioSalvo = widget.pedido.comentario;
+    _comentarioController = TextEditingController(text: _comentarioSalvo);
+  }
+
+  @override
+  void dispose() {
+    _comentarioController.dispose();
+    super.dispose();
+  }
 
   BoxDecoration get _decoracaoDoBloco => BoxDecoration(
         color: theme.backgroundColor.withValues(alpha: 0.4),
@@ -432,6 +466,94 @@ class _VendaConteudo extends StatelessWidget {
     );
   }
 
+  void _salvarComentario() {
+    final texto = _comentarioController.text.trim();
+    widget.onSalvarComentario?.call(texto);
+    setState(() => _comentarioSalvo = texto);
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        backgroundColor: theme.cardBackgroundColor,
+        content: Text(
+          widget.onSalvarComentario != null
+              ? 'Comentário salvo.'
+              : 'Comentário salvo (apenas nesta sessão).',
+          style: theme.getTextStyle(color: theme.textColor),
+        ),
+      ),
+    );
+  }
+
+  Widget _blocoComentario() {
+    return Center(
+      child: Container(
+        width: _larguraBloco,
+        padding: const EdgeInsets.symmetric(vertical: 12),
+        decoration: _decoracaoDoBloco,
+        child: Column(
+          children: [
+            _tituloDoBloco('Comentário'),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: Column(
+                children: [
+                  TextField(
+                    controller: _comentarioController,
+                    maxLines: 4,
+                    cursorColor: theme.textColor,
+                    style: theme.getTextStyle(fontSize: 12),
+                    decoration: InputDecoration(
+                      hintText: 'Escreva um comentário sobre esta venda...',
+                      hintStyle: theme.getTextStyle(
+                        fontSize: 12,
+                        color: theme.secondaryTextColor,
+                      ),
+                      isDense: true,
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 10,
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10),
+                        borderSide: BorderSide(color: theme.borderColor),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10),
+                        borderSide: BorderSide(color: theme.textColor),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton(
+                      style: OutlinedButton.styleFrom(
+                        backgroundColor: theme.buttonColor,
+                        foregroundColor: theme.buttonTextColor,
+                        side: BorderSide(color: theme.borderColor),
+                        padding: const EdgeInsets.symmetric(vertical: 10),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                      ),
+                      onPressed: _salvarComentario,
+                      child: Text(
+                        'Salvar Comentário',
+                        style: theme.getTextStyle(
+                          fontSize: 12,
+                          color: theme.buttonTextColor,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Column(
@@ -466,6 +588,8 @@ class _VendaConteudo extends StatelessWidget {
             child: Column(
               children: [
                 _blocoResumo(),
+                const SizedBox(height: 12),
+                _blocoComentario(),
                 const SizedBox(height: 12),
                 _blocoItens(),
                 const SizedBox(height: 12),
