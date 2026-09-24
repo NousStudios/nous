@@ -87,7 +87,7 @@ class _RelatoriosConteudoState extends State<_RelatoriosConteudo> {
     super.dispose();
   }
 
-  DateTime? get _dataFiltro {
+  DateTime? get _dataInicial {
     final texto = _dataController.text;
     if (texto.length != 10) return null;
     final partes = texto.split('/');
@@ -101,12 +101,12 @@ class _RelatoriosConteudoState extends State<_RelatoriosConteudo> {
   }
 
   bool get _dataInvalida =>
-      _dataController.text.length == 10 && _dataFiltro == null;
+      _dataController.text.length == 10 && _dataInicial == null;
 
   List<PedidoLoja> get _filtrados {
     final termo =
         _buscaController.text.trim().toLowerCase().replaceAll('#', '');
-    final desde = _dataFiltro;
+    final desde = _dataInicial;
 
     final lista = widget.pedidos.where((p) {
       if (_forma != null && p.formaPagamento != _forma) return false;
@@ -120,7 +120,11 @@ class _RelatoriosConteudoState extends State<_RelatoriosConteudo> {
           numero.contains(termo);
     }).toList();
 
-    lista.sort((a, b) => b.dataHora.compareTo(a.dataHora));
+    if (desde != null) {
+      lista.sort((a, b) => a.dataHora.compareTo(b.dataHora));
+    } else {
+      lista.sort((a, b) => b.dataHora.compareTo(a.dataHora));
+    }
     return lista;
   }
 
@@ -184,14 +188,14 @@ class _RelatoriosConteudoState extends State<_RelatoriosConteudo> {
 
   Widget _campoDeData() {
     return SizedBox(
-      width: 170,
+      width: 180,
       child: TextField(
         controller: _dataController,
         keyboardType: TextInputType.number,
         inputFormatters: [_DataInputFormatter()],
         cursorColor: theme.textColor,
         style: theme.getTextStyle(fontSize: 12),
-        decoration: _decoracaoCampo('Desde: dd/mm/aaaa'),
+        decoration: _decoracaoCampo('A partir de: dd/mm/aaaa'),
         onChanged: (_) => setState(() {}),
       ),
     );
