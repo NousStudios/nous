@@ -67,6 +67,9 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
   final _pesquisaCategorias = TextEditingController();
   final _pesquisaGrupos = TextEditingController();
 
+  final _scrollCategorias = ScrollController();
+  final _scrollGrupos = ScrollController();
+
   AbaLoja _abaSelecionada = AbaLoja.dados;
 
   final List<CategoriaLoja> _categorias = [];
@@ -75,11 +78,14 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
   final List<Cliente> _clientes = [];
 
   final List<PedidoLoja> _pedidos = [];
+  List<MembroLoja> _membros = [];
   bool _lojaOnline = true;
   AbaPedidos _abaPedidos = AbaPedidos.novos;
 
   String? _categoriaExpandidaId;
   String? _grupoExpandidoId;
+
+  bool _tentouGarantirDono = false;
 
   final Map<String, GlobalKey> _chavesCategorias = {};
   final Map<String, GlobalKey> _chavesGrupos = {};
@@ -89,11 +95,6 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
 
   GlobalKey _chaveGrupo(String id) =>
       _chavesGrupos.putIfAbsent(id, () => GlobalKey());
-
-  List<MembroLoja> get _membros {
-    final loja = context.read<PdvProvider>().buscarPorId(widget.lojaId);
-    return loja?.membros ?? const [];
-  }
 
   void _registrarAcao(TipoAcao tipo, String descricao) {
     final auth = context.read<AuthProvider>();
@@ -119,67 +120,27 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
 
   void _adicionarMembro(MembroLoja membro) {
     context.read<PdvProvider>().adicionarMembro(widget.lojaId, membro);
-    setState(() {});
-
-    _registrarAcao(
-      TipoAcao.membroAdicionado,
-      'Membro "${membro.nome}" adicionado como ${_rotuloPapelCurto(membro.papel)}',
-    );
+    setState(() => _membros = [..._membros, membro]);
   }
 
   void _removerMembro(String cpf) {
-    final membro = _membros.firstWhere(
-      (m) => m.cpf == cpf,
-      orElse: () => MembroLoja(
-        cpf: cpf,
-        nome: '',
-        papel: PapelMembro.funcionario,
-        desde: DateTime.now(),
-      ),
-    );
     context.read<PdvProvider>().removerMembro(widget.lojaId, cpf);
-    setState(() {});
-
-    _registrarAcao(
-      TipoAcao.membroRemovido,
-      'Membro "${membro.nome}" removido da loja',
-    );
+    setState(() {
+      _membros = _membros.where((m) => m.cpf != cpf).toList();
+    });
   }
 
   void _atualizarPapelMembro(String cpf, PapelMembro papel) {
-    final membro = _membros.firstWhere(
-      (m) => m.cpf == cpf,
-      orElse: () => MembroLoja(
-        cpf: cpf,
-        nome: '',
-        papel: PapelMembro.funcionario,
-        desde: DateTime.now(),
-      ),
-    );
     context.read<PdvProvider>().atualizarPapelMembro(
           widget.lojaId,
           cpf,
           papel,
         );
-    setState(() {});
-
-    _registrarAcao(
-      TipoAcao.papelAlterado,
-      'Papel de "${membro.nome}" alterado para ${_rotuloPapelCurto(papel)}',
-    );
-  }
-
-  String _rotuloPapelCurto(PapelMembro papel) {
-    switch (papel) {
-      case PapelMembro.dono:
-        return 'Dono';
-      case PapelMembro.socio:
-        return 'Sócio';
-      case PapelMembro.admin:
-        return 'Admin';
-      case PapelMembro.funcionario:
-        return 'Funcionário';
-    }
+    setState(() {
+      _membros = _membros
+          .map((m) => m.cpf == cpf ? m.copyWith(papel: papel) : m)
+          .toList();
+    });
   }
 
   void _rolarAteOTopo(GlobalKey chave) {
@@ -420,7 +381,7 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
           lojaId: widget.lojaId,
           lojaOnlineInicial: _lojaOnline,
           aoAlterarOnline: (valor) => setState(() => _lojaOnline = valor),
-          membros: _membros,
+          membros: List.of(_membros),
         ),
       ),
     );
@@ -835,16 +796,24 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
     _gruposComponentes.addAll(loja?.gruposComponentesLoja ?? []);
     _clientes.addAll(loja?.clientesLoja ?? []);
     _pedidos.addAll(loja?.pedidosLoja ?? []);
+    _membros = List.of(loja?.membros ?? []);
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
+      if (_tentouGarantirDono) return;
+      _tentouGarantirDono = true;
       final conta = context.read<AuthProvider>().contaAtual;
       if (conta == null) return;
+      final atual = context.read<PdvProvider>().buscarPorId(widget.lojaId);
+      if (atual == null || atual.membros.isNotEmpty) return;
       context.read<PdvProvider>().garantirDono(
             widget.lojaId,
             cpf: conta.cpf,
             nome: conta.nome,
           );
+      if (!mounted) return;
+      final depois = context.read<PdvProvider>().buscarPorId(widget.lojaId);
+      setState(() => _membros = List.of(depois?.membros ?? []));
     });
   }
 
@@ -856,6 +825,8 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
     _pesquisaItens.dispose();
     _pesquisaCategorias.dispose();
     _pesquisaGrupos.dispose();
+    _scrollCategorias.dispose();
+    _scrollGrupos.dispose();
     super.dispose();
   }
 
@@ -1105,8 +1076,10 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
       return SizedBox(
         height: _alturaMaximaListaSecundaria,
         child: Scrollbar(
+          controller: _scrollCategorias,
           thumbVisibility: true,
           child: ListView.separated(
+            controller: _scrollCategorias,
             padding: const EdgeInsets.only(right: 8),
             itemCount: categorias.length,
             separatorBuilder: (context, index) => const SizedBox(height: 8),
@@ -1165,8 +1138,10 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
       return SizedBox(
         height: _alturaMaximaListaSecundaria,
         child: Scrollbar(
+          controller: _scrollGrupos,
           thumbVisibility: true,
           child: ListView.separated(
+            controller: _scrollGrupos,
             padding: const EdgeInsets.only(right: 8),
             itemCount: grupos.length,
             separatorBuilder: (context, index) => const SizedBox(height: 8),
