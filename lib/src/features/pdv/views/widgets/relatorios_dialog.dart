@@ -39,6 +39,7 @@ class RelatoriosDialog {
     BuildContext context, {
     required AppTheme theme,
     required List<PedidoLoja> pedidos,
+    ValueChanged<String>? onExcluirPedido,
   }) {
     return showDialog<void>(
       context: context,
@@ -52,7 +53,11 @@ class RelatoriosDialog {
           ),
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 500),
-            child: _RelatoriosConteudo(theme: theme, pedidos: pedidos),
+            child: _RelatoriosConteudo(
+              theme: theme,
+              pedidos: pedidos,
+              onExcluirPedido: onExcluirPedido,
+            ),
           ),
         );
       },
@@ -63,8 +68,13 @@ class RelatoriosDialog {
 class _RelatoriosConteudo extends StatefulWidget {
   final AppTheme theme;
   final List<PedidoLoja> pedidos;
+  final ValueChanged<String>? onExcluirPedido;
 
-  const _RelatoriosConteudo({required this.theme, required this.pedidos});
+  const _RelatoriosConteudo({
+    required this.theme,
+    required this.pedidos,
+    this.onExcluirPedido,
+  });
 
   @override
   State<_RelatoriosConteudo> createState() => _RelatoriosConteudoState();
@@ -75,9 +85,16 @@ class _RelatoriosConteudoState extends State<_RelatoriosConteudo> {
   final _dataController = TextEditingController();
   final _filtrosScrollController = ScrollController();
 
+  late final List<PedidoLoja> _pedidos;
   String? _forma;
 
   AppTheme get theme => widget.theme;
+
+  @override
+  void initState() {
+    super.initState();
+    _pedidos = List.of(widget.pedidos);
+  }
 
   @override
   void dispose() {
@@ -108,7 +125,7 @@ class _RelatoriosConteudoState extends State<_RelatoriosConteudo> {
         _buscaController.text.trim().toLowerCase().replaceAll('#', '');
     final desde = _dataInicial;
 
-    final lista = widget.pedidos.where((p) {
+    final lista = _pedidos.where((p) {
       if (_forma != null && p.formaPagamento != _forma) return false;
       if (desde != null && p.dataHora.isBefore(desde)) return false;
       if (termo.isEmpty) return true;
@@ -126,6 +143,11 @@ class _RelatoriosConteudoState extends State<_RelatoriosConteudo> {
       lista.sort((a, b) => b.dataHora.compareTo(a.dataHora));
     }
     return lista;
+  }
+
+  void _excluirPedido(String id) {
+    setState(() => _pedidos.removeWhere((p) => p.id == id));
+    widget.onExcluirPedido?.call(id);
   }
 
   BoxDecoration get _decoracaoDoBloco => BoxDecoration(
@@ -268,6 +290,7 @@ class _RelatoriosConteudoState extends State<_RelatoriosConteudo> {
                   theme: theme,
                   pedido: vendas[index],
                   mostrarCliente: true,
+                  onExcluir: () => _excluirPedido(vendas[index].id),
                 ),
               ),
             ),

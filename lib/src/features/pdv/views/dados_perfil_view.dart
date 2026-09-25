@@ -166,6 +166,11 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
     _persistirListasLoja();
   }
 
+  void _excluirPedido(String id) {
+    setState(() => _pedidos.removeWhere((p) => p.id == id));
+    _persistirListasLoja();
+  }
+
   void _salvarCliente(Cliente cliente) {
     setState(() {
       final indice = _clientes.indexWhere((c) => c.id == cliente.id);
@@ -210,6 +215,7 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
       context,
       theme: ThemeController.currentTheme.value,
       pedidos: List.of(_pedidos),
+      onExcluirPedido: _excluirPedido,
     );
   }
 
@@ -1106,6 +1112,7 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
           aoRecusar: _recusarPedido,
           aoConcluir: (id) => _alterarStatusPedido(id, StatusPedido.concluido),
           aoSalvarComentario: _salvarComentarioPedido,
+          aoExcluirPedido: _excluirPedido,
           aoNovaVenda: _abrirPopupNovaVenda,
           aoClientes: _abrirPopupClientes,
           aoRelatorios: _abrirPopupRelatorios,

@@ -22,6 +22,7 @@ class VendaRegistradaDialog {
     required AppTheme theme,
     required PedidoLoja pedido,
     ValueChanged<String>? onSalvarComentario,
+    VoidCallback? onExcluir,
   }) {
     return showDialog<void>(
       context: context,
@@ -39,6 +40,7 @@ class VendaRegistradaDialog {
               theme: theme,
               pedido: pedido,
               onSalvarComentario: onSalvarComentario,
+              onExcluir: onExcluir,
             ),
           ),
         );
@@ -51,11 +53,13 @@ class _VendaConteudo extends StatefulWidget {
   final AppTheme theme;
   final PedidoLoja pedido;
   final ValueChanged<String>? onSalvarComentario;
+  final VoidCallback? onExcluir;
 
   const _VendaConteudo({
     required this.theme,
     required this.pedido,
     this.onSalvarComentario,
+    this.onExcluir,
   });
 
   @override
@@ -132,6 +136,130 @@ class _VendaConteudoState extends State<_VendaConteudo> {
       case StatusPedido.concluido:
         return 'Concluído';
     }
+  }
+
+  void _emConstrucao(String rotulo) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        backgroundColor: theme.cardBackgroundColor,
+        content: Text(
+          '$rotulo: em construção',
+          style: theme.getTextStyle(color: theme.textColor),
+        ),
+      ),
+    );
+  }
+
+  Widget _botaoDeAcao(
+    String rotulo, {
+    bool destrutivo = false,
+    VoidCallback? aoPressionar,
+  }) {
+    return OutlinedButton(
+      style: OutlinedButton.styleFrom(
+        foregroundColor: destrutivo ? Colors.redAccent : theme.textColor,
+        side: BorderSide(
+          color: destrutivo ? Colors.redAccent : theme.borderColor,
+        ),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(10),
+        ),
+      ),
+      onPressed: aoPressionar ?? () => _emConstrucao(rotulo),
+      child: Text(rotulo, style: theme.getTextStyle(fontSize: 12)),
+    );
+  }
+
+  Future<void> _confirmarExclusao() async {
+    final confirmou = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          backgroundColor: theme.cardBackgroundColor,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16.0),
+            side: BorderSide(color: theme.borderColor),
+          ),
+          title: Text(
+            'Excluir Registro',
+            textAlign: TextAlign.center,
+            style: theme.getTextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+              color: theme.textColor,
+            ),
+          ),
+          content: Text(
+            'Tem certeza que deseja excluir este registro? Essa ação não '
+            'pode ser desfeita.',
+            textAlign: TextAlign.center,
+            style: theme.getTextStyle(fontSize: 14),
+          ),
+          actionsAlignment: MainAxisAlignment.center,
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: Text(
+                'Cancelar',
+                style: theme.getTextStyle(color: theme.secondaryTextColor),
+              ),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(true),
+              child: Text(
+                'Excluir',
+                style: theme.getTextStyle(color: Colors.redAccent),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirmou != true) return;
+    widget.onExcluir?.call();
+    if (mounted) Navigator.of(context).pop();
+  }
+
+  Widget _blocoAcoes() {
+    final acoes = <Widget>[
+      _botaoDeAcao('Imprimir'),
+      _botaoDeAcao('Compartilhar'),
+      _botaoDeAcao('Exportar como PDF'),
+      _botaoDeAcao(
+        'Excluir Registro',
+        destrutivo: true,
+        aoPressionar: widget.onExcluir == null ? null : _confirmarExclusao,
+      ),
+    ];
+
+    final comEspacos = <Widget>[];
+    for (var i = 0; i < acoes.length; i++) {
+      if (i > 0) comEspacos.add(const SizedBox(width: 8));
+      comEspacos.add(acoes[i]);
+    }
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: _decoracaoDoBloco,
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          return SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: ConstrainedBox(
+              constraints: BoxConstraints(minWidth: constraints.maxWidth),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: comEspacos,
+              ),
+            ),
+          );
+        },
+      ),
+    );
   }
 
   Widget _blocoResumo() {
@@ -391,17 +519,19 @@ class _VendaConteudoState extends State<_VendaConteudo> {
             padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
             child: Column(
               children: [
-                _blocoResumo(),
-                const SizedBox(height: 12),
-                _blocoComentario(),
-                const SizedBox(height: 12),
-                _blocoItens(),
+                _blocoAcoes(),
                 const SizedBox(height: 12),
                 ComandaPedido(
                   theme: theme,
                   pedido: pedido,
                   largura: _larguraBloco,
                 ),
+                const SizedBox(height: 12),
+                _blocoResumo(),
+                const SizedBox(height: 12),
+                _blocoItens(),
+                const SizedBox(height: 12),
+                _blocoComentario(),
               ],
             ),
           ),
@@ -415,12 +545,14 @@ class BarraVenda extends StatefulWidget {
   final AppTheme theme;
   final PedidoLoja pedido;
   final bool mostrarCliente;
+  final VoidCallback? onExcluir;
 
   const BarraVenda({
     super.key,
     required this.theme,
     required this.pedido,
     this.mostrarCliente = false,
+    this.onExcluir,
   });
 
   @override
@@ -458,6 +590,7 @@ class _BarraVendaState extends State<BarraVenda> {
           context,
           theme: theme,
           pedido: pedido,
+          onExcluir: widget.onExcluir,
         ),
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),

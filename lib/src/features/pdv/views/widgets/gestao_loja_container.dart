@@ -31,6 +31,7 @@ class GestaoLojaContainer extends StatelessWidget {
   final ValueChanged<String> aoRecusar;
   final ValueChanged<String> aoConcluir;
   final void Function(String pedidoId, String comentario)? aoSalvarComentario;
+  final ValueChanged<String>? aoExcluirPedido;
   final VoidCallback aoNovaVenda;
   final VoidCallback aoClientes;
   final VoidCallback aoRelatorios;
@@ -50,6 +51,7 @@ class GestaoLojaContainer extends StatelessWidget {
     required this.aoRecusar,
     required this.aoConcluir,
     this.aoSalvarComentario,
+    this.aoExcluirPedido,
     required this.aoNovaVenda,
     required this.aoClientes,
     required this.aoRelatorios,
@@ -322,6 +324,9 @@ class GestaoLojaContainer extends StatelessWidget {
         onSalvarComentario: aoSalvarComentario == null
             ? null
             : (comentario) => aoSalvarComentario!(pedido.id, comentario),
+        onExcluir: aoExcluirPedido == null
+            ? null
+            : () => aoExcluirPedido!(pedido.id),
       );
       return;
     }
