@@ -815,8 +815,7 @@ class _NovaVendaConteudoState extends State<_NovaVendaConteudo> {
     final confirmou = await VendaConcluidaDialog.mostrar(
       context,
       theme: theme,
-      numeroPedido: widget.proximoNumero,
-      valorTotal: _total,
+      pedido: pedido,
     );
 
     if (!mounted) return;

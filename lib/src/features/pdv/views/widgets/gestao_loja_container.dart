@@ -35,6 +35,8 @@ class GestaoLojaContainer extends StatelessWidget {
   final VoidCallback aoClientes;
   final VoidCallback aoRelatorios;
   final VoidCallback? aoImpressora;
+  final VoidCallback? aoFinanceiro;
+  final VoidCallback? aoStatus;
 
   const GestaoLojaContainer({
     super.key,
@@ -52,6 +54,8 @@ class GestaoLojaContainer extends StatelessWidget {
     required this.aoClientes,
     required this.aoRelatorios,
     this.aoImpressora,
+    this.aoFinanceiro,
+    this.aoStatus,
   });
 
   BoxDecoration get _decoracaoDoBloco => BoxDecoration(
@@ -98,7 +102,7 @@ class GestaoLojaContainer extends StatelessWidget {
       flex: 2,
       child: _ComHover(
         cursor: SystemMouseCursors.click,
-        aoClicar: () => _emConstrucao(context, 'Status'),
+        aoClicar: aoStatus,
         builder: (hover) => Container(
         height: 56,
         padding: const EdgeInsets.symmetric(horizontal: 8),
@@ -186,7 +190,11 @@ class GestaoLojaContainer extends StatelessWidget {
               espaco,
               _botaoDeGestao(context, 'Perfil'),
               espaco,
-              _botaoDeGestao(context, 'Financeiro'),
+              _botaoDeGestao(
+                context,
+                'Financeiro',
+                aoPressionar: aoFinanceiro,
+              ),
             ],
           ),
           const SizedBox(height: 8),

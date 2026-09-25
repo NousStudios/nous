@@ -1,12 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:nous/src/core/theme/theme_controller.dart';
+import 'package:nous/src/features/pdv/models/pedido_loja.dart';
+import 'package:nous/src/features/pdv/views/widgets/comanda_pedido.dart';
 
 class VendaConcluidaDialog {
   static Future<bool> mostrar(
     BuildContext context, {
     required AppTheme theme,
-    required int numeroPedido,
-    required double valorTotal,
+    required PedidoLoja pedido,
   }) async {
     final resultado = await showDialog<bool>(
       context: context,
@@ -37,7 +38,7 @@ class VendaConcluidaDialog {
                   ),
                   const SizedBox(height: 12),
                   Text(
-                    'Pedido #${numeroPedido.toString().padLeft(4, '0')}',
+                    'Pedido #${pedido.numero.toString().padLeft(4, '0')}',
                     textAlign: TextAlign.center,
                     style: theme.getTextStyle(
                       fontSize: 14,
@@ -46,11 +47,21 @@ class VendaConcluidaDialog {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    'R\$ ${valorTotal.toStringAsFixed(2).replaceAll('.', ',')}',
+                    'R\$ ${pedido.valor.toStringAsFixed(2).replaceAll('.', ',')}',
                     textAlign: TextAlign.center,
                     style: theme.getTextStyle(
                       fontSize: 14,
                       color: theme.secondaryTextColor,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Flexible(
+                    child: SingleChildScrollView(
+                      child: ComandaPedido(
+                        theme: theme,
+                        pedido: pedido,
+                        mostrarTitulo: false,
+                      ),
                     ),
                   ),
                   const SizedBox(height: 20),

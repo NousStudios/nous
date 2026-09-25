@@ -12,7 +12,9 @@ import 'package:nous/src/features/pdv/models/grupo_componentes_loja.dart';
 import 'package:nous/src/features/pdv/models/item_loja.dart';
 import 'package:nous/src/features/pdv/models/pedido_loja.dart';
 import 'package:nous/src/features/pdv/providers/pdv_provider.dart';
+import 'package:nous/src/features/pdv/views/financeiro_view.dart';
 import 'package:nous/src/features/pdv/views/perfis_pdv_view.dart';
+import 'package:nous/src/features/pdv/views/status_loja_view.dart';
 import 'package:nous/src/features/pdv/views/widgets/categoria_loja_container.dart';
 import 'package:nous/src/features/pdv/views/widgets/clientes_dialog.dart';
 import 'package:nous/src/features/pdv/views/widgets/container_simbolico.dart';
@@ -225,6 +227,29 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
             .read<PdvProvider>()
             .atualizarConfiguracoesImpressora(widget.lojaId, configuracoes);
       },
+    );
+  }
+
+  void _abrirFinanceiro() {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) => FinanceiroView(
+          lojaId: widget.lojaId,
+          pedidos: List.of(_pedidos),
+        ),
+      ),
+    );
+  }
+
+  void _abrirStatusLoja() {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) => StatusLojaView(
+          lojaId: widget.lojaId,
+          lojaOnlineInicial: _lojaOnline,
+          aoAlterarOnline: (valor) => setState(() => _lojaOnline = valor),
+        ),
+      ),
     );
   }
 
@@ -1085,6 +1110,8 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
           aoClientes: _abrirPopupClientes,
           aoRelatorios: _abrirPopupRelatorios,
           aoImpressora: _abrirPopupImpressora,
+          aoFinanceiro: _abrirFinanceiro,
+          aoStatus: _abrirStatusLoja,
         );
 
       case AbaLoja.interface:
