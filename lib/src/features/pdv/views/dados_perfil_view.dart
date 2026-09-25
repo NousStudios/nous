@@ -7,6 +7,8 @@ import 'package:nous/src/features/auth/models/usuario_nous.dart';
 import 'package:nous/src/features/auth/providers/auth_provider.dart';
 import 'package:nous/src/features/auth/services/contas_nous_service.dart';
 import 'package:nous/src/features/auth/views/login_view.dart';
+import 'package:nous/src/features/notificacoes/models/convite_loja.dart';
+import 'package:nous/src/features/notificacoes/providers/notificacoes_provider.dart';
 import 'package:nous/src/features/pdv/models/categoria_loja.dart';
 import 'package:nous/src/features/pdv/models/cliente.dart';
 import 'package:nous/src/features/pdv/models/configuracoes_impressora.dart';
@@ -118,19 +120,68 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
     return ContasNousService.buscarPorCpf(cpf);
   }
 
-  void _adicionarMembro(MembroLoja membro) {
-    context.read<PdvProvider>().adicionarMembro(widget.lojaId, membro);
-    setState(() => _membros = [..._membros, membro]);
+  Future<void> _enviarConvite(UsuarioNous conta, PapelMembro papel) async {
+    final auth = context.read<AuthProvider>();
+    final autor = auth.contaAtual;
+    if (autor == null) return;
+
+    final loja = context.read<PdvProvider>().buscarPorId(widget.lojaId);
+    if (loja == null) return;
+
+    final convite = ConviteLoja(
+      id: DateTime.now().millisecondsSinceEpoch.toString(),
+      cpfConvidante: autor.cpf,
+      nomeConvidante: autor.nome,
+      cpfConvidado: conta.cpf,
+      lojaId: loja.id,
+      nomeLoja: loja.nome,
+      papel: papel,
+      dataHora: DateTime.now(),
+    );
+
+    await context.read<NotificacoesProvider>().enviarConvite(convite);
+
+    _registrarAcao(
+      TipoAcao.conviteEnviado,
+      'Convite enviado para "${conta.nome}" como ${_rotuloPapelCurto(papel)}',
+    );
   }
 
   void _removerMembro(String cpf) {
+    final loja = context.read<PdvProvider>().buscarPorId(widget.lojaId);
+    final membro = loja?.membros.firstWhere(
+      (m) => m.cpf == cpf,
+      orElse: () => MembroLoja(
+        cpf: cpf,
+        nome: '',
+        papel: PapelMembro.funcionario,
+        desde: DateTime.now(),
+      ),
+    );
+
     context.read<PdvProvider>().removerMembro(widget.lojaId, cpf);
     setState(() {
       _membros = _membros.where((m) => m.cpf != cpf).toList();
     });
+
+    _registrarAcao(
+      TipoAcao.membroRemovido,
+      'Membro "${membro?.nome ?? ''}" removido da loja',
+    );
   }
 
   void _atualizarPapelMembro(String cpf, PapelMembro papel) {
+    final loja = context.read<PdvProvider>().buscarPorId(widget.lojaId);
+    final membro = loja?.membros.firstWhere(
+      (m) => m.cpf == cpf,
+      orElse: () => MembroLoja(
+        cpf: cpf,
+        nome: '',
+        papel: PapelMembro.funcionario,
+        desde: DateTime.now(),
+      ),
+    );
+
     context.read<PdvProvider>().atualizarPapelMembro(
           widget.lojaId,
           cpf,
@@ -141,6 +192,25 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
           .map((m) => m.cpf == cpf ? m.copyWith(papel: papel) : m)
           .toList();
     });
+
+    _registrarAcao(
+      TipoAcao.papelAlterado,
+      'Papel de "${membro?.nome ?? ''}" alterado para '
+          '${_rotuloPapelCurto(papel)}',
+    );
+  }
+
+  String _rotuloPapelCurto(PapelMembro papel) {
+    switch (papel) {
+      case PapelMembro.dono:
+        return 'Dono';
+      case PapelMembro.socio:
+        return 'Sócio';
+      case PapelMembro.admin:
+        return 'Admin';
+      case PapelMembro.funcionario:
+        return 'Funcionário';
+    }
   }
 
   void _rolarAteOTopo(GlobalKey chave) {
@@ -1316,7 +1386,7 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
               theme: theme,
               membros: _membros,
               buscarConta: _buscarContaPorCpf,
-              onAdicionar: _adicionarMembro,
+              onEnviarConvite: _enviarConvite,
               onRemover: _removerMembro,
               onAtualizarPapel: _atualizarPapelMembro,
             ),

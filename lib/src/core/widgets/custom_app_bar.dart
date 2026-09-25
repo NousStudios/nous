@@ -3,6 +3,8 @@ import 'package:provider/provider.dart';
 import 'package:nous/src/core/theme/theme_controller.dart';
 import 'package:nous/src/core/theme/theme_customizer_dialog.dart';
 import 'package:nous/src/features/auth/providers/auth_provider.dart';
+import 'package:nous/src/features/notificacoes/providers/notificacoes_provider.dart';
+import 'package:nous/src/features/notificacoes/views/widgets/notificacoes_dialog.dart';
 
 String _formatarCpf(String cpf) {
   if (cpf.length != 11) return cpf;
@@ -58,16 +60,20 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           ListTile(
-                            leading: Icon(Icons.dark_mode, color: currentTheme.secondaryTextColor),
-                            title: Text('Modo Escuro (Padrão)', style: currentTheme.getTextStyle()),
+                            leading: Icon(Icons.dark_mode,
+                                color: currentTheme.secondaryTextColor),
+                            title: Text('Modo Escuro (Padrão)',
+                                style: currentTheme.getTextStyle()),
                             onTap: () {
                               ThemeController.updateTheme(AppTheme.dark);
                               Navigator.pop(context);
                             },
                           ),
                           ListTile(
-                            leading: Icon(Icons.light_mode, color: currentTheme.secondaryTextColor),
-                            title: Text('Modo Claro', style: currentTheme.getTextStyle()),
+                            leading: Icon(Icons.light_mode,
+                                color: currentTheme.secondaryTextColor),
+                            title: Text('Modo Claro',
+                                style: currentTheme.getTextStyle()),
                             onTap: () {
                               ThemeController.updateTheme(AppTheme.light);
                               Navigator.pop(context);
@@ -76,7 +82,8 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
                           if (savedThemesList.isNotEmpty) ...[
                             Divider(color: currentTheme.borderColor),
                             Padding(
-                              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 16, vertical: 4),
                               child: Align(
                                 alignment: Alignment.centerLeft,
                                 child: Text(
@@ -91,12 +98,16 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
                             ),
                             ...savedThemesList.map((saved) {
                               return ListTile(
-                                leading: Icon(Icons.palette, color: currentTheme.textColor),
-                                title: Text(saved.name, style: currentTheme.getTextStyle()),
+                                leading: Icon(Icons.palette,
+                                    color: currentTheme.textColor),
+                                title: Text(saved.name,
+                                    style: currentTheme.getTextStyle()),
                                 trailing: IconButton(
-                                  icon: Icon(Icons.delete_outline, color: currentTheme.secondaryTextColor),
+                                  icon: Icon(Icons.delete_outline,
+                                      color: currentTheme.secondaryTextColor),
                                   tooltip: 'Excluir tema',
-                                  onPressed: () => ThemeController.deleteSavedTheme(saved.name),
+                                  onPressed: () => ThemeController
+                                      .deleteSavedTheme(saved.name),
                                 ),
                                 onTap: () {
                                   ThemeController.updateTheme(saved.theme);
@@ -107,7 +118,8 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
                           ],
                           Divider(color: currentTheme.borderColor),
                           ListTile(
-                            leading: Icon(Icons.color_lens_outlined, color: currentTheme.secondaryTextColor),
+                            leading: Icon(Icons.color_lens_outlined,
+                                color: currentTheme.secondaryTextColor),
                             title: Text(
                               'Personalizar Cores e Fontes...',
                               style: currentTheme.getTextStyle(),
@@ -116,7 +128,8 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
                               Navigator.pop(context);
                               showDialog(
                                 context: context,
-                                builder: (_) => const ThemeCustomizerDialog(),
+                                builder: (_) =>
+                                    const ThemeCustomizerDialog(),
                               );
                             },
                           ),
@@ -152,7 +165,8 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
                 borderRadius: BorderRadius.circular(16.0),
                 side: BorderSide(color: currentTheme.borderColor),
               ),
-              titlePadding: const EdgeInsets.fromLTRB(24.0, 24.0, 24.0, 8.0),
+              titlePadding:
+                  const EdgeInsets.fromLTRB(24.0, 24.0, 24.0, 8.0),
               title: Text(
                 'Configurações',
                 textAlign: TextAlign.center,
@@ -166,21 +180,27 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   ListTile(
-                    leading: Icon(Icons.palette_outlined, color: currentTheme.secondaryTextColor),
-                    title: Text('Tema', style: currentTheme.getTextStyle()),
+                    leading: Icon(Icons.palette_outlined,
+                        color: currentTheme.secondaryTextColor),
+                    title: Text('Tema',
+                        style: currentTheme.getTextStyle()),
                     onTap: () {
                       Navigator.pop(context);
                       _showThemeSelector(context);
                     },
                   ),
                   ListTile(
-                    leading: Icon(Icons.language, color: currentTheme.secondaryTextColor),
-                    title: Text('Idioma', style: currentTheme.getTextStyle()),
+                    leading: Icon(Icons.language,
+                        color: currentTheme.secondaryTextColor),
+                    title: Text('Idioma',
+                        style: currentTheme.getTextStyle()),
                     onTap: () {},
                   ),
                   ListTile(
-                    leading: Icon(Icons.info_outline, color: currentTheme.secondaryTextColor),
-                    title: Text('Sobre o App', style: currentTheme.getTextStyle()),
+                    leading: Icon(Icons.info_outline,
+                        color: currentTheme.secondaryTextColor),
+                    title: Text('Sobre o App',
+                        style: currentTheme.getTextStyle()),
                     onTap: () {},
                   ),
                   if (mostrarGrupoConta) ...[
@@ -203,17 +223,20 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
                             Text(
                               _formatarCpf(conta.cpf),
                               textAlign: TextAlign.center,
-                              style: currentTheme.getTextStyle(fontSize: 12),
+                              style:
+                                  currentTheme.getTextStyle(fontSize: 12),
                             ),
                           ],
                         ),
                       ),
                     if (onLogout != null)
                       ListTile(
-                        leading: const Icon(Icons.logout, color: Colors.redAccent),
+                        leading: const Icon(Icons.logout,
+                            color: Colors.redAccent),
                         title: Text(
                           'Sair',
-                          style: currentTheme.getTextStyle(color: Colors.redAccent),
+                          style: currentTheme.getTextStyle(
+                              color: Colors.redAccent),
                         ),
                         onTap: () {
                           Navigator.pop(context);
@@ -229,7 +252,8 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
                   onPressed: () => Navigator.of(context).pop(),
                   child: Text(
                     'Fechar',
-                    style: currentTheme.getTextStyle(color: currentTheme.secondaryTextColor),
+                    style: currentTheme.getTextStyle(
+                        color: currentTheme.secondaryTextColor),
                   ),
                 ),
               ],
@@ -237,6 +261,48 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
           },
         );
       },
+    );
+  }
+
+  Widget _botaoNotificacoes(BuildContext context, AppTheme theme) {
+    final notificacoes = context.watch<NotificacoesProvider>();
+    final quantidade = notificacoes.quantidadePendentes;
+
+    return Stack(
+      clipBehavior: Clip.none,
+      alignment: Alignment.center,
+      children: [
+        IconButton(
+          tooltip: 'Notificações',
+          icon: Icon(
+            Icons.notifications_none,
+            color: theme.secondaryTextColor,
+          ),
+          onPressed: () => NotificacoesDialog.mostrar(context),
+        ),
+        if (quantidade > 0)
+          Positioned(
+            top: 6,
+            right: 6,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+              constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
+              decoration: BoxDecoration(
+                color: Colors.redAccent,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Text(
+                quantidade > 9 ? '9+' : '$quantidade',
+                textAlign: TextAlign.center,
+                style: theme.getTextStyle(
+                  fontSize: 10,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
+                ),
+              ),
+            ),
+          ),
+      ],
     );
   }
 
@@ -259,11 +325,13 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
           centerTitle: true,
           leading: showBackButton
               ? IconButton(
-                  icon: Icon(Icons.arrow_back, color: theme.secondaryTextColor),
+                  icon: Icon(Icons.arrow_back,
+                      color: theme.secondaryTextColor),
                   onPressed: () => Navigator.of(context).pop(),
                 )
               : null,
           actions: [
+            _botaoNotificacoes(context, theme),
             IconButton(
               tooltip: 'Configurações',
               icon: Image.asset(

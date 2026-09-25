@@ -56,7 +56,7 @@ class UsuariosParticipantesContainer extends StatelessWidget {
   final AppTheme theme;
   final List<MembroLoja> membros;
   final Future<UsuarioNous?> Function(String cpf) buscarConta;
-  final ValueChanged<MembroLoja> onAdicionar;
+  final void Function(UsuarioNous conta, PapelMembro papel) onEnviarConvite;
   final ValueChanged<String> onRemover;
   final void Function(String cpf, PapelMembro papel) onAtualizarPapel;
 
@@ -65,7 +65,7 @@ class UsuariosParticipantesContainer extends StatelessWidget {
     required this.theme,
     required this.membros,
     required this.buscarConta,
-    required this.onAdicionar,
+    required this.onEnviarConvite,
     required this.onRemover,
     required this.onAtualizarPapel,
   });
@@ -153,9 +153,13 @@ class UsuariosParticipantesContainer extends StatelessWidget {
           theme: theme,
           membrosAtuais: membros,
           buscarConta: buscarConta,
-          onAdicionar: (membro) {
-            onAdicionar(membro);
+          onEnviar: (conta, papel) {
+            onEnviarConvite(conta, papel);
             Navigator.of(dialogContext).pop();
+            _avisar(
+              context,
+              'Convite enviado para ${conta.nome}.',
+            );
           },
         );
       },
@@ -335,13 +339,13 @@ class _ConviteDialog extends StatefulWidget {
   final AppTheme theme;
   final List<MembroLoja> membrosAtuais;
   final Future<UsuarioNous?> Function(String cpf) buscarConta;
-  final ValueChanged<MembroLoja> onAdicionar;
+  final void Function(UsuarioNous conta, PapelMembro papel) onEnviar;
 
   const _ConviteDialog({
     required this.theme,
     required this.membrosAtuais,
     required this.buscarConta,
-    required this.onAdicionar,
+    required this.onEnviar,
   });
 
   @override
@@ -399,17 +403,10 @@ class _ConviteDialogState extends State<_ConviteDialog> {
     });
   }
 
-  void _adicionar() {
+  void _enviar() {
     final conta = _encontrado;
     if (conta == null) return;
-
-    final membro = MembroLoja(
-      cpf: conta.cpf,
-      nome: conta.nome,
-      papel: _papelEscolhido,
-      desde: DateTime.now(),
-    );
-    widget.onAdicionar(membro);
+    widget.onEnviar(conta, _papelEscolhido);
   }
 
   InputDecoration _decoracaoCampo(String dica) {
@@ -457,7 +454,7 @@ class _ConviteDialogState extends State<_ConviteDialog> {
 
   @override
   Widget build(BuildContext context) {
-    final podeAdicionar = _encontrado != null && _erro == null;
+    final podeEnviar = _encontrado != null && _erro == null;
 
     return AlertDialog(
       backgroundColor: theme.cardBackgroundColor,
@@ -559,11 +556,11 @@ class _ConviteDialogState extends State<_ConviteDialog> {
           ),
         ),
         TextButton(
-          onPressed: podeAdicionar ? _adicionar : null,
+          onPressed: podeEnviar ? _enviar : null,
           child: Text(
-            'Adicionar',
+            'Enviar convite',
             style: theme.getTextStyle(
-              color: podeAdicionar
+              color: podeEnviar
                   ? theme.textColor
                   : theme.secondaryTextColor,
             ),

@@ -22,6 +22,7 @@ enum TipoAcao {
   membroAdicionado,
   membroRemovido,
   papelAlterado,
+  conviteEnviado,
 }
 
 class RegistroAcao {

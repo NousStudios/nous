@@ -4,6 +4,7 @@ import 'package:nous/src/core/theme/theme_controller.dart';
 import 'package:nous/src/features/auth/providers/auth_provider.dart';
 import 'package:nous/src/features/auth/views/associar_cpf_view.dart';
 import 'package:nous/src/features/auth/views/contas_usuario_view.dart';
+import 'package:nous/src/features/notificacoes/providers/notificacoes_provider.dart';
 import 'package:nous/src/features/pdv/providers/pdv_provider.dart';
 import 'package:nous/src/features/pdv/views/perfis_pdv_view.dart';
 
@@ -12,11 +13,14 @@ class LoginButtonsWidget extends StatelessWidget {
 
   Future<void> _entrar(BuildContext context) async {
     final authProvider = context.read<AuthProvider>();
+    final notificacoesProvider = context.read<NotificacoesProvider>();
     final contaEncontrada = await authProvider.buscarConta();
 
     if (!context.mounted) return;
 
     if (contaEncontrada) {
+      await notificacoesProvider.carregarParaCpf(authProvider.cpf);
+      if (!context.mounted) return;
       Navigator.pushAndRemoveUntil(
         context,
         MaterialPageRoute(builder: (context) => const ContasUsuarioView()),
@@ -33,6 +37,7 @@ class LoginButtonsWidget extends StatelessWidget {
   void _entrarComoVisitante(BuildContext context) {
     context.read<AuthProvider>().sair();
     context.read<PdvProvider>().entrarComoVisitante();
+    context.read<NotificacoesProvider>().limpar();
     Navigator.pushAndRemoveUntil(
       context,
       MaterialPageRoute(builder: (context) => const PerfisPdvView()),
