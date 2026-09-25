@@ -9,9 +9,9 @@ class ItemLojaCard extends StatefulWidget {
   final TipoItemLoja? tipo;
   final VoidCallback onEditar;
   final VoidCallback onExcluir;
-
   final ValueChanged<String> onNomeAlterado;
   final ValueChanged<String> onPrecoAlterado;
+  final bool podeEditar;
 
   const ItemLojaCard({
     super.key,
@@ -23,6 +23,7 @@ class ItemLojaCard extends StatefulWidget {
     required this.onExcluir,
     required this.onNomeAlterado,
     required this.onPrecoAlterado,
+    this.podeEditar = true,
   });
 
   @override
@@ -35,10 +36,22 @@ class _ItemLojaCardState extends State<ItemLojaCard> {
   late final TextEditingController _precoController =
       TextEditingController(text: widget.preco);
 
+  void _avisarSemPermissao() {
+    final theme = widget.theme;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        backgroundColor: theme.cardBackgroundColor,
+        content: Text(
+          'Você não tem permissão para fazer isso.',
+          style: theme.getTextStyle(color: theme.textColor),
+        ),
+      ),
+    );
+  }
+
   @override
   void didUpdateWidget(covariant ItemLojaCard oldWidget) {
     super.didUpdateWidget(oldWidget);
-
     if (widget.nome != oldWidget.nome && widget.nome != _nomeController.text) {
       _nomeController.text = widget.nome;
     }
@@ -122,6 +135,10 @@ class _ItemLojaCardState extends State<ItemLojaCard> {
                 icon: Icon(Icons.more_vert, color: theme.secondaryTextColor),
                 color: theme.cardBackgroundColor,
                 onSelected: (valor) {
+                  if (!widget.podeEditar) {
+                    _avisarSemPermissao();
+                    return;
+                  }
                   if (valor == 'editar') widget.onEditar();
                   if (valor == 'excluir') widget.onExcluir();
                 },
@@ -177,6 +194,8 @@ class _ItemLojaCardState extends State<ItemLojaCard> {
           Expanded(
             child: TextField(
               controller: _precoController,
+              readOnly: !widget.podeEditar,
+              onTap: widget.podeEditar ? null : _avisarSemPermissao,
               maxLines: 1,
               keyboardType:
                   const TextInputType.numberWithOptions(decimal: true),
@@ -219,6 +238,8 @@ class _ItemLojaCardState extends State<ItemLojaCard> {
           const SizedBox(height: 6),
           TextField(
             controller: _nomeController,
+            readOnly: !widget.podeEditar,
+            onTap: widget.podeEditar ? null : _avisarSemPermissao,
             textAlign: TextAlign.center,
             maxLines: 1,
             style: theme.getTextStyle(fontSize: 13, color: theme.textColor),

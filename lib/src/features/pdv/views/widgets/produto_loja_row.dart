@@ -3,45 +3,14 @@ import 'package:nous/src/core/theme/theme_controller.dart';
 import 'package:nous/src/features/pdv/models/item_loja.dart';
 import 'package:nous/src/features/pdv/views/widgets/grupo_componentes_container.dart';
 
-// Uma linha de "Produto" dentro de uma Categoria (ou Grupo de
-// Componentes) expandida. Mostra o ItemLoja de verdade (escolhido no
-// seletor da categoria/grupo). Nome e preço podem ser editados DIRETO
-// aqui, na própria linha, sem precisar abrir nenhum popup — e o menu
-// "⋮" também tem a opção "Editar Item", que abre o popup completo (com
-// descrição, variantes, etc.), igual já acontece na lista "Itens".
-// Continua guardando sua própria lista de Grupos de Componentes,
-// criada pela opção "Adicionar Grupo de Componentes" no menu "⋮" —
-// essa parte ainda não persiste (fica só na memória da tela), é um
-// próximo passo separado.
-//
-// ALTERADO: antes, o título de cada grupo (ex: "Grupo de componentes
-// A") era calculado toda vez, na hora de montar a lista, a partir da
-// posição do grupo em _grupoIds (_letraDoGrupo(indice)). Isso
-// funcionava bem enquanto o título era só um texto fixo — mas agora
-// que o GrupoComponentesContainer deixa o título editável, ele precisa
-// de um "dono" que lembre o valor atual de cada grupo, e não
-// recalcule a letra e sobrescreva o que o usuário digitou. Por isso
-// _gruposTitulos guarda o título atual de cada id de grupo, começando
-// com a letra automática no momento da criação e podendo ser
-// sobrescrito livremente depois, via onTituloAlterado.
 class ProdutoLojaRow extends StatefulWidget {
   final AppTheme theme;
   final ItemLoja item;
-
-  // Chamado quando o usuário escolhe "Excluir Produto" no "⋮". Quem
-  // decide tirar este produto da categoria é o container pai (na
-  // prática, remove o id deste item da lista itemIds da categoria/
-  // grupo).
   final VoidCallback onExcluir;
-
-  // Chamado quando o usuário escolhe "Editar Item" no "⋮". Abre o
-  // popup completo de edição do item (a tela DadosPerfilView decide
-  // isso, reaproveitando o mesmo popup usado pela lista "Itens").
   final VoidCallback onEditar;
-
-  // Chamados a cada mudança no nome/preço editado direto nesta linha.
   final ValueChanged<String> onNomeAlterado;
   final ValueChanged<String> onPrecoAlterado;
+  final bool podeEditar;
 
   const ProdutoLojaRow({
     super.key,
@@ -51,6 +20,7 @@ class ProdutoLojaRow extends StatefulWidget {
     required this.onEditar,
     required this.onNomeAlterado,
     required this.onPrecoAlterado,
+    this.podeEditar = true,
   });
 
   @override
@@ -64,8 +34,6 @@ class _ProdutoLojaRowState extends State<ProdutoLojaRow> {
   final List<int> _grupoIds = [];
   int _proximoIdGrupo = 0;
 
-  // NOVO: título atual de cada grupo, por id. Ver comentário no topo
-  // do arquivo.
   final Map<int, String> _gruposTitulos = {};
 
   late final TextEditingController _nomeController =
@@ -75,14 +43,28 @@ class _ProdutoLojaRowState extends State<ProdutoLojaRow> {
 
   String _letraDoGrupo(int indice) => String.fromCharCode(65 + indice);
 
+  void _avisarSemPermissao() {
+    final theme = widget.theme;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        backgroundColor: theme.cardBackgroundColor,
+        content: Text(
+          'Você não tem permissão para fazer isso.',
+          style: theme.getTextStyle(color: theme.textColor),
+        ),
+      ),
+    );
+  }
+
   void _adicionarGrupo() {
+    if (!widget.podeEditar) {
+      _avisarSemPermissao();
+      return;
+    }
     setState(() {
       final id = _proximoIdGrupo;
-      // A letra automática só é usada como valor INICIAL do título,
-      // calculada a partir de quantos grupos já existem agora. Depois
-      // de criado, o título vive independente em _gruposTitulos e só
-      // muda se o usuário editar o campo.
-      _gruposTitulos[id] = 'Grupo de componentes ${_letraDoGrupo(_grupoIds.length)}';
+      _gruposTitulos[id] =
+          'Grupo de componentes ${_letraDoGrupo(_grupoIds.length)}';
       _grupoIds.add(id);
       _proximoIdGrupo++;
     });
@@ -96,11 +78,6 @@ class _ProdutoLojaRowState extends State<ProdutoLojaRow> {
   }
 
   void _renomearGrupo(int id, String novoTitulo) {
-    // Não precisa de setState aqui: o TextField do
-    // GrupoComponentesContainer já mostra o texto digitado sozinho
-    // (via seu próprio controller). Isso só mantém _gruposTitulos
-    // sincronizado, pra caso a lista precise ser reconstruída (ex:
-    // outro grupo é excluído) e o título customizado não se perca.
     _gruposTitulos[id] = novoTitulo;
   }
 
@@ -108,9 +85,6 @@ class _ProdutoLojaRowState extends State<ProdutoLojaRow> {
   void didUpdateWidget(covariant ProdutoLojaRow oldWidget) {
     super.didUpdateWidget(oldWidget);
 
-    // Se o nome/preço deste item mudou por FORA desta linha (por
-    // exemplo, editado no card da lista "Itens", ou pelo popup
-    // "Editar Item"), atualiza o texto mostrado aqui também.
     if (widget.item.nome != oldWidget.item.nome &&
         widget.item.nome != _nomeController.text) {
       _nomeController.text = widget.item.nome;
@@ -128,7 +102,8 @@ class _ProdutoLojaRowState extends State<ProdutoLojaRow> {
     super.dispose();
   }
 
-  Future<void> _abrirMenuOpcoes(BuildContext context, Offset posicaoToque) async {
+  Future<void> _abrirMenuOpcoes(
+      BuildContext context, Offset posicaoToque) async {
     final theme = widget.theme;
 
     final selecionado = await showMenu<String>(
@@ -157,6 +132,13 @@ class _ProdutoLojaRowState extends State<ProdutoLojaRow> {
       ],
     );
 
+    if (selecionado == null) return;
+
+    if (!widget.podeEditar) {
+      _avisarSemPermissao();
+      return;
+    }
+
     if (selecionado == 'editar') widget.onEditar();
     if (selecionado == 'grupo') _adicionarGrupo();
     if (selecionado == 'excluir') widget.onExcluir();
@@ -165,6 +147,7 @@ class _ProdutoLojaRowState extends State<ProdutoLojaRow> {
   @override
   Widget build(BuildContext context) {
     final theme = widget.theme;
+    final podeEditar = widget.podeEditar;
 
     return Container(
       padding: const EdgeInsets.all(8),
@@ -193,6 +176,8 @@ class _ProdutoLojaRowState extends State<ProdutoLojaRow> {
               Expanded(
                 child: TextField(
                   controller: _nomeController,
+                  readOnly: !podeEditar,
+                  onTap: podeEditar ? null : _avisarSemPermissao,
                   maxLines: 1,
                   style: theme.getTextStyle(fontSize: 12),
                   decoration: const InputDecoration(
@@ -208,7 +193,9 @@ class _ProdutoLojaRowState extends State<ProdutoLojaRow> {
                 child: Switch(
                   value: _ativo,
                   activeThumbColor: theme.buttonColor,
-                  onChanged: (valor) => setState(() => _ativo = valor),
+                  onChanged: podeEditar
+                      ? (valor) => setState(() => _ativo = valor)
+                      : null,
                 ),
               ),
               SizedBox(
@@ -223,6 +210,8 @@ class _ProdutoLojaRowState extends State<ProdutoLojaRow> {
                     Expanded(
                       child: TextField(
                         controller: _precoController,
+                        readOnly: !podeEditar,
+                        onTap: podeEditar ? null : _avisarSemPermissao,
                         textAlign: TextAlign.center,
                         keyboardType: TextInputType.number,
                         style: theme.getTextStyle(fontSize: 11),
@@ -267,11 +256,7 @@ class _ProdutoLojaRowState extends State<ProdutoLojaRow> {
               GrupoComponentesContainer(
                 key: ValueKey('grupo_$id'),
                 theme: theme,
-                // ALTERADO: era "_letraDoGrupo(_grupoIds.indexOf(id))"
-                // calculado direto aqui; agora lê o título atual (que
-                // pode já ter sido editado pelo usuário) de
-                // _gruposTitulos, com a letra automática só como
-                // último recurso de segurança.
+                podeEditar: podeEditar,
                 titulo: _gruposTitulos[id] ??
                     'Grupo de componentes ${_letraDoGrupo(_grupoIds.indexOf(id))}',
                 onTituloAlterado: (novoTitulo) =>

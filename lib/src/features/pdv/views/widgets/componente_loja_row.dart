@@ -1,18 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:nous/src/core/theme/theme_controller.dart';
 
-// Uma linha de "Componente" dentro de um Grupo de Componentes (ex: um
-// ingrediente extra de um lanche). É o nível mais "de dentro" dessa
-// árvore Categoria > Produto > Grupo > Componente. Puramente visual por
-// enquanto: nome de exemplo, toggle de ativo e preço fixo.
 class ComponenteLojaRow extends StatefulWidget {
   final AppTheme theme;
   final VoidCallback onExcluir;
+  final bool podeEditar;
 
   const ComponenteLojaRow({
     super.key,
     required this.theme,
     required this.onExcluir,
+    this.podeEditar = true,
   });
 
   @override
@@ -22,9 +20,23 @@ class ComponenteLojaRow extends StatefulWidget {
 class _ComponenteLojaRowState extends State<ComponenteLojaRow> {
   bool _ativo = true;
 
+  void _avisarSemPermissao() {
+    final theme = widget.theme;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        backgroundColor: theme.cardBackgroundColor,
+        content: Text(
+          'Você não tem permissão para fazer isso.',
+          style: theme.getTextStyle(color: theme.textColor),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = widget.theme;
+    final podeEditar = widget.podeEditar;
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
@@ -44,7 +56,9 @@ class _ComponenteLojaRowState extends State<ComponenteLojaRow> {
           Switch(
             value: _ativo,
             activeThumbColor: theme.buttonColor,
-            onChanged: (valor) => setState(() => _ativo = valor),
+            onChanged: podeEditar
+                ? (valor) => setState(() => _ativo = valor)
+                : null,
           ),
           SizedBox(
             width: 64,
@@ -60,6 +74,10 @@ class _ComponenteLojaRowState extends State<ComponenteLojaRow> {
                 size: 16, color: theme.secondaryTextColor),
             color: theme.cardBackgroundColor,
             onSelected: (valor) {
+              if (!podeEditar) {
+                _avisarSemPermissao();
+                return;
+              }
               if (valor == 'excluir') widget.onExcluir();
             },
             itemBuilder: (context) => [

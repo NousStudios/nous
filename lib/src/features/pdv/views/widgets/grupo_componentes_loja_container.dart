@@ -25,6 +25,8 @@ class GrupoComponentesLojaContainer extends StatefulWidget {
 
   final void Function(ItemLoja item) onEditarItem;
 
+  final bool podeEditar;
+
   const GrupoComponentesLojaContainer({
     super.key,
     required this.theme,
@@ -41,6 +43,7 @@ class GrupoComponentesLojaContainer extends StatefulWidget {
     required this.onEditarPrecoItem,
     required this.onEditarItem,
     this.onNomeAlterado,
+    this.podeEditar = true,
   });
 
   @override
@@ -54,6 +57,19 @@ class _GrupoComponentesLojaContainerState
 
   late final TextEditingController _nomeController =
       TextEditingController(text: widget.nome);
+
+  void _avisarSemPermissao() {
+    final theme = widget.theme;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        backgroundColor: theme.cardBackgroundColor,
+        content: Text(
+          'Você não tem permissão para fazer isso.',
+          style: theme.getTextStyle(color: theme.textColor),
+        ),
+      ),
+    );
+  }
 
   @override
   void didUpdateWidget(covariant GrupoComponentesLojaContainer oldWidget) {
@@ -70,6 +86,11 @@ class _GrupoComponentesLojaContainerState
   }
 
   void _abrirSeletorDeItem() {
+    if (!widget.podeEditar) {
+      _avisarSemPermissao();
+      return;
+    }
+
     final theme = widget.theme;
     final disponiveis = widget.itensDisponiveis
         .where((item) => !widget.itemIds.contains(item.id))
@@ -130,6 +151,7 @@ class _GrupoComponentesLojaContainerState
   @override
   Widget build(BuildContext context) {
     final theme = widget.theme;
+    final podeEditar = widget.podeEditar;
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
@@ -158,6 +180,8 @@ class _GrupoComponentesLojaContainerState
               Expanded(
                 child: TextField(
                   controller: _nomeController,
+                  readOnly: !podeEditar,
+                  onTap: podeEditar ? null : _avisarSemPermissao,
                   textAlign: TextAlign.center,
                   maxLines: 1,
                   style: theme.getTextStyle(fontSize: 13),
@@ -178,7 +202,9 @@ class _GrupoComponentesLojaContainerState
                     value: _ativa,
                     activeThumbColor: theme.buttonColor,
                     materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                    onChanged: (valor) => setState(() => _ativa = valor),
+                    onChanged: podeEditar
+                        ? (valor) => setState(() => _ativa = valor)
+                        : null,
                   ),
                 ),
               ),
@@ -211,6 +237,10 @@ class _GrupoComponentesLojaContainerState
                 icon: Icon(Icons.more_vert, color: theme.secondaryTextColor),
                 color: theme.cardBackgroundColor,
                 onSelected: (valor) {
+                  if (!podeEditar) {
+                    _avisarSemPermissao();
+                    return;
+                  }
                   if (valor == 'editar') widget.onEditar();
                   if (valor == 'excluir') widget.onExcluir();
                 },
@@ -289,6 +319,7 @@ class _GrupoComponentesLojaContainerState
                         key: ValueKey('produto_$id'),
                         theme: theme,
                         item: item,
+                        podeEditar: podeEditar,
                         onExcluir: () => widget.onRemoverItem(id),
                         onEditar: () => widget.onEditarItem(item),
                         onNomeAlterado: (novoNome) =>

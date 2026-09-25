@@ -2,41 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:nous/src/core/theme/theme_controller.dart';
 import 'package:nous/src/features/pdv/views/widgets/componente_loja_row.dart';
 
-// Um "Grupo de Componentes" dentro de um Produto (ex: "Grupo de
-// componentes A" = adicionais do lanche). Guarda sua própria lista de
-// Componentes, criada pela opção "Adicionar Componente" no menu "⋮".
-//
-// ALTERADO (edição inline do título): o título deste grupo, que antes
-// era um Text estático (calculado pelo ProdutoLojaRow a partir da
-// posição na lista, tipo "Grupo de componentes A"), agora é um
-// TextField sem borda — mesmo padrão do nome do produto em
-// ProdutoLojaRow. Quem "dona" o valor de verdade do título continua
-// sendo o ProdutoLojaRow (pai): ele guarda o título atual de cada
-// grupo e passa pra cá em "titulo"; este widget só mostra esse valor
-// num campo editável e avisa o pai a cada mudança via
-// "onTituloAlterado", pra ele persistir. Isso evita que o nome
-// digitado pelo usuário seja sobrescrito pela letra automática (A, B,
-// C...) sempre que a lista de grupos mudar.
-//
-// ALTERADO (ícone de imagem): adicionado um quadrado no início da
-// barra, hoje só com um ícone de placeholder (Icons.image_outlined) —
-// preparado para, numa atualização futura, o usuário poder colocar
-// uma imagem de verdade ali.
 class GrupoComponentesContainer extends StatefulWidget {
   final AppTheme theme;
-
-  // Título atual deste grupo (ex: "Grupo de componentes A", ou um
-  // nome customizado se o usuário já editou). Controlado por fora,
-  // pelo ProdutoLojaRow.
   final String titulo;
-
-  // NOVO: chamado a cada mudança no título, editado direto no campo
-  // da barra.
   final ValueChanged<String> onTituloAlterado;
-
-  // Chamado quando o usuário escolhe "Excluir Grupo" no "⋮". Quem decide
-  // tirar este grupo inteiro da lista é o ProdutoLojaRow (pai).
   final VoidCallback onExcluir;
+  final bool podeEditar;
 
   const GrupoComponentesContainer({
     super.key,
@@ -44,6 +15,7 @@ class GrupoComponentesContainer extends StatefulWidget {
     required this.titulo,
     required this.onTituloAlterado,
     required this.onExcluir,
+    this.podeEditar = true,
   });
 
   @override
@@ -59,13 +31,22 @@ class _GrupoComponentesContainerState
   late final TextEditingController _tituloController =
       TextEditingController(text: widget.titulo);
 
+  void _avisarSemPermissao() {
+    final theme = widget.theme;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        backgroundColor: theme.cardBackgroundColor,
+        content: Text(
+          'Você não tem permissão para fazer isso.',
+          style: theme.getTextStyle(color: theme.textColor),
+        ),
+      ),
+    );
+  }
+
   @override
   void didUpdateWidget(covariant GrupoComponentesContainer oldWidget) {
     super.didUpdateWidget(oldWidget);
-
-    // Se o título mudou por FORA deste campo (ex: outro grupo foi
-    // excluído e a letra automática deste mudou), atualiza o texto
-    // mostrado aqui também — mesmo padrão usado em ProdutoLojaRow.
     if (widget.titulo != oldWidget.titulo &&
         widget.titulo != _tituloController.text) {
       _tituloController.text = widget.titulo;
@@ -92,6 +73,7 @@ class _GrupoComponentesContainerState
   @override
   Widget build(BuildContext context) {
     final theme = widget.theme;
+    final podeEditar = widget.podeEditar;
 
     return Container(
       padding: const EdgeInsets.all(8),
@@ -104,9 +86,6 @@ class _GrupoComponentesContainerState
         children: [
           Row(
             children: [
-              // NOVO: placeholder de imagem, mesmo padrão visual do
-              // ícone usado em ProdutoLojaRow (só um pouco menor, pra
-              // caber no tamanho deste container aninhado).
               Container(
                 width: 28,
                 height: 28,
@@ -120,11 +99,11 @@ class _GrupoComponentesContainerState
                     size: 14, color: theme.secondaryTextColor),
               ),
               const SizedBox(width: 6),
-              // ALTERADO: era um Text estático; agora é um TextField
-              // sem borda, editável direto na barra.
               Expanded(
                 child: TextField(
                   controller: _tituloController,
+                  readOnly: !podeEditar,
+                  onTap: podeEditar ? null : _avisarSemPermissao,
                   maxLines: 1,
                   style: theme.getTextStyle(fontSize: 11),
                   decoration: const InputDecoration(
@@ -141,6 +120,10 @@ class _GrupoComponentesContainerState
                     size: 16, color: theme.secondaryTextColor),
                 color: theme.cardBackgroundColor,
                 onSelected: (valor) {
+                  if (!podeEditar) {
+                    _avisarSemPermissao();
+                    return;
+                  }
                   if (valor == 'componente') _adicionarComponente();
                   if (valor == 'excluir') widget.onExcluir();
                 },
@@ -164,6 +147,7 @@ class _GrupoComponentesContainerState
               ComponenteLojaRow(
                 key: ValueKey('componente_$id'),
                 theme: theme,
+                podeEditar: podeEditar,
                 onExcluir: () => _removerComponente(id),
               ),
               const SizedBox(height: 4),

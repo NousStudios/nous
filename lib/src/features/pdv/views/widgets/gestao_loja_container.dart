@@ -76,10 +76,7 @@ class GestaoLojaContainer extends StatelessWidget {
     BuildContext context,
     String rotulo, {
     VoidCallback? aoPressionar,
-    bool visivel = true,
   }) {
-    if (!visivel) return const SizedBox.shrink();
-
     return Expanded(
       child: SizedBox(
         height: 56,
@@ -169,8 +166,6 @@ class GestaoLojaContainer extends StatelessWidget {
 
   Widget _blocoDeBotoes(BuildContext context) {
     const espaco = SizedBox(width: 8);
-    final mostrarImpressora = aoImpressora != null;
-    final mostrarFinanceiro = aoFinanceiro != null;
 
     return Container(
       width: double.infinity,
@@ -188,7 +183,6 @@ class GestaoLojaContainer extends StatelessWidget {
                 context,
                 'Impressora',
                 aoPressionar: aoImpressora,
-                visivel: mostrarImpressora,
               ),
             ],
           ),
@@ -203,7 +197,6 @@ class GestaoLojaContainer extends StatelessWidget {
                 context,
                 'Financeiro',
                 aoPressionar: aoFinanceiro,
-                visivel: mostrarFinanceiro,
               ),
             ],
           ),

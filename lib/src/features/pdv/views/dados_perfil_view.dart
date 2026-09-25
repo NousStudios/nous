@@ -98,6 +98,23 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
   GlobalKey _chaveGrupo(String id) =>
       _chavesGrupos.putIfAbsent(id, () => GlobalKey());
 
+  void _avisarSemPermissao() {
+    final theme = ThemeController.currentTheme.value;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        backgroundColor: theme.cardBackgroundColor,
+        content: Text(
+          'Você não tem permissão para fazer isso.',
+          style: theme.getTextStyle(color: theme.textColor),
+        ),
+      ),
+    );
+  }
+
+  bool _podeEditarAbaLoja() {
+    return context.read<PdvProvider>().possoEditarAbaLoja(widget.lojaId);
+  }
+
   void _registrarAcao(TipoAcao tipo, String descricao) {
     final auth = context.read<AuthProvider>();
     final conta = auth.contaAtual;
@@ -259,6 +276,11 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
   }
 
   void _salvarDadosLoja() {
+    if (!context.read<PdvProvider>().possoEditarDadosLoja(widget.lojaId)) {
+      _avisarSemPermissao();
+      return;
+    }
+
     context.read<PdvProvider>().atualizarDadosLoja(
           widget.lojaId,
           nome: _controllers.nome.text,
@@ -426,6 +448,11 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
   }
 
   void _abrirPopupImpressora() {
+    if (!context.read<PdvProvider>().possoUsarImpressora(widget.lojaId)) {
+      _avisarSemPermissao();
+      return;
+    }
+
     final loja = context.read<PdvProvider>().buscarPorId(widget.lojaId);
     final atuais =
         loja?.configuracoesImpressora ?? const ConfiguracoesImpressora();
@@ -443,6 +470,11 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
   }
 
   void _abrirFinanceiro() {
+    if (!context.read<PdvProvider>().possoUsarFinanceiro(widget.lojaId)) {
+      _avisarSemPermissao();
+      return;
+    }
+
     Navigator.of(context).push(
       MaterialPageRoute(
         builder: (context) => FinanceiroView(
@@ -519,6 +551,11 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
   }
 
   void _abrirPopupNovoGrupoComponentes() {
+    if (!_podeEditarAbaLoja()) {
+      _avisarSemPermissao();
+      return;
+    }
+
     NovoGrupoComponentesDialog.mostrar(
       context,
       theme: ThemeController.currentTheme.value,
@@ -536,6 +573,11 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
   }
 
   void _abrirPopupEditarGrupoComponentes(GrupoComponentesLoja grupo) {
+    if (!_podeEditarAbaLoja()) {
+      _avisarSemPermissao();
+      return;
+    }
+
     NovoGrupoComponentesDialog.mostrar(
       context,
       theme: ThemeController.currentTheme.value,
@@ -558,6 +600,11 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
   }
 
   void _abrirPopupNovaCategoria() {
+    if (!_podeEditarAbaLoja()) {
+      _avisarSemPermissao();
+      return;
+    }
+
     NovaCategoriaDialog.mostrar(
       context,
       theme: ThemeController.currentTheme.value,
@@ -575,6 +622,11 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
   }
 
   void _abrirPopupEditarCategoria(CategoriaLoja categoria) {
+    if (!_podeEditarAbaLoja()) {
+      _avisarSemPermissao();
+      return;
+    }
+
     NovaCategoriaDialog.mostrar(
       context,
       theme: ThemeController.currentTheme.value,
@@ -634,6 +686,11 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
   }
 
   void _abrirPopupNovoItem() {
+    if (!_podeEditarAbaLoja()) {
+      _avisarSemPermissao();
+      return;
+    }
+
     NovoItemDialog.mostrar(
       context,
       theme: ThemeController.currentTheme.value,
@@ -653,6 +710,11 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
   }
 
   void _abrirPopupEditarItem(ItemLoja item) {
+    if (!_podeEditarAbaLoja()) {
+      _avisarSemPermissao();
+      return;
+    }
+
     final categoriaIdsIniciais = _categorias
         .where((c) => c.itemIds.contains(item.id))
         .map((c) => c.id)
@@ -687,6 +749,7 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
   }
 
   void _editarNomeItem(String id, String novoNome) {
+    if (!_podeEditarAbaLoja()) return;
     setState(() {
       final indice = _itens.indexWhere((i) => i.id == id);
       if (indice == -1) return;
@@ -701,6 +764,7 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
   }
 
   void _editarPrecoItem(String id, String novoPreco) {
+    if (!_podeEditarAbaLoja()) return;
     setState(() {
       final indice = _itens.indexWhere((i) => i.id == id);
       if (indice == -1) return;
@@ -715,6 +779,7 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
   }
 
   void _editarNomeCategoria(String id, String novoNome) {
+    if (!_podeEditarAbaLoja()) return;
     setState(() {
       final indice = _categorias.indexWhere((c) => c.id == id);
       if (indice == -1) return;
@@ -729,6 +794,7 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
   }
 
   void _editarNomeGrupoComponentes(String id, String novoNome) {
+    if (!_podeEditarAbaLoja()) return;
     setState(() {
       final indice = _gruposComponentes.indexWhere((g) => g.id == id);
       if (indice == -1) return;
@@ -744,6 +810,11 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
   }
 
   void _removerCategoria(String id) {
+    if (!_podeEditarAbaLoja()) {
+      _avisarSemPermissao();
+      return;
+    }
+
     final indice = _categorias.indexWhere((c) => c.id == id);
     final nome = indice == -1 ? '' : _categorias[indice].nome;
 
@@ -760,6 +831,11 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
   }
 
   void _removerItem(String id) {
+    if (!_podeEditarAbaLoja()) {
+      _avisarSemPermissao();
+      return;
+    }
+
     final indice = _itens.indexWhere((i) => i.id == id);
     final nome = indice == -1 ? '' : _itens[indice].nome;
 
@@ -795,6 +871,11 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
   }
 
   void _removerGrupoComponentes(String id) {
+    if (!_podeEditarAbaLoja()) {
+      _avisarSemPermissao();
+      return;
+    }
+
     final indice = _gruposComponentes.indexWhere((g) => g.id == id);
     final nome = indice == -1 ? '' : _gruposComponentes[indice].nome;
 
@@ -820,6 +901,7 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
   }
 
   void _adicionarItemNaCategoria(CategoriaLoja categoria, String itemId) {
+    if (!_podeEditarAbaLoja()) return;
     setState(() {
       final indice = _categorias.indexWhere((c) => c.id == categoria.id);
       if (indice == -1) return;
@@ -830,6 +912,7 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
   }
 
   void _removerItemDaCategoria(CategoriaLoja categoria, String itemId) {
+    if (!_podeEditarAbaLoja()) return;
     setState(() {
       final indice = _categorias.indexWhere((c) => c.id == categoria.id);
       if (indice == -1) return;
@@ -842,6 +925,7 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
 
   void _adicionarItemNoGrupoComponentes(
       GrupoComponentesLoja grupo, String itemId) {
+    if (!_podeEditarAbaLoja()) return;
     setState(() {
       final indice = _gruposComponentes.indexWhere((g) => g.id == grupo.id);
       if (indice == -1) return;
@@ -853,6 +937,7 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
 
   void _removerItemDoGrupoComponentes(
       GrupoComponentesLoja grupo, String itemId) {
+    if (!_podeEditarAbaLoja()) return;
     setState(() {
       final indice = _gruposComponentes.indexWhere((g) => g.id == grupo.id);
       if (indice == -1) return;
@@ -925,6 +1010,11 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
   }
 
   void _confirmarExclusao(BuildContext context) {
+    if (!context.read<PdvProvider>().possoExcluirLoja(widget.lojaId)) {
+      _avisarSemPermissao();
+      return;
+    }
+
     showDialog<void>(
       context: context,
       builder: (dialogContext) {
@@ -1123,7 +1213,11 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
     );
   }
 
-  Widget _construirCategoria(AppTheme theme, CategoriaLoja categoria) {
+  Widget _construirCategoria(
+    AppTheme theme,
+    CategoriaLoja categoria,
+    bool podeEditarLoja,
+  ) {
     return CategoriaLojaContainer(
       key: _chaveCategoria(categoria.id),
       theme: theme,
@@ -1132,6 +1226,7 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
       itemIds: categoria.itemIds,
       itensDisponiveis: _itens,
       expandida: categoria.id == _categoriaExpandidaId,
+      podeEditar: podeEditarLoja,
       aoAlternarExpansao: () => _alternarExpansaoCategoria(categoria.id),
       onAdicionarItem: (itemId) => _adicionarItemNaCategoria(categoria, itemId),
       onRemoverItem: (itemId) => _removerItemDaCategoria(categoria, itemId),
@@ -1145,7 +1240,11 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
     );
   }
 
-  Widget _listaCategorias(AppTheme theme, List<CategoriaLoja> categorias) {
+  Widget _listaCategorias(
+    AppTheme theme,
+    List<CategoriaLoja> categorias,
+    bool podeEditarLoja,
+  ) {
     if (categorias.isEmpty) {
       return Padding(
         padding: const EdgeInsets.only(right: 8),
@@ -1169,8 +1268,11 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
             padding: const EdgeInsets.only(right: 8),
             itemCount: categorias.length,
             separatorBuilder: (context, index) => const SizedBox(height: 8),
-            itemBuilder: (context, index) =>
-                _construirCategoria(theme, categorias[index]),
+            itemBuilder: (context, index) => _construirCategoria(
+              theme,
+              categorias[index],
+              podeEditarLoja,
+            ),
           ),
         ),
       );
@@ -1179,14 +1281,18 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
     return Column(
       children: [
         for (final categoria in categorias) ...[
-          _construirCategoria(theme, categoria),
+          _construirCategoria(theme, categoria, podeEditarLoja),
           const SizedBox(height: 8),
         ],
       ],
     );
   }
 
-  Widget _construirGrupo(AppTheme theme, GrupoComponentesLoja grupo) {
+  Widget _construirGrupo(
+    AppTheme theme,
+    GrupoComponentesLoja grupo,
+    bool podeEditarLoja,
+  ) {
     return GrupoComponentesLojaContainer(
       key: _chaveGrupo(grupo.id),
       theme: theme,
@@ -1194,6 +1300,7 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
       itemIds: grupo.itemIds,
       itensDisponiveis: _itens,
       expandida: grupo.id == _grupoExpandidoId,
+      podeEditar: podeEditarLoja,
       aoAlternarExpansao: () => _alternarExpansaoGrupo(grupo.id),
       onAdicionarItem: (itemId) => _adicionarItemNoGrupoComponentes(grupo, itemId),
       onRemoverItem: (itemId) => _removerItemDoGrupoComponentes(grupo, itemId),
@@ -1207,7 +1314,11 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
     );
   }
 
-  Widget _listaGrupos(AppTheme theme, List<GrupoComponentesLoja> grupos) {
+  Widget _listaGrupos(
+    AppTheme theme,
+    List<GrupoComponentesLoja> grupos,
+    bool podeEditarLoja,
+  ) {
     if (grupos.isEmpty) {
       return Padding(
         padding: const EdgeInsets.only(right: 8),
@@ -1231,8 +1342,11 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
             padding: const EdgeInsets.only(right: 8),
             itemCount: grupos.length,
             separatorBuilder: (context, index) => const SizedBox(height: 8),
-            itemBuilder: (context, index) =>
-                _construirGrupo(theme, grupos[index]),
+            itemBuilder: (context, index) => _construirGrupo(
+              theme,
+              grupos[index],
+              podeEditarLoja,
+            ),
           ),
         ),
       );
@@ -1241,7 +1355,7 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
     return Column(
       children: [
         for (final grupo in grupos) ...[
-          _construirGrupo(theme, grupo),
+          _construirGrupo(theme, grupo, podeEditarLoja),
           const SizedBox(height: 8),
         ],
       ],
@@ -1249,6 +1363,8 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
   }
 
   Widget _abaLoja(AppTheme theme) {
+    final podeEditarLoja =
+        context.read<PdvProvider>().possoEditarAbaLoja(widget.lojaId);
     final termoItens = _pesquisaItens.text.trim().toLowerCase();
     final termoCategorias = _pesquisaCategorias.text.trim().toLowerCase();
     final termoGrupos = _pesquisaGrupos.text.trim().toLowerCase();
@@ -1301,6 +1417,7 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
                     nome: item.nome,
                     preco: item.preco,
                     tipo: item.tipo,
+                    podeEditar: podeEditarLoja,
                     onEditar: () => _abrirPopupEditarItem(item),
                     onExcluir: () => _removerItem(item.id),
                     onNomeAlterado: (novoNome) =>
@@ -1325,7 +1442,7 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
             'Pesquisar categorias...',
           ),
           const SizedBox(height: 12),
-          _listaCategorias(theme, categoriasFiltradas),
+          _listaCategorias(theme, categoriasFiltradas, podeEditarLoja),
 
           const SizedBox(height: 24),
           _tituloDeSecao(theme, 'Grupos de Componentes'),
@@ -1336,29 +1453,7 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
             'Pesquisar grupos...',
           ),
           const SizedBox(height: 12),
-          _listaGrupos(theme, gruposFiltrados),
-        ],
-      ),
-    );
-  }
-
-  Widget _semPermissao(AppTheme theme, String area) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(vertical: 40, horizontal: 16),
-      decoration: _decoracaoDoBloco(theme),
-      child: Column(
-        children: [
-          Icon(Icons.lock_outline, size: 32, color: theme.secondaryTextColor),
-          const SizedBox(height: 12),
-          Text(
-            'Sem permissão para acessar $area.',
-            textAlign: TextAlign.center,
-            style: theme.getTextStyle(
-              fontSize: 13,
-              color: theme.secondaryTextColor,
-            ),
-          ),
+          _listaGrupos(theme, gruposFiltrados, podeEditarLoja),
         ],
       ),
     );
@@ -1367,10 +1462,7 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
   Widget _conteudoDaAba(AppTheme theme) {
     final cpfLogado = context.read<AuthProvider>().contaAtual?.cpf ?? '';
     final pdv = context.read<PdvProvider>();
-    final possoEditarLoja = pdv.possoEditarAbaLoja(widget.lojaId);
     final possoEditarDados = pdv.possoEditarDadosLoja(widget.lojaId);
-    final possoImpressora = pdv.possoUsarImpressora(widget.lojaId);
-    final possoFinanceiro = pdv.possoUsarFinanceiro(widget.lojaId);
     final possoGerenciarMembros = pdv.possoGerenciarMembros(widget.lojaId);
 
     switch (_abaSelecionada) {
@@ -1385,42 +1477,43 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
               decoration: decoracaoDoBloco,
               child: Column(
                 children: [
-                  FormularioDadosLoja(
-                    theme: theme,
-                    controllers: _controllers,
+                  AbsorbPointer(
+                    absorbing: !possoEditarDados,
+                    child: FormularioDadosLoja(
+                      theme: theme,
+                      controllers: _controllers,
+                    ),
                   ),
-                  if (possoEditarDados) ...[
-                    const SizedBox(height: 20),
-                    SizedBox(
-                      width: double.infinity,
-                      child: FilledButton(
-                        style: FilledButton.styleFrom(
-                          backgroundColor: theme.buttonColor,
-                          foregroundColor: theme.buttonTextColor,
-                          padding: const EdgeInsets.symmetric(vertical: 12),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                        ),
-                        onPressed: _salvarDadosLoja,
-                        child: Text(
-                          'Salvar Dados',
-                          style: theme.getTextStyle(
-                            fontSize: 13,
-                            color: theme.buttonTextColor,
-                          ),
+                  const SizedBox(height: 20),
+                  SizedBox(
+                    width: double.infinity,
+                    child: FilledButton(
+                      style: FilledButton.styleFrom(
+                        backgroundColor: theme.buttonColor,
+                        foregroundColor: theme.buttonTextColor,
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10),
                         ),
                       ),
-                    ),
-                    const SizedBox(height: 12),
-                    TextButton(
-                      onPressed: () => _confirmarExclusao(context),
+                      onPressed: _salvarDadosLoja,
                       child: Text(
-                        'Excluir Loja',
-                        style: theme.getTextStyle(fontSize: 13),
+                        'Salvar Dados',
+                        style: theme.getTextStyle(
+                          fontSize: 13,
+                          color: theme.buttonTextColor,
+                        ),
                       ),
                     ),
-                  ],
+                  ),
+                  const SizedBox(height: 12),
+                  TextButton(
+                    onPressed: () => _confirmarExclusao(context),
+                    child: Text(
+                      'Excluir Loja',
+                      style: theme.getTextStyle(fontSize: 13),
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -1460,9 +1553,6 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
         );
 
       case AbaLoja.loja:
-        if (!possoEditarLoja) {
-          return _semPermissao(theme, 'a Loja do Perfil');
-        }
         return _abaLoja(theme);
 
       case AbaLoja.gestao:
@@ -1481,8 +1571,8 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
           aoNovaVenda: _abrirPopupNovaVenda,
           aoClientes: _abrirPopupClientes,
           aoRelatorios: _abrirPopupRelatorios,
-          aoImpressora: possoImpressora ? _abrirPopupImpressora : null,
-          aoFinanceiro: possoFinanceiro ? _abrirFinanceiro : null,
+          aoImpressora: _abrirPopupImpressora,
+          aoFinanceiro: _abrirFinanceiro,
           aoStatus: _abrirStatusLoja,
         );
 
