@@ -5,6 +5,7 @@ import 'package:nous/src/features/pdv/models/configuracoes_impressora.dart';
 import 'package:nous/src/features/pdv/models/grupo_componentes_loja.dart';
 import 'package:nous/src/features/pdv/models/item_loja.dart';
 import 'package:nous/src/features/pdv/models/loja.dart';
+import 'package:nous/src/features/pdv/models/membro_loja.dart';
 import 'package:nous/src/features/pdv/models/pedido_loja.dart';
 import 'package:nous/src/features/pdv/models/registro_acao.dart';
 import 'package:nous/src/features/pdv/services/lojas_service.dart';
@@ -174,6 +175,62 @@ class PdvProvider extends ChangeNotifier {
       configuracoesImpressora: configuracoes,
     );
 
+    notifyListeners();
+    _persistir();
+  }
+
+  void garantirDono(String lojaId, {required String cpf, required String nome}) {
+    final indice = _lojas.indexWhere((loja) => loja.id == lojaId);
+    if (indice == -1) return;
+
+    final loja = _lojas[indice];
+    if (loja.membros.isNotEmpty) return;
+    if (cpf.isEmpty) return;
+
+    final membro = MembroLoja(
+      cpf: cpf,
+      nome: nome,
+      papel: PapelMembro.dono,
+      desde: DateTime.now(),
+    );
+
+    _lojas[indice] = loja.copyWith(membros: [membro]);
+    notifyListeners();
+    _persistir();
+  }
+
+  void adicionarMembro(String lojaId, MembroLoja membro) {
+    final indice = _lojas.indexWhere((loja) => loja.id == lojaId);
+    if (indice == -1) return;
+
+    final loja = _lojas[indice];
+    if (loja.membros.any((m) => m.cpf == membro.cpf)) return;
+
+    _lojas[indice] = loja.copyWith(membros: [...loja.membros, membro]);
+    notifyListeners();
+    _persistir();
+  }
+
+  void removerMembro(String lojaId, String cpf) {
+    final indice = _lojas.indexWhere((loja) => loja.id == lojaId);
+    if (indice == -1) return;
+
+    final loja = _lojas[indice];
+    final restantes = loja.membros.where((m) => m.cpf != cpf).toList();
+    _lojas[indice] = loja.copyWith(membros: restantes);
+    notifyListeners();
+    _persistir();
+  }
+
+  void atualizarPapelMembro(String lojaId, String cpf, PapelMembro papel) {
+    final indice = _lojas.indexWhere((loja) => loja.id == lojaId);
+    if (indice == -1) return;
+
+    final loja = _lojas[indice];
+    final novos = loja.membros
+        .map((m) => m.cpf == cpf ? m.copyWith(papel: papel) : m)
+        .toList();
+    _lojas[indice] = loja.copyWith(membros: novos);
     notifyListeners();
     _persistir();
   }

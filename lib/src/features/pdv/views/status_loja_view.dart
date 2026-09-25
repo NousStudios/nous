@@ -1,18 +1,41 @@
 import 'package:flutter/material.dart';
 import 'package:nous/src/core/theme/theme_controller.dart';
 import 'package:nous/src/core/widgets/custom_app_bar.dart';
+import 'package:nous/src/features/pdv/models/membro_loja.dart';
 import 'package:nous/src/features/pdv/views/widgets/estado_vazio_container.dart';
+
+String _rotuloPapel(PapelMembro papel) {
+  switch (papel) {
+    case PapelMembro.dono:
+      return 'Dono';
+    case PapelMembro.socio:
+      return 'Sócio';
+    case PapelMembro.admin:
+      return 'Admin';
+    case PapelMembro.funcionario:
+      return 'Funcionário';
+  }
+}
+
+String _formatarCpf(String cpf) {
+  final digitos = cpf.replaceAll(RegExp(r'[^0-9]'), '');
+  if (digitos.length != 11) return cpf;
+  return '${digitos.substring(0, 3)}.${digitos.substring(3, 6)}.'
+      '${digitos.substring(6, 9)}-${digitos.substring(9, 11)}';
+}
 
 class StatusLojaView extends StatefulWidget {
   final String lojaId;
   final bool lojaOnlineInicial;
   final ValueChanged<bool> aoAlterarOnline;
+  final List<MembroLoja> membros;
 
   const StatusLojaView({
     super.key,
     required this.lojaId,
     required this.lojaOnlineInicial,
     required this.aoAlterarOnline,
+    required this.membros,
   });
 
   @override
@@ -94,8 +117,52 @@ class _StatusLojaViewState extends State<StatusLojaView> {
           ),
           const SizedBox(height: 12),
           Text(
-            '1/1 Online',
+            '${widget.membros.length} '
+            '${widget.membros.length == 1 ? 'membro' : 'membros'}',
             style: theme.getTextStyle(fontSize: 13),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _linhaDeMembro(AppTheme theme, MembroLoja membro) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      margin: const EdgeInsets.only(bottom: 8),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: theme.borderColor),
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.account_circle, size: 32, color: theme.textColor),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  membro.nome.isEmpty ? 'Sem nome' : membro.nome,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.getTextStyle(
+                    fontSize: 13,
+                    color: theme.textColor,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  '${_rotuloPapel(membro.papel)} • ${_formatarCpf(membro.cpf)}',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.getTextStyle(
+                    fontSize: 10,
+                    color: theme.secondaryTextColor,
+                  ),
+                ),
+              ],
+            ),
           ),
         ],
       ),
@@ -111,39 +178,13 @@ class _StatusLojaViewState extends State<StatusLojaView> {
         children: [
           _tituloDoBloco(theme, 'Lista de Trabalhadores'),
           const SizedBox(height: 12),
-          EstadoVazioContainer(
-            theme: theme,
-            mensagem: 'Nenhum trabalhador cadastrado ainda.',
-          ),
-          const SizedBox(height: 16),
-          SizedBox(
-            width: double.infinity,
-            child: OutlinedButton(
-              style: OutlinedButton.styleFrom(
-                backgroundColor: theme.buttonColor,
-                foregroundColor: theme.buttonTextColor,
-                side: BorderSide(color: theme.borderColor),
-                padding: const EdgeInsets.symmetric(vertical: 12),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(10),
-                ),
-              ),
-              onPressed: () {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Convidar usuários: em construção'),
-                  ),
-                );
-              },
-              child: Text(
-                'Convidar usuários para a loja',
-                style: theme.getTextStyle(
-                  fontSize: 13,
-                  color: theme.buttonTextColor,
-                ),
-              ),
-            ),
-          ),
+          if (widget.membros.isEmpty)
+            EstadoVazioContainer(
+              theme: theme,
+              mensagem: 'Nenhum trabalhador cadastrado ainda.',
+            )
+          else
+            for (final membro in widget.membros) _linhaDeMembro(theme, membro),
         ],
       ),
     );

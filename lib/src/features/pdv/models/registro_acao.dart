@@ -19,6 +19,9 @@ enum TipoAcao {
   grupoAtualizado,
   grupoExcluido,
   lojaExcluida,
+  membroAdicionado,
+  membroRemovido,
+  papelAlterado,
 }
 
 class RegistroAcao {
