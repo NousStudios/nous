@@ -6,12 +6,7 @@ import 'package:nous/src/features/pdv/providers/pdv_provider.dart';
 import 'package:nous/src/features/pdv/views/dados_perfil_view.dart';
 import 'package:nous/src/features/pdv/views/widgets/formulario_dados_loja.dart';
 
-// Tela "Cadastrar Loja", aberta quando o usuário escolhe "Loja Padrão" no
-// popup de categoria e clica em "Selecionar".
 class CadastrarLojaView extends StatefulWidget {
-  // Categoria que veio do popup anterior (por enquanto sempre "Loja
-  // Padrão", mas deixamos como parâmetro para o dia em que outras
-  // categorias também tiverem essa mesma tela de cadastro).
   final String categoriaInicial;
 
   const CadastrarLojaView({super.key, required this.categoriaInicial});
@@ -27,8 +22,6 @@ class _CadastrarLojaViewState extends State<CadastrarLojaView> {
   @override
   void initState() {
     super.initState();
-    // Já preenche o campo "Categorias" com a categoria escolhida no popup
-    // anterior, para o usuário não ter que digitar de novo.
     _controllers.categorias.text = widget.categoriaInicial;
   }
 
@@ -55,18 +48,8 @@ class _CadastrarLojaViewState extends State<CadastrarLojaView> {
       tags: _controllers.tags.text,
     );
 
-    // pdvProvider.lojas.last: como salvarLoja() acabou de ADICIONAR a
-    // loja nova no FINAL da lista, ".last" pega exatamente ela — mesmo
-    // que já existam outras lojas cadastradas antes. É assim que
-    // conseguimos o "id" da loja recém-criada sem precisar mudar a
-    // assinatura de salvarLoja().
     final lojaRecemCriada = pdvProvider.lojas.last;
 
-    // pushReplacement (em vez de push): troca esta tela de Cadastro pela
-    // tela de Dados do Perfil na pilha de navegação. Assim, se o usuário
-    // apertar "voltar" na tela de Dados do Perfil, ele volta direto para
-    // a tela de Perfis — não faz sentido voltar para o formulário de
-    // cadastro depois que a loja já foi cadastrada.
     Navigator.of(context).pushReplacement(
       MaterialPageRoute(
         builder: (context) => DadosPerfilView(lojaId: lojaRecemCriada.id),
@@ -85,8 +68,6 @@ class _CadastrarLojaViewState extends State<CadastrarLojaView> {
           body: SafeArea(
             child: Center(
               child: ConstrainedBox(
-                // Mesma largura máxima usada nas outras telas, para o
-                // formulário ficar centralizado em telas largas.
                 constraints: const BoxConstraints(maxWidth: 500),
                 child: SingleChildScrollView(
                   padding: const EdgeInsets.all(16),

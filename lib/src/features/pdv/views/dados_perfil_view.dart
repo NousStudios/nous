@@ -147,7 +147,7 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
     );
   }
 
-  void _removerMembro(String cpf) {
+  Future<void> _removerMembro(String cpf) async {
     final loja = context.read<PdvProvider>().buscarPorId(widget.lojaId);
     final membro = loja?.membros.firstWhere(
       (m) => m.cpf == cpf,
@@ -159,7 +159,7 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
       ),
     );
 
-    context.read<PdvProvider>().removerMembro(widget.lojaId, cpf);
+    await context.read<PdvProvider>().removerMembro(widget.lojaId, cpf);
     setState(() {
       _membros = _membros.where((m) => m.cpf != cpf).toList();
     });
@@ -170,7 +170,7 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
     );
   }
 
-  void _atualizarPapelMembro(String cpf, PapelMembro papel) {
+  Future<void> _atualizarPapelMembro(String cpf, PapelMembro papel) async {
     final loja = context.read<PdvProvider>().buscarPorId(widget.lojaId);
     final membro = loja?.membros.firstWhere(
       (m) => m.cpf == cpf,
@@ -182,7 +182,7 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
       ),
     );
 
-    context.read<PdvProvider>().atualizarPapelMembro(
+    await context.read<PdvProvider>().atualizarPapelMembro(
           widget.lojaId,
           cpf,
           papel,
@@ -197,6 +197,15 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
       TipoAcao.papelAlterado,
       'Papel de "${membro?.nome ?? ''}" alterado para '
           '${_rotuloPapelCurto(papel)}',
+    );
+  }
+
+  Future<void> _sairDaLoja() async {
+    await context.read<PdvProvider>().sairDaLoja(widget.lojaId);
+    if (!mounted) return;
+    Navigator.of(context).pushAndRemoveUntil(
+      MaterialPageRoute(builder: (context) => const PerfisPdvView()),
+      (route) => false,
     );
   }
 
@@ -445,6 +454,10 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
   }
 
   void _abrirStatusLoja() {
+    final cpfLogado = context.read<AuthProvider>().contaAtual?.cpf ?? '';
+    final meuPapel = context.read<PdvProvider>().meuPapel(widget.lojaId);
+    final podeSair = meuPapel != null;
+
     Navigator.of(context).push(
       MaterialPageRoute(
         builder: (context) => StatusLojaView(
@@ -452,6 +465,9 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
           lojaOnlineInicial: _lojaOnline,
           aoAlterarOnline: (valor) => setState(() => _lojaOnline = valor),
           membros: List.of(_membros),
+          cpfLogado: cpfLogado,
+          podeSair: podeSair,
+          onSair: _sairDaLoja,
         ),
       ),
     );
@@ -1326,7 +1342,37 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
     );
   }
 
+  Widget _semPermissao(AppTheme theme, String area) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(vertical: 40, horizontal: 16),
+      decoration: _decoracaoDoBloco(theme),
+      child: Column(
+        children: [
+          Icon(Icons.lock_outline, size: 32, color: theme.secondaryTextColor),
+          const SizedBox(height: 12),
+          Text(
+            'Sem permissão para acessar $area.',
+            textAlign: TextAlign.center,
+            style: theme.getTextStyle(
+              fontSize: 13,
+              color: theme.secondaryTextColor,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _conteudoDaAba(AppTheme theme) {
+    final cpfLogado = context.read<AuthProvider>().contaAtual?.cpf ?? '';
+    final pdv = context.read<PdvProvider>();
+    final possoEditarLoja = pdv.possoEditarAbaLoja(widget.lojaId);
+    final possoEditarDados = pdv.possoEditarDadosLoja(widget.lojaId);
+    final possoImpressora = pdv.possoUsarImpressora(widget.lojaId);
+    final possoFinanceiro = pdv.possoUsarFinanceiro(widget.lojaId);
+    final possoGerenciarMembros = pdv.possoGerenciarMembros(widget.lojaId);
+
     switch (_abaSelecionada) {
       case AbaLoja.dados:
         final decoracaoDoBloco = _decoracaoDoBloco(theme);
@@ -1343,36 +1389,38 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
                     theme: theme,
                     controllers: _controllers,
                   ),
-                  const SizedBox(height: 20),
-                  SizedBox(
-                    width: double.infinity,
-                    child: FilledButton(
-                      style: FilledButton.styleFrom(
-                        backgroundColor: theme.buttonColor,
-                        foregroundColor: theme.buttonTextColor,
-                        padding: const EdgeInsets.symmetric(vertical: 12),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(10),
+                  if (possoEditarDados) ...[
+                    const SizedBox(height: 20),
+                    SizedBox(
+                      width: double.infinity,
+                      child: FilledButton(
+                        style: FilledButton.styleFrom(
+                          backgroundColor: theme.buttonColor,
+                          foregroundColor: theme.buttonTextColor,
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                        ),
+                        onPressed: _salvarDadosLoja,
+                        child: Text(
+                          'Salvar Dados',
+                          style: theme.getTextStyle(
+                            fontSize: 13,
+                            color: theme.buttonTextColor,
+                          ),
                         ),
                       ),
-                      onPressed: _salvarDadosLoja,
+                    ),
+                    const SizedBox(height: 12),
+                    TextButton(
+                      onPressed: () => _confirmarExclusao(context),
                       child: Text(
-                        'Salvar Dados',
-                        style: theme.getTextStyle(
-                          fontSize: 13,
-                          color: theme.buttonTextColor,
-                        ),
+                        'Excluir Loja',
+                        style: theme.getTextStyle(fontSize: 13),
                       ),
                     ),
-                  ),
-                  const SizedBox(height: 12),
-                  TextButton(
-                    onPressed: () => _confirmarExclusao(context),
-                    child: Text(
-                      'Excluir Loja',
-                      style: theme.getTextStyle(fontSize: 13),
-                    ),
-                  ),
+                  ],
                 ],
               ),
             ),
@@ -1385,10 +1433,13 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
             UsuariosParticipantesContainer(
               theme: theme,
               membros: _membros,
+              cpfLogado: cpfLogado,
+              podeGerenciar: possoGerenciarMembros,
               buscarConta: _buscarContaPorCpf,
               onEnviarConvite: _enviarConvite,
               onRemover: _removerMembro,
               onAtualizarPapel: _atualizarPapelMembro,
+              onSair: _sairDaLoja,
             ),
             const SizedBox(height: 16),
             DeliveryContainer(
@@ -1409,6 +1460,9 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
         );
 
       case AbaLoja.loja:
+        if (!possoEditarLoja) {
+          return _semPermissao(theme, 'a Loja do Perfil');
+        }
         return _abaLoja(theme);
 
       case AbaLoja.gestao:
@@ -1427,8 +1481,8 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
           aoNovaVenda: _abrirPopupNovaVenda,
           aoClientes: _abrirPopupClientes,
           aoRelatorios: _abrirPopupRelatorios,
-          aoImpressora: _abrirPopupImpressora,
-          aoFinanceiro: _abrirFinanceiro,
+          aoImpressora: possoImpressora ? _abrirPopupImpressora : null,
+          aoFinanceiro: possoFinanceiro ? _abrirFinanceiro : null,
           aoStatus: _abrirStatusLoja,
         );
 

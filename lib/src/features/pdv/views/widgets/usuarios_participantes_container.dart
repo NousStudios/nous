@@ -55,19 +55,25 @@ class _CpfInputFormatter extends TextInputFormatter {
 class UsuariosParticipantesContainer extends StatelessWidget {
   final AppTheme theme;
   final List<MembroLoja> membros;
+  final String cpfLogado;
+  final bool podeGerenciar;
   final Future<UsuarioNous?> Function(String cpf) buscarConta;
   final void Function(UsuarioNous conta, PapelMembro papel) onEnviarConvite;
   final ValueChanged<String> onRemover;
   final void Function(String cpf, PapelMembro papel) onAtualizarPapel;
+  final VoidCallback onSair;
 
   const UsuariosParticipantesContainer({
     super.key,
     required this.theme,
     required this.membros,
+    required this.cpfLogado,
+    required this.podeGerenciar,
     required this.buscarConta,
     required this.onEnviarConvite,
     required this.onRemover,
     required this.onAtualizarPapel,
+    required this.onSair,
   });
 
   BoxDecoration get _decoracaoDoBloco => BoxDecoration(
@@ -89,12 +95,31 @@ class UsuariosParticipantesContainer extends StatelessWidget {
   }
 
   void _confirmarRemocao(BuildContext context, MembroLoja membro) {
-    final ehUltimoDono = membro.papel == PapelMembro.dono &&
-        membros.where((m) => m.papel == PapelMembro.dono).length <= 1;
+    final ehVoce = membro.cpf == cpfLogado;
 
-    if (ehUltimoDono) {
-      _avisar(context, 'A loja precisa de pelo menos um dono.');
-      return;
+    if (!ehVoce) {
+      final ehUltimoDono = membro.papel == PapelMembro.dono &&
+          membros.where((m) => m.papel == PapelMembro.dono).length <= 1;
+      if (ehUltimoDono) {
+        _avisar(context, 'A loja precisa de pelo menos um dono.');
+        return;
+      }
+    } else {
+      final souDono = membro.papel == PapelMembro.dono;
+      final quantidadeDonos =
+          membros.where((m) => m.papel == PapelMembro.dono).length;
+      final outros = membros.where((m) => m.cpf != cpfLogado).toList();
+      if (souDono && quantidadeDonos <= 1 && outros.isNotEmpty) {
+        _avisar(
+          context,
+          'Você é o único dono. A posse passará para outro membro ao sair.',
+        );
+      } else if (souDono && outros.isEmpty) {
+        _avisar(
+          context,
+          'Você é o único dono e não há outros membros. A loja será excluída.',
+        );
+      }
     }
 
     showDialog<void>(
@@ -107,7 +132,7 @@ class UsuariosParticipantesContainer extends StatelessWidget {
             side: BorderSide(color: theme.borderColor),
           ),
           title: Text(
-            'Remover membro',
+            ehVoce ? 'Sair da loja' : 'Remover membro',
             textAlign: TextAlign.center,
             style: theme.getTextStyle(
               fontSize: 18,
@@ -116,7 +141,9 @@ class UsuariosParticipantesContainer extends StatelessWidget {
             ),
           ),
           content: Text(
-            'Remover "${membro.nome}" da loja?',
+            ehVoce
+                ? 'Tem certeza que deseja sair da loja?'
+                : 'Remover "${membro.nome}" da loja?',
             textAlign: TextAlign.center,
             style: theme.getTextStyle(fontSize: 14),
           ),
@@ -132,10 +159,14 @@ class UsuariosParticipantesContainer extends StatelessWidget {
             TextButton(
               onPressed: () {
                 Navigator.of(dialogContext).pop();
-                onRemover(membro.cpf);
+                if (ehVoce) {
+                  onSair();
+                } else {
+                  onRemover(membro.cpf);
+                }
               },
               child: Text(
-                'Remover',
+                ehVoce ? 'Sair' : 'Remover',
                 style: theme.getTextStyle(color: Colors.redAccent),
               ),
             ),
@@ -156,10 +187,7 @@ class UsuariosParticipantesContainer extends StatelessWidget {
           onEnviar: (conta, papel) {
             onEnviarConvite(conta, papel);
             Navigator.of(dialogContext).pop();
-            _avisar(
-              context,
-              'Convite enviado para ${conta.nome}.',
-            );
+            _avisar(context, 'Convite enviado para ${conta.nome}.');
           },
         );
       },
@@ -224,6 +252,10 @@ class UsuariosParticipantesContainer extends StatelessWidget {
   }
 
   Widget _linhaDeMembro(BuildContext context, MembroLoja membro) {
+    final ehVoce = membro.cpf == cpfLogado;
+    final podeEditarPapel = podeGerenciar && !ehVoce;
+    final podeExcluir = podeGerenciar || ehVoce;
+
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       margin: const EdgeInsets.only(bottom: 8),
@@ -262,20 +294,22 @@ class UsuariosParticipantesContainer extends StatelessWidget {
               ],
             ),
           ),
-          IconButton(
-            tooltip: 'Trocar papel',
-            icon: Icon(Icons.edit, size: 18, color: theme.textColor),
-            onPressed: () => _abrirTrocaDePapel(context, membro),
-          ),
-          IconButton(
-            tooltip: 'Remover',
-            icon: const Icon(
-              Icons.delete_outline,
-              size: 18,
-              color: Colors.redAccent,
+          if (podeEditarPapel)
+            IconButton(
+              tooltip: 'Trocar papel',
+              icon: Icon(Icons.edit, size: 18, color: theme.textColor),
+              onPressed: () => _abrirTrocaDePapel(context, membro),
             ),
-            onPressed: () => _confirmarRemocao(context, membro),
-          ),
+          if (podeExcluir)
+            IconButton(
+              tooltip: ehVoce ? 'Sair da loja' : 'Remover',
+              icon: const Icon(
+                Icons.delete_outline,
+                size: 18,
+                color: Colors.redAccent,
+              ),
+              onPressed: () => _confirmarRemocao(context, membro),
+            ),
         ],
       ),
     );
@@ -306,29 +340,31 @@ class UsuariosParticipantesContainer extends StatelessWidget {
             )
           else
             for (final membro in membros) _linhaDeMembro(context, membro),
-          const SizedBox(height: 8),
-          SizedBox(
-            width: double.infinity,
-            child: OutlinedButton(
-              style: OutlinedButton.styleFrom(
-                backgroundColor: theme.buttonColor,
-                foregroundColor: theme.buttonTextColor,
-                side: BorderSide(color: theme.borderColor),
-                padding: const EdgeInsets.symmetric(vertical: 12),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(10),
+          if (podeGerenciar) ...[
+            const SizedBox(height: 8),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton(
+                style: OutlinedButton.styleFrom(
+                  backgroundColor: theme.buttonColor,
+                  foregroundColor: theme.buttonTextColor,
+                  side: BorderSide(color: theme.borderColor),
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10),
+                  ),
                 ),
-              ),
-              onPressed: () => _abrirConvite(context),
-              child: Text(
-                'Convidar usuário para loja',
-                style: theme.getTextStyle(
-                  fontSize: 14,
-                  color: theme.buttonTextColor,
+                onPressed: () => _abrirConvite(context),
+                child: Text(
+                  'Convidar usuário para loja',
+                  style: theme.getTextStyle(
+                    fontSize: 14,
+                    color: theme.buttonTextColor,
+                  ),
                 ),
               ),
             ),
-          ),
+          ],
         ],
       ),
     );
@@ -394,8 +430,7 @@ class _ConviteDialogState extends State<_ConviteDialog> {
       return;
     }
 
-    final jaMembro =
-        widget.membrosAtuais.any((m) => m.cpf == conta.cpf);
+    final jaMembro = widget.membrosAtuais.any((m) => m.cpf == conta.cpf);
     setState(() {
       _buscando = false;
       _encontrado = conta;

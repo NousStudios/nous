@@ -6,6 +6,7 @@ import 'package:nous/src/features/notificacoes/models/convite_loja.dart';
 import 'package:nous/src/features/notificacoes/providers/notificacoes_provider.dart';
 import 'package:nous/src/features/pdv/models/loja.dart';
 import 'package:nous/src/features/pdv/models/membro_loja.dart';
+import 'package:nous/src/features/pdv/models/referencia_loja.dart';
 import 'package:nous/src/features/pdv/providers/pdv_provider.dart';
 import 'package:nous/src/features/pdv/services/lojas_service.dart';
 import 'package:nous/src/features/pdv/views/widgets/estado_vazio_container.dart';
@@ -75,12 +76,12 @@ class _NotificacoesConteudo extends StatelessWidget {
       return;
     }
 
-    final lojasDoConvidante =
+    final cofreDoDono =
         await LojasService.carregar(convite.cpfConvidante);
     if (!context.mounted) return;
 
     Loja? lojaOriginal;
-    for (final loja in lojasDoConvidante) {
+    for (final loja in cofreDoDono) {
       if (loja.id == convite.lojaId) {
         lojaOriginal = loja;
         break;
@@ -93,35 +94,48 @@ class _NotificacoesConteudo extends StatelessWidget {
       return;
     }
 
-    final novaLoja = lojaOriginal.copyWith(
-      membros: [
-        ...lojaOriginal.membros,
-        MembroLoja(
-          cpf: conta.cpf,
-          nome: conta.nome,
-          papel: convite.papel,
-          desde: DateTime.now(),
-        ),
-      ],
+    final cpfDonoOriginal = lojaOriginal.cpfDonoOriginal.isEmpty
+        ? convite.cpfConvidante
+        : lojaOriginal.cpfDonoOriginal;
+
+    final jaMembro =
+        lojaOriginal.membros.any((m) => m.cpf == conta.cpf);
+    final novosMembros = jaMembro
+        ? lojaOriginal.membros
+        : [
+            ...lojaOriginal.membros,
+            MembroLoja(
+              cpf: conta.cpf,
+              nome: conta.nome,
+              papel: convite.papel,
+              desde: DateTime.now(),
+            ),
+          ];
+
+    final lojaAtualizada = lojaOriginal.copyWith(
+      cpfDonoOriginal: cpfDonoOriginal,
+      membros: novosMembros,
     );
 
-    final cpfConvidado = conta.cpf;
-    final lojasDoConvidado = await LojasService.carregar(cpfConvidado);
+    final cofreAtualizado = cofreDoDono
+        .map((l) => l.id == lojaAtualizada.id ? lojaAtualizada : l)
+        .toList();
+    await LojasService.salvar(cpfDonoOriginal, cofreAtualizado);
     if (!context.mounted) return;
 
-    final jaTem = lojasDoConvidado.any((l) => l.id == novaLoja.id);
-    final listaFinal = jaTem
-        ? lojasDoConvidado
-            .map((l) => l.id == novaLoja.id ? novaLoja : l)
-            .toList()
-        : [...lojasDoConvidado, novaLoja];
-    await LojasService.salvar(cpfConvidado, listaFinal);
-    if (!context.mounted) return;
-
-    await pdv.entrarComCpf(cpfConvidado);
+    await LojasService.adicionarReferencia(
+      conta.cpf,
+      ReferenciaLoja(
+        lojaId: lojaAtualizada.id,
+        cpfDonoOriginal: cpfDonoOriginal,
+      ),
+    );
     if (!context.mounted) return;
 
     await notificacoes.aceitar(convite.id);
+    if (!context.mounted) return;
+
+    await pdv.entrarComCpf(conta.cpf);
     if (!context.mounted) return;
 
     ScaffoldMessenger.of(context).showSnackBar(

@@ -29,6 +29,9 @@ class StatusLojaView extends StatefulWidget {
   final bool lojaOnlineInicial;
   final ValueChanged<bool> aoAlterarOnline;
   final List<MembroLoja> membros;
+  final String cpfLogado;
+  final bool podeSair;
+  final VoidCallback onSair;
 
   const StatusLojaView({
     super.key,
@@ -36,6 +39,9 @@ class StatusLojaView extends StatefulWidget {
     required this.lojaOnlineInicial,
     required this.aoAlterarOnline,
     required this.membros,
+    required this.cpfLogado,
+    required this.podeSair,
+    required this.onSair,
   });
 
   @override
@@ -71,6 +77,56 @@ class _StatusLojaViewState extends State<StatusLojaView> {
         fontWeight: FontWeight.w600,
         color: theme.textColor,
       ),
+    );
+  }
+
+  void _confirmarSaida() {
+    showDialog<void>(
+      context: context,
+      builder: (dialogContext) {
+        final theme = ThemeController.currentTheme.value;
+        return AlertDialog(
+          backgroundColor: theme.cardBackgroundColor,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16.0),
+            side: BorderSide(color: theme.borderColor),
+          ),
+          title: Text(
+            'Sair da loja',
+            textAlign: TextAlign.center,
+            style: theme.getTextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+              color: theme.textColor,
+            ),
+          ),
+          content: Text(
+            'Tem certeza que deseja sair desta loja?',
+            textAlign: TextAlign.center,
+            style: theme.getTextStyle(fontSize: 14),
+          ),
+          actionsAlignment: MainAxisAlignment.center,
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: Text(
+                'Cancelar',
+                style: theme.getTextStyle(color: theme.secondaryTextColor),
+              ),
+            ),
+            TextButton(
+              onPressed: () {
+                Navigator.of(dialogContext).pop();
+                widget.onSair();
+              },
+              child: Text(
+                'Sair',
+                style: theme.getTextStyle(color: Colors.redAccent),
+              ),
+            ),
+          ],
+        );
+      },
     );
   }
 
@@ -121,6 +177,30 @@ class _StatusLojaViewState extends State<StatusLojaView> {
             '${widget.membros.length == 1 ? 'membro' : 'membros'}',
             style: theme.getTextStyle(fontSize: 13),
           ),
+          if (widget.podeSair) ...[
+            const SizedBox(height: 16),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton(
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: Colors.redAccent,
+                  side: const BorderSide(color: Colors.redAccent),
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                ),
+                onPressed: _confirmarSaida,
+                child: Text(
+                  'Sair da loja',
+                  style: theme.getTextStyle(
+                    fontSize: 13,
+                    color: Colors.redAccent,
+                  ),
+                ),
+              ),
+            ),
+          ],
         ],
       ),
     );

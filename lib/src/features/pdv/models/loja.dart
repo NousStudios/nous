@@ -9,6 +9,7 @@ import 'package:nous/src/features/pdv/models/registro_acao.dart';
 
 class Loja {
   final String id;
+  final String cpfDonoOriginal;
 
   final String nome;
   final String cnpj;
@@ -31,6 +32,7 @@ class Loja {
 
   const Loja({
     required this.id,
+    this.cpfDonoOriginal = '',
     required this.nome,
     required this.cnpj,
     required this.telefone,
@@ -50,6 +52,7 @@ class Loja {
   });
 
   Loja copyWith({
+    String? cpfDonoOriginal,
     String? nome,
     String? cnpj,
     String? telefone,
@@ -69,6 +72,7 @@ class Loja {
   }) {
     return Loja(
       id: id,
+      cpfDonoOriginal: cpfDonoOriginal ?? this.cpfDonoOriginal,
       nome: nome ?? this.nome,
       cnpj: cnpj ?? this.cnpj,
       telefone: telefone ?? this.telefone,
@@ -92,6 +96,7 @@ class Loja {
   Map<String, dynamic> toJson() {
     return {
       'id': id,
+      'cpfDonoOriginal': cpfDonoOriginal,
       'nome': nome,
       'cnpj': cnpj,
       'telefone': telefone,
@@ -115,6 +120,7 @@ class Loja {
   factory Loja.fromJson(Map<String, dynamic> json) {
     return Loja(
       id: json['id'] as String,
+      cpfDonoOriginal: json['cpfDonoOriginal'] as String? ?? '',
       nome: json['nome'] as String,
       cnpj: json['cnpj'] as String,
       telefone: json['telefone'] as String,
