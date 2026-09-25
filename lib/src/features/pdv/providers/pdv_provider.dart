@@ -6,6 +6,7 @@ import 'package:nous/src/features/pdv/models/grupo_componentes_loja.dart';
 import 'package:nous/src/features/pdv/models/item_loja.dart';
 import 'package:nous/src/features/pdv/models/loja.dart';
 import 'package:nous/src/features/pdv/models/pedido_loja.dart';
+import 'package:nous/src/features/pdv/models/registro_acao.dart';
 import 'package:nous/src/features/pdv/services/lojas_service.dart';
 
 class PdvProvider extends ChangeNotifier {
@@ -133,6 +134,29 @@ class PdvProvider extends ChangeNotifier {
       gruposComponentesLoja: gruposComponentes,
       clientesLoja: clientes,
       pedidosLoja: pedidos,
+    );
+
+    notifyListeners();
+    _persistir();
+  }
+
+  void atualizarAcoes(String id, List<RegistroAcao> acoes) {
+    final indice = _lojas.indexWhere((loja) => loja.id == id);
+    if (indice == -1) return;
+
+    _lojas[indice] = _lojas[indice].copyWith(acoes: acoes);
+
+    notifyListeners();
+    _persistir();
+  }
+
+  void registrarAcao(String lojaId, RegistroAcao acao) {
+    final indice = _lojas.indexWhere((loja) => loja.id == lojaId);
+    if (indice == -1) return;
+
+    final atuais = _lojas[indice].acoes;
+    _lojas[indice] = _lojas[indice].copyWith(
+      acoes: [acao, ...atuais],
     );
 
     notifyListeners();

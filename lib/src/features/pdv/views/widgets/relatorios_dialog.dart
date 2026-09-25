@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:nous/src/core/theme/theme_controller.dart';
 import 'package:nous/src/features/pdv/models/pedido_loja.dart';
+import 'package:nous/src/features/pdv/models/registro_acao.dart';
 import 'package:nous/src/features/pdv/views/widgets/estado_vazio_container.dart';
 import 'package:nous/src/features/pdv/views/widgets/venda_registrada_dialog.dart';
 
@@ -12,6 +13,18 @@ const List<String> _formasDePagamento = [
   'Crédito',
   'À Prazo',
 ];
+
+String _doisDigitos(int n) => n.toString().padLeft(2, '0');
+
+String _dataHoraCurta(DateTime d) =>
+    '${_doisDigitos(d.day)}/${_doisDigitos(d.month)}/${d.year} '
+    '${_doisDigitos(d.hour)}:${_doisDigitos(d.minute)}';
+
+String _formatarCpf(String cpf) {
+  if (cpf.length != 11) return cpf;
+  return '${cpf.substring(0, 3)}.${cpf.substring(3, 6)}.'
+      '${cpf.substring(6, 9)}-${cpf.substring(9, 11)}';
+}
 
 class _DataInputFormatter extends TextInputFormatter {
   @override
@@ -39,6 +52,7 @@ class RelatoriosDialog {
     BuildContext context, {
     required AppTheme theme,
     required List<PedidoLoja> pedidos,
+    required List<RegistroAcao> acoes,
     ValueChanged<String>? onExcluirPedido,
   }) {
     return showDialog<void>(
@@ -56,6 +70,7 @@ class RelatoriosDialog {
             child: _RelatoriosConteudo(
               theme: theme,
               pedidos: pedidos,
+              acoes: acoes,
               onExcluirPedido: onExcluirPedido,
             ),
           ),
@@ -68,11 +83,13 @@ class RelatoriosDialog {
 class _RelatoriosConteudo extends StatefulWidget {
   final AppTheme theme;
   final List<PedidoLoja> pedidos;
+  final List<RegistroAcao> acoes;
   final ValueChanged<String>? onExcluirPedido;
 
   const _RelatoriosConteudo({
     required this.theme,
     required this.pedidos,
+    required this.acoes,
     this.onExcluirPedido,
   });
 
@@ -142,6 +159,12 @@ class _RelatoriosConteudoState extends State<_RelatoriosConteudo> {
     } else {
       lista.sort((a, b) => b.dataHora.compareTo(a.dataHora));
     }
+    return lista;
+  }
+
+  List<RegistroAcao> get _acoesOrdenadas {
+    final lista = List.of(widget.acoes);
+    lista.sort((a, b) => b.dataHora.compareTo(a.dataHora));
     return lista;
   }
 
@@ -299,6 +322,81 @@ class _RelatoriosConteudoState extends State<_RelatoriosConteudo> {
     );
   }
 
+  Widget _linhaDeAcao(RegistroAcao acao) {
+    final autorPartes = <String>[
+      if (acao.nomeAutor.isNotEmpty) acao.nomeAutor,
+      if (acao.cpfAutor.isNotEmpty) _formatarCpf(acao.cpfAutor),
+      if (acao.emailAutor.isNotEmpty) acao.emailAutor,
+    ];
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: theme.borderColor),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            acao.descricao,
+            style: theme.getTextStyle(fontSize: 12, color: theme.textColor),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            _dataHoraCurta(acao.dataHora),
+            style: theme.getTextStyle(
+              fontSize: 10,
+              color: theme.secondaryTextColor,
+            ),
+          ),
+          if (autorPartes.isNotEmpty) ...[
+            const SizedBox(height: 2),
+            Text(
+              'por ${autorPartes.join(' • ')}',
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: theme.getTextStyle(
+                fontSize: 10,
+                color: theme.secondaryTextColor,
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _blocoAcoes() {
+    final acoes = _acoesOrdenadas;
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: _decoracaoDoBloco,
+      child: Column(
+        children: [
+          _tituloDoBloco('Ações'),
+          if (acoes.isEmpty)
+            EstadoVazioContainer(
+              theme: theme,
+              mensagem: 'Nenhuma ação registrada ainda.',
+            )
+          else
+            ConstrainedBox(
+              constraints: const BoxConstraints(maxHeight: 260),
+              child: ListView.separated(
+                shrinkWrap: true,
+                itemCount: acoes.length,
+                separatorBuilder: (context, index) =>
+                    const SizedBox(height: 8),
+                itemBuilder: (context, index) => _linhaDeAcao(acoes[index]),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Column(
@@ -330,7 +428,13 @@ class _RelatoriosConteudoState extends State<_RelatoriosConteudo> {
         Flexible(
           child: SingleChildScrollView(
             padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
-            child: _blocoRelatorios(),
+            child: Column(
+              children: [
+                _blocoRelatorios(),
+                const SizedBox(height: 12),
+                _blocoAcoes(),
+              ],
+            ),
           ),
         ),
       ],

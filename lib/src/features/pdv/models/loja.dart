@@ -4,6 +4,7 @@ import 'package:nous/src/features/pdv/models/configuracoes_impressora.dart';
 import 'package:nous/src/features/pdv/models/grupo_componentes_loja.dart';
 import 'package:nous/src/features/pdv/models/item_loja.dart';
 import 'package:nous/src/features/pdv/models/pedido_loja.dart';
+import 'package:nous/src/features/pdv/models/registro_acao.dart';
 
 class Loja {
   final String id;
@@ -22,6 +23,7 @@ class Loja {
   final List<GrupoComponentesLoja> gruposComponentesLoja;
   final List<Cliente> clientesLoja;
   final List<PedidoLoja> pedidosLoja;
+  final List<RegistroAcao> acoes;
 
   final ConfiguracoesImpressora configuracoesImpressora;
 
@@ -40,6 +42,7 @@ class Loja {
     this.gruposComponentesLoja = const [],
     this.clientesLoja = const [],
     this.pedidosLoja = const [],
+    this.acoes = const [],
     this.configuracoesImpressora = const ConfiguracoesImpressora(),
   });
 
@@ -57,6 +60,7 @@ class Loja {
     List<GrupoComponentesLoja>? gruposComponentesLoja,
     List<Cliente>? clientesLoja,
     List<PedidoLoja>? pedidosLoja,
+    List<RegistroAcao>? acoes,
     ConfiguracoesImpressora? configuracoesImpressora,
   }) {
     return Loja(
@@ -74,6 +78,7 @@ class Loja {
       gruposComponentesLoja: gruposComponentesLoja ?? this.gruposComponentesLoja,
       clientesLoja: clientesLoja ?? this.clientesLoja,
       pedidosLoja: pedidosLoja ?? this.pedidosLoja,
+      acoes: acoes ?? this.acoes,
       configuracoesImpressora:
           configuracoesImpressora ?? this.configuracoesImpressora,
     );
@@ -96,6 +101,7 @@ class Loja {
           gruposComponentesLoja.map((g) => g.toJson()).toList(),
       'clientesLoja': clientesLoja.map((c) => c.toJson()).toList(),
       'pedidosLoja': pedidosLoja.map((p) => p.toJson()).toList(),
+      'acoes': acoes.map((a) => a.toJson()).toList(),
       'configuracoesImpressora': configuracoesImpressora.toJson(),
     };
   }
@@ -127,6 +133,9 @@ class Loja {
           .toList(),
       pedidosLoja: (json['pedidosLoja'] as List<dynamic>? ?? const [])
           .map((item) => PedidoLoja.fromJson(item as Map<String, dynamic>))
+          .toList(),
+      acoes: (json['acoes'] as List<dynamic>? ?? const [])
+          .map((item) => RegistroAcao.fromJson(item as Map<String, dynamic>))
           .toList(),
       configuracoesImpressora: json['configuracoesImpressora'] == null
           ? const ConfiguracoesImpressora()

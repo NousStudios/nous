@@ -11,6 +11,7 @@ import 'package:nous/src/features/pdv/models/configuracoes_impressora.dart';
 import 'package:nous/src/features/pdv/models/grupo_componentes_loja.dart';
 import 'package:nous/src/features/pdv/models/item_loja.dart';
 import 'package:nous/src/features/pdv/models/pedido_loja.dart';
+import 'package:nous/src/features/pdv/models/registro_acao.dart';
 import 'package:nous/src/features/pdv/providers/pdv_provider.dart';
 import 'package:nous/src/features/pdv/views/financeiro_view.dart';
 import 'package:nous/src/features/pdv/views/perfis_pdv_view.dart';
@@ -49,6 +50,11 @@ const double _larguraMaximaConteudo = 500;
 
 const double _alturaMaximaListaSecundaria = 136;
 
+String _valorFormatado(double v) =>
+    'R\$ ${v.toStringAsFixed(2).replaceAll('.', ',')}';
+
+String _numeroPedido(int n) => '#${n.toString().padLeft(4, '0')}';
+
 class _DadosPerfilViewState extends State<DadosPerfilView> {
   final _controllers = ControllersDadosLoja();
   final _controllersBancarios = ControllersDadosBancarios();
@@ -81,6 +87,24 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
 
   GlobalKey _chaveGrupo(String id) =>
       _chavesGrupos.putIfAbsent(id, () => GlobalKey());
+
+  void _registrarAcao(TipoAcao tipo, String descricao) {
+    final auth = context.read<AuthProvider>();
+    final conta = auth.contaAtual;
+    if (conta == null) return;
+
+    final acao = RegistroAcao(
+      id: DateTime.now().millisecondsSinceEpoch.toString(),
+      dataHora: DateTime.now(),
+      tipo: tipo,
+      descricao: descricao,
+      cpfAutor: conta.cpf,
+      nomeAutor: conta.nome,
+      emailAutor: auth.emailAtivo ?? '',
+    );
+
+    context.read<PdvProvider>().registrarAcao(widget.lojaId, acao);
+  }
 
   void _rolarAteOTopo(GlobalKey chave) {
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -131,6 +155,8 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
           tags: _controllers.tags.text,
         );
 
+    _registrarAcao(TipoAcao.dadosLojaAtualizados, 'Dados da loja atualizados');
+
     final theme = ThemeController.currentTheme.value;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -144,34 +170,79 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
   }
 
   void _alterarStatusPedido(String id, StatusPedido novoStatus) {
+    final indice = _pedidos.indexWhere((p) => p.id == id);
+    if (indice == -1) return;
+    final pedido = _pedidos[indice];
+
     setState(() {
-      final indice = _pedidos.indexWhere((p) => p.id == id);
-      if (indice == -1) return;
-      _pedidos[indice] = _pedidos[indice].copyWith(status: novoStatus);
+      _pedidos[indice] = pedido.copyWith(status: novoStatus);
     });
     _persistirListasLoja();
+
+    if (novoStatus == StatusPedido.aceito) {
+      _registrarAcao(
+        TipoAcao.pedidoAceito,
+        'Pedido ${_numeroPedido(pedido.numero)} aceito '
+            '(${_valorFormatado(pedido.valor)})',
+      );
+    } else if (novoStatus == StatusPedido.concluido) {
+      _registrarAcao(
+        TipoAcao.pedidoConcluido,
+        'Pedido ${_numeroPedido(pedido.numero)} concluído '
+            '(${_valorFormatado(pedido.valor)})',
+      );
+    }
   }
 
   void _salvarComentarioPedido(String id, String comentario) {
+    final indice = _pedidos.indexWhere((p) => p.id == id);
+    if (indice == -1) return;
+    final pedido = _pedidos[indice];
+
     setState(() {
-      final indice = _pedidos.indexWhere((p) => p.id == id);
-      if (indice == -1) return;
-      _pedidos[indice] = _pedidos[indice].copyWith(comentario: comentario);
+      _pedidos[indice] = pedido.copyWith(comentario: comentario);
     });
     _persistirListasLoja();
+
+    _registrarAcao(
+      TipoAcao.comentarioSalvo,
+      'Comentário salvo no pedido ${_numeroPedido(pedido.numero)}',
+    );
   }
 
   void _recusarPedido(String id) {
-    setState(() => _pedidos.removeWhere((p) => p.id == id));
+    final indice = _pedidos.indexWhere((p) => p.id == id);
+    if (indice == -1) return;
+    final pedido = _pedidos[indice];
+
+    setState(() => _pedidos.removeAt(indice));
     _persistirListasLoja();
+
+    _registrarAcao(
+      TipoAcao.pedidoRecusado,
+      'Pedido ${_numeroPedido(pedido.numero)} recusado '
+          '(${_valorFormatado(pedido.valor)})',
+    );
   }
 
   void _excluirPedido(String id) {
-    setState(() => _pedidos.removeWhere((p) => p.id == id));
+    final indice = _pedidos.indexWhere((p) => p.id == id);
+    if (indice == -1) return;
+    final pedido = _pedidos[indice];
+
+    setState(() => _pedidos.removeAt(indice));
     _persistirListasLoja();
+
+    _registrarAcao(
+      TipoAcao.pedidoExcluido,
+      'Pedido ${_numeroPedido(pedido.numero)} excluído '
+          '(${_valorFormatado(pedido.valor)})',
+    );
   }
 
   void _salvarCliente(Cliente cliente) {
+    final existia = _clientes.any((c) => c.id == cliente.id);
+
     setState(() {
       final indice = _clientes.indexWhere((c) => c.id == cliente.id);
       if (indice == -1) {
@@ -181,6 +252,13 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
       }
     });
     _persistirListasLoja();
+
+    _registrarAcao(
+      existia ? TipoAcao.clienteAtualizado : TipoAcao.clienteCriado,
+      existia
+          ? 'Cliente "${cliente.nome}" atualizado'
+          : 'Cliente "${cliente.nome}" cadastrado',
+    );
   }
 
   void _pagarCliente(String clienteId, double valor) {
@@ -194,8 +272,16 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
   }
 
   void _excluirCliente(String clienteId) {
+    final indice = _clientes.indexWhere((c) => c.id == clienteId);
+    final nome = indice == -1 ? '' : _clientes[indice].nome;
+
     setState(() => _clientes.removeWhere((c) => c.id == clienteId));
     _persistirListasLoja();
+
+    _registrarAcao(
+      TipoAcao.clienteExcluido,
+      'Cliente "$nome" excluído',
+    );
   }
 
   Future<void> _abrirPopupClientes() {
@@ -211,10 +297,14 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
   }
 
   Future<void> _abrirPopupRelatorios() {
+    final loja = context.read<PdvProvider>().buscarPorId(widget.lojaId);
+    final acoes = loja?.acoes ?? const <RegistroAcao>[];
+
     return RelatoriosDialog.mostrar(
       context,
       theme: ThemeController.currentTheme.value,
       pedidos: List.of(_pedidos),
+      acoes: acoes,
       onExcluirPedido: _excluirPedido,
     );
   }
@@ -284,11 +374,22 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
           _abaPedidos = AbaPedidos.aceitos;
         });
         _persistirListasLoja();
+
+        _registrarAcao(
+          TipoAcao.novaVenda,
+          'Nova venda ${_numeroPedido(pedido.numero)} para '
+              '"${pedido.clienteNome}" (${_valorFormatado(pedido.valor)})',
+        );
       },
       aoCriarItem: (item, categoriaIds, grupoIds) async {
         setState(() => _itens.add(item));
         _sincronizarVinculosItem(item.id, categoriaIds, grupoIds);
         _persistirListasLoja();
+
+        _registrarAcao(
+          TipoAcao.itemCriado,
+          'Item "${item.nome}" criado',
+        );
       },
     );
   }
@@ -301,6 +402,11 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
       onCriar: (grupo) {
         setState(() => _gruposComponentes.add(grupo));
         _persistirListasLoja();
+
+        _registrarAcao(
+          TipoAcao.grupoCriado,
+          'Grupo de componentes "${grupo.nome}" criado',
+        );
       },
     );
   }
@@ -318,6 +424,11 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
           if (indice != -1) _gruposComponentes[indice] = grupoEditado;
         });
         _persistirListasLoja();
+
+        _registrarAcao(
+          TipoAcao.grupoAtualizado,
+          'Grupo de componentes "${grupoEditado.nome}" atualizado',
+        );
       },
     );
   }
@@ -330,6 +441,11 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
       onCriar: (categoria) {
         setState(() => _categorias.add(categoria));
         _persistirListasLoja();
+
+        _registrarAcao(
+          TipoAcao.categoriaCriada,
+          'Categoria "${categoria.nome}" criada',
+        );
       },
     );
   }
@@ -347,6 +463,11 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
           if (indice != -1) _categorias[indice] = categoriaEditada;
         });
         _persistirListasLoja();
+
+        _registrarAcao(
+          TipoAcao.categoriaAtualizada,
+          'Categoria "${categoriaEditada.nome}" atualizada',
+        );
       },
     );
   }
@@ -398,6 +519,11 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
         setState(() => _itens.add(item));
         _sincronizarVinculosItem(item.id, categoriaIds, grupoIds);
         _persistirListasLoja();
+
+        _registrarAcao(
+          TipoAcao.itemCriado,
+          'Item "${item.nome}" criado',
+        );
       },
     );
   }
@@ -427,6 +553,11 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
         });
         _sincronizarVinculosItem(itemEditado.id, categoriaIds, grupoIds);
         _persistirListasLoja();
+
+        _registrarAcao(
+          TipoAcao.itemAtualizado,
+          'Item "${itemEditado.nome}" atualizado',
+        );
       },
     );
   }
@@ -438,6 +569,11 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
       _itens[indice] = _itens[indice].copyWith(nome: novoNome);
     });
     _persistirListasLoja();
+
+    _registrarAcao(
+      TipoAcao.itemAtualizado,
+      'Item renomeado para "$novoNome"',
+    );
   }
 
   void _editarPrecoItem(String id, String novoPreco) {
@@ -447,6 +583,11 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
       _itens[indice] = _itens[indice].copyWith(preco: novoPreco);
     });
     _persistirListasLoja();
+
+    _registrarAcao(
+      TipoAcao.itemAtualizado,
+      'Preço do item atualizado para R\$ $novoPreco',
+    );
   }
 
   void _editarNomeCategoria(String id, String novoNome) {
@@ -456,6 +597,11 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
       _categorias[indice] = _categorias[indice].copyWith(nome: novoNome);
     });
     _persistirListasLoja();
+
+    _registrarAcao(
+      TipoAcao.categoriaAtualizada,
+      'Categoria renomeada para "$novoNome"',
+    );
   }
 
   void _editarNomeGrupoComponentes(String id, String novoNome) {
@@ -466,17 +612,33 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
           _gruposComponentes[indice].copyWith(nome: novoNome);
     });
     _persistirListasLoja();
+
+    _registrarAcao(
+      TipoAcao.grupoAtualizado,
+      'Grupo de componentes renomeado para "$novoNome"',
+    );
   }
 
   void _removerCategoria(String id) {
+    final indice = _categorias.indexWhere((c) => c.id == id);
+    final nome = indice == -1 ? '' : _categorias[indice].nome;
+
     setState(() {
       _categorias.removeWhere((categoria) => categoria.id == id);
       if (_categoriaExpandidaId == id) _categoriaExpandidaId = null;
     });
     _persistirListasLoja();
+
+    _registrarAcao(
+      TipoAcao.categoriaExcluida,
+      'Categoria "$nome" excluída',
+    );
   }
 
   void _removerItem(String id) {
+    final indice = _itens.indexWhere((i) => i.id == id);
+    final nome = indice == -1 ? '' : _itens[indice].nome;
+
     setState(() {
       _itens.removeWhere((item) => item.id == id);
 
@@ -501,9 +663,17 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
       }
     });
     _persistirListasLoja();
+
+    _registrarAcao(
+      TipoAcao.itemExcluido,
+      'Item "$nome" excluído',
+    );
   }
 
   void _removerGrupoComponentes(String id) {
+    final indice = _gruposComponentes.indexWhere((g) => g.id == id);
+    final nome = indice == -1 ? '' : _gruposComponentes[indice].nome;
+
     setState(() {
       _gruposComponentes.removeWhere((grupo) => grupo.id == id);
       if (_grupoExpandidoId == id) _grupoExpandidoId = null;
@@ -518,6 +688,11 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
       }
     });
     _persistirListasLoja();
+
+    _registrarAcao(
+      TipoAcao.grupoExcluido,
+      'Grupo de componentes "$nome" excluído',
+    );
   }
 
   void _adicionarItemNaCategoria(CategoriaLoja categoria, String itemId) {

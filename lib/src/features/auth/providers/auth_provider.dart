@@ -8,11 +8,13 @@ class AuthProvider extends ChangeNotifier {
   String? _errorMessage;
   bool _carregando = false;
   UsuarioNous? _contaAtual;
+  String? _emailAtivo;
 
   String get cpf => _cpf;
   String? get errorMessage => _errorMessage;
   bool get carregando => _carregando;
   UsuarioNous? get contaAtual => _contaAtual;
+  String? get emailAtivo => _emailAtivo;
 
   bool get isValid => CpfValidator.isValid(_cpf);
 
@@ -38,6 +40,9 @@ class AuthProvider extends ChangeNotifier {
 
     final conta = await ContasNousService.buscarPorCpf(_cpf);
     _contaAtual = conta;
+    _emailAtivo = (conta != null && conta.emails.isNotEmpty)
+        ? conta.emails.first
+        : null;
 
     _carregando = false;
     notifyListeners();
@@ -58,6 +63,12 @@ class AuthProvider extends ChangeNotifier {
     await ContasNousService.salvar(conta);
 
     _contaAtual = conta;
+    _emailAtivo = null;
+    notifyListeners();
+  }
+
+  void definirEmailAtivo(String? email) {
+    _emailAtivo = email;
     notifyListeners();
   }
 
@@ -81,6 +92,7 @@ class AuthProvider extends ChangeNotifier {
     final atualizado = conta.copyWith(emails: [...conta.emails, emailLimpo]);
     await ContasNousService.salvar(atualizado);
     _contaAtual = atualizado;
+    _emailAtivo ??= emailLimpo;
     notifyListeners();
     return null;
   }
@@ -93,6 +105,10 @@ class AuthProvider extends ChangeNotifier {
     final atualizado = conta.copyWith(emails: novosEmails);
     await ContasNousService.salvar(atualizado);
     _contaAtual = atualizado;
+
+    if (_emailAtivo == email) {
+      _emailAtivo = novosEmails.isEmpty ? null : novosEmails.first;
+    }
     notifyListeners();
   }
 
@@ -107,6 +123,7 @@ class AuthProvider extends ChangeNotifier {
     _cpf = '';
     _errorMessage = null;
     _contaAtual = null;
+    _emailAtivo = null;
     notifyListeners();
   }
 }
