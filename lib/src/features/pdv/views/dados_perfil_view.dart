@@ -537,6 +537,8 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
       nomeVendedor: loja?.nome ?? '',
       cnpjVendedor: loja?.cnpj ?? '',
       proximoNumero: proximoNumero,
+      configuracoesImpressora:
+          loja?.configuracoesImpressora ?? const ConfiguracoesImpressora(),
       onConcluir: (pedido) {
         setState(() {
           _pedidos.add(pedido);

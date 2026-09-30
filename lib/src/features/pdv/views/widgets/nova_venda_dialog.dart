@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:nous/src/core/theme/theme_controller.dart';
 import 'package:nous/src/features/pdv/models/categoria_loja.dart';
 import 'package:nous/src/features/pdv/models/cliente.dart';
+import 'package:nous/src/features/pdv/models/configuracoes_impressora.dart';
 import 'package:nous/src/features/pdv/models/grupo_componentes_loja.dart';
 import 'package:nous/src/features/pdv/models/item_loja.dart';
 import 'package:nous/src/features/pdv/models/pedido_loja.dart';
@@ -53,6 +54,7 @@ class NovaVendaDialog {
     required ValueChanged<PedidoLoja> onConcluir,
     required Future<void> Function(ItemLoja item, List<String> categoriaIds,
         List<String> grupoIds) aoCriarItem,
+    required ConfiguracoesImpressora configuracoesImpressora,
   }) {
     return showDialog<void>(
       context: context,
@@ -78,6 +80,7 @@ class NovaVendaDialog {
               proximoNumero: proximoNumero,
               onConcluir: onConcluir,
               aoCriarItem: aoCriarItem,
+              configuracoesImpressora: configuracoesImpressora,
             ),
           ),
         );
@@ -99,6 +102,7 @@ class _NovaVendaConteudo extends StatefulWidget {
   final ValueChanged<PedidoLoja> onConcluir;
   final Future<void> Function(
       ItemLoja item, List<String> categoriaIds, List<String> grupoIds) aoCriarItem;
+  final ConfiguracoesImpressora configuracoesImpressora;
 
   const _NovaVendaConteudo({
     required this.theme,
@@ -112,6 +116,7 @@ class _NovaVendaConteudo extends StatefulWidget {
     required this.proximoNumero,
     required this.onConcluir,
     required this.aoCriarItem,
+    required this.configuracoesImpressora,
   });
 
   @override
@@ -816,6 +821,7 @@ class _NovaVendaConteudoState extends State<_NovaVendaConteudo> {
       context,
       theme: theme,
       pedido: pedido,
+      configuracoesImpressora: widget.configuracoesImpressora,
     );
 
     if (!mounted) return;
