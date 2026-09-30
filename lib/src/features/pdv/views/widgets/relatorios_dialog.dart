@@ -22,6 +22,11 @@ String _dataHoraCurta(DateTime d) =>
     '${_doisDigitos(d.day)}/${_doisDigitos(d.month)}/${d.year} '
     '${_doisDigitos(d.hour)}:${_doisDigitos(d.minute)}';
 
+String _valorCurto(double v) =>
+    'R\$ ${v.toStringAsFixed(2).replaceAll('.', ',')}';
+
+String _numeroCurto(int n) => '#${n.toString().padLeft(4, '0')}';
+
 String _formatarCpf(String cpf) {
   if (cpf.length != 11) return cpf;
   return '${cpf.substring(0, 3)}.${cpf.substring(3, 6)}.'
@@ -56,6 +61,7 @@ class RelatoriosDialog {
     required String lojaId,
     required List<PedidoLoja> pedidos,
     ValueChanged<String>? onExcluirPedido,
+    VoidCallback? aoAbrirClientes,
   }) {
     return showDialog<void>(
       context: context,
@@ -74,6 +80,7 @@ class RelatoriosDialog {
               lojaId: lojaId,
               pedidos: pedidos,
               onExcluirPedido: onExcluirPedido,
+              aoAbrirClientes: aoAbrirClientes,
             ),
           ),
         );
@@ -87,12 +94,14 @@ class _RelatoriosConteudo extends StatefulWidget {
   final String lojaId;
   final List<PedidoLoja> pedidos;
   final ValueChanged<String>? onExcluirPedido;
+  final VoidCallback? aoAbrirClientes;
 
   const _RelatoriosConteudo({
     required this.theme,
     required this.lojaId,
     required this.pedidos,
     this.onExcluirPedido,
+    this.aoAbrirClientes,
   });
 
   @override
@@ -168,6 +177,13 @@ class _RelatoriosConteudoState extends State<_RelatoriosConteudo> {
     return lista;
   }
 
+  List<PedidoLoja> get _pendencias {
+    final lista =
+        _pedidos.where((p) => p.aPrazoEmAberto).toList();
+    lista.sort((a, b) => a.dataHora.compareTo(b.dataHora));
+    return lista;
+  }
+
   List<RegistroAcao> _acoesFiltradas(List<RegistroAcao> origem) {
     final termo = _buscaAcoesController.text.trim().toLowerCase();
     final lista = termo.isEmpty
@@ -192,6 +208,13 @@ class _RelatoriosConteudoState extends State<_RelatoriosConteudo> {
   void _excluirPedido(String id) {
     setState(() => _pedidos.removeWhere((p) => p.id == id));
     widget.onExcluirPedido?.call(id);
+  }
+
+  void _clicarPendencia() {
+    final abrir = widget.aoAbrirClientes;
+    if (abrir == null) return;
+    Navigator.of(context).pop();
+    abrir();
   }
 
   BoxDecoration get _decoracaoDoBloco => BoxDecoration(
@@ -343,6 +366,97 @@ class _RelatoriosConteudoState extends State<_RelatoriosConteudo> {
     );
   }
 
+  Widget _cardPendencia(PedidoLoja pedido) {
+    return _LinhaComHover(
+      aoClicar: _clicarPendencia,
+      builder: (hover) => Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        decoration: BoxDecoration(
+          color: hover
+              ? theme.borderColor.withValues(alpha: 0.18)
+              : Colors.transparent,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: hover ? theme.textColor : theme.borderColor,
+          ),
+        ),
+        child: Row(
+          children: [
+            Icon(Icons.account_circle, size: 22, color: theme.textColor),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    pedido.clienteNome,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.getTextStyle(
+                      fontSize: 12,
+                      color: theme.textColor,
+                    ),
+                  ),
+                  Text(
+                    'Pedido ${_numeroCurto(pedido.numero)} • '
+                    '${_dataHoraCurta(pedido.dataHora)}',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.getTextStyle(
+                      fontSize: 10,
+                      color: theme.secondaryTextColor,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
+            Text(
+              _valorCurto(pedido.valorRestante),
+              style: theme.getTextStyle(
+                fontSize: 12,
+                color: theme.textColor,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _blocoPendencias() {
+    final pendencias = _pendencias;
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: _decoracaoDoBloco,
+      child: Column(
+        children: [
+          _tituloDoBloco('Pendências'),
+          if (pendencias.isEmpty)
+            EstadoVazioContainer(
+              theme: theme,
+              mensagem: 'Nenhuma venda a prazo em aberto.',
+            )
+          else
+            ConstrainedBox(
+              constraints: const BoxConstraints(maxHeight: 260),
+              child: ListView.separated(
+                shrinkWrap: true,
+                itemCount: pendencias.length,
+                separatorBuilder: (context, index) =>
+                    const SizedBox(height: 8),
+                itemBuilder: (context, index) =>
+                    _cardPendencia(pendencias[index]),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
   Widget _blocoAcoes(List<RegistroAcao> acoesOrigem) {
     final acoes = _acoesFiltradas(acoesOrigem);
     final nadaRegistrado = acoesOrigem.isEmpty;
@@ -435,6 +549,8 @@ class _RelatoriosConteudoState extends State<_RelatoriosConteudo> {
               children: [
                 _blocoRelatorios(),
                 const SizedBox(height: 12),
+                _blocoPendencias(),
+                const SizedBox(height: 12),
                 _blocoAcoes(acoes),
               ],
             ),
@@ -513,6 +629,34 @@ class _BarraAcaoState extends State<_BarraAcao> {
             ],
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _LinhaComHover extends StatefulWidget {
+  final Widget Function(bool hover) builder;
+  final VoidCallback aoClicar;
+
+  const _LinhaComHover({required this.builder, required this.aoClicar});
+
+  @override
+  State<_LinhaComHover> createState() => _LinhaComHoverState();
+}
+
+class _LinhaComHoverState extends State<_LinhaComHover> {
+  bool _hover = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      onEnter: (_) => setState(() => _hover = true),
+      onExit: (_) => setState(() => _hover = false),
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: widget.aoClicar,
+        child: widget.builder(_hover),
       ),
     );
   }

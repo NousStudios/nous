@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:printing/printing.dart';
 import 'package:nous/src/core/theme/theme_controller.dart';
 import 'package:nous/src/features/pdv/models/configuracoes_impressora.dart';
+import 'package:nous/src/features/pdv/services/impressao_service.dart';
 
 class ImpressoraDialog {
   static Future<void> mostrar(
@@ -56,6 +58,10 @@ class _ImpressoraConteudoState extends State<_ImpressoraConteudo> {
   late String _tamanhoFonte;
   late String _tipoConexao;
 
+  bool _carregandoImpressoras = false;
+  bool _imprimindo = false;
+  List<Printer> _impressoras = const [];
+
   AppTheme get theme => widget.theme;
 
   @override
@@ -67,6 +73,9 @@ class _ImpressoraConteudoState extends State<_ImpressoraConteudo> {
     _nomeImpressoraController = TextEditingController(text: c.nomeImpressora);
     _tamanhoFonte = c.tamanhoFonte;
     _tipoConexao = c.tipoConexao;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _carregarImpressoras();
+    });
   }
 
   @override
@@ -75,6 +84,16 @@ class _ImpressoraConteudoState extends State<_ImpressoraConteudo> {
     _enderecoRedeController.dispose();
     _nomeImpressoraController.dispose();
     super.dispose();
+  }
+
+  Future<void> _carregarImpressoras() async {
+    setState(() => _carregandoImpressoras = true);
+    final lista = await ImpressaoService.listarImpressoras();
+    if (!mounted) return;
+    setState(() {
+      _impressoras = lista;
+      _carregandoImpressoras = false;
+    });
   }
 
   BoxDecoration get _decoracaoDoBloco => BoxDecoration(
@@ -151,6 +170,7 @@ class _ImpressoraConteudoState extends State<_ImpressoraConteudo> {
           TextField(
             controller: _rodapeController,
             maxLines: 3,
+            textAlign: TextAlign.center,
             cursorColor: theme.textColor,
             style: theme.getTextStyle(fontSize: 12),
             decoration: _decoracaoCampo('Ex: linktr.ee/nous72'),
@@ -186,6 +206,101 @@ class _ImpressoraConteudoState extends State<_ImpressoraConteudo> {
     );
   }
 
+  Widget _linhaImpressora(Printer printer) {
+    final selecionada =
+        _nomeImpressoraController.text.trim() == printer.name;
+
+    return _LinhaComHover(
+      aoClicar: () {
+        setState(() {
+          _nomeImpressoraController.text = printer.name;
+        });
+      },
+      builder: (hover) => Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        decoration: BoxDecoration(
+          color: selecionada
+              ? theme.buttonColor.withValues(alpha: 0.25)
+              : hover
+                  ? theme.borderColor.withValues(alpha: 0.18)
+                  : Colors.transparent,
+          borderRadius: BorderRadius.circular(30),
+          border: Border.all(
+            color: selecionada || hover ? theme.textColor : theme.borderColor,
+          ),
+        ),
+        child: Row(
+          children: [
+            Icon(
+              printer.isAvailable
+                  ? Icons.print_outlined
+                  : Icons.print_disabled_outlined,
+              size: 18,
+              color: theme.textColor,
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                printer.name,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: theme.getTextStyle(
+                  fontSize: 12,
+                  color: theme.textColor,
+                ),
+              ),
+            ),
+            if (selecionada)
+              Icon(Icons.check, size: 18, color: theme.textColor),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _listaDeImpressoras() {
+    if (_carregandoImpressoras) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 12),
+        child: Center(
+          child: SizedBox(
+            width: 20,
+            height: 20,
+            child: CircularProgressIndicator(
+              strokeWidth: 2,
+              color: theme.textColor,
+            ),
+          ),
+        ),
+      );
+    }
+
+    if (_impressoras.isEmpty) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        child: Text(
+          'Nenhuma impressora encontrada.',
+          textAlign: TextAlign.center,
+          style: theme.getTextStyle(
+            fontSize: 11,
+            color: theme.secondaryTextColor,
+          ),
+        ),
+      );
+    }
+
+    return ConstrainedBox(
+      constraints: const BoxConstraints(maxHeight: 180),
+      child: ListView.separated(
+        shrinkWrap: true,
+        itemCount: _impressoras.length,
+        separatorBuilder: (context, index) => const SizedBox(height: 6),
+        itemBuilder: (context, index) =>
+            _linhaImpressora(_impressoras[index]),
+      ),
+    );
+  }
+
   Widget _blocoConexao() {
     return Container(
       width: double.infinity,
@@ -213,8 +328,9 @@ class _ImpressoraConteudoState extends State<_ImpressoraConteudo> {
             cursorColor: theme.textColor,
             style: theme.getTextStyle(fontSize: 12),
             decoration: _decoracaoCampo(
-              'Nome da impressora (opcional)',
+              'Nome da impressora (escolha abaixo ou digite)',
             ),
+            onChanged: (_) => setState(() {}),
           ),
           if (_tipoConexao == 'rede') ...[
             const SizedBox(height: 8),
@@ -226,6 +342,34 @@ class _ImpressoraConteudoState extends State<_ImpressoraConteudo> {
               decoration: _decoracaoCampo('Endereço IP (ex: 192.168.0.50)'),
             ),
           ],
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  'Impressoras encontradas',
+                  style: theme.getTextStyle(
+                    fontSize: 12,
+                    color: theme.secondaryTextColor,
+                  ),
+                ),
+              ),
+              IconButton(
+                padding: EdgeInsets.zero,
+                visualDensity: VisualDensity.compact,
+                constraints:
+                    const BoxConstraints(minWidth: 28, minHeight: 28),
+                icon: Icon(
+                  Icons.refresh,
+                  size: 18,
+                  color: theme.textColor,
+                ),
+                onPressed:
+                    _carregandoImpressoras ? null : _carregarImpressoras,
+              ),
+            ],
+          ),
+          _listaDeImpressoras(),
         ],
       ),
     );
@@ -286,16 +430,46 @@ class _ImpressoraConteudoState extends State<_ImpressoraConteudo> {
     Navigator.of(context).pop();
   }
 
-  void _imprimirTeste() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        backgroundColor: theme.cardBackgroundColor,
-        content: Text(
-          'Impressão: em construção.',
-          style: theme.getTextStyle(color: theme.textColor),
+  Future<void> _imprimirTeste() async {
+    if (_imprimindo) return;
+
+    final nome = _nomeImpressoraController.text.trim();
+
+    setState(() => _imprimindo = true);
+    try {
+      await ImpressaoService.imprimirTeste(
+        config: ConfiguracoesImpressora(
+          rodape: _rodapeController.text.trim(),
+          tamanhoFonte: _tamanhoFonte,
+          tipoConexao: _tipoConexao,
+          enderecoRede: _enderecoRedeController.text.trim(),
+          nomeImpressora: nome,
         ),
-      ),
-    );
+      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          backgroundColor: theme.cardBackgroundColor,
+          content: Text(
+            'Teste enviado para a impressora.',
+            style: theme.getTextStyle(color: theme.textColor),
+          ),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          backgroundColor: theme.cardBackgroundColor,
+          content: Text(
+            'Falha ao imprimir: $e',
+            style: theme.getTextStyle(color: theme.textColor),
+          ),
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _imprimindo = false);
+    }
   }
 
   @override
@@ -354,11 +528,20 @@ class _ImpressoraConteudoState extends State<_ImpressoraConteudo> {
                           borderRadius: BorderRadius.circular(10),
                         ),
                       ),
-                      onPressed: _imprimirTeste,
-                      child: Text(
-                        'Imprimir Teste',
-                        style: theme.getTextStyle(fontSize: 12),
-                      ),
+                      onPressed: _imprimindo ? null : _imprimirTeste,
+                      child: _imprimindo
+                          ? SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: theme.textColor,
+                              ),
+                            )
+                          : Text(
+                              'Imprimir Teste',
+                              style: theme.getTextStyle(fontSize: 12),
+                            ),
                     ),
                     const SizedBox(width: 8),
                     OutlinedButton(
@@ -390,6 +573,34 @@ class _ImpressoraConteudoState extends State<_ImpressoraConteudo> {
           ),
         ),
       ],
+    );
+  }
+}
+
+class _LinhaComHover extends StatefulWidget {
+  final Widget Function(bool hover) builder;
+  final VoidCallback aoClicar;
+
+  const _LinhaComHover({required this.builder, required this.aoClicar});
+
+  @override
+  State<_LinhaComHover> createState() => _LinhaComHoverState();
+}
+
+class _LinhaComHoverState extends State<_LinhaComHover> {
+  bool _hover = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      onEnter: (_) => setState(() => _hover = true),
+      onExit: (_) => setState(() => _hover = false),
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: widget.aoClicar,
+        child: widget.builder(_hover),
+      ),
     );
   }
 }

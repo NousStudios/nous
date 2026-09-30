@@ -456,6 +456,7 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
       lojaId: widget.lojaId,
       pedidos: List.of(_pedidos),
       onExcluirPedido: _excluirPedido,
+      aoAbrirClientes: _abrirPopupClientes,
     );
   }
 

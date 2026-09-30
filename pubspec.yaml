@@ -1,66 +1,39 @@
 name: nous
 description: "Um novo projeto Flutter."
 
-# A linha a seguir impede que o pacote seja publicado acidentalmente no
-# pub.dev usando `flutter pub publish`. Isso é o recomendado para pacotes privados.
-publish_to: 'none' # Remova esta linha se desejar publicar o projeto no pub.dev.
+publish_to: 'none'
 
-# A seção a seguir define a versão e o número de compilação (build) do seu aplicativo.
-# O número da versão é composto por três números separados por pontos, como 1.2.43,
-# seguido por um número de compilação opcional separado por um +.
-#
-# No Android: o nome da versão (build-name) é o versionName e o número (build-number) é o versionCode.
-# No iOS: o nome da versão é o CFBundleShortVersionString e o número é o CFBundleVersion.
-# No Windows: o nome da versão define as partes principal, secundária e de correção (major, minor, patch).
 version: 1.0.0+1
 
 environment:
   sdk: ^3.11.4
 
-# As dependências (dependencies) especificam outros pacotes que seu projeto precisa para funcionar.
-# Para atualizar automaticamente suas dependências para as versões mais recentes,
-# considere rodar `flutter pub upgrade --major-versions`.
-# Para ver quais dependências possuem versões mais novas, rode `flutter pub outdated`.
 dependencies:
   flutter:
     sdk: flutter
   google_fonts: ^6.1.0
   flex_color_picker: ^3.6.0
-  # Adiciona a fonte de ícones no estilo Cupertino (iOS) ao seu aplicativo.
   cupertino_icons: ^1.0.8
-  #Cores como a do Canvas, adicionar gradiente etc
   flutter_colorpicker: ^1.1.0
-  # Permite guardar pequenos dados (como os temas salvos pelo usuário) no armazenamento
-  # do próprio aparelho, para que sobrevivam mesmo depois de fechar o app.
   shared_preferences: ^2.2.0
-  # Gerenciamento de estado: é o pacote que vai deixar telas diferentes do app
-  # "conversarem" entre si sobre coisas como "o usuário está logado?" ou
-  # "qual CPF ele digitou?", sem a gente precisar passar essa informação
-  # manualmente de widget em widget.
   provider: ^6.1.2
+  printing: ^5.13.0
+  pdf: ^3.11.0
 
-# Dependências usadas apenas durante o desenvolvimento (não vão para o app final do usuário).
 dev_dependencies:
   flutter_test:
     sdk: flutter
 
-  # O pacote "flutter_lints" traz um conjunto de regras recomendadas para
-  # incentivar boas práticas de código no Dart/Flutter.
   flutter_lints: ^6.0.0
 
-# As configurações abaixo são específicas para pacotes do Flutter.
 flutter:
 
-  # Garante que a fonte de ícones do Material Design (Android) seja
-  # incluída no app, permitindo usar a classe Icons.
   uses-material-design: true
 
-  # Mídias e arquivos estáticos (imagens, ícones, arquivos de dados) do seu app:
   assets:
     - assets/images/
     - assets/icons/
 
-  # Fonte personalizada do app: Belleza
   fonts:
     - family: Belleza
       fonts:
