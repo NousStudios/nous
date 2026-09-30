@@ -67,8 +67,7 @@ class PdvProvider extends ChangeNotifier {
   }
 
   bool possoUsarFinanceiro(String lojaId) {
-    final p = meuPapel(lojaId);
-    return p == PapelMembro.dono || p == PapelMembro.socio;
+    return meuPapel(lojaId) != null;
   }
 
   bool possoGerenciarMembros(String lojaId) {

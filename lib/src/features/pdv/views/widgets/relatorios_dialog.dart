@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:provider/provider.dart';
 import 'package:nous/src/core/theme/theme_controller.dart';
 import 'package:nous/src/features/pdv/models/pedido_loja.dart';
 import 'package:nous/src/features/pdv/models/registro_acao.dart';
+import 'package:nous/src/features/pdv/providers/pdv_provider.dart';
 import 'package:nous/src/features/pdv/views/widgets/estado_vazio_container.dart';
 import 'package:nous/src/features/pdv/views/widgets/venda_registrada_dialog.dart';
 
@@ -51,8 +53,8 @@ class RelatoriosDialog {
   static Future<void> mostrar(
     BuildContext context, {
     required AppTheme theme,
+    required String lojaId,
     required List<PedidoLoja> pedidos,
-    required List<RegistroAcao> acoes,
     ValueChanged<String>? onExcluirPedido,
   }) {
     return showDialog<void>(
@@ -69,8 +71,8 @@ class RelatoriosDialog {
             constraints: const BoxConstraints(maxWidth: 500),
             child: _RelatoriosConteudo(
               theme: theme,
+              lojaId: lojaId,
               pedidos: pedidos,
-              acoes: acoes,
               onExcluirPedido: onExcluirPedido,
             ),
           ),
@@ -82,14 +84,14 @@ class RelatoriosDialog {
 
 class _RelatoriosConteudo extends StatefulWidget {
   final AppTheme theme;
+  final String lojaId;
   final List<PedidoLoja> pedidos;
-  final List<RegistroAcao> acoes;
   final ValueChanged<String>? onExcluirPedido;
 
   const _RelatoriosConteudo({
     required this.theme,
+    required this.lojaId,
     required this.pedidos,
-    required this.acoes,
     this.onExcluirPedido,
   });
 
@@ -99,8 +101,10 @@ class _RelatoriosConteudo extends StatefulWidget {
 
 class _RelatoriosConteudoState extends State<_RelatoriosConteudo> {
   final _buscaController = TextEditingController();
+  final _buscaAcoesController = TextEditingController();
   final _dataController = TextEditingController();
   final _filtrosScrollController = ScrollController();
+  final _acoesScrollController = ScrollController();
 
   late final List<PedidoLoja> _pedidos;
   String? _forma;
@@ -116,8 +120,10 @@ class _RelatoriosConteudoState extends State<_RelatoriosConteudo> {
   @override
   void dispose() {
     _buscaController.dispose();
+    _buscaAcoesController.dispose();
     _dataController.dispose();
     _filtrosScrollController.dispose();
+    _acoesScrollController.dispose();
     super.dispose();
   }
 
@@ -162,8 +168,23 @@ class _RelatoriosConteudoState extends State<_RelatoriosConteudo> {
     return lista;
   }
 
-  List<RegistroAcao> get _acoesOrdenadas {
-    final lista = List.of(widget.acoes);
+  List<RegistroAcao> _acoesFiltradas(List<RegistroAcao> origem) {
+    final termo = _buscaAcoesController.text.trim().toLowerCase();
+    final lista = termo.isEmpty
+        ? List.of(origem)
+        : origem.where((a) {
+            if (a.descricao.toLowerCase().contains(termo)) return true;
+            if (a.nomeAutor.toLowerCase().contains(termo)) return true;
+            if (a.emailAutor.toLowerCase().contains(termo)) return true;
+            if (a.cpfAutor.contains(termo)) return true;
+            if (_formatarCpf(a.cpfAutor).toLowerCase().contains(termo)) {
+              return true;
+            }
+            if (_dataHoraCurta(a.dataHora).toLowerCase().contains(termo)) {
+              return true;
+            }
+            return false;
+          }).toList();
     lista.sort((a, b) => b.dataHora.compareTo(a.dataHora));
     return lista;
   }
@@ -322,53 +343,10 @@ class _RelatoriosConteudoState extends State<_RelatoriosConteudo> {
     );
   }
 
-  Widget _linhaDeAcao(RegistroAcao acao) {
-    final autorPartes = <String>[
-      if (acao.nomeAutor.isNotEmpty) acao.nomeAutor,
-      if (acao.cpfAutor.isNotEmpty) _formatarCpf(acao.cpfAutor),
-      if (acao.emailAutor.isNotEmpty) acao.emailAutor,
-    ];
+  Widget _blocoAcoes(List<RegistroAcao> acoesOrigem) {
+    final acoes = _acoesFiltradas(acoesOrigem);
+    final nadaRegistrado = acoesOrigem.isEmpty;
 
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: theme.borderColor),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            acao.descricao,
-            style: theme.getTextStyle(fontSize: 12, color: theme.textColor),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            _dataHoraCurta(acao.dataHora),
-            style: theme.getTextStyle(
-              fontSize: 10,
-              color: theme.secondaryTextColor,
-            ),
-          ),
-          if (autorPartes.isNotEmpty) ...[
-            const SizedBox(height: 2),
-            Text(
-              'por ${autorPartes.join(' • ')}',
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: theme.getTextStyle(
-                fontSize: 10,
-                color: theme.secondaryTextColor,
-              ),
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-
-  Widget _blocoAcoes() {
-    final acoes = _acoesOrdenadas;
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(12),
@@ -376,20 +354,41 @@ class _RelatoriosConteudoState extends State<_RelatoriosConteudo> {
       child: Column(
         children: [
           _tituloDoBloco('Ações'),
-          if (acoes.isEmpty)
+          TextField(
+            controller: _buscaAcoesController,
+            cursorColor: theme.textColor,
+            style: theme.getTextStyle(fontSize: 12),
+            decoration: _decoracaoCampo('Pesquisar ações (texto ou data)'),
+            onChanged: (_) => setState(() {}),
+          ),
+          const SizedBox(height: 10),
+          if (nadaRegistrado)
             EstadoVazioContainer(
               theme: theme,
               mensagem: 'Nenhuma ação registrada ainda.',
             )
+          else if (acoes.isEmpty)
+            EstadoVazioContainer(
+              theme: theme,
+              mensagem: 'Nenhuma ação encontrada.',
+            )
           else
             ConstrainedBox(
               constraints: const BoxConstraints(maxHeight: 260),
-              child: ListView.separated(
-                shrinkWrap: true,
-                itemCount: acoes.length,
-                separatorBuilder: (context, index) =>
-                    const SizedBox(height: 8),
-                itemBuilder: (context, index) => _linhaDeAcao(acoes[index]),
+              child: Scrollbar(
+                controller: _acoesScrollController,
+                thumbVisibility: true,
+                child: ListView.separated(
+                  controller: _acoesScrollController,
+                  shrinkWrap: true,
+                  itemCount: acoes.length,
+                  separatorBuilder: (context, index) =>
+                      const SizedBox(height: 8),
+                  itemBuilder: (context, index) => _BarraAcao(
+                    theme: theme,
+                    acao: acoes[index],
+                  ),
+                ),
               ),
             ),
         ],
@@ -399,6 +398,10 @@ class _RelatoriosConteudoState extends State<_RelatoriosConteudo> {
 
   @override
   Widget build(BuildContext context) {
+    final pdv = context.watch<PdvProvider>();
+    final loja = pdv.buscarPorId(widget.lojaId);
+    final acoes = loja?.acoes ?? const <RegistroAcao>[];
+
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -432,12 +435,85 @@ class _RelatoriosConteudoState extends State<_RelatoriosConteudo> {
               children: [
                 _blocoRelatorios(),
                 const SizedBox(height: 12),
-                _blocoAcoes(),
+                _blocoAcoes(acoes),
               ],
             ),
           ),
         ),
       ],
+    );
+  }
+}
+
+class _BarraAcao extends StatefulWidget {
+  final AppTheme theme;
+  final RegistroAcao acao;
+
+  const _BarraAcao({required this.theme, required this.acao});
+
+  @override
+  State<_BarraAcao> createState() => _BarraAcaoState();
+}
+
+class _BarraAcaoState extends State<_BarraAcao> {
+  bool _hover = false;
+
+  AppTheme get theme => widget.theme;
+
+  @override
+  Widget build(BuildContext context) {
+    final acao = widget.acao;
+    final autorPartes = <String>[
+      if (acao.nomeAutor.isNotEmpty) acao.nomeAutor,
+      if (acao.cpfAutor.isNotEmpty) _formatarCpf(acao.cpfAutor),
+      if (acao.emailAutor.isNotEmpty) acao.emailAutor,
+    ];
+
+    return MouseRegion(
+      onEnter: (_) => setState(() => _hover = true),
+      onExit: (_) => setState(() => _hover = false),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        decoration: BoxDecoration(
+          color: _hover
+              ? theme.borderColor.withValues(alpha: 0.18)
+              : Colors.transparent,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(
+            color: _hover ? theme.textColor : theme.borderColor,
+          ),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              acao.descricao,
+              style: theme.getTextStyle(fontSize: 12, color: theme.textColor),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              _dataHoraCurta(acao.dataHora),
+              style: theme.getTextStyle(
+                fontSize: 10,
+                color: theme.secondaryTextColor,
+              ),
+            ),
+            if (autorPartes.isNotEmpty) ...[
+              const SizedBox(height: 2),
+              Text(
+                'por ${autorPartes.join(' • ')}',
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: theme.getTextStyle(
+                  fontSize: 10,
+                  color: theme.secondaryTextColor,
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
     );
   }
 }

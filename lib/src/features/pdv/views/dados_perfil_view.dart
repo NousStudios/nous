@@ -42,8 +42,13 @@ import 'package:nous/src/features/pdv/views/widgets/usuarios_participantes_conta
 
 class DadosPerfilView extends StatefulWidget {
   final String lojaId;
+  final AbaLoja abaInicial;
 
-  const DadosPerfilView({super.key, required this.lojaId});
+  const DadosPerfilView({
+    super.key,
+    required this.lojaId,
+    this.abaInicial = AbaLoja.dados,
+  });
 
   @override
   State<DadosPerfilView> createState() => _DadosPerfilViewState();
@@ -72,7 +77,7 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
   final _scrollCategorias = ScrollController();
   final _scrollGrupos = ScrollController();
 
-  AbaLoja _abaSelecionada = AbaLoja.dados;
+  late AbaLoja _abaSelecionada;
 
   final List<CategoriaLoja> _categorias = [];
   final List<ItemLoja> _itens = [];
@@ -407,6 +412,16 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
         ..addAll(atualizados);
     });
     _persistirListasLoja();
+
+    final indiceCliente = _clientes.indexWhere((c) => c.id == clienteId);
+    final nomeCliente =
+        indiceCliente == -1 ? '' : _clientes[indiceCliente].nome;
+
+    _registrarAcao(
+      TipoAcao.pagamentoPrazoRecebido,
+      'Pagamento à prazo recebido de "$nomeCliente" '
+          '(${_valorFormatado(valor)})',
+    );
   }
 
   void _excluirCliente(String clienteId) {
@@ -435,14 +450,11 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
   }
 
   Future<void> _abrirPopupRelatorios() {
-    final loja = context.read<PdvProvider>().buscarPorId(widget.lojaId);
-    final acoes = loja?.acoes ?? const <RegistroAcao>[];
-
     return RelatoriosDialog.mostrar(
       context,
       theme: ThemeController.currentTheme.value,
+      lojaId: widget.lojaId,
       pedidos: List.of(_pedidos),
-      acoes: acoes,
       onExcluirPedido: _excluirPedido,
     );
   }
@@ -909,6 +921,14 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
       _categorias[indice] = categoria.copyWith(itemIds: novosIds);
     });
     _persistirListasLoja();
+
+    final itemIndice = _itens.indexWhere((i) => i.id == itemId);
+    final nomeItem = itemIndice == -1 ? '' : _itens[itemIndice].nome;
+
+    _registrarAcao(
+      TipoAcao.itemVinculadoCategoria,
+      'Item "$nomeItem" vinculado à categoria "${categoria.nome}"',
+    );
   }
 
   void _removerItemDaCategoria(CategoriaLoja categoria, String itemId) {
@@ -921,6 +941,14 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
       _categorias[indice] = categoria.copyWith(itemIds: novosIds);
     });
     _persistirListasLoja();
+
+    final itemIndice = _itens.indexWhere((i) => i.id == itemId);
+    final nomeItem = itemIndice == -1 ? '' : _itens[itemIndice].nome;
+
+    _registrarAcao(
+      TipoAcao.itemDesvinculadoCategoria,
+      'Item "$nomeItem" desvinculado da categoria "${categoria.nome}"',
+    );
   }
 
   void _adicionarItemNoGrupoComponentes(
@@ -933,6 +961,14 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
       _gruposComponentes[indice] = grupo.copyWith(itemIds: novosIds);
     });
     _persistirListasLoja();
+
+    final itemIndice = _itens.indexWhere((i) => i.id == itemId);
+    final nomeItem = itemIndice == -1 ? '' : _itens[itemIndice].nome;
+
+    _registrarAcao(
+      TipoAcao.itemVinculadoGrupo,
+      'Item "$nomeItem" vinculado ao grupo "${grupo.nome}"',
+    );
   }
 
   void _removerItemDoGrupoComponentes(
@@ -945,11 +981,21 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
       _gruposComponentes[indice] = grupo.copyWith(itemIds: novosIds);
     });
     _persistirListasLoja();
+
+    final itemIndice = _itens.indexWhere((i) => i.id == itemId);
+    final nomeItem = itemIndice == -1 ? '' : _itens[itemIndice].nome;
+
+    _registrarAcao(
+      TipoAcao.itemDesvinculadoGrupo,
+      'Item "$nomeItem" desvinculado do grupo "${grupo.nome}"',
+    );
   }
 
   @override
   void initState() {
     super.initState();
+
+    _abaSelecionada = widget.abaInicial;
 
     final loja = context.read<PdvProvider>().buscarPorId(widget.lojaId);
 

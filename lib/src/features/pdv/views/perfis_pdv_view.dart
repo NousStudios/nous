@@ -72,7 +72,10 @@ class PerfisPdvView extends StatelessWidget {
           onTap: () {
             Navigator.of(context).push(
               MaterialPageRoute(
-                builder: (context) => DadosPerfilView(lojaId: loja.id),
+                builder: (context) => DadosPerfilView(
+                  lojaId: loja.id,
+                  abaInicial: AbaLoja.gestao,
+                ),
               ),
             );
           },

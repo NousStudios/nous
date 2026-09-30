@@ -23,6 +23,11 @@ enum TipoAcao {
   membroRemovido,
   papelAlterado,
   conviteEnviado,
+  pagamentoPrazoRecebido,
+  itemVinculadoCategoria,
+  itemDesvinculadoCategoria,
+  itemVinculadoGrupo,
+  itemDesvinculadoGrupo,
 }
 
 class RegistroAcao {
