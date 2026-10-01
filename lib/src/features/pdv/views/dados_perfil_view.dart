@@ -308,6 +308,7 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
           endereco: _controllers.endereco.text,
           numero: _controllers.numero.text,
           email: _controllers.email.text,
+          redesSociais: _controllers.redesSociais.text,
           categorias: _controllers.categorias.text,
           tags: _controllers.tags.text,
         );
@@ -1174,6 +1175,7 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
     _controllers.endereco.text = loja?.endereco ?? '';
     _controllers.numero.text = loja?.numero ?? '';
     _controllers.email.text = loja?.email ?? '';
+    _controllers.redesSociais.text = loja?.redesSociais ?? '';
     _controllers.categorias.text = loja?.categorias ?? '';
     _controllers.tags.text = loja?.tags ?? '';
 

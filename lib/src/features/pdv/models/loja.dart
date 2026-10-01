@@ -19,6 +19,7 @@ class Loja {
   final String endereco;
   final String numero;
   final String email;
+  final String redesSociais;
   final String categorias;
   final String tags;
 
@@ -43,6 +44,7 @@ class Loja {
     required this.endereco,
     required this.numero,
     required this.email,
+    this.redesSociais = '',
     required this.categorias,
     required this.tags,
     this.categoriasLoja = const [],
@@ -65,6 +67,7 @@ class Loja {
     String? endereco,
     String? numero,
     String? email,
+    String? redesSociais,
     String? categorias,
     String? tags,
     List<CategoriaLoja>? categoriasLoja,
@@ -87,6 +90,7 @@ class Loja {
       endereco: endereco ?? this.endereco,
       numero: numero ?? this.numero,
       email: email ?? this.email,
+      redesSociais: redesSociais ?? this.redesSociais,
       categorias: categorias ?? this.categorias,
       tags: tags ?? this.tags,
       categoriasLoja: categoriasLoja ?? this.categoriasLoja,
@@ -114,6 +118,7 @@ class Loja {
       'endereco': endereco,
       'numero': numero,
       'email': email,
+      'redesSociais': redesSociais,
       'categorias': categorias,
       'tags': tags,
       'categoriasLoja': categoriasLoja.map((c) => c.toJson()).toList(),
@@ -142,6 +147,7 @@ class Loja {
       endereco: json['endereco'] as String,
       numero: json['numero'] as String,
       email: json['email'] as String,
+      redesSociais: json['redesSociais'] as String? ?? '',
       categorias: json['categorias'] as String,
       tags: json['tags'] as String,
       categoriasLoja: (json['categoriasLoja'] as List<dynamic>? ?? const [])

@@ -162,6 +162,7 @@ class PdvProvider extends ChangeNotifier {
     required String endereco,
     required String numero,
     required String email,
+    String redesSociais = '',
     required String categorias,
     required String tags,
   }) {
@@ -175,6 +176,7 @@ class PdvProvider extends ChangeNotifier {
       endereco: endereco,
       numero: numero,
       email: email,
+      redesSociais: redesSociais,
       categorias: categorias,
       tags: tags,
     );
@@ -231,6 +233,7 @@ class PdvProvider extends ChangeNotifier {
     required String endereco,
     required String numero,
     required String email,
+    required String redesSociais,
     required String categorias,
     required String tags,
   }) {
@@ -244,6 +247,7 @@ class PdvProvider extends ChangeNotifier {
       endereco: endereco,
       numero: numero,
       email: email,
+      redesSociais: redesSociais,
       categorias: categorias,
       tags: tags,
     );

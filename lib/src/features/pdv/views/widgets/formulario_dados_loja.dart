@@ -11,6 +11,7 @@ class ControllersDadosLoja {
   final endereco = TextEditingController();
   final numero = TextEditingController();
   final email = TextEditingController();
+  final redesSociais = TextEditingController();
   final categorias = TextEditingController();
   final tags = TextEditingController();
 
@@ -21,6 +22,7 @@ class ControllersDadosLoja {
     endereco.dispose();
     numero.dispose();
     email.dispose();
+    redesSociais.dispose();
     categorias.dispose();
     tags.dispose();
   }
@@ -119,6 +121,13 @@ class FormularioDadosLoja extends StatelessWidget {
           controller: controllers.email,
           label: 'Email',
           tipoDeTeclado: TextInputType.emailAddress,
+        ),
+        const SizedBox(height: 12),
+
+        ThemedTextField(
+          theme: theme,
+          controller: controllers.redesSociais,
+          label: 'Redes Sociais',
         ),
         const SizedBox(height: 12),
 
