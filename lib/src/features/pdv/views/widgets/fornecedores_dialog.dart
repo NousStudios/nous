@@ -1,27 +1,20 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:nous/src/core/theme/theme_controller.dart';
 import 'package:nous/src/core/widgets/themed_text_field.dart';
 import 'package:nous/src/features/pdv/models/cliente.dart';
-import 'package:nous/src/features/pdv/models/pedido_loja.dart';
+import 'package:nous/src/features/pdv/models/fornecedor.dart';
 import 'package:nous/src/features/pdv/services/cnpj_input_formatter.dart';
 import 'package:nous/src/features/pdv/services/telefone_input_formatter.dart';
 import 'package:nous/src/features/pdv/views/widgets/estado_vazio_container.dart';
-import 'package:nous/src/features/pdv/views/widgets/venda_registrada_dialog.dart';
 
-String _valor(double v) => 'R\$ ${v.toStringAsFixed(2).replaceAll('.', ',')}';
-
-class ClientesDialog {
+class FornecedoresDialog {
   static Future<void> mostrar(
     BuildContext context, {
     required AppTheme theme,
-    required String lojaId,
     required List<Cliente> clientes,
-    required List<PedidoLoja> pedidos,
-    required ValueChanged<Cliente> onSalvar,
-    required void Function(String clienteId, double valor) onPagar,
+    required List<Fornecedor> fornecedores,
+    required ValueChanged<Fornecedor> onSalvar,
     required ValueChanged<String> onExcluir,
-    String? clienteInicialId,
   }) {
     return showDialog<void>(
       context: context,
@@ -35,15 +28,12 @@ class ClientesDialog {
           ),
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 500),
-            child: _ClientesConteudo(
+            child: _FornecedoresConteudo(
               theme: theme,
-              lojaId: lojaId,
               clientes: clientes,
-              pedidos: pedidos,
+              fornecedores: fornecedores,
               onSalvar: onSalvar,
-              onPagar: onPagar,
               onExcluir: onExcluir,
-              clienteInicialId: clienteInicialId,
             ),
           ),
         );
@@ -52,32 +42,27 @@ class ClientesDialog {
   }
 }
 
-class _ClientesConteudo extends StatefulWidget {
+class _FornecedoresConteudo extends StatefulWidget {
   final AppTheme theme;
-  final String lojaId;
   final List<Cliente> clientes;
-  final List<PedidoLoja> pedidos;
-  final ValueChanged<Cliente> onSalvar;
-  final void Function(String clienteId, double valor) onPagar;
+  final List<Fornecedor> fornecedores;
+  final ValueChanged<Fornecedor> onSalvar;
   final ValueChanged<String> onExcluir;
-  final String? clienteInicialId;
 
-  const _ClientesConteudo({
+  const _FornecedoresConteudo({
     required this.theme,
-    required this.lojaId,
     required this.clientes,
-    required this.pedidos,
+    required this.fornecedores,
     required this.onSalvar,
-    required this.onPagar,
     required this.onExcluir,
-    this.clienteInicialId,
   });
 
   @override
-  State<_ClientesConteudo> createState() => _ClientesConteudoState();
+  State<_FornecedoresConteudo> createState() =>
+      _FornecedoresConteudoState();
 }
 
-class _ClientesConteudoState extends State<_ClientesConteudo> {
+class _FornecedoresConteudoState extends State<_FornecedoresConteudo> {
   final _nomeController = TextEditingController();
   final _cnpjController = TextEditingController();
   final _telefoneController = TextEditingController();
@@ -86,39 +71,22 @@ class _ClientesConteudoState extends State<_ClientesConteudo> {
   final _emailController = TextEditingController();
   final _redesSociaisController = TextEditingController();
   final _descricaoController = TextEditingController();
-  final _pagamentoController = TextEditingController();
   final _pesquisaController = TextEditingController();
+  final _pesquisaClientesController = TextEditingController();
 
+  late List<Fornecedor> _fornecedores;
   late List<Cliente> _clientes;
-  late List<PedidoLoja> _pedidos;
-  Cliente? _editando;
+  Fornecedor? _editando;
+  String? _origemClienteId;
   String? _aviso;
-  String? _avisoPagamento;
 
   AppTheme get theme => widget.theme;
 
   @override
   void initState() {
     super.initState();
+    _fornecedores = List.of(widget.fornecedores);
     _clientes = List.of(widget.clientes);
-    _pedidos = List.of(widget.pedidos);
-
-    final id = widget.clienteInicialId;
-    if (id != null && id.isNotEmpty) {
-      final indice = _clientes.indexWhere((c) => c.id == id);
-      if (indice != -1) {
-        _editando = _clientes[indice];
-        final c = _clientes[indice];
-        _nomeController.text = c.nome;
-        _cnpjController.text = c.cnpj;
-        _telefoneController.text = c.telefone;
-        _enderecoController.text = c.endereco;
-        _numeroController.text = c.numero;
-        _emailController.text = c.email;
-        _redesSociaisController.text = c.redesSociais;
-        _descricaoController.text = c.descricao;
-      }
-    }
   }
 
   @override
@@ -131,8 +99,8 @@ class _ClientesConteudoState extends State<_ClientesConteudo> {
     _emailController.dispose();
     _redesSociaisController.dispose();
     _descricaoController.dispose();
-    _pagamentoController.dispose();
     _pesquisaController.dispose();
+    _pesquisaClientesController.dispose();
     super.dispose();
   }
 
@@ -145,24 +113,24 @@ class _ClientesConteudoState extends State<_ClientesConteudo> {
     _emailController.clear();
     _redesSociaisController.clear();
     _descricaoController.clear();
-    _pagamentoController.clear();
-    _avisoPagamento = null;
+    _origemClienteId = null;
   }
 
-  void _abrirEdicao(Cliente cliente) {
+  void _abrirEdicao(Fornecedor fornecedor) {
     setState(() {
-      _editando = cliente;
+      _editando = fornecedor;
+      _origemClienteId = fornecedor.origemClienteId.isEmpty
+          ? null
+          : fornecedor.origemClienteId;
       _aviso = null;
-      _avisoPagamento = null;
-      _pagamentoController.clear();
-      _nomeController.text = cliente.nome;
-      _cnpjController.text = cliente.cnpj;
-      _telefoneController.text = cliente.telefone;
-      _enderecoController.text = cliente.endereco;
-      _numeroController.text = cliente.numero;
-      _emailController.text = cliente.email;
-      _redesSociaisController.text = cliente.redesSociais;
-      _descricaoController.text = cliente.descricao;
+      _nomeController.text = fornecedor.nome;
+      _cnpjController.text = fornecedor.cnpj;
+      _telefoneController.text = fornecedor.telefone;
+      _enderecoController.text = fornecedor.endereco;
+      _numeroController.text = fornecedor.numero;
+      _emailController.text = fornecedor.email;
+      _redesSociaisController.text = fornecedor.redesSociais;
+      _descricaoController.text = fornecedor.descricao;
     });
   }
 
@@ -174,15 +142,32 @@ class _ClientesConteudoState extends State<_ClientesConteudo> {
     });
   }
 
+  void _copiarClienteParaFormulario(Cliente cliente) {
+    setState(() {
+      _editando = null;
+      _aviso = null;
+      _origemClienteId = cliente.id;
+      _nomeController.text = cliente.nome;
+      _cnpjController.text = cliente.cnpj;
+      _telefoneController.text = cliente.telefone;
+      _enderecoController.text = cliente.endereco;
+      _numeroController.text = cliente.numero;
+      _emailController.text = cliente.email;
+      _redesSociaisController.text = cliente.redesSociais;
+      _descricaoController.text = cliente.descricao;
+    });
+  }
+
   void _salvar() {
     final nome = _nomeController.text.trim();
     if (nome.isEmpty) {
-      setState(() => _aviso = 'Informe o nome do cliente.');
+      setState(() => _aviso = 'Informe o nome do fornecedor.');
       return;
     }
 
-    final cliente = Cliente(
-      id: _editando?.id ?? DateTime.now().millisecondsSinceEpoch.toString(),
+    final fornecedor = Fornecedor(
+      id: _editando?.id ??
+          DateTime.now().millisecondsSinceEpoch.toString(),
       nome: nome,
       cnpj: _cnpjController.text.trim(),
       telefone: _telefoneController.text.trim(),
@@ -191,16 +176,18 @@ class _ClientesConteudoState extends State<_ClientesConteudo> {
       email: _emailController.text.trim(),
       redesSociais: _redesSociaisController.text.trim(),
       descricao: _descricaoController.text.trim(),
+      origemClienteId: _origemClienteId ?? '',
+      dataCriacao: _editando?.dataCriacao ?? DateTime.now(),
     );
 
-    widget.onSalvar(cliente);
+    widget.onSalvar(fornecedor);
 
     setState(() {
-      final indice = _clientes.indexWhere((c) => c.id == cliente.id);
+      final indice = _fornecedores.indexWhere((f) => f.id == fornecedor.id);
       if (indice == -1) {
-        _clientes.add(cliente);
+        _fornecedores.add(fornecedor);
       } else {
-        _clientes[indice] = cliente;
+        _fornecedores[indice] = fornecedor;
       }
       _editando = null;
       _aviso = null;
@@ -208,51 +195,7 @@ class _ClientesConteudoState extends State<_ClientesConteudo> {
     });
   }
 
-  void _aplicarPagamento(String clienteId, double valor) {
-    widget.onPagar(clienteId, valor);
-    setState(() {
-      _pedidos = aplicarPagamentoAPrazo(_pedidos, clienteId, valor);
-      _pagamentoController.clear();
-      _avisoPagamento = null;
-    });
-  }
-
-  void _quitarTudo() {
-    final id = _editando?.id;
-    if (id == null) return;
-    final devido = _devido(id);
-    if (devido <= 0) return;
-    _aplicarPagamento(id, devido);
-  }
-
-  void _quitarValor() {
-    final id = _editando?.id;
-    if (id == null) return;
-
-    final texto = _pagamentoController.text.trim().replaceAll(',', '.');
-    final valor = double.tryParse(texto);
-    if (valor == null || valor <= 0) {
-      setState(() => _avisoPagamento = 'Informe um valor válido.');
-      return;
-    }
-
-    final devido = _devido(id);
-    if (valor > devido + 0.005) {
-      setState(() => _avisoPagamento = 'Valor maior que o devido.');
-      return;
-    }
-
-    _aplicarPagamento(id, valor);
-  }
-
-  Future<void> _confirmarExclusao(Cliente cliente) async {
-    final devido = _devido(cliente.id);
-    final aviso = devido > 0
-        ? 'Este cliente tem ${_valor(devido)} em aberto. '
-            'Deseja excluir mesmo assim? Essa ação não pode ser desfeita.'
-        : 'Tem certeza que deseja excluir este cliente? Essa ação não '
-            'pode ser desfeita.';
-
+  Future<void> _confirmarExclusao(Fornecedor fornecedor) async {
     final confirmou = await showDialog<bool>(
       context: context,
       builder: (dialogContext) {
@@ -263,7 +206,7 @@ class _ClientesConteudoState extends State<_ClientesConteudo> {
             side: BorderSide(color: theme.borderColor),
           ),
           title: Text(
-            'Excluir Cliente',
+            'Excluir Fornecedor',
             textAlign: TextAlign.center,
             style: theme.getTextStyle(
               fontSize: 18,
@@ -271,13 +214,12 @@ class _ClientesConteudoState extends State<_ClientesConteudo> {
               color: theme.textColor,
             ),
           ),
-          content: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 500),
-            child: Text(
-              aviso,
-              textAlign: TextAlign.center,
-              style: theme.getTextStyle(fontSize: 14),
-            ),
+          content: Text(
+            'Tem certeza que deseja excluir este fornecedor? '
+            'Os movimentos de estoque já registrados continuam guardando '
+            'o nome dele.',
+            textAlign: TextAlign.center,
+            style: theme.getTextStyle(fontSize: 14),
           ),
           actionsAlignment: MainAxisAlignment.center,
           actions: [
@@ -302,31 +244,19 @@ class _ClientesConteudoState extends State<_ClientesConteudo> {
 
     if (confirmou != true) return;
 
-    widget.onExcluir(cliente.id);
+    widget.onExcluir(fornecedor.id);
 
     if (!mounted) return;
     setState(() {
-      _clientes.removeWhere((c) => c.id == cliente.id);
+      _fornecedores.removeWhere((f) => f.id == fornecedor.id);
       _editando = null;
       _aviso = null;
       _limparCampos();
     });
   }
 
-  double _devido(String clienteId) {
-    var soma = 0.0;
-    for (final p in _pedidos) {
-      if (p.clienteId == clienteId && p.aPrazoEmAberto) {
-        soma += p.valorRestante;
-      }
-    }
-    return soma;
-  }
-
-  List<PedidoLoja> _historico(String clienteId) {
-    final lista = _pedidos.where((p) => p.clienteId == clienteId).toList();
-    lista.sort((a, b) => b.dataHora.compareTo(a.dataHora));
-    return lista;
+  bool _clienteJaEhFornecedor(Cliente cliente) {
+    return _fornecedores.any((f) => f.origemClienteId == cliente.id);
   }
 
   BoxDecoration get _decoracaoDoBloco => BoxDecoration(
@@ -334,22 +264,6 @@ class _ClientesConteudoState extends State<_ClientesConteudo> {
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: theme.borderColor.withValues(alpha: 0.6)),
       );
-
-  InputDecoration _decoracaoCampo(String dica) {
-    OutlineInputBorder borda(Color cor) => OutlineInputBorder(
-          borderRadius: BorderRadius.circular(30),
-          borderSide: BorderSide(color: cor),
-        );
-    return InputDecoration(
-      hintText: dica,
-      hintStyle:
-          theme.getTextStyle(fontSize: 12, color: theme.secondaryTextColor),
-      isDense: true,
-      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      enabledBorder: borda(theme.borderColor),
-      focusedBorder: borda(theme.textColor),
-    );
-  }
 
   InputDecoration _decoracaoPesquisa(String dica) {
     OutlineInputBorder borda(Color cor) => OutlineInputBorder(
@@ -411,13 +325,21 @@ class _ClientesConteudoState extends State<_ClientesConteudo> {
 
   Widget _blocoFormulario() {
     final editando = _editando;
+    final veioDeCliente = _origemClienteId != null && editando == null;
+
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(12),
       decoration: _decoracaoDoBloco,
       child: Column(
         children: [
-          _tituloDoBloco(editando != null ? 'Editar Cliente' : 'Novo Cliente'),
+          _tituloDoBloco(
+            editando != null
+                ? 'Editar Fornecedor'
+                : (veioDeCliente
+                    ? 'Novo Fornecedor (dados do cliente)'
+                    : 'Novo Fornecedor'),
+          ),
 
           InkWell(
             onTap: () {},
@@ -426,7 +348,7 @@ class _ClientesConteudoState extends State<_ClientesConteudo> {
               radius: 40,
               backgroundColor: theme.cardBackgroundColor,
               child: Icon(
-                Icons.person,
+                Icons.storefront_outlined,
                 size: 44,
                 color: theme.secondaryTextColor,
               ),
@@ -437,7 +359,7 @@ class _ClientesConteudoState extends State<_ClientesConteudo> {
           ThemedTextField(
             theme: theme,
             controller: _nomeController,
-            label: 'Nome do Cliente',
+            label: 'Nome do Fornecedor',
             obrigatorio: true,
           ),
           const SizedBox(height: 12),
@@ -525,7 +447,7 @@ class _ClientesConteudoState extends State<_ClientesConteudo> {
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              if (editando != null) ...[
+              if (editando != null || veioDeCliente) ...[
                 _botao('Cancelar', _cancelarEdicao),
                 const SizedBox(width: 8),
               ],
@@ -538,7 +460,7 @@ class _ClientesConteudoState extends State<_ClientesConteudo> {
             TextButton(
               onPressed: () => _confirmarExclusao(editando),
               child: Text(
-                'Excluir Cliente',
+                'Excluir Fornecedor',
                 style: theme.getTextStyle(
                   fontSize: 12,
                   color: Colors.redAccent,
@@ -551,133 +473,9 @@ class _ClientesConteudoState extends State<_ClientesConteudo> {
     );
   }
 
-  Widget _painelPagamento() {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        TextField(
-          controller: _pagamentoController,
-          keyboardType: const TextInputType.numberWithOptions(decimal: true),
-          inputFormatters: [
-            FilteringTextInputFormatter.allow(RegExp(r'[0-9,]')),
-          ],
-          cursorColor: theme.textColor,
-          style: theme.getTextStyle(fontSize: 12),
-          decoration: _decoracaoCampo('Valor (R\$)'),
-        ),
-        if (_avisoPagamento != null)
-          Padding(
-            padding: const EdgeInsets.only(top: 6),
-            child: Text(
-              _avisoPagamento!,
-              textAlign: TextAlign.center,
-              style: theme.getTextStyle(fontSize: 10),
-            ),
-          ),
-        const SizedBox(height: 8),
-        _botao('Quitar valor', _quitarValor),
-        const SizedBox(height: 6),
-        _botao('Quitar tudo', _quitarTudo, destaque: true),
-      ],
-    );
-  }
-
-  Widget _informacaoDivida(double devido) {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Text('Valor em aberto', style: theme.getTextStyle(fontSize: 11)),
-        const SizedBox(height: 4),
-        Text(
-          _valor(devido),
-          style: theme.getTextStyle(
-            fontSize: 20,
-            fontWeight: FontWeight.bold,
-            color: theme.textColor,
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _blocoDivida(Cliente cliente) {
-    final devido = _devido(cliente.id);
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(12),
-      decoration: _decoracaoDoBloco,
-      child: Column(
-        children: [
-          _tituloDoBloco('A Prazo'),
-          LayoutBuilder(
-            builder: (context, constraints) {
-              final largo = constraints.maxWidth >= 400;
-              if (!largo) {
-                return Column(
-                  children: [
-                    _informacaoDivida(devido),
-                    if (devido > 0) ...[
-                      const SizedBox(height: 12),
-                      SizedBox(width: 160, child: _painelPagamento()),
-                    ],
-                  ],
-                );
-              }
-              return Row(
-                crossAxisAlignment: CrossAxisAlignment.center,
-                children: [
-                  Expanded(
-                    child: Align(
-                      alignment: Alignment.centerLeft,
-                      child: devido > 0
-                          ? SizedBox(width: 140, child: _painelPagamento())
-                          : const SizedBox.shrink(),
-                    ),
-                  ),
-                  _informacaoDivida(devido),
-                  const Expanded(child: SizedBox.shrink()),
-                ],
-              );
-            },
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _blocoHistorico(Cliente cliente) {
-    final historico = _historico(cliente.id);
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(12),
-      decoration: _decoracaoDoBloco,
-      child: Column(
-        children: [
-          _tituloDoBloco('Histórico de Compras'),
-          if (historico.isEmpty)
-            EstadoVazioContainer(
-              theme: theme,
-              mensagem: 'Nenhuma compra registrada.',
-            )
-          else
-            for (final pedido in historico)
-              Padding(
-                padding: const EdgeInsets.only(bottom: 8),
-                child: BarraVenda(
-                  theme: theme,
-                  lojaId: widget.lojaId,
-                  pedido: pedido,
-                ),
-              ),
-        ],
-      ),
-    );
-  }
-
-  Widget _blocoLista() {
-    final termo = _pesquisaController.text.trim().toLowerCase();
-    final filtrados = termo.isEmpty
+  Widget _blocoClientes() {
+    final termo = _pesquisaClientesController.text.trim().toLowerCase();
+    final disponiveis = termo.isEmpty
         ? _clientes
         : _clientes
             .where((c) => c.nome.toLowerCase().contains(termo))
@@ -689,23 +487,31 @@ class _ClientesConteudoState extends State<_ClientesConteudo> {
       decoration: _decoracaoDoBloco,
       child: Column(
         children: [
-          _tituloDoBloco('Clientes Cadastrados'),
-          Padding(
-            padding: const EdgeInsets.only(bottom: 10),
-            child: TextField(
-              controller: _pesquisaController,
-              onChanged: (_) => setState(() {}),
-              cursorColor: theme.textColor,
-              style: theme.getTextStyle(fontSize: 12),
-              decoration: _decoracaoPesquisa('Pesquisar clientes...'),
+          _tituloDoBloco('Usar cliente como fornecedor'),
+          Text(
+            'Clique em um cliente para preencher o formulário com os '
+            'dados dele. Você pode ajustar antes de salvar.',
+            textAlign: TextAlign.center,
+            style: theme.getTextStyle(
+              fontSize: 11,
+              color: theme.secondaryTextColor,
             ),
           ),
+          const SizedBox(height: 10),
+          TextField(
+            controller: _pesquisaClientesController,
+            onChanged: (_) => setState(() {}),
+            cursorColor: theme.textColor,
+            style: theme.getTextStyle(fontSize: 12),
+            decoration: _decoracaoPesquisa('Pesquisar clientes...'),
+          ),
+          const SizedBox(height: 10),
           if (_clientes.isEmpty)
             EstadoVazioContainer(
               theme: theme,
               mensagem: 'Nenhum cliente cadastrado ainda.',
             )
-          else if (filtrados.isEmpty)
+          else if (disponiveis.isEmpty)
             EstadoVazioContainer(
               theme: theme,
               mensagem: 'Nenhum cliente encontrado.',
@@ -715,12 +521,127 @@ class _ClientesConteudoState extends State<_ClientesConteudo> {
               constraints: const BoxConstraints(maxHeight: 200),
               child: ListView.separated(
                 shrinkWrap: true,
-                itemCount: filtrados.length,
-                separatorBuilder: (context, index) => const SizedBox(height: 8),
+                itemCount: disponiveis.length,
+                separatorBuilder: (context, index) =>
+                    const SizedBox(height: 8),
                 itemBuilder: (context, index) {
-                  final cliente = filtrados[index];
+                  final cliente = disponiveis[index];
+                  final jaEh = _clienteJaEhFornecedor(cliente);
                   return _LinhaComHover(
-                    aoClicar: () => _abrirEdicao(cliente),
+                    aoClicar: jaEh
+                        ? () {}
+                        : () => _copiarClienteParaFormulario(cliente),
+                    builder: (hover) => Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 10,
+                      ),
+                      decoration: BoxDecoration(
+                        color: hover && !jaEh
+                            ? theme.borderColor.withValues(alpha: 0.18)
+                            : Colors.transparent,
+                        borderRadius: BorderRadius.circular(30),
+                        border: Border.all(
+                          color: hover && !jaEh
+                              ? theme.textColor
+                              : theme.borderColor,
+                        ),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(
+                            Icons.account_circle,
+                            size: 22,
+                            color: jaEh
+                                ? theme.secondaryTextColor
+                                : theme.textColor,
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              cliente.nome,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: theme.getTextStyle(
+                                fontSize: 12,
+                                color: jaEh
+                                    ? theme.secondaryTextColor
+                                    : theme.textColor,
+                              ),
+                            ),
+                          ),
+                          if (jaEh)
+                            Text(
+                              'Já é fornecedor',
+                              style: theme.getTextStyle(
+                                fontSize: 10,
+                                color: theme.secondaryTextColor,
+                              ),
+                            )
+                          else if (cliente.telefone.isNotEmpty)
+                            Text(
+                              cliente.telefone,
+                              style: theme.getTextStyle(fontSize: 11),
+                            ),
+                        ],
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _blocoLista() {
+    final termo = _pesquisaController.text.trim().toLowerCase();
+    final filtrados = termo.isEmpty
+        ? _fornecedores
+        : _fornecedores
+            .where((f) => f.nome.toLowerCase().contains(termo))
+            .toList();
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: _decoracaoDoBloco,
+      child: Column(
+        children: [
+          _tituloDoBloco('Fornecedores Cadastrados'),
+          Padding(
+            padding: const EdgeInsets.only(bottom: 10),
+            child: TextField(
+              controller: _pesquisaController,
+              onChanged: (_) => setState(() {}),
+              cursorColor: theme.textColor,
+              style: theme.getTextStyle(fontSize: 12),
+              decoration: _decoracaoPesquisa('Pesquisar fornecedores...'),
+            ),
+          ),
+          if (_fornecedores.isEmpty)
+            EstadoVazioContainer(
+              theme: theme,
+              mensagem: 'Nenhum fornecedor cadastrado ainda.',
+            )
+          else if (filtrados.isEmpty)
+            EstadoVazioContainer(
+              theme: theme,
+              mensagem: 'Nenhum fornecedor encontrado.',
+            )
+          else
+            ConstrainedBox(
+              constraints: const BoxConstraints(maxHeight: 200),
+              child: ListView.separated(
+                shrinkWrap: true,
+                itemCount: filtrados.length,
+                separatorBuilder: (context, index) =>
+                    const SizedBox(height: 8),
+                itemBuilder: (context, index) {
+                  final fornecedor = filtrados[index];
+                  return _LinhaComHover(
+                    aoClicar: () => _abrirEdicao(fornecedor),
                     builder: (hover) => Container(
                       padding: const EdgeInsets.symmetric(
                         horizontal: 12,
@@ -732,20 +653,21 @@ class _ClientesConteudoState extends State<_ClientesConteudo> {
                             : Colors.transparent,
                         borderRadius: BorderRadius.circular(30),
                         border: Border.all(
-                          color: hover ? theme.textColor : theme.borderColor,
+                          color:
+                              hover ? theme.textColor : theme.borderColor,
                         ),
                       ),
                       child: Row(
                         children: [
                           Icon(
-                            Icons.account_circle,
+                            Icons.storefront_outlined,
                             size: 22,
                             color: theme.textColor,
                           ),
                           const SizedBox(width: 8),
                           Expanded(
                             child: Text(
-                              cliente.nome,
+                              fornecedor.nome,
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                               style: theme.getTextStyle(
@@ -754,9 +676,9 @@ class _ClientesConteudoState extends State<_ClientesConteudo> {
                               ),
                             ),
                           ),
-                          if (cliente.telefone.isNotEmpty)
+                          if (fornecedor.telefone.isNotEmpty)
                             Text(
-                              cliente.telefone,
+                              fornecedor.telefone,
                               style: theme.getTextStyle(fontSize: 11),
                             ),
                         ],
@@ -774,6 +696,8 @@ class _ClientesConteudoState extends State<_ClientesConteudo> {
   @override
   Widget build(BuildContext context) {
     final editando = _editando;
+    final veioDeCliente = _origemClienteId != null && editando == null;
+
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -787,7 +711,7 @@ class _ClientesConteudoState extends State<_ClientesConteudo> {
               ),
               Expanded(
                 child: Text(
-                  'Clientes',
+                  'Fornecedores',
                   textAlign: TextAlign.center,
                   style: theme.getTextStyle(
                     fontSize: 16,
@@ -805,14 +729,14 @@ class _ClientesConteudoState extends State<_ClientesConteudo> {
             padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
             child: Column(
               children: [
-                if (editando != null) ...[
+                if (editando != null || veioDeCliente) ...[
                   _blocoFormulario(),
                   const SizedBox(height: 12),
-                  _blocoDivida(editando),
-                  const SizedBox(height: 12),
-                  _blocoHistorico(editando),
+                  _blocoLista(),
                 ] else ...[
                   _blocoLista(),
+                  const SizedBox(height: 12),
+                  _blocoClientes(),
                   const SizedBox(height: 12),
                   _blocoFormulario(),
                 ],

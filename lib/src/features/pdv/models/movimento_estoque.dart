@@ -12,6 +12,8 @@ class MovimentoEstoque {
   final String motivo;
   final String cpfAutor;
   final String nomeAutor;
+  final String fornecedorId;
+  final String fornecedorNome;
 
   const MovimentoEstoque({
     required this.id,
@@ -23,6 +25,8 @@ class MovimentoEstoque {
     this.motivo = '',
     this.cpfAutor = '',
     this.nomeAutor = '',
+    this.fornecedorId = '',
+    this.fornecedorNome = '',
   });
 
   factory MovimentoEstoque.novo({
@@ -33,6 +37,8 @@ class MovimentoEstoque {
     String motivo = '',
     String cpfAutor = '',
     String nomeAutor = '',
+    String fornecedorId = '',
+    String fornecedorNome = '',
   }) {
     return MovimentoEstoque(
       id: gerarIdUnico(),
@@ -44,6 +50,8 @@ class MovimentoEstoque {
       motivo: motivo,
       cpfAutor: cpfAutor,
       nomeAutor: nomeAutor,
+      fornecedorId: fornecedorId,
+      fornecedorNome: fornecedorNome,
     );
   }
 
@@ -64,6 +72,8 @@ class MovimentoEstoque {
       'motivo': motivo,
       'cpfAutor': cpfAutor,
       'nomeAutor': nomeAutor,
+      'fornecedorId': fornecedorId,
+      'fornecedorNome': fornecedorNome,
     };
   }
 
@@ -78,6 +88,8 @@ class MovimentoEstoque {
       motivo: json['motivo'] as String? ?? '',
       cpfAutor: json['cpfAutor'] as String? ?? '',
       nomeAutor: json['nomeAutor'] as String? ?? '',
+      fornecedorId: json['fornecedorId'] as String? ?? '',
+      fornecedorNome: json['fornecedorNome'] as String? ?? '',
     );
   }
 }

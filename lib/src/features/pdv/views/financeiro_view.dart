@@ -121,6 +121,18 @@ class _FinanceiroViewState extends State<FinanceiroView> {
     return soma;
   }
 
+  Map<String, double> _comprasPorFornecedor(Loja? loja) {
+    final mapa = <String, double>{};
+    for (final m in _movimentosDoPeriodo(loja)) {
+      if (!m.ehEntrada) continue;
+      if (m.custoTotal <= 0) continue;
+      final nome =
+          m.fornecedorNome.trim().isEmpty ? 'Sem fornecedor' : m.fornecedorNome;
+      mapa[nome] = (mapa[nome] ?? 0) + m.custoTotal;
+    }
+    return mapa;
+  }
+
   double get _totalEntradas =>
       _vendasConcluidas.fold(0.0, (soma, p) => soma + p.valor);
 
@@ -611,6 +623,54 @@ class _FinanceiroViewState extends State<FinanceiroView> {
     );
   }
 
+  Widget _blocoCompras(AppTheme theme, Loja? loja) {
+    final porFornecedor = _comprasPorFornecedor(loja);
+    if (porFornecedor.isEmpty) {
+      return Container(
+        width: 320,
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+        decoration: _decoracaoDoBloco(theme),
+        child: Column(
+          children: [
+            _tituloDoBloco(theme, 'Compras do período'),
+            EstadoVazioContainer(
+              theme: theme,
+              mensagem: 'Nenhuma compra com custo registrado no período.',
+            ),
+          ],
+        ),
+      );
+    }
+
+    final entradas = porFornecedor.entries.toList()
+      ..sort((a, b) => b.value.compareTo(a.value));
+
+    var total = 0.0;
+    for (final e in entradas) {
+      total += e.value;
+    }
+
+    return Container(
+      width: 320,
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+      decoration: _decoracaoDoBloco(theme),
+      child: Column(
+        children: [
+          _tituloDoBloco(theme, 'Compras do período'),
+          for (final e in entradas)
+            _linha(theme, e.key, _valorFormatado(e.value)),
+          const Divider(height: 20),
+          _linha(
+            theme,
+            'Total',
+            _valorFormatado(total),
+            destaque: true,
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _blocoFuncionarios(AppTheme theme, Loja? loja) {
     final pagamentos = _pagamentosDoPeriodo(loja);
     final podeRegistrar =
@@ -692,6 +752,8 @@ class _FinanceiroViewState extends State<FinanceiroView> {
                       Center(child: _blocoEntradas(theme)),
                       const SizedBox(height: 16),
                       Center(child: _blocoBalanco(theme, loja)),
+                      const SizedBox(height: 16),
+                      Center(child: _blocoCompras(theme, loja)),
                       const SizedBox(height: 16),
                       Center(child: _blocoFuncionarios(theme, loja)),
                     ],

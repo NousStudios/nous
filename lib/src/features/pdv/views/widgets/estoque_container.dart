@@ -13,6 +13,7 @@ class EstoqueContainer extends StatefulWidget {
   final ValueChanged<MovimentoEstoque> onRemoverMovimento;
   final VoidCallback onAvisarSemPermissao;
   final bool emDialog;
+  final VoidCallback? onAbrirFornecedores;
 
   const EstoqueContainer({
     super.key,
@@ -24,6 +25,7 @@ class EstoqueContainer extends StatefulWidget {
     required this.onRemoverMovimento,
     required this.onAvisarSemPermissao,
     this.emDialog = false,
+    this.onAbrirFornecedores,
   });
 
   @override
@@ -31,7 +33,15 @@ class EstoqueContainer extends StatefulWidget {
 }
 
 class _EstoqueContainerState extends State<EstoqueContainer> {
+  final _pesquisaController = TextEditingController();
+
   AppTheme get theme => widget.theme;
+
+  @override
+  void dispose() {
+    _pesquisaController.dispose();
+    super.dispose();
+  }
 
   int _saldoDoItem(String itemId) {
     var saldo = 0;
@@ -60,6 +70,28 @@ class _EstoqueContainerState extends State<EstoqueContainer> {
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: theme.borderColor.withValues(alpha: 0.6)),
       );
+
+  InputDecoration _decoracaoPesquisa(String dica) {
+    OutlineInputBorder borda(Color cor) => OutlineInputBorder(
+          borderRadius: BorderRadius.circular(30),
+          borderSide: BorderSide(color: cor),
+        );
+    return InputDecoration(
+      hintText: dica,
+      hintStyle:
+          theme.getTextStyle(fontSize: 12, color: theme.secondaryTextColor),
+      isDense: true,
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      prefixIcon: Icon(
+        Icons.search,
+        size: 18,
+        color: theme.secondaryTextColor,
+      ),
+      prefixIconConstraints: const BoxConstraints(minWidth: 36),
+      enabledBorder: borda(theme.borderColor),
+      focusedBorder: borda(theme.textColor),
+    );
+  }
 
   void _abrirHistorico(ItemLoja item) {
     final movimentos = _movimentosDoItem(item.id);
@@ -152,6 +184,32 @@ class _EstoqueContainerState extends State<EstoqueContainer> {
     );
   }
 
+  Widget _botaoFornecedores() {
+    return SizedBox(
+      width: double.infinity,
+      child: OutlinedButton.icon(
+        style: OutlinedButton.styleFrom(
+          foregroundColor: theme.textColor,
+          side: BorderSide(color: theme.borderColor),
+          padding: const EdgeInsets.symmetric(vertical: 12),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10),
+          ),
+        ),
+        onPressed: widget.onAbrirFornecedores,
+        icon: Icon(
+          Icons.storefront_outlined,
+          size: 18,
+          color: theme.textColor,
+        ),
+        label: Text(
+          'Fornecedores',
+          style: theme.getTextStyle(fontSize: 13),
+        ),
+      ),
+    );
+  }
+
   Widget _botaoNovoMovimento() {
     return SizedBox(
       width: double.infinity,
@@ -176,6 +234,19 @@ class _EstoqueContainerState extends State<EstoqueContainer> {
           'Novo movimento',
           style: theme.getTextStyle(fontSize: 13),
         ),
+      ),
+    );
+  }
+
+  Widget _barraDePesquisa() {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: TextField(
+        controller: _pesquisaController,
+        onChanged: (_) => setState(() {}),
+        cursorColor: theme.textColor,
+        style: theme.getTextStyle(fontSize: 12),
+        decoration: _decoracaoPesquisa('Pesquisar itens...'),
       ),
     );
   }
@@ -251,19 +322,36 @@ class _EstoqueContainerState extends State<EstoqueContainer> {
   }
 
   Widget _conteudo() {
+    final termo = _pesquisaController.text.trim().toLowerCase();
+    final filtrados = termo.isEmpty
+        ? widget.itens
+        : widget.itens
+            .where((i) => i.nome.toLowerCase().contains(termo))
+            .toList();
+
     return Column(
       children: [
+        if (widget.onAbrirFornecedores != null) ...[
+          _botaoFornecedores(),
+          const SizedBox(height: 8),
+        ],
         if (widget.podeEditar) ...[
           _botaoNovoMovimento(),
           const SizedBox(height: 12),
         ],
+        if (widget.itens.isNotEmpty) _barraDePesquisa(),
         if (widget.itens.isEmpty)
           EstadoVazioContainer(
             theme: theme,
             mensagem: 'Nenhum item cadastrado ainda.',
           )
+        else if (filtrados.isEmpty)
+          EstadoVazioContainer(
+            theme: theme,
+            mensagem: 'Nenhum item encontrado.',
+          )
         else
-          for (final item in widget.itens) _linhaDoItem(item),
+          for (final item in filtrados) _linhaDoItem(item),
       ],
     );
   }
@@ -344,6 +432,9 @@ class _LinhaMovimentoState extends State<_LinhaMovimento> {
         m.nomeAutor.isNotEmpty ? ' • ${m.nomeAutor}' : '';
     final linha2 = '${_dataHora(m.dataHora)}$sufixoAutor';
 
+    final sufixoFornecedor =
+        m.fornecedorNome.isNotEmpty ? ' • ${m.fornecedorNome}' : '';
+
     return MouseRegion(
       onEnter: (_) => setState(() => _hover = true),
       onExit: (_) => setState(() => _hover = false),
@@ -384,6 +475,14 @@ class _LinhaMovimentoState extends State<_LinhaMovimento> {
                       color: theme.secondaryTextColor,
                     ),
                   ),
+                  if (sufixoFornecedor.isNotEmpty)
+                    Text(
+                      'Fornecedor$sufixoFornecedor',
+                      style: theme.getTextStyle(
+                        fontSize: 10,
+                        color: theme.secondaryTextColor,
+                      ),
+                    ),
                   if (m.motivo.trim().isNotEmpty)
                     Text(
                       m.motivo.trim(),

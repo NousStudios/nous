@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:nous/src/core/theme/theme_controller.dart';
+import 'package:nous/src/features/pdv/models/fornecedor.dart';
 import 'package:nous/src/features/pdv/models/item_loja.dart';
 import 'package:nous/src/features/pdv/models/movimento_estoque.dart';
 
@@ -8,6 +9,7 @@ class MovimentoEstoqueDialog {
     BuildContext context, {
     required AppTheme theme,
     required List<ItemLoja> itens,
+    List<Fornecedor> fornecedores = const [],
     required String cpfAutor,
     required String nomeAutor,
     ItemLoja? itemInicial,
@@ -28,6 +30,7 @@ class MovimentoEstoqueDialog {
             child: _MovimentoEstoqueConteudo(
               theme: theme,
               itens: itens,
+              fornecedores: fornecedores,
               cpfAutor: cpfAutor,
               nomeAutor: nomeAutor,
               itemInicial: itemInicial,
@@ -43,6 +46,7 @@ class MovimentoEstoqueDialog {
 class _MovimentoEstoqueConteudo extends StatefulWidget {
   final AppTheme theme;
   final List<ItemLoja> itens;
+  final List<Fornecedor> fornecedores;
   final String cpfAutor;
   final String nomeAutor;
   final ItemLoja? itemInicial;
@@ -51,6 +55,7 @@ class _MovimentoEstoqueConteudo extends StatefulWidget {
   const _MovimentoEstoqueConteudo({
     required this.theme,
     required this.itens,
+    required this.fornecedores,
     required this.cpfAutor,
     required this.nomeAutor,
     this.itemInicial,
@@ -69,6 +74,7 @@ class _MovimentoEstoqueConteudoState
   final _motivoController = TextEditingController();
 
   ItemLoja? _item;
+  Fornecedor? _fornecedor;
   TipoMovimentoEstoque _tipo = TipoMovimentoEstoque.entrada;
   String? _aviso;
 
@@ -120,6 +126,12 @@ class _MovimentoEstoqueConteudoState
       motivo: _motivoController.text.trim(),
       cpfAutor: widget.cpfAutor,
       nomeAutor: widget.nomeAutor,
+      fornecedorId: _tipo == TipoMovimentoEstoque.entrada
+          ? (_fornecedor?.id ?? '')
+          : '',
+      fornecedorNome: _tipo == TipoMovimentoEstoque.entrada
+          ? (_fornecedor?.nome ?? '')
+          : '',
     );
 
     Navigator.of(context).pop(movimento);
@@ -173,6 +185,9 @@ class _MovimentoEstoqueConteudoState
         ),
         onPressed: () => setState(() {
           _tipo = tipo;
+          if (tipo == TipoMovimentoEstoque.saida) {
+            _fornecedor = null;
+          }
           _aviso = null;
         }),
         child: Text(
@@ -186,9 +201,128 @@ class _MovimentoEstoqueConteudoState
     );
   }
 
+  Widget _dropdownItem() {
+    final item = _item;
+    if (widget.itens.isEmpty) {
+      return Text(
+        'Nenhum item cadastrado ainda.',
+        textAlign: TextAlign.center,
+        style: theme.getTextStyle(
+          fontSize: 12,
+          color: theme.secondaryTextColor,
+        ),
+      );
+    }
+    return Container(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: theme.borderColor),
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+      child: DropdownButtonHideUnderline(
+        child: DropdownButton<ItemLoja>(
+          value: item,
+          isExpanded: true,
+          dropdownColor: theme.cardBackgroundColor,
+          hint: Text(
+            'Selecione o item',
+            style: theme.getTextStyle(
+              fontSize: 12,
+              color: theme.secondaryTextColor,
+            ),
+          ),
+          items: widget.itens
+              .map(
+                (i) => DropdownMenuItem<ItemLoja>(
+                  value: i,
+                  child: Text(
+                    i.nome.isEmpty ? 'Item sem nome' : i.nome,
+                    style: theme.getTextStyle(
+                      fontSize: 12,
+                      color: theme.textColor,
+                    ),
+                  ),
+                ),
+              )
+              .toList(),
+          onChanged: (valor) => setState(() {
+            _item = valor;
+            _aviso = null;
+          }),
+        ),
+      ),
+    );
+  }
+
+  Widget _dropdownFornecedor() {
+    if (widget.fornecedores.isEmpty) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 4),
+        child: Text(
+          'Nenhum fornecedor cadastrado ainda. Abra "Fornecedores" no '
+          'Estoque para cadastrar.',
+          textAlign: TextAlign.center,
+          style: theme.getTextStyle(
+            fontSize: 11,
+            color: theme.secondaryTextColor,
+          ),
+        ),
+      );
+    }
+    return Container(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: theme.borderColor),
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+      child: DropdownButtonHideUnderline(
+        child: DropdownButton<Fornecedor?>(
+          value: _fornecedor,
+          isExpanded: true,
+          dropdownColor: theme.cardBackgroundColor,
+          hint: Text(
+            'Sem fornecedor',
+            style: theme.getTextStyle(
+              fontSize: 12,
+              color: theme.secondaryTextColor,
+            ),
+          ),
+          items: [
+            DropdownMenuItem<Fornecedor?>(
+              value: null,
+              child: Text(
+                'Sem fornecedor',
+                style: theme.getTextStyle(
+                  fontSize: 12,
+                  color: theme.secondaryTextColor,
+                ),
+              ),
+            ),
+            ...widget.fornecedores.map(
+              (f) => DropdownMenuItem<Fornecedor?>(
+                value: f,
+                child: Text(
+                  f.nome.isEmpty ? 'Fornecedor sem nome' : f.nome,
+                  style: theme.getTextStyle(
+                    fontSize: 12,
+                    color: theme.textColor,
+                  ),
+                ),
+              ),
+            ),
+          ],
+          onChanged: (valor) => setState(() {
+            _fornecedor = valor;
+            _aviso = null;
+          }),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    final item = _item;
+    final ehEntrada = _tipo == TipoMovimentoEstoque.entrada;
 
     return Column(
       mainAxisSize: MainAxisSize.min,
@@ -223,58 +357,7 @@ class _MovimentoEstoqueConteudoState
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 _tituloDoBloco('Item'),
-                if (widget.itens.isEmpty)
-                  Text(
-                    'Nenhum item cadastrado ainda.',
-                    textAlign: TextAlign.center,
-                    style: theme.getTextStyle(
-                      fontSize: 12,
-                      color: theme.secondaryTextColor,
-                    ),
-                  )
-                else
-                  Container(
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(10),
-                      border: Border.all(color: theme.borderColor),
-                    ),
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 4,
-                    ),
-                    child: DropdownButtonHideUnderline(
-                      child: DropdownButton<ItemLoja>(
-                        value: item,
-                        isExpanded: true,
-                        dropdownColor: theme.cardBackgroundColor,
-                        hint: Text(
-                          'Selecione o item',
-                          style: theme.getTextStyle(
-                            fontSize: 12,
-                            color: theme.secondaryTextColor,
-                          ),
-                        ),
-                        items: widget.itens
-                            .map(
-                              (i) => DropdownMenuItem<ItemLoja>(
-                                value: i,
-                                child: Text(
-                                  i.nome.isEmpty ? 'Item sem nome' : i.nome,
-                                  style: theme.getTextStyle(
-                                    fontSize: 12,
-                                    color: theme.textColor,
-                                  ),
-                                ),
-                              ),
-                            )
-                            .toList(),
-                        onChanged: (valor) => setState(() {
-                          _item = valor;
-                          _aviso = null;
-                        }),
-                      ),
-                    ),
-                  ),
+                _dropdownItem(),
                 const SizedBox(height: 16),
                 _tituloDoBloco('Tipo'),
                 Row(
@@ -284,6 +367,11 @@ class _MovimentoEstoqueConteudoState
                     _botaoTipo('Saída', TipoMovimentoEstoque.saida),
                   ],
                 ),
+                if (ehEntrada) ...[
+                  const SizedBox(height: 16),
+                  _tituloDoBloco('Fornecedor (opcional)'),
+                  _dropdownFornecedor(),
+                ],
                 const SizedBox(height: 16),
                 _tituloDoBloco('Quantidade'),
                 TextField(
@@ -335,8 +423,7 @@ class _MovimentoEstoqueConteudoState
                         borderRadius: BorderRadius.circular(10),
                       ),
                     ),
-                    onPressed:
-                        widget.itens.isEmpty ? null : _confirmar,
+                    onPressed: widget.itens.isEmpty ? null : _confirmar,
                     child: Text(
                       'Registrar',
                       style: theme.getTextStyle(

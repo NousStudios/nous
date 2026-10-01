@@ -12,6 +12,7 @@ import 'package:nous/src/features/notificacoes/providers/notificacoes_provider.d
 import 'package:nous/src/features/pdv/models/categoria_loja.dart';
 import 'package:nous/src/features/pdv/models/cliente.dart';
 import 'package:nous/src/features/pdv/models/configuracoes_impressora.dart';
+import 'package:nous/src/features/pdv/models/fornecedor.dart';
 import 'package:nous/src/features/pdv/models/grupo_componentes_loja.dart';
 import 'package:nous/src/features/pdv/models/item_loja.dart';
 import 'package:nous/src/features/pdv/models/membro_loja.dart';
@@ -30,6 +31,7 @@ import 'package:nous/src/features/pdv/views/widgets/delivery_container.dart';
 import 'package:nous/src/features/pdv/views/widgets/estado_vazio_container.dart';
 import 'package:nous/src/features/pdv/views/widgets/estoque_container.dart';
 import 'package:nous/src/features/pdv/views/widgets/formulario_dados_loja.dart';
+import 'package:nous/src/features/pdv/views/widgets/fornecedores_dialog.dart';
 import 'package:nous/src/features/pdv/views/widgets/galeria_estilo_container.dart';
 import 'package:nous/src/features/pdv/views/widgets/gestao_loja_container.dart';
 import 'package:nous/src/features/pdv/views/widgets/grupo_componentes_loja_container.dart';
@@ -86,6 +88,7 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
   final List<ItemLoja> _itens = [];
   final List<GrupoComponentesLoja> _gruposComponentes = [];
   final List<Cliente> _clientes = [];
+  final List<Fornecedor> _fornecedores = [];
 
   final List<PedidoLoja> _pedidos = [];
   final List<MovimentoEstoque> _movimentosEstoque = [];
@@ -289,6 +292,7 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
           itens: _itens,
           gruposComponentes: _gruposComponentes,
           clientes: _clientes,
+          fornecedores: _fornecedores,
           pedidos: _pedidos,
           movimentosEstoque: _movimentosEstoque,
         );
@@ -458,6 +462,52 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
     );
   }
 
+  void _salvarFornecedor(Fornecedor fornecedor) {
+    if (!_podeEditarAbaLoja()) {
+      _avisarSemPermissao();
+      return;
+    }
+
+    final existia = _fornecedores.any((f) => f.id == fornecedor.id);
+
+    setState(() {
+      final indice =
+          _fornecedores.indexWhere((f) => f.id == fornecedor.id);
+      if (indice == -1) {
+        _fornecedores.add(fornecedor);
+      } else {
+        _fornecedores[indice] = fornecedor;
+      }
+    });
+    _persistirListasLoja();
+
+    _registrarAcao(
+      TipoAcao.dadosLojaAtualizados,
+      existia
+          ? 'Fornecedor "${fornecedor.nome}" atualizado'
+          : 'Fornecedor "${fornecedor.nome}" cadastrado',
+    );
+  }
+
+  void _excluirFornecedor(String fornecedorId) {
+    if (!_podeEditarAbaLoja()) {
+      _avisarSemPermissao();
+      return;
+    }
+
+    final indice = _fornecedores.indexWhere((f) => f.id == fornecedorId);
+    final nome = indice == -1 ? '' : _fornecedores[indice].nome;
+
+    setState(
+        () => _fornecedores.removeWhere((f) => f.id == fornecedorId));
+    _persistirListasLoja();
+
+    _registrarAcao(
+      TipoAcao.dadosLojaAtualizados,
+      'Fornecedor "$nome" excluído',
+    );
+  }
+
   Future<void> _abrirPopupClientes() {
     return ClientesDialog.mostrar(
       context,
@@ -468,6 +518,31 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
       onSalvar: _salvarCliente,
       onPagar: _pagarCliente,
       onExcluir: _excluirCliente,
+    );
+  }
+
+  Future<void> _abrirPopupClienteEspecifico(String clienteId) {
+    return ClientesDialog.mostrar(
+      context,
+      theme: ThemeController.currentTheme.value,
+      lojaId: widget.lojaId,
+      clientes: _clientes,
+      pedidos: _pedidos,
+      onSalvar: _salvarCliente,
+      onPagar: _pagarCliente,
+      onExcluir: _excluirCliente,
+      clienteInicialId: clienteId,
+    );
+  }
+
+  Future<void> _abrirPopupFornecedores() {
+    return FornecedoresDialog.mostrar(
+      context,
+      theme: ThemeController.currentTheme.value,
+      clientes: _clientes,
+      fornecedores: _fornecedores,
+      onSalvar: _salvarFornecedor,
+      onExcluir: _excluirFornecedor,
     );
   }
 
@@ -482,7 +557,7 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
       autorEmail: _emailLogado,
       onExcluirPedido: _excluirPedido,
       onSalvarComentario: _salvarComentarioPedido,
-      aoAbrirClientes: _abrirPopupClientes,
+      aoAbrirClientes: _abrirPopupClienteEspecifico,
     );
   }
 
@@ -1060,6 +1135,7 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
       context,
       theme: ThemeController.currentTheme.value,
       itens: _itens,
+      fornecedores: _fornecedores,
       cpfAutor: _cpfLogado,
       nomeAutor: _nomeLogado,
     );
@@ -1075,10 +1151,13 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
       orElse: () => const ItemLoja(id: '', nome: ''),
     );
     final tipo = movimento.ehEntrada ? 'Entrada' : 'Saída';
+    final sufixoFornecedor = movimento.fornecedorNome.isNotEmpty
+        ? ' de "${movimento.fornecedorNome}"'
+        : '';
 
     _registrarAcao(
       TipoAcao.movimentoEstoqueRegistrado,
-      '$tipo de ${movimento.quantidade} em "${item.nome}"',
+      '$tipo$sufixoFornecedor de ${movimento.quantidade} em "${item.nome}"',
     );
   }
 
@@ -1176,6 +1255,10 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
                                 setDialogState(() {});
                               },
                               onAvisarSemPermissao: _avisarSemPermissao,
+                              onAbrirFornecedores: () async {
+                                await _abrirPopupFornecedores();
+                                setDialogState(() {});
+                              },
                               emDialog: true,
                             ),
                           ),
@@ -1214,6 +1297,7 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
     _itens.addAll(loja?.itensLoja ?? []);
     _gruposComponentes.addAll(loja?.gruposComponentesLoja ?? []);
     _clientes.addAll(loja?.clientesLoja ?? []);
+    _fornecedores.addAll(loja?.fornecedoresLoja ?? []);
     _pedidos.addAll(loja?.pedidosLoja ?? []);
     _movimentosEstoque.addAll(loja?.movimentosEstoque ?? []);
     _membros = List.of(loja?.membros ?? []);

@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:nous/src/features/pdv/models/categoria_loja.dart';
 import 'package:nous/src/features/pdv/models/cliente.dart';
 import 'package:nous/src/features/pdv/models/configuracoes_impressora.dart';
+import 'package:nous/src/features/pdv/models/fornecedor.dart';
 import 'package:nous/src/features/pdv/models/grupo_componentes_loja.dart';
 import 'package:nous/src/features/pdv/models/item_loja.dart';
 import 'package:nous/src/features/pdv/models/loja.dart';
@@ -263,6 +264,7 @@ class PdvProvider extends ChangeNotifier {
     List<ItemLoja>? itens,
     List<GrupoComponentesLoja>? gruposComponentes,
     List<Cliente>? clientes,
+    List<Fornecedor>? fornecedores,
     List<PedidoLoja>? pedidos,
     List<MovimentoEstoque>? movimentosEstoque,
     List<PagamentoFuncionario>? pagamentosFuncionarios,
@@ -275,6 +277,7 @@ class PdvProvider extends ChangeNotifier {
       itensLoja: itens,
       gruposComponentesLoja: gruposComponentes,
       clientesLoja: clientes,
+      fornecedoresLoja: fornecedores,
       pedidosLoja: pedidos,
       movimentosEstoque: movimentosEstoque,
       pagamentosFuncionarios: pagamentosFuncionarios,

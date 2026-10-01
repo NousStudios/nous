@@ -1,6 +1,7 @@
 import 'package:nous/src/features/pdv/models/categoria_loja.dart';
 import 'package:nous/src/features/pdv/models/cliente.dart';
 import 'package:nous/src/features/pdv/models/configuracoes_impressora.dart';
+import 'package:nous/src/features/pdv/models/fornecedor.dart';
 import 'package:nous/src/features/pdv/models/grupo_componentes_loja.dart';
 import 'package:nous/src/features/pdv/models/item_loja.dart';
 import 'package:nous/src/features/pdv/models/membro_loja.dart';
@@ -27,6 +28,7 @@ class Loja {
   final List<ItemLoja> itensLoja;
   final List<GrupoComponentesLoja> gruposComponentesLoja;
   final List<Cliente> clientesLoja;
+  final List<Fornecedor> fornecedoresLoja;
   final List<PedidoLoja> pedidosLoja;
   final List<RegistroAcao> acoes;
   final List<MembroLoja> membros;
@@ -51,6 +53,7 @@ class Loja {
     this.itensLoja = const [],
     this.gruposComponentesLoja = const [],
     this.clientesLoja = const [],
+    this.fornecedoresLoja = const [],
     this.pedidosLoja = const [],
     this.acoes = const [],
     this.membros = const [],
@@ -74,6 +77,7 @@ class Loja {
     List<ItemLoja>? itensLoja,
     List<GrupoComponentesLoja>? gruposComponentesLoja,
     List<Cliente>? clientesLoja,
+    List<Fornecedor>? fornecedoresLoja,
     List<PedidoLoja>? pedidosLoja,
     List<RegistroAcao>? acoes,
     List<MembroLoja>? membros,
@@ -97,6 +101,7 @@ class Loja {
       itensLoja: itensLoja ?? this.itensLoja,
       gruposComponentesLoja: gruposComponentesLoja ?? this.gruposComponentesLoja,
       clientesLoja: clientesLoja ?? this.clientesLoja,
+      fornecedoresLoja: fornecedoresLoja ?? this.fornecedoresLoja,
       pedidosLoja: pedidosLoja ?? this.pedidosLoja,
       acoes: acoes ?? this.acoes,
       membros: membros ?? this.membros,
@@ -126,6 +131,8 @@ class Loja {
       'gruposComponentesLoja':
           gruposComponentesLoja.map((g) => g.toJson()).toList(),
       'clientesLoja': clientesLoja.map((c) => c.toJson()).toList(),
+      'fornecedoresLoja':
+          fornecedoresLoja.map((f) => f.toJson()).toList(),
       'pedidosLoja': pedidosLoja.map((p) => p.toJson()).toList(),
       'acoes': acoes.map((a) => a.toJson()).toList(),
       'membros': membros.map((m) => m.toJson()).toList(),
@@ -164,6 +171,10 @@ class Loja {
       clientesLoja: (json['clientesLoja'] as List<dynamic>? ?? const [])
           .map((item) => Cliente.fromJson(item as Map<String, dynamic>))
           .toList(),
+      fornecedoresLoja:
+          (json['fornecedoresLoja'] as List<dynamic>? ?? const [])
+              .map((item) => Fornecedor.fromJson(item as Map<String, dynamic>))
+              .toList(),
       pedidosLoja: (json['pedidosLoja'] as List<dynamic>? ?? const [])
           .map((item) => PedidoLoja.fromJson(item as Map<String, dynamic>))
           .toList(),

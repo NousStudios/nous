@@ -66,7 +66,7 @@ class RelatoriosDialog {
     ValueChanged<String>? onExcluirPedido,
     void Function(String pedidoId, DadosComentario dados)?
         onSalvarComentario,
-    VoidCallback? aoAbrirClientes,
+    void Function(String clienteId)? aoAbrirClientes,
   }) {
     return showDialog<void>(
       context: context,
@@ -108,7 +108,7 @@ class _RelatoriosConteudo extends StatefulWidget {
   final ValueChanged<String>? onExcluirPedido;
   final void Function(String pedidoId, DadosComentario dados)?
       onSalvarComentario;
-  final VoidCallback? aoAbrirClientes;
+  final void Function(String clienteId)? aoAbrirClientes;
 
   const _RelatoriosConteudo({
     required this.theme,
@@ -250,11 +250,12 @@ class _RelatoriosConteudoState extends State<_RelatoriosConteudo> {
     widget.onSalvarComentario?.call(id, dados);
   }
 
-  void _clicarPendencia() {
+  void _clicarPendencia(PedidoLoja pedido) {
     final abrir = widget.aoAbrirClientes;
-    if (abrir == null) return;
+    final clienteId = pedido.clienteId;
+    if (abrir == null || clienteId == null || clienteId.isEmpty) return;
     Navigator.of(context).pop();
-    abrir();
+    abrir(clienteId);
   }
 
   BoxDecoration get _decoracaoDoBloco => BoxDecoration(
@@ -416,7 +417,7 @@ class _RelatoriosConteudoState extends State<_RelatoriosConteudo> {
 
   Widget _cardPendencia(PedidoLoja pedido) {
     return _LinhaComHover(
-      aoClicar: _clicarPendencia,
+      aoClicar: () => _clicarPendencia(pedido),
       builder: (hover) => Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
         decoration: BoxDecoration(

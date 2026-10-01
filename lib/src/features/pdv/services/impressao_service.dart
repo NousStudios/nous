@@ -82,6 +82,20 @@ class ImpressaoService {
     return 'Item removido';
   }
 
+  static Map<String, double> _comprasPorFornecedor(
+    List<MovimentoEstoque> movimentos,
+  ) {
+    final mapa = <String, double>{};
+    for (final m in movimentos) {
+      if (!m.ehEntrada) continue;
+      if (m.custoTotal <= 0) continue;
+      final nome =
+          m.fornecedorNome.trim().isEmpty ? 'Sem fornecedor' : m.fornecedorNome;
+      mapa[nome] = (mapa[nome] ?? 0) + m.custoTotal;
+    }
+    return mapa;
+  }
+
   static List<MapEntry<String, String>> _dadosDoCliente(
     Cliente? cliente,
     List<String> camposSelecionados,
@@ -390,6 +404,14 @@ class ImpressaoService {
       }
     }
 
+    final comprasPorFornecedor = _comprasPorFornecedor(movimentos);
+    final comprasOrdenadas = comprasPorFornecedor.entries.toList()
+      ..sort((a, b) => b.value.compareTo(a.value));
+    double totalCompras = 0;
+    for (final e in comprasOrdenadas) {
+      totalCompras += e.value;
+    }
+
     final vendasOrdenadas = [...vendas]
       ..sort((a, b) => b.dataHora.compareTo(a.dataHora));
     final pagamentosOrdenados = [...pagamentos]
@@ -557,8 +579,12 @@ class ImpressaoService {
                   _valor(m.custoTotal),
                 ),
               );
+              final sufixoFornecedor = m.fornecedorNome.isNotEmpty
+                  ? ' • ${m.fornecedorNome}'
+                  : '';
               final detalhe = '${_dataHora(m.dataHora)}'
                   '${m.nomeAutor.isNotEmpty ? ' • ${m.nomeAutor}' : ''}'
+                  '$sufixoFornecedor'
                   '${m.motivo.trim().isNotEmpty ? ' • ${m.motivo.trim()}' : ''}';
               blocos.add(
                 pw.Padding(
@@ -570,6 +596,26 @@ class ImpressaoService {
                 ),
               );
             }
+          }
+
+          if (comprasOrdenadas.isNotEmpty) {
+            blocos.add(pw.SizedBox(height: 6));
+            blocos.add(pw.Divider());
+            blocos.add(
+              pw.Center(
+                child: pw.Text(
+                  'COMPRAS POR FORNECEDOR',
+                  style: estilo(negrito: true),
+                ),
+              ),
+            );
+            blocos.add(pw.SizedBox(height: 2));
+            for (final e in comprasOrdenadas) {
+              blocos.add(linhaDupla(e.key, _valor(e.value)));
+            }
+            blocos.add(
+              linhaDupla('Total', _valor(totalCompras), negrito: true),
+            );
           }
 
           if (pagamentosOrdenados.isNotEmpty) {
@@ -1018,6 +1064,14 @@ class ImpressaoService {
       }
     }
 
+    final comprasPorFornecedor = _comprasPorFornecedor(movimentos);
+    final comprasOrdenadas = comprasPorFornecedor.entries.toList()
+      ..sort((a, b) => b.value.compareTo(a.value));
+    double totalCompras = 0;
+    for (final e in comprasOrdenadas) {
+      totalCompras += e.value;
+    }
+
     final vendasOrdenadas = [...vendas]
       ..sort((a, b) => b.dataHora.compareTo(a.dataHora));
     final pagamentosOrdenados = [...pagamentos]
@@ -1241,6 +1295,7 @@ class ImpressaoService {
                       pw.Text(
                         '${_dataHora(m.dataHora)}'
                         '${m.nomeAutor.isNotEmpty ? ' • por ${m.nomeAutor}' : ''}'
+                        '${m.fornecedorNome.isNotEmpty ? ' • ${m.fornecedorNome}' : ''}'
                         '${m.motivo.trim().isNotEmpty ? ' • ${m.motivo.trim()}' : ''}',
                         style: estiloMiudo,
                       ),
@@ -1249,6 +1304,21 @@ class ImpressaoService {
                 ),
               );
             }
+          }
+
+          if (comprasOrdenadas.isNotEmpty) {
+            blocos.add(pw.SizedBox(height: 16));
+            blocos.add(
+              pw.Text('Compras por fornecedor', style: estiloSecao),
+            );
+            blocos.add(pw.SizedBox(height: 6));
+            for (final e in comprasOrdenadas) {
+              blocos.add(linhaDupla(e.key, _valor(e.value)));
+            }
+            blocos.add(
+              linhaDupla('Total de compras', _valor(totalCompras),
+                  negrito: true),
+            );
           }
 
           if (pagamentosOrdenados.isNotEmpty) {
