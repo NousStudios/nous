@@ -773,6 +773,11 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
       categoriaIdsIniciais: categoriaIdsIniciais,
       grupoIdsIniciais: grupoIdsIniciais,
       onCriar: (itemEditado, categoriaIds, grupoIds) {
+        final anterior = _itens.firstWhere(
+          (i) => i.id == itemEditado.id,
+          orElse: () => itemEditado,
+        );
+
         setState(() {
           final indice = _itens.indexWhere((i) => i.id == itemEditado.id);
           if (indice != -1) _itens[indice] = itemEditado;
@@ -780,41 +785,66 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
         _sincronizarVinculosItem(itemEditado.id, categoriaIds, grupoIds);
         _persistirListasLoja();
 
-        _registrarAcao(
-          TipoAcao.itemAtualizado,
-          'Item "${itemEditado.nome}" atualizado',
-        );
+        final mudouNome = anterior.nome != itemEditado.nome;
+        final mudouPreco = anterior.preco != itemEditado.preco;
+
+        if (mudouPreco && mudouNome) {
+          _registrarAcao(
+            TipoAcao.itemAtualizado,
+            'Item "${anterior.nome}" renomeado para '
+                '"${itemEditado.nome}" e preço alterado de '
+                'R\$ ${anterior.preco} para R\$ ${itemEditado.preco}',
+          );
+        } else if (mudouPreco) {
+          _registrarAcao(
+            TipoAcao.itemAtualizado,
+            'Preço de "${itemEditado.nome}" alterado de '
+                'R\$ ${anterior.preco} para R\$ ${itemEditado.preco}',
+          );
+        } else {
+          _registrarAcao(
+            TipoAcao.itemAtualizado,
+            'Item "${itemEditado.nome}" atualizado',
+          );
+        }
       },
     );
   }
 
   void _editarNomeItem(String id, String novoNome) {
     if (!_podeEditarAbaLoja()) return;
+    final indice = _itens.indexWhere((i) => i.id == id);
+    if (indice == -1) return;
+    final anterior = _itens[indice];
+    if (anterior.nome == novoNome) return;
+
     setState(() {
-      final indice = _itens.indexWhere((i) => i.id == id);
-      if (indice == -1) return;
-      _itens[indice] = _itens[indice].copyWith(nome: novoNome);
+      _itens[indice] = anterior.copyWith(nome: novoNome);
     });
     _persistirListasLoja();
 
     _registrarAcao(
       TipoAcao.itemAtualizado,
-      'Item renomeado para "$novoNome"',
+      'Item "${anterior.nome}" renomeado para "$novoNome"',
     );
   }
 
   void _editarPrecoItem(String id, String novoPreco) {
     if (!_podeEditarAbaLoja()) return;
+    final indice = _itens.indexWhere((i) => i.id == id);
+    if (indice == -1) return;
+    final anterior = _itens[indice];
+    if (anterior.preco == novoPreco) return;
+
     setState(() {
-      final indice = _itens.indexWhere((i) => i.id == id);
-      if (indice == -1) return;
-      _itens[indice] = _itens[indice].copyWith(preco: novoPreco);
+      _itens[indice] = anterior.copyWith(preco: novoPreco);
     });
     _persistirListasLoja();
 
     _registrarAcao(
       TipoAcao.itemAtualizado,
-      'Preço do item atualizado para R\$ $novoPreco',
+      'Preço de "${anterior.nome}" alterado de '
+          'R\$ ${anterior.preco} para R\$ $novoPreco',
     );
   }
 

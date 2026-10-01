@@ -16,6 +16,37 @@ class DadosComentario {
   });
 }
 
+class PagamentoParcial {
+  final String forma;
+  final double valor;
+
+  const PagamentoParcial({
+    required this.forma,
+    required this.valor,
+  });
+
+  PagamentoParcial copyWith({String? forma, double? valor}) {
+    return PagamentoParcial(
+      forma: forma ?? this.forma,
+      valor: valor ?? this.valor,
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'forma': forma,
+      'valor': valor,
+    };
+  }
+
+  factory PagamentoParcial.fromJson(Map<String, dynamic> json) {
+    return PagamentoParcial(
+      forma: json['forma'] as String? ?? '',
+      valor: (json['valor'] as num?)?.toDouble() ?? 0,
+    );
+  }
+}
+
 class AcompanhamentoEscolhido {
   final String itemId;
   final String nomeItem;
@@ -137,6 +168,7 @@ class PedidoLoja {
   final StatusPedido status;
   final String comanda;
   final String formaPagamento;
+  final List<PagamentoParcial> pagamentosExtras;
   final bool quitado;
   final double valorPago;
   final double valorRecebido;
@@ -165,6 +197,7 @@ class PedidoLoja {
     this.status = StatusPedido.novo,
     this.comanda = '',
     this.formaPagamento = '',
+    this.pagamentosExtras = const [],
     this.quitado = false,
     this.valorPago = 0,
     this.valorRecebido = 0,
@@ -182,7 +215,16 @@ class PedidoLoja {
     this.comentarioDataHora,
   });
 
-  bool get aPrazoEmAberto => formaPagamento == 'À Prazo' && !quitado;
+  List<PagamentoParcial> get todosPagamentos {
+    if (pagamentosExtras.isNotEmpty) return pagamentosExtras;
+    if (formaPagamento.isEmpty) return const [];
+    return [PagamentoParcial(forma: formaPagamento, valor: valor)];
+  }
+
+  bool get temAPrazo =>
+      todosPagamentos.any((p) => p.forma == 'À Prazo');
+
+  bool get aPrazoEmAberto => temAPrazo && !quitado;
 
   double get valorRestante {
     final restante = valor - valorPago;
@@ -214,6 +256,7 @@ class PedidoLoja {
       status: status ?? this.status,
       comanda: comanda ?? this.comanda,
       formaPagamento: formaPagamento,
+      pagamentosExtras: pagamentosExtras,
       quitado: quitado ?? this.quitado,
       valorPago: valorPago ?? this.valorPago,
       valorRecebido: valorRecebido,
@@ -245,6 +288,7 @@ class PedidoLoja {
       'status': status.name,
       'comanda': comanda,
       'formaPagamento': formaPagamento,
+      'pagamentosExtras': pagamentosExtras.map((p) => p.toJson()).toList(),
       'quitado': quitado,
       'valorPago': valorPago,
       'valorRecebido': valorRecebido,
@@ -277,6 +321,10 @@ class PedidoLoja {
       status: StatusPedido.values.byName(json['status'] as String),
       comanda: json['comanda'] as String? ?? '',
       formaPagamento: json['formaPagamento'] as String? ?? '',
+      pagamentosExtras:
+          (json['pagamentosExtras'] as List<dynamic>? ?? const [])
+              .map((p) => PagamentoParcial.fromJson(p as Map<String, dynamic>))
+              .toList(),
       quitado: json['quitado'] as bool? ?? false,
       valorPago: (json['valorPago'] as num?)?.toDouble() ?? 0,
       valorRecebido: (json['valorRecebido'] as num?)?.toDouble() ?? 0,

@@ -18,7 +18,6 @@ const List<String> _formasDePagamento = [
 ];
 
 const String _formaAPrazo = 'À Prazo';
-const String _formaDinheiro = 'Dinheiro';
 
 const double _larguraComanda = 220;
 
@@ -145,19 +144,30 @@ class _LinhaCarrinho {
   }
 }
 
+class _LinhaPagamento {
+  final String forma;
+  final TextEditingController controller;
+
+  _LinhaPagamento({required this.forma, String valorInicial = ''})
+      : controller = TextEditingController(text: valorInicial);
+
+  void dispose() {
+    controller.dispose();
+  }
+}
+
 class _NovaVendaConteudoState extends State<_NovaVendaConteudo> {
   final _clienteController = TextEditingController();
   final _buscaController = TextEditingController();
   final _freteController = TextEditingController();
   final _descontoController = TextEditingController();
   final _acrescimoController = TextEditingController();
-  final _valorRecebidoController = TextEditingController();
   final _comandaScrollController = ScrollController();
   final _pagamentoScrollController = ScrollController();
 
   final List<_LinhaCarrinho> _carrinho = [];
+  final List<_LinhaPagamento> _pagamentos = [];
   Cliente? _clienteSelecionado;
-  String? _formaPagamento;
   String? _aviso;
   late final DateTime _dataHora;
 
@@ -179,11 +189,13 @@ class _NovaVendaConteudoState extends State<_NovaVendaConteudo> {
     _freteController.dispose();
     _descontoController.dispose();
     _acrescimoController.dispose();
-    _valorRecebidoController.dispose();
     _comandaScrollController.dispose();
     _pagamentoScrollController.dispose();
     for (final linha in _carrinho) {
       linha.dispose();
+    }
+    for (final p in _pagamentos) {
+      p.dispose();
     }
     super.dispose();
   }
@@ -283,12 +295,25 @@ class _NovaVendaConteudoState extends State<_NovaVendaConteudo> {
     return total < 0 ? 0 : total;
   }
 
-  double get _valorRecebido => _precoComoNumero(_valorRecebidoController.text);
+  bool get _temAPrazo =>
+      _pagamentos.any((p) => p.forma == _formaAPrazo);
+
+  double get _somaTotalPagamentos {
+    var soma = 0.0;
+    for (final p in _pagamentos) {
+      soma += _precoComoNumero(p.controller.text);
+    }
+    return soma;
+  }
+
+  double get _falta {
+    final f = _total - _somaTotalPagamentos;
+    return f < 0 ? 0.0 : f;
+  }
 
   double get _troco {
-    if (_formaPagamento != _formaDinheiro) return 0;
-    final t = _valorRecebido - _total;
-    return t < 0 ? 0 : t;
+    final t = _somaTotalPagamentos - _total;
+    return t < 0 ? 0.0 : t;
   }
 
   String _nomeExibicaoDaLinha(_LinhaCarrinho linha) {
@@ -439,12 +464,17 @@ class _NovaVendaConteudoState extends State<_NovaVendaConteudo> {
       buffer.writeln(linha('Acrescimo', _valorComVirgula(_acrescimo)));
     }
     buffer.writeln(linha('TOTAL', _valorComVirgula(_total)));
-    buffer.writeln('Pagamento: ${_formaPagamento ?? ''}');
-    if (_formaPagamento == _formaDinheiro) {
-      buffer.writeln(
-        linha('Valor recebido', _valorComVirgula(_valorRecebido)),
-      );
-      buffer.writeln(linha('Troco', _valorComVirgula(_troco)));
+    if (_pagamentos.isNotEmpty) {
+      buffer.writeln('Pagamentos:');
+      for (final p in _pagamentos) {
+        final v = _precoComoNumero(p.controller.text);
+        buffer.writeln(
+          linha('  ${p.forma}', _valorComVirgula(v)),
+        );
+      }
+      if (_troco > 0) {
+        buffer.writeln(linha('Troco', _valorComVirgula(_troco)));
+      }
     }
     buffer.writeln(duplo);
     buffer.writeln('linktr.ee/nous72');
@@ -647,7 +677,7 @@ class _NovaVendaConteudoState extends State<_NovaVendaConteudo> {
       final selecionado = _clienteSelecionado;
       if (selecionado != null && selecionado.nome != texto) {
         _clienteSelecionado = null;
-        if (_formaPagamento == _formaAPrazo) _formaPagamento = null;
+        if (_temAPrazo) _removerForma(_formaAPrazo);
       }
     });
   }
@@ -670,23 +700,62 @@ class _NovaVendaConteudoState extends State<_NovaVendaConteudo> {
         _clienteSelecionado = atualizado;
         if (atualizado != null) {
           _clienteController.text = atualizado.nome;
-        } else if (_formaPagamento == _formaAPrazo) {
-          _formaPagamento = null;
+        } else if (_temAPrazo) {
+          _removerForma(_formaAPrazo);
         }
       }
     });
   }
 
-  void _escolherPagamento(String forma) {
+  void _removerForma(String forma) {
+    final indice = _pagamentos.indexWhere((p) => p.forma == forma);
+    if (indice == -1) return;
+    _pagamentos[indice].dispose();
+    _pagamentos.removeAt(indice);
+  }
+
+  void _recalcularPrazo() {
+    if (!_temAPrazo) return;
+    final outras = _pagamentos
+        .where((p) => p.forma != _formaAPrazo)
+        .fold<double>(0.0, (s, p) => s + _precoComoNumero(p.controller.text));
+    final restante = _total - outras;
+    final valorAPrazo = restante < 0 ? 0.0 : restante;
+    final indice = _pagamentos.indexWhere((p) => p.forma == _formaAPrazo);
+    if (indice != -1) {
+      _pagamentos[indice].controller.text = _valorComVirgula(valorAPrazo);
+    }
+  }
+
+  void _escolherForma(String forma) {
+    final jaTem = _pagamentos.any((p) => p.forma == forma);
+    if (jaTem) {
+      setState(() {
+        _removerForma(forma);
+        _recalcularPrazo();
+      });
+      return;
+    }
     if (forma == _formaAPrazo && _clienteSelecionado == null) {
       _mostrarAviso('Selecione um cliente cadastrado para vender a prazo.');
       return;
     }
     setState(() {
-      _formaPagamento = _formaPagamento == forma ? null : forma;
-      if (_formaPagamento != _formaDinheiro) {
-        _valorRecebidoController.clear();
+      if (forma == _formaAPrazo) {
+        _pagamentos.add(_LinhaPagamento(forma: forma, valorInicial: '0,00'));
+      } else {
+        final outras = _pagamentos
+            .where((p) => p.forma != _formaAPrazo)
+            .fold<double>(
+                0.0, (s, p) => s + _precoComoNumero(p.controller.text));
+        final restante = _total - outras;
+        final valor = restante < 0 ? 0.0 : restante;
+        _pagamentos.add(_LinhaPagamento(
+          forma: forma,
+          valorInicial: _valorComVirgula(valor),
+        ));
       }
+      _recalcularPrazo();
       _aviso = null;
     });
   }
@@ -782,13 +851,27 @@ class _NovaVendaConteudoState extends State<_NovaVendaConteudo> {
       return;
     }
 
-    if (_formaPagamento == _formaAPrazo && _clienteSelecionado == null) {
+    if (_pagamentos.isEmpty) {
+      _mostrarAviso('Escolha ao menos uma forma de pagamento.');
+      return;
+    }
+
+    if (_temAPrazo && _clienteSelecionado == null) {
       _mostrarAviso('Selecione um cliente cadastrado para vender a prazo.');
       return;
     }
 
-    if (_formaPagamento == _formaDinheiro && _valorRecebido < _total) {
-      _mostrarAviso('O valor recebido é menor que o total.');
+    if (_falta > 0.005) {
+      _mostrarAviso(
+        'Faltam R\$ ${_valorComVirgula(_falta)} para completar o pagamento.',
+      );
+      return;
+    }
+
+    if (_temAPrazo && _troco > 0.005) {
+      _mostrarAviso(
+        'Não pode haver troco numa venda com pagamento à prazo.',
+      );
       return;
     }
 
@@ -831,7 +914,21 @@ class _NovaVendaConteudoState extends State<_NovaVendaConteudo> {
         : (nomes.isEmpty ? 'Venda' : nomes.first);
     final cliente = _clienteController.text.trim();
 
-    final isDinheiro = _formaPagamento == _formaDinheiro;
+    final pagamentosPedido = _pagamentos
+        .map((p) => PagamentoParcial(
+              forma: p.forma,
+              valor: _precoComoNumero(p.controller.text),
+            ))
+        .toList();
+
+    final formaUnica =
+        pagamentosPedido.length == 1 ? pagamentosPedido.first.forma : '';
+
+    final valorPagoNaoPrazo = pagamentosPedido
+        .where((p) => p.forma != _formaAPrazo)
+        .fold<double>(0.0, (s, p) => s + p.valor);
+
+    final trocoFinal = valorPagoNaoPrazo - _total;
 
     final pedido = PedidoLoja(
       id: DateTime.now().millisecondsSinceEpoch.toString(),
@@ -843,9 +940,11 @@ class _NovaVendaConteudoState extends State<_NovaVendaConteudo> {
       valor: _total,
       status: StatusPedido.aceito,
       comanda: _montarComanda(),
-      formaPagamento: _formaPagamento ?? '',
-      valorRecebido: isDinheiro ? _valorRecebido : 0,
-      troco: isDinheiro ? _troco : 0,
+      formaPagamento: formaUnica,
+      pagamentosExtras:
+          pagamentosPedido.length > 1 ? pagamentosPedido : const [],
+      valorRecebido: valorPagoNaoPrazo,
+      troco: trocoFinal > 0 ? trocoFinal : 0.0,
       itens: itensVendidos,
       frete: _frete,
       desconto: _desconto,
@@ -1445,14 +1544,18 @@ class _NovaVendaConteudoState extends State<_NovaVendaConteudo> {
                             'TOTAL', 'R\$ ${_valorComVirgula(_total)}',
                             destaque: true),
                         const SizedBox(height: 4),
-                        _linhaComanda('Pagamento', _formaPagamento ?? '-'),
-                        if (_formaPagamento == _formaDinheiro) ...[
-                          _linhaComanda('Valor recebido',
-                              'R\$ ${_valorComVirgula(_valorRecebido)}'),
+                        if (_pagamentos.isEmpty)
+                          _linhaComanda('Pagamento', '-')
+                        else
+                          for (final p in _pagamentos)
+                            _linhaComanda(
+                              p.forma,
+                              'R\$ ${_valorComVirgula(_precoComoNumero(p.controller.text))}',
+                            ),
+                        if (_troco > 0)
                           _linhaComanda('Troco',
                               'R\$ ${_valorComVirgula(_troco)}',
                               destaque: true),
-                        ],
                         const SizedBox(height: 12),
                         Center(
                           child: Text(
@@ -1486,7 +1589,7 @@ class _NovaVendaConteudoState extends State<_NovaVendaConteudo> {
         cursorColor: theme.textColor,
         style: theme.getTextStyle(fontSize: 12),
         decoration: _decoracaoCampo(rotulo),
-        onChanged: (_) => setState(() {}),
+        onChanged: (_) => setState(_recalcularPrazo),
       ),
     );
   }
@@ -1514,22 +1617,63 @@ class _NovaVendaConteudoState extends State<_NovaVendaConteudo> {
     );
   }
 
+  Widget _linhaDePagamento(_LinhaPagamento p) {
+    final ehPrazo = p.forma == _formaAPrazo;
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        children: [
+          SizedBox(
+            width: 90,
+            child: Text(
+              p.forma,
+              style: theme.getTextStyle(fontSize: 12, color: theme.textColor),
+            ),
+          ),
+          Expanded(
+            child: TextField(
+              controller: p.controller,
+              readOnly: ehPrazo,
+              keyboardType:
+                  const TextInputType.numberWithOptions(decimal: true),
+              cursorColor: theme.textColor,
+              style: theme.getTextStyle(fontSize: 12),
+              decoration: _decoracaoCampo('Valor'),
+              onChanged: (_) => setState(_recalcularPrazo),
+            ),
+          ),
+          IconButton(
+            padding: EdgeInsets.zero,
+            visualDensity: VisualDensity.compact,
+            constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+            icon: Icon(Icons.close, size: 16, color: theme.secondaryTextColor),
+            onPressed: () {
+              setState(() {
+                _removerForma(p.forma);
+                _recalcularPrazo();
+              });
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _blocoPagamento() {
-    final isDinheiro = _formaPagamento == _formaDinheiro;
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(12),
       decoration: _decoracaoDoBloco,
       child: Column(
         children: [
-          _tituloDoBloco('Forma de Pagamento'),
+          _tituloDoBloco('Formas de Pagamento'),
           Scrollbar(
             controller: _pagamentoScrollController,
             thumbVisibility: true,
             child: SingleChildScrollView(
               controller: _pagamentoScrollController,
               scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.only(bottom: 12),
+              padding: const EdgeInsets.only(bottom: 8),
               child: Row(
                 children: [
                   for (final forma in _formasDePagamento)
@@ -1537,46 +1681,62 @@ class _NovaVendaConteudoState extends State<_NovaVendaConteudo> {
                       padding: const EdgeInsets.symmetric(horizontal: 3),
                       child: SizedBox(
                         width: 84,
-                        child: _botaoDePagamento(forma),
+                        child: _botaoDeForma(forma),
                       ),
                     ),
                 ],
               ),
             ),
           ),
-          if (isDinheiro) ...[
-            Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: _valorRecebidoController,
-                    keyboardType: const TextInputType.numberWithOptions(
-                        decimal: true),
-                    cursorColor: theme.textColor,
-                    style: theme.getTextStyle(fontSize: 12),
-                    decoration: _decoracaoCampo('Valor recebido'),
-                    onChanged: (_) => setState(() {}),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Text(
-                  'Troco: R\$ ${_valorComVirgula(_troco)}',
-                  style: theme.getTextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    color: theme.textColor,
-                  ),
-                ),
-              ],
-            ),
+          if (_pagamentos.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            for (final p in _pagamentos) _linhaDePagamento(p),
           ],
+          const SizedBox(height: 8),
+          if (_pagamentos.isEmpty)
+            Text(
+              'Escolha uma forma acima.',
+              style: theme.getTextStyle(
+                fontSize: 12,
+                color: theme.secondaryTextColor,
+              ),
+            )
+          else if (_falta > 0.005)
+            Text(
+              'Faltam R\$ ${_valorComVirgula(_falta)} para completar.',
+              textAlign: TextAlign.center,
+              style: theme.getTextStyle(
+                fontSize: 12,
+                color: Colors.redAccent,
+                fontWeight: FontWeight.w600,
+              ),
+            )
+          else if (_troco > 0.005)
+            Text(
+              'Troco: R\$ ${_valorComVirgula(_troco)}',
+              textAlign: TextAlign.center,
+              style: theme.getTextStyle(
+                fontSize: 12,
+                color: theme.textColor,
+                fontWeight: FontWeight.w600,
+              ),
+            )
+          else
+            Text(
+              'Pagamento completo.',
+              textAlign: TextAlign.center,
+              style: theme.getTextStyle(
+                fontSize: 12,
+                color: theme.textColor,
+              ),
+            ),
         ],
       ),
     );
   }
 
-  Widget _botaoDePagamento(String forma) {
-    final selecionada = _formaPagamento == forma;
+  Widget _botaoDeForma(String forma) {
+    final selecionada = _pagamentos.any((p) => p.forma == forma);
     return OutlinedButton(
       style: OutlinedButton.styleFrom(
         backgroundColor: selecionada ? theme.buttonColor : Colors.transparent,
@@ -1588,7 +1748,7 @@ class _NovaVendaConteudoState extends State<_NovaVendaConteudo> {
         padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 10),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
       ),
-      onPressed: () => _escolherPagamento(forma),
+      onPressed: () => _escolherForma(forma),
       child: FittedBox(
         fit: BoxFit.scaleDown,
         child: Text(
