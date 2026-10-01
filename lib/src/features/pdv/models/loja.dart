@@ -4,6 +4,8 @@ import 'package:nous/src/features/pdv/models/configuracoes_impressora.dart';
 import 'package:nous/src/features/pdv/models/grupo_componentes_loja.dart';
 import 'package:nous/src/features/pdv/models/item_loja.dart';
 import 'package:nous/src/features/pdv/models/membro_loja.dart';
+import 'package:nous/src/features/pdv/models/movimento_estoque.dart';
+import 'package:nous/src/features/pdv/models/pagamento_funcionario.dart';
 import 'package:nous/src/features/pdv/models/pedido_loja.dart';
 import 'package:nous/src/features/pdv/models/registro_acao.dart';
 
@@ -27,6 +29,8 @@ class Loja {
   final List<PedidoLoja> pedidosLoja;
   final List<RegistroAcao> acoes;
   final List<MembroLoja> membros;
+  final List<MovimentoEstoque> movimentosEstoque;
+  final List<PagamentoFuncionario> pagamentosFuncionarios;
 
   final ConfiguracoesImpressora configuracoesImpressora;
 
@@ -48,6 +52,8 @@ class Loja {
     this.pedidosLoja = const [],
     this.acoes = const [],
     this.membros = const [],
+    this.movimentosEstoque = const [],
+    this.pagamentosFuncionarios = const [],
     this.configuracoesImpressora = const ConfiguracoesImpressora(),
   });
 
@@ -68,6 +74,8 @@ class Loja {
     List<PedidoLoja>? pedidosLoja,
     List<RegistroAcao>? acoes,
     List<MembroLoja>? membros,
+    List<MovimentoEstoque>? movimentosEstoque,
+    List<PagamentoFuncionario>? pagamentosFuncionarios,
     ConfiguracoesImpressora? configuracoesImpressora,
   }) {
     return Loja(
@@ -88,6 +96,9 @@ class Loja {
       pedidosLoja: pedidosLoja ?? this.pedidosLoja,
       acoes: acoes ?? this.acoes,
       membros: membros ?? this.membros,
+      movimentosEstoque: movimentosEstoque ?? this.movimentosEstoque,
+      pagamentosFuncionarios:
+          pagamentosFuncionarios ?? this.pagamentosFuncionarios,
       configuracoesImpressora:
           configuracoesImpressora ?? this.configuracoesImpressora,
     );
@@ -113,6 +124,10 @@ class Loja {
       'pedidosLoja': pedidosLoja.map((p) => p.toJson()).toList(),
       'acoes': acoes.map((a) => a.toJson()).toList(),
       'membros': membros.map((m) => m.toJson()).toList(),
+      'movimentosEstoque':
+          movimentosEstoque.map((m) => m.toJson()).toList(),
+      'pagamentosFuncionarios':
+          pagamentosFuncionarios.map((p) => p.toJson()).toList(),
       'configuracoesImpressora': configuracoesImpressora.toJson(),
     };
   }
@@ -152,6 +167,16 @@ class Loja {
       membros: (json['membros'] as List<dynamic>? ?? const [])
           .map((item) => MembroLoja.fromJson(item as Map<String, dynamic>))
           .toList(),
+      movimentosEstoque:
+          (json['movimentosEstoque'] as List<dynamic>? ?? const [])
+              .map((item) =>
+                  MovimentoEstoque.fromJson(item as Map<String, dynamic>))
+              .toList(),
+      pagamentosFuncionarios:
+          (json['pagamentosFuncionarios'] as List<dynamic>? ?? const [])
+              .map((item) =>
+                  PagamentoFuncionario.fromJson(item as Map<String, dynamic>))
+              .toList(),
       configuracoesImpressora: json['configuracoesImpressora'] == null
           ? const ConfiguracoesImpressora()
           : ConfiguracoesImpressora.fromJson(

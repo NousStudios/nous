@@ -7,6 +7,9 @@ import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 
 import 'package:nous/src/features/pdv/models/configuracoes_impressora.dart';
+import 'package:nous/src/features/pdv/models/loja.dart';
+import 'package:nous/src/features/pdv/models/movimento_estoque.dart';
+import 'package:nous/src/features/pdv/models/pagamento_funcionario.dart';
 import 'package:nous/src/features/pdv/models/pedido_loja.dart';
 
 const PdfPageFormat _papel58mm = PdfPageFormat(
@@ -17,6 +20,14 @@ const PdfPageFormat _papel58mm = PdfPageFormat(
   marginTop: 2 * PdfPageFormat.mm,
   marginBottom: 2 * PdfPageFormat.mm,
 );
+
+const List<String> _formasDePagamento = [
+  'Pix',
+  'Dinheiro',
+  'Débito',
+  'Crédito',
+  'À Prazo',
+];
 
 class ImpressaoService {
   static Future<List<Printer>> listarImpressoras() async {
@@ -59,6 +70,15 @@ class ImpressaoService {
       case StatusPedido.concluido:
         return 'Concluído';
     }
+  }
+
+  static String _nomeDoItem(Loja loja, String itemId) {
+    for (final i in loja.itensLoja) {
+      if (i.id == itemId) {
+        return i.nome.isEmpty ? 'Item' : i.nome;
+      }
+    }
+    return 'Item removido';
   }
 
   static Future<void> imprimirTeste({
@@ -249,6 +269,296 @@ class ImpressaoService {
       bytes: bytes,
       nomeImpressora: config.nomeImpressora,
       jobName: 'ComandaNous-${pedido.numero}',
+    );
+  }
+
+  static Future<void> imprimirFinanceiro({
+    required ConfiguracoesImpressora config,
+    required Loja loja,
+    required String periodo,
+    required List<PedidoLoja> vendas,
+    required List<PedidoLoja> pedidosAceitos,
+    required List<PagamentoFuncionario> pagamentos,
+    required List<MovimentoEstoque> movimentos,
+    required double saidaEstoque,
+    required bool contarEstoque,
+  }) async {
+    final doc = pw.Document();
+    final tamanho = _tamanhoEmPontos(config.tamanhoFonte);
+
+    pw.TextStyle estilo({bool negrito = false, double? tamanhoCustom}) {
+      return pw.TextStyle(
+        fontSize: tamanhoCustom ?? tamanho,
+        fontWeight: negrito ? pw.FontWeight.bold : pw.FontWeight.normal,
+      );
+    }
+
+    pw.Widget linhaDupla(
+      String esquerda,
+      String direita, {
+      bool negrito = false,
+    }) {
+      return pw.Padding(
+        padding: const pw.EdgeInsets.symmetric(vertical: 1),
+        child: pw.Row(
+          crossAxisAlignment: pw.CrossAxisAlignment.start,
+          children: [
+            pw.Expanded(
+              child: pw.Text(esquerda, style: estilo(negrito: negrito)),
+            ),
+            pw.Text(direita, style: estilo(negrito: negrito)),
+          ],
+        ),
+      );
+    }
+
+    double totalEntradas = 0;
+    for (final p in vendas) {
+      totalEntradas += p.valor;
+    }
+    double totalAReceber = 0;
+    for (final p in pedidosAceitos) {
+      totalAReceber += p.valor;
+    }
+    double totalPagamentos = 0;
+    for (final p in pagamentos) {
+      totalPagamentos += p.valor;
+    }
+    final totalSaidas =
+        totalPagamentos + (contarEstoque ? saidaEstoque : 0);
+    final saldo = totalEntradas - totalSaidas;
+
+    final entradasPorForma = <String, double>{
+      for (final f in _formasDePagamento)
+        f: vendas
+            .where((p) => p.formaPagamento == f)
+            .fold(0.0, (soma, p) => soma + p.valor),
+    };
+
+    final vendasOrdenadas = [...vendas]
+      ..sort((a, b) => b.dataHora.compareTo(a.dataHora));
+    final pagamentosOrdenados = [...pagamentos]
+      ..sort((a, b) => b.dataHora.compareTo(a.dataHora));
+    final movimentosOrdenados = [...movimentos]
+      ..sort((a, b) => b.dataHora.compareTo(a.dataHora));
+
+    doc.addPage(
+      pw.MultiPage(
+        pageFormat: _papel58mm,
+        build: (context) {
+          final blocos = <pw.Widget>[];
+
+          if (loja.nome.isNotEmpty) {
+            blocos.add(
+              pw.Center(
+                child: pw.Text(loja.nome, style: estilo(negrito: true)),
+              ),
+            );
+          }
+          if (loja.cnpj.isNotEmpty) {
+            blocos.add(
+              pw.Center(
+                child: pw.Text('CNPJ: ${loja.cnpj}', style: estilo()),
+              ),
+            );
+          }
+          blocos.add(pw.SizedBox(height: 4));
+          blocos.add(
+            pw.Center(
+              child: pw.Text(
+                'RELATÓRIO FINANCEIRO',
+                style: estilo(negrito: true),
+              ),
+            ),
+          );
+          blocos.add(
+            pw.Center(
+              child: pw.Text('Período: $periodo', style: estilo()),
+            ),
+          );
+          blocos.add(
+            pw.Center(
+              child: pw.Text(
+                'Emitido: ${_dataHora(DateTime.now())}',
+                style: estilo(tamanhoCustom: tamanho - 1),
+              ),
+            ),
+          );
+
+          blocos.add(pw.SizedBox(height: 6));
+          blocos.add(pw.Divider());
+
+          blocos.add(
+            pw.Center(
+              child: pw.Text('ENTRADAS', style: estilo(negrito: true)),
+            ),
+          );
+          blocos.add(pw.SizedBox(height: 2));
+          for (final forma in _formasDePagamento) {
+            blocos.add(
+              linhaDupla(forma, _valor(entradasPorForma[forma] ?? 0)),
+            );
+          }
+          blocos.add(
+            linhaDupla('Total', _valor(totalEntradas), negrito: true),
+          );
+
+          if (vendasOrdenadas.isNotEmpty) {
+            blocos.add(pw.SizedBox(height: 6));
+            blocos.add(pw.Divider());
+            blocos.add(
+              pw.Center(
+                child: pw.Text(
+                  'VENDAS DO PERÍODO',
+                  style: estilo(negrito: true),
+                ),
+              ),
+            );
+            blocos.add(pw.SizedBox(height: 2));
+            for (final v in vendasOrdenadas) {
+              blocos.add(
+                linhaDupla(
+                  '${_numero(v.numero)} ${v.clienteNome}',
+                  _valor(v.valor),
+                ),
+              );
+              final detalhe = '${_dataHora(v.dataHora)}'
+                  '${v.formaPagamento.isNotEmpty ? ' • ${v.formaPagamento}' : ''}';
+              blocos.add(
+                pw.Padding(
+                  padding: const pw.EdgeInsets.only(left: 4, bottom: 3),
+                  child: pw.Text(
+                    detalhe,
+                    style: estilo(tamanhoCustom: tamanho - 2),
+                  ),
+                ),
+              );
+            }
+          }
+
+          blocos.add(pw.SizedBox(height: 6));
+          blocos.add(pw.Divider());
+          blocos.add(
+            pw.Center(
+              child: pw.Text('SAÍDAS', style: estilo(negrito: true)),
+            ),
+          );
+          blocos.add(pw.SizedBox(height: 2));
+          blocos.add(
+            linhaDupla(
+              'Pagamentos a funcionários',
+              _valor(totalPagamentos),
+            ),
+          );
+          if (contarEstoque) {
+            blocos.add(
+              linhaDupla('Custo de estoque', _valor(saidaEstoque)),
+            );
+          }
+          blocos.add(
+            linhaDupla('Total', _valor(totalSaidas), negrito: true),
+          );
+
+          blocos.add(pw.SizedBox(height: 6));
+          blocos.add(pw.Divider());
+          blocos.add(
+            linhaDupla('SALDO', _valor(saldo), negrito: true),
+          );
+          if (pedidosAceitos.isNotEmpty) {
+            blocos.add(pw.SizedBox(height: 3));
+            blocos.add(
+              linhaDupla(
+                'A receber (${pedidosAceitos.length})',
+                _valor(totalAReceber),
+              ),
+            );
+          }
+
+          if (movimentosOrdenados.isNotEmpty) {
+            blocos.add(pw.SizedBox(height: 6));
+            blocos.add(pw.Divider());
+            blocos.add(
+              pw.Center(
+                child: pw.Text(
+                  'MOVIMENTOS DE ESTOQUE',
+                  style: estilo(negrito: true),
+                ),
+              ),
+            );
+            blocos.add(pw.SizedBox(height: 2));
+            for (final m in movimentosOrdenados) {
+              final nome = _nomeDoItem(loja, m.itemId);
+              final sinal = m.ehEntrada ? '+' : '-';
+              final sufixoCusto = m.custoUnitario > 0
+                  ? ' • ${_valor(m.custoUnitario)}/un'
+                  : '';
+              blocos.add(
+                linhaDupla(
+                  '$sinal${m.quantidade}x $nome$sufixoCusto',
+                  _valor(m.custoTotal),
+                ),
+              );
+              final detalhe = '${_dataHora(m.dataHora)}'
+                  '${m.nomeAutor.isNotEmpty ? ' • ${m.nomeAutor}' : ''}'
+                  '${m.motivo.trim().isNotEmpty ? ' • ${m.motivo.trim()}' : ''}';
+              blocos.add(
+                pw.Padding(
+                  padding: const pw.EdgeInsets.only(left: 4, bottom: 3),
+                  child: pw.Text(
+                    detalhe,
+                    style: estilo(tamanhoCustom: tamanho - 2),
+                  ),
+                ),
+              );
+            }
+          }
+
+          if (pagamentosOrdenados.isNotEmpty) {
+            blocos.add(pw.SizedBox(height: 6));
+            blocos.add(pw.Divider());
+            blocos.add(
+              pw.Center(
+                child: pw.Text(
+                  'PAGAMENTOS DO PERÍODO',
+                  style: estilo(negrito: true),
+                ),
+              ),
+            );
+            blocos.add(pw.SizedBox(height: 2));
+            for (final p in pagamentosOrdenados) {
+              blocos.add(linhaDupla(p.nome, _valor(p.valor)));
+              final detalhe = '${_dataHora(p.dataHora)}'
+                  '${p.nomeAutor.isNotEmpty ? ' • por ${p.nomeAutor}' : ''}'
+                  '${p.descricao.trim().isNotEmpty ? ' • ${p.descricao.trim()}' : ''}';
+              blocos.add(
+                pw.Padding(
+                  padding: const pw.EdgeInsets.only(left: 4, bottom: 3),
+                  child: pw.Text(
+                    detalhe,
+                    style: estilo(tamanhoCustom: tamanho - 2),
+                  ),
+                ),
+              );
+            }
+          }
+
+          if (config.rodape.isNotEmpty) {
+            blocos.add(pw.SizedBox(height: 10));
+            for (final l in config.rodape.split('\n')) {
+              blocos.add(pw.Center(child: pw.Text(l, style: estilo())));
+            }
+          }
+
+          return blocos;
+        },
+      ),
+    );
+
+    final bytes = await doc.save();
+    await _enviarParaImpressora(
+      bytes: bytes,
+      nomeImpressora: config.nomeImpressora,
+      jobName: 'FinanceiroNous-${DateTime.now().millisecondsSinceEpoch}',
     );
   }
 
@@ -570,6 +880,366 @@ class ImpressaoService {
     final local = await getSaveLocation(
       suggestedName:
           'comanda_${pedido.numero.toString().padLeft(4, '0')}.pdf',
+      acceptedTypeGroups: const [grupo],
+    );
+
+    if (local == null) return null;
+
+    final arquivo = File(local.path);
+    await arquivo.writeAsBytes(bytes);
+    return local.path;
+  }
+
+  static Future<String?> exportarFinanceiroPDF({
+    required Loja loja,
+    required String periodo,
+    required String rodape,
+    required List<PedidoLoja> vendas,
+    required List<PedidoLoja> pedidosAceitos,
+    required List<PagamentoFuncionario> pagamentos,
+    required List<MovimentoEstoque> movimentos,
+    required double saidaEstoque,
+    required bool contarEstoque,
+  }) async {
+    final doc = pw.Document();
+
+    final estiloTitulo = pw.TextStyle(
+      fontSize: 20,
+      fontWeight: pw.FontWeight.bold,
+    );
+    final estiloSecao = pw.TextStyle(
+      fontSize: 13,
+      fontWeight: pw.FontWeight.bold,
+    );
+    final estiloCorpo = const pw.TextStyle(fontSize: 11);
+    final estiloMiudo = const pw.TextStyle(
+      fontSize: 9,
+      color: PdfColors.grey700,
+    );
+
+    double totalEntradas = 0;
+    for (final p in vendas) {
+      totalEntradas += p.valor;
+    }
+    double totalAReceber = 0;
+    for (final p in pedidosAceitos) {
+      totalAReceber += p.valor;
+    }
+    double totalPagamentos = 0;
+    for (final p in pagamentos) {
+      totalPagamentos += p.valor;
+    }
+    final totalSaidas =
+        totalPagamentos + (contarEstoque ? saidaEstoque : 0);
+    final saldo = totalEntradas - totalSaidas;
+
+    final entradasPorForma = <String, double>{
+      for (final f in _formasDePagamento)
+        f: vendas
+            .where((p) => p.formaPagamento == f)
+            .fold(0.0, (soma, p) => soma + p.valor),
+    };
+
+    final vendasOrdenadas = [...vendas]
+      ..sort((a, b) => b.dataHora.compareTo(a.dataHora));
+    final pagamentosOrdenados = [...pagamentos]
+      ..sort((a, b) => b.dataHora.compareTo(a.dataHora));
+    final movimentosOrdenados = [...movimentos]
+      ..sort((a, b) => b.dataHora.compareTo(a.dataHora));
+
+    pw.Widget linhaDupla(
+      String rotulo,
+      String valor, {
+      bool negrito = false,
+    }) {
+      return pw.Padding(
+        padding: const pw.EdgeInsets.symmetric(vertical: 2),
+        child: pw.Row(
+          crossAxisAlignment: pw.CrossAxisAlignment.start,
+          children: [
+            pw.SizedBox(
+              width: 220,
+              child: pw.Text(
+                rotulo,
+                style: negrito
+                    ? pw.TextStyle(
+                        fontSize: 11,
+                        fontWeight: pw.FontWeight.bold,
+                      )
+                    : estiloCorpo,
+              ),
+            ),
+            pw.Expanded(
+              child: pw.Text(
+                valor,
+                style: negrito
+                    ? pw.TextStyle(
+                        fontSize: 11,
+                        fontWeight: pw.FontWeight.bold,
+                      )
+                    : estiloCorpo,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    doc.addPage(
+      pw.MultiPage(
+        pageFormat: PdfPageFormat.a4,
+        margin: const pw.EdgeInsets.all(32),
+        build: (context) {
+          final blocos = <pw.Widget>[];
+
+          blocos.add(
+            pw.Center(
+              child: pw.Text('Relatório Financeiro', style: estiloTitulo),
+            ),
+          );
+          if (loja.nome.isNotEmpty) {
+            blocos.add(
+              pw.Center(
+                child: pw.Padding(
+                  padding: const pw.EdgeInsets.only(top: 4),
+                  child: pw.Text(
+                    loja.nome,
+                    style: pw.TextStyle(
+                      fontSize: 14,
+                      fontWeight: pw.FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ),
+            );
+          }
+          if (loja.cnpj.isNotEmpty) {
+            blocos.add(
+              pw.Center(
+                child: pw.Padding(
+                  padding: const pw.EdgeInsets.only(top: 2),
+                  child: pw.Text(
+                    'CNPJ: ${loja.cnpj}',
+                    style: estiloMiudo,
+                  ),
+                ),
+              ),
+            );
+          }
+          blocos.add(
+            pw.Center(
+              child: pw.Padding(
+                padding: const pw.EdgeInsets.only(top: 6),
+                child: pw.Text(
+                  'Período: $periodo • Emitido em ${_dataHora(DateTime.now())}',
+                  style: estiloMiudo,
+                ),
+              ),
+            ),
+          );
+
+          blocos.add(pw.SizedBox(height: 16));
+          blocos.add(pw.Divider());
+          blocos.add(pw.SizedBox(height: 8));
+
+          blocos.add(
+            pw.Text('Entradas por forma de pagamento', style: estiloSecao),
+          );
+          blocos.add(pw.SizedBox(height: 6));
+          for (final forma in _formasDePagamento) {
+            blocos.add(
+              linhaDupla(forma, _valor(entradasPorForma[forma] ?? 0)),
+            );
+          }
+          blocos.add(
+            linhaDupla('Total de entradas', _valor(totalEntradas),
+                negrito: true),
+          );
+
+          if (vendasOrdenadas.isNotEmpty) {
+            blocos.add(pw.SizedBox(height: 16));
+            blocos.add(
+              pw.Text('Vendas do período', style: estiloSecao),
+            );
+            blocos.add(pw.SizedBox(height: 6));
+            for (final v in vendasOrdenadas) {
+              blocos.add(
+                pw.Padding(
+                  padding: const pw.EdgeInsets.symmetric(vertical: 4),
+                  child: pw.Column(
+                    crossAxisAlignment: pw.CrossAxisAlignment.stretch,
+                    children: [
+                      pw.Row(
+                        crossAxisAlignment: pw.CrossAxisAlignment.start,
+                        children: [
+                          pw.Expanded(
+                            child: pw.Text(
+                              '${_numero(v.numero)} • ${v.clienteNome}',
+                              style: estiloCorpo,
+                            ),
+                          ),
+                          pw.Text(_valor(v.valor), style: estiloCorpo),
+                        ],
+                      ),
+                      pw.Text(
+                        '${_dataHora(v.dataHora)}'
+                        '${v.formaPagamento.isNotEmpty ? ' • ${v.formaPagamento}' : ''}',
+                        style: estiloMiudo,
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            }
+          }
+
+          blocos.add(pw.SizedBox(height: 16));
+          blocos.add(pw.Text('Saídas', style: estiloSecao));
+          blocos.add(pw.SizedBox(height: 6));
+          blocos.add(
+            linhaDupla(
+              'Pagamentos a funcionários',
+              _valor(totalPagamentos),
+            ),
+          );
+          if (contarEstoque) {
+            blocos.add(
+              linhaDupla('Custo de estoque', _valor(saidaEstoque)),
+            );
+          }
+          blocos.add(
+            linhaDupla('Total de saídas', _valor(totalSaidas),
+                negrito: true),
+          );
+
+          blocos.add(pw.SizedBox(height: 16));
+          blocos.add(pw.Text('Balança orçamentária', style: estiloSecao));
+          blocos.add(pw.SizedBox(height: 6));
+          blocos.add(
+            linhaDupla('Saldo', _valor(saldo), negrito: true),
+          );
+          if (pedidosAceitos.isNotEmpty) {
+            blocos.add(
+              linhaDupla(
+                'A receber (${pedidosAceitos.length})',
+                _valor(totalAReceber),
+              ),
+            );
+          }
+
+          if (movimentosOrdenados.isNotEmpty) {
+            blocos.add(pw.SizedBox(height: 16));
+            blocos.add(
+              pw.Text('Movimentos de estoque', style: estiloSecao),
+            );
+            blocos.add(pw.SizedBox(height: 6));
+            for (final m in movimentosOrdenados) {
+              final nome = _nomeDoItem(loja, m.itemId);
+              final sinal = m.ehEntrada ? '+' : '-';
+              final sufixoCusto = m.custoUnitario > 0
+                  ? ' • ${_valor(m.custoUnitario)}/un'
+                  : '';
+              blocos.add(
+                pw.Padding(
+                  padding: const pw.EdgeInsets.symmetric(vertical: 4),
+                  child: pw.Column(
+                    crossAxisAlignment: pw.CrossAxisAlignment.stretch,
+                    children: [
+                      pw.Row(
+                        crossAxisAlignment: pw.CrossAxisAlignment.start,
+                        children: [
+                          pw.Expanded(
+                            child: pw.Text(
+                              '$sinal${m.quantidade}x $nome$sufixoCusto',
+                              style: estiloCorpo,
+                            ),
+                          ),
+                          pw.Text(
+                            _valor(m.custoTotal),
+                            style: estiloCorpo,
+                          ),
+                        ],
+                      ),
+                      pw.Text(
+                        '${_dataHora(m.dataHora)}'
+                        '${m.nomeAutor.isNotEmpty ? ' • por ${m.nomeAutor}' : ''}'
+                        '${m.motivo.trim().isNotEmpty ? ' • ${m.motivo.trim()}' : ''}',
+                        style: estiloMiudo,
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            }
+          }
+
+          if (pagamentosOrdenados.isNotEmpty) {
+            blocos.add(pw.SizedBox(height: 16));
+            blocos.add(
+              pw.Text('Pagamentos a funcionários', style: estiloSecao),
+            );
+            blocos.add(pw.SizedBox(height: 6));
+            for (final p in pagamentosOrdenados) {
+              blocos.add(
+                pw.Padding(
+                  padding: const pw.EdgeInsets.symmetric(vertical: 4),
+                  child: pw.Column(
+                    crossAxisAlignment: pw.CrossAxisAlignment.stretch,
+                    children: [
+                      pw.Row(
+                        crossAxisAlignment: pw.CrossAxisAlignment.start,
+                        children: [
+                          pw.Expanded(
+                            child: pw.Text(p.nome, style: estiloCorpo),
+                          ),
+                          pw.Text(_valor(p.valor), style: estiloCorpo),
+                        ],
+                      ),
+                      pw.Text(
+                        '${_dataHora(p.dataHora)}'
+                        '${p.nomeAutor.isNotEmpty ? ' • por ${p.nomeAutor}' : ''}',
+                        style: estiloMiudo,
+                      ),
+                      if (p.descricao.trim().isNotEmpty)
+                        pw.Text(
+                          p.descricao.trim(),
+                          style: estiloMiudo,
+                        ),
+                    ],
+                  ),
+                ),
+              );
+            }
+          }
+
+          if (rodape.isNotEmpty) {
+            blocos.add(pw.SizedBox(height: 20));
+            for (final l in rodape.split('\n')) {
+              blocos.add(
+                pw.Center(
+                  child: pw.Text(l, style: estiloMiudo),
+                ),
+              );
+            }
+          }
+
+          return blocos;
+        },
+      ),
+    );
+
+    final bytes = await doc.save();
+
+    final agora = DateTime.now();
+    final sufixo =
+        '${agora.year}${agora.month.toString().padLeft(2, '0')}'
+        '${agora.day.toString().padLeft(2, '0')}_'
+        '${agora.hour.toString().padLeft(2, '0')}'
+        '${agora.minute.toString().padLeft(2, '0')}';
+
+    const grupo = XTypeGroup(label: 'PDF', extensions: ['pdf']);
+    final local = await getSaveLocation(
+      suggestedName: 'financeiro_$sufixo.pdf',
       acceptedTypeGroups: const [grupo],
     );
 

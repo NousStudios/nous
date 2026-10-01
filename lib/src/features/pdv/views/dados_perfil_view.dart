@@ -15,6 +15,7 @@ import 'package:nous/src/features/pdv/models/configuracoes_impressora.dart';
 import 'package:nous/src/features/pdv/models/grupo_componentes_loja.dart';
 import 'package:nous/src/features/pdv/models/item_loja.dart';
 import 'package:nous/src/features/pdv/models/membro_loja.dart';
+import 'package:nous/src/features/pdv/models/movimento_estoque.dart';
 import 'package:nous/src/features/pdv/models/pedido_loja.dart';
 import 'package:nous/src/features/pdv/models/registro_acao.dart';
 import 'package:nous/src/features/pdv/providers/pdv_provider.dart';
@@ -27,12 +28,14 @@ import 'package:nous/src/features/pdv/views/widgets/container_simbolico.dart';
 import 'package:nous/src/features/pdv/views/widgets/dados_bancarios_container.dart';
 import 'package:nous/src/features/pdv/views/widgets/delivery_container.dart';
 import 'package:nous/src/features/pdv/views/widgets/estado_vazio_container.dart';
+import 'package:nous/src/features/pdv/views/widgets/estoque_container.dart';
 import 'package:nous/src/features/pdv/views/widgets/formulario_dados_loja.dart';
 import 'package:nous/src/features/pdv/views/widgets/galeria_estilo_container.dart';
 import 'package:nous/src/features/pdv/views/widgets/gestao_loja_container.dart';
 import 'package:nous/src/features/pdv/views/widgets/grupo_componentes_loja_container.dart';
 import 'package:nous/src/features/pdv/views/widgets/impressora_dialog.dart';
 import 'package:nous/src/features/pdv/views/widgets/item_loja_card.dart';
+import 'package:nous/src/features/pdv/views/widgets/movimento_estoque_dialog.dart';
 import 'package:nous/src/features/pdv/views/widgets/nova_categoria_dialog.dart';
 import 'package:nous/src/features/pdv/views/widgets/nova_venda_dialog.dart';
 import 'package:nous/src/features/pdv/views/widgets/novo_grupo_componentes_dialog.dart';
@@ -54,7 +57,7 @@ class DadosPerfilView extends StatefulWidget {
   State<DadosPerfilView> createState() => _DadosPerfilViewState();
 }
 
-enum AbaLoja { dados, interface, loja, gestao }
+enum AbaLoja { dados, interface, loja, estoque, gestao }
 
 const double _larguraMaximaConteudo = 500;
 
@@ -85,6 +88,7 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
   final List<Cliente> _clientes = [];
 
   final List<PedidoLoja> _pedidos = [];
+  final List<MovimentoEstoque> _movimentosEstoque = [];
   List<MembroLoja> _membros = [];
   bool _lojaOnline = true;
   AbaPedidos _abaPedidos = AbaPedidos.novos;
@@ -286,6 +290,7 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
           gruposComponentes: _gruposComponentes,
           clientes: _clientes,
           pedidos: _pedidos,
+          movimentosEstoque: _movimentosEstoque,
         );
   }
 
@@ -1013,6 +1018,60 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
     );
   }
 
+  Future<void> _abrirPopupNovoMovimento() async {
+    if (!_podeEditarAbaLoja()) {
+      _avisarSemPermissao();
+      return;
+    }
+
+    final movimento = await MovimentoEstoqueDialog.mostrar(
+      context,
+      theme: ThemeController.currentTheme.value,
+      itens: _itens,
+      cpfAutor: _cpfLogado,
+      nomeAutor: _nomeLogado,
+    );
+
+    if (movimento == null) return;
+    if (!mounted) return;
+
+    setState(() => _movimentosEstoque.add(movimento));
+    _persistirListasLoja();
+
+    final item = _itens.firstWhere(
+      (i) => i.id == movimento.itemId,
+      orElse: () => const ItemLoja(id: '', nome: ''),
+    );
+    final tipo = movimento.ehEntrada ? 'Entrada' : 'Saída';
+
+    _registrarAcao(
+      TipoAcao.movimentoEstoqueRegistrado,
+      '$tipo de ${movimento.quantidade} em "${item.nome}"',
+    );
+  }
+
+  void _removerMovimentoEstoque(MovimentoEstoque movimento) {
+    if (!_podeEditarAbaLoja()) {
+      _avisarSemPermissao();
+      return;
+    }
+
+    final item = _itens.firstWhere(
+      (i) => i.id == movimento.itemId,
+      orElse: () => const ItemLoja(id: '', nome: ''),
+    );
+
+    setState(() {
+      _movimentosEstoque.removeWhere((m) => m.id == movimento.id);
+    });
+    _persistirListasLoja();
+
+    _registrarAcao(
+      TipoAcao.movimentoEstoqueRemovido,
+      'Movimento de "${item.nome}" removido',
+    );
+  }
+
   @override
   void initState() {
     super.initState();
@@ -1035,6 +1094,7 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
     _gruposComponentes.addAll(loja?.gruposComponentesLoja ?? []);
     _clientes.addAll(loja?.clientesLoja ?? []);
     _pedidos.addAll(loja?.pedidosLoja ?? []);
+    _movimentosEstoque.addAll(loja?.movimentosEstoque ?? []);
     _membros = List.of(loja?.membros ?? []);
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -1157,6 +1217,8 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
         return 'Interface do Perfil';
       case AbaLoja.loja:
         return 'Loja do Perfil';
+      case AbaLoja.estoque:
+        return 'Estoque do Perfil';
       case AbaLoja.gestao:
         return 'Gestão do Perfil';
     }
@@ -1532,6 +1594,7 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
     final pdv = context.read<PdvProvider>();
     final possoEditarDados = pdv.possoEditarDadosLoja(widget.lojaId);
     final possoGerenciarMembros = pdv.possoGerenciarMembros(widget.lojaId);
+    final possoEditarEstoque = pdv.possoEditarAbaLoja(widget.lojaId);
 
     switch (_abaSelecionada) {
       case AbaLoja.dados:
@@ -1622,6 +1685,17 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
 
       case AbaLoja.loja:
         return _abaLoja(theme);
+
+      case AbaLoja.estoque:
+        return EstoqueContainer(
+          theme: theme,
+          itens: _itens,
+          movimentos: _movimentosEstoque,
+          podeEditar: possoEditarEstoque,
+          onNovoMovimento: _abrirPopupNovoMovimento,
+          onRemoverMovimento: _removerMovimentoEstoque,
+          onAvisarSemPermissao: _avisarSemPermissao,
+        );
 
       case AbaLoja.gestao:
         return GestaoLojaContainer(
@@ -1722,6 +1796,8 @@ class _BarraDeAbasDaLoja extends StatelessWidget {
         return 'Interface';
       case AbaLoja.loja:
         return 'Loja';
+      case AbaLoja.estoque:
+        return 'Estoque';
       case AbaLoja.gestao:
         return 'Gestão';
     }

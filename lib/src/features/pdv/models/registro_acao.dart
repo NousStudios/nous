@@ -28,6 +28,10 @@ enum TipoAcao {
   itemDesvinculadoCategoria,
   itemVinculadoGrupo,
   itemDesvinculadoGrupo,
+  movimentoEstoqueRegistrado,
+  movimentoEstoqueRemovido,
+  pagamentoFuncionarioRegistrado,
+  pagamentoFuncionarioRemovido,
 }
 
 class RegistroAcao {
@@ -62,10 +66,15 @@ class RegistroAcao {
   }
 
   factory RegistroAcao.fromJson(Map<String, dynamic> json) {
+    final tipoTexto = json['tipo'] as String? ?? '';
+    final tipo = TipoAcao.values
+        .where((t) => t.name == tipoTexto)
+        .cast<TipoAcao?>()
+        .firstWhere((t) => t != null, orElse: () => TipoAcao.dadosLojaAtualizados)!;
     return RegistroAcao(
       id: json['id'] as String,
       dataHora: DateTime.parse(json['dataHora'] as String),
-      tipo: TipoAcao.values.byName(json['tipo'] as String),
+      tipo: tipo,
       descricao: json['descricao'] as String? ?? '',
       cpfAutor: json['cpfAutor'] as String? ?? '',
       nomeAutor: json['nomeAutor'] as String? ?? '',

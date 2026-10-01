@@ -12,6 +12,7 @@ class ItemLoja {
   final bool possuiDelivery;
   final String freteGratisAte;
   final String valorPorKm;
+  final String estoqueMinimo;
 
   const ItemLoja({
     required this.id,
@@ -23,6 +24,7 @@ class ItemLoja {
     this.possuiDelivery = false,
     this.freteGratisAte = '',
     this.valorPorKm = '',
+    this.estoqueMinimo = '',
   });
 
   factory ItemLoja.novo({
@@ -34,6 +36,7 @@ class ItemLoja {
     bool possuiDelivery = false,
     String freteGratisAte = '',
     String valorPorKm = '',
+    String estoqueMinimo = '',
   }) {
     return ItemLoja(
       id: gerarIdUnico(),
@@ -45,6 +48,7 @@ class ItemLoja {
       possuiDelivery: possuiDelivery,
       freteGratisAte: freteGratisAte,
       valorPorKm: valorPorKm,
+      estoqueMinimo: estoqueMinimo,
     );
   }
 
@@ -57,6 +61,7 @@ class ItemLoja {
     bool? possuiDelivery,
     String? freteGratisAte,
     String? valorPorKm,
+    String? estoqueMinimo,
   }) {
     return ItemLoja(
       id: id,
@@ -68,6 +73,7 @@ class ItemLoja {
       possuiDelivery: possuiDelivery ?? this.possuiDelivery,
       freteGratisAte: freteGratisAte ?? this.freteGratisAte,
       valorPorKm: valorPorKm ?? this.valorPorKm,
+      estoqueMinimo: estoqueMinimo ?? this.estoqueMinimo,
     );
   }
 
@@ -82,6 +88,7 @@ class ItemLoja {
       'possuiDelivery': possuiDelivery,
       'freteGratisAte': freteGratisAte,
       'valorPorKm': valorPorKm,
+      'estoqueMinimo': estoqueMinimo,
     };
   }
 
@@ -101,6 +108,7 @@ class ItemLoja {
       possuiDelivery: json['possuiDelivery'] as bool? ?? false,
       freteGratisAte: json['freteGratisAte'] as String? ?? '',
       valorPorKm: json['valorPorKm'] as String? ?? '',
+      estoqueMinimo: json['estoqueMinimo'] as String? ?? '',
     );
   }
 }

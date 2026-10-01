@@ -67,6 +67,7 @@ class _NovoItemDialogState extends State<NovoItemDialog> {
   final _descricaoController = TextEditingController();
   final _freteGratisAteController = TextEditingController();
   final _valorPorKmController = TextEditingController();
+  final _estoqueMinimoController = TextEditingController();
 
   TipoItemLoja? _tipo;
   bool _possuiDelivery = false;
@@ -90,6 +91,7 @@ class _NovoItemDialogState extends State<NovoItemDialog> {
     _descricaoController.text = item.descricao;
     _freteGratisAteController.text = item.freteGratisAte;
     _valorPorKmController.text = item.valorPorKm;
+    _estoqueMinimoController.text = item.estoqueMinimo;
     _tipo = item.tipo;
     _possuiDelivery = item.possuiDelivery;
 
@@ -105,6 +107,7 @@ class _NovoItemDialogState extends State<NovoItemDialog> {
     _descricaoController.dispose();
     _freteGratisAteController.dispose();
     _valorPorKmController.dispose();
+    _estoqueMinimoController.dispose();
     for (final controller in _variantesControllers) {
       controller.dispose();
     }
@@ -270,6 +273,7 @@ class _NovoItemDialogState extends State<NovoItemDialog> {
             possuiDelivery: _possuiDelivery,
             freteGratisAte: _freteGratisAteController.text.trim(),
             valorPorKm: _valorPorKmController.text.trim(),
+            estoqueMinimo: _estoqueMinimoController.text.trim(),
           )
         : ItemLoja.novo(
             nome: nome,
@@ -280,6 +284,7 @@ class _NovoItemDialogState extends State<NovoItemDialog> {
             possuiDelivery: _possuiDelivery,
             freteGratisAte: _freteGratisAteController.text.trim(),
             valorPorKm: _valorPorKmController.text.trim(),
+            estoqueMinimo: _estoqueMinimoController.text.trim(),
           );
 
     widget.onCriar(
@@ -363,6 +368,14 @@ class _NovoItemDialogState extends State<NovoItemDialog> {
                 theme: theme,
                 controller: _precoController,
                 label: 'Preço (ex: 12,50)',
+                tipoDeTeclado: TextInputType.number,
+              ),
+              const SizedBox(height: 16),
+
+              ThemedTextField(
+                theme: theme,
+                controller: _estoqueMinimoController,
+                label: 'Estoque mínimo (opcional)',
                 tipoDeTeclado: TextInputType.number,
               ),
               const SizedBox(height: 16),

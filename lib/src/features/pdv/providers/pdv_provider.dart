@@ -6,6 +6,8 @@ import 'package:nous/src/features/pdv/models/grupo_componentes_loja.dart';
 import 'package:nous/src/features/pdv/models/item_loja.dart';
 import 'package:nous/src/features/pdv/models/loja.dart';
 import 'package:nous/src/features/pdv/models/membro_loja.dart';
+import 'package:nous/src/features/pdv/models/movimento_estoque.dart';
+import 'package:nous/src/features/pdv/models/pagamento_funcionario.dart';
 import 'package:nous/src/features/pdv/models/pedido_loja.dart';
 import 'package:nous/src/features/pdv/models/referencia_loja.dart';
 import 'package:nous/src/features/pdv/models/registro_acao.dart';
@@ -68,6 +70,13 @@ class PdvProvider extends ChangeNotifier {
 
   bool possoUsarFinanceiro(String lojaId) {
     return meuPapel(lojaId) != null;
+  }
+
+  bool possoRegistrarPagamento(String lojaId) {
+    final p = meuPapel(lojaId);
+    return p == PapelMembro.dono ||
+        p == PapelMembro.socio ||
+        p == PapelMembro.admin;
   }
 
   bool possoGerenciarMembros(String lojaId) {
@@ -251,6 +260,8 @@ class PdvProvider extends ChangeNotifier {
     List<GrupoComponentesLoja>? gruposComponentes,
     List<Cliente>? clientes,
     List<PedidoLoja>? pedidos,
+    List<MovimentoEstoque>? movimentosEstoque,
+    List<PagamentoFuncionario>? pagamentosFuncionarios,
   }) {
     final indice = _lojas.indexWhere((loja) => loja.id == id);
     if (indice == -1) return;
@@ -261,6 +272,8 @@ class PdvProvider extends ChangeNotifier {
       gruposComponentesLoja: gruposComponentes,
       clientesLoja: clientes,
       pedidosLoja: pedidos,
+      movimentosEstoque: movimentosEstoque,
+      pagamentosFuncionarios: pagamentosFuncionarios,
     );
 
     _lojas[indice] = atualizada;
@@ -298,6 +311,66 @@ class PdvProvider extends ChangeNotifier {
 
     final atualizada =
         _lojas[indice].copyWith(configuracoesImpressora: configuracoes);
+    _lojas[indice] = atualizada;
+    notifyListeners();
+    _salvarLojaNoCofreCorreto(atualizada);
+  }
+
+  void adicionarMovimentoEstoque(
+    String lojaId,
+    MovimentoEstoque movimento,
+  ) {
+    final indice = _lojas.indexWhere((loja) => loja.id == lojaId);
+    if (indice == -1) return;
+
+    final atual = _lojas[indice].movimentosEstoque;
+    final atualizada = _lojas[indice].copyWith(
+      movimentosEstoque: [movimento, ...atual],
+    );
+    _lojas[indice] = atualizada;
+    notifyListeners();
+    _salvarLojaNoCofreCorreto(atualizada);
+  }
+
+  void removerMovimentoEstoque(String lojaId, String movimentoId) {
+    final indice = _lojas.indexWhere((loja) => loja.id == lojaId);
+    if (indice == -1) return;
+
+    final atual = _lojas[indice].movimentosEstoque;
+    final atualizada = _lojas[indice].copyWith(
+      movimentosEstoque:
+          atual.where((m) => m.id != movimentoId).toList(),
+    );
+    _lojas[indice] = atualizada;
+    notifyListeners();
+    _salvarLojaNoCofreCorreto(atualizada);
+  }
+
+  void adicionarPagamentoFuncionario(
+    String lojaId,
+    PagamentoFuncionario pagamento,
+  ) {
+    final indice = _lojas.indexWhere((loja) => loja.id == lojaId);
+    if (indice == -1) return;
+
+    final atual = _lojas[indice].pagamentosFuncionarios;
+    final atualizada = _lojas[indice].copyWith(
+      pagamentosFuncionarios: [pagamento, ...atual],
+    );
+    _lojas[indice] = atualizada;
+    notifyListeners();
+    _salvarLojaNoCofreCorreto(atualizada);
+  }
+
+  void removerPagamentoFuncionario(String lojaId, String pagamentoId) {
+    final indice = _lojas.indexWhere((loja) => loja.id == lojaId);
+    if (indice == -1) return;
+
+    final atual = _lojas[indice].pagamentosFuncionarios;
+    final atualizada = _lojas[indice].copyWith(
+      pagamentosFuncionarios:
+          atual.where((p) => p.id != pagamentoId).toList(),
+    );
     _lojas[indice] = atualizada;
     notifyListeners();
     _salvarLojaNoCofreCorreto(atualizada);
