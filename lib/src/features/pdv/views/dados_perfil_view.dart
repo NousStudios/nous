@@ -57,7 +57,7 @@ class DadosPerfilView extends StatefulWidget {
   State<DadosPerfilView> createState() => _DadosPerfilViewState();
 }
 
-enum AbaLoja { dados, interface, loja, estoque, gestao }
+enum AbaLoja { dados, interface, loja, gestao }
 
 const double _larguraMaximaConteudo = 500;
 
@@ -1072,6 +1072,94 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
     );
   }
 
+  void _abrirPopupEstoque() {
+    showDialog<void>(
+      context: context,
+      builder: (dialogContext) {
+        return ValueListenableBuilder<AppTheme>(
+          valueListenable: ThemeController.currentTheme,
+          builder: (valueContext, theme, child) {
+            return StatefulBuilder(
+              builder: (statefulContext, setDialogState) {
+                return Dialog(
+                  backgroundColor: theme.cardBackgroundColor,
+                  insetPadding: const EdgeInsets.all(16),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                    side: BorderSide(color: theme.borderColor),
+                  ),
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(
+                      maxWidth: 500,
+                      maxHeight: 600,
+                    ),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(4, 8, 4, 8),
+                          child: Row(
+                            children: [
+                              IconButton(
+                                icon: Icon(
+                                  Icons.arrow_back,
+                                  color: theme.textColor,
+                                ),
+                                onPressed: () =>
+                                    Navigator.of(statefulContext).pop(),
+                              ),
+                              Expanded(
+                                child: Text(
+                                  'Estoque',
+                                  textAlign: TextAlign.center,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: theme.getTextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.bold,
+                                    color: theme.textColor,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 48),
+                            ],
+                          ),
+                        ),
+                        Flexible(
+                          child: SingleChildScrollView(
+                            padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                            child: EstoqueContainer(
+                              theme: theme,
+                              itens: _itens,
+                              movimentos: _movimentosEstoque,
+                              podeEditar: context
+                                  .read<PdvProvider>()
+                                  .possoEditarAbaLoja(widget.lojaId),
+                              onNovoMovimento: () async {
+                                await _abrirPopupNovoMovimento();
+                                setDialogState(() {});
+                              },
+                              onRemoverMovimento: (movimento) {
+                                _removerMovimentoEstoque(movimento);
+                                setDialogState(() {});
+                              },
+                              onAvisarSemPermissao: _avisarSemPermissao,
+                              emDialog: true,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              },
+            );
+          },
+        );
+      },
+    );
+  }
+
   @override
   void initState() {
     super.initState();
@@ -1217,8 +1305,6 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
         return 'Interface do Perfil';
       case AbaLoja.loja:
         return 'Loja do Perfil';
-      case AbaLoja.estoque:
-        return 'Estoque do Perfil';
       case AbaLoja.gestao:
         return 'Gestão do Perfil';
     }
@@ -1335,6 +1421,8 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
                   'Novo Grupo de Componentes',
                   _abrirPopupNovoGrupoComponentes,
                 ),
+                const SizedBox(width: 8),
+                _botaoAcaoLoja(theme, 'Estoque', _abrirPopupEstoque),
               ],
             ),
           ),
@@ -1594,7 +1682,6 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
     final pdv = context.read<PdvProvider>();
     final possoEditarDados = pdv.possoEditarDadosLoja(widget.lojaId);
     final possoGerenciarMembros = pdv.possoGerenciarMembros(widget.lojaId);
-    final possoEditarEstoque = pdv.possoEditarAbaLoja(widget.lojaId);
 
     switch (_abaSelecionada) {
       case AbaLoja.dados:
@@ -1685,17 +1772,6 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
 
       case AbaLoja.loja:
         return _abaLoja(theme);
-
-      case AbaLoja.estoque:
-        return EstoqueContainer(
-          theme: theme,
-          itens: _itens,
-          movimentos: _movimentosEstoque,
-          podeEditar: possoEditarEstoque,
-          onNovoMovimento: _abrirPopupNovoMovimento,
-          onRemoverMovimento: _removerMovimentoEstoque,
-          onAvisarSemPermissao: _avisarSemPermissao,
-        );
 
       case AbaLoja.gestao:
         return GestaoLojaContainer(
@@ -1796,8 +1872,6 @@ class _BarraDeAbasDaLoja extends StatelessWidget {
         return 'Interface';
       case AbaLoja.loja:
         return 'Loja';
-      case AbaLoja.estoque:
-        return 'Estoque';
       case AbaLoja.gestao:
         return 'Gestão';
     }

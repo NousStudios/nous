@@ -12,6 +12,7 @@ class EstoqueContainer extends StatefulWidget {
   final VoidCallback onNovoMovimento;
   final ValueChanged<MovimentoEstoque> onRemoverMovimento;
   final VoidCallback onAvisarSemPermissao;
+  final bool emDialog;
 
   const EstoqueContainer({
     super.key,
@@ -22,6 +23,7 @@ class EstoqueContainer extends StatefulWidget {
     required this.onNovoMovimento,
     required this.onRemoverMovimento,
     required this.onAvisarSemPermissao,
+    this.emDialog = false,
   });
 
   @override
@@ -248,8 +250,30 @@ class _EstoqueContainerState extends State<EstoqueContainer> {
     );
   }
 
+  Widget _conteudo() {
+    return Column(
+      children: [
+        if (widget.podeEditar) ...[
+          _botaoNovoMovimento(),
+          const SizedBox(height: 12),
+        ],
+        if (widget.itens.isEmpty)
+          EstadoVazioContainer(
+            theme: theme,
+            mensagem: 'Nenhum item cadastrado ainda.',
+          )
+        else
+          for (final item in widget.itens) _linhaDoItem(item),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    if (widget.emDialog) {
+      return _conteudo();
+    }
+
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(16),
@@ -268,17 +292,7 @@ class _EstoqueContainerState extends State<EstoqueContainer> {
               ),
             ),
           ),
-          if (widget.podeEditar) ...[
-            _botaoNovoMovimento(),
-            const SizedBox(height: 12),
-          ],
-          if (widget.itens.isEmpty)
-            EstadoVazioContainer(
-              theme: theme,
-              mensagem: 'Nenhum item cadastrado ainda.',
-            )
-          else
-            for (final item in widget.itens) _linhaDoItem(item),
+          _conteudo(),
         ],
       ),
     );
