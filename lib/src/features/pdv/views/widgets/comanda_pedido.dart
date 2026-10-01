@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:nous/src/core/theme/theme_controller.dart';
+import 'package:nous/src/features/pdv/models/cliente.dart';
 import 'package:nous/src/features/pdv/models/pedido_loja.dart';
 
 String _doisDigitos(int n) => n.toString().padLeft(2, '0');
@@ -17,6 +18,8 @@ class ComandaPedido extends StatelessWidget {
   final PedidoLoja pedido;
   final double largura;
   final bool mostrarTitulo;
+  final Cliente? cliente;
+  final List<String> camposClienteComanda;
 
   const ComandaPedido({
     super.key,
@@ -24,6 +27,15 @@ class ComandaPedido extends StatelessWidget {
     required this.pedido,
     this.largura = 320,
     this.mostrarTitulo = true,
+    this.cliente,
+    this.camposClienteComanda = const [
+      'cnpj',
+      'telefone',
+      'endereco',
+      'email',
+      'redesSociais',
+      'descricao',
+    ],
   });
 
   BoxDecoration get _decoracaoDoBloco => BoxDecoration(
@@ -39,6 +51,9 @@ class ComandaPedido extends StatelessWidget {
     }
     return soma;
   }
+
+  bool _deveMostrar(String chave) =>
+      camposClienteComanda.contains(chave);
 
   Widget _linhaComanda(String esquerda, String direita,
       {bool destaque = false}) {
@@ -68,6 +83,44 @@ class ComandaPedido extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  List<Widget> _linhasCliente() {
+    final linhas = <Widget>[];
+
+    linhas.add(_linhaComanda('Cliente', pedido.clienteNome));
+
+    if (cliente == null) return linhas;
+
+    if (_deveMostrar('cnpj') && cliente!.cnpj.trim().isNotEmpty) {
+      linhas.add(_linhaComanda('CNPJ', cliente!.cnpj.trim()));
+    }
+    if (_deveMostrar('telefone') && cliente!.telefone.trim().isNotEmpty) {
+      linhas.add(_linhaComanda('Telefone', cliente!.telefone.trim()));
+    }
+    if (_deveMostrar('endereco')) {
+      final endereco = cliente!.endereco.trim();
+      final numero = cliente!.numero.trim();
+      if (endereco.isNotEmpty) {
+        final completo = numero.isEmpty ? endereco : '$endereco, $numero';
+        linhas.add(_linhaComanda('Endereço', completo));
+      } else if (numero.isNotEmpty) {
+        linhas.add(_linhaComanda('Número', numero));
+      }
+    }
+    if (_deveMostrar('email') && cliente!.email.trim().isNotEmpty) {
+      linhas.add(_linhaComanda('Email', cliente!.email.trim()));
+    }
+    if (_deveMostrar('redesSociais') &&
+        cliente!.redesSociais.trim().isNotEmpty) {
+      linhas.add(
+          _linhaComanda('Redes sociais', cliente!.redesSociais.trim()));
+    }
+    if (_deveMostrar('descricao') && cliente!.descricao.trim().isNotEmpty) {
+      linhas.add(_linhaComanda('Descrição', cliente!.descricao.trim()));
+    }
+
+    return linhas;
   }
 
   @override
@@ -148,7 +201,7 @@ class ComandaPedido extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(height: 8),
-                    _linhaComanda('Cliente', pedido.clienteNome),
+                    for (final linha in _linhasCliente()) linha,
                     const SizedBox(height: 8),
                     Center(
                       child: Text(
@@ -180,7 +233,7 @@ class ComandaPedido extends StatelessWidget {
                             children: [
                               _linhaComanda(
                                 '${item.quantidade}x ${item.nomeExibicao}',
-                                _valor(item.subtotal),
+                                _valor(item.subtotalBase),
                               ),
                               for (final a in item.acompanhamentos)
                                 _linhaComanda(
@@ -220,8 +273,15 @@ class ComandaPedido extends StatelessWidget {
                           : pedido.formaPagamento,
                     ),
                     if (isDinheiro) ...[
-                      _linhaComanda('Valor recebido', '-'),
-                      _linhaComanda('Troco', '-', destaque: true),
+                      _linhaComanda(
+                        'Valor recebido',
+                        _valor(pedido.valorRecebido),
+                      ),
+                      _linhaComanda(
+                        'Troco',
+                        _valor(pedido.troco),
+                        destaque: true,
+                      ),
                     ],
                     const SizedBox(height: 12),
                     Center(

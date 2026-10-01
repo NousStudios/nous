@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:nous/src/core/theme/theme_controller.dart';
+import 'package:nous/src/features/pdv/models/cliente.dart';
 import 'package:nous/src/features/pdv/models/configuracoes_impressora.dart';
 import 'package:nous/src/features/pdv/models/pedido_loja.dart';
 import 'package:nous/src/features/pdv/providers/pdv_provider.dart';
@@ -122,6 +123,17 @@ class _VendaConteudoState extends State<_VendaConteudo> {
     return loja?.configuracoesImpressora ?? const ConfiguracoesImpressora();
   }
 
+  Cliente? _buscarClienteDoPedido() {
+    final clienteId = widget.pedido.clienteId;
+    if (clienteId == null || clienteId.isEmpty) return null;
+    final loja = context.read<PdvProvider>().buscarPorId(widget.lojaId);
+    if (loja == null) return null;
+    for (final c in loja.clientesLoja) {
+      if (c.id == clienteId) return c;
+    }
+    return null;
+  }
+
   void _snack(String texto) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -200,6 +212,7 @@ class _VendaConteudoState extends State<_VendaConteudo> {
       await ImpressaoService.imprimirComanda(
         config: config,
         pedido: pedido,
+        cliente: _buscarClienteDoPedido(),
       );
       if (!mounted) return;
       _snack('Comanda enviada para a impressora.');
@@ -219,6 +232,8 @@ class _VendaConteudoState extends State<_VendaConteudo> {
       final caminho = await ImpressaoService.exportarComandaPDF(
         pedido: pedido,
         rodape: config.rodape,
+        cliente: _buscarClienteDoPedido(),
+        camposClienteComanda: config.camposClienteComanda,
       );
       if (!mounted) return;
       if (caminho == null) {
@@ -394,6 +409,10 @@ class _VendaConteudoState extends State<_VendaConteudo> {
             if (pedido.acrescimo > 0)
               _linha('Acréscimo', _valor(pedido.acrescimo)),
             _linha('Valor total', _valor(pedido.valor)),
+            if (pedido.formaPagamento == 'Dinheiro') ...[
+              _linha('Valor recebido', _valor(pedido.valorRecebido)),
+              _linha('Troco', _valor(pedido.troco)),
+            ],
             if (aPrazo) ...[
               _linha('Pagamento', pedido.quitado ? 'Quitado' : 'Em aberto'),
               _linha('Já pago', _valor(pago)),
@@ -456,25 +475,37 @@ class _VendaConteudoState extends State<_VendaConteudo> {
                           ),
                         ),
                         Text(
-                          _valor(item.subtotal),
+                          _valor(item.subtotalBase),
                           style: theme.getTextStyle(fontSize: 12),
                         ),
                       ],
                     ),
-                    if (item.acompanhamentos.isNotEmpty)
+                    for (final a in item.acompanhamentos)
                       Padding(
                         padding: const EdgeInsets.only(left: 8, top: 3),
-                        child: Text(
-                          item.acompanhamentos
-                              .map((a) =>
-                                  '${a.quantidadePorUnidade}x ${a.nomeItem} por unidade')
-                              .join(', '),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: theme.getTextStyle(
-                            fontSize: 10,
-                            color: theme.secondaryTextColor,
-                          ),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                '${a.quantidadePorUnidade}x ${a.nomeItem} por unidade',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: theme.getTextStyle(
+                                  fontSize: 10,
+                                  color: theme.secondaryTextColor,
+                                ),
+                              ),
+                            ),
+                            Text(
+                              _valor(a.precoItem *
+                                  a.quantidadePorUnidade *
+                                  item.quantidade),
+                              style: theme.getTextStyle(
+                                fontSize: 10,
+                                color: theme.secondaryTextColor,
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                     if (item.observacao.trim().isNotEmpty)
@@ -640,6 +671,9 @@ class _VendaConteudoState extends State<_VendaConteudo> {
 
   @override
   Widget build(BuildContext context) {
+    final config = _lerConfiguracoesDaLoja();
+    final cliente = _buscarClienteDoPedido();
+
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -677,6 +711,8 @@ class _VendaConteudoState extends State<_VendaConteudo> {
                   theme: theme,
                   pedido: pedido,
                   largura: _larguraBloco,
+                  cliente: cliente,
+                  camposClienteComanda: config.camposClienteComanda,
                 ),
                 const SizedBox(height: 12),
                 _blocoResumo(),

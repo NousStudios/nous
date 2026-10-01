@@ -76,8 +76,12 @@ class ItemVendido {
         (soma, a) => soma + (a.precoItem * a.quantidadePorUnidade),
       );
 
+  double get precoBase => precoItem + precoCategoria;
+
+  double get subtotalBase => precoBase * quantidade;
+
   double get precoUnitario =>
-      precoItem + precoCategoria + totalDosAcompanhamentosPorUnidade;
+      precoBase + totalDosAcompanhamentosPorUnidade;
 
   double get subtotal => precoUnitario * quantidade;
 
@@ -135,6 +139,8 @@ class PedidoLoja {
   final String formaPagamento;
   final bool quitado;
   final double valorPago;
+  final double valorRecebido;
+  final double troco;
   final List<ItemVendido> itens;
   final double frete;
   final double desconto;
@@ -161,6 +167,8 @@ class PedidoLoja {
     this.formaPagamento = '',
     this.quitado = false,
     this.valorPago = 0,
+    this.valorRecebido = 0,
+    this.troco = 0,
     this.itens = const [],
     this.frete = 0,
     this.desconto = 0,
@@ -208,6 +216,8 @@ class PedidoLoja {
       formaPagamento: formaPagamento,
       quitado: quitado ?? this.quitado,
       valorPago: valorPago ?? this.valorPago,
+      valorRecebido: valorRecebido,
+      troco: troco,
       itens: itens,
       frete: frete,
       desconto: desconto,
@@ -215,14 +225,10 @@ class PedidoLoja {
       nomeVendedor: nomeVendedor,
       cnpjVendedor: cnpjVendedor,
       comentario: comentario ?? this.comentario,
-      comentarioAutorCpf:
-          comentarioAutorCpf ?? this.comentarioAutorCpf,
-      comentarioAutorNome:
-          comentarioAutorNome ?? this.comentarioAutorNome,
-      comentarioAutorEmail:
-          comentarioAutorEmail ?? this.comentarioAutorEmail,
-      comentarioDataHora:
-          comentarioDataHora ?? this.comentarioDataHora,
+      comentarioAutorCpf: comentarioAutorCpf ?? this.comentarioAutorCpf,
+      comentarioAutorNome: comentarioAutorNome ?? this.comentarioAutorNome,
+      comentarioAutorEmail: comentarioAutorEmail ?? this.comentarioAutorEmail,
+      comentarioDataHora: comentarioDataHora ?? this.comentarioDataHora,
     );
   }
 
@@ -241,6 +247,8 @@ class PedidoLoja {
       'formaPagamento': formaPagamento,
       'quitado': quitado,
       'valorPago': valorPago,
+      'valorRecebido': valorRecebido,
+      'troco': troco,
       'itens': itens.map((i) => i.toJson()).toList(),
       'frete': frete,
       'desconto': desconto,
@@ -271,6 +279,8 @@ class PedidoLoja {
       formaPagamento: json['formaPagamento'] as String? ?? '',
       quitado: json['quitado'] as bool? ?? false,
       valorPago: (json['valorPago'] as num?)?.toDouble() ?? 0,
+      valorRecebido: (json['valorRecebido'] as num?)?.toDouble() ?? 0,
+      troco: (json['troco'] as num?)?.toDouble() ?? 0,
       itens: (json['itens'] as List<dynamic>? ?? const [])
           .map((i) => ItemVendido.fromJson(i as Map<String, dynamic>))
           .toList(),

@@ -4,6 +4,15 @@ import 'package:nous/src/core/theme/theme_controller.dart';
 import 'package:nous/src/features/pdv/models/configuracoes_impressora.dart';
 import 'package:nous/src/features/pdv/services/impressao_service.dart';
 
+const Map<String, String> _rotulosCamposCliente = {
+  'cnpj': 'CNPJ',
+  'telefone': 'Telefone',
+  'endereco': 'Endereço',
+  'email': 'Email',
+  'redesSociais': 'Redes sociais',
+  'descricao': 'Descrição',
+};
+
 class ImpressoraDialog {
   static Future<void> mostrar(
     BuildContext context, {
@@ -57,6 +66,7 @@ class _ImpressoraConteudoState extends State<_ImpressoraConteudo> {
 
   late String _tamanhoFonte;
   late String _tipoConexao;
+  late List<String> _camposClienteComanda;
 
   bool _carregandoImpressoras = false;
   bool _imprimindo = false;
@@ -73,6 +83,7 @@ class _ImpressoraConteudoState extends State<_ImpressoraConteudo> {
     _nomeImpressoraController = TextEditingController(text: c.nomeImpressora);
     _tamanhoFonte = c.tamanhoFonte;
     _tipoConexao = c.tipoConexao;
+    _camposClienteComanda = List.of(c.camposClienteComanda);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _carregarImpressoras();
     });
@@ -174,6 +185,118 @@ class _ImpressoraConteudoState extends State<_ImpressoraConteudo> {
             cursorColor: theme.textColor,
             style: theme.getTextStyle(fontSize: 12),
             decoration: _decoracaoCampo('Ex: linktr.ee/nous72'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _linhaCheckbox(String chave) {
+    final marcado = _camposClienteComanda.contains(chave);
+    final rotulo = _rotulosCamposCliente[chave] ?? chave;
+    return InkWell(
+      onTap: () {
+        setState(() {
+          if (marcado) {
+            _camposClienteComanda.remove(chave);
+          } else {
+            _camposClienteComanda.add(chave);
+          }
+        });
+      },
+      borderRadius: BorderRadius.circular(10),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            SizedBox(
+              width: 26,
+              height: 26,
+              child: Checkbox(
+                value: marcado,
+                activeColor: theme.buttonColor,
+                checkColor: theme.buttonTextColor,
+                side: BorderSide(color: theme.borderColor),
+                materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                onChanged: (v) {
+                  setState(() {
+                    if (v == true) {
+                      if (!_camposClienteComanda.contains(chave)) {
+                        _camposClienteComanda.add(chave);
+                      }
+                    } else {
+                      _camposClienteComanda.remove(chave);
+                    }
+                  });
+                },
+              ),
+            ),
+            const SizedBox(width: 4),
+            Text(
+              rotulo,
+              style: theme.getTextStyle(fontSize: 12),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _blocoDadosCliente() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: _decoracaoDoBloco,
+      child: Column(
+        children: [
+          _tituloDoBloco('Dados do Cliente na Comanda'),
+          Text(
+            'Marque o que deve aparecer na comanda quando o cliente '
+            'estiver cadastrado e o campo estiver preenchido.',
+            textAlign: TextAlign.center,
+            style: theme.getTextStyle(
+              fontSize: 11,
+              color: theme.secondaryTextColor,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 8,
+            runSpacing: 0,
+            alignment: WrapAlignment.center,
+            children: [
+              for (final chave in kCamposClienteComanda)
+                _linhaCheckbox(chave),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              TextButton(
+                onPressed: () {
+                  setState(() {
+                    _camposClienteComanda =
+                        List.of(kCamposClienteComanda);
+                  });
+                },
+                child: Text(
+                  'Marcar todos',
+                  style: theme.getTextStyle(fontSize: 11),
+                ),
+              ),
+              const SizedBox(width: 4),
+              TextButton(
+                onPressed: () {
+                  setState(() => _camposClienteComanda = []);
+                },
+                child: Text(
+                  'Desmarcar todos',
+                  style: theme.getTextStyle(fontSize: 11),
+                ),
+              ),
+            ],
           ),
         ],
       ),
@@ -413,6 +536,7 @@ class _ImpressoraConteudoState extends State<_ImpressoraConteudo> {
       tipoConexao: _tipoConexao,
       enderecoRede: _enderecoRedeController.text.trim(),
       nomeImpressora: _nomeImpressoraController.text.trim(),
+      camposClienteComanda: List.of(_camposClienteComanda),
     );
 
     widget.onSalvar(novas);
@@ -444,6 +568,7 @@ class _ImpressoraConteudoState extends State<_ImpressoraConteudo> {
           tipoConexao: _tipoConexao,
           enderecoRede: _enderecoRedeController.text.trim(),
           nomeImpressora: nome,
+          camposClienteComanda: List.of(_camposClienteComanda),
         ),
       );
       if (!mounted) return;
@@ -512,6 +637,8 @@ class _ImpressoraConteudoState extends State<_ImpressoraConteudo> {
                 _blocoConexao(),
                 const SizedBox(height: 12),
                 _blocoLargura(),
+                const SizedBox(height: 12),
+                _blocoDadosCliente(),
                 const SizedBox(height: 16),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,

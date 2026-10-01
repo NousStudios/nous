@@ -242,7 +242,7 @@ class _NovaVendaConteudoState extends State<_NovaVendaConteudo> {
     return soma;
   }
 
-  double _precoUnitarioDaLinha(_LinhaCarrinho linha) {
+  double _precoBaseUnitarioDaLinha(_LinhaCarrinho linha) {
     final item = _buscarItem(linha.itemId);
     if (item == null) return 0;
     var soma = _precoComoNumero(item.preco);
@@ -250,9 +250,16 @@ class _NovaVendaConteudoState extends State<_NovaVendaConteudo> {
       final categoria = _buscarCategoria(linha.categoriaId!);
       if (categoria != null) soma += _precoComoNumero(categoria.preco);
     }
-    soma += _precoDosAcompanhamentosPorUnidade(linha);
     return soma;
   }
+
+  double _precoUnitarioDaLinha(_LinhaCarrinho linha) {
+    return _precoBaseUnitarioDaLinha(linha) +
+        _precoDosAcompanhamentosPorUnidade(linha);
+  }
+
+  double _subtotalBaseDaLinha(_LinhaCarrinho linha) =>
+      _precoBaseUnitarioDaLinha(linha) * linha.quantidade;
 
   double _subtotalDaLinha(_LinhaCarrinho linha) =>
       _precoUnitarioDaLinha(linha) * linha.quantidade;
@@ -361,16 +368,42 @@ class _NovaVendaConteudoState extends State<_NovaVendaConteudo> {
     buffer.writeln('Data: ${_dataHoraCompleta(_dataHora)}');
     buffer.writeln(simples);
     buffer.writeln('Cliente: ${_clienteController.text.trim()}');
-    buffer.writeln('Endereco: ${_clienteSelecionado?.endereco ?? ''}');
+    final c = _clienteSelecionado;
+    if (c != null) {
+      if (c.cnpj.trim().isNotEmpty) {
+        buffer.writeln('CNPJ: ${c.cnpj.trim()}');
+      }
+      if (c.telefone.trim().isNotEmpty) {
+        buffer.writeln('Telefone: ${c.telefone.trim()}');
+      }
+      final endereco = c.endereco.trim();
+      final numero = c.numero.trim();
+      if (endereco.isNotEmpty) {
+        final completo = numero.isEmpty ? endereco : '$endereco, $numero';
+        buffer.writeln('Endereco: $completo');
+      }
+      if (c.email.trim().isNotEmpty) {
+        buffer.writeln('Email: ${c.email.trim()}');
+      }
+      if (c.redesSociais.trim().isNotEmpty) {
+        buffer.writeln('Redes sociais: ${c.redesSociais.trim()}');
+      }
+      if (c.descricao.trim().isNotEmpty) {
+        buffer.writeln('Descricao: ${c.descricao.trim()}');
+      }
+    }
     buffer.writeln(simples);
     buffer.writeln('ITENS');
     buffer.writeln('');
 
     for (final linhaCarrinho in _carrinho) {
       final nome = _nomeExibicaoDaLinha(linhaCarrinho);
-      final subtotal = _subtotalDaLinha(linhaCarrinho);
+      final subtotalBase = _subtotalBaseDaLinha(linhaCarrinho);
       buffer.writeln(
-        linha('${linhaCarrinho.quantidade}x $nome', _valorComVirgula(subtotal)),
+        linha(
+          '${linhaCarrinho.quantidade}x $nome',
+          _valorComVirgula(subtotalBase),
+        ),
       );
       linhaCarrinho.acompanhamentosPorItemId.forEach((itemId, quantidade) {
         final acompanhamento = _buscarItem(itemId);
@@ -798,6 +831,8 @@ class _NovaVendaConteudoState extends State<_NovaVendaConteudo> {
         : (nomes.isEmpty ? 'Venda' : nomes.first);
     final cliente = _clienteController.text.trim();
 
+    final isDinheiro = _formaPagamento == _formaDinheiro;
+
     final pedido = PedidoLoja(
       id: DateTime.now().millisecondsSinceEpoch.toString(),
       numero: widget.proximoNumero,
@@ -809,6 +844,8 @@ class _NovaVendaConteudoState extends State<_NovaVendaConteudo> {
       status: StatusPedido.aceito,
       comanda: _montarComanda(),
       formaPagamento: _formaPagamento ?? '',
+      valorRecebido: isDinheiro ? _valorRecebido : 0,
+      troco: isDinheiro ? _troco : 0,
       itens: itensVendidos,
       frete: _frete,
       desconto: _desconto,
@@ -822,6 +859,7 @@ class _NovaVendaConteudoState extends State<_NovaVendaConteudo> {
       theme: theme,
       pedido: pedido,
       configuracoesImpressora: widget.configuracoesImpressora,
+      cliente: _clienteSelecionado,
     );
 
     if (!mounted) return;
@@ -998,11 +1036,24 @@ class _NovaVendaConteudoState extends State<_NovaVendaConteudo> {
     );
   }
 
+  String _resumoAcompanhamentos(_LinhaCarrinho linha) {
+    final partes = <String>[];
+    linha.acompanhamentosPorItemId.forEach((itemId, quantidade) {
+      final item = _buscarItem(itemId);
+      if (item == null || quantidade <= 0) return;
+      final valor =
+          _precoComoNumero(item.preco) * quantidade * linha.quantidade;
+      partes.add('${quantidade}x ${item.nome} R\$ ${_valorComVirgula(valor)}');
+    });
+    return partes.join(', ');
+  }
+
   Widget _linhaDoItemSelecionado(_LinhaCarrinho linha) {
     final grupos = _gruposDaCategoria(linha);
     final temGrupos = grupos.isNotEmpty;
     final acompanhamentos = linha.acompanhamentosPorItemId;
-    final subtotal = _subtotalDaLinha(linha);
+    final subtotalBase = _subtotalBaseDaLinha(linha);
+    final precoBase = _precoBaseUnitarioDaLinha(linha);
 
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 8),
@@ -1024,7 +1075,7 @@ class _NovaVendaConteudoState extends State<_NovaVendaConteudo> {
                 ),
               ),
               Text(
-                'R\$ ${_valorComVirgula(_precoUnitarioDaLinha(linha))}',
+                'R\$ ${_valorComVirgula(precoBase)}',
                 style: theme.getTextStyle(fontSize: 11),
               ),
               const SizedBox(width: 6),
@@ -1049,7 +1100,7 @@ class _NovaVendaConteudoState extends State<_NovaVendaConteudo> {
               SizedBox(
                 width: 70,
                 child: Text(
-                  'R\$ ${_valorComVirgula(subtotal)}',
+                  'R\$ ${_valorComVirgula(subtotalBase)}',
                   textAlign: TextAlign.right,
                   style: theme.getTextStyle(
                       fontSize: 12,
@@ -1075,14 +1126,7 @@ class _NovaVendaConteudoState extends State<_NovaVendaConteudo> {
                           ),
                         )
                       : Text(
-                          acompanhamentos.entries
-                              .map((entrada) {
-                                final item = _buscarItem(entrada.key);
-                                if (item == null) return '';
-                                return '${entrada.value}x ${item.nome}';
-                              })
-                              .where((s) => s.isNotEmpty)
-                              .join(', '),
+                          _resumoAcompanhamentos(linha),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: theme.getTextStyle(
@@ -1282,8 +1326,43 @@ class _NovaVendaConteudoState extends State<_NovaVendaConteudo> {
                             _clienteController.text.trim().isEmpty
                                 ? '-'
                                 : _clienteController.text.trim()),
-                        _linhaComanda(
-                            'Endereço', _clienteSelecionado?.endereco ?? '-'),
+                        if (_clienteSelecionado != null) ...[
+                          if (_clienteSelecionado!
+                              .cnpj.trim()
+                              .isNotEmpty)
+                            _linhaComanda(
+                                'CNPJ', _clienteSelecionado!.cnpj.trim()),
+                          if (_clienteSelecionado!
+                              .telefone.trim()
+                              .isNotEmpty)
+                            _linhaComanda('Telefone',
+                                _clienteSelecionado!.telefone.trim()),
+                          if (_clienteSelecionado!
+                              .endereco.trim()
+                              .isNotEmpty)
+                            _linhaComanda(
+                              'Endereço',
+                              _clienteSelecionado!.numero.trim().isEmpty
+                                  ? _clienteSelecionado!.endereco.trim()
+                                  : '${_clienteSelecionado!.endereco.trim()}, '
+                                      '${_clienteSelecionado!.numero.trim()}',
+                            ),
+                          if (_clienteSelecionado!
+                              .email.trim()
+                              .isNotEmpty)
+                            _linhaComanda(
+                                'Email', _clienteSelecionado!.email.trim()),
+                          if (_clienteSelecionado!
+                              .redesSociais.trim()
+                              .isNotEmpty)
+                            _linhaComanda('Redes sociais',
+                                _clienteSelecionado!.redesSociais.trim()),
+                          if (_clienteSelecionado!
+                              .descricao.trim()
+                              .isNotEmpty)
+                            _linhaComanda('Descrição',
+                                _clienteSelecionado!.descricao.trim()),
+                        ],
                         const SizedBox(height: 8),
                         Center(
                           child: Text(
@@ -1316,7 +1395,7 @@ class _NovaVendaConteudoState extends State<_NovaVendaConteudo> {
                                 children: [
                                   _linhaComanda(
                                     '${linha.quantidade}x ${_nomeExibicaoDaLinha(linha)}',
-                                    'R\$ ${_valorComVirgula(_subtotalDaLinha(linha))}',
+                                    'R\$ ${_valorComVirgula(_subtotalBaseDaLinha(linha))}',
                                   ),
                                   for (final entrada
                                       in linha.acompanhamentosPorItemId.entries)

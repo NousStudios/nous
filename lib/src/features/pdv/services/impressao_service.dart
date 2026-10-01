@@ -6,6 +6,7 @@ import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 
+import 'package:nous/src/features/pdv/models/cliente.dart';
 import 'package:nous/src/features/pdv/models/configuracoes_impressora.dart';
 import 'package:nous/src/features/pdv/models/loja.dart';
 import 'package:nous/src/features/pdv/models/movimento_estoque.dart';
@@ -81,6 +82,49 @@ class ImpressaoService {
     return 'Item removido';
   }
 
+  static List<MapEntry<String, String>> _dadosDoCliente(
+    Cliente? cliente,
+    List<String> camposSelecionados,
+  ) {
+    if (cliente == null) return const [];
+    final linhas = <MapEntry<String, String>>[];
+
+    if (camposSelecionados.contains('cnpj') &&
+        cliente.cnpj.trim().isNotEmpty) {
+      linhas.add(MapEntry('CNPJ', cliente.cnpj.trim()));
+    }
+    if (camposSelecionados.contains('telefone') &&
+        cliente.telefone.trim().isNotEmpty) {
+      linhas.add(MapEntry('Telefone', cliente.telefone.trim()));
+    }
+    if (camposSelecionados.contains('endereco')) {
+      final endereco = cliente.endereco.trim();
+      final numero = cliente.numero.trim();
+      if (endereco.isNotEmpty) {
+        linhas.add(MapEntry(
+          'Endereço',
+          numero.isEmpty ? endereco : '$endereco, $numero',
+        ));
+      } else if (numero.isNotEmpty) {
+        linhas.add(MapEntry('Número', numero));
+      }
+    }
+    if (camposSelecionados.contains('email') &&
+        cliente.email.trim().isNotEmpty) {
+      linhas.add(MapEntry('Email', cliente.email.trim()));
+    }
+    if (camposSelecionados.contains('redesSociais') &&
+        cliente.redesSociais.trim().isNotEmpty) {
+      linhas.add(MapEntry('Redes sociais', cliente.redesSociais.trim()));
+    }
+    if (camposSelecionados.contains('descricao') &&
+        cliente.descricao.trim().isNotEmpty) {
+      linhas.add(MapEntry('Descrição', cliente.descricao.trim()));
+    }
+
+    return linhas;
+  }
+
   static Future<void> imprimirTeste({
     required ConfiguracoesImpressora config,
   }) async {
@@ -129,6 +173,7 @@ class ImpressaoService {
   static Future<void> imprimirComanda({
     required ConfiguracoesImpressora config,
     required PedidoLoja pedido,
+    Cliente? cliente,
   }) async {
     final doc = pw.Document();
     final tamanho = _tamanhoEmPontos(config.tamanhoFonte);
@@ -164,6 +209,11 @@ class ImpressaoService {
       subtotal += item.subtotal;
     }
 
+    final linhasCliente = _dadosDoCliente(
+      cliente,
+      config.camposClienteComanda,
+    );
+
     doc.addPage(
       pw.Page(
         pageFormat: _papel58mm,
@@ -197,6 +247,8 @@ class ImpressaoService {
               ),
               pw.SizedBox(height: 6),
               linhaDupla('Cliente', pedido.clienteNome),
+              for (final linha in linhasCliente)
+                linhaDupla(linha.key, linha.value),
               pw.SizedBox(height: 8),
               pw.Center(
                 child: pw.Text('ITENS', style: estilo(negrito: true)),
@@ -217,7 +269,7 @@ class ImpressaoService {
                   pw.SizedBox(height: 4),
                   linhaDupla(
                     '${item.quantidade}x ${item.nomeExibicao}',
-                    _valor(item.subtotal),
+                    _valor(item.subtotalBase),
                   ),
                   for (final a in item.acompanhamentos)
                     linhaDupla(
@@ -250,8 +302,8 @@ class ImpressaoService {
                 pedido.formaPagamento.isEmpty ? '-' : pedido.formaPagamento,
               ),
               if (pedido.formaPagamento == 'Dinheiro') ...[
-                linhaDupla('Valor recebido', '-'),
-                linhaDupla('Troco', '-', negrito: true),
+                linhaDupla('Valor recebido', _valor(pedido.valorRecebido)),
+                linhaDupla('Troco', _valor(pedido.troco), negrito: true),
               ],
               if (config.rodape.isNotEmpty) ...[
                 pw.SizedBox(height: 12),
@@ -565,6 +617,8 @@ class ImpressaoService {
   static Future<String?> exportarComandaPDF({
     required PedidoLoja pedido,
     required String rodape,
+    Cliente? cliente,
+    List<String> camposClienteComanda = kCamposClienteComanda,
   }) async {
     final doc = pw.Document();
 
@@ -586,6 +640,8 @@ class ImpressaoService {
     for (final item in pedido.itens) {
       subtotalItens += item.subtotal;
     }
+
+    final linhasCliente = _dadosDoCliente(cliente, camposClienteComanda);
 
     pw.Widget linhaDupla(
       String rotulo,
@@ -678,6 +734,9 @@ class ImpressaoService {
           blocos.add(linhaDupla('Pedido', _numero(pedido.numero)));
           blocos.add(linhaDupla('Data', _dataHora(pedido.dataHora)));
           blocos.add(linhaDupla('Cliente', pedido.clienteNome));
+          for (final linha in linhasCliente) {
+            blocos.add(linhaDupla(linha.key, linha.value));
+          }
           blocos.add(linhaDupla('Produtos', pedido.produtoNome));
           blocos.add(
             linhaDupla(
@@ -718,7 +777,7 @@ class ImpressaoService {
                             ),
                           ),
                           pw.Text(
-                            _valor(item.subtotal),
+                            _valor(item.subtotalBase),
                             style: estiloCorpo,
                           ),
                         ],
@@ -786,6 +845,18 @@ class ImpressaoService {
           blocos.add(
             linhaDupla('Valor total', _valor(pedido.valor), negrito: true),
           );
+
+          if (pedido.formaPagamento == 'Dinheiro') {
+            blocos.add(
+              linhaDupla(
+                'Valor recebido',
+                _valor(pedido.valorRecebido),
+              ),
+            );
+            blocos.add(
+              linhaDupla('Troco', _valor(pedido.troco), negrito: true),
+            );
+          }
 
           if (pedido.formaPagamento == 'À Prazo') {
             blocos.add(
