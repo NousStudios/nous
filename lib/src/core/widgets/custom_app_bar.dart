@@ -5,6 +5,7 @@ import 'package:nous/src/core/theme/theme_customizer_dialog.dart';
 import 'package:nous/src/features/auth/providers/auth_provider.dart';
 import 'package:nous/src/features/notificacoes/providers/notificacoes_provider.dart';
 import 'package:nous/src/features/notificacoes/views/widgets/notificacoes_dialog.dart';
+import 'package:nous/src/features/pdv/views/widgets/backup_dialog.dart';
 
 String _formatarCpf(String cpf) {
   if (cpf.length != 11) return cpf;
@@ -225,6 +226,30 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
                               textAlign: TextAlign.center,
                               style:
                                   currentTheme.getTextStyle(fontSize: 12),
+                            ),
+                            const SizedBox(height: 4),
+                            TextButton.icon(
+                              onPressed: () {
+                                Navigator.pop(context);
+                                BackupDialog.mostrar(
+                                  context,
+                                  theme: currentTheme,
+                                );
+                              },
+                              icon: Icon(
+                                Icons.cloud_sync_outlined,
+                                size: 18,
+                                color: currentTheme.secondaryTextColor,
+                              ),
+                              label: Text(
+                                'Backup dos dados',
+                                style: currentTheme.getTextStyle(
+                                  fontSize: 13,
+                                  color: currentTheme.secondaryTextColor,
+                                ).copyWith(
+                                  decoration: TextDecoration.underline,
+                                ),
+                              ),
                             ),
                           ],
                         ),
