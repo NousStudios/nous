@@ -5,7 +5,9 @@ import 'package:nous/src/features/pdv/models/cliente.dart';
 import 'package:nous/src/features/pdv/models/configuracoes_impressora.dart';
 import 'package:nous/src/features/pdv/models/grupo_componentes_loja.dart';
 import 'package:nous/src/features/pdv/models/item_loja.dart';
+import 'package:nous/src/features/pdv/models/movimento_estoque.dart';
 import 'package:nous/src/features/pdv/models/pedido_loja.dart';
+import 'package:nous/src/features/pdv/views/widgets/baixa_estoque_dialog.dart';
 import 'package:nous/src/features/pdv/views/widgets/novo_item_dialog.dart';
 import 'package:nous/src/features/pdv/views/widgets/venda_concluida_dialog.dart';
 
@@ -50,7 +52,12 @@ class NovaVendaDialog {
     required String nomeVendedor,
     required String cnpjVendedor,
     required int proximoNumero,
-    required ValueChanged<PedidoLoja> onConcluir,
+    required String cpfAutor,
+    required String nomeAutor,
+    required void Function(
+      PedidoLoja pedido,
+      List<MovimentoEstoque> movimentosEstoque,
+    ) onConcluir,
     required Future<void> Function(ItemLoja item, List<String> categoriaIds,
         List<String> grupoIds) aoCriarItem,
     required ConfiguracoesImpressora configuracoesImpressora,
@@ -77,6 +84,8 @@ class NovaVendaDialog {
               nomeVendedor: nomeVendedor,
               cnpjVendedor: cnpjVendedor,
               proximoNumero: proximoNumero,
+              cpfAutor: cpfAutor,
+              nomeAutor: nomeAutor,
               onConcluir: onConcluir,
               aoCriarItem: aoCriarItem,
               configuracoesImpressora: configuracoesImpressora,
@@ -98,7 +107,12 @@ class _NovaVendaConteudo extends StatefulWidget {
   final String nomeVendedor;
   final String cnpjVendedor;
   final int proximoNumero;
-  final ValueChanged<PedidoLoja> onConcluir;
+  final String cpfAutor;
+  final String nomeAutor;
+  final void Function(
+    PedidoLoja pedido,
+    List<MovimentoEstoque> movimentosEstoque,
+  ) onConcluir;
   final Future<void> Function(
       ItemLoja item, List<String> categoriaIds, List<String> grupoIds) aoCriarItem;
   final ConfiguracoesImpressora configuracoesImpressora;
@@ -113,6 +127,8 @@ class _NovaVendaConteudo extends StatefulWidget {
     required this.nomeVendedor,
     required this.cnpjVendedor,
     required this.proximoNumero,
+    required this.cpfAutor,
+    required this.nomeAutor,
     required this.onConcluir,
     required this.aoCriarItem,
     required this.configuracoesImpressora,
@@ -953,6 +969,18 @@ class _NovaVendaConteudoState extends State<_NovaVendaConteudo> {
       cnpjVendedor: widget.cnpjVendedor,
     );
 
+    final movimentosSugeridos = await BaixaEstoqueDialog.mostrar(
+      context,
+      theme: theme,
+      itensDisponiveis: widget.itensDisponiveis,
+      pedido: pedido,
+      cpfAutor: widget.cpfAutor,
+      nomeAutor: widget.nomeAutor,
+    );
+
+    if (!mounted) return;
+    if (movimentosSugeridos == null) return;
+
     final confirmou = await VendaConcluidaDialog.mostrar(
       context,
       theme: theme,
@@ -965,7 +993,7 @@ class _NovaVendaConteudoState extends State<_NovaVendaConteudo> {
 
     if (confirmou) {
       Navigator.of(context).pop();
-      widget.onConcluir(pedido);
+      widget.onConcluir(pedido, movimentosSugeridos);
     }
   }
 

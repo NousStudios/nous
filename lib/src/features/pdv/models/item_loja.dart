@@ -2,6 +2,8 @@ import 'package:nous/src/core/services/gerador_id.dart';
 
 enum TipoItemLoja { produto, servico }
 
+enum UnidadeItemLoja { un, g, ml }
+
 class ItemLoja {
   final String id;
   final String nome;
@@ -13,6 +15,8 @@ class ItemLoja {
   final String freteGratisAte;
   final String valorPorKm;
   final String estoqueMinimo;
+  final UnidadeItemLoja unidadeBase;
+  final double consumoPorVenda;
 
   const ItemLoja({
     required this.id,
@@ -25,6 +29,8 @@ class ItemLoja {
     this.freteGratisAte = '',
     this.valorPorKm = '',
     this.estoqueMinimo = '',
+    this.unidadeBase = UnidadeItemLoja.un,
+    this.consumoPorVenda = 1.0,
   });
 
   factory ItemLoja.novo({
@@ -37,6 +43,8 @@ class ItemLoja {
     String freteGratisAte = '',
     String valorPorKm = '',
     String estoqueMinimo = '',
+    UnidadeItemLoja unidadeBase = UnidadeItemLoja.un,
+    double consumoPorVenda = 1.0,
   }) {
     return ItemLoja(
       id: gerarIdUnico(),
@@ -49,6 +57,8 @@ class ItemLoja {
       freteGratisAte: freteGratisAte,
       valorPorKm: valorPorKm,
       estoqueMinimo: estoqueMinimo,
+      unidadeBase: unidadeBase,
+      consumoPorVenda: consumoPorVenda,
     );
   }
 
@@ -62,6 +72,8 @@ class ItemLoja {
     String? freteGratisAte,
     String? valorPorKm,
     String? estoqueMinimo,
+    UnidadeItemLoja? unidadeBase,
+    double? consumoPorVenda,
   }) {
     return ItemLoja(
       id: id,
@@ -74,6 +86,8 @@ class ItemLoja {
       freteGratisAte: freteGratisAte ?? this.freteGratisAte,
       valorPorKm: valorPorKm ?? this.valorPorKm,
       estoqueMinimo: estoqueMinimo ?? this.estoqueMinimo,
+      unidadeBase: unidadeBase ?? this.unidadeBase,
+      consumoPorVenda: consumoPorVenda ?? this.consumoPorVenda,
     );
   }
 
@@ -89,11 +103,20 @@ class ItemLoja {
       'freteGratisAte': freteGratisAte,
       'valorPorKm': valorPorKm,
       'estoqueMinimo': estoqueMinimo,
+      'unidadeBase': unidadeBase.name,
+      'consumoPorVenda': consumoPorVenda,
     };
   }
 
   factory ItemLoja.fromJson(Map<String, dynamic> json) {
     final tipoTexto = json['tipo'] as String?;
+    final unidadeTexto = json['unidadeBase'] as String?;
+    final unidade = unidadeTexto == null
+        ? UnidadeItemLoja.un
+        : UnidadeItemLoja.values.firstWhere(
+            (u) => u.name == unidadeTexto,
+            orElse: () => UnidadeItemLoja.un,
+          );
     return ItemLoja(
       id: json['id'] as String,
       nome: json['nome'] as String,
@@ -109,6 +132,9 @@ class ItemLoja {
       freteGratisAte: json['freteGratisAte'] as String? ?? '',
       valorPorKm: json['valorPorKm'] as String? ?? '',
       estoqueMinimo: json['estoqueMinimo'] as String? ?? '',
+      unidadeBase: unidade,
+      consumoPorVenda:
+          (json['consumoPorVenda'] as num?)?.toDouble() ?? 1.0,
     );
   }
 }

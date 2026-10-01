@@ -70,6 +70,22 @@ String _valorFormatado(double v) =>
 
 String _numeroPedido(int n) => '#${n.toString().padLeft(4, '0')}';
 
+String _formatarQuantidade(double v) {
+  if (v == v.truncateToDouble()) return v.toInt().toString();
+  return v.toStringAsFixed(2).replaceAll('.', ',');
+}
+
+String _rotuloUnidadeCurto(UnidadeItemLoja u) {
+  switch (u) {
+    case UnidadeItemLoja.un:
+      return 'un';
+    case UnidadeItemLoja.g:
+      return 'g';
+    case UnidadeItemLoja.ml:
+      return 'ml';
+  }
+}
+
 class _DadosPerfilViewState extends State<DadosPerfilView> {
   final _controllers = ControllersDadosLoja();
   final _controllersBancarios = ControllersDadosBancarios();
@@ -638,12 +654,17 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
       nomeVendedor: loja?.nome ?? '',
       cnpjVendedor: loja?.cnpj ?? '',
       proximoNumero: proximoNumero,
+      cpfAutor: _cpfLogado,
+      nomeAutor: _nomeLogado,
       configuracoesImpressora:
           loja?.configuracoesImpressora ?? const ConfiguracoesImpressora(),
-      onConcluir: (pedido) {
+      onConcluir: (pedido, movimentosEstoque) {
         setState(() {
           _pedidos.add(pedido);
           _abaPedidos = AbaPedidos.aceitos;
+          for (final m in movimentosEstoque) {
+            _movimentosEstoque.add(m);
+          }
         });
         _persistirListasLoja();
 
@@ -652,6 +673,20 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
           'Nova venda ${_numeroPedido(pedido.numero)} para '
               '"${pedido.clienteNome}" (${_valorFormatado(pedido.valor)})',
         );
+
+        for (final movimento in movimentosEstoque) {
+          final item = _itens.firstWhere(
+            (i) => i.id == movimento.itemId,
+            orElse: () => const ItemLoja(id: '', nome: ''),
+          );
+          final quantidade = _formatarQuantidade(movimento.quantidade);
+          final unidade = _rotuloUnidadeCurto(item.unidadeBase);
+          _registrarAcao(
+            TipoAcao.movimentoEstoqueRegistrado,
+            'Baixa automática de $quantidade $unidade de '
+                '"${item.nome}" pelo pedido ${_numeroPedido(pedido.numero)}',
+          );
+        }
       },
       aoCriarItem: (item, categoriaIds, grupoIds) async {
         setState(() => _itens.add(item));
@@ -1157,7 +1192,8 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
 
     _registrarAcao(
       TipoAcao.movimentoEstoqueRegistrado,
-      '$tipo$sufixoFornecedor de ${movimento.quantidade} em "${item.nome}"',
+      '$tipo$sufixoFornecedor de ${_formatarQuantidade(movimento.quantidade)} '
+          '${_rotuloUnidadeCurto(item.unidadeBase)} em "${item.nome}"',
     );
   }
 

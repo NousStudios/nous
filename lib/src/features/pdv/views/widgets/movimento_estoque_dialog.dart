@@ -76,6 +76,7 @@ class _MovimentoEstoqueConteudoState
   ItemLoja? _item;
   Fornecedor? _fornecedor;
   TipoMovimentoEstoque _tipo = TipoMovimentoEstoque.entrada;
+  CategoriaMovimentoEstoque _categoria = CategoriaMovimentoEstoque.compra;
   String? _aviso;
 
   AppTheme get theme => widget.theme;
@@ -86,6 +87,9 @@ class _MovimentoEstoqueConteudoState
     _item = widget.itemInicial;
     if (widget.tipoInicial != null) {
       _tipo = widget.tipoInicial!;
+      _categoria = _tipo == TipoMovimentoEstoque.entrada
+          ? CategoriaMovimentoEstoque.compra
+          : CategoriaMovimentoEstoque.ajuste;
     }
   }
 
@@ -97,6 +101,23 @@ class _MovimentoEstoqueConteudoState
     super.dispose();
   }
 
+  String _rotuloUnidade(ItemLoja item) {
+    switch (item.unidadeBase) {
+      case UnidadeItemLoja.un:
+        return 'un';
+      case UnidadeItemLoja.g:
+        return 'g';
+      case UnidadeItemLoja.ml:
+        return 'ml';
+    }
+  }
+
+  double? _quantidadeParseada() {
+    final texto =
+        _quantidadeController.text.trim().replaceAll(',', '.');
+    return double.tryParse(texto);
+  }
+
   void _confirmar() {
     final item = _item;
     if (item == null) {
@@ -104,7 +125,7 @@ class _MovimentoEstoqueConteudoState
       return;
     }
 
-    final quantidade = int.tryParse(_quantidadeController.text.trim());
+    final quantidade = _quantidadeParseada();
     if (quantidade == null || quantidade <= 0) {
       setState(() => _aviso = 'Informe uma quantidade válida.');
       return;
@@ -132,6 +153,7 @@ class _MovimentoEstoqueConteudoState
       fornecedorNome: _tipo == TipoMovimentoEstoque.entrada
           ? (_fornecedor?.nome ?? '')
           : '',
+      categoria: _categoria,
     );
 
     Navigator.of(context).pop(movimento);
@@ -187,6 +209,9 @@ class _MovimentoEstoqueConteudoState
           _tipo = tipo;
           if (tipo == TipoMovimentoEstoque.saida) {
             _fornecedor = null;
+            _categoria = CategoriaMovimentoEstoque.ajuste;
+          } else {
+            _categoria = CategoriaMovimentoEstoque.compra;
           }
           _aviso = null;
         }),
@@ -320,9 +345,56 @@ class _MovimentoEstoqueConteudoState
     );
   }
 
+  Widget _dropdownCategoria() {
+    final opcoes = <CategoriaMovimentoEstoque, String>{
+      CategoriaMovimentoEstoque.compra: 'Compra',
+      CategoriaMovimentoEstoque.venda: 'Venda',
+      CategoriaMovimentoEstoque.producao: 'Produção',
+      CategoriaMovimentoEstoque.perda: 'Perda',
+      CategoriaMovimentoEstoque.ajuste: 'Ajuste',
+    };
+    return Container(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: theme.borderColor),
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+      child: DropdownButtonHideUnderline(
+        child: DropdownButton<CategoriaMovimentoEstoque>(
+          value: _categoria,
+          isExpanded: true,
+          dropdownColor: theme.cardBackgroundColor,
+          items: opcoes.entries
+              .map(
+                (e) => DropdownMenuItem<CategoriaMovimentoEstoque>(
+                  value: e.key,
+                  child: Text(
+                    e.value,
+                    style: theme.getTextStyle(
+                      fontSize: 12,
+                      color: theme.textColor,
+                    ),
+                  ),
+                ),
+              )
+              .toList(),
+          onChanged: (valor) {
+            if (valor == null) return;
+            setState(() {
+              _categoria = valor;
+              _aviso = null;
+            });
+          },
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final ehEntrada = _tipo == TipoMovimentoEstoque.entrada;
+    final item = _item;
+    final unidade = item == null ? 'un' : _rotuloUnidade(item);
 
     return Column(
       mainAxisSize: MainAxisSize.min,
@@ -367,19 +439,25 @@ class _MovimentoEstoqueConteudoState
                     _botaoTipo('Saída', TipoMovimentoEstoque.saida),
                   ],
                 ),
+                const SizedBox(height: 16),
+                _tituloDoBloco('Categoria'),
+                _dropdownCategoria(),
                 if (ehEntrada) ...[
                   const SizedBox(height: 16),
                   _tituloDoBloco('Fornecedor (opcional)'),
                   _dropdownFornecedor(),
                 ],
                 const SizedBox(height: 16),
-                _tituloDoBloco('Quantidade'),
+                _tituloDoBloco('Quantidade ($unidade)'),
                 TextField(
                   controller: _quantidadeController,
-                  keyboardType: TextInputType.number,
+                  keyboardType:
+                      const TextInputType.numberWithOptions(decimal: true),
                   cursorColor: theme.textColor,
                   style: theme.getTextStyle(fontSize: 12),
-                  decoration: _decoracaoCampo('Ex: 10'),
+                  decoration: _decoracaoCampo(
+                    unidade == 'un' ? 'Ex: 10' : 'Ex: 30,5',
+                  ),
                   onChanged: (_) => setState(() => _aviso = null),
                 ),
                 const SizedBox(height: 16),

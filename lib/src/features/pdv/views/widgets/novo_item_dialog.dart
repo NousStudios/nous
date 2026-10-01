@@ -68,9 +68,11 @@ class _NovoItemDialogState extends State<NovoItemDialog> {
   final _freteGratisAteController = TextEditingController();
   final _valorPorKmController = TextEditingController();
   final _estoqueMinimoController = TextEditingController();
+  final _consumoController = TextEditingController();
 
   TipoItemLoja? _tipo;
   bool _possuiDelivery = false;
+  UnidadeItemLoja _unidadeBase = UnidadeItemLoja.un;
 
   late final Set<String> _categoriasSelecionadas =
       widget.categoriaIdsIniciais.toSet();
@@ -84,7 +86,10 @@ class _NovoItemDialogState extends State<NovoItemDialog> {
     super.initState();
 
     final item = widget.itemParaEditar;
-    if (item == null) return;
+    if (item == null) {
+      _consumoController.text = '1';
+      return;
+    }
 
     _nomeController.text = item.nome;
     _precoController.text = item.preco;
@@ -94,6 +99,8 @@ class _NovoItemDialogState extends State<NovoItemDialog> {
     _estoqueMinimoController.text = item.estoqueMinimo;
     _tipo = item.tipo;
     _possuiDelivery = item.possuiDelivery;
+    _unidadeBase = item.unidadeBase;
+    _consumoController.text = _formatarNumero(item.consumoPorVenda);
 
     for (final variante in item.variantes) {
       _variantesControllers.add(TextEditingController(text: variante));
@@ -108,10 +115,25 @@ class _NovoItemDialogState extends State<NovoItemDialog> {
     _freteGratisAteController.dispose();
     _valorPorKmController.dispose();
     _estoqueMinimoController.dispose();
+    _consumoController.dispose();
     for (final controller in _variantesControllers) {
       controller.dispose();
     }
     super.dispose();
+  }
+
+  String _formatarNumero(double v) {
+    if (v == v.truncateToDouble()) {
+      return v.toInt().toString();
+    }
+    return v.toString().replaceAll('.', ',');
+  }
+
+  double _consumoParseado() {
+    final texto = _consumoController.text.trim().replaceAll(',', '.');
+    final valor = double.tryParse(texto);
+    if (valor == null || valor <= 0) return 1.0;
+    return valor;
   }
 
   void _adicionarCampoVariante() {
@@ -252,6 +274,48 @@ class _NovoItemDialogState extends State<NovoItemDialog> {
     );
   }
 
+  Widget _botaoUnidade(
+    AppTheme theme,
+    String rotulo,
+    UnidadeItemLoja valor,
+  ) {
+    final selecionado = _unidadeBase == valor;
+    return Expanded(
+      child: OutlinedButton(
+        style: OutlinedButton.styleFrom(
+          backgroundColor:
+              selecionado ? theme.buttonColor : Colors.transparent,
+          foregroundColor:
+              selecionado ? theme.buttonTextColor : theme.textColor,
+          side: BorderSide(color: theme.borderColor),
+          padding: const EdgeInsets.symmetric(vertical: 12),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10),
+          ),
+        ),
+        onPressed: () => setState(() => _unidadeBase = valor),
+        child: Text(
+          rotulo,
+          style: theme.getTextStyle(
+            fontSize: 12,
+            color: selecionado ? theme.buttonTextColor : theme.textColor,
+          ),
+        ),
+      ),
+    );
+  }
+
+  String _rotuloUnidade() {
+    switch (_unidadeBase) {
+      case UnidadeItemLoja.un:
+        return 'un';
+      case UnidadeItemLoja.g:
+        return 'g';
+      case UnidadeItemLoja.ml:
+        return 'ml';
+    }
+  }
+
   void _criar() {
     final nome = _nomeController.text.trim();
     if (nome.isEmpty) return;
@@ -262,6 +326,7 @@ class _NovoItemDialogState extends State<NovoItemDialog> {
         .toList();
 
     final itemExistente = widget.itemParaEditar;
+    final consumo = _consumoParseado();
 
     final item = itemExistente != null
         ? itemExistente.copyWith(
@@ -274,6 +339,8 @@ class _NovoItemDialogState extends State<NovoItemDialog> {
             freteGratisAte: _freteGratisAteController.text.trim(),
             valorPorKm: _valorPorKmController.text.trim(),
             estoqueMinimo: _estoqueMinimoController.text.trim(),
+            unidadeBase: _unidadeBase,
+            consumoPorVenda: consumo,
           )
         : ItemLoja.novo(
             nome: nome,
@@ -285,6 +352,8 @@ class _NovoItemDialogState extends State<NovoItemDialog> {
             freteGratisAte: _freteGratisAteController.text.trim(),
             valorPorKm: _valorPorKmController.text.trim(),
             estoqueMinimo: _estoqueMinimoController.text.trim(),
+            unidadeBase: _unidadeBase,
+            consumoPorVenda: consumo,
           );
 
     widget.onCriar(
@@ -372,10 +441,38 @@ class _NovoItemDialogState extends State<NovoItemDialog> {
               ),
               const SizedBox(height: 16),
 
+              Text(
+                'Unidade de medida',
+                textAlign: TextAlign.center,
+                style: theme.getTextStyle(
+                  fontSize: 13,
+                  color: theme.secondaryTextColor,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  _botaoUnidade(theme, 'Unidade', UnidadeItemLoja.un),
+                  const SizedBox(width: 8),
+                  _botaoUnidade(theme, 'Grama', UnidadeItemLoja.g),
+                  const SizedBox(width: 8),
+                  _botaoUnidade(theme, 'Mililitro', UnidadeItemLoja.ml),
+                ],
+              ),
+              const SizedBox(height: 16),
+
+              ThemedTextField(
+                theme: theme,
+                controller: _consumoController,
+                label: 'Consumo por venda (${_rotuloUnidade()})',
+                tipoDeTeclado: TextInputType.number,
+              ),
+              const SizedBox(height: 16),
+
               ThemedTextField(
                 theme: theme,
                 controller: _estoqueMinimoController,
-                label: 'Estoque mínimo (opcional)',
+                label: 'Estoque mínimo em ${_rotuloUnidade()} (opcional)',
                 tipoDeTeclado: TextInputType.number,
               ),
               const SizedBox(height: 16),

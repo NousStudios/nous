@@ -43,8 +43,8 @@ class _EstoqueContainerState extends State<EstoqueContainer> {
     super.dispose();
   }
 
-  int _saldoDoItem(String itemId) {
-    var saldo = 0;
+  double _saldoDoItem(String itemId) {
+    var saldo = 0.0;
     for (final m in widget.movimentos) {
       if (m.itemId != itemId) continue;
       saldo += m.quantidadeComSinal;
@@ -52,10 +52,10 @@ class _EstoqueContainerState extends State<EstoqueContainer> {
     return saldo;
   }
 
-  int _estoqueMinimoDe(ItemLoja item) {
-    final texto = item.estoqueMinimo.trim();
+  double _estoqueMinimoDe(ItemLoja item) {
+    final texto = item.estoqueMinimo.trim().replaceAll(',', '.');
     if (texto.isEmpty) return 0;
-    return int.tryParse(texto) ?? 0;
+    return double.tryParse(texto) ?? 0;
   }
 
   List<MovimentoEstoque> _movimentosDoItem(String itemId) {
@@ -91,6 +91,23 @@ class _EstoqueContainerState extends State<EstoqueContainer> {
       enabledBorder: borda(theme.borderColor),
       focusedBorder: borda(theme.textColor),
     );
+  }
+
+  String _formatarQuantidade(double v, UnidadeItemLoja unidade) {
+    String numero;
+    if (v == v.truncateToDouble()) {
+      numero = v.toInt().toString();
+    } else {
+      numero = v.toStringAsFixed(2).replaceAll('.', ',');
+    }
+    switch (unidade) {
+      case UnidadeItemLoja.un:
+        return numero;
+      case UnidadeItemLoja.g:
+        return '$numero g';
+      case UnidadeItemLoja.ml:
+        return '$numero ml';
+    }
   }
 
   void _abrirHistorico(ItemLoja item) {
@@ -145,7 +162,7 @@ class _EstoqueContainerState extends State<EstoqueContainer> {
                       children: [
                         Center(
                           child: Text(
-                            'Saldo atual: $saldo',
+                            'Saldo atual: ${_formatarQuantidade(saldo, item.unidadeBase)}',
                             style: theme.getTextStyle(
                               fontSize: 14,
                               fontWeight: FontWeight.bold,
@@ -166,6 +183,7 @@ class _EstoqueContainerState extends State<EstoqueContainer> {
                               child: _LinhaMovimento(
                                 theme: theme,
                                 movimento: m,
+                                unidade: item.unidadeBase,
                                 podeExcluir: widget.podeEditar,
                                 onExcluir: () {
                                   widget.onRemoverMovimento(m);
@@ -296,7 +314,7 @@ class _EstoqueContainerState extends State<EstoqueContainer> {
                     ),
                     if (minimo > 0)
                       Text(
-                        'mínimo $minimo',
+                        'mínimo ${_formatarQuantidade(minimo, item.unidadeBase)}',
                         style: theme.getTextStyle(
                           fontSize: 10,
                           color: theme.secondaryTextColor,
@@ -307,7 +325,7 @@ class _EstoqueContainerState extends State<EstoqueContainer> {
               ),
               const SizedBox(width: 8),
               Text(
-                '$saldo',
+                _formatarQuantidade(saldo, item.unidadeBase),
                 style: theme.getTextStyle(
                   fontSize: 14,
                   fontWeight: FontWeight.bold,
@@ -390,12 +408,14 @@ class _EstoqueContainerState extends State<EstoqueContainer> {
 class _LinhaMovimento extends StatefulWidget {
   final AppTheme theme;
   final MovimentoEstoque movimento;
+  final UnidadeItemLoja unidade;
   final bool podeExcluir;
   final VoidCallback onExcluir;
 
   const _LinhaMovimento({
     required this.theme,
     required this.movimento,
+    required this.unidade,
     required this.podeExcluir,
     required this.onExcluir,
   });
@@ -418,6 +438,38 @@ class _LinhaMovimentoState extends State<_LinhaMovimento> {
   String _valor(double v) =>
       'R\$ ${v.toStringAsFixed(2).replaceAll('.', ',')}';
 
+  String _formatarQuantidade(double v) {
+    String numero;
+    if (v == v.truncateToDouble()) {
+      numero = v.toInt().toString();
+    } else {
+      numero = v.toStringAsFixed(2).replaceAll('.', ',');
+    }
+    switch (widget.unidade) {
+      case UnidadeItemLoja.un:
+        return numero;
+      case UnidadeItemLoja.g:
+        return '$numero g';
+      case UnidadeItemLoja.ml:
+        return '$numero ml';
+    }
+  }
+
+  String _rotuloCategoria(CategoriaMovimentoEstoque c) {
+    switch (c) {
+      case CategoriaMovimentoEstoque.compra:
+        return 'Compra';
+      case CategoriaMovimentoEstoque.venda:
+        return 'Venda';
+      case CategoriaMovimentoEstoque.ajuste:
+        return 'Ajuste';
+      case CategoriaMovimentoEstoque.perda:
+        return 'Perda';
+      case CategoriaMovimentoEstoque.producao:
+        return 'Produção';
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final m = widget.movimento;
@@ -426,11 +478,13 @@ class _LinhaMovimentoState extends State<_LinhaMovimento> {
     final sinal = ehEntrada ? '+' : '-';
     final sufixoCusto =
         m.custoUnitario > 0 ? ' • ${_valor(m.custoUnitario)}/un' : '';
-    final linha1 = '$sinal${m.quantidade}$sufixoCusto';
+    final linha1 =
+        '$sinal${_formatarQuantidade(m.quantidade)}$sufixoCusto';
 
     final sufixoAutor =
         m.nomeAutor.isNotEmpty ? ' • ${m.nomeAutor}' : '';
-    final linha2 = '${_dataHora(m.dataHora)}$sufixoAutor';
+    final categoria = _rotuloCategoria(m.categoria);
+    final linha2 = '${_dataHora(m.dataHora)} • $categoria$sufixoAutor';
 
     final sufixoFornecedor =
         m.fornecedorNome.isNotEmpty ? ' • ${m.fornecedorNome}' : '';
