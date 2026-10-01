@@ -15,6 +15,7 @@ class ClientesDialog {
   static Future<void> mostrar(
     BuildContext context, {
     required AppTheme theme,
+    required String lojaId,
     required List<Cliente> clientes,
     required List<PedidoLoja> pedidos,
     required ValueChanged<Cliente> onSalvar,
@@ -35,6 +36,7 @@ class ClientesDialog {
             constraints: const BoxConstraints(maxWidth: 500),
             child: _ClientesConteudo(
               theme: theme,
+              lojaId: lojaId,
               clientes: clientes,
               pedidos: pedidos,
               onSalvar: onSalvar,
@@ -50,6 +52,7 @@ class ClientesDialog {
 
 class _ClientesConteudo extends StatefulWidget {
   final AppTheme theme;
+  final String lojaId;
   final List<Cliente> clientes;
   final List<PedidoLoja> pedidos;
   final ValueChanged<Cliente> onSalvar;
@@ -58,6 +61,7 @@ class _ClientesConteudo extends StatefulWidget {
 
   const _ClientesConteudo({
     required this.theme,
+    required this.lojaId,
     required this.clientes,
     required this.pedidos,
     required this.onSalvar,
@@ -639,7 +643,11 @@ class _ClientesConteudoState extends State<_ClientesConteudo> {
             for (final pedido in historico)
               Padding(
                 padding: const EdgeInsets.only(bottom: 8),
-                child: BarraVenda(theme: theme, pedido: pedido),
+                child: BarraVenda(
+                  theme: theme,
+                  lojaId: widget.lojaId,
+                  pedido: pedido,
+                ),
               ),
         ],
       ),

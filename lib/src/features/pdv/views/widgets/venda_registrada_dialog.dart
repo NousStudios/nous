@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'package:nous/src/core/theme/theme_controller.dart';
+import 'package:nous/src/features/pdv/models/configuracoes_impressora.dart';
 import 'package:nous/src/features/pdv/models/pedido_loja.dart';
+import 'package:nous/src/features/pdv/providers/pdv_provider.dart';
+import 'package:nous/src/features/pdv/services/impressao_service.dart';
 import 'package:nous/src/features/pdv/views/widgets/comanda_pedido.dart';
 import 'package:nous/src/features/pdv/views/widgets/estado_vazio_container.dart';
 
@@ -20,8 +24,12 @@ class VendaRegistradaDialog {
   static Future<void> mostrar(
     BuildContext context, {
     required AppTheme theme,
+    required String lojaId,
     required PedidoLoja pedido,
-    ValueChanged<String>? onSalvarComentario,
+    required String autorCpf,
+    required String autorNome,
+    required String autorEmail,
+    ValueChanged<DadosComentario>? onSalvarComentario,
     VoidCallback? onExcluir,
   }) {
     return showDialog<void>(
@@ -38,7 +46,11 @@ class VendaRegistradaDialog {
             constraints: const BoxConstraints(maxWidth: 500),
             child: _VendaConteudo(
               theme: theme,
+              lojaId: lojaId,
               pedido: pedido,
+              autorCpf: autorCpf,
+              autorNome: autorNome,
+              autorEmail: autorEmail,
               onSalvarComentario: onSalvarComentario,
               onExcluir: onExcluir,
             ),
@@ -51,13 +63,21 @@ class VendaRegistradaDialog {
 
 class _VendaConteudo extends StatefulWidget {
   final AppTheme theme;
+  final String lojaId;
   final PedidoLoja pedido;
-  final ValueChanged<String>? onSalvarComentario;
+  final String autorCpf;
+  final String autorNome;
+  final String autorEmail;
+  final ValueChanged<DadosComentario>? onSalvarComentario;
   final VoidCallback? onExcluir;
 
   const _VendaConteudo({
     required this.theme,
+    required this.lojaId,
     required this.pedido,
+    required this.autorCpf,
+    required this.autorNome,
+    required this.autorEmail,
     this.onSalvarComentario,
     this.onExcluir,
   });
@@ -69,6 +89,10 @@ class _VendaConteudo extends StatefulWidget {
 class _VendaConteudoState extends State<_VendaConteudo> {
   late final TextEditingController _comentarioController;
   late String _comentarioSalvo;
+  late DateTime? _comentarioDataHoraSalvo;
+
+  bool _imprimindo = false;
+  bool _exportando = false;
 
   AppTheme get theme => widget.theme;
   PedidoLoja get pedido => widget.pedido;
@@ -77,6 +101,7 @@ class _VendaConteudoState extends State<_VendaConteudo> {
   void initState() {
     super.initState();
     _comentarioSalvo = widget.pedido.comentario;
+    _comentarioDataHoraSalvo = widget.pedido.comentarioDataHora;
     _comentarioController = TextEditingController(text: _comentarioSalvo);
   }
 
@@ -91,6 +116,23 @@ class _VendaConteudoState extends State<_VendaConteudo> {
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: theme.borderColor.withValues(alpha: 0.6)),
       );
+
+  ConfiguracoesImpressora _lerConfiguracoesDaLoja() {
+    final loja = context.read<PdvProvider>().buscarPorId(widget.lojaId);
+    return loja?.configuracoesImpressora ?? const ConfiguracoesImpressora();
+  }
+
+  void _snack(String texto) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        backgroundColor: theme.cardBackgroundColor,
+        content: Text(
+          texto,
+          style: theme.getTextStyle(color: theme.textColor),
+        ),
+      ),
+    );
+  }
 
   Widget _tituloDoBloco(String texto) {
     return Padding(
@@ -150,9 +192,52 @@ class _VendaConteudoState extends State<_VendaConteudo> {
     );
   }
 
+  Future<void> _imprimir() async {
+    if (_imprimindo) return;
+    setState(() => _imprimindo = true);
+    try {
+      final config = _lerConfiguracoesDaLoja();
+      await ImpressaoService.imprimirComanda(
+        config: config,
+        pedido: pedido,
+      );
+      if (!mounted) return;
+      _snack('Comanda enviada para a impressora.');
+    } catch (e) {
+      if (!mounted) return;
+      _snack('Falha ao imprimir: $e');
+    } finally {
+      if (mounted) setState(() => _imprimindo = false);
+    }
+  }
+
+  Future<void> _exportarPDF() async {
+    if (_exportando) return;
+    setState(() => _exportando = true);
+    try {
+      final config = _lerConfiguracoesDaLoja();
+      final caminho = await ImpressaoService.exportarComandaPDF(
+        pedido: pedido,
+        rodape: config.rodape,
+      );
+      if (!mounted) return;
+      if (caminho == null) {
+        _snack('Exportação cancelada.');
+      } else {
+        _snack('PDF salvo em: $caminho');
+      }
+    } catch (e) {
+      if (!mounted) return;
+      _snack('Falha ao exportar: $e');
+    } finally {
+      if (mounted) setState(() => _exportando = false);
+    }
+  }
+
   Widget _botaoDeAcao(
     String rotulo, {
     bool destrutivo = false,
+    bool carregando = false,
     VoidCallback? aoPressionar,
   }) {
     return OutlinedButton(
@@ -166,8 +251,17 @@ class _VendaConteudoState extends State<_VendaConteudo> {
           borderRadius: BorderRadius.circular(10),
         ),
       ),
-      onPressed: aoPressionar ?? () => _emConstrucao(rotulo),
-      child: Text(rotulo, style: theme.getTextStyle(fontSize: 12)),
+      onPressed: carregando ? null : (aoPressionar ?? () => _emConstrucao(rotulo)),
+      child: carregando
+          ? SizedBox(
+              width: 14,
+              height: 14,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                color: theme.textColor,
+              ),
+            )
+          : Text(rotulo, style: theme.getTextStyle(fontSize: 12)),
     );
   }
 
@@ -224,9 +318,17 @@ class _VendaConteudoState extends State<_VendaConteudo> {
 
   Widget _blocoAcoes() {
     final acoes = <Widget>[
-      _botaoDeAcao('Imprimir'),
+      _botaoDeAcao(
+        'Imprimir',
+        carregando: _imprimindo,
+        aoPressionar: _imprimir,
+      ),
       _botaoDeAcao('Compartilhar'),
-      _botaoDeAcao('Exportar como PDF'),
+      _botaoDeAcao(
+        'Exportar como PDF',
+        carregando: _exportando,
+        aoPressionar: _exportarPDF,
+      ),
       _botaoDeAcao(
         'Excluir Registro',
         destrutivo: true,
@@ -400,22 +502,44 @@ class _VendaConteudoState extends State<_VendaConteudo> {
 
   void _salvarComentario() {
     final texto = _comentarioController.text.trim();
-    widget.onSalvarComentario?.call(texto);
-    setState(() => _comentarioSalvo = texto);
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        backgroundColor: theme.cardBackgroundColor,
-        content: Text(
-          widget.onSalvarComentario != null
-              ? 'Comentário salvo.'
-              : 'Comentário salvo (apenas nesta sessão).',
-          style: theme.getTextStyle(color: theme.textColor),
-        ),
-      ),
+    final agora = DateTime.now();
+
+    final dados = DadosComentario(
+      texto: texto,
+      cpfAutor: widget.autorCpf,
+      nomeAutor: widget.autorNome,
+      emailAutor: widget.autorEmail,
+      dataHora: agora,
+    );
+
+    widget.onSalvarComentario?.call(dados);
+    setState(() {
+      _comentarioSalvo = texto;
+      _comentarioDataHoraSalvo = agora;
+    });
+    _snack(
+      widget.onSalvarComentario != null
+          ? 'Comentário salvo.'
+          : 'Comentário salvo (apenas nesta sessão).',
     );
   }
 
+  String _autorDoComentarioExibido() {
+    final partes = <String>[
+      if (widget.pedido.comentarioAutorNome.isNotEmpty)
+        widget.pedido.comentarioAutorNome,
+      if (widget.pedido.comentarioAutorCpf.isNotEmpty)
+        widget.pedido.comentarioAutorCpf,
+      if (widget.pedido.comentarioAutorEmail.isNotEmpty)
+        widget.pedido.comentarioAutorEmail,
+    ];
+    return partes.join(' • ');
+  }
+
   Widget _blocoComentario() {
+    final autorAntigo = _autorDoComentarioExibido();
+    final dataAntiga = _comentarioDataHoraSalvo;
+
     return Center(
       child: Container(
         width: _larguraBloco,
@@ -454,6 +578,34 @@ class _VendaConteudoState extends State<_VendaConteudo> {
                       ),
                     ),
                   ),
+                  if (_comentarioSalvo.trim().isNotEmpty &&
+                      autorAntigo.isNotEmpty) ...[
+                    const SizedBox(height: 6),
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        'Por: $autorAntigo',
+                        style: theme.getTextStyle(
+                          fontSize: 10,
+                          color: theme.secondaryTextColor,
+                        ),
+                      ),
+                    ),
+                  ],
+                  if (_comentarioSalvo.trim().isNotEmpty &&
+                      dataAntiga != null) ...[
+                    const SizedBox(height: 2),
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        'Em: ${_dataHora(dataAntiga)}',
+                        style: theme.getTextStyle(
+                          fontSize: 10,
+                          color: theme.secondaryTextColor,
+                        ),
+                      ),
+                    ),
+                  ],
                   const SizedBox(height: 8),
                   SizedBox(
                     width: double.infinity,
@@ -543,15 +695,25 @@ class _VendaConteudoState extends State<_VendaConteudo> {
 
 class BarraVenda extends StatefulWidget {
   final AppTheme theme;
+  final String lojaId;
   final PedidoLoja pedido;
   final bool mostrarCliente;
+  final String autorCpf;
+  final String autorNome;
+  final String autorEmail;
+  final ValueChanged<DadosComentario>? onSalvarComentario;
   final VoidCallback? onExcluir;
 
   const BarraVenda({
     super.key,
     required this.theme,
+    required this.lojaId,
     required this.pedido,
     this.mostrarCliente = false,
+    this.autorCpf = '',
+    this.autorNome = '',
+    this.autorEmail = '',
+    this.onSalvarComentario,
     this.onExcluir,
   });
 
@@ -589,7 +751,12 @@ class _BarraVendaState extends State<BarraVenda> {
         onTap: () => VendaRegistradaDialog.mostrar(
           context,
           theme: theme,
+          lojaId: widget.lojaId,
           pedido: pedido,
+          autorCpf: widget.autorCpf,
+          autorNome: widget.autorNome,
+          autorEmail: widget.autorEmail,
+          onSalvarComentario: widget.onSalvarComentario,
           onExcluir: widget.onExcluir,
         ),
         child: Container(

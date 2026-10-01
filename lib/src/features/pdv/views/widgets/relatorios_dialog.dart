@@ -60,6 +60,9 @@ class RelatoriosDialog {
     required AppTheme theme,
     required String lojaId,
     required List<PedidoLoja> pedidos,
+    String autorCpf = '',
+    String autorNome = '',
+    String autorEmail = '',
     ValueChanged<String>? onExcluirPedido,
     VoidCallback? aoAbrirClientes,
   }) {
@@ -79,6 +82,9 @@ class RelatoriosDialog {
               theme: theme,
               lojaId: lojaId,
               pedidos: pedidos,
+              autorCpf: autorCpf,
+              autorNome: autorNome,
+              autorEmail: autorEmail,
               onExcluirPedido: onExcluirPedido,
               aoAbrirClientes: aoAbrirClientes,
             ),
@@ -93,6 +99,9 @@ class _RelatoriosConteudo extends StatefulWidget {
   final AppTheme theme;
   final String lojaId;
   final List<PedidoLoja> pedidos;
+  final String autorCpf;
+  final String autorNome;
+  final String autorEmail;
   final ValueChanged<String>? onExcluirPedido;
   final VoidCallback? aoAbrirClientes;
 
@@ -100,6 +109,9 @@ class _RelatoriosConteudo extends StatefulWidget {
     required this.theme,
     required this.lojaId,
     required this.pedidos,
+    required this.autorCpf,
+    required this.autorNome,
+    required this.autorEmail,
     this.onExcluirPedido,
     this.aoAbrirClientes,
   });
@@ -355,8 +367,12 @@ class _RelatoriosConteudoState extends State<_RelatoriosConteudo> {
                 separatorBuilder: (context, index) => const SizedBox(height: 8),
                 itemBuilder: (context, index) => BarraVenda(
                   theme: theme,
+                  lojaId: widget.lojaId,
                   pedido: vendas[index],
                   mostrarCliente: true,
+                  autorCpf: widget.autorCpf,
+                  autorNome: widget.autorNome,
+                  autorEmail: widget.autorEmail,
                   onExcluir: () => _excluirPedido(vendas[index].id),
                 ),
               ),

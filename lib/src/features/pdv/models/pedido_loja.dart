@@ -1,5 +1,21 @@
 enum StatusPedido { novo, aceito, concluido }
 
+class DadosComentario {
+  final String texto;
+  final String cpfAutor;
+  final String nomeAutor;
+  final String emailAutor;
+  final DateTime dataHora;
+
+  const DadosComentario({
+    required this.texto,
+    required this.cpfAutor,
+    required this.nomeAutor,
+    required this.emailAutor,
+    required this.dataHora,
+  });
+}
+
 class AcompanhamentoEscolhido {
   final String itemId;
   final String nomeItem;
@@ -126,6 +142,10 @@ class PedidoLoja {
   final String nomeVendedor;
   final String cnpjVendedor;
   final String comentario;
+  final String comentarioAutorCpf;
+  final String comentarioAutorNome;
+  final String comentarioAutorEmail;
+  final DateTime? comentarioDataHora;
 
   const PedidoLoja({
     required this.id,
@@ -148,6 +168,10 @@ class PedidoLoja {
     this.nomeVendedor = '',
     this.cnpjVendedor = '',
     this.comentario = '',
+    this.comentarioAutorCpf = '',
+    this.comentarioAutorNome = '',
+    this.comentarioAutorEmail = '',
+    this.comentarioDataHora,
   });
 
   bool get aPrazoEmAberto => formaPagamento == 'À Prazo' && !quitado;
@@ -164,6 +188,11 @@ class PedidoLoja {
     bool? quitado,
     double? valorPago,
     String? comentario,
+    String? comentarioAutorCpf,
+    String? comentarioAutorNome,
+    String? comentarioAutorEmail,
+    DateTime? comentarioDataHora,
+    bool limparComentario = false,
   }) {
     return PedidoLoja(
       id: id,
@@ -186,6 +215,14 @@ class PedidoLoja {
       nomeVendedor: nomeVendedor,
       cnpjVendedor: cnpjVendedor,
       comentario: comentario ?? this.comentario,
+      comentarioAutorCpf:
+          comentarioAutorCpf ?? this.comentarioAutorCpf,
+      comentarioAutorNome:
+          comentarioAutorNome ?? this.comentarioAutorNome,
+      comentarioAutorEmail:
+          comentarioAutorEmail ?? this.comentarioAutorEmail,
+      comentarioDataHora:
+          comentarioDataHora ?? this.comentarioDataHora,
     );
   }
 
@@ -211,10 +248,15 @@ class PedidoLoja {
       'nomeVendedor': nomeVendedor,
       'cnpjVendedor': cnpjVendedor,
       'comentario': comentario,
+      'comentarioAutorCpf': comentarioAutorCpf,
+      'comentarioAutorNome': comentarioAutorNome,
+      'comentarioAutorEmail': comentarioAutorEmail,
+      'comentarioDataHora': comentarioDataHora?.toIso8601String(),
     };
   }
 
   factory PedidoLoja.fromJson(Map<String, dynamic> json) {
+    final dataHoraComentario = json['comentarioDataHora'] as String?;
     return PedidoLoja(
       id: json['id'] as String,
       numero: json['numero'] as int,
@@ -238,6 +280,12 @@ class PedidoLoja {
       nomeVendedor: json['nomeVendedor'] as String? ?? '',
       cnpjVendedor: json['cnpjVendedor'] as String? ?? '',
       comentario: json['comentario'] as String? ?? '',
+      comentarioAutorCpf: json['comentarioAutorCpf'] as String? ?? '',
+      comentarioAutorNome: json['comentarioAutorNome'] as String? ?? '',
+      comentarioAutorEmail: json['comentarioAutorEmail'] as String? ?? '',
+      comentarioDataHora: dataHoraComentario == null
+          ? null
+          : DateTime.tryParse(dataHoraComentario),
     );
   }
 }

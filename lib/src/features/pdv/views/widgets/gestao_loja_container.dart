@@ -22,6 +22,10 @@ String _valorFormatado(double valor) =>
 
 class GestaoLojaContainer extends StatelessWidget {
   final AppTheme theme;
+  final String lojaId;
+  final String autorCpf;
+  final String autorNome;
+  final String autorEmail;
   final bool lojaOnline;
   final ValueChanged<bool> aoAlterarOnline;
   final AbaPedidos abaPedidos;
@@ -30,7 +34,8 @@ class GestaoLojaContainer extends StatelessWidget {
   final ValueChanged<String> aoAceitar;
   final ValueChanged<String> aoRecusar;
   final ValueChanged<String> aoConcluir;
-  final void Function(String pedidoId, String comentario)? aoSalvarComentario;
+  final void Function(String pedidoId, DadosComentario dados)?
+      aoSalvarComentario;
   final ValueChanged<String>? aoExcluirPedido;
   final VoidCallback aoNovaVenda;
   final VoidCallback aoClientes;
@@ -42,6 +47,10 @@ class GestaoLojaContainer extends StatelessWidget {
   const GestaoLojaContainer({
     super.key,
     required this.theme,
+    required this.lojaId,
+    required this.autorCpf,
+    required this.autorNome,
+    required this.autorEmail,
     required this.lojaOnline,
     required this.aoAlterarOnline,
     required this.abaPedidos,
@@ -321,10 +330,14 @@ class GestaoLojaContainer extends StatelessWidget {
       VendaRegistradaDialog.mostrar(
         context,
         theme: theme,
+        lojaId: lojaId,
         pedido: pedido,
+        autorCpf: autorCpf,
+        autorNome: autorNome,
+        autorEmail: autorEmail,
         onSalvarComentario: aoSalvarComentario == null
             ? null
-            : (comentario) => aoSalvarComentario!(pedido.id, comentario),
+            : (dados) => aoSalvarComentario!(pedido.id, dados),
         onExcluir: aoExcluirPedido == null
             ? null
             : () => aoExcluirPedido!(pedido.id),

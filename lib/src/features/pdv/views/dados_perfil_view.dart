@@ -120,6 +120,15 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
     return context.read<PdvProvider>().possoEditarAbaLoja(widget.lojaId);
   }
 
+  String get _cpfLogado =>
+      context.read<AuthProvider>().contaAtual?.cpf ?? '';
+
+  String get _nomeLogado =>
+      context.read<AuthProvider>().contaAtual?.nome ?? '';
+
+  String get _emailLogado =>
+      context.read<AuthProvider>().emailAtivo ?? '';
+
   void _registrarAcao(TipoAcao tipo, String descricao) {
     final auth = context.read<AuthProvider>();
     final conta = auth.contaAtual;
@@ -337,13 +346,19 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
     }
   }
 
-  void _salvarComentarioPedido(String id, String comentario) {
+  void _salvarComentarioPedido(String id, DadosComentario dados) {
     final indice = _pedidos.indexWhere((p) => p.id == id);
     if (indice == -1) return;
     final pedido = _pedidos[indice];
 
     setState(() {
-      _pedidos[indice] = pedido.copyWith(comentario: comentario);
+      _pedidos[indice] = pedido.copyWith(
+        comentario: dados.texto,
+        comentarioAutorCpf: dados.cpfAutor,
+        comentarioAutorNome: dados.nomeAutor,
+        comentarioAutorEmail: dados.emailAutor,
+        comentarioDataHora: dados.dataHora,
+      );
     });
     _persistirListasLoja();
 
@@ -441,6 +456,7 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
     return ClientesDialog.mostrar(
       context,
       theme: ThemeController.currentTheme.value,
+      lojaId: widget.lojaId,
       clientes: _clientes,
       pedidos: _pedidos,
       onSalvar: _salvarCliente,
@@ -455,6 +471,9 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
       theme: ThemeController.currentTheme.value,
       lojaId: widget.lojaId,
       pedidos: List.of(_pedidos),
+      autorCpf: _cpfLogado,
+      autorNome: _nomeLogado,
+      autorEmail: _emailLogado,
       onExcluirPedido: _excluirPedido,
       aoAbrirClientes: _abrirPopupClientes,
     );
@@ -1607,6 +1626,10 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
       case AbaLoja.gestao:
         return GestaoLojaContainer(
           theme: theme,
+          lojaId: widget.lojaId,
+          autorCpf: _cpfLogado,
+          autorNome: _nomeLogado,
+          autorEmail: _emailLogado,
           lojaOnline: _lojaOnline,
           aoAlterarOnline: (valor) => setState(() => _lojaOnline = valor),
           abaPedidos: _abaPedidos,
