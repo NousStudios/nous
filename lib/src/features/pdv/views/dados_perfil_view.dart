@@ -481,6 +481,7 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
       autorNome: _nomeLogado,
       autorEmail: _emailLogado,
       onExcluirPedido: _excluirPedido,
+      onSalvarComentario: _salvarComentarioPedido,
       aoAbrirClientes: _abrirPopupClientes,
     );
   }

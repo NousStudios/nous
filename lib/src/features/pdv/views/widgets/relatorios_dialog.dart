@@ -64,6 +64,8 @@ class RelatoriosDialog {
     String autorNome = '',
     String autorEmail = '',
     ValueChanged<String>? onExcluirPedido,
+    void Function(String pedidoId, DadosComentario dados)?
+        onSalvarComentario,
     VoidCallback? aoAbrirClientes,
   }) {
     return showDialog<void>(
@@ -86,6 +88,7 @@ class RelatoriosDialog {
               autorNome: autorNome,
               autorEmail: autorEmail,
               onExcluirPedido: onExcluirPedido,
+              onSalvarComentario: onSalvarComentario,
               aoAbrirClientes: aoAbrirClientes,
             ),
           ),
@@ -103,6 +106,8 @@ class _RelatoriosConteudo extends StatefulWidget {
   final String autorNome;
   final String autorEmail;
   final ValueChanged<String>? onExcluirPedido;
+  final void Function(String pedidoId, DadosComentario dados)?
+      onSalvarComentario;
   final VoidCallback? aoAbrirClientes;
 
   const _RelatoriosConteudo({
@@ -113,6 +118,7 @@ class _RelatoriosConteudo extends StatefulWidget {
     required this.autorNome,
     required this.autorEmail,
     this.onExcluirPedido,
+    this.onSalvarComentario,
     this.aoAbrirClientes,
   });
 
@@ -170,13 +176,19 @@ class _RelatoriosConteudoState extends State<_RelatoriosConteudo> {
     final desde = _dataInicial;
 
     final lista = _pedidos.where((p) {
-      if (_forma != null && p.formaPagamento != _forma) return false;
+      if (_forma != null &&
+          !p.todosPagamentos.any((pag) => pag.forma == _forma)) {
+        return false;
+      }
       if (desde != null && p.dataHora.isBefore(desde)) return false;
       if (termo.isEmpty) return true;
       final numero = p.numero.toString().padLeft(4, '0');
+      final formas = p.todosPagamentos
+          .map((pag) => pag.forma.toLowerCase())
+          .join(' ');
       return p.clienteNome.toLowerCase().contains(termo) ||
           p.produtoNome.toLowerCase().contains(termo) ||
-          p.formaPagamento.toLowerCase().contains(termo) ||
+          formas.contains(termo) ||
           p.comanda.toLowerCase().contains(termo) ||
           numero.contains(termo);
     }).toList();
@@ -220,6 +232,22 @@ class _RelatoriosConteudoState extends State<_RelatoriosConteudo> {
   void _excluirPedido(String id) {
     setState(() => _pedidos.removeWhere((p) => p.id == id));
     widget.onExcluirPedido?.call(id);
+  }
+
+  void _salvarComentarioPedido(String id, DadosComentario dados) {
+    final indice = _pedidos.indexWhere((p) => p.id == id);
+    if (indice != -1) {
+      setState(() {
+        _pedidos[indice] = _pedidos[indice].copyWith(
+          comentario: dados.texto,
+          comentarioAutorCpf: dados.cpfAutor,
+          comentarioAutorNome: dados.nomeAutor,
+          comentarioAutorEmail: dados.emailAutor,
+          comentarioDataHora: dados.dataHora,
+        );
+      });
+    }
+    widget.onSalvarComentario?.call(id, dados);
   }
 
   void _clicarPendencia() {
@@ -373,6 +401,10 @@ class _RelatoriosConteudoState extends State<_RelatoriosConteudo> {
                   autorCpf: widget.autorCpf,
                   autorNome: widget.autorNome,
                   autorEmail: widget.autorEmail,
+                  onSalvarComentario: widget.onSalvarComentario == null
+                      ? null
+                      : (dados) =>
+                          _salvarComentarioPedido(vendas[index].id, dados),
                   onExcluir: () => _excluirPedido(vendas[index].id),
                 ),
               ),

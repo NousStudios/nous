@@ -126,7 +126,7 @@ class ComandaPedido extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final totalLinhas = pedido.itens.length;
-    final isDinheiro = pedido.formaPagamento == 'Dinheiro';
+    final pagamentos = pedido.todosPagamentos;
 
     return Center(
       child: Container(
@@ -266,23 +266,14 @@ class ComandaPedido extends StatelessWidget {
                     _linhaComanda('TOTAL', _valor(pedido.valor),
                         destaque: true),
                     const SizedBox(height: 4),
-                    _linhaComanda(
-                      'Pagamento',
-                      pedido.formaPagamento.isEmpty
-                          ? '-'
-                          : pedido.formaPagamento,
-                    ),
-                    if (isDinheiro) ...[
-                      _linhaComanda(
-                        'Valor recebido',
-                        _valor(pedido.valorRecebido),
-                      ),
-                      _linhaComanda(
-                        'Troco',
-                        _valor(pedido.troco),
-                        destaque: true,
-                      ),
-                    ],
+                    if (pagamentos.isEmpty)
+                      _linhaComanda('Pagamento', '-')
+                    else
+                      for (final p in pagamentos)
+                        _linhaComanda(p.forma, _valor(p.valor)),
+                    if (pedido.troco > 0)
+                      _linhaComanda('Troco', _valor(pedido.troco),
+                          destaque: true),
                     const SizedBox(height: 12),
                     Center(
                       child: Text(

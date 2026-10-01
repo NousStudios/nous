@@ -213,6 +213,7 @@ class ImpressaoService {
       cliente,
       config.camposClienteComanda,
     );
+    final pagamentos = pedido.todosPagamentos;
 
     doc.addPage(
       pw.Page(
@@ -297,14 +298,13 @@ class ImpressaoService {
                 linhaDupla('Acréscimo', _valor(pedido.acrescimo)),
               linhaDupla('TOTAL', _valor(pedido.valor), negrito: true),
               pw.SizedBox(height: 4),
-              linhaDupla(
-                'Pagamento',
-                pedido.formaPagamento.isEmpty ? '-' : pedido.formaPagamento,
-              ),
-              if (pedido.formaPagamento == 'Dinheiro') ...[
-                linhaDupla('Valor recebido', _valor(pedido.valorRecebido)),
+              if (pagamentos.isEmpty)
+                linhaDupla('Pagamento', '-')
+              else
+                for (final p in pagamentos)
+                  linhaDupla(p.forma, _valor(p.valor)),
+              if (pedido.troco > 0)
                 linhaDupla('Troco', _valor(pedido.troco), negrito: true),
-              ],
               if (config.rodape.isNotEmpty) ...[
                 pw.SizedBox(height: 12),
                 for (final l in config.rodape.split('\n'))
@@ -381,11 +381,14 @@ class ImpressaoService {
     final saldo = totalEntradas - totalSaidas;
 
     final entradasPorForma = <String, double>{
-      for (final f in _formasDePagamento)
-        f: vendas
-            .where((p) => p.formaPagamento == f)
-            .fold(0.0, (soma, p) => soma + p.valor),
+      for (final f in _formasDePagamento) f: 0.0,
     };
+    for (final p in vendas) {
+      for (final pag in p.todosPagamentos) {
+        entradasPorForma[pag.forma] =
+            (entradasPorForma[pag.forma] ?? 0) + pag.valor;
+      }
+    }
 
     final vendasOrdenadas = [...vendas]
       ..sort((a, b) => b.dataHora.compareTo(a.dataHora));
@@ -474,8 +477,12 @@ class ImpressaoService {
                   _valor(v.valor),
                 ),
               );
+              final formas = v.todosPagamentos
+                  .map((p) => p.forma)
+                  .where((f) => f.isNotEmpty)
+                  .join(' + ');
               final detalhe = '${_dataHora(v.dataHora)}'
-                  '${v.formaPagamento.isNotEmpty ? ' • ${v.formaPagamento}' : ''}';
+                  '${formas.isNotEmpty ? ' • $formas' : ''}';
               blocos.add(
                 pw.Padding(
                   padding: const pw.EdgeInsets.only(left: 4, bottom: 3),
@@ -642,6 +649,7 @@ class ImpressaoService {
     }
 
     final linhasCliente = _dadosDoCliente(cliente, camposClienteComanda);
+    final pagamentos = pedido.todosPagamentos;
 
     pw.Widget linhaDupla(
       String rotulo,
@@ -738,14 +746,6 @@ class ImpressaoService {
             blocos.add(linhaDupla(linha.key, linha.value));
           }
           blocos.add(linhaDupla('Produtos', pedido.produtoNome));
-          blocos.add(
-            linhaDupla(
-              'Forma de pagamento',
-              pedido.formaPagamento.isEmpty
-                  ? 'Não informada'
-                  : pedido.formaPagamento,
-            ),
-          );
           blocos.add(linhaDupla('Situação', _situacao(pedido.status)));
 
           blocos.add(pw.SizedBox(height: 16));
@@ -846,22 +846,26 @@ class ImpressaoService {
             linhaDupla('Valor total', _valor(pedido.valor), negrito: true),
           );
 
-          if (pedido.formaPagamento == 'Dinheiro') {
-            blocos.add(
-              linhaDupla(
-                'Valor recebido',
-                _valor(pedido.valorRecebido),
-              ),
-            );
-            blocos.add(
-              linhaDupla('Troco', _valor(pedido.troco), negrito: true),
-            );
+          if (pagamentos.isNotEmpty) {
+            blocos.add(pw.SizedBox(height: 8));
+            blocos.add(pw.Text('Pagamentos', style: estiloSecao));
+            blocos.add(pw.SizedBox(height: 6));
+            for (final p in pagamentos) {
+              blocos.add(linhaDupla(p.forma, _valor(p.valor)));
+            }
+            if (pedido.troco > 0) {
+              blocos.add(
+                linhaDupla('Troco', _valor(pedido.troco), negrito: true),
+              );
+            }
           }
 
-          if (pedido.formaPagamento == 'À Prazo') {
+          if (pedido.formaPagamento == 'À Prazo' ||
+              pedido.todosPagamentos.any((p) => p.forma == 'À Prazo')) {
+            blocos.add(pw.SizedBox(height: 8));
             blocos.add(
               linhaDupla(
-                'Pagamento',
+                'Pagamento à prazo',
                 pedido.quitado ? 'Quitado' : 'Em aberto',
               ),
             );
@@ -1005,11 +1009,14 @@ class ImpressaoService {
     final saldo = totalEntradas - totalSaidas;
 
     final entradasPorForma = <String, double>{
-      for (final f in _formasDePagamento)
-        f: vendas
-            .where((p) => p.formaPagamento == f)
-            .fold(0.0, (soma, p) => soma + p.valor),
+      for (final f in _formasDePagamento) f: 0.0,
     };
+    for (final p in vendas) {
+      for (final pag in p.todosPagamentos) {
+        entradasPorForma[pag.forma] =
+            (entradasPorForma[pag.forma] ?? 0) + pag.valor;
+      }
+    }
 
     final vendasOrdenadas = [...vendas]
       ..sort((a, b) => b.dataHora.compareTo(a.dataHora));
@@ -1154,7 +1161,7 @@ class ImpressaoService {
                       ),
                       pw.Text(
                         '${_dataHora(v.dataHora)}'
-                        '${v.formaPagamento.isNotEmpty ? ' • ${v.formaPagamento}' : ''}',
+                        '${v.todosPagamentos.isNotEmpty ? ' • ${v.todosPagamentos.map((p) => p.forma).where((f) => f.isNotEmpty).join(' + ')}' : ''}',
                         style: estiloMiudo,
                       ),
                     ],

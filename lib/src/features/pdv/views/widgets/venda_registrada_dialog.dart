@@ -91,6 +91,9 @@ class _VendaConteudoState extends State<_VendaConteudo> {
   late final TextEditingController _comentarioController;
   late String _comentarioSalvo;
   late DateTime? _comentarioDataHoraSalvo;
+  late String _comentarioAutorNomeSalvo;
+  late String _comentarioAutorCpfSalvo;
+  late String _comentarioAutorEmailSalvo;
 
   bool _imprimindo = false;
   bool _exportando = false;
@@ -103,6 +106,9 @@ class _VendaConteudoState extends State<_VendaConteudo> {
     super.initState();
     _comentarioSalvo = widget.pedido.comentario;
     _comentarioDataHoraSalvo = widget.pedido.comentarioDataHora;
+    _comentarioAutorNomeSalvo = widget.pedido.comentarioAutorNome;
+    _comentarioAutorCpfSalvo = widget.pedido.comentarioAutorCpf;
+    _comentarioAutorEmailSalvo = widget.pedido.comentarioAutorEmail;
     _comentarioController = TextEditingController(text: _comentarioSalvo);
   }
 
@@ -380,7 +386,8 @@ class _VendaConteudoState extends State<_VendaConteudo> {
   }
 
   Widget _blocoResumo() {
-    final aPrazo = pedido.formaPagamento == 'À Prazo';
+    final pagamentos = pedido.todosPagamentos;
+    final temAPrazo = pagamentos.any((p) => p.forma == 'À Prazo');
     final pago = pedido.quitado ? pedido.valor : pedido.valorPago;
     final restante = pedido.quitado ? 0.0 : pedido.valorRestante;
 
@@ -396,12 +403,11 @@ class _VendaConteudoState extends State<_VendaConteudo> {
             _linha('Data', _dataHora(pedido.dataHora)),
             _linha('Cliente', pedido.clienteNome),
             _linha('Produtos', pedido.produtoNome),
-            _linha(
-              'Forma de pagamento',
-              pedido.formaPagamento.isEmpty
-                  ? 'Não informada'
-                  : pedido.formaPagamento,
-            ),
+            if (pagamentos.isEmpty)
+              _linha('Forma de pagamento', 'Não informada')
+            else
+              for (final p in pagamentos)
+                _linha('Forma de pagamento', '${p.forma} (${_valor(p.valor)})'),
             _linha('Situação', _situacao),
             if (pedido.frete > 0) _linha('Frete', _valor(pedido.frete)),
             if (pedido.desconto > 0)
@@ -409,12 +415,13 @@ class _VendaConteudoState extends State<_VendaConteudo> {
             if (pedido.acrescimo > 0)
               _linha('Acréscimo', _valor(pedido.acrescimo)),
             _linha('Valor total', _valor(pedido.valor)),
-            if (pedido.formaPagamento == 'Dinheiro') ...[
+            if (pedido.troco > 0) ...[
               _linha('Valor recebido', _valor(pedido.valorRecebido)),
               _linha('Troco', _valor(pedido.troco)),
             ],
-            if (aPrazo) ...[
-              _linha('Pagamento', pedido.quitado ? 'Quitado' : 'Em aberto'),
+            if (temAPrazo) ...[
+              _linha('Pagamento à prazo',
+                  pedido.quitado ? 'Quitado' : 'Em aberto'),
               _linha('Já pago', _valor(pago)),
               _linha('Restante', _valor(restante)),
             ],
@@ -547,6 +554,9 @@ class _VendaConteudoState extends State<_VendaConteudo> {
     setState(() {
       _comentarioSalvo = texto;
       _comentarioDataHoraSalvo = agora;
+      _comentarioAutorNomeSalvo = widget.autorNome;
+      _comentarioAutorCpfSalvo = widget.autorCpf;
+      _comentarioAutorEmailSalvo = widget.autorEmail;
     });
     _snack(
       widget.onSalvarComentario != null
@@ -557,12 +567,9 @@ class _VendaConteudoState extends State<_VendaConteudo> {
 
   String _autorDoComentarioExibido() {
     final partes = <String>[
-      if (widget.pedido.comentarioAutorNome.isNotEmpty)
-        widget.pedido.comentarioAutorNome,
-      if (widget.pedido.comentarioAutorCpf.isNotEmpty)
-        widget.pedido.comentarioAutorCpf,
-      if (widget.pedido.comentarioAutorEmail.isNotEmpty)
-        widget.pedido.comentarioAutorEmail,
+      if (_comentarioAutorNomeSalvo.isNotEmpty) _comentarioAutorNomeSalvo,
+      if (_comentarioAutorCpfSalvo.isNotEmpty) _comentarioAutorCpfSalvo,
+      if (_comentarioAutorEmailSalvo.isNotEmpty) _comentarioAutorEmailSalvo,
     ];
     return partes.join(' • ');
   }
@@ -764,14 +771,20 @@ class _BarraVendaState extends State<BarraVenda> {
 
   String get _detalhe {
     final pedido = widget.pedido;
+    final pagamentos = pedido.todosPagamentos;
+    final formas = pagamentos
+        .map((p) => p.forma)
+        .where((f) => f.isNotEmpty)
+        .join(' + ');
+    final temAPrazo = pagamentos.any((p) => p.forma == 'À Prazo');
     return [
       if (widget.mostrarCliente) pedido.clienteNome,
       _dataHora(pedido.dataHora),
-      if (pedido.formaPagamento.isNotEmpty) pedido.formaPagamento,
+      if (formas.isNotEmpty) formas,
       if (pedido.aPrazoEmAberto) 'em aberto',
       if (pedido.aPrazoEmAberto && pedido.valorPago > 0)
         'pago ${_valor(pedido.valorPago)}',
-      if (pedido.formaPagamento == 'À Prazo' && pedido.quitado) 'quitado',
+      if (temAPrazo && pedido.quitado) 'quitado',
     ].join(' • ');
   }
 

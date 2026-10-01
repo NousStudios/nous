@@ -128,9 +128,13 @@ class _FinanceiroViewState extends State<FinanceiroView> {
       _pedidosAceitos.fold(0.0, (soma, p) => soma + p.valor);
 
   double _entradasPorForma(String forma) {
-    return _vendasConcluidas
-        .where((p) => p.formaPagamento == forma)
-        .fold(0.0, (soma, p) => soma + p.valor);
+    var soma = 0.0;
+    for (final venda in _vendasConcluidas) {
+      for (final p in venda.todosPagamentos) {
+        if (p.forma == forma) soma += p.valor;
+      }
+    }
+    return soma;
   }
 
   String _valorFormatado(double valor) =>
