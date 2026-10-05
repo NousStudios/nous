@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:nous/src/core/theme/theme_controller.dart';
 import 'package:nous/src/features/pdv/models/categoria_loja.dart';
@@ -1118,8 +1120,23 @@ class _NovaVendaConteudoState extends State<_NovaVendaConteudo> {
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
         child: Row(
           children: [
-            Icon(Icons.category_outlined,
-                size: 16, color: theme.secondaryTextColor),
+            (categoria.foto.isNotEmpty && File(categoria.foto).existsSync())
+                ? ClipRRect(
+                    borderRadius: BorderRadius.circular(4),
+                    child: Image.file(
+                      File(categoria.foto),
+                      width: 18,
+                      height: 18,
+                      fit: BoxFit.cover,
+                      errorBuilder: (context, error, stackTrace) => Icon(
+                        Icons.category_outlined,
+                        size: 16,
+                        color: theme.secondaryTextColor,
+                      ),
+                    ),
+                  )
+                : Icon(Icons.category_outlined,
+                    size: 16, color: theme.secondaryTextColor),
             const SizedBox(width: 8),
             Expanded(
               child: Text(

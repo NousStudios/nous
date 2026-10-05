@@ -1,8 +1,13 @@
+import 'dart:io';
+
+import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
 import 'package:nous/src/core/theme/theme_controller.dart';
 import 'package:nous/src/core/widgets/themed_text_field.dart';
 import 'package:nous/src/features/pdv/models/grupo_componentes_loja.dart';
 import 'package:nous/src/features/pdv/models/item_loja.dart';
+import 'package:nous/src/features/pdv/services/imagem_service.dart';
+import 'package:nous/src/features/pdv/views/widgets/opcoes_imagem_dialog.dart';
 
 class NovoGrupoComponentesDialog extends StatefulWidget {
   final AppTheme theme;
@@ -49,6 +54,7 @@ class _NovoGrupoComponentesDialogState
   final _nomeController = TextEditingController();
 
   final List<String> _itemIdsSelecionados = [];
+  String _foto = '';
 
   @override
   void initState() {
@@ -56,6 +62,7 @@ class _NovoGrupoComponentesDialogState
     final grupo = widget.grupoParaEditar;
     if (grupo != null) {
       _nomeController.text = grupo.nome;
+      _foto = grupo.foto;
       _itemIdsSelecionados.addAll(grupo.itemIds);
     }
   }
@@ -142,6 +149,47 @@ class _NovoGrupoComponentesDialogState
         'Item removido';
   }
 
+  Future<void> _alterarFoto() async {
+    if (_foto.isNotEmpty) {
+      OpcoesImagemDialog.mostrar(
+        context,
+        theme: widget.theme,
+        titulo: 'Imagem do Grupo',
+        onEscolherNova: _selecionarNovaFoto,
+        onRemover: () => setState(() => _foto = ''),
+      );
+    } else {
+      await _selecionarNovaFoto();
+    }
+  }
+
+  Future<void> _selecionarNovaFoto() async {
+    const grupo = XTypeGroup(
+      label: 'Imagens',
+      extensions: ['jpg', 'jpeg', 'png', 'webp'],
+    );
+    final arquivo = await openFile(acceptedTypeGroups: const [grupo]);
+    if (arquivo == null) return;
+
+    final salvo = await ImagemService.salvarImagemLocal(arquivo.path);
+    if (salvo == null) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            backgroundColor: widget.theme.cardBackgroundColor,
+            content: Text(
+              'A imagem deve ser um arquivo válido de até meio giga (500MB).',
+              style: widget.theme.getTextStyle(color: Colors.redAccent),
+            ),
+          ),
+        );
+      }
+      return;
+    }
+
+    setState(() => _foto = salvo);
+  }
+
   void _criar() {
     final nome = _nomeController.text.trim();
     if (nome.isEmpty) return;
@@ -150,10 +198,12 @@ class _NovoGrupoComponentesDialogState
     final grupo = grupoExistente != null
         ? grupoExistente.copyWith(
             nome: nome,
+            foto: _foto,
             itemIds: List.of(_itemIdsSelecionados),
           )
         : GrupoComponentesLoja.novo(
             nome: nome,
+            foto: _foto,
             itemIds: List.of(_itemIdsSelecionados),
           );
 
@@ -168,6 +218,8 @@ class _NovoGrupoComponentesDialogState
 
     final larguraTela = MediaQuery.sizeOf(context).width;
     final larguraPopup = larguraTela < 380 ? larguraTela * 0.9 : 340.0;
+
+    final temFoto = _foto.isNotEmpty && File(_foto).existsSync();
 
     return AlertDialog(
       backgroundColor: theme.cardBackgroundColor,
@@ -191,18 +243,35 @@ class _NovoGrupoComponentesDialogState
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Container(
-                width: 80,
-                height: 80,
-                decoration: BoxDecoration(
-                  color: theme.cardBackgroundColor,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: theme.borderColor),
-                ),
-                child: Icon(
-                  Icons.image_outlined,
-                  color: theme.secondaryTextColor,
-                  size: 32,
+              InkWell(
+                onTap: _alterarFoto,
+                borderRadius: BorderRadius.circular(12),
+                child: Container(
+                  width: 80,
+                  height: 80,
+                  decoration: BoxDecoration(
+                    color: theme.cardBackgroundColor,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: theme.borderColor),
+                  ),
+                  child: temFoto
+                      ? ClipRRect(
+                          borderRadius: BorderRadius.circular(11),
+                          child: Image.file(
+                            File(_foto),
+                            fit: BoxFit.cover,
+                            errorBuilder: (context, error, stackTrace) => Icon(
+                              Icons.broken_image_outlined,
+                              color: theme.secondaryTextColor,
+                              size: 32,
+                            ),
+                          ),
+                        )
+                      : Icon(
+                          Icons.image_outlined,
+                          color: theme.secondaryTextColor,
+                          size: 32,
+                        ),
                 ),
               ),
               const SizedBox(height: 16),

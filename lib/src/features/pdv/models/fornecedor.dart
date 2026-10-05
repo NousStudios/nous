@@ -9,6 +9,7 @@ class Fornecedor {
   final String redesSociais;
   final String descricao;
   final String origemClienteId;
+  final String foto;
   final DateTime dataCriacao;
 
   const Fornecedor({
@@ -22,6 +23,7 @@ class Fornecedor {
     this.redesSociais = '',
     this.descricao = '',
     this.origemClienteId = '',
+    this.foto = '',
     required this.dataCriacao,
   });
 
@@ -35,6 +37,7 @@ class Fornecedor {
     String? redesSociais,
     String? descricao,
     String? origemClienteId,
+    String? foto,
   }) {
     return Fornecedor(
       id: id,
@@ -47,6 +50,7 @@ class Fornecedor {
       redesSociais: redesSociais ?? this.redesSociais,
       descricao: descricao ?? this.descricao,
       origemClienteId: origemClienteId ?? this.origemClienteId,
+      foto: foto ?? this.foto,
       dataCriacao: dataCriacao,
     );
   }
@@ -63,6 +67,7 @@ class Fornecedor {
       'redesSociais': redesSociais,
       'descricao': descricao,
       'origemClienteId': origemClienteId,
+      'foto': foto,
       'dataCriacao': dataCriacao.toIso8601String(),
     };
   }
@@ -80,6 +85,7 @@ class Fornecedor {
       redesSociais: json['redesSociais'] as String? ?? '',
       descricao: json['descricao'] as String? ?? '',
       origemClienteId: json['origemClienteId'] as String? ?? '',
+      foto: json['foto'] as String? ?? '',
       dataCriacao: dataTexto == null
           ? DateTime.now()
           : DateTime.tryParse(dataTexto) ?? DateTime.now(),

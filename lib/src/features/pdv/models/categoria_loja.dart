@@ -6,6 +6,7 @@ class CategoriaLoja {
   final String nome;
   final String preco;
   final TipoItemLoja? tipo;
+  final String foto;
   final List<String> itemIds;
   final List<String> grupoIds;
 
@@ -14,6 +15,7 @@ class CategoriaLoja {
     required this.nome,
     this.preco = '',
     this.tipo,
+    this.foto = '',
     this.itemIds = const [],
     this.grupoIds = const [],
   });
@@ -22,6 +24,7 @@ class CategoriaLoja {
     required String nome,
     String preco = '',
     TipoItemLoja? tipo,
+    String foto = '',
     List<String> itemIds = const [],
     List<String> grupoIds = const [],
   }) {
@@ -30,6 +33,7 @@ class CategoriaLoja {
       nome: nome,
       preco: preco,
       tipo: tipo,
+      foto: foto,
       itemIds: itemIds,
       grupoIds: grupoIds,
     );
@@ -39,6 +43,7 @@ class CategoriaLoja {
     String? nome,
     String? preco,
     TipoItemLoja? tipo,
+    String? foto,
     List<String>? itemIds,
     List<String>? grupoIds,
   }) {
@@ -47,6 +52,7 @@ class CategoriaLoja {
       nome: nome ?? this.nome,
       preco: preco ?? this.preco,
       tipo: tipo ?? this.tipo,
+      foto: foto ?? this.foto,
       itemIds: itemIds ?? this.itemIds,
       grupoIds: grupoIds ?? this.grupoIds,
     );
@@ -58,6 +64,7 @@ class CategoriaLoja {
       'nome': nome,
       'preco': preco,
       'tipo': tipo?.name,
+      'foto': foto,
       'itemIds': itemIds,
       'grupoIds': grupoIds,
     };
@@ -72,6 +79,7 @@ class CategoriaLoja {
       tipo: tipoTexto == null
           ? null
           : TipoItemLoja.values.firstWhere((t) => t.name == tipoTexto),
+      foto: json['foto'] as String? ?? '',
       itemIds: (json['itemIds'] as List<dynamic>? ?? const [])
           .map((item) => item as String)
           .toList(),

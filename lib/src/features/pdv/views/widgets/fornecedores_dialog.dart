@@ -1,11 +1,16 @@
+import 'dart:io';
+
+import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
 import 'package:nous/src/core/theme/theme_controller.dart';
 import 'package:nous/src/core/widgets/themed_text_field.dart';
 import 'package:nous/src/features/pdv/models/cliente.dart';
 import 'package:nous/src/features/pdv/models/fornecedor.dart';
 import 'package:nous/src/features/pdv/services/cnpj_input_formatter.dart';
+import 'package:nous/src/features/pdv/services/imagem_service.dart';
 import 'package:nous/src/features/pdv/services/telefone_input_formatter.dart';
 import 'package:nous/src/features/pdv/views/widgets/estado_vazio_container.dart';
+import 'package:nous/src/features/pdv/views/widgets/opcoes_imagem_dialog.dart';
 
 class FornecedoresDialog {
   static Future<void> mostrar(
@@ -79,6 +84,7 @@ class _FornecedoresConteudoState extends State<_FornecedoresConteudo> {
   Fornecedor? _editando;
   String? _origemClienteId;
   String? _aviso;
+  String _foto = '';
 
   AppTheme get theme => widget.theme;
 
@@ -114,6 +120,7 @@ class _FornecedoresConteudoState extends State<_FornecedoresConteudo> {
     _redesSociaisController.clear();
     _descricaoController.clear();
     _origemClienteId = null;
+    _foto = '';
   }
 
   void _abrirEdicao(Fornecedor fornecedor) {
@@ -123,6 +130,7 @@ class _FornecedoresConteudoState extends State<_FornecedoresConteudo> {
           ? null
           : fornecedor.origemClienteId;
       _aviso = null;
+      _foto = fornecedor.foto;
       _nomeController.text = fornecedor.nome;
       _cnpjController.text = fornecedor.cnpj;
       _telefoneController.text = fornecedor.telefone;
@@ -147,6 +155,7 @@ class _FornecedoresConteudoState extends State<_FornecedoresConteudo> {
       _editando = null;
       _aviso = null;
       _origemClienteId = cliente.id;
+      _foto = cliente.foto;
       _nomeController.text = cliente.nome;
       _cnpjController.text = cliente.cnpj;
       _telefoneController.text = cliente.telefone;
@@ -156,6 +165,47 @@ class _FornecedoresConteudoState extends State<_FornecedoresConteudo> {
       _redesSociaisController.text = cliente.redesSociais;
       _descricaoController.text = cliente.descricao;
     });
+  }
+
+  Future<void> _alterarFotoFornecedor() async {
+    if (_foto.isNotEmpty) {
+      OpcoesImagemDialog.mostrar(
+        context,
+        theme: theme,
+        titulo: 'Foto do Fornecedor',
+        onEscolherNova: _selecionarNovaFotoFornecedor,
+        onRemover: () => setState(() => _foto = ''),
+      );
+    } else {
+      await _selecionarNovaFotoFornecedor();
+    }
+  }
+
+  Future<void> _selecionarNovaFotoFornecedor() async {
+    const grupo = XTypeGroup(
+      label: 'Imagens',
+      extensions: ['jpg', 'jpeg', 'png', 'webp'],
+    );
+    final arquivo = await openFile(acceptedTypeGroups: const [grupo]);
+    if (arquivo == null) return;
+
+    final salvo = await ImagemService.salvarImagemLocal(arquivo.path);
+    if (salvo == null) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            backgroundColor: theme.cardBackgroundColor,
+            content: Text(
+              'A foto deve ser uma imagem válida de até meio giga (500MB).',
+              style: theme.getTextStyle(color: Colors.redAccent),
+            ),
+          ),
+        );
+      }
+      return;
+    }
+
+    setState(() => _foto = salvo);
   }
 
   void _salvar() {
@@ -177,6 +227,7 @@ class _FornecedoresConteudoState extends State<_FornecedoresConteudo> {
       redesSociais: _redesSociaisController.text.trim(),
       descricao: _descricaoController.text.trim(),
       origemClienteId: _origemClienteId ?? '',
+      foto: _foto,
       dataCriacao: _editando?.dataCriacao ?? DateTime.now(),
     );
 
@@ -342,16 +393,21 @@ class _FornecedoresConteudoState extends State<_FornecedoresConteudo> {
           ),
 
           InkWell(
-            onTap: () {},
+            onTap: _alterarFotoFornecedor,
             customBorder: const CircleBorder(),
             child: CircleAvatar(
               radius: 40,
               backgroundColor: theme.cardBackgroundColor,
-              child: Icon(
-                Icons.storefront_outlined,
-                size: 44,
-                color: theme.secondaryTextColor,
-              ),
+              backgroundImage: (_foto.isNotEmpty && File(_foto).existsSync())
+                  ? FileImage(File(_foto))
+                  : null,
+              child: (_foto.isEmpty || !File(_foto).existsSync())
+                  ? Icon(
+                      Icons.storefront_outlined,
+                      size: 44,
+                      color: theme.secondaryTextColor,
+                    )
+                  : null,
             ),
           ),
           const SizedBox(height: 20),
@@ -659,10 +715,21 @@ class _FornecedoresConteudoState extends State<_FornecedoresConteudo> {
                       ),
                       child: Row(
                         children: [
-                          Icon(
-                            Icons.storefront_outlined,
-                            size: 22,
-                            color: theme.textColor,
+                          CircleAvatar(
+                            radius: 11,
+                            backgroundColor: Colors.transparent,
+                            backgroundImage: (fornecedor.foto.isNotEmpty &&
+                                    File(fornecedor.foto).existsSync())
+                                ? FileImage(File(fornecedor.foto))
+                                : null,
+                            child: (fornecedor.foto.isEmpty ||
+                                    !File(fornecedor.foto).existsSync())
+                                ? Icon(
+                                    Icons.storefront_outlined,
+                                    size: 22,
+                                    color: theme.textColor,
+                                  )
+                                : null,
                           ),
                           const SizedBox(width: 8),
                           Expanded(

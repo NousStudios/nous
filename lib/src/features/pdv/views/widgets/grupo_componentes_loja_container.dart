@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:nous/src/core/theme/theme_controller.dart';
 import 'package:nous/src/features/pdv/models/item_loja.dart';
@@ -6,6 +8,7 @@ import 'package:nous/src/features/pdv/views/widgets/produto_loja_row.dart';
 class GrupoComponentesLojaContainer extends StatefulWidget {
   final AppTheme theme;
   final String nome;
+  final String foto;
 
   final List<String> itemIds;
   final List<ItemLoja> itensDisponiveis;
@@ -31,6 +34,7 @@ class GrupoComponentesLojaContainer extends StatefulWidget {
     super.key,
     required this.theme,
     required this.nome,
+    this.foto = '',
     required this.itemIds,
     required this.itensDisponiveis,
     required this.expandida,
@@ -164,17 +168,40 @@ class _GrupoComponentesLojaContainerState
         children: [
           Row(
             children: [
-              Container(
-                width: 32,
-                height: 32,
-                alignment: Alignment.center,
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(
-                      color: theme.borderColor.withValues(alpha: 0.6)),
+              InkWell(
+                onTap: podeEditar ? widget.onEditar : null,
+                borderRadius: BorderRadius.circular(8),
+                child: Container(
+                  width: 32,
+                  height: 32,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(
+                        color: theme.borderColor.withValues(alpha: 0.6)),
+                  ),
+                  child: (widget.foto.isNotEmpty &&
+                          File(widget.foto).existsSync())
+                      ? ClipRRect(
+                          borderRadius: BorderRadius.circular(7),
+                          child: Image.file(
+                            File(widget.foto),
+                            width: 32,
+                            height: 32,
+                            fit: BoxFit.cover,
+                            errorBuilder: (context, error, stackTrace) => Icon(
+                              Icons.broken_image_outlined,
+                              size: 16,
+                              color: theme.secondaryTextColor,
+                            ),
+                          ),
+                        )
+                      : Icon(
+                          Icons.image_outlined,
+                          size: 16,
+                          color: theme.secondaryTextColor,
+                        ),
                 ),
-                child: Icon(Icons.image_outlined,
-                    size: 16, color: theme.secondaryTextColor),
               ),
               const SizedBox(width: 6),
               Expanded(

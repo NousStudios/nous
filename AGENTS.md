@@ -186,6 +186,15 @@ lib/
 - **Integridade dos Dados:** Dados da comanda impressa devem ser sempre reconstruídos a partir da instância viva do `PedidoLoja`, nunca a partir de strings estáticas pré-salvas.
 - **Ambiente de Destino:** O suporte principal de hardware térmico é desktop (**Windows** com POS-58). A impressão via Chrome/WebUSB foi descartada por incompatibilidades de driver do navegador; **não reinsira WebUSB**.
 
+### 6.5 Ecossistema de Imagens e Continuidade Visual de Ponta a Ponta
+- **Proibição de Elementos Decorativos Fictícios:** O Nous é um sistema fechado e coeso. Se uma tela ou diálogo possui espaço para imagem (avatar, foto de item, categoria, grupo ou fornecedor), esse elemento **NUNCA deve ser meramente decorativo**. Ele deve ser plenamente funcional, persistido no modelo correspondente (`foto` ou `imagens`), salvo localmente via `ImagemService` e renderizado em todas as telas que representem aquela entidade.
+- **Armazenamento e Limites:** Imagens locais salvas com persistência no sistema de arquivos local através de `ImagemService.salvarImagemLocal`. Limite máximo estrito de **meio giga (500MB)** por arquivo. Formatos suportados: `jpg`, `jpeg`, `png`, `webp`.
+- **Limpeza Visual e Proibição de Sobreposições:** **Nunca sobreponha ícones secundários** (como canetinhas de edição `Icons.edit` ou câmeras flutuantes) sobre avatares ou imagens de formulários. A imagem ou avatar deve ser exibido de forma limpa; quando vazio, exibe unicamente o ícone nativo representativo da entidade.
+- **Intermediação via OpcoesImagemDialog:**
+  - Se o campo **já contém imagem**: ao clicar sobre ele, o sistema **obrigatoriamente abre** o diálogo modal intermediário `OpcoesImagemDialog.mostrar(...)`, oferecendo: "Procurar nova imagem", "Retirar imagem" e "Cancelar".
+  - Se o campo **está vazio**: o clique abre diretamente o seletor de arquivos (`openFile`).
+- **Continuidade e Herança Visual:** Se uma entidade aproveita dados de outra (exemplo: "Usar cliente como fornecedor"), a imagem/foto cadastrada **deve ser obrigatoriamente herdada**, mantendo a identidade visual sem furos estruturais.
+
 ---
 
 ## 7. MAPA DO QUE JÁ FUNCIONA E ESTÁ IMPLEMENTADO
@@ -195,7 +204,8 @@ lib/
 - Associação de múltiplos e-mails ao mesmo cadastro, alternância de conta ativa, desconexão e exclusão de conta local.
 
 ### 7.2 Gestão de Lojas e Permissões (`features/pdv`)
-- Cadastro e edição completa de lojas, categorias, grupos de componentes, itens, clientes e fornecedores.
+- Cadastro e edição completa de lojas, categorias, grupos de componentes, itens, clientes e fornecedores — todos com persistência real de imagens (`foto`/`imagens`), sem campos decorativos mortos.
+- **Miniaturas em Barras e Listas:** Categoria e Grupo de Componentes exibem suas respectivas fotos em miniaturas de 32x32 nas barras de representação da aba Loja, nos seletores de produtos e nas pesquisas de vendas.
 - **Hierarquia de Membros (`MembroLoja`):**
   - `Dono` / `Sócio`: Acesso irrestrito a todos os recursos.
   - `Admin`: Gestão da aba Loja, configuração de impressora e registro financeiro.
@@ -222,7 +232,8 @@ lib/
   - Apresenta as sugestões para o usuário com caixas de seleção, permitindo ajuste fino de quantidades e custos unitários antes de consolidar os movimentos de estoque.
 
 ### 7.5 Fornecedores e Clientes
-- Cadastro completo de fornecedores com funcionalidade "Usar cliente como fornecedor" (preenchimento automático mantendo rastreabilidade via `origemClienteId`).
+- Cadastro completo de fornecedores com funcionalidade "Usar cliente como fornecedor", herdando integralmente dados cadastrais e a **foto do cliente**, mantendo rastreabilidade via `origemClienteId`.
+- Ambos possuem avatares com fotos funcionais tanto no formulário quanto nas listas de pesquisa, com seletor intermediado pelo `OpcoesImagemDialog`.
 - Exclusão de fornecedor não corrompe o histórico de compras e entradas já registradas.
 
 ### 7.6 Módulo Financeiro e Relatórios

@@ -217,7 +217,7 @@ class _NovoItemDialogState extends State<NovoItemDialog> {
           SnackBar(
             backgroundColor: theme.cardBackgroundColor,
             content: Text(
-              '$ignorados imagem(ns) foram ignoradas por tamanho superior a 5MB ou formato inválido.',
+              '$ignorados imagem(ns) foram ignoradas por tamanho superior a meio giga (500MB) ou formato inválido.',
               style: theme.getTextStyle(color: Colors.redAccent),
             ),
           ),
@@ -235,6 +235,7 @@ class _NovoItemDialogState extends State<NovoItemDialog> {
   void _abrirSeletorMultiplo({
     required String titulo,
     required Map<String, String> opcoes,
+    Map<String, String>? fotos,
     required Set<String> selecionados,
     VoidCallback? onCriarNovo,
     String? textoCriarNovo,
@@ -307,9 +308,23 @@ class _NovoItemDialogState extends State<NovoItemDialog> {
                           ),
                         )
                       else
-                        for (final entrada in opcoes.entries)
-                          CheckboxListTile(
+                        ...opcoes.entries.map((entrada) {
+                          final foto = fotos?[entrada.key] ?? '';
+                          final temFoto =
+                              foto.isNotEmpty && File(foto).existsSync();
+                          return CheckboxListTile(
                             value: selecionados.contains(entrada.key),
+                            secondary: temFoto
+                                ? ClipRRect(
+                                    borderRadius: BorderRadius.circular(6),
+                                    child: Image.file(
+                                      File(foto),
+                                      width: 28,
+                                      height: 28,
+                                      fit: BoxFit.cover,
+                                    ),
+                                  )
+                                : null,
                             title: Text(
                               entrada.value,
                               style: theme.getTextStyle(fontSize: 14),
@@ -327,7 +342,8 @@ class _NovoItemDialogState extends State<NovoItemDialog> {
                               });
                               setState(() {});
                             },
-                          ),
+                          );
+                        }),
                     ],
                   ),
                 ),
@@ -632,8 +648,14 @@ class _NovoItemDialogState extends State<NovoItemDialog> {
     final opcoesCategorias = {
       for (final categoria in _categorias) categoria.id: categoria.nome,
     };
+    final fotosCategorias = {
+      for (final categoria in _categorias) categoria.id: categoria.foto,
+    };
     final opcoesGrupos = {
       for (final grupo in _grupos) grupo.id: grupo.nome,
+    };
+    final fotosGrupos = {
+      for (final grupo in _grupos) grupo.id: grupo.foto,
     };
 
     final nomesCategoriasSelecionadas = _categorias
@@ -741,6 +763,7 @@ class _NovoItemDialogState extends State<NovoItemDialog> {
                 onTap: () => _abrirSeletorMultiplo(
                   titulo: 'Categorias do item',
                   opcoes: opcoesCategorias,
+                  fotos: fotosCategorias,
                   selecionados: _categoriasSelecionadas,
                   onCriarNovo: _abrirCriarNovaCategoria,
                   textoCriarNovo: '+ Nova Categoria',
@@ -754,6 +777,7 @@ class _NovoItemDialogState extends State<NovoItemDialog> {
                 onTap: () => _abrirSeletorMultiplo(
                   titulo: 'Grupos de componentes',
                   opcoes: opcoesGrupos,
+                  fotos: fotosGrupos,
                   selecionados: _gruposSelecionados,
                   onCriarNovo: _abrirCriarNovoGrupo,
                   textoCriarNovo: '+ Novo Grupo de Componentes',
