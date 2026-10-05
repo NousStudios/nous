@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:nous/src/core/theme/theme_controller.dart';
 import 'package:nous/src/core/widgets/themed_text_field.dart';
@@ -31,28 +33,59 @@ class ControllersDadosLoja {
 class FormularioDadosLoja extends StatelessWidget {
   final AppTheme theme;
   final ControllersDadosLoja controllers;
+  final String logo;
+  final VoidCallback? onAlterarLogo;
 
   const FormularioDadosLoja({
     super.key,
     required this.theme,
     required this.controllers,
+    this.logo = '',
+    this.onAlterarLogo,
   });
 
   @override
   Widget build(BuildContext context) {
+    final temLogo = logo.isNotEmpty && File(logo).existsSync();
+
     return Column(
       children: [
         InkWell(
-          onTap: () {},
+          onTap: onAlterarLogo,
           customBorder: const CircleBorder(),
-          child: CircleAvatar(
-            radius: 40,
-            backgroundColor: theme.cardBackgroundColor,
-            child: Icon(
-              Icons.person,
-              size: 44,
-              color: theme.secondaryTextColor,
-            ),
+          child: Stack(
+            children: [
+              CircleAvatar(
+                radius: 44,
+                backgroundColor: theme.cardBackgroundColor,
+                backgroundImage: temLogo ? FileImage(File(logo)) : null,
+                child: temLogo
+                    ? null
+                    : Icon(
+                        Icons.add_a_photo_outlined,
+                        size: 36,
+                        color: theme.secondaryTextColor,
+                      ),
+              ),
+              if (temLogo)
+                Positioned(
+                  bottom: 0,
+                  right: 0,
+                  child: Container(
+                    padding: const EdgeInsets.all(5),
+                    decoration: BoxDecoration(
+                      color: theme.buttonColor,
+                      shape: BoxShape.circle,
+                      border: Border.all(color: theme.cardBackgroundColor, width: 2),
+                    ),
+                    child: Icon(
+                      Icons.edit,
+                      size: 13,
+                      color: theme.buttonTextColor,
+                    ),
+                  ),
+                ),
+            ],
           ),
         ),
         const SizedBox(height: 20),

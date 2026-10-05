@@ -1,6 +1,8 @@
+import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:nous/src/core/theme/theme_controller.dart';
+import 'package:nous/src/features/pdv/services/imagem_service.dart';
 import 'package:nous/src/core/widgets/custom_app_bar.dart';
 import 'package:nous/src/core/widgets/floating_bottom_nav_bar.dart';
 import 'package:nous/src/features/auth/models/usuario_nous.dart';
@@ -25,7 +27,6 @@ import 'package:nous/src/features/pdv/views/perfis_pdv_view.dart';
 import 'package:nous/src/features/pdv/views/status_loja_view.dart';
 import 'package:nous/src/features/pdv/views/widgets/categoria_loja_container.dart';
 import 'package:nous/src/features/pdv/views/widgets/clientes_dialog.dart';
-import 'package:nous/src/features/pdv/views/widgets/container_simbolico.dart';
 import 'package:nous/src/features/pdv/views/widgets/dados_bancarios_container.dart';
 import 'package:nous/src/features/pdv/views/widgets/delivery_container.dart';
 import 'package:nous/src/features/pdv/views/widgets/estado_vazio_container.dart';
@@ -99,6 +100,13 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
   final _scrollGrupos = ScrollController();
 
   late AbaLoja _abaSelecionada;
+
+  String _logo = '';
+  final List<String> _galeria = [];
+  final List<String> _arquivos = [];
+  final List<String> _musicas = [];
+  final List<String> _videos = [];
+  final List<String> _arquivosAudio = [];
 
   final List<CategoriaLoja> _categorias = [];
   final List<ItemLoja> _itens = [];
@@ -331,6 +339,7 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
           redesSociais: _controllers.redesSociais.text,
           categorias: _controllers.categorias.text,
           tags: _controllers.tags.text,
+          logo: _logo,
         );
 
     _registrarAcao(TipoAcao.dadosLojaAtualizados, 'Dados da loja atualizados');
@@ -345,6 +354,107 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
         ),
       ),
     );
+  }
+
+  Future<void> _alterarLogoLoja() async {
+    if (!context.read<PdvProvider>().possoEditarDadosLoja(widget.lojaId)) {
+      _avisarSemPermissao();
+      return;
+    }
+
+    const grupo = XTypeGroup(
+      label: 'Imagens',
+      extensions: ['jpg', 'jpeg', 'png', 'webp'],
+    );
+    final arquivo = await openFile(acceptedTypeGroups: const [grupo]);
+    if (arquivo == null) return;
+
+    final salvo = await ImagemService.salvarImagemLocal(arquivo.path);
+    if (salvo == null) {
+      if (mounted) {
+        final theme = ThemeController.currentTheme.value;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            backgroundColor: theme.cardBackgroundColor,
+            content: Text(
+              'A logo deve ser uma imagem válida de até meio giga (500MB).',
+              style: theme.getTextStyle(color: Colors.redAccent),
+            ),
+          ),
+        );
+      }
+      return;
+    }
+
+    setState(() => _logo = salvo);
+    _salvarDadosLoja();
+  }
+
+  void _adicionarAnexo(TipoAnexoLoja tipo, String caminho) {
+    if (!context.read<PdvProvider>().possoEditarDadosLoja(widget.lojaId)) {
+      _avisarSemPermissao();
+      return;
+    }
+
+    setState(() {
+      switch (tipo) {
+        case TipoAnexoLoja.galeria:
+          _galeria.add(caminho);
+          break;
+        case TipoAnexoLoja.arquivos:
+          _arquivos.add(caminho);
+          break;
+        case TipoAnexoLoja.musicas:
+          _musicas.add(caminho);
+          break;
+        case TipoAnexoLoja.videos:
+          _videos.add(caminho);
+          break;
+        case TipoAnexoLoja.arquivosAudio:
+          _arquivosAudio.add(caminho);
+          break;
+      }
+    });
+    _persistirAnexosLoja();
+  }
+
+  void _removerAnexo(TipoAnexoLoja tipo, int index) {
+    if (!context.read<PdvProvider>().possoEditarDadosLoja(widget.lojaId)) {
+      _avisarSemPermissao();
+      return;
+    }
+
+    setState(() {
+      switch (tipo) {
+        case TipoAnexoLoja.galeria:
+          _galeria.removeAt(index);
+          break;
+        case TipoAnexoLoja.arquivos:
+          _arquivos.removeAt(index);
+          break;
+        case TipoAnexoLoja.musicas:
+          _musicas.removeAt(index);
+          break;
+        case TipoAnexoLoja.videos:
+          _videos.removeAt(index);
+          break;
+        case TipoAnexoLoja.arquivosAudio:
+          _arquivosAudio.removeAt(index);
+          break;
+      }
+    });
+    _persistirAnexosLoja();
+  }
+
+  void _persistirAnexosLoja() {
+    context.read<PdvProvider>().atualizarAnexosLoja(
+          widget.lojaId,
+          galeria: _galeria,
+          arquivos: _arquivos,
+          musicas: _musicas,
+          videos: _videos,
+          arquivosAudio: _arquivosAudio,
+        );
   }
 
   void _alterarStatusPedido(String id, StatusPedido novoStatus) {
@@ -1361,6 +1471,13 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
     _controllers.categorias.text = loja?.categorias ?? '';
     _controllers.tags.text = loja?.tags ?? '';
 
+    _logo = loja?.logo ?? '';
+    _galeria.addAll(loja?.galeria ?? []);
+    _arquivos.addAll(loja?.arquivos ?? []);
+    _musicas.addAll(loja?.musicas ?? []);
+    _videos.addAll(loja?.videos ?? []);
+    _arquivosAudio.addAll(loja?.arquivosAudio ?? []);
+
     _categorias.addAll(loja?.categoriasLoja ?? []);
     _itens.addAll(loja?.itensLoja ?? []);
     _gruposComponentes.addAll(loja?.gruposComponentesLoja ?? []);
@@ -1879,6 +1996,8 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
                     child: FormularioDadosLoja(
                       theme: theme,
                       controllers: _controllers,
+                      logo: _logo,
+                      onAlterarLogo: _alterarLogoLoja,
                     ),
                   ),
                   const SizedBox(height: 20),
@@ -1937,15 +2056,60 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
               controllers: _controllersDelivery,
             ),
             const SizedBox(height: 16),
-            GaleriaEstiloContainer(theme: theme, titulo: 'Galeria'),
+            GaleriaEstiloContainer(
+              theme: theme,
+              titulo: 'Galeria',
+              itens: _galeria,
+              tipo: TipoAnexoLoja.galeria,
+              onAdicionar: (caminho) =>
+                  _adicionarAnexo(TipoAnexoLoja.galeria, caminho),
+              onRemover: (index) =>
+                  _removerAnexo(TipoAnexoLoja.galeria, index),
+            ),
             const SizedBox(height: 16),
-            GaleriaEstiloContainer(theme: theme, titulo: 'Arquivos'),
+            GaleriaEstiloContainer(
+              theme: theme,
+              titulo: 'Arquivos',
+              itens: _arquivos,
+              tipo: TipoAnexoLoja.arquivos,
+              onAdicionar: (caminho) =>
+                  _adicionarAnexo(TipoAnexoLoja.arquivos, caminho),
+              onRemover: (index) =>
+                  _removerAnexo(TipoAnexoLoja.arquivos, index),
+            ),
             const SizedBox(height: 16),
-            GaleriaEstiloContainer(theme: theme, titulo: 'Músicas'),
+            GaleriaEstiloContainer(
+              theme: theme,
+              titulo: 'Músicas',
+              itens: _musicas,
+              tipo: TipoAnexoLoja.musicas,
+              onAdicionar: (caminho) =>
+                  _adicionarAnexo(TipoAnexoLoja.musicas, caminho),
+              onRemover: (index) =>
+                  _removerAnexo(TipoAnexoLoja.musicas, index),
+            ),
             const SizedBox(height: 16),
-            GaleriaEstiloContainer(theme: theme, titulo: 'Vídeos'),
+            GaleriaEstiloContainer(
+              theme: theme,
+              titulo: 'Vídeos',
+              itens: _videos,
+              tipo: TipoAnexoLoja.videos,
+              onAdicionar: (caminho) =>
+                  _adicionarAnexo(TipoAnexoLoja.videos, caminho),
+              onRemover: (index) =>
+                  _removerAnexo(TipoAnexoLoja.videos, index),
+            ),
             const SizedBox(height: 16),
-            ContainerSimbolico(theme: theme, titulo: 'Arquivos de Áudio'),
+            GaleriaEstiloContainer(
+              theme: theme,
+              titulo: 'Arquivos de Áudio',
+              itens: _arquivosAudio,
+              tipo: TipoAnexoLoja.arquivosAudio,
+              onAdicionar: (caminho) =>
+                  _adicionarAnexo(TipoAnexoLoja.arquivosAudio, caminho),
+              onRemover: (index) =>
+                  _removerAnexo(TipoAnexoLoja.arquivosAudio, index),
+            ),
           ],
         );
 

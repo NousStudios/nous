@@ -477,32 +477,12 @@ class _NovoItemDialogState extends State<NovoItemDialog> {
               child: InkWell(
                 borderRadius: BorderRadius.circular(12),
                 onTap: _selecionarFotos,
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(
-                      Icons.add_photo_alternate_outlined,
-                      color: theme.secondaryTextColor,
-                      size: 38,
-                    ),
-                    const SizedBox(height: 6),
-                    Text(
-                      'Clique para adicionar fotos',
-                      style: theme.getTextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.bold,
-                        color: theme.textColor,
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      'JPG, PNG ou WEBP (máx. 5MB cada)',
-                      style: theme.getTextStyle(
-                        fontSize: 11,
-                        color: theme.secondaryTextColor,
-                      ),
-                    ),
-                  ],
+                child: Center(
+                  child: Icon(
+                    Icons.add_photo_alternate_outlined,
+                    color: theme.secondaryTextColor,
+                    size: 42,
+                  ),
                 ),
               ),
             )
@@ -526,24 +506,12 @@ class _NovoItemDialogState extends State<NovoItemDialog> {
                       child: InkWell(
                         borderRadius: BorderRadius.circular(10),
                         onTap: _selecionarFotos,
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(
-                              Icons.add_a_photo_outlined,
-                              color: theme.textColor,
-                              size: 24,
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              '+ Foto',
-                              style: theme.getTextStyle(
-                                fontSize: 11,
-                                color: theme.textColor,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ],
+                        child: Center(
+                          child: Icon(
+                            Icons.add_a_photo_outlined,
+                            color: theme.textColor,
+                            size: 26,
+                          ),
                         ),
                       ),
                     );

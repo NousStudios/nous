@@ -237,6 +237,7 @@ class PdvProvider extends ChangeNotifier {
     required String redesSociais,
     required String categorias,
     required String tags,
+    String? logo,
   }) {
     final indice = _lojas.indexWhere((loja) => loja.id == id);
     if (indice == -1) return;
@@ -251,6 +252,31 @@ class PdvProvider extends ChangeNotifier {
       redesSociais: redesSociais,
       categorias: categorias,
       tags: tags,
+      logo: logo ?? _lojas[indice].logo,
+    );
+
+    _lojas[indice] = atualizada;
+    notifyListeners();
+    _salvarLojaNoCofreCorreto(atualizada);
+  }
+
+  void atualizarAnexosLoja(
+    String id, {
+    List<String>? galeria,
+    List<String>? arquivos,
+    List<String>? musicas,
+    List<String>? videos,
+    List<String>? arquivosAudio,
+  }) {
+    final indice = _lojas.indexWhere((loja) => loja.id == id);
+    if (indice == -1) return;
+
+    final atualizada = _lojas[indice].copyWith(
+      galeria: galeria ?? _lojas[indice].galeria,
+      arquivos: arquivos ?? _lojas[indice].arquivos,
+      musicas: musicas ?? _lojas[indice].musicas,
+      videos: videos ?? _lojas[indice].videos,
+      arquivosAudio: arquivosAudio ?? _lojas[indice].arquivosAudio,
     );
 
     _lojas[indice] = atualizada;

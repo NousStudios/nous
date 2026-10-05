@@ -23,6 +23,7 @@ class Loja {
   final String redesSociais;
   final String categorias;
   final String tags;
+  final String logo;
 
   final List<CategoriaLoja> categoriasLoja;
   final List<ItemLoja> itensLoja;
@@ -34,6 +35,12 @@ class Loja {
   final List<MembroLoja> membros;
   final List<MovimentoEstoque> movimentosEstoque;
   final List<PagamentoFuncionario> pagamentosFuncionarios;
+
+  final List<String> galeria;
+  final List<String> arquivos;
+  final List<String> musicas;
+  final List<String> videos;
+  final List<String> arquivosAudio;
 
   final ConfiguracoesImpressora configuracoesImpressora;
 
@@ -49,6 +56,7 @@ class Loja {
     this.redesSociais = '',
     required this.categorias,
     required this.tags,
+    this.logo = '',
     this.categoriasLoja = const [],
     this.itensLoja = const [],
     this.gruposComponentesLoja = const [],
@@ -59,6 +67,11 @@ class Loja {
     this.membros = const [],
     this.movimentosEstoque = const [],
     this.pagamentosFuncionarios = const [],
+    this.galeria = const [],
+    this.arquivos = const [],
+    this.musicas = const [],
+    this.videos = const [],
+    this.arquivosAudio = const [],
     this.configuracoesImpressora = const ConfiguracoesImpressora(),
   });
 
@@ -73,6 +86,7 @@ class Loja {
     String? redesSociais,
     String? categorias,
     String? tags,
+    String? logo,
     List<CategoriaLoja>? categoriasLoja,
     List<ItemLoja>? itensLoja,
     List<GrupoComponentesLoja>? gruposComponentesLoja,
@@ -83,6 +97,11 @@ class Loja {
     List<MembroLoja>? membros,
     List<MovimentoEstoque>? movimentosEstoque,
     List<PagamentoFuncionario>? pagamentosFuncionarios,
+    List<String>? galeria,
+    List<String>? arquivos,
+    List<String>? musicas,
+    List<String>? videos,
+    List<String>? arquivosAudio,
     ConfiguracoesImpressora? configuracoesImpressora,
   }) {
     return Loja(
@@ -97,9 +116,11 @@ class Loja {
       redesSociais: redesSociais ?? this.redesSociais,
       categorias: categorias ?? this.categorias,
       tags: tags ?? this.tags,
+      logo: logo ?? this.logo,
       categoriasLoja: categoriasLoja ?? this.categoriasLoja,
       itensLoja: itensLoja ?? this.itensLoja,
-      gruposComponentesLoja: gruposComponentesLoja ?? this.gruposComponentesLoja,
+      gruposComponentesLoja:
+          gruposComponentesLoja ?? this.gruposComponentesLoja,
       clientesLoja: clientesLoja ?? this.clientesLoja,
       fornecedoresLoja: fornecedoresLoja ?? this.fornecedoresLoja,
       pedidosLoja: pedidosLoja ?? this.pedidosLoja,
@@ -108,6 +129,11 @@ class Loja {
       movimentosEstoque: movimentosEstoque ?? this.movimentosEstoque,
       pagamentosFuncionarios:
           pagamentosFuncionarios ?? this.pagamentosFuncionarios,
+      galeria: galeria ?? this.galeria,
+      arquivos: arquivos ?? this.arquivos,
+      musicas: musicas ?? this.musicas,
+      videos: videos ?? this.videos,
+      arquivosAudio: arquivosAudio ?? this.arquivosAudio,
       configuracoesImpressora:
           configuracoesImpressora ?? this.configuracoesImpressora,
     );
@@ -126,6 +152,7 @@ class Loja {
       'redesSociais': redesSociais,
       'categorias': categorias,
       'tags': tags,
+      'logo': logo,
       'categoriasLoja': categoriasLoja.map((c) => c.toJson()).toList(),
       'itensLoja': itensLoja.map((i) => i.toJson()).toList(),
       'gruposComponentesLoja':
@@ -140,6 +167,11 @@ class Loja {
           movimentosEstoque.map((m) => m.toJson()).toList(),
       'pagamentosFuncionarios':
           pagamentosFuncionarios.map((p) => p.toJson()).toList(),
+      'galeria': galeria,
+      'arquivos': arquivos,
+      'musicas': musicas,
+      'videos': videos,
+      'arquivosAudio': arquivosAudio,
       'configuracoesImpressora': configuracoesImpressora.toJson(),
     };
   }
@@ -157,6 +189,7 @@ class Loja {
       redesSociais: json['redesSociais'] as String? ?? '',
       categorias: json['categorias'] as String,
       tags: json['tags'] as String,
+      logo: json['logo'] as String? ?? '',
       categoriasLoja: (json['categoriasLoja'] as List<dynamic>? ?? const [])
           .map((item) => CategoriaLoja.fromJson(item as Map<String, dynamic>))
           .toList(),
@@ -194,6 +227,21 @@ class Loja {
               .map((item) =>
                   PagamentoFuncionario.fromJson(item as Map<String, dynamic>))
               .toList(),
+      galeria: (json['galeria'] as List<dynamic>? ?? const [])
+          .map((item) => item.toString())
+          .toList(),
+      arquivos: (json['arquivos'] as List<dynamic>? ?? const [])
+          .map((item) => item.toString())
+          .toList(),
+      musicas: (json['musicas'] as List<dynamic>? ?? const [])
+          .map((item) => item.toString())
+          .toList(),
+      videos: (json['videos'] as List<dynamic>? ?? const [])
+          .map((item) => item.toString())
+          .toList(),
+      arquivosAudio: (json['arquivosAudio'] as List<dynamic>? ?? const [])
+          .map((item) => item.toString())
+          .toList(),
       configuracoesImpressora: json['configuracoesImpressora'] == null
           ? const ConfiguracoesImpressora()
           : ConfiguracoesImpressora.fromJson(

@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:nous/src/core/theme/theme_controller.dart';
@@ -70,6 +72,7 @@ class PerfisPdvView extends StatelessWidget {
           theme: theme,
           icon: Icons.storefront,
           label: loja.nome,
+          logoUrl: loja.logo,
           onTap: () {
             Navigator.of(context).push(
               MaterialPageRoute(
@@ -211,12 +214,14 @@ class _PerfilCard extends StatefulWidget {
   final AppTheme theme;
   final IconData icon;
   final String label;
+  final String logoUrl;
   final VoidCallback onTap;
 
   const _PerfilCard({
     required this.theme,
     required this.icon,
     required this.label,
+    this.logoUrl = '',
     required this.onTap,
   });
 
@@ -230,6 +235,7 @@ class _PerfilCardState extends State<_PerfilCard> {
   @override
   Widget build(BuildContext context) {
     final theme = widget.theme;
+    final temLogo = widget.logoUrl.isNotEmpty && File(widget.logoUrl).existsSync();
 
     return MouseRegion(
       onEnter: (_) => setState(() => _hovering = true),
@@ -250,13 +256,31 @@ class _PerfilCardState extends State<_PerfilCard> {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(
-                widget.icon,
-                size: 32,
-                color: _hovering
-                    ? theme.buttonTextColor
-                    : theme.secondaryTextColor,
-              ),
+              if (temLogo)
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(8),
+                  child: Image.file(
+                    File(widget.logoUrl),
+                    width: 36,
+                    height: 36,
+                    fit: BoxFit.cover,
+                    errorBuilder: (context, error, stackTrace) => Icon(
+                      widget.icon,
+                      size: 32,
+                      color: _hovering
+                          ? theme.buttonTextColor
+                          : theme.secondaryTextColor,
+                    ),
+                  ),
+                )
+              else
+                Icon(
+                  widget.icon,
+                  size: 32,
+                  color: _hovering
+                      ? theme.buttonTextColor
+                      : theme.secondaryTextColor,
+                ),
               const SizedBox(height: 8),
               SizedBox(
                 width: double.infinity,
