@@ -332,26 +332,22 @@ class _RelatoriosConteudoState extends State<_RelatoriosConteudo> {
   }
 
   Widget _filtros() {
-    return Scrollbar(
+    return SingleChildScrollView(
       controller: _filtrosScrollController,
-      thumbVisibility: true,
-      child: SingleChildScrollView(
-        controller: _filtrosScrollController,
-        scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.only(bottom: 12),
-        child: Row(
-          children: [
-            for (final forma in _formasDePagamento)
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 3),
-                child: _botaoDeFiltro(forma),
-              ),
+      scrollDirection: Axis.horizontal,
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Row(
+        children: [
+          for (final forma in _formasDePagamento)
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 3),
-              child: _campoDeData(),
+              child: _botaoDeFiltro(forma),
             ),
-          ],
-        ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 3),
+            child: _campoDeData(),
+          ),
+        ],
       ),
     );
   }
@@ -538,19 +534,15 @@ class _RelatoriosConteudoState extends State<_RelatoriosConteudo> {
           else
             ConstrainedBox(
               constraints: const BoxConstraints(maxHeight: 260),
-              child: Scrollbar(
+              child: ListView.separated(
                 controller: _acoesScrollController,
-                thumbVisibility: true,
-                child: ListView.separated(
-                  controller: _acoesScrollController,
-                  shrinkWrap: true,
-                  itemCount: acoes.length,
-                  separatorBuilder: (context, index) =>
-                      const SizedBox(height: 8),
-                  itemBuilder: (context, index) => _BarraAcao(
-                    theme: theme,
-                    acao: acoes[index],
-                  ),
+                shrinkWrap: true,
+                itemCount: acoes.length,
+                separatorBuilder: (context, index) =>
+                    const SizedBox(height: 8),
+                itemBuilder: (context, index) => _BarraAcao(
+                  theme: theme,
+                  acao: acoes[index],
                 ),
               ),
             ),

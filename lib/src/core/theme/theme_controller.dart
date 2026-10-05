@@ -135,7 +135,7 @@ class AppTheme {
   }) {
     return TextStyle(
       fontFamily: fontName,
-      fontSize: fontSize * fontScale,
+      fontSize: fontSize * 1.6 * fontScale,
       fontWeight: fontWeight,
       color: color ?? secondaryTextColor,
     );
@@ -175,7 +175,7 @@ class AppTheme {
       buttonTextColor: Color(json['buttonTextColor'] as int),
       borderColor: Color(json['borderColor'] as int),
       fontName: json['fontName'] as String,
-      fontScale: (json['fontScale'] as num).toDouble(),
+      fontScale: (json['fontScale'] as num?)?.toDouble() ?? 1.0,
     );
   }
 }
@@ -210,8 +210,8 @@ class ThemeController {
 
   static const String _savedThemesPrefsKey = 'nous_saved_themes';
 
-  static const double minFontScale = 0.8;
-  static const double maxFontScale = 1.6;
+  static const double minFontScale = 0.7;
+  static const double maxFontScale = 1.5;
   static const double fontScaleStep = 0.1;
 
   static List<ColorOption> recentBackgroundColors = [

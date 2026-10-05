@@ -72,6 +72,7 @@ class ComandaPedido extends StatelessWidget {
               ),
             ),
           ),
+          const SizedBox(width: 8),
           Text(
             direita,
             style: theme.getTextStyle(

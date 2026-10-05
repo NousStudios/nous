@@ -21,7 +21,7 @@ const List<String> _formasDePagamento = [
 
 const String _formaAPrazo = 'À Prazo';
 
-const double _larguraComanda = 220;
+const double _larguraComanda = 320;
 
 double _precoComoNumero(String texto) {
   var limpo = texto.replaceAll(RegExp(r'[^0-9,.]'), '');
@@ -1224,8 +1224,8 @@ class _NovaVendaConteudoState extends State<_NovaVendaConteudo> {
                 icon: Icon(Icons.add, size: 18, color: theme.textColor),
                 onPressed: () => _alterarQuantidade(linha.chave, 1),
               ),
-              SizedBox(
-                width: 70,
+              ConstrainedBox(
+                constraints: const BoxConstraints(minWidth: 60),
                 child: Text(
                   'R\$ ${_valorComVirgula(subtotalBase)}',
                   textAlign: TextAlign.right,
@@ -1366,6 +1366,7 @@ class _NovaVendaConteudoState extends State<_NovaVendaConteudo> {
               ),
             ),
           ),
+          const SizedBox(width: 8),
           Text(
             direita,
             style: theme.getTextStyle(
@@ -1389,25 +1390,23 @@ class _NovaVendaConteudoState extends State<_NovaVendaConteudo> {
       child: Column(
         children: [
           _tituloDoBloco('Comanda'),
-          SizedBox(
-            height: 280,
-            child: Scrollbar(
+          ConstrainedBox(
+            constraints: const BoxConstraints(minHeight: 220, maxHeight: 380),
+            child: SingleChildScrollView(
               controller: _comandaScrollController,
-              thumbVisibility: true,
-              child: SingleChildScrollView(
-                controller: _comandaScrollController,
-                child: Center(
-                  child: Container(
-                    width: _larguraComanda,
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 20, vertical: 16),
-                    decoration: BoxDecoration(
-                      color: theme.backgroundColor.withValues(alpha: 0.4),
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(
-                        color: theme.borderColor.withValues(alpha: 0.6),
-                      ),
+              child: Center(
+                child: Container(
+                  width: _larguraComanda,
+                  constraints: const BoxConstraints(maxWidth: 340),
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 16, vertical: 16),
+                  decoration: BoxDecoration(
+                    color: theme.backgroundColor.withValues(alpha: 0.4),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(
+                      color: theme.borderColor.withValues(alpha: 0.6),
                     ),
+                  ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
@@ -1600,7 +1599,6 @@ class _NovaVendaConteudoState extends State<_NovaVendaConteudo> {
                 ),
               ),
             ),
-          ),
         ],
       ),
     );
@@ -1651,13 +1649,14 @@ class _NovaVendaConteudoState extends State<_NovaVendaConteudo> {
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: Row(
         children: [
-          SizedBox(
-            width: 90,
+          ConstrainedBox(
+            constraints: const BoxConstraints(minWidth: 80, maxWidth: 115),
             child: Text(
               p.forma,
               style: theme.getTextStyle(fontSize: 12, color: theme.textColor),
             ),
           ),
+          const SizedBox(width: 8),
           Expanded(
             child: TextField(
               controller: p.controller,
@@ -1695,25 +1694,21 @@ class _NovaVendaConteudoState extends State<_NovaVendaConteudo> {
       child: Column(
         children: [
           _tituloDoBloco('Formas de Pagamento'),
-          Scrollbar(
+          SingleChildScrollView(
             controller: _pagamentoScrollController,
-            thumbVisibility: true,
-            child: SingleChildScrollView(
-              controller: _pagamentoScrollController,
-              scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.only(bottom: 8),
-              child: Row(
-                children: [
-                  for (final forma in _formasDePagamento)
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 3),
-                      child: SizedBox(
-                        width: 84,
-                        child: _botaoDeForma(forma),
-                      ),
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.only(bottom: 8),
+            child: Row(
+              children: [
+                for (final forma in _formasDePagamento)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 3),
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(minWidth: 84),
+                      child: _botaoDeForma(forma),
                     ),
-                ],
-              ),
+                  ),
+              ],
             ),
           ),
           if (_pagamentos.isNotEmpty) ...[
@@ -1773,7 +1768,7 @@ class _NovaVendaConteudoState extends State<_NovaVendaConteudo> {
         side: BorderSide(
           color: selecionada ? theme.buttonColor : theme.borderColor,
         ),
-        padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 10),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
       ),
       onPressed: () => _escolherForma(forma),

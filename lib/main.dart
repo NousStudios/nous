@@ -16,6 +16,12 @@ class AppScrollBehavior extends MaterialScrollBehavior {
         PointerDeviceKind.trackpad,
         PointerDeviceKind.stylus,
       };
+
+  @override
+  Widget buildScrollbar(
+      BuildContext context, Widget child, ScrollableDetails details) {
+    return child;
+  }
 }
 
 Future<void> main() async {
@@ -44,6 +50,11 @@ class MyApp extends StatelessWidget {
             scrollBehavior: AppScrollBehavior(),
             theme: ThemeData(
               scaffoldBackgroundColor: theme.backgroundColor,
+              scrollbarTheme: const ScrollbarThemeData(
+                thumbVisibility: WidgetStatePropertyAll(false),
+                trackVisibility: WidgetStatePropertyAll(false),
+                thickness: WidgetStatePropertyAll(0),
+              ),
               appBarTheme: AppBarTheme(
                 backgroundColor: theme.backgroundColor,
                 foregroundColor: theme.textColor,

@@ -1631,19 +1631,15 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
     if (_categoriaExpandidaId == null) {
       return SizedBox(
         height: _alturaMaximaListaSecundaria,
-        child: Scrollbar(
+        child: ListView.separated(
           controller: _scrollCategorias,
-          thumbVisibility: true,
-          child: ListView.separated(
-            controller: _scrollCategorias,
-            padding: const EdgeInsets.only(right: 8),
-            itemCount: categorias.length,
-            separatorBuilder: (context, index) => const SizedBox(height: 8),
-            itemBuilder: (context, index) => _construirCategoria(
-              theme,
-              categorias[index],
-              podeEditarLoja,
-            ),
+          padding: const EdgeInsets.only(right: 8),
+          itemCount: categorias.length,
+          separatorBuilder: (context, index) => const SizedBox(height: 8),
+          itemBuilder: (context, index) => _construirCategoria(
+            theme,
+            categorias[index],
+            podeEditarLoja,
           ),
         ),
       );
@@ -1705,19 +1701,15 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
     if (_grupoExpandidoId == null) {
       return SizedBox(
         height: _alturaMaximaListaSecundaria,
-        child: Scrollbar(
+        child: ListView.separated(
           controller: _scrollGrupos,
-          thumbVisibility: true,
-          child: ListView.separated(
-            controller: _scrollGrupos,
-            padding: const EdgeInsets.only(right: 8),
-            itemCount: grupos.length,
-            separatorBuilder: (context, index) => const SizedBox(height: 8),
-            itemBuilder: (context, index) => _construirGrupo(
-              theme,
-              grupos[index],
-              podeEditarLoja,
-            ),
+          padding: const EdgeInsets.only(right: 8),
+          itemCount: grupos.length,
+          separatorBuilder: (context, index) => const SizedBox(height: 8),
+          itemBuilder: (context, index) => _construirGrupo(
+            theme,
+            grupos[index],
+            podeEditarLoja,
           ),
         ),
       );
