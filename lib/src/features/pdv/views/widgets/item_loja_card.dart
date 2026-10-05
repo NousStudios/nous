@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:nous/src/core/theme/theme_controller.dart';
+import 'package:nous/src/core/widgets/texto_rolante.dart';
 import 'package:nous/src/features/pdv/models/item_loja.dart';
 
 class ItemLojaCard extends StatefulWidget {
@@ -35,6 +36,8 @@ class _ItemLojaCardState extends State<ItemLojaCard> {
       TextEditingController(text: widget.nome);
   late final TextEditingController _precoController =
       TextEditingController(text: widget.preco);
+  late final FocusNode _nomeFocusNode = FocusNode();
+  bool _editandoNome = false;
 
   void _avisarSemPermissao() {
     final theme = widget.theme;
@@ -47,6 +50,16 @@ class _ItemLojaCardState extends State<ItemLojaCard> {
         ),
       ),
     );
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _nomeFocusNode.addListener(() {
+      if (!_nomeFocusNode.hasFocus && mounted) {
+        setState(() => _editandoNome = false);
+      }
+    });
   }
 
   @override
@@ -65,6 +78,7 @@ class _ItemLojaCardState extends State<ItemLojaCard> {
   void dispose() {
     _nomeController.dispose();
     _precoController.dispose();
+    _nomeFocusNode.dispose();
     super.dispose();
   }
 
@@ -236,25 +250,52 @@ class _ItemLojaCardState extends State<ItemLojaCard> {
           if (rotuloTipo.isNotEmpty) _buildEtiquetaTipo(theme, rotuloTipo),
           Expanded(child: _buildAreaImagem(theme)),
           const SizedBox(height: 6),
-          TextField(
-            controller: _nomeController,
-            readOnly: !widget.podeEditar,
-            onTap: widget.podeEditar ? null : _avisarSemPermissao,
-            textAlign: TextAlign.center,
-            maxLines: 1,
-            style: theme.getTextStyle(fontSize: 13, color: theme.textColor),
-            decoration: InputDecoration(
-              isDense: true,
-              contentPadding: EdgeInsets.zero,
-              border: InputBorder.none,
-              hintText: 'Sem nome',
-              hintStyle: theme.getTextStyle(
-                fontSize: 13,
-                color: theme.secondaryTextColor.withValues(alpha: 0.5),
-              ),
-            ),
-            onChanged: widget.onNomeAlterado,
-          ),
+          _editandoNome
+              ? TextField(
+                  controller: _nomeController,
+                  focusNode: _nomeFocusNode,
+                  readOnly: !widget.podeEditar,
+                  textAlign: TextAlign.center,
+                  maxLines: 1,
+                  style: theme.getTextStyle(fontSize: 13, color: theme.textColor),
+                  decoration: InputDecoration(
+                    isDense: true,
+                    contentPadding: EdgeInsets.zero,
+                    border: InputBorder.none,
+                    hintText: 'Sem nome',
+                    hintStyle: theme.getTextStyle(
+                      fontSize: 13,
+                      color: theme.secondaryTextColor.withValues(alpha: 0.5),
+                    ),
+                  ),
+                  onSubmitted: (_) {
+                    if (mounted) setState(() => _editandoNome = false);
+                  },
+                  onChanged: widget.onNomeAlterado,
+                )
+              : InkWell(
+                  onTap: widget.podeEditar
+                      ? () {
+                          setState(() => _editandoNome = true);
+                          _nomeFocusNode.requestFocus();
+                        }
+                      : _avisarSemPermissao,
+                  borderRadius: BorderRadius.circular(4),
+                  child: SizedBox(
+                    height: 20,
+                    width: double.infinity,
+                    child: TextoRolante(
+                      texto: widget.nome.trim().isEmpty ? 'Sem nome' : widget.nome,
+                      textAlign: TextAlign.center,
+                      style: theme.getTextStyle(
+                        fontSize: 13,
+                        color: widget.nome.trim().isEmpty
+                            ? theme.secondaryTextColor.withValues(alpha: 0.5)
+                            : theme.textColor,
+                      ),
+                    ),
+                  ),
+                ),
           const SizedBox(height: 6),
           _buildPreco(theme),
         ],

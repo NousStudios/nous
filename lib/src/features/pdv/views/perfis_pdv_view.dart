@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import 'package:nous/src/core/theme/theme_controller.dart';
 import 'package:nous/src/core/widgets/custom_app_bar.dart';
 import 'package:nous/src/core/widgets/floating_bottom_nav_bar.dart';
+import 'package:nous/src/core/widgets/texto_rolante.dart';
 import 'package:nous/src/features/auth/views/login_view.dart';
 import 'package:nous/src/features/pdv/models/loja.dart';
 import 'package:nous/src/features/pdv/providers/pdv_provider.dart';
@@ -238,9 +239,9 @@ class _PerfilCardState extends State<_PerfilCard> {
         borderRadius: BorderRadius.circular(12),
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 150),
-          width: 100,
-          height: 100,
-          padding: const EdgeInsets.all(8),
+          width: 108,
+          height: 108,
+          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 8),
           decoration: BoxDecoration(
             color: _hovering ? theme.buttonColor : theme.cardBackgroundColor,
             borderRadius: BorderRadius.circular(12),
@@ -257,14 +258,15 @@ class _PerfilCardState extends State<_PerfilCard> {
                     : theme.secondaryTextColor,
               ),
               const SizedBox(height: 8),
-              Text(
-                widget.label,
-                textAlign: TextAlign.center,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: theme.getTextStyle(
-                  fontSize: 12,
-                  color: _hovering ? theme.buttonTextColor : null,
+              SizedBox(
+                width: double.infinity,
+                child: TextoRolante(
+                  texto: widget.label,
+                  textAlign: TextAlign.center,
+                  style: theme.getTextStyle(
+                    fontSize: 12,
+                    color: _hovering ? theme.buttonTextColor : null,
+                  ),
                 ),
               ),
             ],

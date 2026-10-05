@@ -5,8 +5,25 @@ import 'package:nous/src/features/auth/views/widgets/login_buttons_widget.dart';
 import 'package:nous/src/features/auth/views/widgets/logo_widget.dart';
 import 'package:nous/src/features/auth/views/terms_view.dart';
 
-class LoginView extends StatelessWidget {
+class LoginView extends StatefulWidget {
   const LoginView({super.key});
+
+  @override
+  State<LoginView> createState() => _LoginViewState();
+}
+
+class _LoginViewState extends State<LoginView> {
+  @override
+  void initState() {
+    super.initState();
+    ThemeController.isLoginScreen = true;
+  }
+
+  @override
+  void dispose() {
+    ThemeController.isLoginScreen = false;
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {

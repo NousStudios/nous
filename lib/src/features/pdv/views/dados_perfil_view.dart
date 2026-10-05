@@ -1766,7 +1766,7 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
           const SizedBox(height: 12),
           if (itensFiltrados.isNotEmpty)
             SizedBox(
-              height: 150,
+              height: 175,
               child: ListView.separated(
                 scrollDirection: Axis.horizontal,
                 itemCount: itensFiltrados.length,

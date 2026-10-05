@@ -133,9 +133,10 @@ class AppTheme {
     FontWeight fontWeight = FontWeight.normal,
     Color? color,
   }) {
+    final baseMultiplier = ThemeController.isLoginScreen ? 1.0 : 1.2;
     return TextStyle(
       fontFamily: fontName,
-      fontSize: fontSize * 1.6 * fontScale,
+      fontSize: fontSize * baseMultiplier * fontScale,
       fontWeight: fontWeight,
       color: color ?? secondaryTextColor,
     );
@@ -204,6 +205,9 @@ class SavedTheme {
 class ThemeController {
   static final ValueNotifier<AppTheme> currentTheme =
       ValueNotifier<AppTheme>(AppTheme.dark);
+
+  /// Controla se a tela atual é a tela de login, que mantém a escala base 1.0 (antigo 100%)
+  static bool isLoginScreen = false;
 
   static final ValueNotifier<List<SavedTheme>> savedThemes =
       ValueNotifier<List<SavedTheme>>([]);
