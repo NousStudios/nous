@@ -1,10 +1,13 @@
+import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:nous/src/core/theme/theme_controller.dart';
 import 'package:nous/src/core/widgets/custom_app_bar.dart';
 import 'package:nous/src/features/pdv/providers/pdv_provider.dart';
+import 'package:nous/src/features/pdv/services/imagem_service.dart';
 import 'package:nous/src/features/pdv/views/dados_perfil_view.dart';
 import 'package:nous/src/features/pdv/views/widgets/formulario_dados_loja.dart';
+import 'package:nous/src/features/pdv/views/widgets/opcoes_imagem_dialog.dart';
 
 class CadastrarLojaView extends StatefulWidget {
   final String categoriaInicial;
@@ -18,6 +21,7 @@ class CadastrarLojaView extends StatefulWidget {
 class _CadastrarLojaViewState extends State<CadastrarLojaView> {
   final _formKey = GlobalKey<FormState>();
   final _controllers = ControllersDadosLoja();
+  String _logo = '';
 
   @override
   void initState() {
@@ -29,6 +33,47 @@ class _CadastrarLojaViewState extends State<CadastrarLojaView> {
   void dispose() {
     _controllers.dispose();
     super.dispose();
+  }
+
+  Future<void> _alterarLogo(AppTheme theme) async {
+    if (_logo.isNotEmpty) {
+      OpcoesImagemDialog.mostrar(
+        context,
+        theme: theme,
+        titulo: 'Logo da Loja',
+        onEscolherNova: () => _selecionarNovaLogo(theme),
+        onRemover: () => setState(() => _logo = ''),
+      );
+    } else {
+      await _selecionarNovaLogo(theme);
+    }
+  }
+
+  Future<void> _selecionarNovaLogo(AppTheme theme) async {
+    const grupo = XTypeGroup(
+      label: 'Imagens',
+      extensions: ['jpg', 'jpeg', 'png', 'webp'],
+    );
+    final arquivo = await openFile(acceptedTypeGroups: const [grupo]);
+    if (arquivo == null) return;
+
+    final salvo = await ImagemService.salvarImagemLocal(arquivo.path);
+    if (salvo == null) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            backgroundColor: theme.cardBackgroundColor,
+            content: Text(
+              'A logo deve ser uma imagem válida de até meio giga (500MB).',
+              style: theme.getTextStyle(color: Colors.redAccent),
+            ),
+          ),
+        );
+      }
+      return;
+    }
+
+    setState(() => _logo = salvo);
   }
 
   void _handleCadastrar() {
@@ -46,6 +91,7 @@ class _CadastrarLojaViewState extends State<CadastrarLojaView> {
       email: _controllers.email.text,
       categorias: _controllers.categorias.text,
       tags: _controllers.tags.text,
+      logo: _logo,
     );
 
     final lojaRecemCriada = pdvProvider.lojas.last;
@@ -95,6 +141,8 @@ class _CadastrarLojaViewState extends State<CadastrarLojaView> {
                           FormularioDadosLoja(
                             theme: theme,
                             controllers: _controllers,
+                            logo: _logo,
+                            onAlterarLogo: () => _alterarLogo(theme),
                           ),
                           const SizedBox(height: 20),
                           SizedBox(

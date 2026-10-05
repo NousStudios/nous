@@ -8,6 +8,7 @@ class Cliente {
   final String email;
   final String redesSociais;
   final String descricao;
+  final String foto;
 
   const Cliente({
     required this.id,
@@ -19,6 +20,7 @@ class Cliente {
     this.email = '',
     this.redesSociais = '',
     this.descricao = '',
+    this.foto = '',
   });
 
   Cliente copyWith({
@@ -30,6 +32,7 @@ class Cliente {
     String? email,
     String? redesSociais,
     String? descricao,
+    String? foto,
   }) {
     return Cliente(
       id: id,
@@ -41,6 +44,7 @@ class Cliente {
       email: email ?? this.email,
       redesSociais: redesSociais ?? this.redesSociais,
       descricao: descricao ?? this.descricao,
+      foto: foto ?? this.foto,
     );
   }
 
@@ -55,6 +59,7 @@ class Cliente {
       'email': email,
       'redesSociais': redesSociais,
       'descricao': descricao,
+      'foto': foto,
     };
   }
 
@@ -69,6 +74,7 @@ class Cliente {
       email: json['email'] as String? ?? '',
       redesSociais: json['redesSociais'] as String? ?? '',
       descricao: json['descricao'] as String? ?? '',
+      foto: json['foto'] as String? ?? '',
     );
   }
 }

@@ -547,13 +547,14 @@ class _NovoItemDialogState extends State<NovoItemDialog> {
                           onTap: () => _removerFoto(index),
                           child: Container(
                             decoration: BoxDecoration(
-                              color: Colors.black54,
+                              color: theme.cardBackgroundColor
+                                  .withValues(alpha: 0.85),
                               shape: BoxShape.circle,
                             ),
                             padding: const EdgeInsets.all(3),
-                            child: const Icon(
+                            child: Icon(
                               Icons.close,
-                              color: Colors.white,
+                              color: theme.textColor,
                               size: 14,
                             ),
                           ),

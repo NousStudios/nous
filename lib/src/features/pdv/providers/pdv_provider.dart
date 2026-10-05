@@ -166,6 +166,7 @@ class PdvProvider extends ChangeNotifier {
     String redesSociais = '',
     required String categorias,
     required String tags,
+    String logo = '',
   }) {
     final cpf = _cpfAtual;
     final novaLoja = Loja(
@@ -180,6 +181,7 @@ class PdvProvider extends ChangeNotifier {
       redesSociais: redesSociais,
       categorias: categorias,
       tags: tags,
+      logo: logo,
     );
 
     _lojas.add(novaLoja);

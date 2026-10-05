@@ -43,6 +43,7 @@ import 'package:nous/src/features/pdv/views/widgets/nova_categoria_dialog.dart';
 import 'package:nous/src/features/pdv/views/widgets/nova_venda_dialog.dart';
 import 'package:nous/src/features/pdv/views/widgets/novo_grupo_componentes_dialog.dart';
 import 'package:nous/src/features/pdv/views/widgets/novo_item_dialog.dart';
+import 'package:nous/src/features/pdv/views/widgets/opcoes_imagem_dialog.dart';
 import 'package:nous/src/features/pdv/views/widgets/relatorios_dialog.dart';
 import 'package:nous/src/features/pdv/views/widgets/usuarios_participantes_container.dart';
 
@@ -362,6 +363,26 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
       return;
     }
 
+    if (_logo.isNotEmpty) {
+      final theme = ThemeController.currentTheme.value;
+      OpcoesImagemDialog.mostrar(
+        context,
+        theme: theme,
+        titulo: 'Logo da Loja',
+        onEscolherNova: _selecionarNovaLogoLoja,
+        onRemover: _removerLogoLoja,
+      );
+    } else {
+      await _selecionarNovaLogoLoja();
+    }
+  }
+
+  void _removerLogoLoja() {
+    setState(() => _logo = '');
+    _salvarDadosLoja();
+  }
+
+  Future<void> _selecionarNovaLogoLoja() async {
     const grupo = XTypeGroup(
       label: 'Imagens',
       extensions: ['jpg', 'jpeg', 'png', 'webp'],

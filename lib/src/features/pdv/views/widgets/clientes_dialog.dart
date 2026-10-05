@@ -1,3 +1,6 @@
+import 'dart:io';
+
+import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:nous/src/core/theme/theme_controller.dart';
@@ -5,8 +8,10 @@ import 'package:nous/src/core/widgets/themed_text_field.dart';
 import 'package:nous/src/features/pdv/models/cliente.dart';
 import 'package:nous/src/features/pdv/models/pedido_loja.dart';
 import 'package:nous/src/features/pdv/services/cnpj_input_formatter.dart';
+import 'package:nous/src/features/pdv/services/imagem_service.dart';
 import 'package:nous/src/features/pdv/services/telefone_input_formatter.dart';
 import 'package:nous/src/features/pdv/views/widgets/estado_vazio_container.dart';
+import 'package:nous/src/features/pdv/views/widgets/opcoes_imagem_dialog.dart';
 import 'package:nous/src/features/pdv/views/widgets/venda_registrada_dialog.dart';
 
 String _valor(double v) => 'R\$ ${v.toStringAsFixed(2).replaceAll('.', ',')}';
@@ -92,6 +97,7 @@ class _ClientesConteudoState extends State<_ClientesConteudo> {
   late List<Cliente> _clientes;
   late List<PedidoLoja> _pedidos;
   Cliente? _editando;
+  String _foto = '';
   String? _aviso;
   String? _avisoPagamento;
 
@@ -109,6 +115,7 @@ class _ClientesConteudoState extends State<_ClientesConteudo> {
       if (indice != -1) {
         _editando = _clientes[indice];
         final c = _clientes[indice];
+        _foto = c.foto;
         _nomeController.text = c.nome;
         _cnpjController.text = c.cnpj;
         _telefoneController.text = c.telefone;
@@ -137,6 +144,7 @@ class _ClientesConteudoState extends State<_ClientesConteudo> {
   }
 
   void _limparCampos() {
+    _foto = '';
     _nomeController.clear();
     _cnpjController.clear();
     _telefoneController.clear();
@@ -152,6 +160,7 @@ class _ClientesConteudoState extends State<_ClientesConteudo> {
   void _abrirEdicao(Cliente cliente) {
     setState(() {
       _editando = cliente;
+      _foto = cliente.foto;
       _aviso = null;
       _avisoPagamento = null;
       _pagamentoController.clear();
@@ -174,6 +183,47 @@ class _ClientesConteudoState extends State<_ClientesConteudo> {
     });
   }
 
+  Future<void> _alterarFotoCliente() async {
+    if (_foto.isNotEmpty) {
+      OpcoesImagemDialog.mostrar(
+        context,
+        theme: theme,
+        titulo: 'Foto do Cliente',
+        onEscolherNova: _selecionarNovaFotoCliente,
+        onRemover: () => setState(() => _foto = ''),
+      );
+    } else {
+      await _selecionarNovaFotoCliente();
+    }
+  }
+
+  Future<void> _selecionarNovaFotoCliente() async {
+    const grupo = XTypeGroup(
+      label: 'Imagens',
+      extensions: ['jpg', 'jpeg', 'png', 'webp'],
+    );
+    final arquivo = await openFile(acceptedTypeGroups: const [grupo]);
+    if (arquivo == null) return;
+
+    final salvo = await ImagemService.salvarImagemLocal(arquivo.path);
+    if (salvo == null) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            backgroundColor: theme.cardBackgroundColor,
+            content: Text(
+              'A foto deve ser uma imagem válida de até meio giga (500MB).',
+              style: theme.getTextStyle(color: Colors.redAccent),
+            ),
+          ),
+        );
+      }
+      return;
+    }
+
+    setState(() => _foto = salvo);
+  }
+
   void _salvar() {
     final nome = _nomeController.text.trim();
     if (nome.isEmpty) {
@@ -191,6 +241,7 @@ class _ClientesConteudoState extends State<_ClientesConteudo> {
       email: _emailController.text.trim(),
       redesSociais: _redesSociaisController.text.trim(),
       descricao: _descricaoController.text.trim(),
+      foto: _foto,
     );
 
     widget.onSalvar(cliente);
@@ -420,16 +471,21 @@ class _ClientesConteudoState extends State<_ClientesConteudo> {
           _tituloDoBloco(editando != null ? 'Editar Cliente' : 'Novo Cliente'),
 
           InkWell(
-            onTap: () {},
+            onTap: _alterarFotoCliente,
             customBorder: const CircleBorder(),
             child: CircleAvatar(
               radius: 40,
               backgroundColor: theme.cardBackgroundColor,
-              child: Icon(
-                Icons.person,
-                size: 44,
-                color: theme.secondaryTextColor,
-              ),
+              backgroundImage: (_foto.isNotEmpty && File(_foto).existsSync())
+                  ? FileImage(File(_foto))
+                  : null,
+              child: (_foto.isEmpty || !File(_foto).existsSync())
+                  ? Icon(
+                      Icons.person,
+                      size: 44,
+                      color: theme.secondaryTextColor,
+                    )
+                  : null,
             ),
           ),
           const SizedBox(height: 20),
@@ -737,10 +793,21 @@ class _ClientesConteudoState extends State<_ClientesConteudo> {
                       ),
                       child: Row(
                         children: [
-                          Icon(
-                            Icons.account_circle,
-                            size: 22,
-                            color: theme.textColor,
+                          CircleAvatar(
+                            radius: 11,
+                            backgroundColor: Colors.transparent,
+                            backgroundImage: (cliente.foto.isNotEmpty &&
+                                    File(cliente.foto).existsSync())
+                                ? FileImage(File(cliente.foto))
+                                : null,
+                            child: (cliente.foto.isEmpty ||
+                                    !File(cliente.foto).existsSync())
+                                ? Icon(
+                                    Icons.account_circle,
+                                    size: 22,
+                                    color: theme.textColor,
+                                  )
+                                : null,
                           ),
                           const SizedBox(width: 8),
                           Expanded(

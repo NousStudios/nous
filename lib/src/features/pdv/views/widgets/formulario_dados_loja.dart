@@ -53,39 +53,17 @@ class FormularioDadosLoja extends StatelessWidget {
         InkWell(
           onTap: onAlterarLogo,
           customBorder: const CircleBorder(),
-          child: Stack(
-            children: [
-              CircleAvatar(
-                radius: 44,
-                backgroundColor: theme.cardBackgroundColor,
-                backgroundImage: temLogo ? FileImage(File(logo)) : null,
-                child: temLogo
-                    ? null
-                    : Icon(
-                        Icons.add_a_photo_outlined,
-                        size: 36,
-                        color: theme.secondaryTextColor,
-                      ),
-              ),
-              if (temLogo)
-                Positioned(
-                  bottom: 0,
-                  right: 0,
-                  child: Container(
-                    padding: const EdgeInsets.all(5),
-                    decoration: BoxDecoration(
-                      color: theme.buttonColor,
-                      shape: BoxShape.circle,
-                      border: Border.all(color: theme.cardBackgroundColor, width: 2),
-                    ),
-                    child: Icon(
-                      Icons.edit,
-                      size: 13,
-                      color: theme.buttonTextColor,
-                    ),
+          child: CircleAvatar(
+            radius: 44,
+            backgroundColor: theme.cardBackgroundColor,
+            backgroundImage: temLogo ? FileImage(File(logo)) : null,
+            child: temLogo
+                ? null
+                : Icon(
+                    Icons.add_a_photo_outlined,
+                    size: 36,
+                    color: theme.secondaryTextColor,
                   ),
-                ),
-            ],
           ),
         ),
         const SizedBox(height: 20),

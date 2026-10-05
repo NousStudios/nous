@@ -213,15 +213,15 @@ class GaleriaEstiloContainer extends StatelessWidget {
             child: GestureDetector(
               onTap: () => onRemover(index),
               child: Container(
-                decoration: const BoxDecoration(
-                  color: Colors.black54,
+                decoration: BoxDecoration(
+                  color: theme.cardBackgroundColor.withValues(alpha: 0.85),
                   shape: BoxShape.circle,
                 ),
                 padding: const EdgeInsets.all(3),
-                child: const Icon(
+                child: Icon(
                   Icons.close,
                   size: 13,
-                  color: Colors.white,
+                  color: theme.textColor,
                 ),
               ),
             ),
