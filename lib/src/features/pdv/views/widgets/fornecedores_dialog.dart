@@ -605,12 +605,23 @@ class _FornecedoresConteudoState extends State<_FornecedoresConteudo> {
                       ),
                       child: Row(
                         children: [
-                          Icon(
-                            Icons.account_circle,
-                            size: 22,
-                            color: jaEh
-                                ? theme.secondaryTextColor
-                                : theme.textColor,
+                          CircleAvatar(
+                            radius: 11,
+                            backgroundColor: Colors.transparent,
+                            backgroundImage: (cliente.foto.isNotEmpty &&
+                                    File(cliente.foto).existsSync())
+                                ? FileImage(File(cliente.foto))
+                                : null,
+                            child: (cliente.foto.isEmpty ||
+                                    !File(cliente.foto).existsSync())
+                                ? Icon(
+                                    Icons.account_circle,
+                                    size: 22,
+                                    color: jaEh
+                                        ? theme.secondaryTextColor
+                                        : theme.textColor,
+                                  )
+                                : null,
                           ),
                           const SizedBox(width: 8),
                           Expanded(

@@ -1,6 +1,10 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'package:nous/src/core/theme/theme_controller.dart';
+import 'package:nous/src/features/auth/providers/auth_provider.dart';
 import 'package:nous/src/features/pdv/models/membro_loja.dart';
+import 'package:nous/src/features/pdv/providers/pdv_provider.dart';
 
 class ResultadoPagamento {
   final String cpf;
@@ -316,20 +320,130 @@ class _RegistrarPagamentoConteudoState
                             color: theme.secondaryTextColor,
                           ),
                         ),
-                        items: widget.membros
-                            .map(
-                              (m) => DropdownMenuItem<MembroLoja>(
-                                value: m,
-                                child: Text(
-                                  '${m.nome} • ${_rotuloPapel(m.papel)}',
-                                  style: theme.getTextStyle(
-                                    fontSize: 12,
-                                    color: theme.textColor,
+                        items: widget.membros.map((m) {
+                          final auth = context.watch<AuthProvider>();
+                          final pdv = context.watch<PdvProvider>();
+                          String foto = '';
+                          if (auth.contaAtual?.cpf == m.cpf &&
+                              auth.contaAtual!.foto.isNotEmpty) {
+                            foto = auth.contaAtual!.foto;
+                          } else {
+                            foto = pdv.buscarFotoClientePorCpf(m.cpf) ?? '';
+                          }
+                          final temFoto =
+                              foto.isNotEmpty && File(foto).existsSync();
+
+                          return DropdownMenuItem<MembroLoja>(
+                            value: m,
+                            child: Row(
+                              children: [
+                                Container(
+                                  width: 22,
+                                  height: 22,
+                                  decoration: BoxDecoration(
+                                    borderRadius: BorderRadius.circular(11),
+                                    border: Border.all(
+                                      color: theme.borderColor
+                                          .withValues(alpha: 0.6),
+                                    ),
+                                  ),
+                                  child: ClipRRect(
+                                    borderRadius: BorderRadius.circular(10),
+                                    child: temFoto
+                                        ? Image.file(
+                                            File(foto),
+                                            width: 22,
+                                            height: 22,
+                                            fit: BoxFit.cover,
+                                            errorBuilder:
+                                                (context, error, stackTrace) =>
+                                                    Icon(
+                                              Icons.person,
+                                              size: 14,
+                                              color: theme.textColor,
+                                            ),
+                                          )
+                                        : Icon(
+                                            Icons.person,
+                                            size: 14,
+                                            color: theme.textColor,
+                                          ),
                                   ),
                                 ),
-                              ),
-                            )
-                            .toList(),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    '${m.nome} • ${_rotuloPapel(m.papel)}',
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: theme.getTextStyle(
+                                      fontSize: 12,
+                                      color: theme.textColor,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          );
+                        }).toList(),
+                        selectedItemBuilder: (context) {
+                          return widget.membros.map((m) {
+                            final auth = context.read<AuthProvider>();
+                            final pdv = context.read<PdvProvider>();
+                            String foto = '';
+                            if (auth.contaAtual?.cpf == m.cpf &&
+                                auth.contaAtual!.foto.isNotEmpty) {
+                              foto = auth.contaAtual!.foto;
+                            } else {
+                              foto = pdv.buscarFotoClientePorCpf(m.cpf) ?? '';
+                            }
+                            final temFoto =
+                                foto.isNotEmpty && File(foto).existsSync();
+
+                            return Row(
+                              children: [
+                                Container(
+                                  width: 22,
+                                  height: 22,
+                                  decoration: BoxDecoration(
+                                    borderRadius: BorderRadius.circular(11),
+                                    border: Border.all(
+                                      color: theme.borderColor
+                                          .withValues(alpha: 0.6),
+                                    ),
+                                  ),
+                                  child: ClipRRect(
+                                    borderRadius: BorderRadius.circular(10),
+                                    child: temFoto
+                                        ? Image.file(
+                                            File(foto),
+                                            width: 22,
+                                            height: 22,
+                                            fit: BoxFit.cover,
+                                          )
+                                        : Icon(
+                                            Icons.person,
+                                            size: 14,
+                                            color: theme.textColor,
+                                          ),
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    '${m.nome} • ${_rotuloPapel(m.papel)}',
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: theme.getTextStyle(
+                                      fontSize: 12,
+                                      color: theme.textColor,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            );
+                          }).toList();
+                        },
                         onChanged: (valor) =>
                             setState(() => _selecionado = valor),
                       ),

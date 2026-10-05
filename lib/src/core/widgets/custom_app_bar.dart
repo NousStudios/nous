@@ -299,6 +299,18 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
                                         style: currentTheme.getTextStyle(
                                             fontSize: 12),
                                       ),
+                                      if (authProvider.emailAtivo != null &&
+                                          authProvider.emailAtivo!.isNotEmpty) ...[
+                                        const SizedBox(height: 2),
+                                        Text(
+                                          authProvider.emailAtivo!,
+                                          textAlign: TextAlign.center,
+                                          style: currentTheme.getTextStyle(
+                                            fontSize: 12,
+                                            color: currentTheme.secondaryTextColor,
+                                          ),
+                                        ),
+                                      ],
                                     ],
                                   ),
                                 ),
@@ -409,59 +421,6 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
     );
   }
 
-  Widget _botaoPerfil(BuildContext context, AppTheme theme) {
-    final conta = context.watch<AuthProvider>().contaAtual;
-    if (conta == null) return const SizedBox.shrink();
-
-    final temFoto = conta.foto.isNotEmpty && File(conta.foto).existsSync();
-
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 4),
-      child: IconButton(
-        tooltip: 'Meu Perfil',
-        padding: EdgeInsets.zero,
-        constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
-        onPressed: () {
-          FichaUsuarioDialog.mostrar(
-            context,
-            theme: theme,
-            usuario: conta,
-          );
-        },
-        icon: Container(
-          width: 28,
-          height: 28,
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(
-              color: theme.borderColor.withValues(alpha: 0.6),
-            ),
-          ),
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(14),
-            child: temFoto
-                ? Image.file(
-                    File(conta.foto),
-                    width: 28,
-                    height: 28,
-                    fit: BoxFit.cover,
-                    errorBuilder: (context, error, stackTrace) => Icon(
-                      Icons.person,
-                      size: 18,
-                      color: theme.textColor,
-                    ),
-                  )
-                : Icon(
-                    Icons.person,
-                    size: 18,
-                    color: theme.secondaryTextColor,
-                  ),
-          ),
-        ),
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     return ValueListenableBuilder<AppTheme>(
@@ -488,7 +447,6 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
               : null,
           actions: [
             _botaoNotificacoes(context, theme),
-            _botaoPerfil(context, theme),
             IconButton(
               tooltip: 'Configurações',
               icon: Image.asset(

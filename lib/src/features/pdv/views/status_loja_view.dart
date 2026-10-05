@@ -1,7 +1,11 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'package:nous/src/core/theme/theme_controller.dart';
 import 'package:nous/src/core/widgets/custom_app_bar.dart';
+import 'package:nous/src/features/auth/providers/auth_provider.dart';
 import 'package:nous/src/features/pdv/models/membro_loja.dart';
+import 'package:nous/src/features/pdv/providers/pdv_provider.dart';
 import 'package:nous/src/features/pdv/views/widgets/estado_vazio_container.dart';
 
 String _rotuloPapel(PapelMembro papel) {
@@ -207,44 +211,93 @@ class _StatusLojaViewState extends State<StatusLojaView> {
   }
 
   Widget _linhaDeMembro(AppTheme theme, MembroLoja membro) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      margin: const EdgeInsets.only(bottom: 8),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: theme.borderColor),
-      ),
-      child: Row(
-        children: [
-          Icon(Icons.account_circle, size: 32, color: theme.textColor),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  membro.nome.isEmpty ? 'Sem nome' : membro.nome,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: theme.getTextStyle(
-                    fontSize: 13,
-                    color: theme.textColor,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  '${_rotuloPapel(membro.papel)} • ${_formatarCpf(membro.cpf)}',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: theme.getTextStyle(
-                    fontSize: 10,
-                    color: theme.secondaryTextColor,
-                  ),
-                ),
-              ],
-            ),
+    final auth = context.watch<AuthProvider>();
+    final pdv = context.watch<PdvProvider>();
+
+    String foto = '';
+    if (auth.contaAtual?.cpf == membro.cpf &&
+        auth.contaAtual!.foto.isNotEmpty) {
+      foto = auth.contaAtual!.foto;
+    } else {
+      foto = pdv.buscarFotoClientePorCpf(membro.cpf) ?? '';
+    }
+
+    final temFoto = foto.isNotEmpty && File(foto).existsSync();
+
+    return _MembroLinhaComHover(
+      builder: (hover) => Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        margin: const EdgeInsets.only(bottom: 8),
+        decoration: BoxDecoration(
+          color: hover
+              ? theme.borderColor.withValues(alpha: 0.18)
+              : Colors.transparent,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(
+            color: hover ? theme.textColor : theme.borderColor,
           ),
-        ],
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 32,
+              height: 32,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(
+                  color: theme.borderColor.withValues(alpha: 0.6),
+                ),
+              ),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(15),
+                child: temFoto
+                    ? Image.file(
+                        File(foto),
+                        width: 32,
+                        height: 32,
+                        fit: BoxFit.cover,
+                        errorBuilder: (context, error, stackTrace) => Icon(
+                          Icons.person,
+                          size: 20,
+                          color: theme.textColor,
+                        ),
+                      )
+                    : Icon(
+                        Icons.person,
+                        size: 20,
+                        color: theme.textColor,
+                      ),
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    membro.nome.isEmpty ? 'Sem nome' : membro.nome,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.getTextStyle(
+                      fontSize: 13,
+                      color: theme.textColor,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    '${_rotuloPapel(membro.papel)} • ${_formatarCpf(membro.cpf)}',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.getTextStyle(
+                      fontSize: 10,
+                      color: theme.secondaryTextColor,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -298,6 +351,28 @@ class _StatusLojaViewState extends State<StatusLojaView> {
           ),
         );
       },
+    );
+  }
+}
+
+class _MembroLinhaComHover extends StatefulWidget {
+  final Widget Function(bool hover) builder;
+
+  const _MembroLinhaComHover({required this.builder});
+
+  @override
+  State<_MembroLinhaComHover> createState() => _MembroLinhaComHoverState();
+}
+
+class _MembroLinhaComHoverState extends State<_MembroLinhaComHover> {
+  bool _hover = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return MouseRegion(
+      onEnter: (_) => setState(() => _hover = true),
+      onExit: (_) => setState(() => _hover = false),
+      child: widget.builder(_hover),
     );
   }
 }

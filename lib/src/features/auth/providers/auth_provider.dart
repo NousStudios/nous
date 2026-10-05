@@ -139,6 +139,30 @@ class AuthProvider extends ChangeNotifier {
     }
   }
 
+  Future<void> atualizarDadosPessoais({
+    String? dataNascimento,
+    String? nomePai,
+    String? nomeMae,
+    String? localNascimento,
+    String? tipoSanguineo,
+    String? estadoCivil,
+  }) async {
+    final conta = _contaAtual;
+    if (conta == null) return;
+
+    final atualizado = conta.copyWith(
+      dataNascimento: dataNascimento,
+      nomePai: nomePai,
+      nomeMae: nomeMae,
+      localNascimento: localNascimento,
+      tipoSanguineo: tipoSanguineo,
+      estadoCivil: estadoCivil,
+    );
+    await ContasNousService.salvar(atualizado);
+    _contaAtual = atualizado;
+    notifyListeners();
+  }
+
   Future<void> recarregarConta() async {
     if (_cpf.isEmpty) return;
     final conta = await ContasNousService.buscarPorCpf(_cpf);
