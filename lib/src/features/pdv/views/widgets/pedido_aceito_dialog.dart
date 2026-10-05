@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:nous/src/core/theme/theme_controller.dart';
 import 'package:nous/src/features/pdv/models/pedido_loja.dart';
@@ -210,9 +212,32 @@ class _PedidoAceitoConteudo extends StatelessWidget {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.stretch,
                             children: [
-                              _linhaComanda(
-                                '${item.quantidade}x ${item.nomeExibicao}',
-                                _valor(item.subtotal),
+                              Row(
+                                crossAxisAlignment: CrossAxisAlignment.center,
+                                children: [
+                                  if (item.foto.isNotEmpty &&
+                                      File(item.foto).existsSync()) ...[
+                                    ClipRRect(
+                                      borderRadius: BorderRadius.circular(4),
+                                      child: Image.file(
+                                        File(item.foto),
+                                        width: 20,
+                                        height: 20,
+                                        fit: BoxFit.cover,
+                                        errorBuilder:
+                                            (context, error, stackTrace) =>
+                                                const SizedBox.shrink(),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 6),
+                                  ],
+                                  Expanded(
+                                    child: _linhaComanda(
+                                      '${item.quantidade}x ${item.nomeExibicao}',
+                                      _valor(item.subtotal),
+                                    ),
+                                  ),
+                                ],
                               ),
                               for (final a in item.acompanhamentos)
                                 _linhaComanda(

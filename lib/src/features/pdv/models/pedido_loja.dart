@@ -82,6 +82,7 @@ class AcompanhamentoEscolhido {
 class ItemVendido {
   final String itemId;
   final String nomeItem;
+  final String foto;
   final String? categoriaId;
   final String? nomeCategoria;
   final double precoItem;
@@ -93,6 +94,7 @@ class ItemVendido {
   const ItemVendido({
     required this.itemId,
     required this.nomeItem,
+    this.foto = '',
     this.categoriaId,
     this.nomeCategoria,
     required this.precoItem,
@@ -101,6 +103,32 @@ class ItemVendido {
     this.acompanhamentos = const [],
     this.observacao = '',
   });
+
+  ItemVendido copyWith({
+    String? itemId,
+    String? nomeItem,
+    String? foto,
+    String? categoriaId,
+    String? nomeCategoria,
+    double? precoItem,
+    double? precoCategoria,
+    int? quantidade,
+    List<AcompanhamentoEscolhido>? acompanhamentos,
+    String? observacao,
+  }) {
+    return ItemVendido(
+      itemId: itemId ?? this.itemId,
+      nomeItem: nomeItem ?? this.nomeItem,
+      foto: foto ?? this.foto,
+      categoriaId: categoriaId ?? this.categoriaId,
+      nomeCategoria: nomeCategoria ?? this.nomeCategoria,
+      precoItem: precoItem ?? this.precoItem,
+      precoCategoria: precoCategoria ?? this.precoCategoria,
+      quantidade: quantidade ?? this.quantidade,
+      acompanhamentos: acompanhamentos ?? this.acompanhamentos,
+      observacao: observacao ?? this.observacao,
+    );
+  }
 
   double get totalDosAcompanhamentosPorUnidade => acompanhamentos.fold<double>(
         0,
@@ -128,6 +156,7 @@ class ItemVendido {
     return {
       'itemId': itemId,
       'nomeItem': nomeItem,
+      'foto': foto,
       'categoriaId': categoriaId,
       'nomeCategoria': nomeCategoria,
       'precoItem': precoItem,
@@ -142,6 +171,7 @@ class ItemVendido {
     return ItemVendido(
       itemId: json['itemId'] as String,
       nomeItem: json['nomeItem'] as String,
+      foto: json['foto'] as String? ?? '',
       categoriaId: json['categoriaId'] as String?,
       nomeCategoria: json['nomeCategoria'] as String?,
       precoItem: (json['precoItem'] as num).toDouble(),

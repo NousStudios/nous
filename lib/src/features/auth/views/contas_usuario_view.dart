@@ -1,15 +1,48 @@
+import 'dart:io';
+
+import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:nous/src/core/theme/theme_controller.dart';
+import 'package:nous/src/features/auth/models/usuario_nous.dart';
 import 'package:nous/src/features/auth/providers/auth_provider.dart';
 import 'package:nous/src/features/auth/views/login_view.dart';
 import 'package:nous/src/features/auth/views/widgets/adicionar_email_dialog.dart';
+import 'package:nous/src/features/auth/views/widgets/ficha_usuario_dialog.dart';
 import 'package:nous/src/features/pdv/providers/pdv_provider.dart';
+import 'package:nous/src/features/pdv/services/imagem_service.dart';
 import 'package:nous/src/features/pdv/views/perfis_pdv_view.dart';
 import 'package:nous/src/features/pdv/views/widgets/estado_vazio_container.dart';
+import 'package:nous/src/features/pdv/views/widgets/opcoes_imagem_dialog.dart';
 
-class ContasUsuarioView extends StatelessWidget {
+class ContasUsuarioView extends StatefulWidget {
   const ContasUsuarioView({super.key});
+
+  @override
+  State<ContasUsuarioView> createState() => _ContasUsuarioViewState();
+}
+
+class _ContasUsuarioViewState extends State<ContasUsuarioView> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _sincronizarFotoSeNecessario();
+    });
+  }
+
+  void _sincronizarFotoSeNecessario() {
+    if (!mounted) return;
+    final auth = context.read<AuthProvider>();
+    final pdv = context.read<PdvProvider>();
+    final conta = auth.contaAtual;
+    if (conta != null && conta.foto.trim().isEmpty) {
+      final fotoCliente = pdv.buscarFotoClientePorCpf(conta.cpf);
+      if (fotoCliente != null && fotoCliente.isNotEmpty) {
+        auth.sincronizarFotoComClienteSeNecessario(fotoCliente);
+      }
+    }
+  }
 
   Future<void> _entrarComEmail(BuildContext context) async {
     final cpf = context.read<AuthProvider>().cpf;
@@ -184,7 +217,7 @@ class ContasUsuarioView extends StatelessWidget {
                         ),
                       ),
                       const SizedBox(height: 4),
-                      _CardConta(theme: theme, nome: conta?.nome ?? ''),
+                      _CardConta(theme: theme, conta: conta),
                       const SizedBox(height: 24),
                       Text(
                         'Contas do usuário',
@@ -257,19 +290,70 @@ class ContasUsuarioView extends StatelessWidget {
 
 class _CardConta extends StatelessWidget {
   final AppTheme theme;
-  final String nome;
+  final UsuarioNous? conta;
 
-  const _CardConta({required this.theme, required this.nome});
+  const _CardConta({required this.theme, required this.conta});
+
+  Future<void> _aoClicarFoto(BuildContext context) async {
+    final c = conta;
+    if (c == null) return;
+    final temFoto = c.foto.isNotEmpty && File(c.foto).existsSync();
+
+    if (temFoto) {
+      await OpcoesImagemDialog.mostrar(
+        context,
+        theme: theme,
+        titulo: 'Foto de Perfil',
+        onEscolherNova: () => _selecionarNovaFoto(context),
+        onRemover: () => _salvarFoto(context, ''),
+      );
+    } else {
+      await _selecionarNovaFoto(context);
+    }
+  }
+
+  Future<void> _selecionarNovaFoto(BuildContext context) async {
+    const typeGroup = XTypeGroup(
+      label: 'Imagens',
+      extensions: <String>['jpg', 'jpeg', 'png', 'webp'],
+    );
+    final file = await openFile(acceptedTypeGroups: <XTypeGroup>[typeGroup]);
+    if (file != null && context.mounted) {
+      final salvo = await ImagemService.salvarImagemLocal(file.path);
+      if (salvo != null && context.mounted) {
+        await _salvarFoto(context, salvo);
+      }
+    }
+  }
+
+  Future<void> _salvarFoto(BuildContext context, String novaFoto) async {
+    final auth = context.read<AuthProvider>();
+    await auth.atualizarFoto(novaFoto);
+    if (!context.mounted) return;
+    context
+        .read<PdvProvider>()
+        .sincronizarFotoUsuarioEmClientes(conta?.cpf ?? '', novaFoto);
+  }
+
+  void _aoClicarCard(BuildContext context) {
+    final c = conta;
+    if (c == null) return;
+    FichaUsuarioDialog.mostrar(
+      context,
+      theme: theme,
+      usuario: c,
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
+    final c = conta;
+    final nome = c?.nome ?? '';
+    final temFoto = c != null && c.foto.isNotEmpty && File(c.foto).existsSync();
+
     return InkWell(
       borderRadius: BorderRadius.circular(12),
-      onTap: () {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Ficha do usuário: em construção')),
-        );
-      },
+      onTap: () => _aoClicarCard(context),
       child: Container(
         width: double.infinity,
         padding: const EdgeInsets.all(20),
@@ -280,14 +364,38 @@ class _CardConta extends StatelessWidget {
         ),
         child: Column(
           children: [
-            Container(
-              width: 72,
-              height: 72,
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: theme.borderColor),
+            GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: () => _aoClicarFoto(context),
+              child: Container(
+                width: 72,
+                height: 72,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: theme.borderColor),
+                ),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(11),
+                  child: temFoto
+                      ? Image.file(
+                          File(c.foto),
+                          width: 72,
+                          height: 72,
+                          fit: BoxFit.cover,
+                          errorBuilder:
+                              (context, error, stackTrace) => Icon(
+                            Icons.person,
+                            size: 40,
+                            color: theme.textColor,
+                          ),
+                        )
+                      : Icon(
+                          Icons.person,
+                          size: 40,
+                          color: theme.textColor,
+                        ),
+                ),
               ),
-              child: Icon(Icons.person, size: 40, color: theme.textColor),
             ),
             const SizedBox(height: 12),
             Text(

@@ -1,5 +1,9 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:nous/src/core/theme/theme_controller.dart';
+import 'package:nous/src/features/pdv/models/cliente.dart';
+import 'package:nous/src/features/pdv/models/item_loja.dart';
 import 'package:nous/src/features/pdv/models/pedido_loja.dart';
 import 'package:nous/src/features/pdv/views/widgets/estado_vazio_container.dart';
 import 'package:nous/src/features/pdv/views/widgets/pedido_aceito_dialog.dart';
@@ -37,6 +41,8 @@ class GestaoLojaContainer extends StatelessWidget {
   final void Function(String pedidoId, DadosComentario dados)?
       aoSalvarComentario;
   final ValueChanged<String>? aoExcluirPedido;
+  final List<Cliente> clientes;
+  final List<ItemLoja> itensDisponiveis;
   final VoidCallback aoNovaVenda;
   final VoidCallback aoClientes;
   final VoidCallback aoRelatorios;
@@ -56,6 +62,8 @@ class GestaoLojaContainer extends StatelessWidget {
     required this.abaPedidos,
     required this.aoTrocarAbaPedidos,
     required this.pedidos,
+    this.clientes = const [],
+    this.itensDisponiveis = const [],
     required this.aoAceitar,
     required this.aoRecusar,
     required this.aoConcluir,
@@ -347,6 +355,88 @@ class GestaoLojaContainer extends StatelessWidget {
     _abrirMenuDoPedido(context, pedido);
   }
 
+  Widget _miniaturaProduto(PedidoLoja pedido, AppTheme theme) {
+    String? fotoEncontrada;
+    for (final item in pedido.itens) {
+      if (item.foto.isNotEmpty && File(item.foto).existsSync()) {
+        fotoEncontrada = item.foto;
+        break;
+      }
+    }
+
+    if (fotoEncontrada == null) {
+      for (final item in pedido.itens) {
+        final itemLoja =
+            itensDisponiveis.where((i) => i.id == item.itemId).firstOrNull;
+        if (itemLoja != null &&
+            itemLoja.imagens.isNotEmpty &&
+            File(itemLoja.imagens.first).existsSync()) {
+          fotoEncontrada = itemLoja.imagens.first;
+          break;
+        }
+      }
+    }
+
+    if (fotoEncontrada != null) {
+      return ClipRRect(
+        borderRadius: BorderRadius.circular(6),
+        child: Image.file(
+          File(fotoEncontrada),
+          width: 26,
+          height: 26,
+          fit: BoxFit.cover,
+          errorBuilder: (context, error, stackTrace) => Icon(
+            Icons.inventory_2_outlined,
+            size: 22,
+            color: theme.textColor,
+          ),
+        ),
+      );
+    }
+
+    return Icon(Icons.inventory_2_outlined, size: 22, color: theme.textColor);
+  }
+
+  Widget _miniaturaCliente(
+      PedidoLoja pedido, AppTheme theme, TextStyle fonteMiuda) {
+    final cliente =
+        clientes.where((c) => c.id == pedido.clienteId).firstOrNull;
+    final temFoto =
+        cliente != null && cliente.foto.isNotEmpty && File(cliente.foto).existsSync();
+
+    return SizedBox(
+      width: 48,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          temFoto
+              ? ClipRRect(
+                  borderRadius: BorderRadius.circular(13),
+                  child: Image.file(
+                    File(cliente.foto),
+                    width: 26,
+                    height: 26,
+                    fit: BoxFit.cover,
+                    errorBuilder: (context, error, stackTrace) => Icon(
+                      Icons.account_circle,
+                      size: 26,
+                      color: theme.textColor,
+                    ),
+                  ),
+                )
+              : Icon(Icons.account_circle, size: 26, color: theme.textColor),
+          Text(
+            pedido.clienteNome,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            textAlign: TextAlign.center,
+            style: fonteMiuda,
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _barraDoPedido(BuildContext context, PedidoLoja pedido) {
     final fonteMiuda = theme.getTextStyle(fontSize: 9);
 
@@ -366,24 +456,9 @@ class GestaoLojaContainer extends StatelessWidget {
       ),
       child: Row(
         children: [
-          SizedBox(
-            width: 48,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(Icons.account_circle, size: 26, color: theme.textColor),
-                Text(
-                  pedido.clienteNome,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  textAlign: TextAlign.center,
-                  style: fonteMiuda,
-                ),
-              ],
-            ),
-          ),
+          _miniaturaCliente(pedido, theme, fonteMiuda),
           const SizedBox(width: 8),
-          Icon(Icons.inventory_2_outlined, size: 22, color: theme.textColor),
+          _miniaturaProduto(pedido, theme),
           const SizedBox(width: 6),
           Expanded(
             child: Text(

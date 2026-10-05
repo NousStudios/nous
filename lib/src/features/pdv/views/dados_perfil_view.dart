@@ -568,6 +568,14 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
     });
     _persistirListasLoja();
 
+    final cpfDigitos = _cpfLogado.replaceAll(RegExp(r'[^0-9]'), '');
+    final clienteDigitos = cliente.cnpj.replaceAll(RegExp(r'[^0-9]'), '');
+    if (cpfDigitos.isNotEmpty &&
+        cpfDigitos == clienteDigitos &&
+        cliente.foto.isNotEmpty) {
+      context.read<AuthProvider>().atualizarFoto(cliente.foto);
+    }
+
     _registrarAcao(
       existia ? TipoAcao.clienteAtualizado : TipoAcao.clienteCriado,
       existia
@@ -2151,6 +2159,8 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
           abaPedidos: _abaPedidos,
           aoTrocarAbaPedidos: (aba) => setState(() => _abaPedidos = aba),
           pedidos: _pedidos,
+          clientes: _clientes,
+          itensDisponiveis: _itens,
           aoAceitar: (id) => _alterarStatusPedido(id, StatusPedido.aceito),
           aoRecusar: _recusarPedido,
           aoConcluir: (id) => _alterarStatusPedido(id, StatusPedido.concluido),

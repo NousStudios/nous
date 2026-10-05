@@ -119,6 +119,33 @@ class AuthProvider extends ChangeNotifier {
     sair();
   }
 
+  Future<void> atualizarFoto(String novaFoto) async {
+    final conta = _contaAtual;
+    if (conta == null) return;
+
+    final atualizado = conta.copyWith(foto: novaFoto);
+    await ContasNousService.salvar(atualizado);
+    _contaAtual = atualizado;
+    notifyListeners();
+  }
+
+  Future<void> sincronizarFotoComClienteSeNecessario(String? fotoCliente) async {
+    final conta = _contaAtual;
+    if (conta == null) return;
+    if (fotoCliente == null || fotoCliente.trim().isEmpty) return;
+
+    if (conta.foto.trim().isEmpty) {
+      await atualizarFoto(fotoCliente.trim());
+    }
+  }
+
+  Future<void> recarregarConta() async {
+    if (_cpf.isEmpty) return;
+    final conta = await ContasNousService.buscarPorCpf(_cpf);
+    _contaAtual = conta;
+    notifyListeners();
+  }
+
   void sair() {
     _cpf = '';
     _errorMessage = null;

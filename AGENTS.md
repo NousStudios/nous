@@ -202,6 +202,10 @@ lib/
 ### 7.1 Autenticação e Perfis (`features/auth`)
 - Login local guiado por CPF com validação de dígitos verificadores.
 - Associação de múltiplos e-mails ao mesmo cadastro, alternância de conta ativa, desconexão e exclusão de conta local.
+- **Foto de Perfil e Identidade Unificada por CPF:**
+  - `UsuarioNous` armazena o campo `foto` persistido com fallback no armazenamento local.
+  - Sincronização automática entre o cadastro de `Cliente` e a conta pessoal: se o usuário cadastrar uma foto para o seu próprio CPF em qualquer loja, o sistema reconhece e sincroniza o perfil pessoal, e vice-versa.
+  - `FichaUsuarioDialog`: Janela modal centralizada acionada ao tocar no card da conta em `ContasUsuarioView` ou no botão de perfil da `CustomAppBar`, consolidando nome, CPF formatado, data de nascimento, e-mails associados e lojas que administra/participa.
 
 ### 7.2 Gestão de Lojas e Permissões (`features/pdv`)
 - Cadastro e edição completa de lojas, categorias, grupos de componentes, itens, clientes e fornecedores — todos com persistência real de imagens (`foto`/`imagens`), sem campos decorativos mortos.
@@ -215,6 +219,7 @@ lib/
 
 ### 7.3 Fluxo de Venda e Pedidos
 - `NovaVendaDialog`: Carrinho de compras em tempo real, seleção de itens, grupos de componentes/adicionais, observações customizadas por item, troco dinâmico e suportes a múltiplas formas de pagamento.
+- **Fotos em Itens Vendidos (`ItemVendido`):** `ItemVendido` persiste o campo `foto`, garantindo que os produtos pedidos exibam suas miniaturas na vitrine, na busca, no carrinho, nas abas `Novos`, `Aceitos` e `Concluídos` do painel de gestão, bem como nas comandas em tela (`ComandaPedido` e `PedidoAceitoDialog`).
 - **Formas de Pagamento Múltiplas:** `PedidoLoja` suporta pagamento único ou múltiplos parciais através de `List<PagamentoParcial>`.
   - **Regra de Ouro:** Sempre utilize o getter `pedido.todosPagamentos` em código novo para garantir retrocompatibilidade com pedidos antigos.
   - Vendas a prazo exigem cliente cadastrado e preenchem automaticamente o saldo restante. Troco só é calculado sobre valores em dinheiro/espécie.

@@ -915,6 +915,7 @@ class _NovaVendaConteudoState extends State<_NovaVendaConteudo> {
       itensVendidos.add(ItemVendido(
         itemId: item.id,
         nomeItem: item.nome,
+        foto: item.imagens.isNotEmpty ? item.imagens.first : '',
         categoriaId: categoria?.id,
         nomeCategoria: categoria?.nome,
         precoItem: _precoComoNumero(item.preco),
@@ -1153,6 +1154,7 @@ class _NovaVendaConteudoState extends State<_NovaVendaConteudo> {
   }
 
   Widget _linhaDeResultado(ItemLoja item) {
+    final temFoto = item.imagens.isNotEmpty && File(item.imagens.first).existsSync();
     return InkWell(
       onTap: () {
         _buscaController.clear();
@@ -1162,6 +1164,28 @@ class _NovaVendaConteudoState extends State<_NovaVendaConteudo> {
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
         child: Row(
           children: [
+            temFoto
+                ? ClipRRect(
+                    borderRadius: BorderRadius.circular(4),
+                    child: Image.file(
+                      File(item.imagens.first),
+                      width: 18,
+                      height: 18,
+                      fit: BoxFit.cover,
+                      errorBuilder:
+                          (context, error, stackTrace) => Icon(
+                        Icons.inventory_2_outlined,
+                        size: 16,
+                        color: theme.secondaryTextColor,
+                      ),
+                    ),
+                  )
+                : Icon(
+                    Icons.inventory_2_outlined,
+                    size: 16,
+                    color: theme.secondaryTextColor,
+                  ),
+            const SizedBox(width: 8),
             Expanded(
               child: Text(
                 item.nome,
@@ -1199,6 +1223,11 @@ class _NovaVendaConteudoState extends State<_NovaVendaConteudo> {
     final subtotalBase = _subtotalBaseDaLinha(linha);
     final precoBase = _precoBaseUnitarioDaLinha(linha);
 
+    final itemOriginal = _buscarItem(linha.itemId);
+    final temFoto = itemOriginal != null &&
+        itemOriginal.imagens.isNotEmpty &&
+        File(itemOriginal.imagens.first).existsSync();
+
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 8),
       child: Column(
@@ -1207,6 +1236,20 @@ class _NovaVendaConteudoState extends State<_NovaVendaConteudo> {
           Row(
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
+              if (temFoto) ...[
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(4),
+                  child: Image.file(
+                    File(itemOriginal.imagens.first),
+                    width: 20,
+                    height: 20,
+                    fit: BoxFit.cover,
+                    errorBuilder: (context, error, stackTrace) =>
+                        const SizedBox.shrink(),
+                  ),
+                ),
+                const SizedBox(width: 8),
+              ],
               Expanded(
                 child: Text(
                   _nomeExibicaoDaLinha(linha),

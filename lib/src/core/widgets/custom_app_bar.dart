@@ -1,10 +1,14 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:nous/src/core/theme/theme_controller.dart';
 import 'package:nous/src/core/theme/theme_customizer_dialog.dart';
 import 'package:nous/src/features/auth/providers/auth_provider.dart';
+import 'package:nous/src/features/auth/views/widgets/ficha_usuario_dialog.dart';
 import 'package:nous/src/features/notificacoes/providers/notificacoes_provider.dart';
 import 'package:nous/src/features/notificacoes/views/widgets/notificacoes_dialog.dart';
+import 'package:nous/src/features/pdv/providers/pdv_provider.dart';
 import 'package:nous/src/features/pdv/views/widgets/backup_dialog.dart';
 
 String _formatarCpf(String cpf) {
@@ -206,54 +210,128 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
                   ),
                   if (mostrarGrupoConta) ...[
                     Divider(color: currentTheme.borderColor),
-                    if (conta != null)
-                      Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 4),
-                        child: Column(
-                          children: [
-                            Text(
-                              conta.nome,
-                              textAlign: TextAlign.center,
-                              style: currentTheme.getTextStyle(
-                                fontSize: 14,
-                                fontWeight: FontWeight.w600,
-                                color: currentTheme.textColor,
-                              ),
-                            ),
-                            const SizedBox(height: 2),
-                            Text(
-                              _formatarCpf(conta.cpf),
-                              textAlign: TextAlign.center,
-                              style:
-                                  currentTheme.getTextStyle(fontSize: 12),
-                            ),
-                            const SizedBox(height: 4),
-                            TextButton.icon(
-                              onPressed: () {
-                                Navigator.pop(context);
-                                BackupDialog.mostrar(
-                                  context,
-                                  theme: currentTheme,
-                                );
-                              },
-                              icon: Icon(
-                                Icons.cloud_sync_outlined,
-                                size: 18,
-                                color: currentTheme.secondaryTextColor,
-                              ),
-                              label: Text(
-                                'Backup dos dados',
-                                style: currentTheme.getTextStyle(
-                                  fontSize: 13,
-                                  color: currentTheme.secondaryTextColor,
-                                ).copyWith(
-                                  decoration: TextDecoration.underline,
+                    if (conta != null) ...[
+                      Builder(builder: (dialogCtx) {
+                        final pdv = dialogCtx.read<PdvProvider>();
+                        if (conta.foto.trim().isEmpty) {
+                          final fotoCliente =
+                              pdv.buscarFotoClientePorCpf(conta.cpf);
+                          if (fotoCliente != null && fotoCliente.isNotEmpty) {
+                            WidgetsBinding.instance.addPostFrameCallback((_) {
+                              authProvider
+                                  .sincronizarFotoComClienteSeNecessario(
+                                      fotoCliente);
+                            });
+                          }
+                        }
+
+                        final temFoto = conta.foto.isNotEmpty &&
+                            File(conta.foto).existsSync();
+
+                        return Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 4),
+                          child: Column(
+                            children: [
+                              InkWell(
+                                borderRadius: BorderRadius.circular(12),
+                                onTap: () {
+                                  Navigator.pop(dialogCtx);
+                                  FichaUsuarioDialog.mostrar(
+                                    dialogCtx,
+                                    theme: currentTheme,
+                                    usuario: conta,
+                                  );
+                                },
+                                child: Padding(
+                                  padding: const EdgeInsets.all(6),
+                                  child: Column(
+                                    children: [
+                                      Container(
+                                        width: 56,
+                                        height: 56,
+                                        decoration: BoxDecoration(
+                                          borderRadius:
+                                              BorderRadius.circular(12),
+                                          border: Border.all(
+                                              color: currentTheme.borderColor),
+                                        ),
+                                        child: ClipRRect(
+                                          borderRadius:
+                                              BorderRadius.circular(11),
+                                          child: temFoto
+                                              ? Image.file(
+                                                  File(conta.foto),
+                                                  width: 56,
+                                                  height: 56,
+                                                  fit: BoxFit.cover,
+                                                  errorBuilder:
+                                                      (context, error,
+                                                              stackTrace) =>
+                                                          Icon(
+                                                    Icons.person,
+                                                    size: 32,
+                                                    color:
+                                                        currentTheme.textColor,
+                                                  ),
+                                                )
+                                              : Icon(
+                                                  Icons.person,
+                                                  size: 32,
+                                                  color:
+                                                      currentTheme.textColor,
+                                                ),
+                                        ),
+                                      ),
+                                      const SizedBox(height: 8),
+                                      Text(
+                                        conta.nome,
+                                        textAlign: TextAlign.center,
+                                        style: currentTheme.getTextStyle(
+                                          fontSize: 14,
+                                          fontWeight: FontWeight.w600,
+                                          color: currentTheme.textColor,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 2),
+                                      Text(
+                                        _formatarCpf(conta.cpf),
+                                        textAlign: TextAlign.center,
+                                        style: currentTheme.getTextStyle(
+                                            fontSize: 12),
+                                      ),
+                                    ],
+                                  ),
                                 ),
                               ),
-                            ),
-                          ],
-                        ),
-                      ),
+                              const SizedBox(height: 4),
+                              TextButton.icon(
+                                onPressed: () {
+                                  Navigator.pop(context);
+                                  BackupDialog.mostrar(
+                                    context,
+                                    theme: currentTheme,
+                                  );
+                                },
+                                icon: Icon(
+                                  Icons.cloud_sync_outlined,
+                                  size: 18,
+                                  color: currentTheme.secondaryTextColor,
+                                ),
+                                label: Text(
+                                  'Backup dos dados',
+                                  style: currentTheme.getTextStyle(
+                                    fontSize: 13,
+                                    color: currentTheme.secondaryTextColor,
+                                  ).copyWith(
+                                    decoration: TextDecoration.underline,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        );
+                      }),
+                    ],
                     if (onLogout != null)
                       ListTile(
                         leading: const Icon(Icons.logout,
@@ -331,6 +409,59 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
     );
   }
 
+  Widget _botaoPerfil(BuildContext context, AppTheme theme) {
+    final conta = context.watch<AuthProvider>().contaAtual;
+    if (conta == null) return const SizedBox.shrink();
+
+    final temFoto = conta.foto.isNotEmpty && File(conta.foto).existsSync();
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 4),
+      child: IconButton(
+        tooltip: 'Meu Perfil',
+        padding: EdgeInsets.zero,
+        constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+        onPressed: () {
+          FichaUsuarioDialog.mostrar(
+            context,
+            theme: theme,
+            usuario: conta,
+          );
+        },
+        icon: Container(
+          width: 28,
+          height: 28,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(
+              color: theme.borderColor.withValues(alpha: 0.6),
+            ),
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(14),
+            child: temFoto
+                ? Image.file(
+                    File(conta.foto),
+                    width: 28,
+                    height: 28,
+                    fit: BoxFit.cover,
+                    errorBuilder: (context, error, stackTrace) => Icon(
+                      Icons.person,
+                      size: 18,
+                      color: theme.textColor,
+                    ),
+                  )
+                : Icon(
+                    Icons.person,
+                    size: 18,
+                    color: theme.secondaryTextColor,
+                  ),
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return ValueListenableBuilder<AppTheme>(
@@ -357,6 +488,7 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
               : null,
           actions: [
             _botaoNotificacoes(context, theme),
+            _botaoPerfil(context, theme),
             IconButton(
               tooltip: 'Configurações',
               icon: Image.asset(

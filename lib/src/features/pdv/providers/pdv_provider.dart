@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/foundation.dart';
 import 'package:nous/src/features/pdv/models/categoria_loja.dart';
 import 'package:nous/src/features/pdv/models/cliente.dart';
@@ -41,6 +43,60 @@ class PdvProvider extends ChangeNotifier {
           (m.papel == PapelMembro.admin ||
               m.papel == PapelMembro.funcionario));
     }).toList();
+  }
+
+  String? buscarFotoClientePorCpf(String cpf) {
+    final digitos = cpf.replaceAll(RegExp(r'[^0-9]'), '');
+    if (digitos.isEmpty) return null;
+    for (final loja in _lojas) {
+      for (final cliente in loja.clientesLoja) {
+        final cDigits = cliente.cnpj.replaceAll(RegExp(r'[^0-9]'), '');
+        if (cDigits == digitos &&
+            cliente.foto.isNotEmpty &&
+            File(cliente.foto).existsSync()) {
+          return cliente.foto;
+        }
+      }
+    }
+    return null;
+  }
+
+  Cliente? buscarClientePorCpf(String cpf) {
+    final digitos = cpf.replaceAll(RegExp(r'[^0-9]'), '');
+    if (digitos.isEmpty) return null;
+    for (final loja in _lojas) {
+      for (final cliente in loja.clientesLoja) {
+        final cDigits = cliente.cnpj.replaceAll(RegExp(r'[^0-9]'), '');
+        if (cDigits == digitos) {
+          return cliente;
+        }
+      }
+    }
+    return null;
+  }
+
+  void sincronizarFotoUsuarioEmClientes(String cpf, String novaFoto) {
+    final digitos = cpf.replaceAll(RegExp(r'[^0-9]'), '');
+    if (digitos.isEmpty) return;
+    for (int i = 0; i < _lojas.length; i++) {
+      final loja = _lojas[i];
+      var alterou = false;
+      final novosClientes = loja.clientesLoja.map((c) {
+        final cDigits = c.cnpj.replaceAll(RegExp(r'[^0-9]'), '');
+        if (cDigits == digitos && c.foto != novaFoto) {
+          alterou = true;
+          return c.copyWith(foto: novaFoto);
+        }
+        return c;
+      }).toList();
+
+      if (alterou) {
+        final atualizada = loja.copyWith(clientesLoja: novosClientes);
+        _lojas[i] = atualizada;
+        _salvarLojaNoCofreCorreto(atualizada);
+      }
+    }
+    notifyListeners();
   }
 
   PapelMembro? meuPapel(String lojaId) {
