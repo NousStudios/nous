@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:nous/src/core/theme/theme_controller.dart';
 import 'package:nous/src/core/widgets/texto_rolante.dart';
@@ -8,6 +10,7 @@ class ItemLojaCard extends StatefulWidget {
   final String nome;
   final String preco;
   final TipoItemLoja? tipo;
+  final String? imagemUrl;
   final VoidCallback onEditar;
   final VoidCallback onExcluir;
   final ValueChanged<String> onNomeAlterado;
@@ -20,6 +23,7 @@ class ItemLojaCard extends StatefulWidget {
     required this.nome,
     required this.preco,
     this.tipo,
+    this.imagemUrl,
     required this.onEditar,
     required this.onExcluir,
     required this.onNomeAlterado,
@@ -125,6 +129,10 @@ class _ItemLojaCardState extends State<ItemLojaCard> {
   }
 
   Widget _buildAreaImagem(AppTheme theme) {
+    final temImagem = widget.imagemUrl != null &&
+        widget.imagemUrl!.isNotEmpty &&
+        File(widget.imagemUrl!).existsSync();
+
     return Container(
       decoration: BoxDecoration(
         color: theme.borderColor.withValues(alpha: 0.06),
@@ -133,10 +141,25 @@ class _ItemLojaCardState extends State<ItemLojaCard> {
       ),
       child: Stack(
         children: [
-          Center(
-            child: Icon(_iconeDoTipo(),
-                size: 30, color: theme.secondaryTextColor),
-          ),
+          if (temImagem)
+            Positioned.fill(
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(8),
+                child: Image.file(
+                  File(widget.imagemUrl!),
+                  fit: BoxFit.cover,
+                  errorBuilder: (context, error, stackTrace) => Center(
+                    child: Icon(_iconeDoTipo(),
+                        size: 30, color: theme.secondaryTextColor),
+                  ),
+                ),
+              ),
+            )
+          else
+            Center(
+              child: Icon(_iconeDoTipo(),
+                  size: 30, color: theme.secondaryTextColor),
+            ),
           Positioned(
             top: 0,
             right: 0,

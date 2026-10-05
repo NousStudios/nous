@@ -847,6 +847,22 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
       theme: ThemeController.currentTheme.value,
       categorias: _categorias,
       gruposComponentes: _gruposComponentes,
+      onCategoriaCriada: (novaCategoria) {
+        setState(() => _categorias.add(novaCategoria));
+        _persistirListasLoja();
+        _registrarAcao(
+          TipoAcao.categoriaCriada,
+          'Categoria "${novaCategoria.nome}" criada pelo cadastro de item',
+        );
+      },
+      onGrupoCriado: (novoGrupo) {
+        setState(() => _gruposComponentes.add(novoGrupo));
+        _persistirListasLoja();
+        _registrarAcao(
+          TipoAcao.grupoCriado,
+          'Grupo de componentes "${novoGrupo.nome}" criado pelo cadastro de item',
+        );
+      },
       onCriar: (item, categoriaIds, grupoIds) {
         setState(() => _itens.add(item));
         _sincronizarVinculosItem(item.id, categoriaIds, grupoIds);
@@ -883,6 +899,22 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
       itemParaEditar: item,
       categoriaIdsIniciais: categoriaIdsIniciais,
       grupoIdsIniciais: grupoIdsIniciais,
+      onCategoriaCriada: (novaCategoria) {
+        setState(() => _categorias.add(novaCategoria));
+        _persistirListasLoja();
+        _registrarAcao(
+          TipoAcao.categoriaCriada,
+          'Categoria "${novaCategoria.nome}" criada pelo cadastro de item',
+        );
+      },
+      onGrupoCriado: (novoGrupo) {
+        setState(() => _gruposComponentes.add(novoGrupo));
+        _persistirListasLoja();
+        _registrarAcao(
+          TipoAcao.grupoCriado,
+          'Grupo de componentes "${novoGrupo.nome}" criado pelo cadastro de item',
+        );
+      },
       onCriar: (itemEditado, categoriaIds, grupoIds) {
         final anterior = _itens.firstWhere(
           (i) => i.id == itemEditado.id,
@@ -1780,6 +1812,8 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
                     nome: item.nome,
                     preco: item.preco,
                     tipo: item.tipo,
+                    imagemUrl:
+                        item.imagens.isNotEmpty ? item.imagens.first : null,
                     podeEditar: podeEditarLoja,
                     onEditar: () => _abrirPopupEditarItem(item),
                     onExcluir: () => _removerItem(item.id),

@@ -4,12 +4,53 @@ enum TipoItemLoja { produto, servico }
 
 enum UnidadeItemLoja { un, g, ml }
 
+class VarianteItem {
+  final String nome;
+  final String preco;
+
+  const VarianteItem({
+    required this.nome,
+    this.preco = '',
+  });
+
+  VarianteItem copyWith({
+    String? nome,
+    String? preco,
+  }) {
+    return VarianteItem(
+      nome: nome ?? this.nome,
+      preco: preco ?? this.preco,
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'nome': nome,
+      'preco': preco,
+    };
+  }
+
+  factory VarianteItem.fromJson(dynamic json) {
+    if (json is String) {
+      return VarianteItem(nome: json);
+    }
+    if (json is Map<String, dynamic>) {
+      return VarianteItem(
+        nome: json['nome'] as String? ?? '',
+        preco: json['preco'] as String? ?? '',
+      );
+    }
+    return const VarianteItem(nome: '');
+  }
+}
+
 class ItemLoja {
   final String id;
   final String nome;
   final TipoItemLoja? tipo;
   final String preco;
-  final List<String> variantes;
+  final List<VarianteItem> variantes;
+  final List<String> imagens;
   final String descricao;
   final bool possuiDelivery;
   final String freteGratisAte;
@@ -24,6 +65,7 @@ class ItemLoja {
     this.tipo,
     this.preco = '',
     this.variantes = const [],
+    this.imagens = const [],
     this.descricao = '',
     this.possuiDelivery = false,
     this.freteGratisAte = '',
@@ -37,7 +79,8 @@ class ItemLoja {
     required String nome,
     TipoItemLoja? tipo,
     String preco = '',
-    List<String> variantes = const [],
+    List<VarianteItem> variantes = const [],
+    List<String> imagens = const [],
     String descricao = '',
     bool possuiDelivery = false,
     String freteGratisAte = '',
@@ -52,6 +95,7 @@ class ItemLoja {
       tipo: tipo,
       preco: preco,
       variantes: variantes,
+      imagens: imagens,
       descricao: descricao,
       possuiDelivery: possuiDelivery,
       freteGratisAte: freteGratisAte,
@@ -66,7 +110,8 @@ class ItemLoja {
     String? nome,
     TipoItemLoja? tipo,
     String? preco,
-    List<String>? variantes,
+    List<VarianteItem>? variantes,
+    List<String>? imagens,
     String? descricao,
     bool? possuiDelivery,
     String? freteGratisAte,
@@ -81,6 +126,7 @@ class ItemLoja {
       tipo: tipo ?? this.tipo,
       preco: preco ?? this.preco,
       variantes: variantes ?? this.variantes,
+      imagens: imagens ?? this.imagens,
       descricao: descricao ?? this.descricao,
       possuiDelivery: possuiDelivery ?? this.possuiDelivery,
       freteGratisAte: freteGratisAte ?? this.freteGratisAte,
@@ -97,7 +143,8 @@ class ItemLoja {
       'nome': nome,
       'tipo': tipo?.name,
       'preco': preco,
-      'variantes': variantes,
+      'variantes': variantes.map((v) => v.toJson()).toList(),
+      'imagens': imagens,
       'descricao': descricao,
       'possuiDelivery': possuiDelivery,
       'freteGratisAte': freteGratisAte,
@@ -125,7 +172,10 @@ class ItemLoja {
           : TipoItemLoja.values.firstWhere((t) => t.name == tipoTexto),
       preco: json['preco'] as String? ?? '',
       variantes: (json['variantes'] as List<dynamic>? ?? const [])
-          .map((item) => item as String)
+          .map((item) => VarianteItem.fromJson(item))
+          .toList(),
+      imagens: (json['imagens'] as List<dynamic>? ?? const [])
+          .map((item) => item.toString())
           .toList(),
       descricao: json['descricao'] as String? ?? '',
       possuiDelivery: json['possuiDelivery'] as bool? ?? false,

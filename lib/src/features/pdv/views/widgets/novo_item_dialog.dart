@@ -1,9 +1,29 @@
+import 'dart:io';
+
+import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
 import 'package:nous/src/core/theme/theme_controller.dart';
 import 'package:nous/src/core/widgets/themed_text_field.dart';
 import 'package:nous/src/features/pdv/models/categoria_loja.dart';
 import 'package:nous/src/features/pdv/models/grupo_componentes_loja.dart';
 import 'package:nous/src/features/pdv/models/item_loja.dart';
+import 'package:nous/src/features/pdv/services/imagem_service.dart';
+import 'package:nous/src/features/pdv/views/widgets/nova_categoria_dialog.dart';
+import 'package:nous/src/features/pdv/views/widgets/novo_grupo_componentes_dialog.dart';
+
+class _VarianteFormControllers {
+  final TextEditingController nomeController;
+  final TextEditingController precoController;
+
+  _VarianteFormControllers({String nome = '', String preco = ''})
+      : nomeController = TextEditingController(text: nome),
+        precoController = TextEditingController(text: preco);
+
+  void dispose() {
+    nomeController.dispose();
+    precoController.dispose();
+  }
+}
 
 class NovoItemDialog extends StatefulWidget {
   final AppTheme theme;
@@ -12,6 +32,8 @@ class NovoItemDialog extends StatefulWidget {
   final ItemLoja? itemParaEditar;
   final List<String> categoriaIdsIniciais;
   final List<String> grupoIdsIniciais;
+  final void Function(CategoriaLoja)? onCategoriaCriada;
+  final void Function(GrupoComponentesLoja)? onGrupoCriado;
   final void Function(
     ItemLoja item,
     List<String> categoriaIds,
@@ -26,6 +48,8 @@ class NovoItemDialog extends StatefulWidget {
     this.itemParaEditar,
     this.categoriaIdsIniciais = const [],
     this.grupoIdsIniciais = const [],
+    this.onCategoriaCriada,
+    this.onGrupoCriado,
     required this.onCriar,
   });
 
@@ -37,6 +61,8 @@ class NovoItemDialog extends StatefulWidget {
     ItemLoja? itemParaEditar,
     List<String> categoriaIdsIniciais = const [],
     List<String> grupoIdsIniciais = const [],
+    void Function(CategoriaLoja)? onCategoriaCriada,
+    void Function(GrupoComponentesLoja)? onGrupoCriado,
     required void Function(
       ItemLoja item,
       List<String> categoriaIds,
@@ -52,6 +78,8 @@ class NovoItemDialog extends StatefulWidget {
         itemParaEditar: itemParaEditar,
         categoriaIdsIniciais: categoriaIdsIniciais,
         grupoIdsIniciais: grupoIdsIniciais,
+        onCategoriaCriada: onCategoriaCriada,
+        onGrupoCriado: onGrupoCriado,
         onCriar: onCriar,
       ),
     );
@@ -74,12 +102,19 @@ class _NovoItemDialogState extends State<NovoItemDialog> {
   bool _possuiDelivery = false;
   UnidadeItemLoja _unidadeBase = UnidadeItemLoja.un;
 
+  late final List<CategoriaLoja> _categorias = List.from(widget.categorias);
+  late final List<GrupoComponentesLoja> _grupos =
+      List.from(widget.gruposComponentes);
+
   late final Set<String> _categoriasSelecionadas =
       widget.categoriaIdsIniciais.toSet();
   late final Set<String> _gruposSelecionados =
       widget.grupoIdsIniciais.toSet();
 
-  final List<TextEditingController> _variantesControllers = [];
+  late final List<String> _imagens =
+      List.from(widget.itemParaEditar?.imagens ?? []);
+
+  final List<_VarianteFormControllers> _variantesControllers = [];
 
   @override
   void initState() {
@@ -103,7 +138,12 @@ class _NovoItemDialogState extends State<NovoItemDialog> {
     _consumoController.text = _formatarNumero(item.consumoPorVenda);
 
     for (final variante in item.variantes) {
-      _variantesControllers.add(TextEditingController(text: variante));
+      _variantesControllers.add(
+        _VarianteFormControllers(
+          nome: variante.nome,
+          preco: variante.preco,
+        ),
+      );
     }
   }
 
@@ -137,7 +177,7 @@ class _NovoItemDialogState extends State<NovoItemDialog> {
   }
 
   void _adicionarCampoVariante() {
-    setState(() => _variantesControllers.add(TextEditingController()));
+    setState(() => _variantesControllers.add(_VarianteFormControllers()));
   }
 
   void _removerCampoVariante(int index) {
@@ -147,10 +187,57 @@ class _NovoItemDialogState extends State<NovoItemDialog> {
     });
   }
 
+  Future<void> _selecionarFotos() async {
+    const grupo = XTypeGroup(
+      label: 'Imagens',
+      extensions: ['jpg', 'jpeg', 'png', 'webp'],
+    );
+
+    final arquivos = await openFiles(acceptedTypeGroups: const [grupo]);
+    if (arquivos.isEmpty) return;
+
+    var ignorados = 0;
+
+    for (final arquivo in arquivos) {
+      final salvo = await ImagemService.salvarImagemLocal(arquivo.path);
+      if (salvo != null) {
+        if (!_imagens.contains(salvo)) {
+          _imagens.add(salvo);
+        }
+      } else {
+        ignorados++;
+      }
+    }
+
+    if (mounted) {
+      setState(() {});
+      if (ignorados > 0) {
+        final theme = widget.theme;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            backgroundColor: theme.cardBackgroundColor,
+            content: Text(
+              '$ignorados imagem(ns) foram ignoradas por tamanho superior a 5MB ou formato inválido.',
+              style: theme.getTextStyle(color: Colors.redAccent),
+            ),
+          ),
+        );
+      }
+    }
+  }
+
+  void _removerFoto(int index) {
+    setState(() {
+      _imagens.removeAt(index);
+    });
+  }
+
   void _abrirSeletorMultiplo({
     required String titulo,
     required Map<String, String> opcoes,
     required Set<String> selecionados,
+    VoidCallback? onCriarNovo,
+    String? textoCriarNovo,
   }) {
     final theme = widget.theme;
 
@@ -175,46 +262,75 @@ class _NovoItemDialogState extends State<NovoItemDialog> {
                 ),
               ),
               content: SizedBox(
-                width: 280,
-                child: opcoes.isEmpty
-                    ? Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 12),
-                        child: Text(
-                          'Nenhuma opção disponível ainda.',
-                          textAlign: TextAlign.center,
-                          style: theme.getTextStyle(
-                            fontSize: 13,
-                            color: theme.secondaryTextColor,
+                width: 300,
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (onCriarNovo != null) ...[
+                        OutlinedButton.icon(
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: theme.textColor,
+                            side: BorderSide(
+                              color: theme.borderColor.withValues(alpha: 0.8),
+                            ),
+                            minimumSize: const Size(double.infinity, 40),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                          ),
+                          onPressed: () {
+                            onCriarNovo();
+                            setDialogState(() {});
+                          },
+                          icon: Icon(Icons.add, size: 16, color: theme.textColor),
+                          label: Text(
+                            textoCriarNovo ?? 'Criar novo',
+                            style: theme.getTextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                            ),
                           ),
                         ),
-                      )
-                    : SingleChildScrollView(
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            for (final entrada in opcoes.entries)
-                              CheckboxListTile(
-                                value: selecionados.contains(entrada.key),
-                                title:
-                                    Text(entrada.value, style: theme.getTextStyle()),
-                                activeColor: theme.buttonColor,
-                                checkColor: theme.buttonTextColor,
-                                controlAffinity:
-                                    ListTileControlAffinity.leading,
-                                onChanged: (marcado) {
-                                  setDialogState(() {
-                                    if (marcado == true) {
-                                      selecionados.add(entrada.key);
-                                    } else {
-                                      selecionados.remove(entrada.key);
-                                    }
-                                  });
-                                  setState(() {});
-                                },
-                              ),
-                          ],
-                        ),
-                      ),
+                        const SizedBox(height: 12),
+                      ],
+                      if (opcoes.isEmpty)
+                        Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          child: Text(
+                            'Nenhuma opção cadastrada ainda.\nClique acima para criar.',
+                            textAlign: TextAlign.center,
+                            style: theme.getTextStyle(
+                              fontSize: 13,
+                              color: theme.secondaryTextColor,
+                            ),
+                          ),
+                        )
+                      else
+                        for (final entrada in opcoes.entries)
+                          CheckboxListTile(
+                            value: selecionados.contains(entrada.key),
+                            title: Text(
+                              entrada.value,
+                              style: theme.getTextStyle(fontSize: 14),
+                            ),
+                            activeColor: theme.buttonColor,
+                            checkColor: theme.buttonTextColor,
+                            controlAffinity: ListTileControlAffinity.leading,
+                            onChanged: (marcado) {
+                              setDialogState(() {
+                                if (marcado == true) {
+                                  selecionados.add(entrada.key);
+                                } else {
+                                  selecionados.remove(entrada.key);
+                                }
+                              });
+                              setState(() {});
+                            },
+                          ),
+                    ],
+                  ),
+                ),
               ),
               actionsAlignment: MainAxisAlignment.center,
               actions: [
@@ -229,6 +345,36 @@ class _NovoItemDialogState extends State<NovoItemDialog> {
             );
           },
         );
+      },
+    );
+  }
+
+  void _abrirCriarNovaCategoria() {
+    NovaCategoriaDialog.mostrar(
+      context,
+      theme: widget.theme,
+      gruposComponentes: _grupos,
+      onCriar: (novaCategoria) {
+        setState(() {
+          _categorias.add(novaCategoria);
+          _categoriasSelecionadas.add(novaCategoria.id);
+        });
+        widget.onCategoriaCriada?.call(novaCategoria);
+      },
+    );
+  }
+
+  void _abrirCriarNovoGrupo() {
+    NovoGrupoComponentesDialog.mostrar(
+      context,
+      theme: widget.theme,
+      itensDisponiveis: const [],
+      onCriar: (novoGrupo) {
+        setState(() {
+          _grupos.add(novoGrupo);
+          _gruposSelecionados.add(novoGrupo.id);
+        });
+        widget.onGrupoCriado?.call(novoGrupo);
       },
     );
   }
@@ -316,13 +462,153 @@ class _NovoItemDialogState extends State<NovoItemDialog> {
     }
   }
 
+  Widget _buildEspacoFotos(AppTheme theme) {
+    return Container(
+      width: double.infinity,
+      height: 130,
+      decoration: BoxDecoration(
+        color: theme.backgroundColor.withValues(alpha: 0.4),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: theme.borderColor.withValues(alpha: 0.6)),
+      ),
+      child: _imagens.isEmpty
+          ? Material(
+              color: Colors.transparent,
+              child: InkWell(
+                borderRadius: BorderRadius.circular(12),
+                onTap: _selecionarFotos,
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      Icons.add_photo_alternate_outlined,
+                      color: theme.secondaryTextColor,
+                      size: 38,
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      'Clique para adicionar fotos',
+                      style: theme.getTextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.bold,
+                        color: theme.textColor,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      'JPG, PNG ou WEBP (máx. 5MB cada)',
+                      style: theme.getTextStyle(
+                        fontSize: 11,
+                        color: theme.secondaryTextColor,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            )
+          : Padding(
+              padding: const EdgeInsets.all(8.0),
+              child: ListView.separated(
+                scrollDirection: Axis.horizontal,
+                itemCount: _imagens.length + 1,
+                separatorBuilder: (context, index) => const SizedBox(width: 8),
+                itemBuilder: (context, index) {
+                  if (index == _imagens.length) {
+                    return Container(
+                      width: 90,
+                      decoration: BoxDecoration(
+                        color: theme.cardBackgroundColor.withValues(alpha: 0.5),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(
+                          color: theme.borderColor.withValues(alpha: 0.5),
+                        ),
+                      ),
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(10),
+                        onTap: _selecionarFotos,
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              Icons.add_a_photo_outlined,
+                              color: theme.textColor,
+                              size: 24,
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              '+ Foto',
+                              style: theme.getTextStyle(
+                                fontSize: 11,
+                                color: theme.textColor,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  }
+
+                  final caminho = _imagens[index];
+                  return Stack(
+                    children: [
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(10),
+                        child: Container(
+                          width: 110,
+                          height: double.infinity,
+                          color: theme.cardBackgroundColor,
+                          child: Image.file(
+                            File(caminho),
+                            fit: BoxFit.cover,
+                            errorBuilder: (context, error, stackTrace) =>
+                                Center(
+                              child: Icon(
+                                Icons.broken_image_outlined,
+                                color: theme.secondaryTextColor,
+                                size: 28,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                      Positioned(
+                        top: 4,
+                        right: 4,
+                        child: GestureDetector(
+                          onTap: () => _removerFoto(index),
+                          child: Container(
+                            decoration: BoxDecoration(
+                              color: Colors.black54,
+                              shape: BoxShape.circle,
+                            ),
+                            padding: const EdgeInsets.all(3),
+                            child: const Icon(
+                              Icons.close,
+                              color: Colors.white,
+                              size: 14,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  );
+                },
+              ),
+            ),
+    );
+  }
+
   void _criar() {
     final nome = _nomeController.text.trim();
     if (nome.isEmpty) return;
 
     final variantes = _variantesControllers
-        .map((controller) => controller.text.trim())
-        .where((texto) => texto.isNotEmpty)
+        .map((c) => VarianteItem(
+              nome: c.nomeController.text.trim(),
+              preco: c.precoController.text.trim(),
+            ))
+        .where((v) => v.nome.isNotEmpty)
         .toList();
 
     final itemExistente = widget.itemParaEditar;
@@ -334,6 +620,7 @@ class _NovoItemDialogState extends State<NovoItemDialog> {
             tipo: _tipo,
             preco: _precoController.text.trim(),
             variantes: variantes,
+            imagens: _imagens,
             descricao: _descricaoController.text.trim(),
             possuiDelivery: _possuiDelivery,
             freteGratisAte: _freteGratisAteController.text.trim(),
@@ -347,6 +634,7 @@ class _NovoItemDialogState extends State<NovoItemDialog> {
             tipo: _tipo,
             preco: _precoController.text.trim(),
             variantes: variantes,
+            imagens: _imagens,
             descricao: _descricaoController.text.trim(),
             possuiDelivery: _possuiDelivery,
             freteGratisAte: _freteGratisAteController.text.trim(),
@@ -373,17 +661,17 @@ class _NovoItemDialogState extends State<NovoItemDialog> {
     final larguraPopup = larguraTela < 380 ? larguraTela * 0.9 : 340.0;
 
     final opcoesCategorias = {
-      for (final categoria in widget.categorias) categoria.id: categoria.nome,
+      for (final categoria in _categorias) categoria.id: categoria.nome,
     };
     final opcoesGrupos = {
-      for (final grupo in widget.gruposComponentes) grupo.id: grupo.nome,
+      for (final grupo in _grupos) grupo.id: grupo.nome,
     };
 
-    final nomesCategoriasSelecionadas = widget.categorias
+    final nomesCategoriasSelecionadas = _categorias
         .where((c) => _categoriasSelecionadas.contains(c.id))
         .map((c) => c.nome)
         .join(', ');
-    final nomesGruposSelecionados = widget.gruposComponentes
+    final nomesGruposSelecionados = _grupos
         .where((g) => _gruposSelecionados.contains(g.id))
         .map((g) => g.nome)
         .join(', ');
@@ -410,20 +698,7 @@ class _NovoItemDialogState extends State<NovoItemDialog> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Container(
-                width: 80,
-                height: 80,
-                decoration: BoxDecoration(
-                  color: theme.cardBackgroundColor,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: theme.borderColor),
-                ),
-                child: Icon(
-                  Icons.image_outlined,
-                  color: theme.secondaryTextColor,
-                  size: 32,
-                ),
-              ),
+              _buildEspacoFotos(theme),
               const SizedBox(height: 16),
 
               ThemedTextField(
@@ -498,6 +773,8 @@ class _NovoItemDialogState extends State<NovoItemDialog> {
                   titulo: 'Categorias do item',
                   opcoes: opcoesCategorias,
                   selecionados: _categoriasSelecionadas,
+                  onCriarNovo: _abrirCriarNovaCategoria,
+                  textoCriarNovo: '+ Nova Categoria',
                 ),
               ),
               const SizedBox(height: 12),
@@ -509,27 +786,55 @@ class _NovoItemDialogState extends State<NovoItemDialog> {
                   titulo: 'Grupos de componentes',
                   opcoes: opcoesGrupos,
                   selecionados: _gruposSelecionados,
+                  onCriarNovo: _abrirCriarNovoGrupo,
+                  textoCriarNovo: '+ Novo Grupo de Componentes',
                 ),
               ),
               const SizedBox(height: 16),
 
               for (var i = 0; i < _variantesControllers.length; i++) ...[
-                Row(
-                  children: [
-                    Expanded(
-                      child: ThemedTextField(
-                        theme: theme,
-                        controller: _variantesControllers[i],
-                        label: 'Variante ${i + 1}',
+                Container(
+                  margin: const EdgeInsets.only(bottom: 8),
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: theme.backgroundColor.withValues(alpha: 0.25),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(
+                      color: theme.borderColor.withValues(alpha: 0.4),
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        flex: 3,
+                        child: ThemedTextField(
+                          theme: theme,
+                          controller: _variantesControllers[i].nomeController,
+                          label: 'Variante ${i + 1} (ex: G, 500ml)',
+                        ),
                       ),
-                    ),
-                    IconButton(
-                      icon: Icon(Icons.close, color: theme.secondaryTextColor),
-                      onPressed: () => _removerCampoVariante(i),
-                    ),
-                  ],
+                      const SizedBox(width: 8),
+                      Expanded(
+                        flex: 2,
+                        child: ThemedTextField(
+                          theme: theme,
+                          controller: _variantesControllers[i].precoController,
+                          label: 'Preço (R\$)',
+                          tipoDeTeclado: TextInputType.number,
+                        ),
+                      ),
+                      IconButton(
+                        icon: const Icon(
+                          Icons.close,
+                          color: Colors.redAccent,
+                          size: 20,
+                        ),
+                        tooltip: 'Remover variante',
+                        onPressed: () => _removerCampoVariante(i),
+                      ),
+                    ],
+                  ),
                 ),
-                const SizedBox(height: 8),
               ],
 
               OutlinedButton.icon(
