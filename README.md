@@ -1,3 +1,11 @@
+<a id="english"></a>
+
+<p align="left">
+  <a href="#english"><img src="https://raw.githubusercontent.com/lipis/flag-icons/main/flags/4x3/us.svg" alt="English" width="24" /></a>
+  &nbsp;
+  <a href="#portugues"><img src="https://raw.githubusercontent.com/lipis/flag-icons/main/flags/4x3/br.svg" alt="Português do Brasil" width="24" /></a>
+</p>
+
 # Nous
 
 **The State in the hands of the people, as software.**
@@ -184,10 +192,17 @@ pull request. Unity of theory, unity of tactics: read the book before you
 argue about the politics, but the code speaks for itself.
 
 
+---
 
+<a id="portugues"></a>
 
+<p align="left">
+  <a href="#english"><img src="https://raw.githubusercontent.com/lipis/flag-icons/main/flags/4x3/us.svg" alt="English" width="24" /></a>
+  &nbsp;
+  <a href="#portugues"><img src="https://raw.githubusercontent.com/lipis/flag-icons/main/flags/4x3/br.svg" alt="Português do Brasil" width="24" /></a>
+</p>
 
-##  <img src="https://raw.githubusercontent.com/lipis/flag-icons/main/flags/4x3/br.svg" alt="Brasil" width="20" /> PORTUGUÊS DO BRASIL  <img src="https://raw.githubusercontent.com/lipis/flag-icons/main/flags/4x3/br.svg" alt="Brasil" width="20" /> ## 
+## <img src="https://raw.githubusercontent.com/lipis/flag-icons/main/flags/4x3/br.svg" alt="Brasil" width="20" /> PORTUGUÊS DO BRASIL ##
 
 
 
