@@ -671,7 +671,7 @@ class ImpressaoService {
     required PedidoLoja pedido,
     required String rodape,
     Cliente? cliente,
-    List<String> camposClienteComanda = kCamposClienteComanda,
+    List<String> camposClienteComanda = kCamposClienteComandaPadrao,
   }) async {
     final doc = pw.Document();
 

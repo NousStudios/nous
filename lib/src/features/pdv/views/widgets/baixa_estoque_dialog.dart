@@ -196,6 +196,10 @@ class _BaixaEstoqueConteudoState extends State<_BaixaEstoqueConteudo> {
     Navigator.of(context).pop(null);
   }
 
+  void _naoBaixar() {
+    Navigator.of(context).pop(const <MovimentoEstoque>[]);
+  }
+
   void _aplicar() {
     final movimentos = <MovimentoEstoque>[];
     for (final linha in _linhas) {
@@ -438,7 +442,7 @@ class _BaixaEstoqueConteudoState extends State<_BaixaEstoqueConteudo> {
                       borderRadius: BorderRadius.circular(10),
                     ),
                   ),
-                  onPressed: _cancelar,
+                  onPressed: _naoBaixar,
                   child: Text(
                     'Não baixar agora',
                     style: theme.getTextStyle(fontSize: 13),

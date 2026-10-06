@@ -83,7 +83,14 @@ class _ImpressoraConteudoState extends State<_ImpressoraConteudo> {
     _nomeImpressoraController = TextEditingController(text: c.nomeImpressora);
     _tamanhoFonte = c.tamanhoFonte;
     _tipoConexao = c.tipoConexao;
-    _camposClienteComanda = List.of(c.camposClienteComanda);
+    final camposConfig = c.camposClienteComanda;
+    final ehPadraoAntigoCompleto = !c.camposClientePersonalizados &&
+        camposConfig.length == kCamposClienteComanda.length &&
+        kCamposClienteComanda.every((ch) => camposConfig.contains(ch));
+
+    _camposClienteComanda = ehPadraoAntigoCompleto
+        ? List.of(kCamposClienteComandaPadrao)
+        : List.of(camposConfig);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _carregarImpressoras();
     });
@@ -537,6 +544,7 @@ class _ImpressoraConteudoState extends State<_ImpressoraConteudo> {
       enderecoRede: _enderecoRedeController.text.trim(),
       nomeImpressora: _nomeImpressoraController.text.trim(),
       camposClienteComanda: List.of(_camposClienteComanda),
+      camposClientePersonalizados: true,
     );
 
     widget.onSalvar(novas);
@@ -569,6 +577,7 @@ class _ImpressoraConteudoState extends State<_ImpressoraConteudo> {
           enderecoRede: _enderecoRedeController.text.trim(),
           nomeImpressora: nome,
           camposClienteComanda: List.of(_camposClienteComanda),
+          camposClientePersonalizados: true,
         ),
       );
       if (!mounted) return;

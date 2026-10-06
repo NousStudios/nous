@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:nous/src/core/theme/theme_controller.dart';
 import 'package:nous/src/features/pdv/models/cliente.dart';
+import 'package:nous/src/features/pdv/models/configuracoes_impressora.dart';
 import 'package:nous/src/features/pdv/models/pedido_loja.dart';
 
 String _doisDigitos(int n) => n.toString().padLeft(2, '0');
@@ -30,14 +31,7 @@ class ComandaPedido extends StatelessWidget {
     this.largura = 320,
     this.mostrarTitulo = true,
     this.cliente,
-    this.camposClienteComanda = const [
-      'cnpj',
-      'telefone',
-      'endereco',
-      'email',
-      'redesSociais',
-      'descricao',
-    ],
+    this.camposClienteComanda = kCamposClienteComandaPadrao,
   });
 
   BoxDecoration get _decoracaoDoBloco => BoxDecoration(

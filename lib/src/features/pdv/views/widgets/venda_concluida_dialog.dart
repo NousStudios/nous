@@ -78,8 +78,15 @@ class _VendaConcluidaConteudoState extends State<_VendaConcluidaConteudo> {
   @override
   void initState() {
     super.initState();
-    _camposClienteComanda =
-        List.of(widget.configuracoesImpressora.camposClienteComanda);
+    final config = widget.configuracoesImpressora;
+    final configCampos = config.camposClienteComanda;
+    final ehPadraoAntigoCompleto = !config.camposClientePersonalizados &&
+        configCampos.length == kCamposClienteComanda.length &&
+        kCamposClienteComanda.every((ch) => configCampos.contains(ch));
+
+    _camposClienteComanda = ehPadraoAntigoCompleto
+        ? List.of(kCamposClienteComandaPadrao)
+        : List.of(configCampos);
   }
 
   Future<void> _imprimir() async {

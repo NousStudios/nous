@@ -387,6 +387,20 @@ class _NovaVendaConteudoState extends State<_NovaVendaConteudo> {
         .toList();
   }
 
+  bool _deveMostrarCampoCliente(String chave) {
+    final config = widget.configuracoesImpressora;
+    final configCampos = config.camposClienteComanda;
+    final ehPadraoAntigoCompleto = !config.camposClientePersonalizados &&
+        configCampos.length == kCamposClienteComanda.length &&
+        kCamposClienteComanda.every((ch) => configCampos.contains(ch));
+
+    final camposAtivos = ehPadraoAntigoCompleto
+        ? kCamposClienteComandaPadrao
+        : configCampos;
+
+    return camposAtivos.contains(chave);
+  }
+
   String _montarComanda() {
     const colunas = 40;
     const duplo = '========================================';
@@ -413,25 +427,29 @@ class _NovaVendaConteudoState extends State<_NovaVendaConteudo> {
     buffer.writeln('Cliente: ${_clienteController.text.trim()}');
     final c = _clienteSelecionado;
     if (c != null) {
-      if (c.cnpj.trim().isNotEmpty) {
+      if (_deveMostrarCampoCliente('cnpj') && c.cnpj.trim().isNotEmpty) {
         buffer.writeln('CNPJ: ${c.cnpj.trim()}');
       }
-      if (c.telefone.trim().isNotEmpty) {
+      if (_deveMostrarCampoCliente('telefone') && c.telefone.trim().isNotEmpty) {
         buffer.writeln('Telefone: ${c.telefone.trim()}');
       }
-      final endereco = c.endereco.trim();
-      final numero = c.numero.trim();
-      if (endereco.isNotEmpty) {
-        final completo = numero.isEmpty ? endereco : '$endereco, $numero';
-        buffer.writeln('Endereco: $completo');
+      if (_deveMostrarCampoCliente('endereco')) {
+        final endereco = c.endereco.trim();
+        final numero = c.numero.trim();
+        if (endereco.isNotEmpty) {
+          final completo = numero.isEmpty ? endereco : '$endereco, $numero';
+          buffer.writeln('Endereco: $completo');
+        } else if (numero.isNotEmpty) {
+          buffer.writeln('Numero: $numero');
+        }
       }
-      if (c.email.trim().isNotEmpty) {
+      if (_deveMostrarCampoCliente('email') && c.email.trim().isNotEmpty) {
         buffer.writeln('Email: ${c.email.trim()}');
       }
-      if (c.redesSociais.trim().isNotEmpty) {
+      if (_deveMostrarCampoCliente('redesSociais') && c.redesSociais.trim().isNotEmpty) {
         buffer.writeln('Redes sociais: ${c.redesSociais.trim()}');
       }
-      if (c.descricao.trim().isNotEmpty) {
+      if (_deveMostrarCampoCliente('descricao') && c.descricao.trim().isNotEmpty) {
         buffer.writeln('Descricao: ${c.descricao.trim()}');
       }
     }
@@ -1513,39 +1531,39 @@ class _NovaVendaConteudoState extends State<_NovaVendaConteudo> {
                                 ? '-'
                                 : _clienteController.text.trim()),
                         if (_clienteSelecionado != null) ...[
-                          if (_clienteSelecionado!
-                              .cnpj.trim()
-                              .isNotEmpty)
+                          if (_deveMostrarCampoCliente('cnpj') &&
+                              _clienteSelecionado!.cnpj.trim().isNotEmpty)
                             _linhaComanda(
                                 'CNPJ', _clienteSelecionado!.cnpj.trim()),
-                          if (_clienteSelecionado!
-                              .telefone.trim()
-                              .isNotEmpty)
+                          if (_deveMostrarCampoCliente('telefone') &&
+                              _clienteSelecionado!.telefone.trim().isNotEmpty)
                             _linhaComanda('Telefone',
                                 _clienteSelecionado!.telefone.trim()),
-                          if (_clienteSelecionado!
-                              .endereco.trim()
-                              .isNotEmpty)
-                            _linhaComanda(
-                              'Endereço',
-                              _clienteSelecionado!.numero.trim().isEmpty
-                                  ? _clienteSelecionado!.endereco.trim()
-                                  : '${_clienteSelecionado!.endereco.trim()}, '
-                                      '${_clienteSelecionado!.numero.trim()}',
-                            ),
-                          if (_clienteSelecionado!
-                              .email.trim()
-                              .isNotEmpty)
+                          if (_deveMostrarCampoCliente('endereco')) ...[
+                            if (_clienteSelecionado!.endereco.trim().isNotEmpty)
+                              _linhaComanda(
+                                'Endereço',
+                                _clienteSelecionado!.numero.trim().isEmpty
+                                    ? _clienteSelecionado!.endereco.trim()
+                                    : '${_clienteSelecionado!.endereco.trim()}, '
+                                        '${_clienteSelecionado!.numero.trim()}',
+                              )
+                            else if (_clienteSelecionado!.numero.trim().isNotEmpty)
+                              _linhaComanda(
+                                'Número',
+                                _clienteSelecionado!.numero.trim(),
+                              ),
+                          ],
+                          if (_deveMostrarCampoCliente('email') &&
+                              _clienteSelecionado!.email.trim().isNotEmpty)
                             _linhaComanda(
                                 'Email', _clienteSelecionado!.email.trim()),
-                          if (_clienteSelecionado!
-                              .redesSociais.trim()
-                              .isNotEmpty)
+                          if (_deveMostrarCampoCliente('redesSociais') &&
+                              _clienteSelecionado!.redesSociais.trim().isNotEmpty)
                             _linhaComanda('Redes sociais',
                                 _clienteSelecionado!.redesSociais.trim()),
-                          if (_clienteSelecionado!
-                              .descricao.trim()
-                              .isNotEmpty)
+                          if (_deveMostrarCampoCliente('descricao') &&
+                              _clienteSelecionado!.descricao.trim().isNotEmpty)
                             _linhaComanda('Descrição',
                                 _clienteSelecionado!.descricao.trim()),
                         ],
