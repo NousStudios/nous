@@ -374,40 +374,15 @@ class _FichaUsuarioConteudoState extends State<_FichaUsuarioConteudo> {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      const SizedBox(width: 44),
-                      Text(
-                        'Dados Pessoais',
-                        textAlign: TextAlign.center,
-                        style: theme.getTextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w600,
-                          color: theme.textColor,
-                        ),
-                      ),
-                      if (!_editandoDados)
-                        InkWell(
-                          onTap: () => _iniciarEdicao(contaAtualizada),
-                          borderRadius: BorderRadius.circular(6),
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 6, vertical: 2),
-                            child: Text(
-                              'Editar',
-                              style: theme.getTextStyle(
-                                fontSize: 11,
-                                color: theme.buttonColor,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ),
-                        )
-                      else
-                        const SizedBox(width: 44),
-                    ],
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: Text(
+                    'Dados Pessoais',
+                    textAlign: TextAlign.center,
+                    style: theme.getTextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: theme.textColor,
+                    ),
                   ),
                 ),
                 if (_editandoDados) ...[
@@ -480,6 +455,32 @@ class _FichaUsuarioConteudoState extends State<_FichaUsuarioConteudo> {
                     if (clienteMesmoCpf.redesSociais.isNotEmpty)
                       _linhaInfo('Redes sociais', clienteMesmoCpf.redesSociais),
                   ],
+                  const SizedBox(height: 10),
+                  Center(
+                    child: OutlinedButton.icon(
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: theme.textColor,
+                        side: BorderSide(color: theme.borderColor),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 18, vertical: 10),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                      ),
+                      onPressed: () => _iniciarEdicao(contaAtualizada),
+                      icon: Icon(Icons.edit_outlined,
+                          size: 16, color: theme.textColor),
+                      label: Text(
+                        'Editar dados pessoais',
+                        style: theme.getTextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: theme.textColor,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 4),
                 ],
               ],
             ),

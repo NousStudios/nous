@@ -101,6 +101,18 @@ class UsuariosParticipantesContainer extends StatelessWidget {
   void _confirmarRemocao(BuildContext context, MembroLoja membro) {
     final ehVoce = membro.cpf == cpfLogado;
 
+    final meuMembro = membros.firstWhere(
+      (m) => m.cpf == cpfLogado,
+      orElse: () => MembroLoja(
+        cpf: cpfLogado,
+        nome: '',
+        papel: PapelMembro.funcionario,
+        desde: DateTime.now(),
+      ),
+    );
+    final souDono = meuMembro.papel == PapelMembro.dono;
+    final ehOutroDono = !ehVoce && souDono && membro.papel == PapelMembro.dono;
+
     if (!ehVoce) {
       final ehUltimoDono = membro.papel == PapelMembro.dono &&
           membros.where((m) => m.papel == PapelMembro.dono).length <= 1;
@@ -109,21 +121,45 @@ class UsuariosParticipantesContainer extends StatelessWidget {
         return;
       }
     } else {
-      final souDono = membro.papel == PapelMembro.dono;
+      final souDonoOriginal = membro.papel == PapelMembro.dono;
       final quantidadeDonos =
           membros.where((m) => m.papel == PapelMembro.dono).length;
       final outros = membros.where((m) => m.cpf != cpfLogado).toList();
-      if (souDono && quantidadeDonos <= 1 && outros.isNotEmpty) {
+      if (souDonoOriginal && quantidadeDonos <= 1 && outros.isNotEmpty) {
         _avisar(
           context,
           'Você é o único dono. A posse passará para outro membro ao sair.',
         );
-      } else if (souDono && outros.isEmpty) {
+      } else if (souDonoOriginal && outros.isEmpty) {
         _avisar(
           context,
           'Você é o único dono e não há outros membros. A loja será excluída.',
         );
       }
+    }
+
+    final String titulo;
+    final String mensagem;
+    final String botaoTexto;
+    final Color botaoCor;
+
+    if (ehVoce) {
+      titulo = 'Sair da loja';
+      mensagem = 'Tem certeza que deseja sair da loja?';
+      botaoTexto = 'Sair';
+      botaoCor = Colors.redAccent;
+    } else if (ehOutroDono) {
+      titulo = 'Solicitar saída de dono';
+      mensagem =
+          'Como "${membro.nome}" também é Dono(a), a saída da loja exige o seu consentimento. Deseja enviar uma solicitação para que ele(a) concorde em sair?';
+      botaoTexto = 'Enviar solicitação';
+      botaoCor = theme.textColor;
+    } else {
+      titulo = 'Remover membro';
+      mensagem =
+          'Remover "${membro.nome}" da loja? Ele(a) receberá uma notificação informando sobre a remoção.';
+      botaoTexto = 'Remover';
+      botaoCor = Colors.redAccent;
     }
 
     showDialog<void>(
@@ -136,7 +172,7 @@ class UsuariosParticipantesContainer extends StatelessWidget {
             side: BorderSide(color: theme.borderColor),
           ),
           title: Text(
-            ehVoce ? 'Sair da loja' : 'Remover membro',
+            titulo,
             textAlign: TextAlign.center,
             style: theme.getTextStyle(
               fontSize: 18,
@@ -145,9 +181,7 @@ class UsuariosParticipantesContainer extends StatelessWidget {
             ),
           ),
           content: Text(
-            ehVoce
-                ? 'Tem certeza que deseja sair da loja?'
-                : 'Remover "${membro.nome}" da loja?',
+            mensagem,
             textAlign: TextAlign.center,
             style: theme.getTextStyle(fontSize: 14),
           ),
@@ -170,8 +204,8 @@ class UsuariosParticipantesContainer extends StatelessWidget {
                 }
               },
               child: Text(
-                ehVoce ? 'Sair' : 'Remover',
-                style: theme.getTextStyle(color: Colors.redAccent),
+                botaoTexto,
+                style: theme.getTextStyle(color: botaoCor),
               ),
             ),
           ],
@@ -258,16 +292,34 @@ class UsuariosParticipantesContainer extends StatelessWidget {
   Widget _linhaDeMembro(BuildContext context, MembroLoja membro) {
     final ehVoce = membro.cpf == cpfLogado;
     final podeEditarPapel = podeGerenciar && !ehVoce;
-    final podeExcluir = podeGerenciar || ehVoce;
+
+    final meuMembro = membros.firstWhere(
+      (m) => m.cpf == cpfLogado,
+      orElse: () => MembroLoja(
+        cpf: cpfLogado,
+        nome: '',
+        papel: PapelMembro.funcionario,
+        desde: DateTime.now(),
+      ),
+    );
+    final souDono = meuMembro.papel == PapelMembro.dono;
+    final souSocio = meuMembro.papel == PapelMembro.socio;
+
+    bool podeExcluir = false;
+    if (ehVoce) {
+      podeExcluir = true;
+    } else if (souDono) {
+      podeExcluir = true;
+    } else if (souSocio) {
+      podeExcluir = membro.papel == PapelMembro.admin ||
+          membro.papel == PapelMembro.funcionario;
+    }
 
     final auth = context.watch<AuthProvider>();
     final pdv = context.watch<PdvProvider>();
 
-    String foto = '';
-    if (auth.contaAtual?.cpf == membro.cpf &&
-        auth.contaAtual!.foto.isNotEmpty) {
-      foto = auth.contaAtual!.foto;
-    } else {
+    String foto = auth.buscarFotoPorCpf(membro.cpf);
+    if (foto.isEmpty) {
       foto = pdv.buscarFotoClientePorCpf(membro.cpf) ?? '';
     }
 
@@ -354,7 +406,11 @@ class UsuariosParticipantesContainer extends StatelessWidget {
               ),
             if (podeExcluir)
               IconButton(
-                tooltip: ehVoce ? 'Sair da loja' : 'Remover',
+                tooltip: ehVoce
+                    ? 'Sair da loja'
+                    : (souDono && membro.papel == PapelMembro.dono)
+                        ? 'Solicitar saída de dono'
+                        : 'Remover',
                 icon: const Icon(
                   Icons.delete_outline,
                   size: 18,

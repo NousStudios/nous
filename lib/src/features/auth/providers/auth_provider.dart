@@ -4,11 +4,16 @@ import 'package:nous/src/features/auth/services/contas_nous_service.dart';
 import 'package:nous/src/features/auth/services/cpf_validator.dart';
 
 class AuthProvider extends ChangeNotifier {
+  AuthProvider() {
+    carregarCacheContas();
+  }
+
   String _cpf = '';
   String? _errorMessage;
   bool _carregando = false;
   UsuarioNous? _contaAtual;
   String? _emailAtivo;
+  Map<String, String> _fotosPorCpf = {};
 
   String get cpf => _cpf;
   String? get errorMessage => _errorMessage;
@@ -17,6 +22,24 @@ class AuthProvider extends ChangeNotifier {
   String? get emailAtivo => _emailAtivo;
 
   bool get isValid => CpfValidator.isValid(_cpf);
+
+  Future<void> carregarCacheContas() async {
+    final todas = await ContasNousService.carregarTodas();
+    _fotosPorCpf = {
+      for (final c in todas)
+        if (c.foto.trim().isNotEmpty) c.cpf: c.foto.trim(),
+    };
+    notifyListeners();
+  }
+
+  String buscarFotoPorCpf(String cpf) {
+    if (_contaAtual != null &&
+        _contaAtual!.cpf == cpf &&
+        _contaAtual!.foto.trim().isNotEmpty) {
+      return _contaAtual!.foto.trim();
+    }
+    return _fotosPorCpf[cpf] ?? '';
+  }
 
   void updateCpf(String rawInput) {
     _cpf = CpfValidator.onlyDigits(rawInput);
@@ -126,6 +149,7 @@ class AuthProvider extends ChangeNotifier {
     final atualizado = conta.copyWith(foto: novaFoto);
     await ContasNousService.salvar(atualizado);
     _contaAtual = atualizado;
+    _fotosPorCpf[conta.cpf] = novaFoto;
     notifyListeners();
   }
 

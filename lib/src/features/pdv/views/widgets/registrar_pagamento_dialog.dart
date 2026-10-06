@@ -323,11 +323,8 @@ class _RegistrarPagamentoConteudoState
                         items: widget.membros.map((m) {
                           final auth = context.watch<AuthProvider>();
                           final pdv = context.watch<PdvProvider>();
-                          String foto = '';
-                          if (auth.contaAtual?.cpf == m.cpf &&
-                              auth.contaAtual!.foto.isNotEmpty) {
-                            foto = auth.contaAtual!.foto;
-                          } else {
+                          String foto = auth.buscarFotoPorCpf(m.cpf);
+                          if (foto.isEmpty) {
                             foto = pdv.buscarFotoClientePorCpf(m.cpf) ?? '';
                           }
                           final temFoto =
@@ -390,11 +387,8 @@ class _RegistrarPagamentoConteudoState
                           return widget.membros.map((m) {
                             final auth = context.read<AuthProvider>();
                             final pdv = context.read<PdvProvider>();
-                            String foto = '';
-                            if (auth.contaAtual?.cpf == m.cpf &&
-                                auth.contaAtual!.foto.isNotEmpty) {
-                              foto = auth.contaAtual!.foto;
-                            } else {
+                            String foto = auth.buscarFotoPorCpf(m.cpf);
+                            if (foto.isEmpty) {
                               foto = pdv.buscarFotoClientePorCpf(m.cpf) ?? '';
                             }
                             final temFoto =

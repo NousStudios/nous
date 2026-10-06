@@ -214,11 +214,8 @@ class _StatusLojaViewState extends State<StatusLojaView> {
     final auth = context.watch<AuthProvider>();
     final pdv = context.watch<PdvProvider>();
 
-    String foto = '';
-    if (auth.contaAtual?.cpf == membro.cpf &&
-        auth.contaAtual!.foto.isNotEmpty) {
-      foto = auth.contaAtual!.foto;
-    } else {
+    String foto = auth.buscarFotoPorCpf(membro.cpf);
+    if (foto.isEmpty) {
       foto = pdv.buscarFotoClientePorCpf(membro.cpf) ?? '';
     }
 

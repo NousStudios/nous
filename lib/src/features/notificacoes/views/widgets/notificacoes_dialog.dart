@@ -76,6 +76,30 @@ class _NotificacoesConteudo extends StatelessWidget {
       return;
     }
 
+    if (convite.tipo == TipoNotificacao.remocaoLoja) {
+      await notificacoes.aceitar(convite.id);
+      if (!context.mounted) return;
+      await pdv.entrarComCpf(conta.cpf);
+      return;
+    }
+
+    if (convite.tipo == TipoNotificacao.solicitacaoExclusaoDono) {
+      await pdv.sairDaLoja(convite.lojaId);
+      if (!context.mounted) return;
+      await notificacoes.aceitar(convite.id);
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          backgroundColor: theme.cardBackgroundColor,
+          content: Text(
+            'Você concordou com a saída e não faz mais parte da loja "${convite.nomeLoja}".',
+            style: theme.getTextStyle(color: theme.textColor),
+          ),
+        ),
+      );
+      return;
+    }
+
     final cofreDoDono =
         await LojasService.carregar(convite.cpfConvidante);
     if (!context.mounted) return;
@@ -97,6 +121,40 @@ class _NotificacoesConteudo extends StatelessWidget {
     final cpfDonoOriginal = lojaOriginal.cpfDonoOriginal.isEmpty
         ? convite.cpfConvidante
         : lojaOriginal.cpfDonoOriginal;
+
+    if (convite.tipo == TipoNotificacao.alteracaoPapel) {
+      final novosMembros = lojaOriginal.membros.map((m) {
+        return m.cpf == conta.cpf ? m.copyWith(papel: convite.papel) : m;
+      }).toList();
+
+      final lojaAtualizada = lojaOriginal.copyWith(
+        cpfDonoOriginal: cpfDonoOriginal,
+        membros: novosMembros,
+      );
+
+      final cofreAtualizado = cofreDoDono
+          .map((l) => l.id == lojaAtualizada.id ? lojaAtualizada : l)
+          .toList();
+      await LojasService.salvar(cpfDonoOriginal, cofreAtualizado);
+      if (!context.mounted) return;
+
+      await notificacoes.aceitar(convite.id);
+      if (!context.mounted) return;
+
+      await pdv.entrarComCpf(conta.cpf);
+      if (!context.mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          backgroundColor: theme.cardBackgroundColor,
+          content: Text(
+            'Seu papel na loja "${convite.nomeLoja}" foi alterado para ${_rotuloPapel(convite.papel)}.',
+            style: theme.getTextStyle(color: theme.textColor),
+          ),
+        ),
+      );
+      return;
+    }
 
     final jaMembro =
         lojaOriginal.membros.any((m) => m.cpf == conta.cpf);
@@ -155,6 +213,37 @@ class _NotificacoesConteudo extends StatelessWidget {
   }
 
   Widget _linhaConvite(BuildContext context, AppTheme theme, ConviteLoja c) {
+    final String titulo;
+    final String descricao;
+    final bool ehAvisoInformativo;
+
+    switch (c.tipo) {
+      case TipoNotificacao.alteracaoPapel:
+        titulo = 'Solicitação de ${c.nomeConvidante}';
+        descricao =
+            'Alteração do seu papel em "${c.nomeLoja}" para ${_rotuloPapel(c.papel)}';
+        ehAvisoInformativo = false;
+        break;
+      case TipoNotificacao.solicitacaoExclusaoDono:
+        titulo = 'Solicitação de saída por ${c.nomeConvidante}';
+        descricao =
+            '${c.nomeConvidante} solicitou a sua saída da loja "${c.nomeLoja}". Como você é Dono(a), sua saída depende do seu consentimento.';
+        ehAvisoInformativo = false;
+        break;
+      case TipoNotificacao.remocaoLoja:
+        titulo = 'Aviso de remoção';
+        descricao =
+            'Você foi removido(a) da loja "${c.nomeLoja}" por ${c.nomeConvidante}.';
+        ehAvisoInformativo = true;
+        break;
+      case TipoNotificacao.conviteEntrada:
+        titulo = 'Convite de ${c.nomeConvidante}';
+        descricao =
+            'Para entrar em "${c.nomeLoja}" como ${_rotuloPapel(c.papel)}';
+        ehAvisoInformativo = false;
+        break;
+    }
+
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       margin: const EdgeInsets.only(bottom: 8),
@@ -166,7 +255,7 @@ class _NotificacoesConteudo extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Convite de ${c.nomeConvidante}',
+            titulo,
             style: theme.getTextStyle(
               fontSize: 13,
               fontWeight: FontWeight.w600,
@@ -175,7 +264,7 @@ class _NotificacoesConteudo extends StatelessWidget {
           ),
           const SizedBox(height: 4),
           Text(
-            'Para entrar em "${c.nomeLoja}" como ${_rotuloPapel(c.papel)}',
+            descricao,
             style: theme.getTextStyle(fontSize: 12),
           ),
           const SizedBox(height: 2),
@@ -190,27 +279,40 @@ class _NotificacoesConteudo extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.end,
             children: [
-              TextButton(
-                onPressed: () => _recusar(context, c),
-                child: Text(
-                  'Recusar',
-                  style: theme.getTextStyle(
-                    fontSize: 12,
-                    color: Colors.redAccent,
+              if (ehAvisoInformativo)
+                TextButton(
+                  onPressed: () => _aceitar(context, c),
+                  child: Text(
+                    'Entendido',
+                    style: theme.getTextStyle(
+                      fontSize: 12,
+                      color: theme.textColor,
+                    ),
+                  ),
+                )
+              else ...[
+                TextButton(
+                  onPressed: () => _recusar(context, c),
+                  child: Text(
+                    'Recusar',
+                    style: theme.getTextStyle(
+                      fontSize: 12,
+                      color: Colors.redAccent,
+                    ),
                   ),
                 ),
-              ),
-              const SizedBox(width: 4),
-              TextButton(
-                onPressed: () => _aceitar(context, c),
-                child: Text(
-                  'Aceitar',
-                  style: theme.getTextStyle(
-                    fontSize: 12,
-                    color: theme.textColor,
+                const SizedBox(width: 4),
+                TextButton(
+                  onPressed: () => _aceitar(context, c),
+                  child: Text(
+                    'Aceitar',
+                    style: theme.getTextStyle(
+                      fontSize: 12,
+                      color: theme.textColor,
+                    ),
                   ),
                 ),
-              ),
+              ],
             ],
           ),
         ],

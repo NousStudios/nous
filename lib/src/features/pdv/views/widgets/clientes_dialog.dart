@@ -7,7 +7,7 @@ import 'package:nous/src/core/theme/theme_controller.dart';
 import 'package:nous/src/core/widgets/themed_text_field.dart';
 import 'package:nous/src/features/pdv/models/cliente.dart';
 import 'package:nous/src/features/pdv/models/pedido_loja.dart';
-import 'package:nous/src/features/pdv/services/cnpj_input_formatter.dart';
+import 'package:nous/src/features/pdv/services/cnpj_ou_cpf_input_formatter.dart';
 import 'package:nous/src/features/pdv/services/imagem_service.dart';
 import 'package:nous/src/features/pdv/services/telefone_input_formatter.dart';
 import 'package:nous/src/features/pdv/views/widgets/estado_vazio_container.dart';
@@ -505,9 +505,9 @@ class _ClientesConteudoState extends State<_ClientesConteudo> {
                 child: ThemedTextField(
                   theme: theme,
                   controller: _cnpjController,
-                  label: 'CNPJ',
+                  label: 'CNPJ ou CPF',
                   tipoDeTeclado: TextInputType.number,
-                  formatadores: [CnpjInputFormatter()],
+                  formatadores: [CpfOuCnpjInputFormatter()],
                 ),
               ),
               const SizedBox(width: 12),

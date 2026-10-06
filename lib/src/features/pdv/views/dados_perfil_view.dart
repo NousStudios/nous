@@ -222,14 +222,76 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
       ),
     );
 
-    await context.read<PdvProvider>().removerMembro(widget.lojaId, cpf);
+    final auth = context.read<AuthProvider>();
+    final autor = auth.contaAtual;
+    if (membro == null || autor == null || loja == null) return;
+
+    final notificacoes = context.read<NotificacoesProvider>();
+    final pdv = context.read<PdvProvider>();
+
+    // Se o membro alvo for outro Dono, não remove diretamente: envia solicitação de consentimento
+    if (membro.papel == PapelMembro.dono && membro.cpf != autor.cpf) {
+      final notificacao = ConviteLoja(
+        id: DateTime.now().millisecondsSinceEpoch.toString(),
+        cpfConvidante: autor.cpf,
+        nomeConvidante: autor.nome,
+        cpfConvidado: membro.cpf,
+        lojaId: loja.id,
+        nomeLoja: loja.nome,
+        papel: PapelMembro.dono,
+        dataHora: DateTime.now(),
+        tipo: TipoNotificacao.solicitacaoExclusaoDono,
+      );
+
+      await notificacoes.enviarConvite(notificacao);
+      if (!mounted) return;
+      _avisar(
+        'Solicitação de saída enviada para ${membro.nome}. Como se trata de um dono, exige consentimento.',
+      );
+      _registrarAcao(
+        TipoAcao.membroRemovido,
+        'Solicitação de saída do dono "${membro.nome}" enviada para consentimento',
+      );
+      return;
+    }
+
+    // Remoção direta (Dono removendo Sócio/Admin/Funcionario OU Sócio removendo Admin/Funcionario)
+    await pdv.removerMembro(widget.lojaId, cpf);
+    if (!mounted) return;
     setState(() {
       _membros = _membros.where((m) => m.cpf != cpf).toList();
     });
 
+    // Enviar notificação avisando o membro removido
+    final notificacaoRemocao = ConviteLoja(
+      id: DateTime.now().millisecondsSinceEpoch.toString(),
+      cpfConvidante: autor.cpf,
+      nomeConvidante: autor.nome,
+      cpfConvidado: membro.cpf,
+      lojaId: loja.id,
+      nomeLoja: loja.nome,
+      papel: membro.papel,
+      dataHora: DateTime.now(),
+      tipo: TipoNotificacao.remocaoLoja,
+    );
+    await notificacoes.enviarConvite(notificacaoRemocao);
+
     _registrarAcao(
       TipoAcao.membroRemovido,
-      'Membro "${membro?.nome ?? ''}" removido da loja',
+      'Membro "${membro.nome}" removido da loja por "${autor.nome}"',
+    );
+  }
+
+  void _avisar(String mensagem) {
+    final theme = ThemeController.currentTheme.value;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        backgroundColor: theme.cardBackgroundColor,
+        content: Text(
+          mensagem,
+          style: theme.getTextStyle(color: theme.textColor),
+        ),
+      ),
     );
   }
 
@@ -244,6 +306,38 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
         desde: DateTime.now(),
       ),
     );
+
+    // Um sócio não pode ter seu papel alterado sem seu consentimento.
+    if (membro != null &&
+        membro.papel == PapelMembro.socio &&
+        papel != PapelMembro.socio) {
+      final auth = context.read<AuthProvider>();
+      final conta = auth.contaAtual;
+      if (conta != null) {
+        final notificacao = ConviteLoja(
+          id: DateTime.now().millisecondsSinceEpoch.toString(),
+          cpfConvidante: conta.cpf,
+          nomeConvidante: conta.nome,
+          cpfConvidado: membro.cpf,
+          lojaId: widget.lojaId,
+          nomeLoja: loja?.nome ?? '',
+          papel: papel,
+          dataHora: DateTime.now(),
+          tipo: TipoNotificacao.alteracaoPapel,
+        );
+
+        await context.read<NotificacoesProvider>().enviarConvite(notificacao);
+        if (!mounted) return;
+        _avisar(
+          'Solicitação enviada para ${membro.nome}. A alteração de papel exige o consentimento do sócio.',
+        );
+        _registrarAcao(
+          TipoAcao.papelAlterado,
+          'Solicitação de alteração de papel de "${membro.nome}" enviada para consentimento',
+        );
+        return;
+      }
+    }
 
     await context.read<PdvProvider>().atualizarPapelMembro(
           widget.lojaId,

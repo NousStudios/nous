@@ -7,7 +7,7 @@ class ContasNousService {
 
   static const String _chave = 'nous_contas_cpf';
 
-  static Future<List<UsuarioNous>> _carregarTodas() async {
+  static Future<List<UsuarioNous>> carregarTodas() async {
     final prefs = await SharedPreferences.getInstance();
     final texto = prefs.getString(_chave);
     if (texto == null || texto.isEmpty) return [];
@@ -25,7 +25,7 @@ class ContasNousService {
   }
 
   static Future<UsuarioNous?> buscarPorCpf(String cpf) async {
-    final contas = await _carregarTodas();
+    final contas = await carregarTodas();
     for (final conta in contas) {
       if (conta.cpf == cpf) return conta;
     }
@@ -33,7 +33,7 @@ class ContasNousService {
   }
 
   static Future<String?> buscarCpfDoEmail(String email) async {
-    final contas = await _carregarTodas();
+    final contas = await carregarTodas();
     for (final conta in contas) {
       if (conta.emails.contains(email)) return conta.cpf;
     }
@@ -41,7 +41,7 @@ class ContasNousService {
   }
 
   static Future<void> salvar(UsuarioNous conta) async {
-    final contas = await _carregarTodas();
+    final contas = await carregarTodas();
     final indice = contas.indexWhere((c) => c.cpf == conta.cpf);
     if (indice == -1) {
       contas.add(conta);
@@ -52,7 +52,7 @@ class ContasNousService {
   }
 
   static Future<void> excluir(String cpf) async {
-    final contas = await _carregarTodas();
+    final contas = await carregarTodas();
     contas.removeWhere((c) => c.cpf == cpf);
     await _salvarTodas(contas);
   }
