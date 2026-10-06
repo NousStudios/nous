@@ -8,6 +8,7 @@ import 'package:nous/src/features/pdv/models/item_loja.dart';
 import 'package:nous/src/features/pdv/models/mesa_loja.dart';
 import 'package:nous/src/features/pdv/views/widgets/estado_vazio_container.dart';
 import 'package:nous/src/features/pdv/views/widgets/mesas/adicionar_item_mesa_dialog.dart';
+import 'package:nous/src/features/pdv/views/widgets/mesas/transferir_mesa_dialog.dart';
 
 String _doisDigitos(int n) => n.toString().padLeft(2, '0');
 
@@ -27,6 +28,8 @@ class ComandaMesaDialog extends StatefulWidget {
   final ValueChanged<MesaLoja> aoAtualizarMesa;
   final ValueChanged<MesaLoja> aoFecharConta;
   final ValueChanged<MesaLoja>? aoImprimirConferencia;
+  final List<MesaLoja> todasMesas;
+  final void Function(MesaLoja mesaOrigem, MesaLoja mesaDestino)? aoTransferirMesa;
   final VoidCallback? aoEditarMesa;
 
   const ComandaMesaDialog({
@@ -35,11 +38,13 @@ class ComandaMesaDialog extends StatefulWidget {
     required this.mesa,
     required this.itensDisponiveis,
     this.gruposDisponiveis = const [],
+    this.todasMesas = const [],
     required this.autorCpf,
     required this.autorNome,
     required this.aoAtualizarMesa,
     required this.aoFecharConta,
     this.aoImprimirConferencia,
+    this.aoTransferirMesa,
     this.aoEditarMesa,
   });
 
@@ -49,11 +54,13 @@ class ComandaMesaDialog extends StatefulWidget {
     required MesaLoja mesa,
     required List<ItemLoja> itensDisponiveis,
     List<GrupoComponentesLoja> gruposDisponiveis = const [],
+    List<MesaLoja> todasMesas = const [],
     required String autorCpf,
     required String autorNome,
     required ValueChanged<MesaLoja> aoAtualizarMesa,
     required ValueChanged<MesaLoja> aoFecharConta,
     ValueChanged<MesaLoja>? aoImprimirConferencia,
+    void Function(MesaLoja mesaOrigem, MesaLoja mesaDestino)? aoTransferirMesa,
     VoidCallback? aoEditarMesa,
   }) {
     return showDialog<void>(
@@ -73,6 +80,7 @@ class ComandaMesaDialog extends StatefulWidget {
               mesa: mesa,
               itensDisponiveis: itensDisponiveis,
               gruposDisponiveis: gruposDisponiveis,
+              todasMesas: todasMesas,
               autorCpf: autorCpf,
               autorNome: autorNome,
               aoAtualizarMesa: (m) {
@@ -83,6 +91,7 @@ class ComandaMesaDialog extends StatefulWidget {
                 aoFecharConta(m);
               },
               aoImprimirConferencia: aoImprimirConferencia,
+              aoTransferirMesa: aoTransferirMesa,
               aoEditarMesa: aoEditarMesa == null
                   ? null
                   : () {
@@ -211,6 +220,20 @@ class _ComandaMesaDialogState extends State<ComandaMesaDialog> {
         widget.aoAtualizarMesa(mesaAtualizada);
       }
     });
+  }
+
+  Future<void> _abrirTransferenciaMesa() async {
+    if (widget.aoTransferirMesa == null) return;
+    final mesaDestino = await TransferirMesaDialog.mostrar(
+      context,
+      theme: widget.theme,
+      mesaOrigem: _mesa,
+      todasMesas: widget.todasMesas,
+    );
+    if (mesaDestino != null && mounted) {
+      Navigator.of(context).pop();
+      widget.aoTransferirMesa!(_mesa, mesaDestino);
+    }
   }
 
   Widget _conteudoMesaLivre() {
@@ -558,6 +581,21 @@ class _ComandaMesaDialogState extends State<ComandaMesaDialog> {
               ),
             ),
             const SizedBox(width: 8),
+            if (widget.aoTransferirMesa != null && widget.todasMesas.length > 1) ...[
+              IconButton(
+                style: IconButton.styleFrom(
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10),
+                    side: BorderSide(color: widget.theme.borderColor),
+                  ),
+                ),
+                icon: Icon(Icons.swap_horiz_rounded,
+                    size: 20, color: widget.theme.textColor),
+                tooltip: 'Transferir Mesa',
+                onPressed: _mesa.itens.isEmpty ? null : _abrirTransferenciaMesa,
+              ),
+              const SizedBox(width: 8),
+            ],
             if (widget.aoImprimirConferencia != null) ...[
               IconButton(
                 style: IconButton.styleFrom(

@@ -8,6 +8,8 @@ import 'package:nous/src/features/auth/providers/auth_provider.dart';
 import 'package:nous/src/features/auth/views/widgets/ficha_usuario_dialog.dart';
 import 'package:nous/src/features/notificacoes/providers/notificacoes_provider.dart';
 import 'package:nous/src/features/notificacoes/views/widgets/notificacoes_dialog.dart';
+import 'package:nous/src/core/services/atualizacao_service.dart';
+import 'package:nous/src/core/widgets/atualizacao_dialog.dart';
 import 'package:nous/src/features/pdv/providers/pdv_provider.dart';
 import 'package:nous/src/features/pdv/views/widgets/backup_dialog.dart';
 
@@ -206,7 +208,10 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
                         color: currentTheme.secondaryTextColor),
                     title: Text('Sobre o App',
                         style: currentTheme.getTextStyle()),
-                    onTap: () {},
+                    onTap: () {
+                      Navigator.pop(context);
+                      AtualizacaoDialog.mostrar(context);
+                    },
                   ),
                   if (mostrarGrupoConta) ...[
                     Divider(color: currentTheme.borderColor),
@@ -421,6 +426,43 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
     );
   }
 
+  Widget _botaoAtualizacoes(BuildContext context, AppTheme theme) {
+    return ValueListenableBuilder<bool>(
+      valueListenable: AtualizacaoService.temAtualizacao,
+      builder: (context, temAtualizacao, child) {
+        if (!temAtualizacao) return const SizedBox.shrink();
+
+        return Stack(
+          clipBehavior: Clip.none,
+          alignment: Alignment.center,
+          children: [
+            IconButton(
+              tooltip: 'Nova Atualização Disponível!',
+              icon: Icon(
+                Icons.system_update_alt_rounded,
+                color: theme.textColor,
+                size: 22,
+              ),
+              onPressed: () => AtualizacaoDialog.mostrar(context),
+            ),
+            Positioned(
+              top: 8,
+              right: 8,
+              child: Container(
+                width: 8,
+                height: 8,
+                decoration: const BoxDecoration(
+                  color: Colors.redAccent,
+                  shape: BoxShape.circle,
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return ValueListenableBuilder<AppTheme>(
@@ -447,6 +489,7 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
               : null,
           actions: [
             _botaoNotificacoes(context, theme),
+            _botaoAtualizacoes(context, theme),
             IconButton(
               tooltip: 'Configurações',
               icon: Image.asset(

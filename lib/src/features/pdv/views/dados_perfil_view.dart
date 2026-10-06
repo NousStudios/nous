@@ -963,6 +963,7 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
       mesa: _mesas[indice],
       itensDisponiveis: _itens,
       gruposDisponiveis: _gruposComponentes,
+      todasMesas: _mesas,
       autorCpf: _cpfLogado,
       autorNome: _nomeLogado,
       aoAtualizarMesa: (mesaAtualizada) {
@@ -999,10 +1000,99 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
           nomeLoja: lojaAtual?.nome ?? 'Restaurante',
         );
       },
+      aoTransferirMesa: (mesaOrigem, mesaDestino) {
+        _transferirMesa(mesaOrigem, mesaDestino);
+      },
       aoEditarMesa: () {
         _editarMesa(mesa);
       },
     );
+  }
+
+  void _transferirMesa(MesaLoja origem, MesaLoja destino) {
+    final idxOrigem = _mesas.indexWhere((m) => m.id == origem.id);
+    final idxDestino = _mesas.indexWhere((m) => m.id == destino.id);
+    if (idxOrigem == -1 || idxDestino == -1) return;
+
+    final mesaOrigem = _mesas[idxOrigem];
+    final mesaDestino = _mesas[idxDestino];
+
+    if (mesaDestino.status == StatusMesa.livre) {
+      final destinoAtualizada = mesaDestino.copyWith(
+        status: StatusMesa.ocupada,
+        clienteNome: mesaOrigem.clienteNome,
+        atendenteCpf: mesaOrigem.atendenteCpf,
+        atendenteNome: mesaOrigem.atendenteNome,
+        dataHoraAbertura: mesaOrigem.dataHoraAbertura ?? DateTime.now(),
+        itens: List.of(mesaOrigem.itens),
+      );
+      final origemLiberada = mesaOrigem.copyWith(
+        status: StatusMesa.livre,
+        clienteNome: '',
+        atendenteCpf: '',
+        atendenteNome: '',
+        dataHoraAbertura: null,
+        itens: const [],
+      );
+
+      setState(() {
+        _mesas[idxDestino] = destinoAtualizada;
+        _mesas[idxOrigem] = origemLiberada;
+      });
+      _persistirListasLoja();
+
+      _registrarAcao(
+        TipoAcao.mesaTransferida,
+        'Comanda da Mesa "${origem.numero}" transferida para a Mesa "${destino.numero}" por $_nomeLogado',
+      );
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Comanda da Mesa ${origem.numero} transferida com sucesso para a Mesa ${destino.numero}!',
+            ),
+          ),
+        );
+      }
+    } else {
+      final clienteFinal = mesaDestino.clienteNome.isNotEmpty
+          ? mesaDestino.clienteNome
+          : mesaOrigem.clienteNome;
+      final destinoAtualizada = mesaDestino.copyWith(
+        clienteNome: clienteFinal,
+        itens: [...mesaDestino.itens, ...mesaOrigem.itens],
+      );
+      final origemLiberada = mesaOrigem.copyWith(
+        status: StatusMesa.livre,
+        clienteNome: '',
+        atendenteCpf: '',
+        atendenteNome: '',
+        dataHoraAbertura: null,
+        itens: const [],
+      );
+
+      setState(() {
+        _mesas[idxDestino] = destinoAtualizada;
+        _mesas[idxOrigem] = origemLiberada;
+      });
+      _persistirListasLoja();
+
+      _registrarAcao(
+        TipoAcao.mesaTransferida,
+        'Comanda da Mesa "${origem.numero}" unificada à Mesa "${destino.numero}" por $_nomeLogado',
+      );
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Comanda da Mesa ${origem.numero} unificada à Mesa ${destino.numero}!',
+            ),
+          ),
+        );
+      }
+    }
   }
 
   void _editarMesa(MesaLoja mesa) {
@@ -1067,7 +1157,12 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
           : 'Consumo Mesa ${mesa.numero}',
       itens: itensVendidos,
       formaPagamento: resultado.formaPagamento,
-      valor: totalValor,
+      pagamentosExtras: resultado.pagamentos.length > 1
+          ? resultado.pagamentos.sublist(1)
+          : const [],
+      desconto: resultado.desconto,
+      acrescimo: resultado.acrescimo,
+      valor: resultado.valorFinal,
       dataHora: DateTime.now(),
       status: StatusPedido.concluido,
       nomeVendedor: lojaAtual?.nome ?? '',

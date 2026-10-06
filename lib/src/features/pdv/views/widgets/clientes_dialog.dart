@@ -11,9 +11,12 @@ import 'package:nous/src/features/pdv/services/cnpj_ou_cpf_input_formatter.dart'
 import 'package:nous/src/features/pdv/services/dados_locais_service.dart';
 import 'package:nous/src/features/pdv/services/imagem_service.dart';
 import 'package:nous/src/features/pdv/services/telefone_input_formatter.dart';
+import 'package:nous/src/features/pdv/services/impressao_service.dart';
+import 'package:nous/src/features/pdv/providers/pdv_provider.dart';
 import 'package:nous/src/features/pdv/views/widgets/estado_vazio_container.dart';
 import 'package:nous/src/features/pdv/views/widgets/opcoes_imagem_dialog.dart';
 import 'package:nous/src/features/pdv/views/widgets/venda_registrada_dialog.dart';
+import 'package:provider/provider.dart';
 
 String _valor(double v) => 'R\$ ${v.toStringAsFixed(2).replaceAll('.', ',')}';
 
@@ -332,7 +335,7 @@ class _ClientesConteudoState extends State<_ClientesConteudo> {
   void _quitarTudo() {
     final id = _editando?.id;
     if (id == null) return;
-    final devido = _devido(id);
+    final devido = _devido(id, nome: _editando?.nome);
     if (devido <= 0) return;
     _aplicarPagamento(id, devido);
   }
@@ -348,7 +351,7 @@ class _ClientesConteudoState extends State<_ClientesConteudo> {
       return;
     }
 
-    final devido = _devido(id);
+    final devido = _devido(id, nome: _editando?.nome);
     if (valor > devido + 0.005) {
       setState(() => _avisoPagamento = 'Valor maior que o devido.');
       return;
@@ -358,7 +361,7 @@ class _ClientesConteudoState extends State<_ClientesConteudo> {
   }
 
   Future<void> _confirmarExclusao(Cliente cliente) async {
-    final devido = _devido(cliente.id);
+    final devido = _devido(cliente.id, nome: cliente.nome);
     final aviso = devido > 0
         ? 'Este cliente tem ${_valor(devido)} em aberto. '
             'Deseja excluir mesmo assim? Essa ação não pode ser desfeita.'
@@ -425,18 +428,30 @@ class _ClientesConteudoState extends State<_ClientesConteudo> {
     });
   }
 
-  double _devido(String clienteId) {
+  double _devido(String clienteId, {String? nome}) {
     var soma = 0.0;
+    final nomeAlvo = nome?.trim().toLowerCase() ?? '';
     for (final p in _pedidos) {
-      if (p.clienteId == clienteId && p.aPrazoEmAberto) {
+      final ehDesteCliente = p.clienteId == clienteId ||
+          (nomeAlvo.isNotEmpty &&
+              p.clienteNome.trim().toLowerCase() == nomeAlvo);
+      if (ehDesteCliente && p.aPrazoEmAberto) {
         soma += p.valorRestante;
       }
     }
     return soma;
   }
 
-  List<PedidoLoja> _historico(String clienteId) {
-    final lista = _pedidos.where((p) => p.clienteId == clienteId).toList();
+  List<PedidoLoja> _historico(String clienteId, {String? nome}) {
+    final nomeAlvo = nome?.trim().toLowerCase() ?? '';
+    final lista = _pedidos.where((p) {
+      if (p.clienteId == clienteId) return true;
+      if (nomeAlvo.isNotEmpty &&
+          p.clienteNome.trim().toLowerCase() == nomeAlvo) {
+        return true;
+      }
+      return false;
+    }).toList();
     lista.sort((a, b) => b.dataHora.compareTo(a.dataHora));
     return lista;
   }
@@ -719,7 +734,7 @@ class _ClientesConteudoState extends State<_ClientesConteudo> {
   }
 
   Widget _blocoDivida(Cliente cliente) {
-    final devido = _devido(cliente.id);
+    final devido = _devido(cliente.id, nome: cliente.nome);
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(12),
@@ -764,32 +779,159 @@ class _ClientesConteudoState extends State<_ClientesConteudo> {
   }
 
   Widget _blocoHistorico(Cliente cliente) {
-    final historico = _historico(cliente.id);
+    final historico = _historico(cliente.id, nome: cliente.nome);
+    final totalGasto = historico
+        .where((p) => p.status != StatusPedido.cancelado)
+        .fold<double>(0, (s, p) => s + p.valor);
+
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(12),
       decoration: _decoracaoDoBloco,
       child: Column(
         children: [
-          _tituloDoBloco('Histórico de Compras'),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Histórico de Compras',
+                      style: theme.getTextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold,
+                        color: theme.textColor,
+                      ),
+                    ),
+                    if (historico.isNotEmpty) ...[
+                      const SizedBox(height: 2),
+                      Text(
+                        '${historico.length} ${historico.length == 1 ? "compra" : "compras"} • Total: ${_valor(totalGasto)}',
+                        style: theme.getTextStyle(
+                          fontSize: 11,
+                          color: theme.secondaryTextColor,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              if (historico.isNotEmpty)
+                OutlinedButton.icon(
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: theme.textColor,
+                    side: BorderSide(
+                      color: theme.borderColor.withValues(alpha: 0.6),
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 8,
+                    ),
+                  ),
+                  icon: Icon(
+                    Icons.picture_as_pdf_outlined,
+                    size: 16,
+                    color: theme.textColor,
+                  ),
+                  label: Text(
+                    'Exportar Extrato PDF',
+                    style: theme.getTextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                      color: theme.textColor,
+                    ),
+                  ),
+                  onPressed: () => _exportarExtratoPDF(cliente, historico),
+                ),
+            ],
+          ),
+          const SizedBox(height: 12),
           if (historico.isEmpty)
             EstadoVazioContainer(
               theme: theme,
-              mensagem: 'Nenhuma compra registrada.',
+              mensagem: 'Nenhuma compra registrada para este cliente.',
             )
           else
-            for (final pedido in historico)
-              Padding(
-                padding: const EdgeInsets.only(bottom: 8),
-                child: BarraVenda(
-                  theme: theme,
-                  lojaId: widget.lojaId,
-                  pedido: pedido,
-                ),
+            ConstrainedBox(
+              constraints: const BoxConstraints(maxHeight: 280),
+              child: ListView.separated(
+                shrinkWrap: true,
+                itemCount: historico.length,
+                separatorBuilder: (context, index) =>
+                    const SizedBox(height: 8),
+                itemBuilder: (context, index) {
+                  return BarraVenda(
+                    theme: theme,
+                    lojaId: widget.lojaId,
+                    pedido: historico[index],
+                  );
+                },
               ),
+            ),
         ],
       ),
     );
+  }
+
+  Future<void> _exportarExtratoPDF(
+    Cliente cliente,
+    List<PedidoLoja> historico,
+  ) async {
+    try {
+      final pdv = context.read<PdvProvider>();
+      final loja = pdv.buscarPorId(widget.lojaId) ??
+          (pdv.lojas.isNotEmpty ? pdv.lojas.first : null);
+
+      if (loja == null) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              backgroundColor: theme.cardBackgroundColor,
+              content: Text(
+                'Loja não encontrada para gerar o extrato.',
+                style: theme.getTextStyle(color: Colors.redAccent),
+              ),
+            ),
+          );
+        }
+        return;
+      }
+
+      final caminho = await ImpressaoService.exportarExtratoClientePDF(
+        loja: loja,
+        cliente: cliente,
+        pedidos: historico,
+      );
+
+      if (caminho != null && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            backgroundColor: theme.cardBackgroundColor,
+            content: Text(
+              'Extrato do cliente exportado com sucesso em $caminho',
+              style: theme.getTextStyle(color: theme.textColor),
+            ),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            backgroundColor: theme.cardBackgroundColor,
+            content: Text(
+              'Falha ao exportar extrato: $e',
+              style: theme.getTextStyle(color: Colors.redAccent),
+            ),
+          ),
+        );
+      }
+    }
   }
 
   Widget _blocoLista() {

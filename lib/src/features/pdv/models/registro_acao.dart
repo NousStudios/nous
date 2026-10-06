@@ -38,6 +38,7 @@ enum TipoAcao {
   mesaAberta,
   itemAdicionadoMesa,
   mesaFechada,
+  mesaTransferida,
 }
 
 class RegistroAcao {

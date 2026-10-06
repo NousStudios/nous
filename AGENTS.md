@@ -213,6 +213,23 @@ Este projeto apoia-se no **anarquismo plataformista brasileiro**: poder sem inte
   - Se a devolução de estoque for confirmada, o sistema gera movimentos de entrada automáticos (`TipoMovimentoEstoque.entrada`, categoria `ajuste`) e registra ações de auditoria (`TipoAcao.pedidoCancelado` e `TipoAcao.movimentoEstoqueRegistrado`).
   - Pedidos cancelados **não são computados no faturamento nem nas entradas do módulo Financeiro**.
 
+### 7.4 Dinâmica de Restaurante, Mesas e Comandas Abertas (`features/pdv/views/widgets/mesas`)
+- No perfil profissional **Restaurante**, é exibido o container retrátil **"Mesas"** entre as ações rápidas e o painel de pedidos.
+- Cada mesa possui status (`livre` ou `ocupada`), número, descrição/capacidade, nome do cliente e atendente responsável persistidos em cofre.
+- **Lançamento de Itens:** Permite adicionar produtos com adicionais e acompanhamentos dinâmicos de grupos de componentes vinculados.
+- **Impressão de Conferência:** Emite via `ImpressaoService.imprimirConferenciaMesa` o comprovante de pré-fechamento térmico em 58mm.
+- **Múltiplos Pagamentos e Divisão de Conta:** No fechamento (`FecharContaMesaDialog`), permite pagamento único ou parcelamento dinâmico em múltiplas formas de pagamento (dividindo a conta entre várias pessoas com cálculo automático de saldo restante), botão de acréscimo de 10% de atendimento e descontos.
+- **Transferência e Unificação de Mesas:** Permite transferir uma comanda para outra mesa livre ou unir comandas existentes (`TransferirMesaDialog`), registrando ação de auditoria (`TipoAcao.mesaTransferida`).
+
+### 7.5 Ficha do Cliente e Extrato em PDF (`features/pdv/views/widgets/clientes_dialog.dart`)
+- **Extrato Financeiro e de Compras:** Ao tocar em um cliente cadastrado no diálogo de clientes, o lojista visualiza o valor total acumulado já gasto e o botão **"Exportar Extrato PDF"**.
+- O `ImpressaoService.exportarExtratoClientePDF` gera um documento paginado em formato A4 contendo dados cadastrais, saldo devedor a prazo em aberto e tabela completa com data, número do pedido, itens e valores.
+
+### 7.6 Atualizações do Sistema e Instalador Windows
+- **Atualização Local-First Soberana:** Botão na `CustomAppBar` ao lado da engrenagem com `AtualizacaoDialog`, exibindo versão instalada, checagem via `AtualizacaoService` e garantia de preservação de dados locais.
+- **Cofre Soberano Intacto:** O banco de dados local SQLite (`nous.db`) e arquivos residem em `%APPDATA%\Nous`, permanecendo intactos mesmo após reinstalações ou atualizações de versão.
+- **Instalador Oficial Windows:** Configurado via `windows/installer.iss` (Inno Setup 6) e script Powershell de automação `scripts/gerar_instalador.ps1`.
+
 ---
 
 ## 8. REGRAS CRÍTICAS DE ENGENHARIA (PARA NUNCA QUEBRAR O SISTEMA)
