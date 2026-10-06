@@ -243,33 +243,14 @@ class GaleriaEstiloContainer extends StatelessWidget {
       ),
       child: Column(
         children: [
-          Stack(
-            alignment: Alignment.center,
-            children: [
-              Text(
-                titulo,
-                textAlign: TextAlign.center,
-                style: theme.getTextStyle(
-                  fontSize: 15,
-                  fontWeight: FontWeight.w600,
-                  color: theme.textColor,
-                ),
-              ),
-              Positioned(
-                right: 0,
-                child: IconButton(
-                  padding: EdgeInsets.zero,
-                  constraints: const BoxConstraints(),
-                  icon: Icon(
-                    Icons.add,
-                    color: theme.secondaryTextColor,
-                    size: 20,
-                  ),
-                  tooltip: 'Adicionar',
-                  onPressed: () => _selecionarArquivo(context),
-                ),
-              ),
-            ],
+          Text(
+            titulo,
+            textAlign: TextAlign.center,
+            style: theme.getTextStyle(
+              fontSize: 15,
+              fontWeight: FontWeight.w600,
+              color: theme.textColor,
+            ),
           ),
           const SizedBox(height: 16),
           SizedBox(

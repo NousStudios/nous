@@ -2159,11 +2159,6 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
               ),
             ),
             const SizedBox(height: 16),
-            DadosBancariosContainer(
-              theme: theme,
-              controllers: _controllersBancarios,
-            ),
-            const SizedBox(height: 16),
             UsuariosParticipantesContainer(
               theme: theme,
               membros: _membros,
@@ -2174,6 +2169,11 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
               onRemover: _removerMembro,
               onAtualizarPapel: _atualizarPapelMembro,
               onSair: _sairDaLoja,
+            ),
+            const SizedBox(height: 16),
+            DadosBancariosContainer(
+              theme: theme,
+              controllers: _controllersBancarios,
             ),
             const SizedBox(height: 16),
             DeliveryContainer(
