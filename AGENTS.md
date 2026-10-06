@@ -181,8 +181,9 @@ Este projeto apoia-se no **anarquismo plataformista brasileiro**: poder sem inte
   - Diálogo de convite de membro (`_ConviteDialog`): ao encontrar a conta pelo CPF, exibe o avatar com a foto da conta encontrada.
   - Pagamento financeiro a trabalhadores (`RegistrarPagamentoDialog`): o seletor dropdown exibe a miniatura redonda com o avatar do trabalhador.
   - "Usar cliente como fornecedor": a lista de clientes exibe a foto real do cliente cadastrado.
-- **Cadastro de Clientes com CNPJ ou CPF Adaptável:**
+- **Cadastro de Clientes com CNPJ ou CPF Adaptável e Autopreenchimento:**
   - O campo de documento em `ClientesDialog` utiliza label `"CNPJ ou CPF"` e o formatador `CpfOuCnpjInputFormatter`. Ele adapta a máscara automaticamente: até 11 dígitos formata como CPF (`000.000.000-00`) e de 12 a 14 dígitos formata como CNPJ (`00.000.000/0000-00`).
+  - **Autopreenchimento Local Soberano (`DadosLocaisService`):** Ao preencher o campo com um documento completo (11 ou 14 dígitos), o sistema pesquisa automaticamente nas contas de usuários Nous, nas lojas locais registradas e nos cadastros prévios da máquina. Se encontrar correspondência, autopreencha Nome, Telefone, Endereço, Número, E-mail, Redes Sociais e Foto, exibindo a origem do registro em tela.
 
 ### 7.3 Fluxo de Venda, Comandas e Estoque
 - Itens vendidos (`ItemVendido`) guardam a foto do produto, garantindo miniaturas na vitrine, no carrinho, na busca, nas abas de gestão (`Novos`, `Aceitos`, `Concluídos`) e nas comandas (`ComandaPedido` e `PedidoAceitoDialog`).

@@ -8,6 +8,7 @@ import 'package:nous/src/core/widgets/themed_text_field.dart';
 import 'package:nous/src/features/pdv/models/cliente.dart';
 import 'package:nous/src/features/pdv/models/pedido_loja.dart';
 import 'package:nous/src/features/pdv/services/cnpj_ou_cpf_input_formatter.dart';
+import 'package:nous/src/features/pdv/services/dados_locais_service.dart';
 import 'package:nous/src/features/pdv/services/imagem_service.dart';
 import 'package:nous/src/features/pdv/services/telefone_input_formatter.dart';
 import 'package:nous/src/features/pdv/views/widgets/estado_vazio_container.dart';
@@ -100,6 +101,7 @@ class _ClientesConteudoState extends State<_ClientesConteudo> {
   String _foto = '';
   String? _aviso;
   String? _avisoPagamento;
+  String _ultimoDocConsultado = '';
 
   AppTheme get theme => widget.theme;
 
@@ -124,12 +126,16 @@ class _ClientesConteudoState extends State<_ClientesConteudo> {
         _emailController.text = c.email;
         _redesSociaisController.text = c.redesSociais;
         _descricaoController.text = c.descricao;
+        _ultimoDocConsultado = c.cnpj.replaceAll(RegExp(r'[^0-9]'), '');
       }
     }
+
+    _cnpjController.addListener(_aoAlterarDocumento);
   }
 
   @override
   void dispose() {
+    _cnpjController.removeListener(_aoAlterarDocumento);
     _nomeController.dispose();
     _cnpjController.dispose();
     _telefoneController.dispose();
@@ -143,8 +149,62 @@ class _ClientesConteudoState extends State<_ClientesConteudo> {
     super.dispose();
   }
 
+  void _aoAlterarDocumento() {
+    final digitos = _cnpjController.text.replaceAll(RegExp(r'[^0-9]'), '');
+    if (digitos.length != 11 && digitos.length != 14) {
+      if (digitos.isEmpty) {
+        _ultimoDocConsultado = '';
+      }
+      return;
+    }
+
+    if (digitos == _ultimoDocConsultado) return;
+    _ultimoDocConsultado = digitos;
+
+    _consultarEAutopreencher(digitos);
+  }
+
+  Future<void> _consultarEAutopreencher(String digitos) async {
+    final dados = await DadosLocaisService.buscarPorDocumento(digitos);
+    if (!mounted || dados == null) return;
+
+    final digitosAtuais =
+        _cnpjController.text.replaceAll(RegExp(r'[^0-9]'), '');
+    if (digitosAtuais != digitos) return;
+
+    setState(() {
+      if (dados.nome.isNotEmpty) _nomeController.text = dados.nome;
+      if (dados.telefone.isNotEmpty) _telefoneController.text = dados.telefone;
+      if (dados.endereco.isNotEmpty) _enderecoController.text = dados.endereco;
+      if (dados.numero.isNotEmpty) _numeroController.text = dados.numero;
+      if (dados.email.isNotEmpty) _emailController.text = dados.email;
+      if (dados.redesSociais.isNotEmpty) {
+        _redesSociaisController.text = dados.redesSociais;
+      }
+      if (dados.descricao.isNotEmpty && _descricaoController.text.isEmpty) {
+        _descricaoController.text = dados.descricao;
+      }
+      if (dados.foto.isNotEmpty && File(dados.foto).existsSync()) {
+        _foto = dados.foto;
+      }
+      _aviso = 'Dados preenchidos a partir de ${dados.origem}.';
+    });
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        backgroundColor: theme.cardBackgroundColor,
+        content: Text(
+          'Dados encontrados e preenchidos a partir de ${dados.origem}.',
+          style: theme.getTextStyle(color: theme.textColor),
+        ),
+        duration: const Duration(seconds: 3),
+      ),
+    );
+  }
+
   void _limparCampos() {
     _foto = '';
+    _ultimoDocConsultado = '';
     _nomeController.clear();
     _cnpjController.clear();
     _telefoneController.clear();
@@ -163,6 +223,7 @@ class _ClientesConteudoState extends State<_ClientesConteudo> {
       _foto = cliente.foto;
       _aviso = null;
       _avisoPagamento = null;
+      _ultimoDocConsultado = cliente.cnpj.replaceAll(RegExp(r'[^0-9]'), '');
       _pagamentoController.clear();
       _nomeController.text = cliente.nome;
       _cnpjController.text = cliente.cnpj;
