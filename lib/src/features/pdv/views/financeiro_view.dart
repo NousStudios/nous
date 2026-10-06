@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import 'package:nous/src/core/theme/theme_controller.dart';
 import 'package:nous/src/core/widgets/custom_app_bar.dart';
 import 'package:nous/src/features/auth/providers/auth_provider.dart';
+import 'package:nous/src/features/pdv/models/item_loja.dart';
 import 'package:nous/src/features/pdv/models/loja.dart';
 import 'package:nous/src/features/pdv/models/movimento_estoque.dart';
 import 'package:nous/src/features/pdv/models/pagamento_funcionario.dart';
@@ -41,6 +42,15 @@ class _FinanceiroViewState extends State<FinanceiroView> {
   bool _contarEstoque = true;
   bool _imprimindo = false;
   bool _exportando = false;
+  final _pesquisaComprasController = TextEditingController();
+  final _scrollComprasController = ScrollController();
+
+  @override
+  void dispose() {
+    _pesquisaComprasController.dispose();
+    _scrollComprasController.dispose();
+    super.dispose();
+  }
 
   DateTime? get _inicioDoPeriodo {
     final agora = DateTime.now();
@@ -131,6 +141,35 @@ class _FinanceiroViewState extends State<FinanceiroView> {
       mapa[nome] = (mapa[nome] ?? 0) + m.custoTotal;
     }
     return mapa;
+  }
+
+  List<MovimentoEstoque> _comprasDoPeriodo(Loja? loja) {
+    if (loja == null) return [];
+    return _movimentosDoPeriodo(loja).where((m) => m.ehEntrada).toList();
+  }
+
+  ItemLoja? _buscarItem(Loja? loja, String itemId) {
+    if (loja == null) return null;
+    for (final item in loja.itensLoja) {
+      if (item.id == itemId) return item;
+    }
+    return null;
+  }
+
+  String _nomeDoItem(Loja? loja, MovimentoEstoque m) {
+    final item = _buscarItem(loja, m.itemId);
+    if (item != null && item.nome.trim().isNotEmpty) {
+      return item.nome.trim();
+    }
+    if (m.motivo.trim().isNotEmpty) {
+      return m.motivo.trim();
+    }
+    return 'Item';
+  }
+
+  String _unidadeDoItem(Loja? loja, String itemId) {
+    final item = _buscarItem(loja, itemId);
+    return item?.unidadeBase.name ?? 'un';
   }
 
   double get _totalEntradas =>
@@ -625,7 +664,8 @@ class _FinanceiroViewState extends State<FinanceiroView> {
 
   Widget _blocoCompras(AppTheme theme, Loja? loja) {
     final porFornecedor = _comprasPorFornecedor(loja);
-    if (porFornecedor.isEmpty) {
+    final compras = _comprasDoPeriodo(loja);
+    if (porFornecedor.isEmpty && compras.isEmpty) {
       return Container(
         width: 320,
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
@@ -650,6 +690,17 @@ class _FinanceiroViewState extends State<FinanceiroView> {
       total += e.value;
     }
 
+    final termo = _pesquisaComprasController.text.trim().toLowerCase();
+    final comprasFiltradas = compras.where((m) {
+      if (termo.isEmpty) return true;
+      final nome = _nomeDoItem(loja, m).toLowerCase();
+      final fornecedor = m.fornecedorNome.toLowerCase();
+      final motivo = m.motivo.toLowerCase();
+      return nome.contains(termo) ||
+          fornecedor.contains(termo) ||
+          motivo.contains(termo);
+    }).toList();
+
     return Container(
       width: 320,
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
@@ -666,6 +717,107 @@ class _FinanceiroViewState extends State<FinanceiroView> {
             _valorFormatado(total),
             destaque: true,
           ),
+          const Divider(height: 24),
+          Padding(
+            padding: const EdgeInsets.only(bottom: 10),
+            child: TextField(
+              controller: _pesquisaComprasController,
+              onChanged: (_) => setState(() {}),
+              style: theme.getTextStyle(fontSize: 12, color: theme.textColor),
+              decoration: InputDecoration(
+                isDense: true,
+                hintText: 'Buscar item ou fornecedor...',
+                hintStyle: theme.getTextStyle(
+                  fontSize: 12,
+                  color: theme.secondaryTextColor,
+                ),
+                prefixIcon: Icon(
+                  Icons.search,
+                  size: 16,
+                  color: theme.secondaryTextColor,
+                ),
+                prefixIconConstraints: const BoxConstraints(
+                  minWidth: 32,
+                  minHeight: 32,
+                ),
+                suffixIcon: _pesquisaComprasController.text.isNotEmpty
+                    ? IconButton(
+                        icon: Icon(
+                          Icons.clear,
+                          size: 14,
+                          color: theme.secondaryTextColor,
+                        ),
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(
+                          minWidth: 28,
+                          minHeight: 28,
+                        ),
+                        onPressed: () {
+                          _pesquisaComprasController.clear();
+                          setState(() {});
+                        },
+                      )
+                    : null,
+                filled: true,
+                fillColor: theme.backgroundColor.withValues(alpha: 0.3),
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 8,
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: BorderSide(
+                    color: theme.borderColor.withValues(alpha: 0.6),
+                  ),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: BorderSide(color: theme.buttonColor),
+                ),
+              ),
+            ),
+          ),
+          if (comprasFiltradas.isEmpty)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              child: Text(
+                'Nenhum item encontrado.',
+                style: theme.getTextStyle(
+                  fontSize: 12,
+                  color: theme.secondaryTextColor,
+                ),
+              ),
+            )
+          else
+            ConstrainedBox(
+              constraints: const BoxConstraints(maxHeight: 290),
+              child: Scrollbar(
+                controller: _scrollComprasController,
+                thumbVisibility: comprasFiltradas.length > 6,
+                child: ListView.builder(
+                  controller: _scrollComprasController,
+                  shrinkWrap: true,
+                  physics: comprasFiltradas.length > 6
+                      ? const AlwaysScrollableScrollPhysics()
+                      : const NeverScrollableScrollPhysics(),
+                  itemCount: comprasFiltradas.length,
+                  itemBuilder: (context, index) {
+                    final compra = comprasFiltradas[index];
+                    return Padding(
+                      padding: EdgeInsets.only(
+                        bottom: index == comprasFiltradas.length - 1 ? 0 : 6,
+                      ),
+                      child: _LinhaCompraEstoque(
+                        theme: theme,
+                        movimento: compra,
+                        nomeItem: _nomeDoItem(loja, compra),
+                        unidade: _unidadeDoItem(loja, compra.itemId),
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ),
         ],
       ),
     );
@@ -745,9 +897,9 @@ class _FinanceiroViewState extends State<FinanceiroView> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      _filtroPeriodo(theme),
-                      const SizedBox(height: 12),
                       _barraAcoes(theme, loja),
+                      const SizedBox(height: 12),
+                      _filtroPeriodo(theme),
                       const SizedBox(height: 16),
                       Center(child: _blocoEntradas(theme)),
                       const SizedBox(height: 16),
@@ -888,6 +1040,115 @@ class _LinhaPagamentoState extends State<_LinhaPagamento> {
                   ),
                 ],
               ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _LinhaCompraEstoque extends StatefulWidget {
+  final AppTheme theme;
+  final MovimentoEstoque movimento;
+  final String nomeItem;
+  final String unidade;
+
+  const _LinhaCompraEstoque({
+    required this.theme,
+    required this.movimento,
+    required this.nomeItem,
+    required this.unidade,
+  });
+
+  @override
+  State<_LinhaCompraEstoque> createState() => _LinhaCompraEstoqueState();
+}
+
+class _LinhaCompraEstoqueState extends State<_LinhaCompraEstoque> {
+  bool _hover = false;
+
+  AppTheme get theme => widget.theme;
+
+  String _dataHora(DateTime d) {
+    String dois(int n) => n.toString().padLeft(2, '0');
+    return '${dois(d.day)}/${dois(d.month)}/${d.year} '
+        '${dois(d.hour)}:${dois(d.minute)}';
+  }
+
+  String _valor(double v) =>
+      'R\$ ${v.toStringAsFixed(2).replaceAll('.', ',')}';
+
+  String _formatarQuantidade(double qtd, String unidade) {
+    final qtdFormatada = qtd == qtd.roundToDouble()
+        ? qtd.toInt().toString()
+        : qtd.toStringAsFixed(2).replaceAll('.', ',');
+    return '$qtdFormatada $unidade';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final m = widget.movimento;
+    final qtdFormatada = _formatarQuantidade(m.quantidade, widget.unidade);
+    final custoUnit = _valor(m.custoUnitario);
+    final detalhes = <String>[
+      '$qtdFormatada x $custoUnit',
+      if (m.fornecedorNome.trim().isNotEmpty) m.fornecedorNome.trim(),
+      _dataHora(m.dataHora),
+    ];
+
+    return MouseRegion(
+      onEnter: (_) => setState(() => _hover = true),
+      onExit: (_) => setState(() => _hover = false),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+        decoration: BoxDecoration(
+          color: _hover
+              ? theme.borderColor.withValues(alpha: 0.18)
+              : Colors.transparent,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(
+            color: _hover ? theme.textColor : theme.borderColor,
+          ),
+        ),
+        child: Row(
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    widget.nomeItem,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.getTextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: theme.textColor,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    detalhes.join(' • '),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.getTextStyle(
+                      fontSize: 10,
+                      color: theme.secondaryTextColor,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
+            Text(
+              _valor(m.custoTotal),
+              style: theme.getTextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.bold,
+                color: theme.textColor,
+              ),
+            ),
           ],
         ),
       ),
