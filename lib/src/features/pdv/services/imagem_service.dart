@@ -88,4 +88,31 @@ class ImagemService {
       return null;
     }
   }
+
+  static Future<bool> abrirNoSistema(String caminho) async {
+    try {
+      final arquivo = File(caminho);
+      if (!await arquivo.exists()) return false;
+
+      if (Platform.isWindows) {
+        await Process.run('cmd', ['/c', 'start', '', caminho]);
+        return true;
+      } else if (Platform.isMacOS) {
+        await Process.run('open', [caminho]);
+        return true;
+      } else if (Platform.isLinux) {
+        await Process.run('xdg-open', [caminho]);
+        return true;
+      }
+      return false;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  static String formatarTamanhoBytes(int bytes) {
+    if (bytes < 1024) return '$bytes B';
+    if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(1)} KB';
+    return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
+  }
 }

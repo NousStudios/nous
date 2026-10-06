@@ -111,6 +111,7 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
   final List<String> _musicas = [];
   final List<String> _videos = [];
   final List<String> _arquivosAudio = [];
+  final Map<String, String> _descricoesAnexos = {};
 
   final List<CategoriaLoja> _categorias = [];
   final List<ItemLoja> _itens = [];
@@ -566,6 +567,22 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
     _persistirAnexosLoja();
   }
 
+  void _atualizarDescricaoAnexo(String caminho, String novaDescricao) {
+    if (!context.read<PdvProvider>().possoEditarDadosLoja(widget.lojaId)) {
+      _avisarSemPermissao();
+      return;
+    }
+
+    setState(() {
+      if (novaDescricao.trim().isEmpty) {
+        _descricoesAnexos.remove(caminho);
+      } else {
+        _descricoesAnexos[caminho] = novaDescricao.trim();
+      }
+    });
+    _persistirAnexosLoja();
+  }
+
   void _persistirAnexosLoja() {
     context.read<PdvProvider>().atualizarAnexosLoja(
           widget.lojaId,
@@ -574,6 +591,7 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
           musicas: _musicas,
           videos: _videos,
           arquivosAudio: _arquivosAudio,
+          descricoesAnexos: _descricoesAnexos,
         );
   }
 
@@ -1892,6 +1910,7 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
     _musicas.addAll(loja?.musicas ?? []);
     _videos.addAll(loja?.videos ?? []);
     _arquivosAudio.addAll(loja?.arquivosAudio ?? []);
+    _descricoesAnexos.addAll(loja?.descricoesAnexos ?? {});
 
     _categorias.addAll(loja?.categoriasLoja ?? []);
     _itens.addAll(loja?.itensLoja ?? []);
@@ -2467,6 +2486,8 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
               titulo: 'Galeria',
               itens: _galeria,
               tipo: TipoAnexoLoja.galeria,
+              descricoes: _descricoesAnexos,
+              onAtualizarDescricao: _atualizarDescricaoAnexo,
               onAdicionar: (caminho) =>
                   _adicionarAnexo(TipoAnexoLoja.galeria, caminho),
               onRemover: (index) =>
@@ -2478,6 +2499,8 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
               titulo: 'Arquivos',
               itens: _arquivos,
               tipo: TipoAnexoLoja.arquivos,
+              descricoes: _descricoesAnexos,
+              onAtualizarDescricao: _atualizarDescricaoAnexo,
               onAdicionar: (caminho) =>
                   _adicionarAnexo(TipoAnexoLoja.arquivos, caminho),
               onRemover: (index) =>
@@ -2489,6 +2512,8 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
               titulo: 'Músicas',
               itens: _musicas,
               tipo: TipoAnexoLoja.musicas,
+              descricoes: _descricoesAnexos,
+              onAtualizarDescricao: _atualizarDescricaoAnexo,
               onAdicionar: (caminho) =>
                   _adicionarAnexo(TipoAnexoLoja.musicas, caminho),
               onRemover: (index) =>
@@ -2500,6 +2525,8 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
               titulo: 'Vídeos',
               itens: _videos,
               tipo: TipoAnexoLoja.videos,
+              descricoes: _descricoesAnexos,
+              onAtualizarDescricao: _atualizarDescricaoAnexo,
               onAdicionar: (caminho) =>
                   _adicionarAnexo(TipoAnexoLoja.videos, caminho),
               onRemover: (index) =>
@@ -2511,6 +2538,8 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
               titulo: 'Arquivos de Áudio',
               itens: _arquivosAudio,
               tipo: TipoAnexoLoja.arquivosAudio,
+              descricoes: _descricoesAnexos,
+              onAtualizarDescricao: _atualizarDescricaoAnexo,
               onAdicionar: (caminho) =>
                   _adicionarAnexo(TipoAnexoLoja.arquivosAudio, caminho),
               onRemover: (index) =>

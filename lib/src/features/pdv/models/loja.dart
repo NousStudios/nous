@@ -43,6 +43,7 @@ class Loja {
   final List<String> musicas;
   final List<String> videos;
   final List<String> arquivosAudio;
+  final Map<String, String> descricoesAnexos;
 
   final ConfiguracoesImpressora configuracoesImpressora;
 
@@ -75,6 +76,7 @@ class Loja {
     this.musicas = const [],
     this.videos = const [],
     this.arquivosAudio = const [],
+    this.descricoesAnexos = const {},
     this.configuracoesImpressora = const ConfiguracoesImpressora(),
   });
 
@@ -106,6 +108,7 @@ class Loja {
     List<String>? musicas,
     List<String>? videos,
     List<String>? arquivosAudio,
+    Map<String, String>? descricoesAnexos,
     ConfiguracoesImpressora? configuracoesImpressora,
   }) {
     return Loja(
@@ -139,6 +142,7 @@ class Loja {
       musicas: musicas ?? this.musicas,
       videos: videos ?? this.videos,
       arquivosAudio: arquivosAudio ?? this.arquivosAudio,
+      descricoesAnexos: descricoesAnexos ?? this.descricoesAnexos,
       configuracoesImpressora:
           configuracoesImpressora ?? this.configuracoesImpressora,
     );
@@ -178,6 +182,7 @@ class Loja {
       'musicas': musicas,
       'videos': videos,
       'arquivosAudio': arquivosAudio,
+      'descricoesAnexos': descricoesAnexos,
       'configuracoesImpressora': configuracoesImpressora.toJson(),
     };
   }
@@ -251,6 +256,9 @@ class Loja {
       arquivosAudio: (json['arquivosAudio'] as List<dynamic>? ?? const [])
           .map((item) => item.toString())
           .toList(),
+      descricoesAnexos:
+          (json['descricoesAnexos'] as Map<String, dynamic>? ?? const {})
+              .map((k, v) => MapEntry(k.toString(), v.toString())),
       configuracoesImpressora: json['configuracoesImpressora'] == null
           ? const ConfiguracoesImpressora()
           : ConfiguracoesImpressora.fromJson(

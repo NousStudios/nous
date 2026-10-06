@@ -155,6 +155,10 @@ Este projeto apoia-se no **anarquismo plataformista brasileiro**: poder sem inte
   - Se o campo contém imagem: o clique abre `OpcoesImagemDialog.mostrar(...)` ("Procurar nova imagem", "Retirar imagem", "Cancelar").
   - Se o campo está vazio: o clique abre diretamente o seletor de arquivos (`openFile`).
 - **Limites e Formatos:** Até 500MB via `ImagemService.salvarImagemLocal` (`jpg`, `jpeg`, `png`, `webp`).
+- **Visualizador de Mídias e Anexos Soberanos:**
+  - **Imagens:** Ao tocar no card em `GaleriaEstiloContainer`, abre `VisualizadorGaleriaDialog` em tela cheia com zoom interativo (`InteractiveViewer`), navegação contínua entre fotos da lista (setas visuais, teclado `ArrowLeft`/`ArrowRight`, arraste `PageView`), contador e barra inferior com descrição persistida em `Loja.descricoesAnexos`.
+  - **Áudios, Vídeos e Documentos:** Ao tocar no card, abre `DetalhesMidiaDialog` com metadados do arquivo (tamanho, formato), legenda editável e reprodução/abertura soberana no reprodutor padrão do sistema operacional via `ImagemService.abrirNoSistema` sem inchaço de dependências.
+  - **Legendas em Anexos:** Ao subir um anexo ou a qualquer momento pelo card/diálogo, o usuário pode adicionar/editar uma descrição persistida no cofre local da loja.
 
 ---
 

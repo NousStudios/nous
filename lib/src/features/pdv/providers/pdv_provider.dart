@@ -326,6 +326,7 @@ class PdvProvider extends ChangeNotifier {
     List<String>? musicas,
     List<String>? videos,
     List<String>? arquivosAudio,
+    Map<String, String>? descricoesAnexos,
   }) {
     final indice = _lojas.indexWhere((loja) => loja.id == id);
     if (indice == -1) return;
@@ -336,8 +337,26 @@ class PdvProvider extends ChangeNotifier {
       musicas: musicas ?? _lojas[indice].musicas,
       videos: videos ?? _lojas[indice].videos,
       arquivosAudio: arquivosAudio ?? _lojas[indice].arquivosAudio,
+      descricoesAnexos: descricoesAnexos ?? _lojas[indice].descricoesAnexos,
     );
 
+    _lojas[indice] = atualizada;
+    notifyListeners();
+    _salvarLojaNoCofreCorreto(atualizada);
+  }
+
+  void atualizarDescricaoAnexo(String id, String caminho, String descricao) {
+    final indice = _lojas.indexWhere((loja) => loja.id == id);
+    if (indice == -1) return;
+
+    final mapa = Map<String, String>.from(_lojas[indice].descricoesAnexos);
+    if (descricao.trim().isEmpty) {
+      mapa.remove(caminho);
+    } else {
+      mapa[caminho] = descricao.trim();
+    }
+
+    final atualizada = _lojas[indice].copyWith(descricoesAnexos: mapa);
     _lojas[indice] = atualizada;
     notifyListeners();
     _salvarLojaNoCofreCorreto(atualizada);

@@ -5,6 +5,9 @@ import 'package:flutter/material.dart';
 import 'package:nous/src/core/theme/theme_controller.dart';
 import 'package:nous/src/core/widgets/texto_rolante.dart';
 import 'package:nous/src/features/pdv/services/imagem_service.dart';
+import 'package:nous/src/features/pdv/views/widgets/midia/detalhes_midia_dialog.dart';
+import 'package:nous/src/features/pdv/views/widgets/midia/editar_descricao_dialog.dart';
+import 'package:nous/src/features/pdv/views/widgets/midia/visualizador_galeria_dialog.dart';
 
 enum TipoAnexoLoja {
   galeria,
@@ -21,6 +24,8 @@ class GaleriaEstiloContainer extends StatelessWidget {
   final TipoAnexoLoja tipo;
   final ValueChanged<String> onAdicionar;
   final ValueChanged<int> onRemover;
+  final Map<String, String> descricoes;
+  final void Function(String caminho, String novaDescricao)? onAtualizarDescricao;
 
   const GaleriaEstiloContainer({
     super.key,
@@ -30,6 +35,8 @@ class GaleriaEstiloContainer extends StatelessWidget {
     this.tipo = TipoAnexoLoja.galeria,
     required this.onAdicionar,
     required this.onRemover,
+    this.descricoes = const {},
+    this.onAtualizarDescricao,
   });
 
   IconData _iconeDoTipo() {
@@ -83,6 +90,7 @@ class GaleriaEstiloContainer extends StatelessWidget {
     if (arquivos.isEmpty) return;
 
     var bloqueadosPorTamanho = 0;
+    final salvos = <String>[];
 
     for (final arq in arquivos) {
       final arquivoFisico = File(arq.path);
@@ -97,6 +105,7 @@ class GaleriaEstiloContainer extends StatelessWidget {
       final salvo = await ImagemService.salvarAnexoLocal(arq.path, tipo.name);
       if (salvo != null) {
         onAdicionar(salvo);
+        salvos.add(salvo);
       }
     }
 
@@ -111,11 +120,55 @@ class GaleriaEstiloContainer extends StatelessWidget {
         ),
       );
     }
+
+    // Se adicionou 1 arquivo, convida o usuário a adicionar uma descrição opcional
+    if (salvos.length == 1 && context.mounted) {
+      final salvo = salvos.first;
+      await EditarDescricaoDialog.mostrar(
+        context,
+        theme: theme,
+        nomeArquivo: _extrairNomeArquivo(salvo),
+        descricaoInicial: '',
+        onSalvar: (desc) {
+          if (desc.isNotEmpty) {
+            onAtualizarDescricao?.call(salvo, desc);
+          }
+        },
+      );
+    }
   }
 
   String _extrairNomeArquivo(String caminho) {
     final partes = caminho.replaceAll(r'\', '/').split('/');
     return partes.isNotEmpty ? partes.last : 'Arquivo';
+  }
+
+  void _abrirItem(BuildContext context, int index, String caminho) {
+    final ehImagem = tipo == TipoAnexoLoja.galeria ||
+        ImagemService.extensaoImagemValida(caminho);
+
+    if (ehImagem) {
+      VisualizadorGaleriaDialog.mostrar(
+        context,
+        theme: theme,
+        imagens: itens,
+        indiceInicial: index,
+        descricoes: descricoes,
+        onSalvarDescricao: onAtualizarDescricao,
+      );
+    } else {
+      DetalhesMidiaDialog.mostrar(
+        context,
+        theme: theme,
+        caminho: caminho,
+        tipo: tipo,
+        descricao: descricoes[caminho] ?? '',
+        onSalvarDescricao: (novaDescricao) {
+          onAtualizarDescricao?.call(caminho, novaDescricao);
+        },
+        onRemover: () => onRemover(index),
+      );
+    }
   }
 
   Widget _buildCardAdicionar(BuildContext context) {
@@ -151,62 +204,91 @@ class GaleriaEstiloContainer extends StatelessWidget {
     final nomeArquivo = _extrairNomeArquivo(caminho);
     final ehImagem = tipo == TipoAnexoLoja.galeria &&
         ImagemService.extensaoImagemValida(caminho);
+    final temDescricao = (descricoes[caminho] ?? '').isNotEmpty;
 
     return AspectRatio(
       aspectRatio: 1,
       child: Stack(
         children: [
-          Container(
-            width: double.infinity,
-            height: double.infinity,
-            decoration: BoxDecoration(
-              color: theme.cardBackgroundColor,
+          Material(
+            color: Colors.transparent,
+            child: InkWell(
               borderRadius: BorderRadius.circular(10),
-              border: Border.all(
-                color: theme.borderColor.withValues(alpha: 0.6),
-              ),
-            ),
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(10),
-              child: ehImagem
-                  ? Image.file(
-                      File(caminho),
-                      fit: BoxFit.cover,
-                      errorBuilder: (context, error, stackTrace) => Center(
-                        child: Icon(
-                          _iconeDoTipo(),
-                          size: 28,
-                          color: theme.secondaryTextColor,
-                        ),
-                      ),
-                    )
-                  : Padding(
-                      padding: const EdgeInsets.all(6.0),
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(
-                            _iconeDoTipo(),
-                            size: 28,
-                            color: theme.secondaryTextColor,
-                          ),
-                          const SizedBox(height: 4),
-                          SizedBox(
-                            width: double.infinity,
-                            child: TextoRolante(
-                              texto: nomeArquivo,
-                              textAlign: TextAlign.center,
-                              style: theme.getTextStyle(
-                                fontSize: 10,
-                                color: theme.textColor,
-                              ),
+              onTap: () => _abrirItem(context, index, caminho),
+              child: Container(
+                width: double.infinity,
+                height: double.infinity,
+                decoration: BoxDecoration(
+                  color: theme.cardBackgroundColor,
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(
+                    color: theme.borderColor.withValues(alpha: 0.6),
+                  ),
+                ),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(10),
+                  child: ehImagem
+                      ? Image.file(
+                          File(caminho),
+                          fit: BoxFit.cover,
+                          errorBuilder: (context, error, stackTrace) => Center(
+                            child: Icon(
+                              _iconeDoTipo(),
+                              size: 28,
+                              color: theme.secondaryTextColor,
                             ),
                           ),
-                        ],
-                      ),
-                    ),
+                        )
+                      : Padding(
+                          padding: const EdgeInsets.all(6.0),
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(
+                                _iconeDoTipo(),
+                                size: 28,
+                                color: theme.secondaryTextColor,
+                              ),
+                              const SizedBox(height: 4),
+                              SizedBox(
+                                width: double.infinity,
+                                child: TextoRolante(
+                                  texto: nomeArquivo,
+                                  textAlign: TextAlign.center,
+                                  style: theme.getTextStyle(
+                                    fontSize: 10,
+                                    color: theme.textColor,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                ),
+              ),
             ),
           ),
+
+          // Indicador de descrição existente
+          if (temDescricao)
+            Positioned(
+              top: 4,
+              left: 4,
+              child: Container(
+                decoration: BoxDecoration(
+                  color: theme.cardBackgroundColor.withValues(alpha: 0.85),
+                  shape: BoxShape.circle,
+                ),
+                padding: const EdgeInsets.all(3),
+                child: Icon(
+                  Icons.chat_bubble_outline,
+                  size: 11,
+                  color: theme.textColor,
+                ),
+              ),
+            ),
+
+          // Botão Excluir (X)
           Positioned(
             top: 4,
             right: 4,
