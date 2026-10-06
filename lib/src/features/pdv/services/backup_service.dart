@@ -2,12 +2,14 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:file_selector/file_selector.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-
+import 'package:nous/src/core/services/banco_dados_service.dart';
 import 'package:nous/src/features/auth/models/usuario_nous.dart';
+import 'package:nous/src/features/auth/services/contas_nous_service.dart';
 import 'package:nous/src/features/notificacoes/models/convite_loja.dart';
+import 'package:nous/src/features/notificacoes/services/convites_service.dart';
 import 'package:nous/src/features/pdv/models/loja.dart';
 import 'package:nous/src/features/pdv/models/referencia_loja.dart';
+import 'package:nous/src/features/pdv/services/lojas_service.dart';
 
 class ResultadoImportacao {
   final int contasImportadas;
@@ -27,50 +29,58 @@ class ResultadoImportacao {
       lojasImportadas +
       referenciasImportadas +
       convitesImportados;
+
+  bool get vazio => total == 0;
 }
 
 class BackupService {
   BackupService._();
 
-  static const String _prefixo = 'nous_';
-  static const String _chaveContas = 'nous_contas_cpf';
-  static const String _prefixoLoja = 'nous_lojas_';
-  static const String _prefixoReferencia = 'nous_referencias_';
-  static const String _prefixoConvite = 'nous_convites_';
-
   static Future<Map<String, dynamic>> gerarJson() async {
-    final prefs = await SharedPreferences.getInstance();
+    final contas = await ContasNousService.carregarTodas();
+    final db = await BancoDadosService.db;
 
-    final contasTexto = prefs.getString(_chaveContas);
-    final contas =
-        contasTexto == null ? <dynamic>[] : jsonDecode(contasTexto) as List<dynamic>;
+    final cpfs = <String>{};
+    for (final c in contas) {
+      if (c.cpf.isNotEmpty) cpfs.add(c.cpf);
+    }
+
+    final rowsLojas = await db.rawQuery('SELECT DISTINCT cpf_dono FROM lojas');
+    for (final r in rowsLojas) {
+      final cpf = r['cpf_dono']?.toString() ?? '';
+      if (cpf.isNotEmpty) cpfs.add(cpf);
+    }
+
+    final rowsRefs = await db.rawQuery('SELECT DISTINCT cpf FROM referencias_loja');
+    for (final r in rowsRefs) {
+      final cpf = r['cpf']?.toString() ?? '';
+      if (cpf.isNotEmpty) cpfs.add(cpf);
+    }
 
     final cofres = <Map<String, dynamic>>[];
-    final convites = <Map<String, dynamic>>[];
-    final cpfsJaProcessados = <String>{};
-
-    for (final chave in prefs.getKeys()) {
-      if (chave.startsWith(_prefixoLoja) ||
-          chave.startsWith(_prefixoReferencia)) {
-        final cpf = chave.startsWith(_prefixoLoja)
-            ? chave.substring(_prefixoLoja.length)
-            : chave.substring(_prefixoReferencia.length);
-        if (cpfsJaProcessados.contains(cpf)) continue;
-        cpfsJaProcessados.add(cpf);
-
-        final lojasTexto = prefs.getString(_prefixoLoja + cpf) ?? '[]';
-        final refsTexto = prefs.getString(_prefixoReferencia + cpf) ?? '[]';
+    for (final cpf in cpfs) {
+      final lojas = await LojasService.carregar(cpf);
+      final refs = await LojasService.carregarReferencias(cpf);
+      if (lojas.isNotEmpty || refs.isNotEmpty) {
         cofres.add({
           'cpf': cpf,
-          'lojas': jsonDecode(lojasTexto),
-          'referencias': jsonDecode(refsTexto),
+          'lojas': lojas.map((l) => l.toJson()).toList(),
+          'referencias': refs.map((r) => r.toJson()).toList(),
         });
-      } else if (chave.startsWith(_prefixoConvite)) {
-        final cpf = chave.substring(_prefixoConvite.length);
-        final texto = prefs.getString(chave) ?? '[]';
+      }
+    }
+
+    final rowsConvites =
+        await db.rawQuery('SELECT DISTINCT cpf_destinatario FROM convites');
+    final convites = <Map<String, dynamic>>[];
+    for (final r in rowsConvites) {
+      final cpf = r['cpf_destinatario']?.toString() ?? '';
+      if (cpf.isEmpty) continue;
+      final lista = await ConvitesService.carregar(cpf);
+      if (lista.isNotEmpty) {
         convites.add({
           'cpf': cpf,
-          'convites': jsonDecode(texto),
+          'convites': lista.map((c) => c.toJson()).toList(),
         });
       }
     }
@@ -78,7 +88,7 @@ class BackupService {
     return {
       'versao': 1,
       'exportadoEm': DateTime.now().toIso8601String(),
-      'contas': contas,
+      'contas': contas.map((c) => c.toJson()).toList(),
       'cofres': cofres,
       'convites': convites,
     };
@@ -121,14 +131,18 @@ class BackupService {
     Map<String, dynamic> json, {
     required bool substituir,
   }) async {
-    final prefs = await SharedPreferences.getInstance();
+    final db = await BancoDadosService.db;
 
     if (substituir) {
-      final chaves =
-          prefs.getKeys().where((k) => k.startsWith(_prefixo)).toList();
-      for (final k in chaves) {
-        await prefs.remove(k);
-      }
+      await db.transaction((txn) async {
+        await txn.delete('contas_usuarios');
+        await txn.delete('lojas');
+        await txn.delete('pedidos');
+        await txn.delete('movimentos_estoque');
+        await txn.delete('pagamentos_funcionarios');
+        await txn.delete('referencias_loja');
+        await txn.delete('convites');
+      });
     }
 
     int contasImportadas = 0;
@@ -140,32 +154,19 @@ class BackupService {
         .map((item) => UsuarioNous.fromJson(item as Map<String, dynamic>))
         .toList();
 
-    final contasAtuais = <UsuarioNous>[];
-    final contasTexto = prefs.getString(_chaveContas);
-    if (contasTexto != null && contasTexto.isNotEmpty) {
-      final lista = jsonDecode(contasTexto) as List<dynamic>;
-      contasAtuais.addAll(lista
-          .map((item) => UsuarioNous.fromJson(item as Map<String, dynamic>)));
-    }
-
     for (final nova in contasNovas) {
-      final indice = contasAtuais.indexWhere((c) => c.cpf == nova.cpf);
-      if (indice == -1) {
-        contasAtuais.add(nova);
+      final atual = await ContasNousService.buscarPorCpf(nova.cpf);
+      if (atual == null) {
+        await ContasNousService.salvar(nova);
       } else {
         final emailsUnicos = {
-          ...contasAtuais[indice].emails,
+          ...atual.emails,
           ...nova.emails,
         }.toList();
-        contasAtuais[indice] = nova.copyWith(emails: emailsUnicos);
+        await ContasNousService.salvar(nova.copyWith(emails: emailsUnicos));
       }
       contasImportadas++;
     }
-
-    await prefs.setString(
-      _chaveContas,
-      jsonEncode(contasAtuais.map((c) => c.toJson()).toList()),
-    );
 
     final cofresJson = json['cofres'] as List<dynamic>? ?? const [];
     for (final item in cofresJson) {
@@ -179,48 +180,32 @@ class BackupService {
           .map((e) => ReferenciaLoja.fromJson(e as Map<String, dynamic>))
           .toList();
 
-      final lojasAtuais = <Loja>[];
-      final lojasTexto = prefs.getString(_prefixoLoja + cpf);
-      if (lojasTexto != null && lojasTexto.isNotEmpty) {
-        final lista = jsonDecode(lojasTexto) as List<dynamic>;
-        lojasAtuais.addAll(lista
-            .map((e) => Loja.fromJson(e as Map<String, dynamic>)));
-      }
+      final lojasAtuais = await LojasService.carregar(cpf);
+      final lojasMescladas = <Loja>[...lojasAtuais];
 
       for (final nova in lojasNovas) {
-        final indice = lojasAtuais.indexWhere((l) => l.id == nova.id);
+        final indice = lojasMescladas.indexWhere((l) => l.id == nova.id);
         if (indice == -1) {
-          lojasAtuais.add(nova);
+          lojasMescladas.add(nova);
         } else {
-          lojasAtuais[indice] = nova;
+          lojasMescladas[indice] = nova;
         }
         lojasImportadas++;
       }
 
-      await prefs.setString(
-        _prefixoLoja + cpf,
-        jsonEncode(lojasAtuais.map((l) => l.toJson()).toList()),
-      );
+      await LojasService.salvar(cpf, lojasMescladas);
 
-      final refsAtuais = <ReferenciaLoja>[];
-      final refsTexto = prefs.getString(_prefixoReferencia + cpf);
-      if (refsTexto != null && refsTexto.isNotEmpty) {
-        final lista = jsonDecode(refsTexto) as List<dynamic>;
-        refsAtuais.addAll(lista
-            .map((e) => ReferenciaLoja.fromJson(e as Map<String, dynamic>)));
-      }
+      final refsAtuais = await LojasService.carregarReferencias(cpf);
+      final refsMescladas = <ReferenciaLoja>[...refsAtuais];
 
       for (final nova in refsNovas) {
-        if (!refsAtuais.any((r) => r.lojaId == nova.lojaId)) {
-          refsAtuais.add(nova);
+        if (!refsMescladas.any((r) => r.lojaId == nova.lojaId)) {
+          refsMescladas.add(nova);
           referenciasImportadas++;
         }
       }
 
-      await prefs.setString(
-        _prefixoReferencia + cpf,
-        jsonEncode(refsAtuais.map((r) => r.toJson()).toList()),
-      );
+      await LojasService.salvarReferencias(cpf, refsMescladas);
     }
 
     final convitesJson = json['convites'] as List<dynamic>? ?? const [];
@@ -232,25 +217,17 @@ class BackupService {
           .map((e) => ConviteLoja.fromJson(e as Map<String, dynamic>))
           .toList();
 
-      final atuais = <ConviteLoja>[];
-      final texto = prefs.getString(_prefixoConvite + cpf);
-      if (texto != null && texto.isNotEmpty) {
-        final lista = jsonDecode(texto) as List<dynamic>;
-        atuais.addAll(lista
-            .map((e) => ConviteLoja.fromJson(e as Map<String, dynamic>)));
-      }
+      final atuais = await ConvitesService.carregar(cpf);
+      final mesclados = <ConviteLoja>[...atuais];
 
       for (final novo in novos) {
-        if (!atuais.any((c) => c.id == novo.id)) {
-          atuais.add(novo);
+        if (!mesclados.any((c) => c.id == novo.id)) {
+          mesclados.add(novo);
           convitesImportados++;
         }
       }
 
-      await prefs.setString(
-        _prefixoConvite + cpf,
-        jsonEncode(atuais.map((c) => c.toJson()).toList()),
-      );
+      await ConvitesService.salvar(cpf, mesclados);
     }
 
     return ResultadoImportacao(

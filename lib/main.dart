@@ -1,6 +1,7 @@
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:nous/src/core/services/banco_dados_service.dart';
 import 'package:nous/src/core/theme/theme_controller.dart';
 import 'package:nous/src/core/theme/contrast_helper.dart';
 import 'package:nous/src/features/auth/providers/auth_provider.dart';
@@ -26,6 +27,7 @@ class AppScrollBehavior extends MaterialScrollBehavior {
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await BancoDadosService.inicializar();
   await ThemeController.init();
   runApp(const MyApp());
 }

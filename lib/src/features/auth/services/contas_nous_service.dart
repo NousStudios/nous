@@ -1,35 +1,31 @@
 import 'dart:convert';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:sqflite_common_ffi/sqflite_ffi.dart';
+import 'package:nous/src/core/services/banco_dados_service.dart';
 import 'package:nous/src/features/auth/models/usuario_nous.dart';
 
 class ContasNousService {
   ContasNousService._();
 
-  static const String _chave = 'nous_contas_cpf';
-
   static Future<List<UsuarioNous>> carregarTodas() async {
-    final prefs = await SharedPreferences.getInstance();
-    final texto = prefs.getString(_chave);
-    if (texto == null || texto.isEmpty) return [];
-
-    final lista = jsonDecode(texto) as List<dynamic>;
-    return lista
-        .map((item) => UsuarioNous.fromJson(item as Map<String, dynamic>))
+    final db = await BancoDadosService.db;
+    final rows = await db.query('contas_usuarios');
+    return rows
+        .map((r) =>
+            UsuarioNous.fromJson(jsonDecode(r['dados_json'] as String)))
         .toList();
   }
 
-  static Future<void> _salvarTodas(List<UsuarioNous> contas) async {
-    final prefs = await SharedPreferences.getInstance();
-    final texto = jsonEncode(contas.map((c) => c.toJson()).toList());
-    await prefs.setString(_chave, texto);
-  }
-
   static Future<UsuarioNous?> buscarPorCpf(String cpf) async {
-    final contas = await carregarTodas();
-    for (final conta in contas) {
-      if (conta.cpf == cpf) return conta;
-    }
-    return null;
+    final db = await BancoDadosService.db;
+    final rows = await db.query(
+      'contas_usuarios',
+      where: 'cpf = ?',
+      whereArgs: [cpf],
+      limit: 1,
+    );
+    if (rows.isEmpty) return null;
+    return UsuarioNous.fromJson(
+        jsonDecode(rows.first['dados_json'] as String));
   }
 
   static Future<String?> buscarCpfDoEmail(String email) async {
@@ -41,19 +37,24 @@ class ContasNousService {
   }
 
   static Future<void> salvar(UsuarioNous conta) async {
-    final contas = await carregarTodas();
-    final indice = contas.indexWhere((c) => c.cpf == conta.cpf);
-    if (indice == -1) {
-      contas.add(conta);
-    } else {
-      contas[indice] = conta;
-    }
-    await _salvarTodas(contas);
+    final db = await BancoDadosService.db;
+    await db.insert(
+      'contas_usuarios',
+      {
+        'cpf': conta.cpf,
+        'nome': conta.nome,
+        'dados_json': jsonEncode(conta.toJson()),
+      },
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
   }
 
   static Future<void> excluir(String cpf) async {
-    final contas = await carregarTodas();
-    contas.removeWhere((c) => c.cpf == cpf);
-    await _salvarTodas(contas);
+    final db = await BancoDadosService.db;
+    await db.delete(
+      'contas_usuarios',
+      where: 'cpf = ?',
+      whereArgs: [cpf],
+    );
   }
 }

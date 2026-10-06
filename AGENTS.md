@@ -110,9 +110,15 @@ Este projeto apoia-se no **anarquismo plataformista brasileiro**: poder sem inte
 - Provedores globais (`AuthProvider`, `PdvProvider`, `NotificacoesProvider`) registrados no `main.dart`.
 - Evite rebuilds cíclicos: use `context.read<T>()` em callbacks e `context.watch<T>()` onde a reconstrução do widget for estritamente necessária.
 
-### 5.3 Persistência Local e Modelo de Cofre
-- Contas e dados persistidos em `shared_preferences` vinculados ao CPF.
-- Cada loja reside no cofre do seu `cpfDonoOriginal`. Membros participantes acessam através de `ReferenciaLoja`, sem duplicar o cofre.
+### 5.3 Persistência Local Soberana e Banco de Dados SQLite
+- **Motor Relacional Local (`sqflite_common_ffi`):** Os dados operacionais (lojas, pedidos, estoque, pagamentos, contas e convites) são persistidos localmente no Windows em banco SQLite (`nous.db` gerenciado por `BancoDadosService`), garantindo transações atômicas ACID, proteção contra quedas repentinas de energia e escalabilidade para dezenas de milhares de vendas sem sobrecarregar a memória RAM.
+- **Tabelas Indexadas e Arquitetura Híbrida:**
+  - `lojas`: dados cadastrais e configurações vinculados ao `cpf_dono`.
+  - `pedidos`: cada venda como linha individual, indexada por `loja_id`, `data_hora DESC` e `status`.
+  - `movimentos_estoque`: cada entrada/baixa indexada por `loja_id` e `data_hora DESC`.
+  - `pagamentos_funcionarios`, `referencias_loja`, `contas_usuarios` e `convites`.
+- **Migração Transparente e Fallback:** Na primeira execução, o `BancoDadosService` migra automaticamente registros legados de `shared_preferences` para o SQLite sem perda de dados.
+- **Cofre Soberano e Backup Universal:** Cada loja reside no cofre do seu `cpfDonoOriginal`. Membros participantes acessam através de `ReferenciaLoja`. O `BackupService` exporta e importa a totalidade dos dados em um único arquivo `.json` manipulado diretamente pelo usuário com `file_selector`.
 
 ---
 

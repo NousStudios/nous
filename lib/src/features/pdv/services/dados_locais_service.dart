@@ -1,5 +1,5 @@
 import 'dart:convert';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:nous/src/core/services/banco_dados_service.dart';
 import 'package:nous/src/features/auth/services/contas_nous_service.dart';
 import 'package:nous/src/features/pdv/models/loja.dart';
 
@@ -58,18 +58,16 @@ class DadosLocaisService {
     String descricao = '';
     String origem = conta != null ? 'Conta Nous (${conta.nome})' : '';
 
-    final prefs = await SharedPreferences.getInstance();
-    final chavesLojas =
-        prefs.getKeys().where((k) => k.startsWith('nous_lojas_')).toList();
+    final db = await BancoDadosService.db;
+    final rowsLojas = await db.query('lojas');
 
-    for (final chave in chavesLojas) {
-      final texto = prefs.getString(chave);
+    for (final row in rowsLojas) {
+      final texto = row['dados_json'] as String?;
       if (texto == null || texto.isEmpty) continue;
 
       try {
-        final lista = jsonDecode(texto) as List<dynamic>;
-        for (final item in lista) {
-          final loja = Loja.fromJson(item as Map<String, dynamic>);
+        final loja = Loja.fromJson(jsonDecode(texto) as Map<String, dynamic>);
+        final chave = 'nous_lojas_${row['cpf_dono']}';
 
           // 1. Vasculha cadastros de clientes da loja
           for (final c in loja.clientesLoja) {
@@ -164,9 +162,8 @@ class DadosLocaisService {
             }
             if (origem.isEmpty) origem = 'Loja local "${loja.nome}"';
           }
-        }
-      } catch (_) {}
-    }
+        } catch (_) {}
+      }
 
     // 4. Se a descrição ainda estiver vazia e a conta tiver dados pessoais adicionais, enriquece a descrição
     if (descricao.isEmpty && conta != null) {
