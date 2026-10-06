@@ -30,9 +30,8 @@ class _CriarPerfilDialogState extends State<_CriarPerfilDialog> {
   // lugar nenhum além de ficarem selecionadas aqui no popup.
   static const List<String> _categorias = [
     'Loja Padrão',
-    'Motoboy',
-    'Motorista',
-    'Professor',
+    'Restaurante',
+    'Fretes e Viagens',
   ];
 
   // Guarda qual categoria o usuário já escolheu. Começa como null (nada
@@ -86,7 +85,7 @@ class _CriarPerfilDialogState extends State<_CriarPerfilDialog> {
   }
 
   // Chamado ao clicar em "Selecionar". Fecha o popup de categoria e, se a
-  // categoria for "Loja Padrão", abre a tela de cadastro dela.
+  // categoria for "Loja Padrão" ou "Restaurante", abre a tela de cadastro dela.
   void _confirmarSelecao(BuildContext context) {
     final categoria = _categoriaSelecionada!;
 
@@ -98,16 +97,18 @@ class _CriarPerfilDialogState extends State<_CriarPerfilDialog> {
     final navigator = Navigator.of(context);
     navigator.pop(); // fecha o popup de categoria
 
-    if (categoria == 'Loja Padrão') {
+    if (categoria == 'Loja Padrão' || categoria == 'Restaurante') {
       navigator.push(
         MaterialPageRoute(
           builder: (context) =>
               CadastrarLojaView(categoriaInicial: categoria),
         ),
       );
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('$categoria: em construção')),
+      );
     }
-    // todo: quando Motoboy, Motorista e Professor tiverem suas próprias
-    // telas de cadastro, adicionar os casos delas aqui.
   }
 
   @override

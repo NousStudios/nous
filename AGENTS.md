@@ -173,7 +173,13 @@ Este projeto apoia-se no **anarquismo plataformista brasileiro**: poder sem inte
     - O botão **"Editar dados pessoais"** deve ficar **sempre claramente visível e posicionado abaixo de todas as informações pessoais**. Ao clicar, o bloco entra em modo de edição com inputs arredondados e botões "Salvar" e "Cancelar".
   - Sincronização automática bidirecional de fotos entre o CPF da conta e o cadastro de clientes.
 
-### 7.2 Gestão de Lojas, Membros e Consentimento (`features/pdv` & `features/notificacoes`)
+### 7.2 Gestão de Lojas, Perfis e Consentimento (`features/pdv` & `features/notificacoes`)
+- **Categorias de Perfil Profissional (`_CriarPerfilDialog`):**
+  - **`Loja Padrão`:** Varejo comercial em geral (mercearia, papelaria, ferragista) com fluxo ágil de venda direta no balcão.
+  - **`Restaurante`:** Especialização para alimentação (cardápio, componentes/adicionais e dinâmica de mesas e comandas abertas).
+  - **`Fretes e Viagens`:** Unificação de transporte individual e entregas de mercadorias.
+- **Aba "Dados" da Loja:**
+  - Exibe estritamente: Formulário de Dados da Loja, **Usuários Participantes** e **Galeria / Anexos**. Containers de Delivery e Dados Bancários permanecem desacoplados desta pré-versão local offline.
 - **Consentimento Obrigatório entre Sócios:**
   - Em `dados_perfil_view.dart`, se o usuário tentar alterar o papel de um membro que atualmente é `Sócio`:
     - A alteração **não é aplicada imediatamente**.

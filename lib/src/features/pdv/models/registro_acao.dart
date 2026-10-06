@@ -33,6 +33,11 @@ enum TipoAcao {
   movimentoEstoqueRemovido,
   pagamentoFuncionarioRegistrado,
   pagamentoFuncionarioRemovido,
+  mesaCriada,
+  mesaExcluida,
+  mesaAberta,
+  itemAdicionadoMesa,
+  mesaFechada,
 }
 
 class RegistroAcao {

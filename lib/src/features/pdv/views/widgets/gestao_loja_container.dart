@@ -4,8 +4,10 @@ import 'package:flutter/material.dart';
 import 'package:nous/src/core/theme/theme_controller.dart';
 import 'package:nous/src/features/pdv/models/cliente.dart';
 import 'package:nous/src/features/pdv/models/item_loja.dart';
+import 'package:nous/src/features/pdv/models/mesa_loja.dart';
 import 'package:nous/src/features/pdv/models/pedido_loja.dart';
 import 'package:nous/src/features/pdv/views/widgets/estado_vazio_container.dart';
+import 'package:nous/src/features/pdv/views/widgets/mesas/mesas_container.dart';
 import 'package:nous/src/features/pdv/views/widgets/pedido_aceito_dialog.dart';
 import 'package:nous/src/features/pdv/views/widgets/cancelar_pedido_dialog.dart';
 import 'package:nous/src/features/pdv/views/widgets/venda_registrada_dialog.dart';
@@ -51,6 +53,10 @@ class GestaoLojaContainer extends StatelessWidget {
   final VoidCallback? aoImpressora;
   final VoidCallback? aoFinanceiro;
   final VoidCallback? aoStatus;
+  final bool ehRestaurante;
+  final List<MesaLoja> mesas;
+  final VoidCallback? aoCriarMesa;
+  final ValueChanged<MesaLoja>? aoClicarMesa;
 
   const GestaoLojaContainer({
     super.key,
@@ -78,6 +84,10 @@ class GestaoLojaContainer extends StatelessWidget {
     this.aoImpressora,
     this.aoFinanceiro,
     this.aoStatus,
+    this.ehRestaurante = false,
+    this.mesas = const [],
+    this.aoCriarMesa,
+    this.aoClicarMesa,
   });
 
   BoxDecoration get _decoracaoDoBloco => BoxDecoration(
@@ -585,6 +595,15 @@ class GestaoLojaContainer extends StatelessWidget {
     return Column(
       children: [
         _blocoDeBotoes(context),
+        if (ehRestaurante && aoCriarMesa != null && aoClicarMesa != null) ...[
+          const SizedBox(height: 16),
+          MesasContainer(
+            theme: theme,
+            mesas: mesas,
+            aoCriarMesa: aoCriarMesa!,
+            aoClicarMesa: aoClicarMesa!,
+          ),
+        ],
         const SizedBox(height: 16),
         _blocoDePedidos(context),
       ],

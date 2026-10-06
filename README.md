@@ -64,8 +64,9 @@ Nous is in **active development**, built by a self-taught Brazilian developer �
 
 The currently operating core includes:
 - **Citizen Identity (`features/auth`)**: Real identity tied to the citizen's CPF (Brazilian tax ID), multiple authenticated accounts on the same machine, comprehensive citizen profile data, and local sovereign credential management without reliance on Big Tech logins.
-- **Participatory PDV (`features/pdv`)**: A complete, transparent Point of Sale system:
+- **Participatory PDV (`features/pdv`)**: A complete, transparent Point of Sale system with specialized business profiles (Standard Store, Restaurant with open tables & tabs, Freight & Rides):
   - Multi-item catalog with persisted photos, categories, and complementary component groups.
+  - Open Table & Tab Management for Restaurants: Table registry with live status (free/occupied), continuous ordering per responsible worker, item-level audit trails, 58mm thermal pre-bill checks, and flexible checkout.
   - Order and ticket workflow (New, Accepted, Completed, Cancelled with stock reversal & audit trail) with split/multiple payments support.
   - Multi-unit inventory tracking (`un`, `g`, `ml`) with automatic deduction proposals confirmed by human discretion.
   - Customer & Supplier registry with adaptive CPF/CNPJ formatting and unified sovereign local auto-fill (`DadosLocaisService`).
@@ -272,8 +273,9 @@ O Nous está em **desenvolvimento ativo**, construído por um desenvolvedor auto
 
 O núcleo atualmente funcional reúne:
 - **Identidade Cidadã (`features/auth`)**: Identidade real ancorada no CPF do cidadão, suporte a múltiplas contas no mesmo dispositivo, perfil civil completo e soberania local sem dependência de autenticação de Big Techs.
-- **PDV Participativo Completo (`features/pdv`)**: Ponto de Venda integral e transparente:
+- **PDV Participativo Completo (`features/pdv`)**: Ponto de Venda integral e transparente com perfis profissionais especializados (Loja Padrão, Restaurante com mesas/comandas abertas, Fretes e Viagens):
   - Catálogo de itens com persistência de fotos, categorias e grupos de adicionais/componentes.
+  - Gestão de Mesas e Comandas Abertas para Restaurantes: Cadastro de mesas com status dinâmico (livre/ocupada), lançamento contínuo de itens por trabalhador responsável, histórico de auditoria por item, impressão térmica de conferência não-fiscal de 58mm e fechamento ágil de conta.
   - Gestão de pedidos e fluxo de comandas em tempo real (Novos, Aceitos, Concluídos, Cancelados com estorno de estoque e auditoria) com suporte a pagamentos parciais múltiplos.
   - Controle de estoque multivariado (`un`, `g`, `ml`) com proposta automática de baixa e confirmação humana mandatória.
   - Cadastro de clientes e fornecedores com máscara adaptável CPF/CNPJ e autopreenchimento local soberano unificado (`DadosLocaisService`).

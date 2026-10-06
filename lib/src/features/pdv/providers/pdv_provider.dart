@@ -9,6 +9,7 @@ import 'package:nous/src/features/pdv/models/grupo_componentes_loja.dart';
 import 'package:nous/src/features/pdv/models/item_loja.dart';
 import 'package:nous/src/features/pdv/models/loja.dart';
 import 'package:nous/src/features/pdv/models/membro_loja.dart';
+import 'package:nous/src/features/pdv/models/mesa_loja.dart';
 import 'package:nous/src/features/pdv/models/movimento_estoque.dart';
 import 'package:nous/src/features/pdv/models/pagamento_funcionario.dart';
 import 'package:nous/src/features/pdv/models/pedido_loja.dart';
@@ -350,6 +351,7 @@ class PdvProvider extends ChangeNotifier {
     List<Cliente>? clientes,
     List<Fornecedor>? fornecedores,
     List<PedidoLoja>? pedidos,
+    List<MesaLoja>? mesas,
     List<MovimentoEstoque>? movimentosEstoque,
     List<PagamentoFuncionario>? pagamentosFuncionarios,
   }) {
@@ -363,10 +365,21 @@ class PdvProvider extends ChangeNotifier {
       clientesLoja: clientes,
       fornecedoresLoja: fornecedores,
       pedidosLoja: pedidos,
+      mesas: mesas,
       movimentosEstoque: movimentosEstoque,
       pagamentosFuncionarios: pagamentosFuncionarios,
     );
 
+    _lojas[indice] = atualizada;
+    notifyListeners();
+    _salvarLojaNoCofreCorreto(atualizada);
+  }
+
+  void atualizarMesasLoja(String id, List<MesaLoja> mesas) {
+    final indice = _lojas.indexWhere((loja) => loja.id == id);
+    if (indice == -1) return;
+
+    final atualizada = _lojas[indice].copyWith(mesas: mesas);
     _lojas[indice] = atualizada;
     notifyListeners();
     _salvarLojaNoCofreCorreto(atualizada);

@@ -9,6 +9,7 @@ import 'package:printing/printing.dart';
 import 'package:nous/src/features/pdv/models/cliente.dart';
 import 'package:nous/src/features/pdv/models/configuracoes_impressora.dart';
 import 'package:nous/src/features/pdv/models/loja.dart';
+import 'package:nous/src/features/pdv/models/mesa_loja.dart';
 import 'package:nous/src/features/pdv/models/movimento_estoque.dart';
 import 'package:nous/src/features/pdv/models/pagamento_funcionario.dart';
 import 'package:nous/src/features/pdv/models/pedido_loja.dart';
@@ -337,6 +338,125 @@ class ImpressaoService {
       bytes: bytes,
       nomeImpressora: config.nomeImpressora,
       jobName: 'ComandaNous-${pedido.numero}',
+    );
+  }
+
+  static Future<void> imprimirConferenciaMesa({
+    required ConfiguracoesImpressora config,
+    required MesaLoja mesa,
+    required String nomeLoja,
+  }) async {
+    final doc = pw.Document();
+    final tamanho = _tamanhoEmPontos(config.tamanhoFonte);
+
+    pw.TextStyle estilo({bool negrito = false, double? tamanhoCustom}) {
+      return pw.TextStyle(
+        fontSize: tamanhoCustom ?? tamanho,
+        fontWeight: negrito ? pw.FontWeight.bold : pw.FontWeight.normal,
+      );
+    }
+
+    pw.Widget linhaDupla(
+      String esquerda,
+      String direita, {
+      bool negrito = false,
+    }) {
+      return pw.Padding(
+        padding: const pw.EdgeInsets.symmetric(vertical: 1),
+        child: pw.Row(
+          crossAxisAlignment: pw.CrossAxisAlignment.start,
+          children: [
+            pw.Expanded(
+              child: pw.Text(esquerda, style: estilo(negrito: negrito)),
+            ),
+            pw.Text(direita, style: estilo(negrito: negrito)),
+          ],
+        ),
+      );
+    }
+
+    doc.addPage(
+      pw.Page(
+        pageFormat: _papel58mm,
+        build: (context) {
+          final agora = DateTime.now();
+          final dataHoraStr =
+              '${agora.day.toString().padLeft(2, '0')}/${agora.month.toString().padLeft(2, '0')} ${agora.hour.toString().padLeft(2, '0')}:${agora.minute.toString().padLeft(2, '0')}';
+
+          return pw.Column(
+            crossAxisAlignment: pw.CrossAxisAlignment.stretch,
+            children: [
+              pw.Center(
+                child: pw.Text(
+                  nomeLoja.isNotEmpty ? nomeLoja : 'Restaurante',
+                  style: estilo(negrito: true, tamanhoCustom: tamanho + 1),
+                ),
+              ),
+              pw.Center(
+                child: pw.Text(
+                  'CONFERÊNCIA DE MESA',
+                  style: estilo(negrito: true),
+                ),
+              ),
+              pw.Divider(thickness: 0.5),
+              linhaDupla('Mesa:', mesa.numero, negrito: true),
+              if (mesa.descricao.isNotEmpty)
+                linhaDupla('Local:', mesa.descricao),
+              if (mesa.clienteNome.isNotEmpty)
+                linhaDupla('Cliente:', mesa.clienteNome),
+              if (mesa.atendenteNome.isNotEmpty)
+                linhaDupla('Atendente:', mesa.atendenteNome),
+              linhaDupla('Emissão:', dataHoraStr),
+              pw.Divider(thickness: 0.5),
+              pw.Text('ITENS CONSUMIDOS', style: estilo(negrito: true)),
+              pw.SizedBox(height: 2),
+              for (final itemMesa in mesa.itens) ...[
+                linhaDupla(
+                  '${itemMesa.item.quantidade}x ${itemMesa.item.nomeItem}',
+                  _valor(itemMesa.item.subtotal),
+                ),
+                for (final acomp in itemMesa.item.acompanhamentos)
+                  linhaDupla(
+                    '  + ${acomp.quantidadePorUnidade}x ${acomp.nomeItem}',
+                    _valor(acomp.precoItem *
+                        acomp.quantidadePorUnidade *
+                        itemMesa.item.quantidade),
+                  ),
+                if (itemMesa.item.observacao.isNotEmpty)
+                  pw.Padding(
+                    padding: const pw.EdgeInsets.only(left: 6, bottom: 2),
+                    child: pw.Text(
+                      'Obs: ${itemMesa.item.observacao}',
+                      style: estilo(
+                        tamanhoCustom: tamanho - 2,
+                      ),
+                    ),
+                  ),
+              ],
+              pw.Divider(thickness: 0.5),
+              linhaDupla(
+                'TOTAL:',
+                _valor(mesa.totalAcumulado),
+                negrito: true,
+              ),
+              pw.Divider(thickness: 0.5),
+              pw.Center(
+                child: pw.Text(
+                  '* Conferência não fiscal *',
+                  style: estilo(tamanhoCustom: tamanho - 2),
+                ),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+
+    final bytes = await doc.save();
+    await _enviarParaImpressora(
+      bytes: bytes,
+      nomeImpressora: config.nomeImpressora,
+      jobName: 'ConferenciaMesa-${mesa.numero}',
     );
   }
 

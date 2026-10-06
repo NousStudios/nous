@@ -17,19 +17,23 @@ import 'package:nous/src/features/pdv/models/configuracoes_impressora.dart';
 import 'package:nous/src/features/pdv/models/fornecedor.dart';
 import 'package:nous/src/features/pdv/models/grupo_componentes_loja.dart';
 import 'package:nous/src/features/pdv/models/item_loja.dart';
+import 'package:nous/src/core/services/gerador_id.dart';
 import 'package:nous/src/features/pdv/models/membro_loja.dart';
+import 'package:nous/src/features/pdv/models/mesa_loja.dart';
 import 'package:nous/src/features/pdv/models/movimento_estoque.dart';
 import 'package:nous/src/features/pdv/models/pedido_loja.dart';
 import 'package:nous/src/features/pdv/models/registro_acao.dart';
 import 'package:nous/src/features/pdv/providers/pdv_provider.dart';
+import 'package:nous/src/features/pdv/services/impressao_service.dart';
+import 'package:nous/src/features/pdv/views/widgets/mesas/comanda_mesa_dialog.dart';
+import 'package:nous/src/features/pdv/views/widgets/mesas/criar_mesa_dialog.dart';
+import 'package:nous/src/features/pdv/views/widgets/mesas/fechar_conta_mesa_dialog.dart';
 import 'package:nous/src/features/pdv/views/financeiro_view.dart';
 import 'package:nous/src/features/pdv/views/perfis_pdv_view.dart';
 import 'package:nous/src/features/pdv/views/status_loja_view.dart';
 import 'package:nous/src/features/pdv/views/widgets/cancelar_pedido_dialog.dart';
 import 'package:nous/src/features/pdv/views/widgets/categoria_loja_container.dart';
 import 'package:nous/src/features/pdv/views/widgets/clientes_dialog.dart';
-import 'package:nous/src/features/pdv/views/widgets/dados_bancarios_container.dart';
-import 'package:nous/src/features/pdv/views/widgets/delivery_container.dart';
 import 'package:nous/src/features/pdv/views/widgets/estado_vazio_container.dart';
 import 'package:nous/src/features/pdv/views/widgets/estoque_container.dart';
 import 'package:nous/src/features/pdv/views/widgets/formulario_dados_loja.dart';
@@ -91,8 +95,6 @@ String _rotuloUnidadeCurto(UnidadeItemLoja u) {
 
 class _DadosPerfilViewState extends State<DadosPerfilView> {
   final _controllers = ControllersDadosLoja();
-  final _controllersBancarios = ControllersDadosBancarios();
-  final _controllersDelivery = ControllersDelivery();
 
   final _pesquisaItens = TextEditingController();
   final _pesquisaCategorias = TextEditingController();
@@ -118,6 +120,7 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
 
   final List<PedidoLoja> _pedidos = [];
   final List<MovimentoEstoque> _movimentosEstoque = [];
+  final List<MesaLoja> _mesas = [];
   List<MembroLoja> _membros = [];
   bool _lojaOnline = true;
   AbaPedidos _abaPedidos = AbaPedidos.novos;
@@ -414,6 +417,7 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
           clientes: _clientes,
           fornecedores: _fornecedores,
           pedidos: _pedidos,
+          mesas: _mesas,
           movimentosEstoque: _movimentosEstoque,
         );
   }
@@ -904,6 +908,233 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
         builder: (context) => FinanceiroView(
           lojaId: widget.lojaId,
           pedidos: List.of(_pedidos),
+        ),
+      ),
+    );
+  }
+
+  bool get _ehRestaurante {
+    final lojaAtual = context.read<PdvProvider>().buscarPorId(widget.lojaId);
+    final categorias =
+        (lojaAtual?.categorias ?? _controllers.categorias.text).toLowerCase();
+    return categorias.contains('restaurante');
+  }
+
+  void _abrirCriarMesa() {
+    CriarMesaDialog.mostrar(
+      context,
+      theme: ThemeController.currentTheme.value,
+      aoSalvar: (novaMesa) {
+        setState(() => _mesas.add(novaMesa));
+        _persistirListasLoja();
+        _registrarAcao(
+          TipoAcao.mesaCriada,
+          'Mesa "${novaMesa.numero}" cadastrada no salão',
+        );
+      },
+    );
+  }
+
+  void _abrirComandaMesa(MesaLoja mesa) {
+    final indice = _mesas.indexWhere((m) => m.id == mesa.id);
+    if (indice == -1) return;
+
+    ComandaMesaDialog.mostrar(
+      context,
+      theme: ThemeController.currentTheme.value,
+      mesa: _mesas[indice],
+      itensDisponiveis: _itens,
+      gruposDisponiveis: _gruposComponentes,
+      autorCpf: _cpfLogado,
+      autorNome: _nomeLogado,
+      aoAtualizarMesa: (mesaAtualizada) {
+        final statusMudou = _mesas[indice].status != mesaAtualizada.status;
+        final novosItens =
+            mesaAtualizada.itens.length > _mesas[indice].itens.length;
+        setState(() => _mesas[indice] = mesaAtualizada);
+        _persistirListasLoja();
+
+        if (statusMudou && mesaAtualizada.status == StatusMesa.ocupada) {
+          _registrarAcao(
+            TipoAcao.mesaAberta,
+            'Mesa "${mesaAtualizada.numero}" aberta por $_nomeLogado'
+            '${mesaAtualizada.clienteNome.isNotEmpty ? " (Cliente: ${mesaAtualizada.clienteNome})" : ""}',
+          );
+        } else if (novosItens) {
+          final ultimoItem = mesaAtualizada.itens.last;
+          _registrarAcao(
+            TipoAcao.itemAdicionadoMesa,
+            'Adicionado ${ultimoItem.item.quantidade}x "${ultimoItem.item.nomeItem}" na Mesa "${mesaAtualizada.numero}" por ${ultimoItem.autorNome}',
+          );
+        }
+      },
+      aoFecharConta: (mesaParaFechar) {
+        _fecharContaMesa(mesaParaFechar);
+      },
+      aoImprimirConferencia: (mesaConferencia) {
+        final lojaAtual =
+            context.read<PdvProvider>().buscarPorId(widget.lojaId);
+        ImpressaoService.imprimirConferenciaMesa(
+          config: lojaAtual?.configuracoesImpressora ??
+              const ConfiguracoesImpressora(),
+          mesa: mesaConferencia,
+          nomeLoja: lojaAtual?.nome ?? 'Restaurante',
+        );
+      },
+      aoEditarMesa: () {
+        _editarMesa(mesa);
+      },
+    );
+  }
+
+  void _editarMesa(MesaLoja mesa) {
+    final indice = _mesas.indexWhere((m) => m.id == mesa.id);
+    if (indice == -1) return;
+
+    CriarMesaDialog.mostrar(
+      context,
+      theme: ThemeController.currentTheme.value,
+      mesaExistente: _mesas[indice],
+      aoSalvar: (mesaEditada) {
+        setState(() => _mesas[indice] = mesaEditada);
+        _persistirListasLoja();
+      },
+      aoExcluir: _mesas[indice].status == StatusMesa.livre
+          ? () {
+              setState(() => _mesas.removeAt(indice));
+              _persistirListasLoja();
+              _registrarAcao(
+                TipoAcao.mesaExcluida,
+                'Mesa "${mesa.numero}" removida do restaurante',
+              );
+            }
+          : null,
+    );
+  }
+
+  Future<void> _fecharContaMesa(MesaLoja mesa) async {
+    final indice = _mesas.indexWhere((m) => m.id == mesa.id);
+    if (indice == -1 || mesa.itens.isEmpty) return;
+
+    final resultado = await FecharContaMesaDialog.mostrar(
+      context,
+      theme: ThemeController.currentTheme.value,
+      mesa: mesa,
+    );
+
+    if (resultado == null || !mounted) return;
+
+    final lojaAtual = context.read<PdvProvider>().buscarPorId(widget.lojaId);
+    final proximoNumero = _pedidos.fold<int>(
+          0,
+          (maior, p) => p.numero > maior ? p.numero : maior,
+        ) +
+        1;
+
+    final itensVendidos = mesa.itens.map((i) => i.item).toList();
+    final totalValor = mesa.totalAcumulado;
+    final nomesItens = itensVendidos
+        .map((i) => '${i.quantidade}x ${i.nomeItem}')
+        .join(', ');
+
+    final pedido = PedidoLoja(
+      id: gerarIdUnico(),
+      numero: proximoNumero,
+      clienteId: '',
+      clienteNome: mesa.clienteNome.isNotEmpty
+          ? mesa.clienteNome
+          : 'Mesa ${mesa.numero}',
+      produtoNome: nomesItens.isNotEmpty
+          ? nomesItens
+          : 'Consumo Mesa ${mesa.numero}',
+      itens: itensVendidos,
+      formaPagamento: resultado.formaPagamento,
+      valor: totalValor,
+      dataHora: DateTime.now(),
+      status: StatusPedido.concluido,
+      nomeVendedor: lojaAtual?.nome ?? '',
+      cnpjVendedor: lojaAtual?.cnpj ?? '',
+      comentario: 'Mesa ${mesa.numero} atendida por ${mesa.atendenteNome}',
+    );
+
+    final novosMovimentos = <MovimentoEstoque>[];
+    if (resultado.baixarEstoque) {
+      for (final item in itensVendidos) {
+        novosMovimentos.add(
+          MovimentoEstoque.novo(
+            itemId: item.itemId,
+            tipo: TipoMovimentoEstoque.saida,
+            quantidade: item.quantidade.toDouble(),
+            motivo:
+                'Consumo Mesa ${mesa.numero} - Pedido #${_numeroPedido(proximoNumero)}',
+            cpfAutor: _cpfLogado,
+            nomeAutor: _nomeLogado,
+            categoria: CategoriaMovimentoEstoque.venda,
+          ),
+        );
+        for (final acomp in item.acompanhamentos) {
+          novosMovimentos.add(
+            MovimentoEstoque.novo(
+              itemId: acomp.itemId,
+              tipo: TipoMovimentoEstoque.saida,
+              quantidade:
+                  (acomp.quantidadePorUnidade * item.quantidade).toDouble(),
+              motivo:
+                  'Acompanhamento Mesa ${mesa.numero} - Pedido #${_numeroPedido(proximoNumero)}',
+              cpfAutor: _cpfLogado,
+              nomeAutor: _nomeLogado,
+              categoria: CategoriaMovimentoEstoque.venda,
+            ),
+          );
+        }
+      }
+    }
+
+    setState(() {
+      _pedidos.add(pedido);
+      _movimentosEstoque.addAll(novosMovimentos);
+      _mesas[indice] = mesa.copyWith(
+        status: StatusMesa.livre,
+        itens: const [],
+        clienteNome: '',
+        atendenteCpf: '',
+        atendenteNome: '',
+        dataHoraAbertura: null,
+      );
+    });
+
+    _persistirListasLoja();
+
+    _registrarAcao(
+      TipoAcao.mesaFechada,
+      'Mesa "${mesa.numero}" fechada (${_valorFormatado(totalValor)} via ${resultado.formaPagamento}) por $_nomeLogado',
+    );
+    _registrarAcao(
+      TipoAcao.novaVenda,
+      'Nova venda #${_numeroPedido(proximoNumero)} da Mesa "${mesa.numero}" (${_valorFormatado(totalValor)})',
+    );
+    _registrarAcao(
+      TipoAcao.pedidoConcluido,
+      'Pedido #${_numeroPedido(proximoNumero)} concluído (${_valorFormatado(totalValor)})',
+    );
+
+    for (final mov in novosMovimentos) {
+      _registrarAcao(
+        TipoAcao.movimentoEstoqueRegistrado,
+        'Baixa de estoque: ${_formatarQuantidade(mov.quantidade)} pelo fechamento da Mesa "${mesa.numero}"',
+      );
+    }
+
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        backgroundColor:
+            ThemeController.currentTheme.value.cardBackgroundColor,
+        content: Text(
+          'Conta da Mesa ${mesa.numero} fechada com sucesso!',
+          style: ThemeController.currentTheme.value.getTextStyle(
+            color: ThemeController.currentTheme.value.textColor,
+          ),
         ),
       ),
     );
@@ -1669,6 +1900,7 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
     _fornecedores.addAll(loja?.fornecedoresLoja ?? []);
     _pedidos.addAll(loja?.pedidosLoja ?? []);
     _movimentosEstoque.addAll(loja?.movimentosEstoque ?? []);
+    _mesas.addAll(loja?.mesas ?? []);
     _membros = List.of(loja?.membros ?? []);
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -1693,8 +1925,6 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
   @override
   void dispose() {
     _controllers.dispose();
-    _controllersBancarios.dispose();
-    _controllersDelivery.dispose();
     _pesquisaItens.dispose();
     _pesquisaCategorias.dispose();
     _pesquisaGrupos.dispose();
@@ -2232,16 +2462,6 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
               onSair: _sairDaLoja,
             ),
             const SizedBox(height: 16),
-            DadosBancariosContainer(
-              theme: theme,
-              controllers: _controllersBancarios,
-            ),
-            const SizedBox(height: 16),
-            DeliveryContainer(
-              theme: theme,
-              controllers: _controllersDelivery,
-            ),
-            const SizedBox(height: 16),
             GaleriaEstiloContainer(
               theme: theme,
               titulo: 'Galeria',
@@ -2328,6 +2548,10 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
           aoImpressora: _abrirPopupImpressora,
           aoFinanceiro: _abrirFinanceiro,
           aoStatus: _abrirStatusLoja,
+          ehRestaurante: _ehRestaurante,
+          mesas: _mesas,
+          aoCriarMesa: _abrirCriarMesa,
+          aoClicarMesa: _abrirComandaMesa,
         );
 
       case AbaLoja.interface:
