@@ -70,6 +70,8 @@ class ImpressaoService {
         return 'Aceito';
       case StatusPedido.concluido:
         return 'Concluído';
+      case StatusPedido.cancelado:
+        return 'Cancelado';
     }
   }
 

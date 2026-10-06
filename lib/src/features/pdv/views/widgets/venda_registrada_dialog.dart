@@ -195,6 +195,8 @@ class _VendaConteudoState extends State<_VendaConteudo> {
         return 'Aceito';
       case StatusPedido.concluido:
         return 'Concluído';
+      case StatusPedido.cancelado:
+        return 'Cancelado';
     }
   }
 

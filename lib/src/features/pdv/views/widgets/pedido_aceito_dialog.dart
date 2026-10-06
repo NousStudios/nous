@@ -20,6 +20,7 @@ class PedidoAceitoDialog {
     required AppTheme theme,
     required PedidoLoja pedido,
     required VoidCallback aoConcluir,
+    VoidCallback? aoCancelar,
   }) {
     return showDialog<void>(
       context: context,
@@ -40,6 +41,12 @@ class PedidoAceitoDialog {
                 Navigator.of(dialogContext).pop();
                 aoConcluir();
               },
+              aoCancelar: aoCancelar == null
+                  ? null
+                  : () {
+                      Navigator.of(dialogContext).pop();
+                      aoCancelar();
+                    },
             ),
           ),
         );
@@ -52,11 +59,13 @@ class _PedidoAceitoConteudo extends StatelessWidget {
   final AppTheme theme;
   final PedidoLoja pedido;
   final VoidCallback aoConcluir;
+  final VoidCallback? aoCancelar;
 
   const _PedidoAceitoConteudo({
     required this.theme,
     required this.pedido,
     required this.aoConcluir,
+    this.aoCancelar,
   });
 
   BoxDecoration get _decoracaoDoBloco => BoxDecoration(
@@ -335,28 +344,75 @@ class _PedidoAceitoConteudo extends StatelessWidget {
               children: [
                 _blocoComanda(),
                 const SizedBox(height: 12),
-                SizedBox(
-                  width: double.infinity,
-                  child: OutlinedButton(
-                    style: OutlinedButton.styleFrom(
-                      backgroundColor: theme.buttonColor,
-                      foregroundColor: theme.buttonTextColor,
-                      side: BorderSide(color: theme.borderColor),
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(10),
+                if (aoCancelar != null)
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton(
+                          style: OutlinedButton.styleFrom(
+                            side: const BorderSide(color: Colors.redAccent),
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                          ),
+                          onPressed: aoCancelar,
+                          child: Text(
+                            'Cancelar Pedido',
+                            style: theme.getTextStyle(
+                              fontSize: 14,
+                              color: Colors.redAccent,
+                            ),
+                          ),
+                        ),
                       ),
-                    ),
-                    onPressed: aoConcluir,
-                    child: Text(
-                      'Concluir',
-                      style: theme.getTextStyle(
-                        fontSize: 14,
-                        color: theme.buttonTextColor,
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: OutlinedButton(
+                          style: OutlinedButton.styleFrom(
+                            backgroundColor: theme.buttonColor,
+                            foregroundColor: theme.buttonTextColor,
+                            side: BorderSide(color: theme.borderColor),
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                          ),
+                          onPressed: aoConcluir,
+                          child: Text(
+                            'Concluir',
+                            style: theme.getTextStyle(
+                              fontSize: 14,
+                              color: theme.buttonTextColor,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  )
+                else
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton(
+                      style: OutlinedButton.styleFrom(
+                        backgroundColor: theme.buttonColor,
+                        foregroundColor: theme.buttonTextColor,
+                        side: BorderSide(color: theme.borderColor),
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                      ),
+                      onPressed: aoConcluir,
+                      child: Text(
+                        'Concluir',
+                        style: theme.getTextStyle(
+                          fontSize: 14,
+                          color: theme.buttonTextColor,
+                        ),
                       ),
                     ),
                   ),
-                ),
               ],
             ),
           ),

@@ -7,9 +7,10 @@ import 'package:nous/src/features/pdv/models/item_loja.dart';
 import 'package:nous/src/features/pdv/models/pedido_loja.dart';
 import 'package:nous/src/features/pdv/views/widgets/estado_vazio_container.dart';
 import 'package:nous/src/features/pdv/views/widgets/pedido_aceito_dialog.dart';
+import 'package:nous/src/features/pdv/views/widgets/cancelar_pedido_dialog.dart';
 import 'package:nous/src/features/pdv/views/widgets/venda_registrada_dialog.dart';
 
-enum AbaPedidos { novos, aceitos, concluidos }
+enum AbaPedidos { novos, aceitos, concluidos, cancelados }
 
 const double _alturaListaPedidos = 260;
 
@@ -38,6 +39,7 @@ class GestaoLojaContainer extends StatelessWidget {
   final ValueChanged<String> aoAceitar;
   final ValueChanged<String> aoRecusar;
   final ValueChanged<String> aoConcluir;
+  final ValueChanged<String>? aoCancelarPedido;
   final void Function(String pedidoId, DadosComentario dados)?
       aoSalvarComentario;
   final ValueChanged<String>? aoExcluirPedido;
@@ -67,6 +69,7 @@ class GestaoLojaContainer extends StatelessWidget {
     required this.aoAceitar,
     required this.aoRecusar,
     required this.aoConcluir,
+    this.aoCancelarPedido,
     this.aoSalvarComentario,
     this.aoExcluirPedido,
     required this.aoNovaVenda,
@@ -310,7 +313,15 @@ class GestaoLojaContainer extends StatelessWidget {
                 ),
               ),
             ],
-            if (pedido.status == StatusPedido.aceito)
+            if (pedido.status == StatusPedido.aceito) ...[
+              if (aoCancelarPedido != null)
+                TextButton(
+                  onPressed: () => agir(dialogContext, aoCancelarPedido!),
+                  child: Text(
+                    'Cancelar',
+                    style: theme.getTextStyle(color: Colors.redAccent),
+                  ),
+                ),
               TextButton(
                 onPressed: () => agir(dialogContext, aoConcluir),
                 child: Text(
@@ -318,6 +329,7 @@ class GestaoLojaContainer extends StatelessWidget {
                   style: theme.getTextStyle(color: theme.textColor),
                 ),
               ),
+            ],
           ],
         );
       },
@@ -325,12 +337,23 @@ class GestaoLojaContainer extends StatelessWidget {
   }
 
   void _aoClicarPedido(BuildContext context, PedidoLoja pedido) {
+    if (pedido.status == StatusPedido.cancelado) {
+      PedidoCanceladoDetalhesDialog.mostrar(
+        context,
+        theme: theme,
+        pedido: pedido,
+      );
+      return;
+    }
     if (pedido.status == StatusPedido.aceito) {
       PedidoAceitoDialog.mostrar(
         context,
         theme: theme,
         pedido: pedido,
         aoConcluir: () => aoConcluir(pedido.id),
+        aoCancelar: aoCancelarPedido == null
+            ? null
+            : () => aoCancelarPedido!(pedido.id),
       );
       return;
     }
@@ -487,7 +510,8 @@ class GestaoLojaContainer extends StatelessWidget {
                 color: theme.textColor,
               ),
             ),
-          if (pedido.status == StatusPedido.concluido)
+          if (pedido.status == StatusPedido.concluido ||
+              pedido.status == StatusPedido.cancelado)
             const SizedBox(width: 8)
           else
             IconButton(
@@ -508,6 +532,7 @@ class GestaoLojaContainer extends StatelessWidget {
       AbaPedidos.novos => StatusPedido.novo,
       AbaPedidos.aceitos => StatusPedido.aceito,
       AbaPedidos.concluidos => StatusPedido.concluido,
+      AbaPedidos.cancelados => StatusPedido.cancelado,
     };
     final pedidosDaAba =
         pedidos.where((pedido) => pedido.status == statusDaAba).toList();
@@ -517,6 +542,7 @@ class GestaoLojaContainer extends StatelessWidget {
         AbaPedidos.novos => 'Nenhum pedido novo.',
         AbaPedidos.aceitos => 'Nenhum pedido aceito.',
         AbaPedidos.concluidos => 'Nenhum pedido concluído.',
+        AbaPedidos.cancelados => 'Nenhum pedido cancelado.',
       };
       return EstadoVazioContainer(theme: theme, mensagem: mensagem);
     }
@@ -544,6 +570,7 @@ class GestaoLojaContainer extends StatelessWidget {
               _abaDePedidos('Novos', AbaPedidos.novos),
               _abaDePedidos('Aceitos', AbaPedidos.aceitos),
               _abaDePedidos('Concluídos', AbaPedidos.concluidos),
+              _abaDePedidos('Cancelados', AbaPedidos.cancelados),
             ],
           ),
           const SizedBox(height: 12),

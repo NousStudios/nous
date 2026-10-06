@@ -4,6 +4,7 @@ enum TipoAcao {
   pedidoAceito,
   pedidoRecusado,
   pedidoConcluido,
+  pedidoCancelado,
   pedidoExcluido,
   comentarioSalvo,
   clienteCriado,

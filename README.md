@@ -66,13 +66,13 @@ The currently operating core includes:
 - **Citizen Identity (`features/auth`)**: Real identity tied to the citizen's CPF (Brazilian tax ID), multiple authenticated accounts on the same machine, comprehensive citizen profile data, and local sovereign credential management without reliance on Big Tech logins.
 - **Participatory PDV (`features/pdv`)**: A complete, transparent Point of Sale system:
   - Multi-item catalog with persisted photos, categories, and complementary component groups.
-  - Order and ticket workflow (New, Accepted, Completed) with split/multiple payments support.
+  - Order and ticket workflow (New, Accepted, Completed, Cancelled with stock reversal & audit trail) with split/multiple payments support.
   - Multi-unit inventory tracking (`un`, `g`, `ml`) with automatic deduction proposals confirmed by human discretion.
   - Customer & Supplier registry with adaptive CPF/CNPJ formatting and unified sovereign local auto-fill (`DadosLocaisService`).
   - Cooperative financial management with real-time audit trail and algorithmic egalitarian profit/surplus division suggestions.
   - Thermal receipt printing (standard 58mm) and PDF exports.
 - **Deliberative Notifications & Governance (`features/notificacoes`)**: Direct collective governance for store members. Anti-despotic rules: owners cannot unilaterally remove other owners without explicit consent; partners cannot alter another partner's role without prior acceptance.
-- **Local-First & Sovereignty**: Entirely offline and self-contained using a secure vault architecture (`shared_preferences`) and single-file JSON backup/restore (`file_selector`), completely independent of Big Tech cloud lock-in.
+- **Local-First & Sovereignty**: Entirely offline and self-contained with a high-performance local SQLite relational engine (`sqflite_common_ffi` with ACID atomic transactions), automatic migration from legacy store vaults, and single-file universal JSON backup/restore (`file_selector`), completely independent of Big Tech cloud lock-in.
 
 Upcoming modules — internal chat, social timeline, autonomous delivery, community banking, and direct-democracy self-management — are planned and organized in the architectural roadmap.
 
@@ -274,13 +274,13 @@ O núcleo atualmente funcional reúne:
 - **Identidade Cidadã (`features/auth`)**: Identidade real ancorada no CPF do cidadão, suporte a múltiplas contas no mesmo dispositivo, perfil civil completo e soberania local sem dependência de autenticação de Big Techs.
 - **PDV Participativo Completo (`features/pdv`)**: Ponto de Venda integral e transparente:
   - Catálogo de itens com persistência de fotos, categorias e grupos de adicionais/componentes.
-  - Gestão de pedidos e fluxo de comandas em tempo real (Novos, Aceitos, Concluídos) com suporte a pagamentos parciais múltiplos.
+  - Gestão de pedidos e fluxo de comandas em tempo real (Novos, Aceitos, Concluídos, Cancelados com estorno de estoque e auditoria) com suporte a pagamentos parciais múltiplos.
   - Controle de estoque multivariado (`un`, `g`, `ml`) com proposta automática de baixa e confirmação humana mandatória.
   - Cadastro de clientes e fornecedores com máscara adaptável CPF/CNPJ e autopreenchimento local soberano unificado (`DadosLocaisService`).
   - Módulo financeiro cooperativo com trilha de auditoria e cálculo algorítmico de sugestão de divisão igualitária dos excedentes entre os membros.
   - Impressão térmica padrão de 58mm e emissão de comprovantes em PDF.
 - **Governança Coletiva e Notificações Deliberativas (`features/notificacoes`)**: Autogestão participativa para membros de lojas. Regras anti-despóticas: donos não podem excluir outros donos sem consentimento mútuo; sócios não podem alterar o papel de outros sócios sem aceite explícito.
-- **Soberano e Local-First**: 100% autônomo e offline, estruturado no modelo de cofre local (`shared_preferences`) e exportação/importação de backup completo em arquivo JSON único (`file_selector`), sem dependência de servidores centralizados.
+- **Soberano e Local-First**: 100% autônomo e offline, impulsionado por um banco relacional local SQLite de alta performance (`sqflite_common_ffi` com transações atômicas ACID), migração automática transparente e exportação/importação de backup completo em arquivo JSON único (`file_selector`), sem dependência de servidores centralizados.
 
 Os módulos futuros — chat interno, timeline social, rede autônoma de entregadores, banco comunitário e autogestão deliberativa — estão planejados e estruturados no roteiro.
 

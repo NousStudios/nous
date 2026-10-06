@@ -1,4 +1,4 @@
-enum StatusPedido { novo, aceito, concluido }
+enum StatusPedido { novo, aceito, concluido, cancelado }
 
 class DadosComentario {
   final String texto;
@@ -214,6 +214,11 @@ class PedidoLoja {
   final String comentarioAutorNome;
   final String comentarioAutorEmail;
   final DateTime? comentarioDataHora;
+  final String motivoCancelamento;
+  final DateTime? dataHoraCancelamento;
+  final String canceladoPorCpf;
+  final String canceladoPorNome;
+  final bool estoqueEstornado;
 
   const PedidoLoja({
     required this.id,
@@ -243,6 +248,11 @@ class PedidoLoja {
     this.comentarioAutorNome = '',
     this.comentarioAutorEmail = '',
     this.comentarioDataHora,
+    this.motivoCancelamento = '',
+    this.dataHoraCancelamento,
+    this.canceladoPorCpf = '',
+    this.canceladoPorNome = '',
+    this.estoqueEstornado = false,
   });
 
   List<PagamentoParcial> get todosPagamentos {
@@ -273,6 +283,11 @@ class PedidoLoja {
     String? comentarioAutorEmail,
     DateTime? comentarioDataHora,
     bool limparComentario = false,
+    String? motivoCancelamento,
+    DateTime? dataHoraCancelamento,
+    String? canceladoPorCpf,
+    String? canceladoPorNome,
+    bool? estoqueEstornado,
   }) {
     return PedidoLoja(
       id: id,
@@ -302,6 +317,11 @@ class PedidoLoja {
       comentarioAutorNome: comentarioAutorNome ?? this.comentarioAutorNome,
       comentarioAutorEmail: comentarioAutorEmail ?? this.comentarioAutorEmail,
       comentarioDataHora: comentarioDataHora ?? this.comentarioDataHora,
+      motivoCancelamento: motivoCancelamento ?? this.motivoCancelamento,
+      dataHoraCancelamento: dataHoraCancelamento ?? this.dataHoraCancelamento,
+      canceladoPorCpf: canceladoPorCpf ?? this.canceladoPorCpf,
+      canceladoPorNome: canceladoPorNome ?? this.canceladoPorNome,
+      estoqueEstornado: estoqueEstornado ?? this.estoqueEstornado,
     );
   }
 
@@ -334,11 +354,17 @@ class PedidoLoja {
       'comentarioAutorNome': comentarioAutorNome,
       'comentarioAutorEmail': comentarioAutorEmail,
       'comentarioDataHora': comentarioDataHora?.toIso8601String(),
+      'motivoCancelamento': motivoCancelamento,
+      'dataHoraCancelamento': dataHoraCancelamento?.toIso8601String(),
+      'canceladoPorCpf': canceladoPorCpf,
+      'canceladoPorNome': canceladoPorNome,
+      'estoqueEstornado': estoqueEstornado,
     };
   }
 
   factory PedidoLoja.fromJson(Map<String, dynamic> json) {
     final dataHoraComentario = json['comentarioDataHora'] as String?;
+    final dataHoraCancelamentoStr = json['dataHoraCancelamento'] as String?;
     return PedidoLoja(
       id: json['id'] as String,
       numero: json['numero'] as int,
@@ -348,7 +374,10 @@ class PedidoLoja {
       dataHora: DateTime.parse(json['dataHora'] as String),
       valor: (json['valor'] as num).toDouble(),
       temMensagem: json['temMensagem'] as bool? ?? false,
-      status: StatusPedido.values.byName(json['status'] as String),
+      status: StatusPedido.values.firstWhere(
+        (s) => s.name == json['status'],
+        orElse: () => StatusPedido.novo,
+      ),
       comanda: json['comanda'] as String? ?? '',
       formaPagamento: json['formaPagamento'] as String? ?? '',
       pagamentosExtras:
@@ -374,6 +403,13 @@ class PedidoLoja {
       comentarioDataHora: dataHoraComentario == null
           ? null
           : DateTime.tryParse(dataHoraComentario),
+      motivoCancelamento: json['motivoCancelamento'] as String? ?? '',
+      dataHoraCancelamento: dataHoraCancelamentoStr == null
+          ? null
+          : DateTime.tryParse(dataHoraCancelamentoStr),
+      canceladoPorCpf: json['canceladoPorCpf'] as String? ?? '',
+      canceladoPorNome: json['canceladoPorNome'] as String? ?? '',
+      estoqueEstornado: json['estoqueEstornado'] as bool? ?? false,
     );
   }
 }

@@ -11,7 +11,7 @@ Diretrizes obrigatórias para criação, alteração ou extensão de campos em q
 
 ## 1. Modelos do Projeto
 
-Aplica-se a todos os modelos persistidos em disco (cofres locais em `shared_preferences` e arquivos de backup JSON):
+Aplica-se a todos os modelos persistidos em disco (banco local SQLite via `BancoDadosService` e arquivos de backup JSON):
 
 ### Modelos Principais
 - **`UsuarioNous`** (`lib/src/features/auth/models/usuario_nous.dart`): Identidade cidadã e dados civis.

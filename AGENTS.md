@@ -192,10 +192,16 @@ Este projeto apoia-se no **anarquismo plataformista brasileiro**: poder sem inte
   - **Autopreenchimento Local Soberano (`DadosLocaisService`):** Ao preencher o campo com um documento completo (11 ou 14 dígitos), o sistema pesquisa automaticamente nas contas de usuários Nous, nas lojas locais registradas e nos cadastros prévios da máquina. Se encontrar correspondência, autopreencha Nome, Telefone, Endereço, Número, E-mail, Redes Sociais e Foto, exibindo a origem do registro em tela. A busca é unificada: cruza o CPF da conta com cadastros prévios de clientes e com a loja criada pelo próprio titular (por CPF do cofre, e-mails associados e nome), garantindo que dados como telefone e endereço nunca fiquem vazios.
 
 ### 7.3 Fluxo de Venda, Comandas e Estoque
-- Itens vendidos (`ItemVendido`) guardam a foto do produto, garantindo miniaturas na vitrine, no carrinho, na busca, nas abas de gestão (`Novos`, `Aceitos`, `Concluídos`) e nas comandas (`ComandaPedido` e `PedidoAceitoDialog`).
+- Itens vendidos (`ItemVendido`) guardam a foto do produto, garantindo miniaturas na vitrine, no carrinho, na busca, nas abas de gestão (`Novos`, `Aceitos`, `Concluídos`, `Cancelados`) e nas comandas (`ComandaPedido` e `PedidoAceitoDialog`).
 - Suporte a pagamentos múltiplos (`List<PagamentoParcial>`) acessados prioritariamente via getter `pedido.todosPagamentos`.
 - Impressão térmica padrão de 58mm gerada em PDF via `ImpressaoService`.
 - Controle de estoque com unidades (`un`, `g`, `ml`) e baixa automática sugerida (`BaixaEstoqueDialog`) com ajuste humano obrigatório.
+- **Cancelamento e Estorno de Pedidos (`CancelarPedidoDialog`):**
+  - Pedidos nos status `novo` ou `aceito` podem ser cancelados através do diálogo de confirmação `CancelarPedidoDialog`, informando obrigatoriamente o motivo do cancelamento e permitindo a opção de devolver automaticamente as mercadorias ao estoque.
+  - Pedidos cancelados recebem `StatusPedido.cancelado` e são movidos para a aba dedicada **"Cancelados"** na gestão da loja. Eles **nunca são apagados silenciosamente do sistema**, preservando a transparência e auditoria coletiva.
+  - Ao clicar em um pedido cancelado na aba "Cancelados", o sistema abre o `PedidoCanceladoDetalhesDialog` exibindo quem cancelou, quando, motivo e se houve estorno de estoque.
+  - Se a devolução de estoque for confirmada, o sistema gera movimentos de entrada automáticos (`TipoMovimentoEstoque.entrada`, categoria `ajuste`) e registra ações de auditoria (`TipoAcao.pedidoCancelado` e `TipoAcao.movimentoEstoqueRegistrado`).
+  - Pedidos cancelados **não são computados no faturamento nem nas entradas do módulo Financeiro**.
 
 ---
 

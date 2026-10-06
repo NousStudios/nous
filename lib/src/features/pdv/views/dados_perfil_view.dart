@@ -25,6 +25,7 @@ import 'package:nous/src/features/pdv/providers/pdv_provider.dart';
 import 'package:nous/src/features/pdv/views/financeiro_view.dart';
 import 'package:nous/src/features/pdv/views/perfis_pdv_view.dart';
 import 'package:nous/src/features/pdv/views/status_loja_view.dart';
+import 'package:nous/src/features/pdv/views/widgets/cancelar_pedido_dialog.dart';
 import 'package:nous/src/features/pdv/views/widgets/categoria_loja_container.dart';
 import 'package:nous/src/features/pdv/views/widgets/clientes_dialog.dart';
 import 'package:nous/src/features/pdv/views/widgets/dados_bancarios_container.dart';
@@ -617,6 +618,66 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
       TipoAcao.comentarioSalvo,
       'Comentário salvo no pedido ${_numeroPedido(pedido.numero)}',
     );
+  }
+
+  Future<void> _cancelarPedidoComDialog(String id) async {
+    final indice = _pedidos.indexWhere((p) => p.id == id);
+    if (indice == -1) return;
+    final pedido = _pedidos[indice];
+
+    final resultado = await CancelarPedidoDialog.mostrar(
+      context,
+      theme: ThemeController.currentTheme.value,
+      pedido: pedido,
+    );
+
+    if (resultado == null || !mounted) return;
+
+    setState(() {
+      _pedidos[indice] = pedido.copyWith(
+        status: StatusPedido.cancelado,
+        motivoCancelamento: resultado.motivo,
+        dataHoraCancelamento: DateTime.now(),
+        canceladoPorCpf: _cpfLogado,
+        canceladoPorNome: _nomeLogado,
+        estoqueEstornado: resultado.devolverEstoque,
+      );
+
+      if (resultado.devolverEstoque) {
+        for (final item in pedido.itens) {
+          final mov = MovimentoEstoque.novo(
+            itemId: item.itemId,
+            tipo: TipoMovimentoEstoque.entrada,
+            quantidade: item.quantidade.toDouble(),
+            motivo:
+                'Estorno - Pedido ${_numeroPedido(pedido.numero)} cancelado: ${resultado.motivo}',
+            cpfAutor: _cpfLogado,
+            nomeAutor: _nomeLogado,
+            categoria: CategoriaMovimentoEstoque.ajuste,
+          );
+          _movimentosEstoque.add(mov);
+        }
+      }
+    });
+
+    _persistirListasLoja();
+
+    _registrarAcao(
+      TipoAcao.pedidoCancelado,
+      'Pedido ${_numeroPedido(pedido.numero)} cancelado '
+          '(${_valorFormatado(pedido.valor)}). Motivo: ${resultado.motivo}'
+          '${resultado.devolverEstoque ? " [Estoque estornado]" : ""}',
+    );
+
+    if (resultado.devolverEstoque) {
+      for (final item in pedido.itens) {
+        _registrarAcao(
+          TipoAcao.movimentoEstoqueRegistrado,
+          'Estorno de estoque: ${_formatarQuantidade(item.quantidade.toDouble())} de '
+              '"${item.nomeItem}" pelo cancelamento do pedido ${_numeroPedido(pedido.numero)}',
+        );
+      }
+    }
   }
 
   void _recusarPedido(String id) {
@@ -2258,6 +2319,7 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
           aoAceitar: (id) => _alterarStatusPedido(id, StatusPedido.aceito),
           aoRecusar: _recusarPedido,
           aoConcluir: (id) => _alterarStatusPedido(id, StatusPedido.concluido),
+          aoCancelarPedido: _cancelarPedidoComDialog,
           aoSalvarComentario: _salvarComentarioPedido,
           aoExcluirPedido: _excluirPedido,
           aoNovaVenda: _abrirPopupNovaVenda,
