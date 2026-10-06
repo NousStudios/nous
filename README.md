@@ -52,18 +52,23 @@ you. Nous inverts that logic on purpose:
 
 ## Current Status
 
-Nous is in **early, active development**, built by a single self-taught
-beginner developer — contributions, code review, and honest criticism from
-experienced developers are genuinely welcome; this project is too large, by
-design, for one person alone.
+Nous is in **active development**, built by a self-taught Brazilian developer — contributions, code review, and honest criticism from experienced developers are genuinely welcome; this project is too large, by design, for one person alone.
 
-The first working piece is the **PDV (point-of-sale) module**, meant for
-local businesses and organizations already aligned with this platformist
-project. Every other module — chat, timeline, delivery, banking,
-self-management — exists today only as a reserved, empty folder in the
-codebase: planned, not built.
+The currently operating core includes:
+- **Citizen Identity (`features/auth`)**: Real identity tied to the citizen's CPF (Brazilian tax ID), multiple authenticated accounts on the same machine, comprehensive citizen profile data, and local sovereign credential management without reliance on Big Tech logins.
+- **Participatory PDV (`features/pdv`)**: A complete, transparent Point of Sale system:
+  - Multi-item catalog with persisted photos, categories, and complementary component groups.
+  - Order and ticket workflow (New, Accepted, Completed) with split/multiple payments support.
+  - Multi-unit inventory tracking (`un`, `g`, `ml`) with automatic deduction proposals confirmed by human discretion.
+  - Customer & Supplier registry with adaptive CPF/CNPJ formatting and unified sovereign local auto-fill (`DadosLocaisService`).
+  - Cooperative financial management with real-time audit trail and algorithmic egalitarian profit/surplus division suggestions.
+  - Thermal receipt printing (standard 58mm) and PDF exports.
+- **Deliberative Notifications & Governance (`features/notificacoes`)**: Direct collective governance for store members. Anti-despotic rules: owners cannot unilaterally remove other owners without explicit consent; partners cannot alter another partner's role without prior acceptance.
+- **Local-First & Sovereignty**: Entirely offline and self-contained using a secure vault architecture (`shared_preferences`) and single-file JSON backup/restore (`file_selector`), completely independent of Big Tech cloud lock-in.
 
-**This is not yet ready for production use or public distribution.**
+Upcoming modules — internal chat, social timeline, autonomous delivery, community banking, and direct-democracy self-management — are planned and organized in the architectural roadmap.
+
+**This is currently functional for desktop (Windows) and undergoing continuous refinement before public distribution.**
 
 ## Architecture
 
@@ -76,8 +81,8 @@ other's feet.
 ### Feature-first, not layer-first
 
 The codebase is organized by **business feature**, not by technical layer.
-Each folder under `lib/src/features/` (`pdv`, `chat`, `banco`, `delivery`,
-`timeline`, `clientes`, `estoque`, `autogestao`) is close to a self-contained
+Each folder under `lib/src/features/` (`auth`, `notificacoes`, `pdv`, and planned
+modules: `autogestao`, `banco`, `chat`, `delivery`, `timeline`) is a self-contained
 module, with its own `models/`, `providers/`, `services/`, and `views/`
 inside it. Shared building blocks (theme, generic widgets, core services)
 live in `lib/src/core/` instead of being duplicated per feature.
@@ -96,7 +101,7 @@ small way, along federative lines.
 
 App state is managed with the `Provider` package. Each major feature area
 that needs shared state exposes a `ChangeNotifier`-based provider
-(`AuthProvider`, `PdvProvider`, and more to come), registered once in
+(`AuthProvider`, `PdvProvider`, `NotificacoesProvider`, and more to come), registered once in
 `main.dart` via `MultiProvider` and made available to the whole widget tree.
 
 ### Theming
@@ -130,20 +135,17 @@ lib/
     │   ├── routes/
     │   ├── services/
     │   ├── theme/            # AppTheme, ThemeController, theme customizer
-    │   └── widgets/          # Generic shared widgets (app bar, nav bar...)
+    │   └── widgets/          # Generic shared widgets (app bar, empty states...)
     │
-    ├── features/
-    │   ├── auth/             # Login, terms, CPF validation
-    │   ├── pdv/              # Point of sale — the first working module
-    │   ├── autogestao/       # Self-management tools (planned)
-    │   ├── banco/            # Banking, incl. platform-managed public accounts (planned)
-    │   ├── chat/             # Chat (planned)
-    │   ├── clientes/         # Customers (planned)
-    │   ├── delivery/         # Delivery app (planned)
-    │   ├── estoque/          # Inventory (planned)
-    │   └── timeline/         # Social timeline (planned)
-    │
-    └── shared/
+    └── features/
+        ├── auth/             # Citizen identity, CPF anchoring, profile
+        ├── notificacoes/     # Deliberative governance, invites, consent requests
+        ├── pdv/              # Complete point of sale, inventory, finance & printing
+        ├── autogestao/       # Direct democracy & self-management tools (planned)
+        ├── banco/            # Community bank & mutual credit (planned)
+        ├── chat/             # Internal chat (planned)
+        ├── delivery/         # Autonomous delivery network (planned)
+        └── timeline/         # Social timeline (planned)
 ```
 
 Each feature folder follows the same internal shape as it grows:
@@ -152,15 +154,13 @@ screen-specific components).
 
 ## Roadmap
 
-1. **PDV (point of sale)** — in progress. Store profile, theming, catalog
-   (items, categories, component groups), transparent micromanagement.
-2. Chat
-3. Social timeline
-4. Delivery app, with driver-negotiated route pricing
-5. Banking system, including platform-managed public accounts
-6. Self-management ("autogestão") tools and direct-democracy voting on
-   platform rules
-7. Backend architecture designed for real-time, social-network-scale traffic
+1. **PDV & Governance Core** — functional and evolving. Complete point of sale, multi-unit inventory control (`un`/`g`/`ml`), customers/suppliers with sovereign auto-fill, egalitarian financial module, 58mm thermal printing, and consent-based collective governance.
+2. Internal Chat (`features/chat`)
+3. Social Timeline (`features/timeline`)
+4. Autonomous Delivery Network (`features/delivery`), with driver-negotiated route pricing and direct dispatch
+5. Community Bank & Mutual Credit (`features/banco`), including platform-managed public accounts
+6. Direct-Democracy Self-Management (`features/autogestao`) for collective rule deliberation
+7. Decentralized / federated backend architecture designed for real-time, social-network-scale traffic
 
 ## Media
 
@@ -253,18 +253,23 @@ propósito:
 
 ## Estado Atual
 
-O Nous está em **desenvolvimento inicial e ativo**, construído por um único
-desenvolvedor autodidata e iniciante — contribuições, revisão de código e
-críticas honestas de desenvolvedores experientes são muito bem-vindas; este
-projeto é grande demais, de propósito, para uma pessoa só.
+O Nous está em **desenvolvimento ativo**, construído por um desenvolvedor autodidata brasileiro — contribuições, revisão de código e críticas honestas de desenvolvedores experientes são muito bem-vindas; este projeto é grande demais, de propósito, para uma pessoa só.
 
-A primeira parte funcional é o **módulo de PDV (ponto de venda)**, pensado
-para negócios e organizações locais já alinhados a este projeto
-plataformista. Todo o resto — chat, timeline, delivery, banco, autogestão —
-existe hoje só como pasta reservada e vazia no código: planejado, mas ainda
-não construído.
+O núcleo atualmente funcional reúne:
+- **Identidade Cidadã (`features/auth`)**: Identidade real ancorada no CPF do cidadão, suporte a múltiplas contas no mesmo dispositivo, perfil civil completo e soberania local sem dependência de autenticação de Big Techs.
+- **PDV Participativo Completo (`features/pdv`)**: Ponto de Venda integral e transparente:
+  - Catálogo de itens com persistência de fotos, categorias e grupos de adicionais/componentes.
+  - Gestão de pedidos e fluxo de comandas em tempo real (Novos, Aceitos, Concluídos) com suporte a pagamentos parciais múltiplos.
+  - Controle de estoque multivariado (`un`, `g`, `ml`) com proposta automática de baixa e confirmação humana mandatória.
+  - Cadastro de clientes e fornecedores com máscara adaptável CPF/CNPJ e autopreenchimento local soberano unificado (`DadosLocaisService`).
+  - Módulo financeiro cooperativo com trilha de auditoria e cálculo algorítmico de sugestão de divisão igualitária dos excedentes entre os membros.
+  - Impressão térmica padrão de 58mm e emissão de comprovantes em PDF.
+- **Governança Coletiva e Notificações Deliberativas (`features/notificacoes`)**: Autogestão participativa para membros de lojas. Regras anti-despóticas: donos não podem excluir outros donos sem consentimento mútuo; sócios não podem alterar o papel de outros sócios sem aceite explícito.
+- **Soberano e Local-First**: 100% autônomo e offline, estruturado no modelo de cofre local (`shared_preferences`) e exportação/importação de backup completo em arquivo JSON único (`file_selector`), sem dependência de servidores centralizados.
 
-**Ainda não está pronto para uso em produção ou distribuição pública.**
+Os módulos futuros — chat interno, timeline social, rede autônoma de entregadores, banco comunitário e autogestão deliberativa — estão planejados e estruturados no roteiro.
+
+**Atualmente funcional para desktop (Windows) e em constante refinamento antes da distribuição pública.**
 
 ## Arquitetura
 
@@ -277,8 +282,8 @@ trabalhar neste código sem atropelar o trabalho umas das outras.
 ### Organização por Feature, não por camada
 
 O código é organizado por **assunto de negócio (feature)**, não por camada
-técnica. Cada pasta dentro de `lib/src/features/` (`pdv`, `chat`, `banco`,
-`delivery`, `timeline`, `clientes`, `estoque`, `autogestao`) funciona quase
+técnica. Cada pasta dentro de `lib/src/features/` (`auth`, `notificacoes`, `pdv`,
+e módulos planejados: `autogestao`, `banco`, `chat`, `delivery`, `timeline`) funciona
 como um módulo independente, com seus próprios `models/`, `providers/`,
 `services/` e `views/` dentro dela. As peças compartilhadas (tema, widgets
 genéricos, serviços centrais) ficam em `lib/src/core/`, em vez de serem
@@ -299,7 +304,7 @@ própria maneira, em linhas federativas.
 
 O estado do app é gerenciado com o pacote `Provider`. Cada área principal
 que precisa de estado compartilhado expõe um provider baseado em
-`ChangeNotifier` (`AuthProvider`, `PdvProvider`, e outros que virão),
+`ChangeNotifier` (`AuthProvider`, `PdvProvider`, `NotificacoesProvider`, e outros que virão),
 registrado uma única vez no `main.dart` via `MultiProvider` e disponível
 para toda a árvore de widgets.
 
@@ -337,20 +342,17 @@ lib/
     │   ├── routes/
     │   ├── services/
     │   ├── theme/            # AppTheme, ThemeController, customizador de tema
-    │   └── widgets/          # Widgets genéricos compartilhados (app bar, nav bar...)
+    │   └── widgets/          # Widgets genéricos compartilhados (app bar, empty states...)
     │
-    ├── features/
-    │   ├── auth/             # Login, termos, validação de CPF
-    │   ├── pdv/              # Ponto de venda — o primeiro módulo funcional
-    │   ├── autogestao/       # Ferramentas de autogestão (planejado)
-    │   ├── banco/            # Sistema bancário, incl. contas públicas geridas pela plataforma (planejado)
-    │   ├── chat/             # Chat (planejado)
-    │   ├── clientes/         # Clientes (planejado)
-    │   ├── delivery/         # App de entregadores (planejado)
-    │   ├── estoque/          # Estoque (planejado)
-    │   └── timeline/         # Timeline social (planejado)
-    │
-    └── shared/
+    └── features/
+        ├── auth/             # Identidade cidadã, ancoragem em CPF, perfil
+        ├── notificacoes/     # Governança deliberativa, convites, pedidos de consentimento
+        ├── pdv/              # PDV completo, estoque, finanças & impressão térmica
+        ├── autogestao/       # Ferramentas de autogestão e deliberação (planejado)
+        ├── banco/            # Banco comunitário e crédito mútuo (planejado)
+        ├── chat/             # Chat interno (planejado)
+        ├── delivery/         # Rede autônoma de entregadores (planejado)
+        └── timeline/         # Timeline social (planejado)
 ```
 
 Cada pasta de feature segue o mesmo formato interno conforme cresce:
@@ -359,17 +361,13 @@ componentes específicos daquela tela).
 
 ## Roteiro (Roadmap)
 
-1. **PDV (ponto de venda)** — em andamento. Perfil da loja, tema, catálogo
-   (itens, categorias, grupos de componentes), microgestão transparente.
-2. Chat
-3. Timeline social
-4. App de entregadores, com negociação do valor da rota pelo próprio
-   trabalhador
-5. Sistema bancário, incluindo contas públicas geridas pela plataforma
-6. Ferramentas de autogestão e votação por democracia direta sobre as regras
-   da própria plataforma
-7. Arquitetura de backend projetada para tráfego em tempo real, em escala de
-   rede social
+1. **Núcleo de PDV e Governança** — funcional e em evolução contínua. Ponto de venda completo, estoque multivariado (`un`/`g`/`ml`), clientes e fornecedores com autopreenchimento local soberano, financeiro cooperativo igualitário, impressão térmica de 58mm e governança coletiva por consentimento mútuo.
+2. Chat interno (`features/chat`)
+3. Timeline social (`features/timeline`)
+4. Rede autônoma de entregadores (`features/delivery`), com negociação de rotas pelo próprio trabalhador
+5. Banco comunitário e crédito mútuo (`features/banco`), incluindo contas públicas geridas pela plataforma
+6. Ferramentas de autogestão e deliberação coletiva (`features/autogestao`) sobre as regras da própria plataforma
+7. Arquitetura de backend federada/descentralizada projetada para tráfego em tempo real em escala social
 
 ## Mídia
 
