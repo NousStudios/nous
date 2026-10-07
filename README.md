@@ -66,14 +66,15 @@ The currently operating core includes:
 - **Citizen Identity (`features/auth`)**: Real identity tied to the citizen's CPF (Brazilian tax ID), multiple authenticated accounts on the same machine, comprehensive citizen profile data, and local sovereign credential management without reliance on Big Tech logins.
 - **Participatory PDV (`features/pdv`)**: A complete, transparent Point of Sale system with specialized business profiles (Standard Store, Restaurant with open tables & tabs, Freight & Rides):
   - Multi-item catalog with persisted photos, categories, and complementary component groups.
-  - Open Table & Tab Management for Restaurants: Table registry with live status (free/occupied), continuous ordering per responsible worker, item-level audit trails, 58mm thermal pre-bill checks, and flexible checkout.
+  - Open Table & Tab Management for Restaurants: Table registry with live status (free/occupied), continuous ordering per responsible worker, item-level audit trails, 58mm thermal pre-bill checks, bill splitting across multiple payers, service fees (10%), discounts, and table transfers/merging.
   - Order and ticket workflow (New, Accepted, Completed, Cancelled with stock reversal & audit trail) with split/multiple payments support.
   - Multi-unit inventory tracking (`un`, `g`, `ml`) with automatic deduction proposals confirmed by human discretion.
-  - Customer & Supplier registry with adaptive CPF/CNPJ formatting and unified sovereign local auto-fill (`DadosLocaisService`).
+  - Customer & Supplier registry with adaptive CPF/CNPJ formatting, unified sovereign local auto-fill (`DadosLocaisService`), and comprehensive A4 PDF customer account statements.
   - Cooperative financial management with real-time audit trail and algorithmic egalitarian profit/surplus division suggestions.
   - Thermal receipt printing (standard 58mm) and PDF exports.
 - **Deliberative Notifications & Governance (`features/notificacoes`)**: Direct collective governance for store members. Anti-despotic rules: owners cannot unilaterally remove other owners without explicit consent; partners cannot alter another partner's role without prior acceptance.
 - **Local-First & Sovereignty**: Entirely offline and self-contained with a high-performance local SQLite relational engine (`sqflite_common_ffi` with ACID atomic transactions), automatic migration from legacy store vaults, and single-file universal JSON backup/restore (`file_selector`), completely independent of Big Tech cloud lock-in.
+- **Desktop Distribution & Single-Instance Protection**: Official standalone Inno Setup Windows installer (`.exe`) with branded multi-resolution app icon, native Win32 Named Mutex single-instance protection preventing duplicate process conflicts, and offline-tolerant update notification mechanism (`AtualizacaoService`).
 
 Upcoming modules — internal chat, social timeline, autonomous delivery, community banking, and direct-democracy self-management — are planned and organized in the architectural roadmap.
 
@@ -275,14 +276,15 @@ O núcleo atualmente funcional reúne:
 - **Identidade Cidadã (`features/auth`)**: Identidade real ancorada no CPF do cidadão, suporte a múltiplas contas no mesmo dispositivo, perfil civil completo e soberania local sem dependência de autenticação de Big Techs.
 - **PDV Participativo Completo (`features/pdv`)**: Ponto de Venda integral e transparente com perfis profissionais especializados (Loja Padrão, Restaurante com mesas/comandas abertas, Fretes e Viagens):
   - Catálogo de itens com persistência de fotos, categorias e grupos de adicionais/componentes.
-  - Gestão de Mesas e Comandas Abertas para Restaurantes: Cadastro de mesas com status dinâmico (livre/ocupada), lançamento contínuo de itens por trabalhador responsável, histórico de auditoria por item, impressão térmica de conferência não-fiscal de 58mm e fechamento ágil de conta.
+  - Gestão de Mesas e Comandas Abertas para Restaurantes: Cadastro de mesas com status dinâmico (livre/ocupada), lançamento contínuo de itens por trabalhador responsável, histórico de auditoria por item, impressão térmica de conferência não-fiscal de 58mm, divisão dinâmica de contas ("rachar a conta" em múltiplos pagamentos), taxa opcional de 10% de atendimento, descontos e transferência/unificação de mesas.
   - Gestão de pedidos e fluxo de comandas em tempo real (Novos, Aceitos, Concluídos, Cancelados com estorno de estoque e auditoria) com suporte a pagamentos parciais múltiplos.
   - Controle de estoque multivariado (`un`, `g`, `ml`) com proposta automática de baixa e confirmação humana mandatória.
-  - Cadastro de clientes e fornecedores com máscara adaptável CPF/CNPJ e autopreenchimento local soberano unificado (`DadosLocaisService`).
+  - Cadastro de clientes e fornecedores com máscara adaptável CPF/CNPJ, autopreenchimento local soberano unificado (`DadosLocaisService`) e exportação de extrato completo de compras em PDF A4 com cálculo de dívida a prazo em tempo real.
   - Módulo financeiro cooperativo com trilha de auditoria e cálculo algorítmico de sugestão de divisão igualitária dos excedentes entre os membros.
   - Impressão térmica padrão de 58mm e emissão de comprovantes em PDF.
 - **Governança Coletiva e Notificações Deliberativas (`features/notificacoes`)**: Autogestão participativa para membros de lojas. Regras anti-despóticas: donos não podem excluir outros donos sem consentimento mútuo; sócios não podem alterar o papel de outros sócios sem aceite explícito.
 - **Soberano e Local-First**: 100% autônomo e offline, impulsionado por um banco relacional local SQLite de alta performance (`sqflite_common_ffi` com transações atômicas ACID), migração automática transparente e exportação/importação de backup completo em arquivo JSON único (`file_selector`), sem dependência de servidores centralizados.
+- **Distribuição Desktop e Instância Única Nativa**: Instalador oficial para Windows (Inno Setup 6) em arquivo `.exe` único ultra-comprimido com ícone oficial do Nous, proteção nativa Win32 C++ contra múltiplas janelas abertas simultaneamente (evitando concorrência no SQLite) e sistema de verificação de atualizações local-first discreto (`AtualizacaoService`).
 
 Os módulos futuros — chat interno, timeline social, rede autônoma de entregadores, banco comunitário e autogestão deliberativa — estão planejados e estruturados no roteiro.
 

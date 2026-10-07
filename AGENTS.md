@@ -226,9 +226,10 @@ Este projeto apoia-se no **anarquismo plataformista brasileiro**: poder sem inte
 - O `ImpressaoService.exportarExtratoClientePDF` gera um documento paginado em formato A4 contendo dados cadastrais, saldo devedor a prazo em aberto e tabela completa com data, número do pedido, itens e valores.
 
 ### 7.6 Atualizações do Sistema e Instalador Windows
-- **Atualização Local-First Soberana:** Botão na `CustomAppBar` ao lado da engrenagem com `AtualizacaoDialog`, exibindo versão instalada, checagem via `AtualizacaoService` e garantia de preservação de dados locais.
+- **Atualização Local-First Soberana:** Botão na `CustomAppBar` ao lado da engrenagem com `AtualizacaoDialog`, exibindo versão instalada, checagem via `AtualizacaoService` e garantia de preservação de dados locais. O botão na AppBar só é renderizado quando há atualização detectada.
 - **Cofre Soberano Intacto:** O banco de dados local SQLite (`nous.db`) e arquivos residem em `%APPDATA%\Nous`, permanecendo intactos mesmo após reinstalações ou atualizações de versão.
-- **Instalador Oficial Windows:** Configurado via `windows/installer.iss` (Inno Setup 6) e script Powershell de automação `scripts/gerar_instalador.ps1`.
+- **Instância Única Nativa (Single Instance):** Implementada no runner Win32 C++ (`windows/runner/main.cpp`) via `CreateMutex` nomeado (`Nous_Single_Instance_Mutex`). Ao tentar abrir o aplicativo novamente, a segunda instância é abortada e a janela já existente é trazida e restaurada para o primeiro plano, evitando conflitos de concorrência com o SQLite.
+- **Instalador Oficial Windows:** Configurado via `windows/installer.iss` (Inno Setup 6) e script Powershell de automação `scripts/gerar_instalador.ps1`. Ícone oficial gerado a partir de `assets/images/logo.png`.
 
 ---
 

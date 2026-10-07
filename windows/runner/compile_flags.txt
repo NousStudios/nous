@@ -1,0 +1,7 @@
+-I../flutter/ephemeral/cpp_client_wrapper/include
+-I../flutter/ephemeral
+-I.
+-DUNICODE
+-D_UNICODE
+-DWIN32
+-std=c++17

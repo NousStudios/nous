@@ -23,6 +23,7 @@ Aplica-se a todos os modelos persistidos em disco (banco local SQLite via `Banco
 - **`CategoriaLoja`** (`lib/src/features/pdv/models/categoria_loja.dart`): Categorias de itens.
 - **`GrupoComponentesLoja`** (`lib/src/features/pdv/models/grupo_componentes_loja.dart`): Grupos de acompanhamentos e adicionais.
 - **`MembroLoja`** (`lib/src/features/pdv/models/membro_loja.dart`): Papéis operacionais e permissões na loja.
+- **`MesaLoja`** (`lib/src/features/pdv/models/mesa_loja.dart`): Mesas, comandas ativas e consumo no salão de restaurantes.
 - **`ReferenciaLoja`** (`lib/src/features/pdv/models/referencia_loja.dart`): Ponte de acesso ao cofre do titular.
 - **`MovimentoEstoque`** (`lib/src/features/pdv/models/movimento_estoque.dart`): Histórico de entradas/saídas de estoque.
 - **`PagamentoFuncionario`** (`lib/src/features/pdv/models/pagamento_funcionario.dart`): Registro de rateio e retiradas financeiras.
@@ -33,6 +34,7 @@ Aplica-se a todos os modelos persistidos em disco (banco local SQLite via `Banco
 
 ### Submodelos Serializados
 - **`ItemVendido`**, **`PagamentoParcial`**, **`AcompanhamentoEscolhido`** (em `pedido_loja.dart`).
+- **`ItemConsumoMesa`** (em `mesa_loja.dart`).
 - **`ComponenteItem`** (em `item_loja.dart`).
 
 ---
