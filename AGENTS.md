@@ -231,6 +231,18 @@ Este projeto apoia-se no **anarquismo plataformista brasileiro**: poder sem inte
 - **Instância Única Nativa (Single Instance):** Implementada no runner Win32 C++ (`windows/runner/main.cpp`) via `CreateMutex` nomeado (`Nous_Single_Instance_Mutex`). Ao tentar abrir o aplicativo novamente, a segunda instância é abortada e a janela já existente é trazida e restaurada para o primeiro plano, evitando conflitos de concorrência com o SQLite.
 - **Instalador Oficial Windows:** Configurado via `windows/installer.iss` (Inno Setup 6) e script Powershell de automação `scripts/gerar_instalador.ps1`. Ícone oficial gerado a partir de `assets/images/logo.png`.
 
+### 7.7 Backup Soberano, Mesclagem Inteligente e Desduplicação por CNPJ (`features/pdv/services/backup_service.dart`)
+- **Exportação e Importação Soberana:** Operação via `BackupService` e `BackupDialog` sem dependência de nuvem, exportando e importando contas, lojas, referências e convites em arquivo `.json` único através do `file_selector`.
+- **Modos de Importação:**
+  - **Substituir:** Zera as tabelas locais do SQLite e aplica o estado integral do arquivo de backup.
+  - **Mesclar:** Une o conteúdo do arquivo com o cofre existente sem perda de dados locais.
+- **Identificação Unificada por CNPJ / Documento:**
+  - Ao mesclar, o sistema compara os documentos (`cnpj`) ignorando pontuações (`mesmoDocumento`). Se o documento coincidir ou o `id` for o mesmo, o sistema **NUNCA cria uma loja duplicada** no container *"Meus Perfis Profissionais"*.
+  - **Precedência da Categoria Ativa:** Se a loja atual possui categoria mais especializada (ex.: `Restaurante` com dinâmica de mesas e comandas) e a loja do backup era `Loja Padrão`, a categoria `Restaurante` e suas mesas são preservadas intactas.
+  - **Mesclagem Granular e Enriquecimento:** Itens/produtos, clientes, categorias, grupos de adicionais, histórico de auditoria de ações (`RegistroAcao`), pedidos de venda, movimentações de estoque, pagamentos e anexos são unificados e enriquecidos sem sobrescrita destrutiva nem duplicatas de produtos/clientes.
+  - **Saneamento e Desduplicação Automática:** `BackupService.desduplicarLojas` funde perfis de mesmo CNPJ que porventura existam no cofre e atualiza referências, expurgando duplicatas do banco de dados ao salvar ou ao inicializar em `PdvProvider.entrarComCpf`.
+  - **Reatividade Pós-Importação:** Ao finalizar o fluxo no `BackupDialog`, o sistema recarrega automaticamente `AuthProvider`, `PdvProvider` e `NotificacoesProvider`, refletindo os dados mesclados imediatamente em tela sem exigir reinicialização do aplicativo.
+
 ---
 
 ## 8. REGRAS CRÍTICAS DE ENGENHARIA (PARA NUNCA QUEBRAR O SISTEMA)
