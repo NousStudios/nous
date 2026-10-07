@@ -1,5 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'package:nous/src/core/theme/theme_controller.dart';
+import 'package:nous/src/features/auth/providers/auth_provider.dart';
+import 'package:nous/src/features/notificacoes/providers/notificacoes_provider.dart';
+import 'package:nous/src/features/pdv/providers/pdv_provider.dart';
 import 'package:nous/src/features/pdv/services/backup_service.dart';
 
 class BackupDialog {
@@ -94,6 +98,19 @@ class _BackupConteudoState extends State<_BackupConteudo> {
       if (resultado == null) {
         _snack('Importação cancelada.');
       } else {
+        final auth = context.read<AuthProvider>();
+        final pdv = context.read<PdvProvider>();
+        final notif = context.read<NotificacoesProvider>();
+
+        await auth.carregarCacheContas();
+        await auth.recarregarConta();
+
+        final cpf = auth.contaAtual?.cpf ?? pdv.cpfAtual;
+        if (cpf != null && cpf.isNotEmpty) {
+          await pdv.entrarComCpf(cpf);
+          await notif.carregarParaCpf(cpf);
+        }
+
         _snack(
           'Importado: ${resultado.contasImportadas} conta(s), '
           '${resultado.lojasImportadas} loja(s), '

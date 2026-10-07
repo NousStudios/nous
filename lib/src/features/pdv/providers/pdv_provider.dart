@@ -15,12 +15,14 @@ import 'package:nous/src/features/pdv/models/pagamento_funcionario.dart';
 import 'package:nous/src/features/pdv/models/pedido_loja.dart';
 import 'package:nous/src/features/pdv/models/referencia_loja.dart';
 import 'package:nous/src/features/pdv/models/registro_acao.dart';
+import 'package:nous/src/features/pdv/services/backup_service.dart';
 import 'package:nous/src/features/pdv/services/lojas_service.dart';
 
 class PdvProvider extends ChangeNotifier {
   final List<Loja> _lojas = [];
   String? _cpfAtual;
 
+  String? get cpfAtual => _cpfAtual;
   List<Loja> get lojas => List.unmodifiable(_lojas);
 
   bool get temLojaSalva => _lojas.isNotEmpty;
@@ -151,12 +153,16 @@ class PdvProvider extends ChangeNotifier {
     _cpfAtual = cpf;
 
     final minhasLojasBrutas = await LojasService.carregar(cpf);
-    final minhasLojas = minhasLojasBrutas
+    final minhasLojasDesduplicadas =
+        BackupService.desduplicarLojas(minhasLojasBrutas);
+    final minhasLojas = minhasLojasDesduplicadas
         .map((l) => l.cpfDonoOriginal.isEmpty
             ? l.copyWith(cpfDonoOriginal: cpf)
             : l)
         .toList();
-    await LojasService.salvar(cpf, minhasLojas);
+    if (minhasLojas.length != minhasLojasBrutas.length) {
+      await LojasService.salvar(cpf, minhasLojas);
+    }
 
     final referencias = await LojasService.carregarReferencias(cpf);
     final lojasReferenciadas = <Loja>[];
