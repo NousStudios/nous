@@ -961,6 +961,7 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
       context,
       theme: ThemeController.currentTheme.value,
       mesa: _mesas[indice],
+      categoriasDisponiveis: _categorias,
       itensDisponiveis: _itens,
       gruposDisponiveis: _gruposComponentes,
       todasMesas: _mesas,

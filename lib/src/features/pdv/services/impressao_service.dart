@@ -2,6 +2,7 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:file_selector/file_selector.dart';
+import 'package:flutter/services.dart' show rootBundle;
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
@@ -17,8 +18,8 @@ import 'package:nous/src/features/pdv/models/pedido_loja.dart';
 const PdfPageFormat _papel58mm = PdfPageFormat(
   58 * PdfPageFormat.mm,
   200 * PdfPageFormat.mm,
-  marginLeft: 5 * PdfPageFormat.mm,
-  marginRight: 5 * PdfPageFormat.mm,
+  marginLeft: 5.0 * PdfPageFormat.mm,
+  marginRight: 3.0 * PdfPageFormat.mm,
   marginTop: 2 * PdfPageFormat.mm,
   marginBottom: 2 * PdfPageFormat.mm,
 );
@@ -32,6 +33,71 @@ const List<String> _formasDePagamento = [
 ];
 
 class ImpressaoService {
+  static pw.Font? _fonteBellezaCache;
+
+  static Future<pw.Font> _resolverFonte(String modelo) async {
+    switch (modelo) {
+      case 'mono':
+        return pw.Font.courier();
+      case 'serifada':
+        return pw.Font.times();
+      case 'padrao':
+        return pw.Font.helvetica();
+      case 'belleza':
+      default:
+        try {
+          if (_fonteBellezaCache != null) return _fonteBellezaCache!;
+          final bytes =
+              await rootBundle.load('assets/fonts/Belleza-Regular.ttf');
+          _fonteBellezaCache = pw.Font.ttf(bytes);
+          return _fonteBellezaCache!;
+        } catch (_) {
+          return pw.Font.helvetica();
+        }
+    }
+  }
+
+  static Future<pw.Font> _resolverFonteNegrito(String modelo) async {
+    switch (modelo) {
+      case 'mono':
+        return pw.Font.courierBold();
+      case 'serifada':
+        return pw.Font.timesBold();
+      case 'padrao':
+        return pw.Font.helveticaBold();
+      case 'belleza':
+      default:
+        try {
+          if (_fonteBellezaCache != null) return _fonteBellezaCache!;
+          final bytes =
+              await rootBundle.load('assets/fonts/Belleza-Regular.ttf');
+          _fonteBellezaCache = pw.Font.ttf(bytes);
+          return _fonteBellezaCache!;
+        } catch (_) {
+          return pw.Font.helveticaBold();
+        }
+    }
+  }
+
+  static PdfPageFormat formatoPapel(ConfiguracoesImpressora? config) {
+    final margemEsquerda = (config != null && config.margemEsquerdaMm > 0
+            ? config.margemEsquerdaMm
+            : 5.0) *
+        PdfPageFormat.mm;
+    final margemDireita = (config != null && config.margemDireitaMm > 0
+            ? config.margemDireitaMm
+            : 3.0) *
+        PdfPageFormat.mm;
+    return PdfPageFormat(
+      58 * PdfPageFormat.mm,
+      200 * PdfPageFormat.mm,
+      marginLeft: margemEsquerda,
+      marginRight: margemDireita,
+      marginTop: 2 * PdfPageFormat.mm,
+      marginBottom: 2 * PdfPageFormat.mm,
+    );
+  }
+
   static Future<List<Printer>> listarImpressoras() async {
     try {
       return await Printing.listPrinters();
@@ -147,32 +213,73 @@ class ImpressaoService {
   }) async {
     final doc = pw.Document();
     final tamanho = _tamanhoEmPontos(config.tamanhoFonte);
+    final pageFormat = formatoPapel(config);
+    final fonteNormal = await _resolverFonte(config.modeloFonte);
+    final fonteNegrito = await _resolverFonteNegrito(config.modeloFonte);
+
+    pw.TextStyle estilo({bool negrito = false, double? tamanhoCustom}) {
+      return pw.TextStyle(
+        font: negrito ? fonteNegrito : fonteNormal,
+        fontSize: tamanhoCustom ?? tamanho,
+        fontWeight: negrito ? pw.FontWeight.bold : pw.FontWeight.normal,
+      );
+    }
 
     doc.addPage(
       pw.Page(
-        pageFormat: _papel58mm,
+        pageFormat: pageFormat,
         build: (context) {
           return pw.Column(
             crossAxisAlignment: pw.CrossAxisAlignment.stretch,
             children: [
               pw.Center(
                 child: pw.Text(
-                  'Teste de impressão Nous',
-                  style: pw.TextStyle(
-                    fontSize: tamanho + 2,
-                    fontWeight: pw.FontWeight.bold,
-                  ),
+                  'Teste de Impressão Nous',
+                  style: estilo(negrito: true, tamanhoCustom: tamanho + 1.5),
                 ),
               ),
-              pw.SizedBox(height: 10),
+              pw.SizedBox(height: 4),
+              pw.Center(
+                child: pw.Text(
+                  'E: ${config.margemEsquerdaMm.toStringAsFixed(1)}mm | D: ${config.margemDireitaMm.toStringAsFixed(1)}mm | ${config.modeloFonte}',
+                  style: estilo(negrito: true, tamanhoCustom: tamanho - 1),
+                ),
+              ),
+              pw.SizedBox(height: 6),
+              pw.Divider(thickness: 0.5),
+              pw.Padding(
+                padding: const pw.EdgeInsets.symmetric(vertical: 2),
+                child: pw.Row(
+                  mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                  children: [
+                    pw.Text(
+                      '[Borda Esquerda]',
+                      style: estilo(negrito: true, tamanhoCustom: tamanho - 1.5),
+                    ),
+                    pw.Text(
+                      '[Borda Direita]',
+                      style: estilo(negrito: true, tamanhoCustom: tamanho - 1.5),
+                    ),
+                  ],
+                ),
+              ),
+              pw.Divider(thickness: 0.5),
+              pw.SizedBox(height: 6),
               pw.Align(
                 alignment: pw.Alignment.centerLeft,
                 child: pw.Text(
                   'Trabalhar todos, trabalhar menos, produzir o necessário, redistribuir tudo!',
-                  style: pw.TextStyle(fontSize: tamanho),
+                  style: estilo(),
                 ),
               ),
-              pw.SizedBox(height: 10),
+              pw.SizedBox(height: 8),
+              if (config.rodape.isNotEmpty)
+                pw.Center(
+                  child: pw.Text(
+                    config.rodape,
+                    style: estilo(tamanhoCustom: tamanho - 1),
+                  ),
+                ),
             ],
           );
         },
@@ -184,6 +291,7 @@ class ImpressaoService {
       bytes: bytes,
       nomeImpressora: config.nomeImpressora,
       jobName: 'TesteNous',
+      format: pageFormat,
     );
   }
 
@@ -194,9 +302,13 @@ class ImpressaoService {
   }) async {
     final doc = pw.Document();
     final tamanho = _tamanhoEmPontos(config.tamanhoFonte);
+    final pageFormat = formatoPapel(config);
+    final fonteNormal = await _resolverFonte(config.modeloFonte);
+    final fonteNegrito = await _resolverFonteNegrito(config.modeloFonte);
 
     pw.TextStyle estilo({bool negrito = false, double? tamanhoCustom}) {
       return pw.TextStyle(
+        font: negrito ? fonteNegrito : fonteNormal,
         fontSize: tamanhoCustom ?? tamanho,
         fontWeight: negrito ? pw.FontWeight.bold : pw.FontWeight.normal,
       );
@@ -234,40 +346,89 @@ class ImpressaoService {
 
     doc.addPage(
       pw.Page(
-        pageFormat: _papel58mm,
+        pageFormat: pageFormat,
         build: (context) {
           return pw.Column(
             crossAxisAlignment: pw.CrossAxisAlignment.stretch,
             children: [
               if (pedido.nomeVendedor.isNotEmpty)
                 pw.Center(
-                  child: pw.Text(pedido.nomeVendedor, style: estilo()),
+                  child: pw.Text(
+                    pedido.nomeVendedor,
+                    style: estilo(negrito: true, tamanhoCustom: tamanho + 1.5),
+                  ),
                 ),
               if (pedido.cnpjVendedor.isNotEmpty)
                 pw.Center(
                   child: pw.Text(
                     'CNPJ: ${pedido.cnpjVendedor}',
-                    style: estilo(),
+                    style: estilo(tamanhoCustom: tamanho - 1),
                   ),
                 ),
-              pw.SizedBox(height: 6),
+              pw.SizedBox(height: 4),
               pw.Center(
                 child: pw.Text(
                   'Pedido ${_numero(pedido.numero)}',
-                  style: estilo(negrito: true),
+                  style: estilo(negrito: true, tamanhoCustom: tamanho + 1),
                 ),
               ),
               pw.Center(
                 child: pw.Text(
                   'Data: ${_dataHora(pedido.dataHora)}',
-                  style: estilo(),
+                  style: estilo(tamanhoCustom: tamanho - 0.5),
                 ),
               ),
-              pw.SizedBox(height: 6),
-              linhaDupla('Cliente', pedido.clienteNome),
+              pw.SizedBox(height: 4),
+              pw.Divider(thickness: 0.5),
+              if (pedido.clienteNome.isNotEmpty)
+                pw.Padding(
+                  padding: const pw.EdgeInsets.symmetric(vertical: 1),
+                  child: pw.RichText(
+                    text: pw.TextSpan(
+                      children: [
+                        pw.TextSpan(
+                          text: 'Cliente: ',
+                          style: estilo(negrito: false),
+                        ),
+                        pw.TextSpan(
+                          text: pedido.clienteNome,
+                          style: estilo(
+                            negrito: true,
+                            tamanhoCustom: tamanho + 0.5,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
               for (final linha in linhasCliente)
-                linhaDupla(linha.key, linha.value),
-              pw.SizedBox(height: 8),
+                pw.Padding(
+                  padding: const pw.EdgeInsets.symmetric(vertical: 1),
+                  child: pw.RichText(
+                    text: pw.TextSpan(
+                      children: [
+                        pw.TextSpan(
+                          text: '${linha.key}: ',
+                          style: estilo(negrito: true),
+                        ),
+                        pw.TextSpan(
+                          text: linha.value,
+                          style: estilo(negrito: false),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              if (pedido.comentario.trim().isNotEmpty)
+                pw.Padding(
+                  padding: const pw.EdgeInsets.only(top: 2, bottom: 2),
+                  child: pw.Text(
+                    'Obs Pedido: ${pedido.comentario.trim()}',
+                    style: estilo(negrito: true),
+                  ),
+                ),
+              pw.Divider(thickness: 0.5),
+              pw.SizedBox(height: 4),
               pw.Center(
                 child: pw.Text('ITENS', style: estilo(negrito: true)),
               ),
@@ -298,10 +459,10 @@ class ImpressaoService {
                     ),
                   if (item.observacao.trim().isNotEmpty)
                     pw.Padding(
-                      padding: const pw.EdgeInsets.only(top: 2),
+                      padding: const pw.EdgeInsets.only(top: 1, bottom: 2, left: 4),
                       child: pw.Text(
                         'Obs: ${item.observacao.trim()}',
-                        style: estilo(tamanhoCustom: tamanho - 1),
+                        style: estilo(negrito: true),
                       ),
                     ),
                 ],
@@ -338,6 +499,7 @@ class ImpressaoService {
       bytes: bytes,
       nomeImpressora: config.nomeImpressora,
       jobName: 'ComandaNous-${pedido.numero}',
+      format: pageFormat,
     );
   }
 
@@ -348,9 +510,13 @@ class ImpressaoService {
   }) async {
     final doc = pw.Document();
     final tamanho = _tamanhoEmPontos(config.tamanhoFonte);
+    final pageFormat = formatoPapel(config);
+    final fonteNormal = await _resolverFonte(config.modeloFonte);
+    final fonteNegrito = await _resolverFonteNegrito(config.modeloFonte);
 
     pw.TextStyle estilo({bool negrito = false, double? tamanhoCustom}) {
       return pw.TextStyle(
+        font: negrito ? fonteNegrito : fonteNormal,
         fontSize: tamanhoCustom ?? tamanho,
         fontWeight: negrito ? pw.FontWeight.bold : pw.FontWeight.normal,
       );
@@ -377,7 +543,7 @@ class ImpressaoService {
 
     doc.addPage(
       pw.Page(
-        pageFormat: _papel58mm,
+        pageFormat: pageFormat,
         build: (context) {
           final agora = DateTime.now();
           final dataHoraStr =
@@ -403,7 +569,7 @@ class ImpressaoService {
               if (mesa.descricao.isNotEmpty)
                 linhaDupla('Local:', mesa.descricao),
               if (mesa.clienteNome.isNotEmpty)
-                linhaDupla('Cliente:', mesa.clienteNome),
+                linhaDupla('Cliente:', mesa.clienteNome, negrito: true),
               if (mesa.atendenteNome.isNotEmpty)
                 linhaDupla('Atendente:', mesa.atendenteNome),
               linhaDupla('Emissão:', dataHoraStr),
@@ -412,7 +578,7 @@ class ImpressaoService {
               pw.SizedBox(height: 2),
               for (final itemMesa in mesa.itens) ...[
                 linhaDupla(
-                  '${itemMesa.item.quantidade}x ${itemMesa.item.nomeItem}',
+                  '${itemMesa.item.quantidade}x ${itemMesa.item.nomeExibicao}',
                   _valor(itemMesa.item.subtotal),
                 ),
                 for (final acomp in itemMesa.item.acompanhamentos)
@@ -427,9 +593,7 @@ class ImpressaoService {
                     padding: const pw.EdgeInsets.only(left: 6, bottom: 2),
                     child: pw.Text(
                       'Obs: ${itemMesa.item.observacao}',
-                      style: estilo(
-                        tamanhoCustom: tamanho - 2,
-                      ),
+                      style: estilo(negrito: true),
                     ),
                   ),
               ],
@@ -457,6 +621,7 @@ class ImpressaoService {
       bytes: bytes,
       nomeImpressora: config.nomeImpressora,
       jobName: 'ConferenciaMesa-${mesa.numero}',
+      format: pageFormat,
     );
   }
 
@@ -473,9 +638,13 @@ class ImpressaoService {
   }) async {
     final doc = pw.Document();
     final tamanho = _tamanhoEmPontos(config.tamanhoFonte);
+    final pageFormat = formatoPapel(config);
+    final fonteNormal = await _resolverFonte(config.modeloFonte);
+    final fonteNegrito = await _resolverFonteNegrito(config.modeloFonte);
 
     pw.TextStyle estilo({bool negrito = false, double? tamanhoCustom}) {
       return pw.TextStyle(
+        font: negrito ? fonteNegrito : fonteNormal,
         fontSize: tamanhoCustom ?? tamanho,
         fontWeight: negrito ? pw.FontWeight.bold : pw.FontWeight.normal,
       );
@@ -543,7 +712,7 @@ class ImpressaoService {
 
     doc.addPage(
       pw.MultiPage(
-        pageFormat: _papel58mm,
+        pageFormat: pageFormat,
         build: (context) {
           final blocos = <pw.Widget>[];
 
@@ -786,6 +955,7 @@ class ImpressaoService {
       bytes: bytes,
       nomeImpressora: config.nomeImpressora,
       jobName: 'FinanceiroNous-${DateTime.now().millisecondsSinceEpoch}',
+      format: pageFormat,
     );
   }
 
@@ -1805,11 +1975,14 @@ class ImpressaoService {
     required Uint8List bytes,
     required String nomeImpressora,
     required String jobName,
+    PdfPageFormat? format,
   }) async {
+    final formatoFinal = format ?? _papel58mm;
     if (nomeImpressora.isEmpty) {
       await Printing.layoutPdf(
-        onLayout: (format) async => bytes,
+        onLayout: (f) async => bytes,
         name: jobName,
+        format: formatoFinal,
       );
       return;
     }
@@ -1817,9 +1990,9 @@ class ImpressaoService {
     final printer = Printer(url: nomeImpressora, name: nomeImpressora);
     await Printing.directPrintPdf(
       printer: printer,
-      onLayout: (format) async => bytes,
+      onLayout: (f) async => bytes,
       name: jobName,
-      format: _papel58mm,
+      format: formatoFinal,
       dynamicLayout: false,
     );
   }

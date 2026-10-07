@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:nous/src/core/theme/theme_controller.dart';
 import 'package:nous/src/core/widgets/themed_text_field.dart';
+import 'package:nous/src/features/pdv/models/categoria_loja.dart';
 import 'package:nous/src/features/pdv/models/grupo_componentes_loja.dart';
 import 'package:nous/src/features/pdv/models/item_loja.dart';
 import 'package:nous/src/features/pdv/models/mesa_loja.dart';
@@ -21,6 +22,7 @@ String _valorFormatado(double valor) =>
 class ComandaMesaDialog extends StatefulWidget {
   final AppTheme theme;
   final MesaLoja mesa;
+  final List<CategoriaLoja> categoriasDisponiveis;
   final List<ItemLoja> itensDisponiveis;
   final List<GrupoComponentesLoja> gruposDisponiveis;
   final String autorCpf;
@@ -36,6 +38,7 @@ class ComandaMesaDialog extends StatefulWidget {
     super.key,
     required this.theme,
     required this.mesa,
+    this.categoriasDisponiveis = const [],
     required this.itensDisponiveis,
     this.gruposDisponiveis = const [],
     this.todasMesas = const [],
@@ -52,6 +55,7 @@ class ComandaMesaDialog extends StatefulWidget {
     BuildContext context, {
     required AppTheme theme,
     required MesaLoja mesa,
+    List<CategoriaLoja> categoriasDisponiveis = const [],
     required List<ItemLoja> itensDisponiveis,
     List<GrupoComponentesLoja> gruposDisponiveis = const [],
     List<MesaLoja> todasMesas = const [],
@@ -78,6 +82,7 @@ class ComandaMesaDialog extends StatefulWidget {
             child: ComandaMesaDialog(
               theme: theme,
               mesa: mesa,
+              categoriasDisponiveis: categoriasDisponiveis,
               itensDisponiveis: itensDisponiveis,
               gruposDisponiveis: gruposDisponiveis,
               todasMesas: todasMesas,
@@ -157,6 +162,7 @@ class _ComandaMesaDialogState extends State<ComandaMesaDialog> {
     AdicionarItemMesaDialog.mostrar(
       context,
       theme: widget.theme,
+      categoriasDisponiveis: widget.categoriasDisponiveis,
       itensDisponiveis: widget.itensDisponiveis,
       gruposDisponiveis: widget.gruposDisponiveis,
       autorCpf: widget.autorCpf,
@@ -455,7 +461,7 @@ class _ComandaMesaDialogState extends State<ComandaMesaDialog> {
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Text(
-                                  '${item.quantidade}x ${item.nomeItem}',
+                                  '${item.quantidade}x ${item.nomeExibicao}',
                                   style: widget.theme.getTextStyle(
                                     fontSize: 13,
                                     fontWeight: FontWeight.w600,

@@ -41,7 +41,7 @@
 O **Nous** é um SuperApp brasileiro, livre e de código aberto, construído em Flutter e Dart para desktop (foco primário: Windows) e futuramente mobile (Android).
 
 Sua proposta é ser um **Software Universal de Autogestão Comercial e Social**, reunindo numa única plataforma:
-- **PDV (Ponto de Venda) Completo:** Lojas, itens, categorias, clientes, fornecedores, vendas à vista/a prazo, controle de estoque com unidades de medida (un, g, ml), relatórios gerenciais, módulo financeiro, impressão térmica de 58mm e exportação em PDF.
+- **PDV (Ponto de Venda) Completo:** Lojas, itens, categorias, clientes, fornecedores, vendas à vista/a prazo, controle de estoque com unidades de medida (un, g, ml), relatórios gerenciais, módulo financeiro, impressão térmica de 58mm outras formas de impressão consagradas no mercado e exportação em PDF.
 - **Módulos Futuros (Pastas já reservadas):**
   - Chat interno (`features/chat`)
   - Timeline social (`features/timeline`)

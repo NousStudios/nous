@@ -20,6 +20,9 @@ class ConfiguracoesImpressora {
   final String nomeImpressora;
   final List<String> camposClienteComanda;
   final bool camposClientePersonalizados;
+  final double margemEsquerdaMm;
+  final double margemDireitaMm;
+  final String modeloFonte;
 
   const ConfiguracoesImpressora({
     this.rodape = 'linktr.ee/nous72',
@@ -29,6 +32,9 @@ class ConfiguracoesImpressora {
     this.nomeImpressora = '',
     this.camposClienteComanda = kCamposClienteComandaPadrao,
     this.camposClientePersonalizados = false,
+    this.margemEsquerdaMm = 5.0,
+    this.margemDireitaMm = 3.0,
+    this.modeloFonte = 'belleza',
   });
 
   ConfiguracoesImpressora copyWith({
@@ -39,6 +45,9 @@ class ConfiguracoesImpressora {
     String? nomeImpressora,
     List<String>? camposClienteComanda,
     bool? camposClientePersonalizados,
+    double? margemEsquerdaMm,
+    double? margemDireitaMm,
+    String? modeloFonte,
   }) {
     return ConfiguracoesImpressora(
       rodape: rodape ?? this.rodape,
@@ -50,6 +59,9 @@ class ConfiguracoesImpressora {
           camposClienteComanda ?? this.camposClienteComanda,
       camposClientePersonalizados:
           camposClientePersonalizados ?? this.camposClientePersonalizados,
+      margemEsquerdaMm: margemEsquerdaMm ?? this.margemEsquerdaMm,
+      margemDireitaMm: margemDireitaMm ?? this.margemDireitaMm,
+      modeloFonte: modeloFonte ?? this.modeloFonte,
     );
   }
 
@@ -62,6 +74,9 @@ class ConfiguracoesImpressora {
       'nomeImpressora': nomeImpressora,
       'camposClienteComanda': camposClienteComanda,
       'camposClientePersonalizados': camposClientePersonalizados,
+      'margemEsquerdaMm': margemEsquerdaMm,
+      'margemDireitaMm': margemDireitaMm,
+      'modeloFonte': modeloFonte,
     };
   }
 
@@ -95,6 +110,9 @@ class ConfiguracoesImpressora {
       nomeImpressora: json['nomeImpressora'] as String? ?? '',
       camposClienteComanda: campos,
       camposClientePersonalizados: personalizado,
+      margemEsquerdaMm: (json['margemEsquerdaMm'] as num?)?.toDouble() ?? 5.0,
+      margemDireitaMm: (json['margemDireitaMm'] as num?)?.toDouble() ?? 3.0,
+      modeloFonte: json['modeloFonte'] as String? ?? 'belleza',
     );
   }
 }

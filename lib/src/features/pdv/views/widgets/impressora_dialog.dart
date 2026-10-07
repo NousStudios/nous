@@ -65,7 +65,10 @@ class _ImpressoraConteudoState extends State<_ImpressoraConteudo> {
   late final TextEditingController _nomeImpressoraController;
 
   late String _tamanhoFonte;
+  late String _modeloFonte;
   late String _tipoConexao;
+  late double _margemEsquerdaMm;
+  late double _margemDireitaMm;
   late List<String> _camposClienteComanda;
 
   bool _carregandoImpressoras = false;
@@ -74,15 +77,23 @@ class _ImpressoraConteudoState extends State<_ImpressoraConteudo> {
 
   AppTheme get theme => widget.theme;
 
+  void _onRodapeMudou() {
+    if (mounted) setState(() {});
+  }
+
   @override
   void initState() {
     super.initState();
     final c = widget.configuracoesIniciais;
     _rodapeController = TextEditingController(text: c.rodape);
+    _rodapeController.addListener(_onRodapeMudou);
     _enderecoRedeController = TextEditingController(text: c.enderecoRede);
     _nomeImpressoraController = TextEditingController(text: c.nomeImpressora);
     _tamanhoFonte = c.tamanhoFonte;
+    _modeloFonte = c.modeloFonte;
     _tipoConexao = c.tipoConexao;
+    _margemEsquerdaMm = c.margemEsquerdaMm;
+    _margemDireitaMm = c.margemDireitaMm;
     final camposConfig = c.camposClienteComanda;
     final ehPadraoAntigoCompleto = !c.camposClientePersonalizados &&
         camposConfig.length == kCamposClienteComanda.length &&
@@ -98,6 +109,7 @@ class _ImpressoraConteudoState extends State<_ImpressoraConteudo> {
 
   @override
   void dispose() {
+    _rodapeController.removeListener(_onRodapeMudou);
     _rodapeController.dispose();
     _enderecoRedeController.dispose();
     _nomeImpressoraController.dispose();
@@ -158,11 +170,23 @@ class _ImpressoraConteudoState extends State<_ImpressoraConteudo> {
     ValueChanged<String> aoSelecionar,
   ) {
     final selecionado = valor == valorAtual;
+    final fundoAtivo = theme.buttonColor != Colors.transparent
+        ? theme.buttonColor
+        : theme.borderColor.withValues(alpha: 0.25);
+    final textoAtivo = theme.buttonColor != Colors.transparent
+        ? theme.buttonTextColor
+        : theme.textColor;
+
     return OutlinedButton(
       style: OutlinedButton.styleFrom(
-        backgroundColor: selecionado ? theme.buttonColor : Colors.transparent,
-        foregroundColor: selecionado ? theme.buttonTextColor : theme.textColor,
-        side: BorderSide(color: theme.borderColor),
+        backgroundColor: selecionado ? fundoAtivo : Colors.transparent,
+        foregroundColor: selecionado ? textoAtivo : theme.secondaryTextColor,
+        side: BorderSide(
+          color: selecionado
+              ? theme.textColor
+              : theme.borderColor.withValues(alpha: 0.45),
+          width: selecionado ? 1.6 : 1.0,
+        ),
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
       ),
@@ -171,7 +195,8 @@ class _ImpressoraConteudoState extends State<_ImpressoraConteudo> {
         rotulo,
         style: theme.getTextStyle(
           fontSize: 12,
-          color: selecionado ? theme.buttonTextColor : theme.textColor,
+          fontWeight: selecionado ? FontWeight.bold : FontWeight.normal,
+          color: selecionado ? textoAtivo : theme.textColor,
         ),
       ),
     );
@@ -317,21 +342,259 @@ class _ImpressoraConteudoState extends State<_ImpressoraConteudo> {
       decoration: _decoracaoDoBloco,
       child: Column(
         children: [
-          _tituloDoBloco('Tamanho da Fonte'),
+          _tituloDoBloco('Tipografia da Comanda'),
+          Text(
+            'Personalize o modelo da letra e o tamanho da fonte da impressão.',
+            textAlign: TextAlign.center,
+            style: theme.getTextStyle(
+              fontSize: 11,
+              color: theme.secondaryTextColor,
+            ),
+          ),
+          const SizedBox(height: 10),
+          Text(
+            'Modelo da Letra (Família)',
+            style: theme.getTextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.bold,
+              color: theme.textColor,
+            ),
+          ),
+          const SizedBox(height: 6),
           Wrap(
             spacing: 8,
             runSpacing: 8,
             alignment: WrapAlignment.center,
             children: [
-              _botaoSelecao('Pequena', 'pequena', _tamanhoFonte,
+              _botaoSelecao('Belleza (Nous)', 'belleza', _modeloFonte,
+                  (v) => setState(() => _modeloFonte = v)),
+              _botaoSelecao('Sem Serifa (Moderna)', 'padrao', _modeloFonte,
+                  (v) => setState(() => _modeloFonte = v)),
+              _botaoSelecao('Monoespaçada (Recibo)', 'mono', _modeloFonte,
+                  (v) => setState(() => _modeloFonte = v)),
+              _botaoSelecao('Serifada (Times)', 'serifada', _modeloFonte,
+                  (v) => setState(() => _modeloFonte = v)),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Text(
+            'Tamanho da Fonte',
+            style: theme.getTextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.bold,
+              color: theme.textColor,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            alignment: WrapAlignment.center,
+            children: [
+              _botaoSelecao('Pequena (8pt)', 'pequena', _tamanhoFonte,
                   (v) => setState(() => _tamanhoFonte = v)),
-              _botaoSelecao('Normal', 'normal', _tamanhoFonte,
+              _botaoSelecao('Normal (10pt)', 'normal', _tamanhoFonte,
                   (v) => setState(() => _tamanhoFonte = v)),
-              _botaoSelecao('Grande', 'grande', _tamanhoFonte,
+              _botaoSelecao('Grande (12pt)', 'grande', _tamanhoFonte,
                   (v) => setState(() => _tamanhoFonte = v)),
             ],
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _blocoCalibracao() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: _decoracaoDoBloco,
+      child: Column(
+        children: [
+          _tituloDoBloco('Calibração Bilateral de Recuo (58mm)'),
+          Text(
+            'Ajuste fino em milímetros caso o texto sofra cortes mecânicos '
+            'na borda esquerda ou na borda direita da bobina térmica.',
+            textAlign: TextAlign.center,
+            style: theme.getTextStyle(
+              fontSize: 11,
+              color: theme.secondaryTextColor,
+            ),
+          ),
+          const SizedBox(height: 12),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _colunaRecuo(
+                titulo: 'Recuo Esquerdo',
+                subtitulo: 'Início do texto',
+                valor: _margemEsquerdaMm,
+                aoMudar: (v) => setState(() => _margemEsquerdaMm = v),
+                atalhos: const [3.0, 5.0, 6.5, 8.0],
+                padrao: 5.0,
+              ),
+              const SizedBox(width: 10),
+              _colunaRecuo(
+                titulo: 'Recuo Direito',
+                subtitulo: 'Fim dos preços',
+                valor: _margemDireitaMm,
+                aoMudar: (v) => setState(() => _margemDireitaMm = v),
+                atalhos: const [1.5, 3.0, 4.5, 6.0],
+                padrao: 3.0,
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _colunaRecuo({
+    required String titulo,
+    required String subtitulo,
+    required double valor,
+    required ValueChanged<double> aoMudar,
+    required List<double> atalhos,
+    required double padrao,
+  }) {
+    return Expanded(
+      child: Container(
+        padding: const EdgeInsets.all(10),
+        decoration: BoxDecoration(
+          color: theme.borderColor.withValues(alpha: 0.08),
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: theme.borderColor.withValues(alpha: 0.35)),
+        ),
+        child: Column(
+          children: [
+            Text(
+              titulo,
+              style: theme.getTextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.bold,
+                color: theme.textColor,
+              ),
+            ),
+            Text(
+              subtitulo,
+              style: theme.getTextStyle(
+                fontSize: 10,
+                color: theme.secondaryTextColor,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                OutlinedButton(
+                  style: OutlinedButton.styleFrom(
+                    minimumSize: const Size(30, 30),
+                    padding: EdgeInsets.zero,
+                    side: BorderSide(
+                      color: theme.borderColor.withValues(alpha: 0.5),
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                  ),
+                  onPressed: valor > 0.5
+                      ? () => aoMudar((valor - 0.5).clamp(0.5, 15.0))
+                      : null,
+                  child: Icon(Icons.remove, size: 16, color: theme.textColor),
+                ),
+                const SizedBox(width: 8),
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                  decoration: BoxDecoration(
+                    color: theme.borderColor.withValues(alpha: 0.18),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: theme.textColor, width: 1.4),
+                  ),
+                  child: Text(
+                    '${valor.toStringAsFixed(1)} mm',
+                    style: theme.getTextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.bold,
+                      color: theme.textColor,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                OutlinedButton(
+                  style: OutlinedButton.styleFrom(
+                    minimumSize: const Size(30, 30),
+                    padding: EdgeInsets.zero,
+                    side: BorderSide(
+                      color: theme.borderColor.withValues(alpha: 0.5),
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                  ),
+                  onPressed: valor < 15.0
+                      ? () => aoMudar((valor + 0.5).clamp(0.5, 15.0))
+                      : null,
+                  child: Icon(Icons.add, size: 16, color: theme.textColor),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 6,
+              runSpacing: 4,
+              alignment: WrapAlignment.center,
+              children: [
+                for (final a in atalhos)
+                  _botaoAtalhoMargemCustom(
+                    '${a.toStringAsFixed(1)}${a == padrao ? '*' : ''}',
+                    a,
+                    valor,
+                    aoMudar,
+                  ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _botaoAtalhoMargemCustom(
+    String rotulo,
+    double valor,
+    double valorAtual,
+    ValueChanged<double> aoSelecionar,
+  ) {
+    final selecionado = (valorAtual - valor).abs() < 0.1;
+    final fundoAtivo = theme.buttonColor != Colors.transparent
+        ? theme.buttonColor
+        : theme.borderColor.withValues(alpha: 0.25);
+    final textoAtivo = theme.buttonColor != Colors.transparent
+        ? theme.buttonTextColor
+        : theme.textColor;
+
+    return OutlinedButton(
+      style: OutlinedButton.styleFrom(
+        backgroundColor: selecionado ? fundoAtivo : Colors.transparent,
+        foregroundColor: selecionado ? textoAtivo : theme.secondaryTextColor,
+        side: BorderSide(
+          color: selecionado
+              ? theme.textColor
+              : theme.borderColor.withValues(alpha: 0.45),
+          width: selecionado ? 1.5 : 1.0,
+        ),
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+      ),
+      onPressed: () => aoSelecionar(valor),
+      child: Text(
+        rotulo,
+        style: theme.getTextStyle(
+          fontSize: 10,
+          fontWeight: selecionado ? FontWeight.bold : FontWeight.normal,
+          color: selecionado ? textoAtivo : theme.textColor,
+        ),
       ),
     );
   }
@@ -350,13 +613,18 @@ class _ImpressoraConteudoState extends State<_ImpressoraConteudo> {
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
         decoration: BoxDecoration(
           color: selecionada
-              ? theme.buttonColor.withValues(alpha: 0.25)
+              ? (theme.buttonColor != Colors.transparent
+                  ? theme.buttonColor.withValues(alpha: 0.35)
+                  : theme.borderColor.withValues(alpha: 0.25))
               : hover
                   ? theme.borderColor.withValues(alpha: 0.18)
                   : Colors.transparent,
           borderRadius: BorderRadius.circular(30),
           border: Border.all(
-            color: selecionada || hover ? theme.textColor : theme.borderColor,
+            color: selecionada || hover
+                ? theme.textColor
+                : theme.borderColor.withValues(alpha: 0.45),
+            width: selecionada ? 1.6 : 1.0,
           ),
         ),
         child: Row(
@@ -376,6 +644,8 @@ class _ImpressoraConteudoState extends State<_ImpressoraConteudo> {
                 overflow: TextOverflow.ellipsis,
                 style: theme.getTextStyle(
                   fontSize: 12,
+                  fontWeight:
+                      selecionada ? FontWeight.bold : FontWeight.normal,
                   color: theme.textColor,
                 ),
               ),
@@ -505,46 +775,19 @@ class _ImpressoraConteudoState extends State<_ImpressoraConteudo> {
     );
   }
 
-  Widget _blocoLargura() {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(12),
-      decoration: _decoracaoDoBloco,
-      child: Column(
-        children: [
-          _tituloDoBloco('Largura do Papel'),
-          Text(
-            '58mm',
-            textAlign: TextAlign.center,
-            style: theme.getTextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.bold,
-              color: theme.textColor,
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            'Padrão das mini impressoras térmicas.',
-            textAlign: TextAlign.center,
-            style: theme.getTextStyle(
-              fontSize: 11,
-              color: theme.secondaryTextColor,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
 
   void _salvar() {
     final novas = ConfiguracoesImpressora(
       rodape: _rodapeController.text.trim(),
       tamanhoFonte: _tamanhoFonte,
+      modeloFonte: _modeloFonte,
       tipoConexao: _tipoConexao,
       enderecoRede: _enderecoRedeController.text.trim(),
       nomeImpressora: _nomeImpressoraController.text.trim(),
       camposClienteComanda: List.of(_camposClienteComanda),
       camposClientePersonalizados: true,
+      margemEsquerdaMm: _margemEsquerdaMm,
+      margemDireitaMm: _margemDireitaMm,
     );
 
     widget.onSalvar(novas);
@@ -573,11 +816,14 @@ class _ImpressoraConteudoState extends State<_ImpressoraConteudo> {
         config: ConfiguracoesImpressora(
           rodape: _rodapeController.text.trim(),
           tamanhoFonte: _tamanhoFonte,
+          modeloFonte: _modeloFonte,
           tipoConexao: _tipoConexao,
           enderecoRede: _enderecoRedeController.text.trim(),
           nomeImpressora: nome,
           camposClienteComanda: List.of(_camposClienteComanda),
           camposClientePersonalizados: true,
+          margemEsquerdaMm: _margemEsquerdaMm,
+          margemDireitaMm: _margemDireitaMm,
         ),
       );
       if (!mounted) return;
@@ -604,6 +850,209 @@ class _ImpressoraConteudoState extends State<_ImpressoraConteudo> {
     } finally {
       if (mounted) setState(() => _imprimindo = false);
     }
+  }
+
+  Widget _blocoPreviewComanda() {
+    final rodape = _rodapeController.text.trim();
+    final double escalaFonte = _tamanhoFonte == 'pequeno'
+        ? 0.9
+        : _tamanhoFonte == 'grande'
+            ? 1.15
+            : 1.0;
+
+    String? familiaFonte;
+    switch (_modeloFonte) {
+      case 'belleza':
+        familiaFonte = 'Belleza';
+        break;
+      case 'mono':
+        familiaFonte = 'monospace';
+        break;
+      case 'serifada':
+        familiaFonte = 'serif';
+        break;
+      case 'padrao':
+      default:
+        familiaFonte = null;
+        break;
+    }
+
+    TextStyle estilo({
+      double baseSize = 11,
+      FontWeight fontWeight = FontWeight.normal,
+      TextAlign? align,
+    }) {
+      return TextStyle(
+        fontFamily: familiaFonte,
+        fontSize: baseSize * escalaFonte,
+        fontWeight: fontWeight,
+        color: const Color(0xFF1E1E1E),
+        height: 1.25,
+      );
+    }
+
+    final double padEsq = 8.0 + (_margemEsquerdaMm * 1.6);
+    final double padDir = 8.0 + (_margemDireitaMm * 1.6);
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: _decoracaoDoBloco,
+      child: Column(
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.remove_red_eye_outlined, size: 16, color: theme.secondaryTextColor),
+              const SizedBox(width: 6),
+              _tituloDoBloco('Prévia em Tempo Real (58mm)'),
+            ],
+          ),
+          Text(
+            'Visualização dinâmica baseada nas margens, fontes e campos selecionados',
+            textAlign: TextAlign.center,
+            style: theme.getTextStyle(fontSize: 10, color: theme.secondaryTextColor),
+          ),
+          const SizedBox(height: 12),
+          Container(
+            constraints: const BoxConstraints(maxWidth: 320),
+            padding: EdgeInsets.fromLTRB(padEsq, 14, padDir, 16),
+            decoration: BoxDecoration(
+              color: const Color(0xFFFCFCF9),
+              borderRadius: BorderRadius.circular(4),
+              border: Border.all(color: const Color(0xFFD6D6CC)),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.18),
+                  blurRadius: 8,
+                  offset: const Offset(0, 3),
+                ),
+              ],
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text(
+                  'NOUS COMÉRCIO & SERVIÇOS',
+                  textAlign: TextAlign.center,
+                  style: estilo(baseSize: 13, fontWeight: FontWeight.bold),
+                ),
+                Text(
+                  'CNPJ: 12.345.678/0001-90',
+                  textAlign: TextAlign.center,
+                  style: estilo(baseSize: 9.5),
+                ),
+                Text(
+                  '------------------------------------------------',
+                  maxLines: 1,
+                  overflow: TextOverflow.clip,
+                  textAlign: TextAlign.center,
+                  style: estilo(baseSize: 10, fontWeight: FontWeight.w300),
+                ),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text('PEDIDO: #0042', style: estilo(baseSize: 12, fontWeight: FontWeight.bold)),
+                    Text('07/10/26 18:45', style: estilo(baseSize: 10)),
+                  ],
+                ),
+                if (_camposClienteComanda.isNotEmpty) ...[
+                  Text(
+                    '------------------------------------------------',
+                    maxLines: 1,
+                    overflow: TextOverflow.clip,
+                    textAlign: TextAlign.center,
+                    style: estilo(baseSize: 10, fontWeight: FontWeight.w300),
+                  ),
+                  if (_camposClienteComanda.contains('nome'))
+                    Text('Cliente: Carlos Eduardo da Silva', style: estilo(baseSize: 10.5, fontWeight: FontWeight.w600)),
+                  if (_camposClienteComanda.contains('telefone'))
+                    Text('Telefone: (11) 98765-4321', style: estilo(baseSize: 10)),
+                  if (_camposClienteComanda.contains('endereco'))
+                    Text('Endereço: Rua das Palmeiras, 740', style: estilo(baseSize: 10)),
+                  if (_camposClienteComanda.contains('bairro'))
+                    Text('Bairro: Jardim América', style: estilo(baseSize: 10)),
+                  if (_camposClienteComanda.contains('complemento'))
+                    Text('Compl: Bloco B, Apto 102', style: estilo(baseSize: 10)),
+                  if (_camposClienteComanda.contains('cidade'))
+                    Text('Cidade: São Paulo - SP', style: estilo(baseSize: 10)),
+                  if (_camposClienteComanda.contains('pontoReferencia'))
+                    Text('Ref: Em frente à praça central', style: estilo(baseSize: 10)),
+                  if (_camposClienteComanda.contains('observacoes'))
+                    Text('Obs: Tocar interfone 102 duas vezes', style: estilo(baseSize: 10)),
+                ],
+                Text(
+                  '------------------------------------------------',
+                  maxLines: 1,
+                  overflow: TextOverflow.clip,
+                  textAlign: TextAlign.center,
+                  style: estilo(baseSize: 10, fontWeight: FontWeight.w300),
+                ),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text('ITEM', style: estilo(baseSize: 10, fontWeight: FontWeight.bold)),
+                    Text('TOTAL', style: estilo(baseSize: 10, fontWeight: FontWeight.bold)),
+                  ],
+                ),
+                const SizedBox(height: 3),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: Text('1x X-Tudo Artesanal com Queijo e Bacon', style: estilo(baseSize: 10.5)),
+                    ),
+                    const SizedBox(width: 8),
+                    Text('R\$ 32,00', style: estilo(baseSize: 10.5, fontWeight: FontWeight.w600)),
+                  ],
+                ),
+                const SizedBox(height: 2),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: Text('2x Suco Natural de Laranja 500ml', style: estilo(baseSize: 10.5)),
+                    ),
+                    const SizedBox(width: 8),
+                    Text('R\$ 16,00', style: estilo(baseSize: 10.5, fontWeight: FontWeight.w600)),
+                  ],
+                ),
+                Text(
+                  '------------------------------------------------',
+                  maxLines: 1,
+                  overflow: TextOverflow.clip,
+                  textAlign: TextAlign.center,
+                  style: estilo(baseSize: 10, fontWeight: FontWeight.w300),
+                ),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text('TOTAL GERAL:', style: estilo(baseSize: 12, fontWeight: FontWeight.bold)),
+                    Text('R\$ 48,00', style: estilo(baseSize: 13, fontWeight: FontWeight.bold)),
+                  ],
+                ),
+                const SizedBox(height: 2),
+                Text('PAGAMENTO: Pix / Cartão', style: estilo(baseSize: 10)),
+                if (rodape.isNotEmpty) ...[
+                  Text(
+                    '------------------------------------------------',
+                    maxLines: 1,
+                    overflow: TextOverflow.clip,
+                    textAlign: TextAlign.center,
+                    style: estilo(baseSize: 10, fontWeight: FontWeight.w300),
+                  ),
+                  Text(
+                    rodape,
+                    textAlign: TextAlign.center,
+                    style: estilo(baseSize: 10, fontWeight: FontWeight.w500),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -636,23 +1085,23 @@ class _ImpressoraConteudoState extends State<_ImpressoraConteudo> {
         ),
         Flexible(
           child: SingleChildScrollView(
-            padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
             child: Column(
               children: [
-                _blocoRodape(),
+                _blocoConexao(),
                 const SizedBox(height: 12),
                 _blocoFonte(),
                 const SizedBox(height: 12),
-                _blocoConexao(),
-                const SizedBox(height: 12),
-                _blocoLargura(),
+                _blocoCalibracao(),
                 const SizedBox(height: 12),
                 _blocoDadosCliente(),
-                const SizedBox(height: 16),
+                const SizedBox(height: 12),
+                _blocoRodape(),
+                const SizedBox(height: 18),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    OutlinedButton(
+                    OutlinedButton.icon(
                       style: OutlinedButton.styleFrom(
                         foregroundColor: theme.textColor,
                         side: BorderSide(color: theme.borderColor),
@@ -665,28 +1114,29 @@ class _ImpressoraConteudoState extends State<_ImpressoraConteudo> {
                         ),
                       ),
                       onPressed: _imprimindo ? null : _imprimirTeste,
-                      child: _imprimindo
+                      icon: _imprimindo
                           ? SizedBox(
-                              width: 16,
-                              height: 16,
+                              width: 14,
+                              height: 14,
                               child: CircularProgressIndicator(
                                 strokeWidth: 2,
                                 color: theme.textColor,
                               ),
                             )
-                          : Text(
-                              'Imprimir Teste',
-                              style: theme.getTextStyle(fontSize: 12),
-                            ),
+                          : Icon(Icons.print_outlined, size: 16, color: theme.textColor),
+                      label: Text(
+                        'Imprimir Teste',
+                        style: theme.getTextStyle(fontSize: 12),
+                      ),
                     ),
-                    const SizedBox(width: 8),
-                    OutlinedButton(
+                    const SizedBox(width: 10),
+                    OutlinedButton.icon(
                       style: OutlinedButton.styleFrom(
                         backgroundColor: theme.buttonColor,
                         foregroundColor: theme.buttonTextColor,
                         side: BorderSide(color: theme.borderColor),
                         padding: const EdgeInsets.symmetric(
-                          horizontal: 16,
+                          horizontal: 20,
                           vertical: 12,
                         ),
                         shape: RoundedRectangleBorder(
@@ -694,16 +1144,20 @@ class _ImpressoraConteudoState extends State<_ImpressoraConteudo> {
                         ),
                       ),
                       onPressed: _salvar,
-                      child: Text(
-                        'Salvar',
+                      icon: Icon(Icons.check, size: 16, color: theme.buttonTextColor),
+                      label: Text(
+                        'Salvar Configurações',
                         style: theme.getTextStyle(
                           fontSize: 12,
                           color: theme.buttonTextColor,
+                          fontWeight: FontWeight.bold,
                         ),
                       ),
                     ),
                   ],
                 ),
+                const SizedBox(height: 16),
+                _blocoPreviewComanda(),
               ],
             ),
           ),
