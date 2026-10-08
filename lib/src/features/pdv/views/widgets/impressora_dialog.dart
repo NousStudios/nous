@@ -444,6 +444,8 @@ class _ImpressoraConteudoState extends State<_ImpressoraConteudo> {
               ),
             ],
           ),
+          const SizedBox(height: 14),
+          _blocoPreviewComanda(),
         ],
       ),
     );
@@ -854,8 +856,8 @@ class _ImpressoraConteudoState extends State<_ImpressoraConteudo> {
 
   Widget _blocoPreviewComanda() {
     final rodape = _rodapeController.text.trim();
-    final double escalaFonte = _tamanhoFonte == 'pequeno'
-        ? 0.9
+    final double escalaFonte = _tamanhoFonte == 'pequena'
+        ? 0.88
         : _tamanhoFonte == 'grande'
             ? 1.15
             : 1.0;
@@ -878,180 +880,188 @@ class _ImpressoraConteudoState extends State<_ImpressoraConteudo> {
     }
 
     TextStyle estilo({
-      double baseSize = 11,
+      required double fontSize,
+      Color? color,
       FontWeight fontWeight = FontWeight.normal,
-      TextAlign? align,
     }) {
-      return TextStyle(
-        fontFamily: familiaFonte,
-        fontSize: baseSize * escalaFonte,
-        fontWeight: fontWeight,
-        color: const Color(0xFF1E1E1E),
-        height: 1.25,
+      return theme
+          .getTextStyle(
+            fontSize: fontSize * escalaFonte,
+            color: color ?? theme.textColor,
+            fontWeight: fontWeight,
+          )
+          .copyWith(
+            fontFamily: familiaFonte,
+          );
+    }
+
+    Widget linhaComanda(String esquerda, String direita,
+        {bool destaque = false}) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 3),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              child: Text(
+                esquerda,
+                style: estilo(
+                  fontSize: 12,
+                  color: destaque ? theme.textColor : theme.secondaryTextColor,
+                  fontWeight: destaque ? FontWeight.bold : FontWeight.normal,
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Text(
+              direita,
+              style: estilo(
+                fontSize: 12,
+                color: destaque ? theme.textColor : theme.secondaryTextColor,
+                fontWeight: destaque ? FontWeight.bold : FontWeight.normal,
+              ),
+            ),
+          ],
+        ),
       );
     }
 
-    final double padEsq = 8.0 + (_margemEsquerdaMm * 1.6);
-    final double padDir = 8.0 + (_margemDireitaMm * 1.6);
+    final double padEsq = 14.0 + (_margemEsquerdaMm * 1.5);
+    final double padDir = 14.0 + (_margemDireitaMm * 1.5);
 
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(12),
-      decoration: _decoracaoDoBloco,
-      child: Column(
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(Icons.remove_red_eye_outlined, size: 16, color: theme.secondaryTextColor),
-              const SizedBox(width: 6),
-              _tituloDoBloco('Prévia em Tempo Real (58mm)'),
-            ],
-          ),
-          Text(
-            'Visualização dinâmica baseada nas margens, fontes e campos selecionados',
-            textAlign: TextAlign.center,
-            style: theme.getTextStyle(fontSize: 10, color: theme.secondaryTextColor),
-          ),
-          const SizedBox(height: 12),
-          Container(
+    return Column(
+      children: [
+        Divider(color: theme.borderColor.withValues(alpha: 0.4)),
+        const SizedBox(height: 6),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.receipt_long_outlined,
+                size: 15, color: theme.secondaryTextColor),
+            const SizedBox(width: 6),
+            Text(
+              'Prévia da Comanda',
+              style: theme.getTextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: theme.textColor,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 10),
+        Center(
+          child: Container(
             constraints: const BoxConstraints(maxWidth: 320),
             padding: EdgeInsets.fromLTRB(padEsq, 14, padDir, 16),
             decoration: BoxDecoration(
-              color: const Color(0xFFFCFCF9),
-              borderRadius: BorderRadius.circular(4),
-              border: Border.all(color: const Color(0xFFD6D6CC)),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.18),
-                  blurRadius: 8,
-                  offset: const Offset(0, 3),
-                ),
-              ],
+              color: theme.backgroundColor.withValues(alpha: 0.4),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(
+                color: theme.borderColor.withValues(alpha: 0.6),
+              ),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Text(
-                  'NOUS COMÉRCIO & SERVIÇOS',
-                  textAlign: TextAlign.center,
-                  style: estilo(baseSize: 13, fontWeight: FontWeight.bold),
+                Center(
+                  child: Text(
+                    'NOUS COMÉRCIO & SERVIÇOS',
+                    textAlign: TextAlign.center,
+                    style: estilo(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: theme.textColor,
+                    ),
+                  ),
                 ),
-                Text(
-                  'CNPJ: 12.345.678/0001-90',
-                  textAlign: TextAlign.center,
-                  style: estilo(baseSize: 9.5),
+                Center(
+                  child: Text(
+                    'CNPJ: 12.345.678/0001-90',
+                    textAlign: TextAlign.center,
+                    style: estilo(
+                      fontSize: 11,
+                      color: theme.secondaryTextColor,
+                    ),
+                  ),
                 ),
-                Text(
-                  '------------------------------------------------',
-                  maxLines: 1,
-                  overflow: TextOverflow.clip,
-                  textAlign: TextAlign.center,
-                  style: estilo(baseSize: 10, fontWeight: FontWeight.w300),
+                const SizedBox(height: 8),
+                Center(
+                  child: Text(
+                    'Pedido #0042',
+                    textAlign: TextAlign.center,
+                    style: estilo(
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                      color: theme.textColor,
+                    ),
+                  ),
                 ),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text('PEDIDO: #0042', style: estilo(baseSize: 12, fontWeight: FontWeight.bold)),
-                    Text('07/10/26 18:45', style: estilo(baseSize: 10)),
-                  ],
+                Center(
+                  child: Text(
+                    'Data: 08/10/2026 14:30',
+                    textAlign: TextAlign.center,
+                    style: estilo(
+                      fontSize: 11,
+                      color: theme.secondaryTextColor,
+                    ),
+                  ),
                 ),
+                const SizedBox(height: 8),
                 if (_camposClienteComanda.isNotEmpty) ...[
-                  Text(
-                    '------------------------------------------------',
-                    maxLines: 1,
-                    overflow: TextOverflow.clip,
-                    textAlign: TextAlign.center,
-                    style: estilo(baseSize: 10, fontWeight: FontWeight.w300),
-                  ),
                   if (_camposClienteComanda.contains('nome'))
-                    Text('Cliente: Carlos Eduardo da Silva', style: estilo(baseSize: 10.5, fontWeight: FontWeight.w600)),
+                    linhaComanda('Cliente', 'Carlos Eduardo da Silva'),
                   if (_camposClienteComanda.contains('telefone'))
-                    Text('Telefone: (11) 98765-4321', style: estilo(baseSize: 10)),
+                    linhaComanda('Telefone', '(11) 98765-4321'),
                   if (_camposClienteComanda.contains('endereco'))
-                    Text('Endereço: Rua das Palmeiras, 740', style: estilo(baseSize: 10)),
+                    linhaComanda('Endereço', 'Rua das Palmeiras, 740'),
                   if (_camposClienteComanda.contains('bairro'))
-                    Text('Bairro: Jardim América', style: estilo(baseSize: 10)),
+                    linhaComanda('Bairro', 'Jardim América'),
                   if (_camposClienteComanda.contains('complemento'))
-                    Text('Compl: Bloco B, Apto 102', style: estilo(baseSize: 10)),
+                    linhaComanda('Complemento', 'Bloco B, Apto 102'),
                   if (_camposClienteComanda.contains('cidade'))
-                    Text('Cidade: São Paulo - SP', style: estilo(baseSize: 10)),
+                    linhaComanda('Cidade', 'São Paulo - SP'),
                   if (_camposClienteComanda.contains('pontoReferencia'))
-                    Text('Ref: Em frente à praça central', style: estilo(baseSize: 10)),
+                    linhaComanda('Ponto de ref.', 'Em frente à praça central'),
                   if (_camposClienteComanda.contains('observacoes'))
-                    Text('Obs: Tocar interfone 102 duas vezes', style: estilo(baseSize: 10)),
+                    linhaComanda('Observações', 'Tocar interfone 102 duas vezes'),
+                  const SizedBox(height: 6),
                 ],
-                Text(
-                  '------------------------------------------------',
-                  maxLines: 1,
-                  overflow: TextOverflow.clip,
-                  textAlign: TextAlign.center,
-                  style: estilo(baseSize: 10, fontWeight: FontWeight.w300),
-                ),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text('ITEM', style: estilo(baseSize: 10, fontWeight: FontWeight.bold)),
-                    Text('TOTAL', style: estilo(baseSize: 10, fontWeight: FontWeight.bold)),
-                  ],
-                ),
-                const SizedBox(height: 3),
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Expanded(
-                      child: Text('1x X-Tudo Artesanal com Queijo e Bacon', style: estilo(baseSize: 10.5)),
+                Center(
+                  child: Text(
+                    'ITENS',
+                    style: estilo(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: theme.textColor,
                     ),
-                    const SizedBox(width: 8),
-                    Text('R\$ 32,00', style: estilo(baseSize: 10.5, fontWeight: FontWeight.w600)),
-                  ],
+                  ),
                 ),
-                const SizedBox(height: 2),
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Expanded(
-                      child: Text('2x Suco Natural de Laranja 500ml', style: estilo(baseSize: 10.5)),
+                const SizedBox(height: 4),
+                linhaComanda('1x X-Tudo Artesanal Completo', 'R\$ 32,00'),
+                linhaComanda('2x Suco Natural Laranja 500ml', 'R\$ 16,00'),
+                const SizedBox(height: 8),
+                Divider(color: theme.borderColor.withValues(alpha: 0.6)),
+                linhaComanda('Subtotal', 'R\$ 48,00'),
+                linhaComanda('TOTAL', 'R\$ 48,00', destaque: true),
+                const SizedBox(height: 4),
+                linhaComanda('Pagamento', 'Pix / Cartão'),
+                const SizedBox(height: 12),
+                Center(
+                  child: Text(
+                    rodape.isNotEmpty ? rodape : 'linktr.ee/nous72',
+                    textAlign: TextAlign.center,
+                    style: estilo(
+                      fontSize: 11,
+                      color: theme.secondaryTextColor,
                     ),
-                    const SizedBox(width: 8),
-                    Text('R\$ 16,00', style: estilo(baseSize: 10.5, fontWeight: FontWeight.w600)),
-                  ],
-                ),
-                Text(
-                  '------------------------------------------------',
-                  maxLines: 1,
-                  overflow: TextOverflow.clip,
-                  textAlign: TextAlign.center,
-                  style: estilo(baseSize: 10, fontWeight: FontWeight.w300),
-                ),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text('TOTAL GERAL:', style: estilo(baseSize: 12, fontWeight: FontWeight.bold)),
-                    Text('R\$ 48,00', style: estilo(baseSize: 13, fontWeight: FontWeight.bold)),
-                  ],
-                ),
-                const SizedBox(height: 2),
-                Text('PAGAMENTO: Pix / Cartão', style: estilo(baseSize: 10)),
-                if (rodape.isNotEmpty) ...[
-                  Text(
-                    '------------------------------------------------',
-                    maxLines: 1,
-                    overflow: TextOverflow.clip,
-                    textAlign: TextAlign.center,
-                    style: estilo(baseSize: 10, fontWeight: FontWeight.w300),
                   ),
-                  Text(
-                    rodape,
-                    textAlign: TextAlign.center,
-                    style: estilo(baseSize: 10, fontWeight: FontWeight.w500),
-                  ),
-                ],
+                ),
               ],
             ),
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 
@@ -1156,8 +1166,6 @@ class _ImpressoraConteudoState extends State<_ImpressoraConteudo> {
                     ),
                   ],
                 ),
-                const SizedBox(height: 16),
-                _blocoPreviewComanda(),
               ],
             ),
           ),
