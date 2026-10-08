@@ -1,4 +1,5 @@
 class UsuarioNous {
+  final String id;
   final String cpf;
   final String nome;
   final String dataNascimento;
@@ -11,6 +12,7 @@ class UsuarioNous {
   final String estadoCivil;
 
   const UsuarioNous({
+    required this.id,
     required this.cpf,
     required this.nome,
     required this.dataNascimento,
@@ -35,6 +37,7 @@ class UsuarioNous {
     String? estadoCivil,
   }) {
     return UsuarioNous(
+      id: id,
       cpf: cpf,
       nome: nome ?? this.nome,
       dataNascimento: dataNascimento ?? this.dataNascimento,
@@ -50,6 +53,7 @@ class UsuarioNous {
 
   Map<String, dynamic> toJson() {
     return {
+      'id': id,
       'cpf': cpf,
       'nome': nome,
       'dataNascimento': dataNascimento,
@@ -65,6 +69,7 @@ class UsuarioNous {
 
   factory UsuarioNous.fromJson(Map<String, dynamic> json) {
     return UsuarioNous(
+      id: json['id'] as String? ?? '',
       cpf: json['cpf'] as String? ?? '',
       nome: json['nome'] as String? ?? '',
       dataNascimento: json['dataNascimento'] as String? ?? '',
