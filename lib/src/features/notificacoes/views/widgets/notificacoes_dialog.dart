@@ -4,6 +4,7 @@ import 'package:nous/src/core/theme/theme_controller.dart';
 import 'package:nous/src/features/auth/providers/auth_provider.dart';
 import 'package:nous/src/features/notificacoes/models/convite_loja.dart';
 import 'package:nous/src/features/notificacoes/providers/notificacoes_provider.dart';
+import 'package:nous/src/features/pdv/models/item_loja.dart';
 import 'package:nous/src/features/pdv/models/loja.dart';
 import 'package:nous/src/features/pdv/models/membro_loja.dart';
 import 'package:nous/src/features/pdv/models/referencia_loja.dart';
@@ -320,9 +321,114 @@ class _NotificacoesConteudo extends StatelessWidget {
     );
   }
 
+  Widget _linhaAlertaEstoque(
+    BuildContext context,
+    AppTheme theme,
+    ({ItemLoja item, double saldo, String lojaNome, String lojaId}) alerta,
+  ) {
+    final saldoFormatado = alerta.saldo.truncateToDouble() == alerta.saldo
+        ? alerta.saldo.toInt().toString()
+        : alerta.saldo.toStringAsFixed(1);
+    final unidadeTexto = alerta.item.unidadeBase.name;
+    final esgotado = alerta.saldo <= 0;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      margin: const EdgeInsets.only(bottom: 8),
+      decoration: BoxDecoration(
+        color: theme.backgroundColor.withValues(alpha: 0.4),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(
+          color: Colors.redAccent.withValues(alpha: 0.6),
+        ),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: Colors.redAccent.withValues(alpha: 0.15),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Icon(
+              esgotado
+                  ? Icons.remove_shopping_cart_outlined
+                  : Icons.warning_amber_rounded,
+              color: Colors.redAccent,
+              size: 20,
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        esgotado
+                            ? 'Estoque Esgotado: ${alerta.item.nome}'
+                            : 'Estoque Baixo: ${alerta.item.nome}',
+                        style: theme.getTextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: theme.textColor,
+                        ),
+                      ),
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: Colors.redAccent.withValues(alpha: 0.18),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Text(
+                        '$saldoFormatado $unidadeTexto',
+                        style: theme.getTextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.redAccent,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Loja: ${alerta.lojaNome}',
+                  style: theme.getTextStyle(
+                    fontSize: 11,
+                    color: theme.secondaryTextColor,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  esgotado
+                      ? 'O item está sem saldo disponível. Registre uma nova entrada no módulo de estoque.'
+                      : 'O saldo está abaixo de 10 unidades. Reabasteça para evitar rupturas de vendas.',
+                  style: theme.getTextStyle(
+                    fontSize: 11,
+                    color: theme.secondaryTextColor,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final notificacoes = context.watch<NotificacoesProvider>();
+    final pdv = context.watch<PdvProvider>();
+    final convites = notificacoes.convites;
+    final alertasEstoque = pdv.todosItensEstoqueBaixo;
+    final vazio = convites.isEmpty && alertasEstoque.isEmpty;
 
     return ValueListenableBuilder<AppTheme>(
       valueListenable: ThemeController.currentTheme,
@@ -363,23 +469,63 @@ class _NotificacoesConteudo extends StatelessWidget {
                     ],
                   ),
                   const SizedBox(height: 12),
-                  if (notificacoes.convites.isEmpty)
+                  if (vazio)
                     EstadoVazioContainer(
                       theme: theme,
-                      mensagem: 'Nenhum convite pendente.',
+                      mensagem: 'Nenhuma notificação no momento.',
                     )
                   else
                     Flexible(
                       child: ConstrainedBox(
-                        constraints: const BoxConstraints(maxHeight: 400),
-                        child: ListView.builder(
+                        constraints: const BoxConstraints(maxHeight: 450),
+                        child: ListView(
                           shrinkWrap: true,
-                          itemCount: notificacoes.convites.length,
-                          itemBuilder: (context, index) => _linhaConvite(
-                            context,
-                            theme,
-                            notificacoes.convites[index],
-                          ),
+                          children: [
+                            if (alertasEstoque.isNotEmpty) ...[
+                              Padding(
+                                padding:
+                                    const EdgeInsets.only(bottom: 8, top: 4),
+                                child: Row(
+                                  children: [
+                                    const Icon(
+                                      Icons.inventory_2_outlined,
+                                      size: 16,
+                                      color: Colors.redAccent,
+                                    ),
+                                    const SizedBox(width: 6),
+                                    Text(
+                                      'Alertas de Estoque (${alertasEstoque.length})',
+                                      style: theme.getTextStyle(
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.bold,
+                                        color: Colors.redAccent,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              for (final alerta in alertasEstoque)
+                                _linhaAlertaEstoque(context, theme, alerta),
+                              if (convites.isNotEmpty)
+                                const SizedBox(height: 8),
+                            ],
+                            if (convites.isNotEmpty) ...[
+                              if (alertasEstoque.isNotEmpty)
+                                Padding(
+                                  padding: const EdgeInsets.only(bottom: 8),
+                                  child: Text(
+                                    'Convites e Solicitações (${convites.length})',
+                                    style: theme.getTextStyle(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.bold,
+                                      color: theme.textColor,
+                                    ),
+                                  ),
+                                ),
+                              for (final convite in convites)
+                                _linhaConvite(context, theme, convite),
+                            ],
+                          ],
                         ),
                       ),
                     ),

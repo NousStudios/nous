@@ -51,6 +51,37 @@ class ComandaPedido extends StatelessWidget {
   bool _deveMostrar(String chave) =>
       camposClienteComanda.contains(chave);
 
+  Widget _linhaDadoCliente(String rotulo, String valor) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            '$rotulo: ',
+            style: theme.getTextStyle(
+              fontSize: 12,
+              color: theme.secondaryTextColor,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+          const SizedBox(width: 4),
+          Expanded(
+            child: Text(
+              valor,
+              textAlign: TextAlign.right,
+              softWrap: true,
+              style: theme.getTextStyle(
+                fontSize: 12,
+                color: theme.textColor,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _linhaComanda(String esquerda, String direita,
       {bool destaque = false}) {
     return Padding(
@@ -61,6 +92,7 @@ class ComandaPedido extends StatelessWidget {
           Expanded(
             child: Text(
               esquerda,
+              softWrap: true,
               style: theme.getTextStyle(
                 fontSize: 12,
                 color: destaque ? theme.textColor : theme.secondaryTextColor,
@@ -85,36 +117,36 @@ class ComandaPedido extends StatelessWidget {
   List<Widget> _linhasCliente() {
     final linhas = <Widget>[];
 
-    linhas.add(_linhaComanda('Cliente', pedido.clienteNome));
+    linhas.add(_linhaDadoCliente('Cliente', pedido.clienteNome));
 
     if (cliente == null) return linhas;
 
     if (_deveMostrar('cnpj') && cliente!.cnpj.trim().isNotEmpty) {
-      linhas.add(_linhaComanda('CNPJ', cliente!.cnpj.trim()));
+      linhas.add(_linhaDadoCliente('CNPJ', cliente!.cnpj.trim()));
     }
     if (_deveMostrar('telefone') && cliente!.telefone.trim().isNotEmpty) {
-      linhas.add(_linhaComanda('Telefone', cliente!.telefone.trim()));
+      linhas.add(_linhaDadoCliente('Telefone', cliente!.telefone.trim()));
     }
     if (_deveMostrar('endereco')) {
       final endereco = cliente!.endereco.trim();
       final numero = cliente!.numero.trim();
       if (endereco.isNotEmpty) {
         final completo = numero.isEmpty ? endereco : '$endereco, $numero';
-        linhas.add(_linhaComanda('Endereço', completo));
+        linhas.add(_linhaDadoCliente('Endereço', completo));
       } else if (numero.isNotEmpty) {
-        linhas.add(_linhaComanda('Número', numero));
+        linhas.add(_linhaDadoCliente('Número', numero));
       }
     }
     if (_deveMostrar('email') && cliente!.email.trim().isNotEmpty) {
-      linhas.add(_linhaComanda('Email', cliente!.email.trim()));
+      linhas.add(_linhaDadoCliente('Email', cliente!.email.trim()));
     }
     if (_deveMostrar('redesSociais') &&
         cliente!.redesSociais.trim().isNotEmpty) {
       linhas.add(
-          _linhaComanda('Redes sociais', cliente!.redesSociais.trim()));
+          _linhaDadoCliente('Redes sociais', cliente!.redesSociais.trim()));
     }
     if (_deveMostrar('descricao') && cliente!.descricao.trim().isNotEmpty) {
-      linhas.add(_linhaComanda('Descrição', cliente!.descricao.trim()));
+      linhas.add(_linhaDadoCliente('Descrição', cliente!.descricao.trim()));
     }
 
     return linhas;

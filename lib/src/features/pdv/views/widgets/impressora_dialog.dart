@@ -1,8 +1,151 @@
+import 'dart:math';
+
 import 'package:flutter/material.dart';
 import 'package:printing/printing.dart';
 import 'package:nous/src/core/theme/theme_controller.dart';
 import 'package:nous/src/features/pdv/models/configuracoes_impressora.dart';
 import 'package:nous/src/features/pdv/services/impressao_service.dart';
+
+class _PerfilHistoricoAnarquista {
+  final String cliente;
+  final String cnpj;
+  final String telefone;
+  final String endereco;
+  final String descricao;
+  final List<MapEntry<String, double>> itens;
+
+  const _PerfilHistoricoAnarquista({
+    required this.cliente,
+    required this.cnpj,
+    required this.telefone,
+    required this.endereco,
+    required this.descricao,
+    required this.itens,
+  });
+}
+
+const List<_PerfilHistoricoAnarquista> _kPerfisHistoricosAnarquistas = [
+  _PerfilHistoricoAnarquista(
+    cliente: 'Nestor Makhno',
+    cnpj: '191.719.210-00',
+    telefone: '(11) 91917-1921',
+    endereco: 'Rua Nestor Makhno, 1917 - Comuna de Huliaipole',
+    descricao: 'Comandante do Exército Insurrecional Revolucionário da Ucrânia',
+    itens: [
+      MapEntry('1x Revolução Social', 0.0),
+      MapEntry('1x Autogerenciamento dos Meios de Produção', 0.0),
+      MapEntry('1x Plataforma Organizacional dos Anarquistas', 20.0),
+    ],
+  ),
+  _PerfilHistoricoAnarquista(
+    cliente: 'Piotr Kropotkin',
+    cnpj: '184.219.210-00',
+    telefone: '(11) 91892-1921',
+    endereco: 'Alameda da Conquista do Pão, 1892 - Dmitrov',
+    descricao: 'Teórico do comunismo anárquico e da cooperação entre os seres',
+    itens: [
+      MapEntry('1x A Conquista do Pão (Edição Popular)', 15.0),
+      MapEntry('1x Apoio Mútuo: Fator de Evolução', 18.0),
+      MapEntry('1x Pão e Liberdade para Toda a Comunidade', 0.0),
+    ],
+  ),
+  _PerfilHistoricoAnarquista(
+    cliente: 'Mikhail Bakunin',
+    cnpj: '181.418.760-00',
+    telefone: '(11) 91868-1876',
+    endereco: 'Avenida da Aliança dos Trabalhadores, 1868 - Berna',
+    descricao: 'Defensor intransigente da liberdade coletiva e do federalismo',
+    itens: [
+      MapEntry('1x Deus e o Estado (Tradução Coletiva)', 12.0),
+      MapEntry('1x Destruição do Estado e das Classes', 0.0),
+      MapEntry('1x Federação Internacional de Trabalhadores Livres', 0.0),
+    ],
+  ),
+  _PerfilHistoricoAnarquista(
+    cliente: 'Emma Goldman',
+    cnpj: '186.919.400-00',
+    telefone: '(11) 91910-1940',
+    endereco: 'Travessa Mãe Terra, 1910 - East Village',
+    descricao: 'Militante anarcofeminista, conferencista e escritora',
+    itens: [
+      MapEntry('1x Se Não Posso Dançar, Não É Minha Revolução', 0.0),
+      MapEntry('1x Anarquismo e Outros Ensaios', 14.0),
+      MapEntry('1x Emancipação dos Corpos e das Mentes', 0.0),
+    ],
+  ),
+  _PerfilHistoricoAnarquista(
+    cliente: 'Errico Malatesta',
+    cnpj: '185.319.320-00',
+    telefone: '(11) 91897-1932',
+    endereco: 'Rua Volontà, 1897 - Ancona',
+    descricao: 'Agitador operário e teórico da ação direta organizada',
+    itens: [
+      MapEntry('1x Entre Camponeses: Diálogo Emancipador', 8.0),
+      MapEntry('1x A Anarquia e o Método da Liberdade', 10.0),
+      MapEntry('1x Solidariedade Humana Contra a Exploração', 0.0),
+    ],
+  ),
+  _PerfilHistoricoAnarquista(
+    cliente: 'Maria Lacerda de Moura',
+    cnpj: '188.719.450-00',
+    telefone: '(11) 91923-1945',
+    endereco: 'Rua da Escola Nova, 1923 - Barbacena / SP',
+    descricao: 'Pioneira do anarcofeminismo e da educação racionalista no Brasil',
+    itens: [
+      MapEntry('1x Fascismo: Filho Dileto do Clero e do Capital', 16.0),
+      MapEntry('1x Educação Racionalista Sem Dogmas', 0.0),
+      MapEntry('1x Fraternidade e Pensamento Livre', 0.0),
+    ],
+  ),
+  _PerfilHistoricoAnarquista(
+    cliente: 'Comitê de Defesa Proletária de 1917',
+    cnpj: '191.707.120-00',
+    telefone: '(11) 91917-0712',
+    endereco: 'Rua da Mooca e Brás, 1917 - São Paulo',
+    descricao: 'Articulação operária da primeira grande greve geral do Brasil',
+    itens: [
+      MapEntry('1x Jornada de Trabalho de 8 Horas Sem Patrão', 0.0),
+      MapEntry('1x Jornal A Plebe (Edição de Resistência)', 5.0),
+      MapEntry('1x Fundo Sindical de Solidariedade Mútua', 25.0),
+    ],
+  ),
+  _PerfilHistoricoAnarquista(
+    cliente: 'Louise Michel',
+    cnpj: '187.103.180-00',
+    telefone: '(11) 91871-0318',
+    endereco: 'Boulevard dos Communards, 1871 - Montmartre',
+    descricao: 'Educadora libertária e combatente das barricadas da Comuna',
+    itens: [
+      MapEntry('1x Democracia Direta e Mandato Revogável', 0.0),
+      MapEntry('1x Oficinas de Trabalho Coletivo Autogeridas', 0.0),
+      MapEntry('1x Memórias da Comuna Revolucionária', 22.0),
+    ],
+  ),
+  _PerfilHistoricoAnarquista(
+    cliente: 'Lucía Sánchez Saornil',
+    cnpj: '193.607.190-00',
+    telefone: '(11) 91936-0719',
+    endereco: 'Rambla das Coletivizações, 1936 - Barcelona',
+    descricao: 'Poeta e cofundadora da federação libertária Mujeres Libres',
+    itens: [
+      MapEntry('1x Coletivização Agrária de Aragão', 0.0),
+      MapEntry('1x Revista Mujeres Libres nº 1', 12.0),
+      MapEntry('1x Auto-organização Contra o Fascismo', 0.0),
+    ],
+  ),
+  _PerfilHistoricoAnarquista(
+    cliente: 'Trabalhador Autogestionário Nous',
+    cnpj: '072.072.072-00',
+    telefone: '(11) 97272-0720',
+    endereco: 'Viela Ação Direta Popular, 72 - Brasil',
+    descricao: 'Poder popular sem intermediários, autogestão real e soberania',
+    itens: [
+      MapEntry('1x Unidade Tática e Coerência Prática', 0.0),
+      MapEntry('1x O Estado na Mão do Povo Como Software', 0.0),
+      MapEntry('1x Plataforma Livre Nous (Acesso Soberano)', 0.0),
+    ],
+  ),
+];
 
 const Map<String, String> _rotulosCamposCliente = {
   'cnpj': 'CNPJ',
@@ -70,6 +213,7 @@ class _ImpressoraConteudoState extends State<_ImpressoraConteudo> {
   late double _margemEsquerdaMm;
   late double _margemDireitaMm;
   late List<String> _camposClienteComanda;
+  late final _PerfilHistoricoAnarquista _perfilHistorico;
 
   bool _carregandoImpressoras = false;
   bool _imprimindo = false;
@@ -84,6 +228,8 @@ class _ImpressoraConteudoState extends State<_ImpressoraConteudo> {
   @override
   void initState() {
     super.initState();
+    _perfilHistorico = _kPerfisHistoricosAnarquistas[
+        Random().nextInt(_kPerfisHistoricosAnarquistas.length)];
     final c = widget.configuracoesIniciais;
     _rodapeController = TextEditingController(text: c.rodape);
     _rodapeController.addListener(_onRodapeMudou);
@@ -854,6 +1000,75 @@ class _ImpressoraConteudoState extends State<_ImpressoraConteudo> {
     }
   }
 
+  Future<void> _imprimirExemplo() async {
+    if (_imprimindo) return;
+
+    final nome = _nomeImpressoraController.text.trim();
+
+    setState(() => _imprimindo = true);
+    try {
+      await ImpressaoService.imprimirExemploComanda(
+        config: ConfiguracoesImpressora(
+          rodape: _rodapeController.text.trim(),
+          tamanhoFonte: _tamanhoFonte,
+          modeloFonte: _modeloFonte,
+          tipoConexao: _tipoConexao,
+          enderecoRede: _enderecoRedeController.text.trim(),
+          nomeImpressora: nome,
+          camposClienteComanda: List.of(_camposClienteComanda),
+          camposClientePersonalizados: true,
+          margemEsquerdaMm: _margemEsquerdaMm,
+          margemDireitaMm: _margemDireitaMm,
+        ),
+        cliente: _perfilHistorico.cliente,
+        cnpj: _camposClienteComanda.contains('cnpj')
+            ? _perfilHistorico.cnpj
+            : null,
+        telefone: _camposClienteComanda.contains('telefone')
+            ? _perfilHistorico.telefone
+            : null,
+        endereco: _camposClienteComanda.contains('endereco')
+            ? _perfilHistorico.endereco
+            : null,
+        email: _camposClienteComanda.contains('email')
+            ? 'nousstudios72@gmail.com'
+            : null,
+        redesSociais: _camposClienteComanda.contains('redesSociais')
+            ? '@nous.studios72'
+            : null,
+        descricao: _camposClienteComanda.contains('descricao')
+            ? _perfilHistorico.descricao
+            : null,
+        itens: _perfilHistorico.itens,
+        pagamento: 'Crédito Mútuo / Autogestão',
+        rodape: _rodapeController.text.trim(),
+      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          backgroundColor: theme.cardBackgroundColor,
+          content: Text(
+            'Exemplo enviado para a impressora.',
+            style: theme.getTextStyle(color: theme.textColor),
+          ),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          backgroundColor: theme.cardBackgroundColor,
+          content: Text(
+            'Falha ao imprimir exemplo: $e',
+            style: theme.getTextStyle(color: theme.textColor),
+          ),
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _imprimindo = false);
+    }
+  }
+
   Widget _blocoPreviewComanda() {
     final rodape = _rodapeController.text.trim();
     final double escalaFonte = _tamanhoFonte == 'pequena'
@@ -895,6 +1110,37 @@ class _ImpressoraConteudoState extends State<_ImpressoraConteudo> {
           );
     }
 
+    Widget linhaDadoCliente(String rotulo, String valor) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 3),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              '$rotulo: ',
+              style: estilo(
+                fontSize: 12,
+                color: theme.secondaryTextColor,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+            const SizedBox(width: 4),
+            Expanded(
+              child: Text(
+                valor,
+                textAlign: TextAlign.right,
+                softWrap: true,
+                style: estilo(
+                  fontSize: 12,
+                  color: theme.textColor,
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
     Widget linhaComanda(String esquerda, String direita,
         {bool destaque = false}) {
       return Padding(
@@ -905,6 +1151,7 @@ class _ImpressoraConteudoState extends State<_ImpressoraConteudo> {
             Expanded(
               child: Text(
                 esquerda,
+                softWrap: true,
                 style: estilo(
                   fontSize: 12,
                   color: destaque ? theme.textColor : theme.secondaryTextColor,
@@ -1009,22 +1256,19 @@ class _ImpressoraConteudoState extends State<_ImpressoraConteudo> {
                 ),
                 const SizedBox(height: 8),
                 if (_camposClienteComanda.isNotEmpty) ...[
-                  if (_camposClienteComanda.contains('nome'))
-                    linhaComanda('Cliente', 'Carlos Eduardo da Silva'),
+                  linhaDadoCliente('Cliente', _perfilHistorico.cliente),
+                  if (_camposClienteComanda.contains('cnpj'))
+                    linhaDadoCliente('CNPJ/CPF', _perfilHistorico.cnpj),
                   if (_camposClienteComanda.contains('telefone'))
-                    linhaComanda('Telefone', '(11) 98765-4321'),
+                    linhaDadoCliente('Telefone', _perfilHistorico.telefone),
                   if (_camposClienteComanda.contains('endereco'))
-                    linhaComanda('Endereço', 'Rua das Palmeiras, 740'),
-                  if (_camposClienteComanda.contains('bairro'))
-                    linhaComanda('Bairro', 'Jardim América'),
-                  if (_camposClienteComanda.contains('complemento'))
-                    linhaComanda('Complemento', 'Bloco B, Apto 102'),
-                  if (_camposClienteComanda.contains('cidade'))
-                    linhaComanda('Cidade', 'São Paulo - SP'),
-                  if (_camposClienteComanda.contains('pontoReferencia'))
-                    linhaComanda('Ponto de ref.', 'Em frente à praça central'),
-                  if (_camposClienteComanda.contains('observacoes'))
-                    linhaComanda('Observações', 'Tocar interfone 102 duas vezes'),
+                    linhaDadoCliente('Endereço', _perfilHistorico.endereco),
+                  if (_camposClienteComanda.contains('email'))
+                    linhaDadoCliente('Email', 'nousstudios72@gmail.com'),
+                  if (_camposClienteComanda.contains('redesSociais'))
+                    linhaDadoCliente('Redes sociais', '@nous.studios72'),
+                  if (_camposClienteComanda.contains('descricao'))
+                    linhaDadoCliente('Descrição', _perfilHistorico.descricao),
                   const SizedBox(height: 6),
                 ],
                 Center(
@@ -1038,14 +1282,24 @@ class _ImpressoraConteudoState extends State<_ImpressoraConteudo> {
                   ),
                 ),
                 const SizedBox(height: 4),
-                linhaComanda('1x X-Tudo Artesanal Completo', 'R\$ 32,00'),
-                linhaComanda('2x Suco Natural Laranja 500ml', 'R\$ 16,00'),
+                for (final item in _perfilHistorico.itens)
+                  linhaComanda(
+                    item.key,
+                    'R\$ ${item.value.toStringAsFixed(2).replaceAll('.', ',')}',
+                  ),
                 const SizedBox(height: 8),
                 Divider(color: theme.borderColor.withValues(alpha: 0.6)),
-                linhaComanda('Subtotal', 'R\$ 48,00'),
-                linhaComanda('TOTAL', 'R\$ 48,00', destaque: true),
+                linhaComanda(
+                  'Subtotal',
+                  'R\$ ${_perfilHistorico.itens.fold(0.0, (soma, i) => soma + i.value).toStringAsFixed(2).replaceAll('.', ',')}',
+                ),
+                linhaComanda(
+                  'TOTAL',
+                  'R\$ ${_perfilHistorico.itens.fold(0.0, (soma, i) => soma + i.value).toStringAsFixed(2).replaceAll('.', ',')}',
+                  destaque: true,
+                ),
                 const SizedBox(height: 4),
-                linhaComanda('Pagamento', 'Pix / Cartão'),
+                linhaComanda('Pagamento', 'Crédito Mútuo / Autogestão'),
                 const SizedBox(height: 12),
                 Center(
                   child: Text(
@@ -1058,6 +1312,41 @@ class _ImpressoraConteudoState extends State<_ImpressoraConteudo> {
                   ),
                 ),
               ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 8),
+        Center(
+          child: Tooltip(
+            message: 'Imprimir este exemplo de comanda',
+            child: InkWell(
+              borderRadius: BorderRadius.circular(8),
+              onTap: _imprimindo ? null : _imprimirExemplo,
+              child: Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                decoration: BoxDecoration(
+                  color: theme.backgroundColor.withValues(alpha: 0.4),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                    color: theme.borderColor.withValues(alpha: 0.6),
+                  ),
+                ),
+                child: _imprimindo
+                    ? SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: theme.textColor,
+                        ),
+                      )
+                    : Icon(
+                        Icons.print_outlined,
+                        size: 18,
+                        color: theme.textColor,
+                      ),
+              ),
             ),
           ),
         ),

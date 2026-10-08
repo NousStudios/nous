@@ -68,13 +68,13 @@ The currently operating core includes:
   - Multi-item catalog with persisted photos, categories, and complementary component groups.
   - Open Table & Tab Management for Restaurants: Table registry with live status (free/occupied), continuous ordering per responsible worker, item-level audit trails, 58mm thermal pre-bill checks, bill splitting across multiple payers, service fees (10%), discounts, and table transfers/merging.
   - Order and ticket workflow (New, Accepted, Completed, Cancelled with stock reversal & audit trail) with split/multiple payments support.
-  - Multi-unit inventory tracking (`un`, `g`, `ml`) with automatic deduction proposals confirmed by human discretion.
+  - Multi-unit inventory tracking (`un`, `g`, `ml`) with automatic deduction proposals, bidirectional purchase cost calculation ($C_{\text{unit}} = \frac{C_{\text{total}}}{Q}$), and critical low-stock alerts (< 10 units) integrated into app-bar notifications.
   - Customer & Supplier registry with adaptive CPF/CNPJ formatting, unified sovereign local auto-fill (`DadosLocaisService`), and comprehensive A4 PDF customer account statements.
-  - Cooperative financial management with real-time audit trail and algorithmic egalitarian profit/surplus division suggestions.
-  - Thermal receipt printing (standard 58mm) and PDF exports.
-- **Deliberative Notifications & Governance (`features/notificacoes`)**: Direct collective governance for store members. Anti-despotic rules: owners cannot unilaterally remove other owners without explicit consent; partners cannot alter another partner's role without prior acceptance.
+  - Cooperative financial management with real-time audit trail, algorithmic egalitarian profit/surplus division suggestions, and daily cash closing with A4 PDF export.
+  - Thermal receipt printing (standard 58mm) with universal bilateral margin calibration (independent left/right mm fine-tuning preventing edge cuts across hardware brands like Knup, B&G, Elgin), typography family selection (Nous' official Belleza, sans-serif, monospace, serif), live in-dialog receipt preview with 10 historical anarchist profiles, resilient client-data formatting, direct sample printing, and PDF exports.
+- **Deliberative Notifications & Governance (`features/notificacoes`)**: Direct collective governance for store members with stock-alert aggregation. Anti-despotic rules: owners cannot unilaterally remove other owners without explicit consent; partners cannot alter another partner's role without prior acceptance.
 - **Local-First & Sovereignty**: Entirely offline and self-contained with a high-performance local SQLite relational engine (`sqflite_common_ffi` with ACID atomic transactions), automatic migration from legacy store vaults, and single-file universal JSON backup/restore (`file_selector`) with non-destructive intelligent merging, active profile deduplication by CNPJ/tax ID, and profile category preservation (e.g. keeping specialized Restaurant features while merging historical catalog and audit data).
-- **Desktop Distribution & Single-Instance Protection**: Official standalone Inno Setup Windows installer (`.exe`) with branded multi-resolution app icon, native Win32 Named Mutex single-instance protection preventing duplicate process conflicts, and offline-tolerant update notification mechanism (`AtualizacaoService`).
+- **Desktop Distribution & Single-Instance Protection**: Official standalone Inno Setup Windows test installer (`Nous_Instalador_v1.0.0_Versao_Teste.exe`) with branded multi-resolution app icon, native Win32 Named Mutex single-instance protection preventing duplicate process conflicts, and offline-tolerant update notification mechanism (`AtualizacaoService`).
 
 Upcoming modules — internal chat, social timeline, autonomous delivery, community banking, and direct-democracy self-management — are planned and organized in the architectural roadmap.
 
@@ -281,7 +281,7 @@ O núcleo atualmente funcional reúne:
   - Controle de estoque multivariado (`un`, `g`, `ml`) com proposta automática de baixa e confirmação humana mandatória.
   - Cadastro de clientes e fornecedores com máscara adaptável CPF/CNPJ, autopreenchimento local soberano unificado (`DadosLocaisService`) e exportação de extrato completo de compras em PDF A4 com cálculo de dívida a prazo em tempo real.
   - Módulo financeiro cooperativo com trilha de auditoria e cálculo algorítmico de sugestão de divisão igualitária dos excedentes entre os membros.
-  - Impressão térmica padrão de 58mm e emissão de comprovantes em PDF.
+  - Impressão térmica padrão de 58mm com calibração bilateral universal de recuo (ajuste fino em milímetros à esquerda e à direita para eliminar cortes mecânicos em diferentes marcas de impressoras como Knup, B&G, Elgin), seleção de modelo de fonte (Belleza oficial do Nous, sem serifa, monoespaçada e clássica serifada), prévia dinâmica da comanda em tempo real integrada à calibração e emissão de comprovantes em PDF.
 - **Governança Coletiva e Notificações Deliberativas (`features/notificacoes`)**: Autogestão participativa para membros de lojas. Regras anti-despóticas: donos não podem excluir outros donos sem consentimento mútuo; sócios não podem alterar o papel de outros sócios sem aceite explícito.
 - **Soberano e Local-First**: 100% autônomo e offline, impulsionado por um banco relacional local SQLite de alta performance (`sqflite_common_ffi` com transações atômicas ACID), migração automática transparente e exportação/importação de backup completo em arquivo JSON único (`file_selector`) com mesclagem inteligente não-destrutiva, desduplicação ativa de perfis por CNPJ e preservação de categoria (ex.: mantendo dinâmica de Restaurante enquanto une histórico, produtos e clientes do passado).
 - **Distribuição Desktop e Instância Única Nativa**: Instalador oficial para Windows (Inno Setup 6) em arquivo `.exe` único ultra-comprimido com ícone oficial do Nous, proteção nativa Win32 C++ contra múltiplas janelas abertas simultaneamente (evitando concorrência no SQLite) e sistema de verificação de atualizações local-first discreto (`AtualizacaoService`).
@@ -380,7 +380,7 @@ componentes específicos daquela tela).
 
 ## Roteiro (Roadmap)
 
-1. **Núcleo de PDV e Governança** — funcional e em evolução contínua. Ponto de venda completo, estoque multivariado (`un`/`g`/`ml`), clientes e fornecedores com autopreenchimento local soberano, financeiro cooperativo igualitário, impressão térmica de 58mm e governança coletiva por consentimento mútuo.
+1. **Núcleo de PDV e Governança** — funcional e em evolução contínua. Ponto de venda completo, estoque multivariado (`un`/`g`/`ml`) com cálculo automático de compras e alertas de estoque crítico (< 10 un) no sino da barra superior, clientes e fornecedores com autopreenchimento local soberano, financeiro cooperativo com divisão igualitária e fechamento diário em PDF, impressão térmica de 58mm universal com calibração bilateral de recuo, tipografia configurável, prévia viva com perfis históricos do anarquismo e impressão direta de amostras, e instalador oficial Windows para testes (`Nous_Instalador_v1.0.0_Versao_Teste.exe`).
 2. Chat interno (`features/chat`)
 3. Timeline social (`features/timeline`)
 4. Rede autônoma de entregadores (`features/delivery`), com negociação de rotas pelo próprio trabalhador

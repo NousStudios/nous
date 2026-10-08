@@ -48,6 +48,36 @@ class PdvProvider extends ChangeNotifier {
     }).toList();
   }
 
+  List<({ItemLoja item, double saldo, String lojaNome, String lojaId})>
+      get todosItensEstoqueBaixo {
+    final alertas =
+        <({ItemLoja item, double saldo, String lojaNome, String lojaId})>[];
+    for (final loja in _lojas) {
+      for (final item in loja.itensLoja) {
+        if (item.tipo == TipoItemLoja.servico) continue;
+        var saldo = 0.0;
+        var temMovimento = false;
+        for (final m in loja.movimentosEstoque) {
+          if (m.itemId == item.id) {
+            saldo += m.quantidadeComSinal;
+            temMovimento = true;
+          }
+        }
+        if (temMovimento && saldo < 10) {
+          alertas.add((
+            item: item,
+            saldo: saldo,
+            lojaNome: loja.nome,
+            lojaId: loja.id,
+          ));
+        }
+      }
+    }
+    return alertas;
+  }
+
+  int get totalItensEstoqueBaixo => todosItensEstoqueBaixo.length;
+
   String? buscarFotoClientePorCpf(String cpf) {
     final digitos = cpf.replaceAll(RegExp(r'[^0-9]'), '');
     if (digitos.isEmpty) return null;

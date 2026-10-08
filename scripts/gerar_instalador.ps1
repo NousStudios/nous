@@ -56,7 +56,7 @@ if ($isccPath) {
         Write-Host ""
         Write-Host "==========================================================" -ForegroundColor Green
         Write-Host " SUCESSO! Instalador gerado na pasta 'dist/':" -ForegroundColor Green
-        Write-Host " dist\Nous_Instalador_v1.0.0.exe" -ForegroundColor White
+        Write-Host " dist\Nous_Instalador_v1.0.0_Versao_Teste.exe" -ForegroundColor White
         Write-Host "==========================================================" -ForegroundColor Green
     } else {
         Write-Host "Ocorreu um erro ao compilar o instalador com o Inno Setup." -ForegroundColor Red
@@ -67,7 +67,7 @@ if ($isccPath) {
     Write-Host "A pasta da aplicacao ja esta pronta e funciona de forma autonoma em:" -ForegroundColor Gray
     Write-Host "  build\windows\x64\runner\Release\nous.exe" -ForegroundColor White
     Write-Host ""
-    Write-Host "Para gerar o arquivo de instalacao oficial (Nous_Instalador_v1.0.0.exe):" -ForegroundColor Cyan
+    Write-Host "Para gerar o arquivo de instalacao oficial (Nous_Instalador_v1.0.0_Versao_Teste.exe):" -ForegroundColor Cyan
     Write-Host "1. Instale o Inno Setup executando no terminal do Windows:" -ForegroundColor Cyan
     Write-Host "   winget install JRSoftware.InnoSetup" -ForegroundColor White
     Write-Host "2. Execute este script novamente: .\scripts\gerar_instalador.ps1" -ForegroundColor Cyan

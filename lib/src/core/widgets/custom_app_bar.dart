@@ -386,21 +386,30 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
 
   Widget _botaoNotificacoes(BuildContext context, AppTheme theme) {
     final notificacoes = context.watch<NotificacoesProvider>();
-    final quantidade = notificacoes.quantidadePendentes;
+    final pdv = context.watch<PdvProvider>();
+    final quantidadeConvites = notificacoes.quantidadePendentes;
+    final totalEstoqueBaixo = pdv.totalItensEstoqueBaixo;
+    final quantidadeTotal = quantidadeConvites + totalEstoqueBaixo;
 
     return Stack(
       clipBehavior: Clip.none,
       alignment: Alignment.center,
       children: [
         IconButton(
-          tooltip: 'Notificações',
+          tooltip: totalEstoqueBaixo > 0
+              ? 'Notificações ($totalEstoqueBaixo item(ns) com estoque baixo/esgotado)'
+              : 'Notificações',
           icon: Icon(
-            Icons.notifications_none,
-            color: theme.secondaryTextColor,
+            quantidadeTotal > 0
+                ? Icons.notifications_active_outlined
+                : Icons.notifications_none,
+            color: totalEstoqueBaixo > 0
+                ? Colors.redAccent
+                : theme.secondaryTextColor,
           ),
           onPressed: () => NotificacoesDialog.mostrar(context),
         ),
-        if (quantidade > 0)
+        if (quantidadeTotal > 0)
           Positioned(
             top: 6,
             right: 6,
@@ -412,7 +421,7 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
                 borderRadius: BorderRadius.circular(8),
               ),
               child: Text(
-                quantidade > 9 ? '9+' : '$quantidade',
+                quantidadeTotal > 9 ? '9+' : '$quantidadeTotal',
                 textAlign: TextAlign.center,
                 style: theme.getTextStyle(
                   fontSize: 10,

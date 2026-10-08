@@ -295,6 +295,163 @@ class ImpressaoService {
     );
   }
 
+  static Future<void> imprimirExemploComanda({
+    required ConfiguracoesImpressora config,
+    required String cliente,
+    String? cnpj,
+    String? telefone,
+    String? endereco,
+    String? email,
+    String? redesSociais,
+    String? descricao,
+    required List<MapEntry<String, double>> itens,
+    required String pagamento,
+    String? rodape,
+  }) async {
+    final doc = pw.Document();
+    final tamanho = _tamanhoEmPontos(config.tamanhoFonte);
+    final pageFormat = formatoPapel(config);
+    final fonteNormal = await _resolverFonte(config.modeloFonte);
+    final fonteNegrito = await _resolverFonteNegrito(config.modeloFonte);
+
+    pw.TextStyle estilo({bool negrito = false, double? tamanhoCustom}) {
+      return pw.TextStyle(
+        font: negrito ? fonteNegrito : fonteNormal,
+        fontSize: tamanhoCustom ?? tamanho,
+        fontWeight: negrito ? pw.FontWeight.bold : pw.FontWeight.normal,
+      );
+    }
+
+    pw.Widget linhaDupla(
+      String esquerda,
+      String direita, {
+      bool negrito = false,
+    }) {
+      return pw.Padding(
+        padding: const pw.EdgeInsets.symmetric(vertical: 1),
+        child: pw.Row(
+          crossAxisAlignment: pw.CrossAxisAlignment.start,
+          children: [
+            pw.Expanded(
+              child: pw.Text(esquerda, style: estilo(negrito: negrito)),
+            ),
+            pw.Text(direita, style: estilo(negrito: negrito)),
+          ],
+        ),
+      );
+    }
+
+    pw.Widget linhaDado(String rotulo, String valor) {
+      return pw.Padding(
+        padding: const pw.EdgeInsets.symmetric(vertical: 1),
+        child: pw.Row(
+          crossAxisAlignment: pw.CrossAxisAlignment.start,
+          children: [
+            pw.Text('$rotulo: ', style: estilo(negrito: true)),
+            pw.Expanded(
+              child: pw.Text(
+                valor,
+                textAlign: pw.TextAlign.right,
+                style: estilo(negrito: false),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    double total = 0;
+    for (final item in itens) {
+      total += item.value;
+    }
+
+    doc.addPage(
+      pw.Page(
+        pageFormat: pageFormat,
+        build: (context) {
+          return pw.Column(
+            crossAxisAlignment: pw.CrossAxisAlignment.stretch,
+            children: [
+              pw.Center(
+                child: pw.Text(
+                  'NOUS COMÉRCIO & SERVIÇOS',
+                  style: estilo(negrito: true, tamanhoCustom: tamanho + 1.5),
+                ),
+              ),
+              pw.Center(
+                child: pw.Text(
+                  'CNPJ: 12.345.678/0001-90',
+                  style: estilo(tamanhoCustom: tamanho - 1),
+                ),
+              ),
+              pw.SizedBox(height: 4),
+              pw.Center(
+                child: pw.Text(
+                  'Pedido #0042',
+                  style: estilo(negrito: true, tamanhoCustom: tamanho + 1),
+                ),
+              ),
+              pw.Center(
+                child: pw.Text(
+                  'Data: 08/10/2026 14:30',
+                  style: estilo(tamanhoCustom: tamanho - 0.5),
+                ),
+              ),
+              pw.SizedBox(height: 4),
+              pw.Divider(thickness: 0.5),
+              linhaDado('Cliente', cliente),
+              if (cnpj != null && cnpj.isNotEmpty) linhaDado('CNPJ/CPF', cnpj),
+              if (telefone != null && telefone.isNotEmpty)
+                linhaDado('Telefone', telefone),
+              if (endereco != null && endereco.isNotEmpty)
+                linhaDado('Endereço', endereco),
+              if (email != null && email.isNotEmpty) linhaDado('Email', email),
+              if (redesSociais != null && redesSociais.isNotEmpty)
+                linhaDado('Redes sociais', redesSociais),
+              if (descricao != null && descricao.isNotEmpty)
+                linhaDado('Descrição', descricao),
+              pw.Divider(thickness: 0.5),
+              pw.SizedBox(height: 4),
+              pw.Center(
+                child: pw.Text('ITENS', style: estilo(negrito: true)),
+              ),
+              pw.SizedBox(height: 4),
+              for (final item in itens) ...[
+                pw.SizedBox(height: 2),
+                linhaDupla(
+                  item.key,
+                  _valor(item.value),
+                ),
+              ],
+              pw.SizedBox(height: 6),
+              pw.Divider(thickness: 0.5),
+              linhaDupla('Subtotal', _valor(total)),
+              linhaDupla('TOTAL', _valor(total), negrito: true),
+              pw.SizedBox(height: 2),
+              linhaDupla('Pagamento', pagamento),
+              if (rodape != null && rodape.isNotEmpty) ...[
+                pw.SizedBox(height: 10),
+                for (final l in rodape.split('\n'))
+                  pw.Center(child: pw.Text(l, style: estilo())),
+              ] else ...[
+                pw.SizedBox(height: 10),
+                pw.Center(child: pw.Text('linktr.ee/nous72', style: estilo())),
+              ],
+            ],
+          );
+        },
+      ),
+    );
+
+    final bytes = await doc.save();
+    await _enviarParaImpressora(
+      bytes: bytes,
+      nomeImpressora: config.nomeImpressora,
+      jobName: 'ExemploNous-0042',
+      format: pageFormat,
+    );
+  }
+
   static Future<void> imprimirComanda({
     required ConfiguracoesImpressora config,
     required PedidoLoja pedido,

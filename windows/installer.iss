@@ -24,7 +24,7 @@ AllowNoIcons=yes
 ; Permite instalação tanto por usuário comum quanto por administrador
 PrivilegesRequiredOverridesAllowed=commandline dialog
 OutputDir=..\dist
-OutputBaseFilename=Nous_Instalador_v{#MyAppVersion}
+OutputBaseFilename=Nous_Instalador_v{#MyAppVersion}_Versao_Teste
 SetupIconFile=runner\resources\app_icon.ico
 Compression=lzma2/ultra64
 SolidCompression=yes

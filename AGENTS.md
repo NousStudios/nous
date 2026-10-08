@@ -240,8 +240,40 @@ Este projeto apoia-se no **anarquismo plataformista brasileiro**: poder sem inte
   - Ao mesclar, o sistema compara os documentos (`cnpj`) ignorando pontuações (`mesmoDocumento`). Se o documento coincidir ou o `id` for o mesmo, o sistema **NUNCA cria uma loja duplicada** no container *"Meus Perfis Profissionais"*.
   - **Precedência da Categoria Ativa:** Se a loja atual possui categoria mais especializada (ex.: `Restaurante` com dinâmica de mesas e comandas) e a loja do backup era `Loja Padrão`, a categoria `Restaurante` e suas mesas são preservadas intactas.
   - **Mesclagem Granular e Enriquecimento:** Itens/produtos, clientes, categorias, grupos de adicionais, histórico de auditoria de ações (`RegistroAcao`), pedidos de venda, movimentações de estoque, pagamentos e anexos são unificados e enriquecidos sem sobrescrita destrutiva nem duplicatas de produtos/clientes.
-  - **Saneamento e Desduplicação Automática:** `BackupService.desduplicarLojas` funde perfis de mesmo CNPJ que porventura existam no cofre e atualiza referências, expurgando duplicatas do banco de dados ao salvar ou ao inicializar em `PdvProvider.entrarComCpf`.
   - **Reatividade Pós-Importação:** Ao finalizar o fluxo no `BackupDialog`, o sistema recarrega automaticamente `AuthProvider`, `PdvProvider` e `NotificacoesProvider`, refletindo os dados mesclados imediatamente em tela sem exigir reinicialização do aplicativo.
+
+### 7.8 Impressão Térmica Soberana, Calibração Bilateral e Prévia Viva (`features/pdv/services/impressao_service.dart`)
+- **Adaptação Universal a Fabricantes (Knup, B&G, Elgin, Daruma, etc.):**
+  - Diferentes impressoras térmicas de 58mm apresentam pequenas variações mecânicas na cabeça de impressão (geralmente 48mm de área imprimível / 384 dots). Para sanar definitivamente cortes indesejados no início das linhas ou no último caractere dos preços sem perder padronização, o sistema disponibiliza **Calibração Bilateral Independente**:
+    - `margemEsquerdaMm` (default: 5.0 mm): calibra o recuo inicial do texto à esquerda.
+    - `margemDireitaMm` (default: 3.0 mm): calibra o recuo final de valores e descrições à direita.
+    - Ajustáveis com precisão de 0.5 mm (`[-] / [+]`) e atalhos rápidos pré-calibrados.
+- **Tipografia e Família de Letras Personalizável:**
+  - O usuário pode definir o modelo de fonte da comanda térmica (`modeloFonte`):
+    - `belleza`: Fonte padrão oficial do ecossistema Nous, carregada dinamicamente via `rootBundle.load('assets/fonts/Belleza-Regular.ttf')`.
+    - `padrao`: Sem serifa limpa (*Helvetica*).
+    - `mono`: Monoespaçada clássica de máquina/cupom (*Courier*).
+    - `serifada`: Clássica com serifa (*Times*).
+- **Prévia Dinâmica Integrada com Variações Históricas do Anarquismo:**
+  - No diálogo de impressora (`ImpressoraDialog`), a comanda simulada é renderizada **diretamente dentro do container de calibração bilateral**, variando o padding em tempo real conforme os ajustes de mm.
+  - Sorteia dinamicamente 1 dos 10 perfis históricos anarquistas e do Nous (Makhno, Bakunin, Malatesta, Kropotkin, Emma Goldman, Durruti, Maria Lacerda de Moura, Comuna de Paris, CNT/FAI e Nous Autogestão).
+  - Responde em tempo real a todos os seletores de dados do cliente (CNPJ, telefone, endereço, e-mail, redes sociais e descrição), integrando os canais oficiais do Nous (`nousstudios72@gmail.com`, `@nous.studios72`).
+  - **Formatação Resiliente contra Esmagamento e Overflows:** Renderiza dados do cliente com `linhaDadoCliente` onde o rótulo é mantido intacto e o valor reside em `Expanded(softWrap: true)` alinhado à direita, prevenindo qualquer deformação vertical ou estouro de layout em endereços extensos.
+  - **Impressão Direta do Exemplo:** Botão de ícone compacto (`Icons.print_outlined`) posicionado logo abaixo da prévia que envia o exemplo sorteado diretamente para a impressora física via `ImpressaoService.imprimirExemploComanda`.
+
+### 7.9 Automação de Compras no Estoque, Notificações de Estoque Crítico e Caixa Diário
+- **Cálculo Automático em Movimento de Estoque (`MovimentoEstoqueDialog`):**
+  - Campo "Custo da compra (R$)" com sincronização recíproca automática: ao digitar a quantidade e o valor total pago, calcula e preenche o custo unitário instantaneamente ($C_{\text{unit}} = \frac{C_{\text{total}}}{Q}$), e vice-versa.
+- **Indicador Visual de Estoque Baixo / Esgotado (< 10 un):**
+  - Monitoramento contínuo em `PdvProvider.todosItensEstoqueBaixo` para qualquer produto não-serviço com saldo menor que 10 unidades ou esgotado ($\le 0$).
+  - O botão de notificações na `CustomAppBar` acende com ícone de alerta ativo e soma o total de itens críticos no badge vermelho.
+  - A janela `NotificacoesDialog` exibe cards de alerta dedicados indicando o nome da loja, produto, saldo exato com unidade (`un`, `g`, `ml`) e instruções de reposição.
+- **Resumo e Fechamento de Caixa Diário com Exportação em PDF:**
+  - O botão "Financeiro" na aba Gestão da loja abre diretamente no período "Hoje", apresentando vendas, pagamentos, sugestão de divisão igualitária e botão "Exportar PDF" gerado em folha A4.
+
+### 7.10 Instalador Oficial Windows — Versão Teste
+- Configurado em `windows/installer.iss` (Inno Setup 6) gerando `dist/Nous_Instalador_v1.0.0_Versao_Teste.exe`.
+- Automação completa pelo script PowerShell `scripts/gerar_instalador.ps1`.
 
 ---
 

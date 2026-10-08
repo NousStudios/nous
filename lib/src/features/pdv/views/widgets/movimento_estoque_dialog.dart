@@ -70,8 +70,11 @@ class _MovimentoEstoqueConteudo extends StatefulWidget {
 class _MovimentoEstoqueConteudoState
     extends State<_MovimentoEstoqueConteudo> {
   final _quantidadeController = TextEditingController();
+  final _custoTotalController = TextEditingController();
   final _custoController = TextEditingController();
   final _motivoController = TextEditingController();
+
+  bool _calculandoCusto = false;
 
   ItemLoja? _item;
   Fornecedor? _fornecedor;
@@ -96,9 +99,63 @@ class _MovimentoEstoqueConteudoState
   @override
   void dispose() {
     _quantidadeController.dispose();
+    _custoTotalController.dispose();
     _custoController.dispose();
     _motivoController.dispose();
     super.dispose();
+  }
+
+  void _onCustoTotalMudou() {
+    if (_calculandoCusto) return;
+    _calculandoCusto = true;
+    try {
+      final qtd = _quantidadeParseada();
+      final totalTexto = _custoTotalController.text
+          .trim()
+          .replaceAll('.', '')
+          .replaceAll(',', '.');
+      final total = double.tryParse(totalTexto);
+      if (qtd != null && qtd > 0 && total != null && total >= 0) {
+        final unitario = total / qtd;
+        _custoController.text =
+            unitario.toStringAsFixed(2).replaceAll('.', ',');
+      }
+    } finally {
+      _calculandoCusto = false;
+    }
+  }
+
+  void _onCustoUnitarioMudou() {
+    if (_calculandoCusto) return;
+    _calculandoCusto = true;
+    try {
+      final qtd = _quantidadeParseada();
+      final unitarioTexto = _custoController.text
+          .trim()
+          .replaceAll('.', '')
+          .replaceAll(',', '.');
+      final unitario = double.tryParse(unitarioTexto);
+      if (qtd != null && qtd > 0 && unitario != null && unitario >= 0) {
+        final total = qtd * unitario;
+        _custoTotalController.text =
+            total.toStringAsFixed(2).replaceAll('.', ',');
+      }
+    } finally {
+      _calculandoCusto = false;
+    }
+  }
+
+  void _onQuantidadeMudou() {
+    final totalTexto = _custoTotalController.text
+        .trim()
+        .replaceAll('.', '')
+        .replaceAll(',', '.');
+    final total = double.tryParse(totalTexto);
+    if (total != null && total > 0) {
+      _onCustoTotalMudou();
+    } else {
+      _onCustoUnitarioMudou();
+    }
   }
 
   String _rotuloUnidade(ItemLoja item) {
@@ -458,19 +515,83 @@ class _MovimentoEstoqueConteudoState
                   decoration: _decoracaoCampo(
                     unidade == 'un' ? 'Ex: 10' : 'Ex: 30,5',
                   ),
-                  onChanged: (_) => setState(() => _aviso = null),
+                  onChanged: (_) {
+                    _onQuantidadeMudou();
+                    setState(() => _aviso = null);
+                  },
                 ),
                 const SizedBox(height: 16),
-                _tituloDoBloco('Custo unitário (R\$)'),
-                TextField(
-                  controller: _custoController,
-                  keyboardType:
-                      const TextInputType.numberWithOptions(decimal: true),
-                  cursorColor: theme.textColor,
-                  style: theme.getTextStyle(fontSize: 12),
-                  decoration: _decoracaoCampo('Ex: 5,00 (opcional)'),
-                  onChanged: (_) => setState(() => _aviso = null),
-                ),
+                if (ehEntrada) ...[
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            _tituloDoBloco('Custo da compra (R\$)'),
+                            TextField(
+                              controller: _custoTotalController,
+                              keyboardType:
+                                  const TextInputType.numberWithOptions(
+                                      decimal: true),
+                              cursorColor: theme.textColor,
+                              style: theme.getTextStyle(fontSize: 12),
+                              decoration:
+                                  _decoracaoCampo('Ex: 100,00 (total)'),
+                              onChanged: (_) {
+                                _onCustoTotalMudou();
+                                setState(() => _aviso = null);
+                              },
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            _tituloDoBloco('Custo unitário (R\$)'),
+                            TextField(
+                              controller: _custoController,
+                              keyboardType:
+                                  const TextInputType.numberWithOptions(
+                                      decimal: true),
+                              cursorColor: theme.textColor,
+                              style: theme.getTextStyle(fontSize: 12),
+                              decoration:
+                                  _decoracaoCampo('Ex: 0,50 / $unidade'),
+                              onChanged: (_) {
+                                _onCustoUnitarioMudou();
+                                setState(() => _aviso = null);
+                              },
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Ao informar o custo total da compra, o custo unitário por $unidade é calculado automaticamente.',
+                    style: theme.getTextStyle(
+                      fontSize: 10,
+                      color: theme.secondaryTextColor,
+                    ),
+                  ),
+                ] else ...[
+                  _tituloDoBloco('Custo unitário (R\$)'),
+                  TextField(
+                    controller: _custoController,
+                    keyboardType:
+                        const TextInputType.numberWithOptions(decimal: true),
+                    cursorColor: theme.textColor,
+                    style: theme.getTextStyle(fontSize: 12),
+                    decoration: _decoracaoCampo('Ex: 5,00 (opcional)'),
+                    onChanged: (_) => setState(() => _aviso = null),
+                  ),
+                ],
                 const SizedBox(height: 16),
                 _tituloDoBloco('Motivo (opcional)'),
                 TextField(
