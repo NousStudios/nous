@@ -555,6 +555,11 @@ class GestaoLojaContainer extends StatelessWidget {
     final pedidosDaAba =
         pedidos.where((pedido) => pedido.status == statusDaAba).toList();
 
+    if (abaPedidos == AbaPedidos.concluidos ||
+        abaPedidos == AbaPedidos.cancelados) {
+      pedidosDaAba.sort((a, b) => b.dataHora.compareTo(a.dataHora));
+    }
+
     if (pedidosDaAba.isEmpty) {
       final mensagem = switch (abaPedidos) {
         AbaPedidos.novos => 'Nenhum pedido novo.',

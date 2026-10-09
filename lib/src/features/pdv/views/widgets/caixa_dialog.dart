@@ -188,7 +188,7 @@ class _CaixaConteudoState extends State<_CaixaConteudo> {
     if (mounted) Navigator.of(context).pop();
   }
 
-  Future<void> _registrarMovimento() async {
+  Future<void> _registrarMovimento({bool imprimir = false}) async {
     final tipo = _modoMovimento;
     if (tipo == null) return;
     final valor = _parsearValor(_movimentoValorController.text);
@@ -201,6 +201,35 @@ class _CaixaConteudoState extends State<_CaixaConteudo> {
 
     setState(() => _salvando = true);
     await widget.aoRegistrarMovimento(tipo, valor, motivo);
+
+    if (imprimir) {
+      final t = widget.turnoAberto;
+      try {
+        await ImpressaoService.imprimirMovimentoCaixa(
+          config: widget.configuracoesImpressora,
+          lojaNome: widget.lojaNome,
+          lojaCnpj: widget.lojaCnpj,
+          tipo: tipo,
+          valor: valor,
+          motivo: motivo,
+          dataHora: DateTime.now(),
+          operadorNome: t?.abertoPorNome ?? '',
+        );
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              backgroundColor: theme.cardBackgroundColor,
+              content: Text(
+                'Movimento registrado, mas falhou ao imprimir comprovante: $e',
+                style: theme.getTextStyle(color: Colors.redAccent),
+              ),
+            ),
+          );
+        }
+      }
+    }
+
     if (mounted) {
       setState(() {
         _salvando = false;
@@ -209,6 +238,46 @@ class _CaixaConteudoState extends State<_CaixaConteudo> {
         _movimentoMotivoController.clear();
         _aviso = null;
       });
+    }
+  }
+
+  Future<void> _imprimirMovimento(MovimentoCaixa mov) async {
+    final t = widget.turnoAberto;
+    try {
+      await ImpressaoService.imprimirMovimentoCaixa(
+        config: widget.configuracoesImpressora,
+        lojaNome: widget.lojaNome,
+        lojaCnpj: widget.lojaCnpj,
+        tipo: mov.tipo,
+        valor: mov.valor,
+        motivo: mov.motivo,
+        dataHora: mov.dataHora,
+        operadorNome:
+            mov.autorNome.isNotEmpty ? mov.autorNome : (t?.abertoPorNome ?? ''),
+      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            backgroundColor: theme.cardBackgroundColor,
+            content: Text(
+              'Comprovante enviado para a impressora.',
+              style: theme.getTextStyle(color: theme.textColor),
+            ),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            backgroundColor: theme.cardBackgroundColor,
+            content: Text(
+              'Falha ao imprimir comprovante: $e',
+              style: theme.getTextStyle(color: Colors.redAccent),
+            ),
+          ),
+        );
+      }
     }
   }
 
@@ -337,6 +406,108 @@ class _CaixaConteudoState extends State<_CaixaConteudo> {
     );
   }
 
+  Widget _blocoMovimentacoes(TurnoCaixa turno) {
+    if (turno.movimentacoes.isEmpty) return const SizedBox.shrink();
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.only(top: 12),
+      padding: const EdgeInsets.all(12),
+      decoration: _decoracaoBloco,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(
+                Icons.receipt_long_outlined,
+                size: 16,
+                color: theme.textColor,
+              ),
+              const SizedBox(width: 6),
+              Text(
+                'Lançamentos do Turno (${turno.movimentacoes.length})',
+                style: theme.getTextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.bold,
+                  color: theme.textColor,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          ConstrainedBox(
+            constraints: const BoxConstraints(maxHeight: 180),
+            child: ListView.separated(
+              shrinkWrap: true,
+              itemCount: turno.movimentacoes.length,
+              separatorBuilder: (context, index) => const SizedBox(height: 6),
+              itemBuilder: (context, index) {
+                final m = turno.movimentacoes.reversed.toList()[index];
+                final ehSangria = m.tipo == TipoMovimentoCaixa.sangria;
+                return Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: theme.borderColor.withValues(alpha: 0.08),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(
+                      color: ehSangria
+                          ? Colors.redAccent.withValues(alpha: 0.4)
+                          : theme.borderColor.withValues(alpha: 0.5),
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(
+                        ehSangria
+                            ? Icons.remove_circle_outline
+                            : Icons.add_circle_outline,
+                        size: 16,
+                        color: ehSangria ? Colors.redAccent : theme.buttonColor,
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              '${ehSangria ? "Sangria" : "Suprimento"}: ${_formatarMoeda(m.valor)}',
+                              style: theme.getTextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.bold,
+                                color: ehSangria
+                                    ? Colors.redAccent
+                                    : theme.textColor,
+                              ),
+                            ),
+                            if (m.motivo.isNotEmpty)
+                              Text(
+                                m.motivo,
+                                style: theme.getTextStyle(
+                                  fontSize: 11,
+                                  color: theme.secondaryTextColor,
+                                ),
+                              ),
+                          ],
+                        ),
+                      ),
+                      IconButton(
+                        tooltip: 'Imprimir comprovante',
+                        icon: Icon(Icons.print_outlined,
+                            size: 16, color: theme.textColor),
+                        onPressed: () => _imprimirMovimento(m),
+                      ),
+                    ],
+                  ),
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _blocoTurnoAberto(TurnoCaixa turno) {
     return Column(
       children: [
@@ -431,6 +602,7 @@ class _CaixaConteudoState extends State<_CaixaConteudo> {
             ],
           ),
         ),
+        _blocoMovimentacoes(turno),
         const SizedBox(height: 12),
         if (_modoMovimento != null) ...[
           Container(
@@ -473,19 +645,39 @@ class _CaixaConteudoState extends State<_CaixaConteudo> {
                         style: theme.getTextStyle(color: theme.secondaryTextColor),
                       ),
                     ),
-                    const SizedBox(width: 8),
+                    const SizedBox(width: 6),
                     OutlinedButton(
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: theme.textColor,
+                        side: BorderSide(color: theme.borderColor),
+                      ),
+                      onPressed:
+                          _salvando ? null : () => _registrarMovimento(imprimir: false),
+                      child: Text(
+                        'Confirmar',
+                        style: theme.getTextStyle(
+                          color: theme.textColor,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    OutlinedButton.icon(
                       style: OutlinedButton.styleFrom(
                         backgroundColor: theme.buttonColor,
                         foregroundColor: theme.buttonTextColor,
                         side: BorderSide(color: theme.borderColor),
                       ),
-                      onPressed: _salvando ? null : _registrarMovimento,
-                      child: Text(
-                        'Confirmar',
+                      onPressed:
+                          _salvando ? null : () => _registrarMovimento(imprimir: true),
+                      icon: Icon(Icons.print_outlined,
+                          size: 14, color: theme.buttonTextColor),
+                      label: Text(
+                        'Confirmar e Imprimir',
                         style: theme.getTextStyle(
                           color: theme.buttonTextColor,
                           fontWeight: FontWeight.bold,
+                          fontSize: 12,
                         ),
                       ),
                     ),

@@ -313,6 +313,22 @@ Este projeto apoia-se no **anarquismo plataformista brasileiro**: poder sem inte
 - Configurado em `windows/installer.iss` (Inno Setup 6) gerando `dist/Nous_Instalador_v1.0.0_Versao_Teste.exe`.
 - Automação completa pelo script PowerShell `scripts/gerar_instalador.ps1`.
 
+### 7.12 Notificações Arrastáveis, Kardex, DRE e Automação de Impressão
+- **Ordenação Decrescente de Concluídos e Cancelados (`gestao_loja_container.dart`):** Os pedidos nas abas "Concluídos" e "Cancelados" são ordenados estritamente com os mais recentes no topo (`b.dataHora.compareTo(a.dataHora)`).
+- **Notificações Arrastáveis em Sessão (`notificacoes_dialog.dart` / `notificacoes_provider.dart`):**
+  - Notificações de alerta de estoque e convites possuem suporte a arrastar para o lado (`Dismissible` horizontal) com indicação visual de dispensar.
+  - O controle é mantido em memória via `_notificacoesDispensadasSessao`. Ao fechar e reabrir o aplicativo, qualquer notificação cuja causa subjacente ainda não foi resolvida reaparece automaticamente para o operador, mantendo o controle soberano sem apagar dados acidentalmente.
+- **Impressão Automática ao Concluir Venda (`ConfiguracoesImpressora.imprimirAutomaticoAoConcluir`):**
+  - Switch dedicado nas configurações de impressora. Quando ativado, a comanda térmica é enviada automaticamente à impressora configurada no momento da abertura do diálogo de venda concluída, eliminando toques manuais redundantes.
+- **Comprovantes Térmicos de Sangria e Suprimento (`caixa_dialog.dart` / `impressao_service.dart`):**
+  - Ao registrar uma sangria ou suprimento, o operador pode clicar em "Confirmar" ou "Confirmar e Imprimir".
+  - O comprovante térmico (`imprimirMovimentoCaixa`) inclui dados da loja, operador, tipo de movimentação, valor, motivo, data/hora e linha pontilhada para assinatura de conferência.
+  - Histórico de movimentações do turno exibe botão de reimpressão de 2ª via.
+- **Demonstrativo do Resultado do Exercício — DRE Simples (`FinanceiroView`):**
+  - Botão "DRE Simples" na barra de ações financeiras. Exibe popup centralizado com Receita Operacional Bruta, (-) Custos das Mercadorias/Insumos (CMV), (=) Lucro Bruto com margem %, (-) Pagamentos a Trabalhadores e (=) Resultado Líquido com margem %, além de botão de exportação direta em PDF.
+- **Ficha Kardex do Produto (`estoque_container.dart`):**
+  - Ao tocar em um item no estoque, abre a Ficha Kardex completa exibindo dados cadastrais (preço de venda, preço de custo, estoque mínimo, código de barras), saldo atual em tempo real e a lista cronológica de movimentações (com tipo, data/hora, fornecedor, quantidade e custos).
+
 ---
 
 ## 8. REGRAS CRÍTICAS DE ENGENHARIA (PARA NUNCA QUEBRAR O SISTEMA)

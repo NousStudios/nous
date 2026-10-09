@@ -375,6 +375,13 @@ class _FinanceiroViewState extends State<FinanceiroView> {
       children: [
         _botaoAcao(
           theme,
+          'DRE Simples',
+          carregando: false,
+          aoPressionar: loja == null ? null : () => _abrirDRE(loja),
+        ),
+        const SizedBox(width: 8),
+        _botaoAcao(
+          theme,
           'Imprimir',
           carregando: _imprimindo,
           aoPressionar: loja == null ? null : () => _imprimir(loja),
@@ -442,6 +449,185 @@ class _FinanceiroViewState extends State<FinanceiroView> {
     } finally {
       if (mounted) setState(() => _exportando = false);
     }
+  }
+
+  void _abrirDRE(Loja loja) {
+    final theme = ThemeController.currentTheme.value;
+    final receita = _totalEntradas;
+    final cmv = _saidaEstoqueDoPeriodo(loja);
+    final lucroBruto = receita - cmv;
+    final margemBruta = receita > 0 ? (lucroBruto / receita * 100) : 0.0;
+    final pagamentos = _pagamentosDoPeriodo(loja);
+    final despesasPessoal = pagamentos.fold(0.0, (s, p) => s + p.valor);
+    final resultadoLiquido = lucroBruto - despesasPessoal;
+    final margemLiquida =
+        receita > 0 ? (resultadoLiquido / receita * 100) : 0.0;
+
+    showDialog<void>(
+      context: context,
+      builder: (dialogContext) {
+        return Dialog(
+          backgroundColor: theme.cardBackgroundColor,
+          insetPadding: const EdgeInsets.all(16),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+            side: BorderSide(color: theme.borderColor),
+          ),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 480),
+            child: Padding(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Row(
+                    children: [
+                      IconButton(
+                        icon: Icon(Icons.arrow_back, color: theme.textColor),
+                        onPressed: () => Navigator.of(dialogContext).pop(),
+                      ),
+                      Expanded(
+                        child: Column(
+                          children: [
+                            Text(
+                              'Demonstrativo de Resultado (DRE)',
+                              textAlign: TextAlign.center,
+                              style: theme.getTextStyle(
+                                fontSize: 15,
+                                fontWeight: FontWeight.bold,
+                                color: theme.textColor,
+                              ),
+                            ),
+                            Text(
+                              'Período: $_rotuloPeriodoAtual',
+                              textAlign: TextAlign.center,
+                              style: theme.getTextStyle(
+                                fontSize: 11,
+                                color: theme.secondaryTextColor,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 48),
+                    ],
+                  ),
+                  const SizedBox(height: 14),
+                  Container(
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: theme.backgroundColor.withValues(alpha: 0.4),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: theme.borderColor.withValues(alpha: 0.6),
+                      ),
+                    ),
+                    child: Column(
+                      children: [
+                        _linha(theme, '1. Receita Operacional Bruta',
+                            _valorFormatado(receita),
+                            destaque: true),
+                        const SizedBox(height: 4),
+                        _linha(
+                          theme,
+                          '2. (-) Custo dos Produtos / Insumos',
+                          _valorFormatado(cmv),
+                        ),
+                        const Divider(height: 16),
+                        _linha(
+                          theme,
+                          '3. (=) Lucro Operacional Bruto',
+                          _valorComSinal(lucroBruto),
+                          destaque: true,
+                          negativo: lucroBruto < 0,
+                        ),
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 6),
+                          child: Align(
+                            alignment: Alignment.centerRight,
+                            child: Text(
+                              'Margem Bruta: ${margemBruta.toStringAsFixed(1)}%',
+                              style: theme.getTextStyle(
+                                fontSize: 10,
+                                color: theme.secondaryTextColor,
+                              ),
+                            ),
+                          ),
+                        ),
+                        _linha(
+                          theme,
+                          '4. (-) Pagamentos a Trabalhadores',
+                          _valorFormatado(despesasPessoal),
+                        ),
+                        const Divider(height: 16),
+                        _linha(
+                          theme,
+                          '5. (=) Resultado Líquido do Período',
+                          _valorComSinal(resultadoLiquido),
+                          destaque: true,
+                          negativo: resultadoLiquido < 0,
+                        ),
+                        Align(
+                          alignment: Alignment.centerRight,
+                          child: Text(
+                            'Margem Líquida: ${margemLiquida.toStringAsFixed(1)}%',
+                            style: theme.getTextStyle(
+                              fontSize: 10,
+                              color: resultadoLiquido < 0
+                                  ? Colors.redAccent
+                                  : theme.secondaryTextColor,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      TextButton(
+                        onPressed: () => Navigator.of(dialogContext).pop(),
+                        child: Text(
+                          'Fechar',
+                          style: theme.getTextStyle(
+                            fontSize: 12,
+                            color: theme.secondaryTextColor,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      OutlinedButton.icon(
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: theme.textColor,
+                          side: BorderSide(color: theme.borderColor),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 12, vertical: 10),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                        ),
+                        onPressed: () {
+                          Navigator.of(dialogContext).pop();
+                          _exportar(loja);
+                        },
+                        icon: Icon(Icons.picture_as_pdf_outlined,
+                            size: 14, color: theme.textColor),
+                        label: Text(
+                          'Exportar PDF',
+                          style: theme.getTextStyle(fontSize: 12),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
   }
 
   Future<void> _registrarPagamento(Loja loja) async {

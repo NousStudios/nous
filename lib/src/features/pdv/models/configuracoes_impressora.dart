@@ -24,6 +24,7 @@ class ConfiguracoesImpressora {
   final double margemEsquerdaMm;
   final double margemDireitaMm;
   final String modeloFonte;
+  final bool imprimirAutomaticoAoConcluir;
 
   const ConfiguracoesImpressora({
     this.larguraPapelMm = 58.0,
@@ -37,6 +38,7 @@ class ConfiguracoesImpressora {
     this.margemEsquerdaMm = 5.0,
     this.margemDireitaMm = 3.0,
     this.modeloFonte = 'belleza',
+    this.imprimirAutomaticoAoConcluir = false,
   });
 
   ConfiguracoesImpressora copyWith({
@@ -51,6 +53,7 @@ class ConfiguracoesImpressora {
     double? margemEsquerdaMm,
     double? margemDireitaMm,
     String? modeloFonte,
+    bool? imprimirAutomaticoAoConcluir,
   }) {
     return ConfiguracoesImpressora(
       larguraPapelMm: larguraPapelMm ?? this.larguraPapelMm,
@@ -66,6 +69,8 @@ class ConfiguracoesImpressora {
       margemEsquerdaMm: margemEsquerdaMm ?? this.margemEsquerdaMm,
       margemDireitaMm: margemDireitaMm ?? this.margemDireitaMm,
       modeloFonte: modeloFonte ?? this.modeloFonte,
+      imprimirAutomaticoAoConcluir:
+          imprimirAutomaticoAoConcluir ?? this.imprimirAutomaticoAoConcluir,
     );
   }
 
@@ -82,6 +87,7 @@ class ConfiguracoesImpressora {
       'margemEsquerdaMm': margemEsquerdaMm,
       'margemDireitaMm': margemDireitaMm,
       'modeloFonte': modeloFonte,
+      'imprimirAutomaticoAoConcluir': imprimirAutomaticoAoConcluir,
     };
   }
 
@@ -119,6 +125,8 @@ class ConfiguracoesImpressora {
       margemEsquerdaMm: (json['margemEsquerdaMm'] as num?)?.toDouble() ?? 5.0,
       margemDireitaMm: (json['margemDireitaMm'] as num?)?.toDouble() ?? 3.0,
       modeloFonte: json['modeloFonte'] as String? ?? 'belleza',
+      imprimirAutomaticoAoConcluir:
+          json['imprimirAutomaticoAoConcluir'] as bool? ?? false,
     );
   }
 }

@@ -387,8 +387,11 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
   Widget _botaoNotificacoes(BuildContext context, AppTheme theme) {
     final notificacoes = context.watch<NotificacoesProvider>();
     final pdv = context.watch<PdvProvider>();
-    final quantidadeConvites = notificacoes.quantidadePendentes;
-    final totalEstoqueBaixo = pdv.totalItensEstoqueBaixo;
+    final quantidadeConvites = notificacoes.quantidadeConvitesAtivos;
+    final totalEstoqueBaixo = pdv.todosItensEstoqueBaixo
+        .where((a) => !notificacoes
+            .estaDispensadaNaSessao('alerta_estoque_${a.lojaId}_${a.item.id}'))
+        .length;
     final quantidadeTotal = quantidadeConvites + totalEstoqueBaixo;
 
     return Stack(

@@ -6,11 +6,30 @@ class NotificacoesProvider extends ChangeNotifier {
   String? _cpfAtual;
   List<ConviteLoja> _convites = [];
 
+  final Set<String> _notificacoesDispensadasSessao = {};
+
   List<ConviteLoja> get convites => List.unmodifiable(_convites);
 
   int get quantidadePendentes => _convites.length;
 
+  int get quantidadeConvitesAtivos => _convites
+      .where((c) => !estaDispensadaNaSessao('convite_${c.id}'))
+      .length;
+
   bool get temConvitesPendentes => _convites.isNotEmpty;
+
+  bool estaDispensadaNaSessao(String id) =>
+      _notificacoesDispensadasSessao.contains(id);
+
+  void dispensarNaSessao(String id) {
+    _notificacoesDispensadasSessao.add(id);
+    notifyListeners();
+  }
+
+  void restaurarDispensadasSessao() {
+    _notificacoesDispensadasSessao.clear();
+    notifyListeners();
+  }
 
   Future<void> carregarParaCpf(String cpf) async {
     _cpfAtual = cpf;

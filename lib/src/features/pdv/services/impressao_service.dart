@@ -909,6 +909,149 @@ class ImpressaoService {
     );
   }
 
+  static Future<void> imprimirMovimentoCaixa({
+    required ConfiguracoesImpressora config,
+    required String lojaNome,
+    required String lojaCnpj,
+    required TipoMovimentoCaixa tipo,
+    required double valor,
+    required String motivo,
+    required DateTime dataHora,
+    String operadorNome = '',
+  }) async {
+    final doc = pw.Document();
+    final tamanho = _tamanhoEmPontos(config.tamanhoFonte);
+    final pageFormat = formatoPapel(config);
+    final fonteNormal = await _resolverFonte(config.modeloFonte);
+    final fonteNegrito = await _resolverFonteNegrito(config.modeloFonte);
+
+    pw.TextStyle estilo({bool negrito = false, double? tamanhoCustom}) {
+      return pw.TextStyle(
+        font: negrito ? fonteNegrito : fonteNormal,
+        fontSize: tamanhoCustom ?? tamanho,
+        fontWeight: negrito ? pw.FontWeight.bold : pw.FontWeight.normal,
+      );
+    }
+
+    pw.Widget linhaDupla(
+      String esquerda,
+      String direita, {
+      bool negrito = false,
+    }) {
+      return pw.Padding(
+        padding: const pw.EdgeInsets.symmetric(vertical: 1.5),
+        child: pw.Row(
+          crossAxisAlignment: pw.CrossAxisAlignment.start,
+          children: [
+            pw.Expanded(
+              child: pw.Text(esquerda, style: estilo(negrito: negrito)),
+            ),
+            pw.Text(direita, style: estilo(negrito: negrito)),
+          ],
+        ),
+      );
+    }
+
+    final dataHoraStr =
+        '${dataHora.day.toString().padLeft(2, '0')}/${dataHora.month.toString().padLeft(2, '0')}/${dataHora.year} '
+        '${dataHora.hour.toString().padLeft(2, '0')}:${dataHora.minute.toString().padLeft(2, '0')}';
+
+    final ehSangria = tipo == TipoMovimentoCaixa.sangria;
+    final titulo =
+        ehSangria ? 'COMPROVANTE DE SANGRIA' : 'COMPROVANTE DE SUPRIMENTO';
+    final descricaoTipo = ehSangria ? 'Retirada de Caixa' : 'Aporte no Caixa';
+
+    doc.addPage(
+      pw.Page(
+        pageFormat: pageFormat,
+        build: (context) {
+          return pw.Column(
+            crossAxisAlignment: pw.CrossAxisAlignment.stretch,
+            children: [
+              if (lojaNome.isNotEmpty)
+                pw.Center(
+                  child: pw.Text(
+                    lojaNome,
+                    style: estilo(negrito: true, tamanhoCustom: tamanho + 1),
+                  ),
+                ),
+              if (lojaCnpj.isNotEmpty)
+                pw.Center(
+                  child: pw.Text(
+                    'CNPJ: $lojaCnpj',
+                    style: estilo(tamanhoCustom: tamanho - 2),
+                  ),
+                ),
+              pw.SizedBox(height: 4),
+              pw.Center(
+                child: pw.Text(
+                  titulo,
+                  style: estilo(negrito: true, tamanhoCustom: tamanho + 0.5),
+                ),
+              ),
+              pw.Center(
+                child: pw.Text(
+                  descricaoTipo,
+                  style: estilo(tamanhoCustom: tamanho - 2),
+                ),
+              ),
+              pw.Divider(thickness: 0.5),
+              linhaDupla('Data/Hora:', dataHoraStr),
+              if (operadorNome.isNotEmpty)
+                linhaDupla('Operador:', operadorNome),
+              linhaDupla('Valor:', _valor(valor), negrito: true),
+              if (motivo.isNotEmpty) ...[
+                pw.SizedBox(height: 2),
+                pw.Text('Motivo / Justificativa:',
+                    style: estilo(negrito: true)),
+                pw.Padding(
+                  padding: const pw.EdgeInsets.only(left: 4, top: 1),
+                  child: pw.Text(motivo, style: estilo()),
+                ),
+              ],
+              pw.Divider(thickness: 0.5),
+              pw.SizedBox(height: 20),
+              pw.Center(
+                child: pw.Container(
+                  width: 140,
+                  decoration: const pw.BoxDecoration(
+                    border: pw.Border(
+                      top: pw.BorderSide(width: 0.5),
+                    ),
+                  ),
+                ),
+              ),
+              pw.SizedBox(height: 2),
+              pw.Center(
+                child: pw.Text(
+                  'Assinatura do Responsável',
+                  style: estilo(tamanhoCustom: tamanho - 2),
+                ),
+              ),
+              if (config.rodape.isNotEmpty) ...[
+                pw.SizedBox(height: 8),
+                pw.Center(
+                  child: pw.Text(
+                    config.rodape,
+                    style: estilo(tamanhoCustom: tamanho - 3),
+                  ),
+                ),
+              ],
+            ],
+          );
+        },
+      ),
+    );
+
+    final bytes = await doc.save();
+    await _enviarParaImpressora(
+      bytes: bytes,
+      nomeImpressora: config.nomeImpressora,
+      jobName: 'Caixa-$titulo',
+      format: pageFormat,
+    );
+  }
+
   static Future<void> imprimirFinanceiro({
     required ConfiguracoesImpressora config,
     required Loja loja,

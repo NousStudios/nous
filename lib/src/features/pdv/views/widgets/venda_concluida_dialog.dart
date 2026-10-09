@@ -165,6 +165,14 @@ class _VendaConcluidaConteudoState extends State<_VendaConcluidaConteudo> {
     _camposClienteComanda = ehPadraoAntigoCompleto
         ? List.of(kCamposClienteComandaPadrao)
         : List.of(configCampos);
+
+    if (config.imprimirAutomaticoAoConcluir) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          _imprimir();
+        }
+      });
+    }
   }
 
   Future<void> _imprimir() async {

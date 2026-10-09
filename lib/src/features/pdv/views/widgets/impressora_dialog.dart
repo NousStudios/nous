@@ -213,6 +213,7 @@ class _ImpressoraConteudoState extends State<_ImpressoraConteudo> {
   late double _larguraPapelMm;
   late double _margemEsquerdaMm;
   late double _margemDireitaMm;
+  late bool _imprimirAutomaticoAoConcluir;
   late List<String> _camposClienteComanda;
   late final _PerfilHistoricoAnarquista _perfilHistorico;
 
@@ -242,6 +243,7 @@ class _ImpressoraConteudoState extends State<_ImpressoraConteudo> {
     _larguraPapelMm = c.larguraPapelMm;
     _margemEsquerdaMm = c.margemEsquerdaMm;
     _margemDireitaMm = c.margemDireitaMm;
+    _imprimirAutomaticoAoConcluir = c.imprimirAutomaticoAoConcluir;
     final camposConfig = c.camposClienteComanda;
     final ehPadraoAntigoCompleto = !c.camposClientePersonalizados &&
         camposConfig.length == kCamposClienteComanda.length &&
@@ -966,6 +968,47 @@ class _ImpressoraConteudoState extends State<_ImpressoraConteudo> {
     );
   }
 
+  Widget _blocoAutomacao() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: _decoracaoDoBloco,
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Impressão automática ao concluir venda',
+                  style: theme.getTextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: theme.textColor,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  'Dispara a impressão da comanda térmica automaticamente sem precisar tocar no botão imprimir.',
+                  style: theme.getTextStyle(
+                    fontSize: 11,
+                    color: theme.secondaryTextColor,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Switch(
+            value: _imprimirAutomaticoAoConcluir,
+            activeThumbColor: theme.buttonColor,
+            onChanged: (val) {
+              setState(() => _imprimirAutomaticoAoConcluir = val);
+            },
+          ),
+        ],
+      ),
+    );
+  }
 
   void _salvar() {
     final novas = ConfiguracoesImpressora(
@@ -980,6 +1023,7 @@ class _ImpressoraConteudoState extends State<_ImpressoraConteudo> {
       camposClientePersonalizados: true,
       margemEsquerdaMm: _margemEsquerdaMm,
       margemDireitaMm: _margemDireitaMm,
+      imprimirAutomaticoAoConcluir: _imprimirAutomaticoAoConcluir,
     );
 
     widget.onSalvar(novas);
@@ -1474,6 +1518,8 @@ class _ImpressoraConteudoState extends State<_ImpressoraConteudo> {
                 _blocoCalibracao(),
                 const SizedBox(height: 12),
                 _blocoDadosCliente(),
+                const SizedBox(height: 12),
+                _blocoAutomacao(),
                 const SizedBox(height: 12),
                 _blocoRodape(),
                 const SizedBox(height: 18),

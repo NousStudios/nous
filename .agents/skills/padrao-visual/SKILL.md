@@ -125,3 +125,10 @@ O usuário pode alterar o tamanho da fonte para o máximo nas Configurações:
 - Containers de cupom e listas de produtos não devem ter larguras rígidas que estourem a tela; utilize limites elásticos: `(larguraBase * theme.fontScale).clamp(min, max)`.
 - Cards de catálogo (ex.: `item_loja_card.dart`) devem calcular alturas e larguras a partir de `theme.fontScale` para evitar sobreposição de preços e nomes.
 
+### 4.7 Notificações e Itens Arrastáveis (`Dismissible`)
+Para listas onde o usuário pode descartar itens por gesto horizontal (como na janela de notificações):
+- Use `Dismissible(key: ValueKey(id), direction: DismissDirection.horizontal, ...)`
+- `background` e `secondaryBackground` com `color: Colors.redAccent.withValues(alpha: 0.2)`, `borderRadius: BorderRadius.circular(10)` e ícone discreto (`Icons.visibility_off_outlined` ou similar).
+- Dispensas de sessão não devem apagar dados do banco; use um `Set<String>` em memória no Provider para que pendências reais reapareçam ao reabrir o app caso o problema subjacente não tenha sido resolvido.
+
+

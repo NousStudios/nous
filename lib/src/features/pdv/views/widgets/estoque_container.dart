@@ -138,16 +138,28 @@ class _EstoqueContainerState extends State<EstoqueContainer> {
                         onPressed: () => Navigator.of(dialogContext).pop(),
                       ),
                       Expanded(
-                        child: Text(
-                          item.nome.isEmpty ? 'Item' : item.nome,
-                          textAlign: TextAlign.center,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: theme.getTextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                            color: theme.textColor,
-                          ),
+                        child: Column(
+                          children: [
+                            Text(
+                              item.nome.isEmpty ? 'Ficha Kardex' : 'Ficha Kardex: ${item.nome}',
+                              textAlign: TextAlign.center,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: theme.getTextStyle(
+                                fontSize: 15,
+                                fontWeight: FontWeight.bold,
+                                color: theme.textColor,
+                              ),
+                            ),
+                            Text(
+                              'Histórico e Movimentação Cronológica',
+                              textAlign: TextAlign.center,
+                              style: theme.getTextStyle(
+                                fontSize: 10,
+                                color: theme.secondaryTextColor,
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                       const SizedBox(width: 48),
@@ -160,14 +172,136 @@ class _EstoqueContainerState extends State<EstoqueContainer> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        Center(
-                          child: Text(
-                            'Saldo atual: ${_formatarQuantidade(saldo, item.unidadeBase)}',
-                            style: theme.getTextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.bold,
-                              color: theme.textColor,
+                        Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: theme.backgroundColor.withValues(alpha: 0.4),
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(
+                              color: theme.borderColor.withValues(alpha: 0.5),
                             ),
+                          ),
+                          child: Column(
+                            children: [
+                              Row(
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Text(
+                                    'Saldo em Estoque:',
+                                    style: theme.getTextStyle(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.bold,
+                                      color: theme.textColor,
+                                    ),
+                                  ),
+                                  Text(
+                                    _formatarQuantidade(saldo, item.unidadeBase),
+                                    style: theme.getTextStyle(
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.bold,
+                                      color: saldo <= 0
+                                          ? Colors.redAccent
+                                          : theme.textColor,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 6),
+                              Row(
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Text(
+                                    'Preço de Venda:',
+                                    style: theme.getTextStyle(
+                                      fontSize: 11,
+                                      color: theme.secondaryTextColor,
+                                    ),
+                                  ),
+                                  Text(
+                                    item.preco.trim().startsWith('R\$')
+                                        ? item.preco.trim()
+                                        : 'R\$ ${item.preco.trim()}',
+                                    style: theme.getTextStyle(
+                                      fontSize: 11,
+                                      color: theme.textColor,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              if (item.precoCusto.trim().isNotEmpty) ...[
+                                const SizedBox(height: 4),
+                                Row(
+                                  mainAxisAlignment:
+                                      MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    Text(
+                                      'Preço de Custo:',
+                                      style: theme.getTextStyle(
+                                        fontSize: 11,
+                                        color: theme.secondaryTextColor,
+                                      ),
+                                    ),
+                                    Text(
+                                      item.precoCusto.trim().startsWith('R\$')
+                                          ? item.precoCusto.trim()
+                                          : 'R\$ ${item.precoCusto.trim()}',
+                                      style: theme.getTextStyle(
+                                        fontSize: 11,
+                                        color: theme.textColor,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                              if (item.estoqueMinimo.trim().isNotEmpty) ...[
+                                const SizedBox(height: 4),
+                                Row(
+                                  mainAxisAlignment:
+                                      MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    Text(
+                                      'Estoque Mínimo:',
+                                      style: theme.getTextStyle(
+                                        fontSize: 11,
+                                        color: theme.secondaryTextColor,
+                                      ),
+                                    ),
+                                    Text(
+                                      '${item.estoqueMinimo} ${item.unidadeBase.name}',
+                                      style: theme.getTextStyle(
+                                        fontSize: 11,
+                                        color: theme.textColor,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                              if (item.codigoBarras.trim().isNotEmpty) ...[
+                                const SizedBox(height: 4),
+                                Row(
+                                  mainAxisAlignment:
+                                      MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    Text(
+                                      'Código de Barras:',
+                                      style: theme.getTextStyle(
+                                        fontSize: 11,
+                                        color: theme.secondaryTextColor,
+                                      ),
+                                    ),
+                                    Text(
+                                      item.codigoBarras,
+                                      style: theme.getTextStyle(
+                                        fontSize: 11,
+                                        color: theme.textColor,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ],
                           ),
                         ),
                         const SizedBox(height: 12),
@@ -176,7 +310,18 @@ class _EstoqueContainerState extends State<EstoqueContainer> {
                             theme: theme,
                             mensagem: 'Nenhum movimento registrado ainda.',
                           )
-                        else
+                        else ...[
+                          Padding(
+                            padding: const EdgeInsets.only(bottom: 8),
+                            child: Text(
+                              'Movimentações Registradas (${movimentos.length})',
+                              style: theme.getTextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.bold,
+                                color: theme.textColor,
+                              ),
+                            ),
+                          ),
                           for (final m in movimentos)
                             Padding(
                               padding: const EdgeInsets.only(bottom: 8),
@@ -190,6 +335,7 @@ class _EstoqueContainerState extends State<EstoqueContainer> {
                                 },
                               ),
                             ),
+                        ],
                       ],
                     ),
                   ),

@@ -426,8 +426,13 @@ class _NotificacoesConteudo extends StatelessWidget {
   Widget build(BuildContext context) {
     final notificacoes = context.watch<NotificacoesProvider>();
     final pdv = context.watch<PdvProvider>();
-    final convites = notificacoes.convites;
-    final alertasEstoque = pdv.todosItensEstoqueBaixo;
+    final convites = notificacoes.convites
+        .where((c) => !notificacoes.estaDispensadaNaSessao('convite_${c.id}'))
+        .toList();
+    final alertasEstoque = pdv.todosItensEstoqueBaixo
+        .where((a) => !notificacoes
+            .estaDispensadaNaSessao('alerta_estoque_${a.lojaId}_${a.item.id}'))
+        .toList();
     final vazio = convites.isEmpty && alertasEstoque.isEmpty;
 
     return ValueListenableBuilder<AppTheme>(
@@ -455,14 +460,27 @@ class _NotificacoesConteudo extends StatelessWidget {
                         onPressed: () => Navigator.of(context).pop(),
                       ),
                       Expanded(
-                        child: Text(
-                          'Notificações',
-                          textAlign: TextAlign.center,
-                          style: theme.getTextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                            color: theme.textColor,
-                          ),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              'Notificações',
+                              textAlign: TextAlign.center,
+                              style: theme.getTextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                                color: theme.textColor,
+                              ),
+                            ),
+                            Text(
+                              'Arraste para o lado para dispensar',
+                              textAlign: TextAlign.center,
+                              style: theme.getTextStyle(
+                                fontSize: 10,
+                                color: theme.secondaryTextColor,
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                       const SizedBox(width: 48),
@@ -505,7 +523,51 @@ class _NotificacoesConteudo extends StatelessWidget {
                                 ),
                               ),
                               for (final alerta in alertasEstoque)
-                                _linhaAlertaEstoque(context, theme, alerta),
+                                Dismissible(
+                                  key: ValueKey(
+                                    'alerta_estoque_${alerta.lojaId}_${alerta.item.id}',
+                                  ),
+                                  direction: DismissDirection.horizontal,
+                                  background: Container(
+                                    alignment: Alignment.centerLeft,
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 16),
+                                    margin: const EdgeInsets.only(bottom: 8),
+                                    decoration: BoxDecoration(
+                                      color: Colors.redAccent
+                                          .withValues(alpha: 0.2),
+                                      borderRadius: BorderRadius.circular(10),
+                                    ),
+                                    child: const Icon(
+                                      Icons.visibility_off_outlined,
+                                      color: Colors.redAccent,
+                                      size: 20,
+                                    ),
+                                  ),
+                                  secondaryBackground: Container(
+                                    alignment: Alignment.centerRight,
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 16),
+                                    margin: const EdgeInsets.only(bottom: 8),
+                                    decoration: BoxDecoration(
+                                      color: Colors.redAccent
+                                          .withValues(alpha: 0.2),
+                                      borderRadius: BorderRadius.circular(10),
+                                    ),
+                                    child: const Icon(
+                                      Icons.visibility_off_outlined,
+                                      color: Colors.redAccent,
+                                      size: 20,
+                                    ),
+                                  ),
+                                  onDismissed: (_) {
+                                    notificacoes.dispensarNaSessao(
+                                      'alerta_estoque_${alerta.lojaId}_${alerta.item.id}',
+                                    );
+                                  },
+                                  child: _linhaAlertaEstoque(
+                                      context, theme, alerta),
+                                ),
                               if (convites.isNotEmpty)
                                 const SizedBox(height: 8),
                             ],
@@ -523,7 +585,48 @@ class _NotificacoesConteudo extends StatelessWidget {
                                   ),
                                 ),
                               for (final convite in convites)
-                                _linhaConvite(context, theme, convite),
+                                Dismissible(
+                                  key: ValueKey('convite_${convite.id}'),
+                                  direction: DismissDirection.horizontal,
+                                  background: Container(
+                                    alignment: Alignment.centerLeft,
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 16),
+                                    margin: const EdgeInsets.only(bottom: 8),
+                                    decoration: BoxDecoration(
+                                      color: Colors.redAccent
+                                          .withValues(alpha: 0.2),
+                                      borderRadius: BorderRadius.circular(10),
+                                    ),
+                                    child: const Icon(
+                                      Icons.visibility_off_outlined,
+                                      color: Colors.redAccent,
+                                      size: 20,
+                                    ),
+                                  ),
+                                  secondaryBackground: Container(
+                                    alignment: Alignment.centerRight,
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 16),
+                                    margin: const EdgeInsets.only(bottom: 8),
+                                    decoration: BoxDecoration(
+                                      color: Colors.redAccent
+                                          .withValues(alpha: 0.2),
+                                      borderRadius: BorderRadius.circular(10),
+                                    ),
+                                    child: const Icon(
+                                      Icons.visibility_off_outlined,
+                                      color: Colors.redAccent,
+                                      size: 20,
+                                    ),
+                                  ),
+                                  onDismissed: (_) {
+                                    notificacoes.dispensarNaSessao(
+                                      'convite_${convite.id}',
+                                    );
+                                  },
+                                  child: _linhaConvite(context, theme, convite),
+                                ),
                             ],
                           ],
                         ),
