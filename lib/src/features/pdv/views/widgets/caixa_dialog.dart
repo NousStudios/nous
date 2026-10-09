@@ -141,7 +141,7 @@ class _CaixaConteudoState extends State<_CaixaConteudo> {
     final t = widget.turnoAberto;
     if (t == null) return [];
     return widget.pedidosLoja.where((p) {
-      if (p.status != StatusPedido.concluido) return false;
+      if (p.status == StatusPedido.cancelado) return false;
       return p.dataHora.isAfter(t.dataAbertura) ||
           p.dataHora.isAtSameMomentAs(t.dataAbertura);
     }).toList();
@@ -155,8 +155,9 @@ class _CaixaConteudoState extends State<_CaixaConteudo> {
           soma += pag.valor;
         }
       }
+      soma -= p.troco;
     }
-    return soma;
+    return soma < 0 ? 0.0 : soma;
   }
 
   double get _vendasOutros {

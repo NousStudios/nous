@@ -382,6 +382,19 @@ class PdvProvider extends ChangeNotifier {
     _salvarLojaNoCofreCorreto(atualizada);
   }
 
+  void atualizarTempoConclusao(String id, int minutos) {
+    final indice = _lojas.indexWhere((loja) => loja.id == id);
+    if (indice == -1) return;
+
+    final atualizada = _lojas[indice].copyWith(
+      tempoConclusaoMinutos: minutos,
+    );
+
+    _lojas[indice] = atualizada;
+    notifyListeners();
+    _salvarLojaNoCofreCorreto(atualizada);
+  }
+
   void atualizarDescricaoAnexo(String id, String caminho, String descricao) {
     final indice = _lojas.indexWhere((loja) => loja.id == id);
     if (indice == -1) return;

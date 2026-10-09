@@ -84,31 +84,59 @@ class ComandaPedido extends StatelessWidget {
 
   Widget _linhaComanda(String esquerda, String direita,
       {bool destaque = false}) {
+    final ehPreco = direita.trim().startsWith('R\$');
+
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Expanded(
-            child: Text(
+          if (ehPreco)
+            Expanded(
+              child: Text(
+                esquerda,
+                softWrap: true,
+                style: theme.getTextStyle(
+                  fontSize: 12,
+                  color: destaque ? theme.textColor : theme.secondaryTextColor,
+                  fontWeight: destaque ? FontWeight.bold : FontWeight.normal,
+                ),
+              ),
+            )
+          else
+            Text(
               esquerda,
-              softWrap: true,
               style: theme.getTextStyle(
                 fontSize: 12,
                 color: destaque ? theme.textColor : theme.secondaryTextColor,
                 fontWeight: destaque ? FontWeight.bold : FontWeight.normal,
               ),
             ),
-          ),
           const SizedBox(width: 8),
-          Text(
-            direita,
-            style: theme.getTextStyle(
-              fontSize: 12,
-              color: destaque ? theme.textColor : theme.secondaryTextColor,
-              fontWeight: destaque ? FontWeight.bold : FontWeight.normal,
+          if (ehPreco)
+            Text(
+              direita,
+              textAlign: TextAlign.right,
+              softWrap: false,
+              style: theme.getTextStyle(
+                fontSize: 12,
+                color: destaque ? theme.textColor : theme.secondaryTextColor,
+                fontWeight: destaque ? FontWeight.bold : FontWeight.normal,
+              ),
+            )
+          else
+            Expanded(
+              child: Text(
+                direita,
+                textAlign: TextAlign.right,
+                softWrap: true,
+                style: theme.getTextStyle(
+                  fontSize: 12,
+                  color: destaque ? theme.textColor : theme.secondaryTextColor,
+                  fontWeight: destaque ? FontWeight.bold : FontWeight.normal,
+                ),
+              ),
             ),
-          ),
         ],
       ),
     );

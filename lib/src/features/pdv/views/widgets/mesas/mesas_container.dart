@@ -181,39 +181,53 @@ class _MesasContainerState extends State<MesasContainer> {
           // Cabeçalho colapsável
           Row(
             children: [
-              Icon(
-                Icons.table_restaurant_outlined,
-                size: 22,
-                color: widget.theme.textColor,
-              ),
-              const SizedBox(width: 8),
-              Text(
-                'Mesas e Comandas',
-                style: widget.theme.getTextStyle(
-                  fontSize: 15,
-                  fontWeight: FontWeight.bold,
-                  color: widget.theme.textColor,
-                ),
-              ),
-              const SizedBox(width: 8),
-              if (totalMesas > 0)
-                Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                  decoration: BoxDecoration(
-                    color: widget.theme.backgroundColor.withValues(alpha: 0.6),
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: widget.theme.borderColor),
-                  ),
-                  child: Text(
-                    '$totalMesas ($totalOcupadas ocupadas)',
-                    style: widget.theme.getTextStyle(
-                      fontSize: 11,
-                      color: widget.theme.secondaryTextColor,
+              Expanded(
+                child: Wrap(
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  spacing: 8,
+                  runSpacing: 4,
+                  children: [
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons.table_restaurant_outlined,
+                          size: 20,
+                          color: widget.theme.textColor,
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          'Mesas e Comandas',
+                          style: widget.theme.getTextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.bold,
+                            color: widget.theme.textColor,
+                          ),
+                        ),
+                      ],
                     ),
-                  ),
+                    if (totalMesas > 0)
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 8, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: widget.theme.backgroundColor
+                              .withValues(alpha: 0.6),
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(color: widget.theme.borderColor),
+                        ),
+                        child: Text(
+                          '$totalMesas ($totalOcupadas ocupadas)',
+                          style: widget.theme.getTextStyle(
+                            fontSize: 11,
+                            color: widget.theme.secondaryTextColor,
+                          ),
+                        ),
+                      ),
+                  ],
                 ),
-              const Spacer(),
+              ),
+              const SizedBox(width: 8),
               OutlinedButton.icon(
                 style: OutlinedButton.styleFrom(
                   side: BorderSide(color: widget.theme.borderColor),

@@ -48,6 +48,7 @@ class Loja {
   final Map<String, String> descricoesAnexos;
 
   final ConfiguracoesImpressora configuracoesImpressora;
+  final int tempoConclusaoMinutos;
 
   const Loja({
     required this.id,
@@ -81,6 +82,7 @@ class Loja {
     this.arquivosAudio = const [],
     this.descricoesAnexos = const {},
     this.configuracoesImpressora = const ConfiguracoesImpressora(),
+    this.tempoConclusaoMinutos = 0,
   });
 
   Loja copyWith({
@@ -114,6 +116,7 @@ class Loja {
     List<String>? arquivosAudio,
     Map<String, String>? descricoesAnexos,
     ConfiguracoesImpressora? configuracoesImpressora,
+    int? tempoConclusaoMinutos,
   }) {
     return Loja(
       id: id,
@@ -150,6 +153,8 @@ class Loja {
       descricoesAnexos: descricoesAnexos ?? this.descricoesAnexos,
       configuracoesImpressora:
           configuracoesImpressora ?? this.configuracoesImpressora,
+      tempoConclusaoMinutos:
+          tempoConclusaoMinutos ?? this.tempoConclusaoMinutos,
     );
   }
 
@@ -190,6 +195,7 @@ class Loja {
       'arquivosAudio': arquivosAudio,
       'descricoesAnexos': descricoesAnexos,
       'configuracoesImpressora': configuracoesImpressora.toJson(),
+      'tempoConclusaoMinutos': tempoConclusaoMinutos,
     };
   }
 
@@ -273,6 +279,8 @@ class Loja {
           : ConfiguracoesImpressora.fromJson(
               json['configuracoesImpressora'] as Map<String, dynamic>,
             ),
+      tempoConclusaoMinutos:
+          (json['tempoConclusaoMinutos'] as num?)?.toInt() ?? 0,
     );
   }
 

@@ -500,8 +500,10 @@ class _ImpressoraConteudoState extends State<_ImpressoraConteudo> {
             ),
           ),
           const SizedBox(height: 10),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            alignment: WrapAlignment.center,
             children: [
               _botaoSelecao(
                 '58 mm (Mini / Portátil)',
@@ -509,7 +511,6 @@ class _ImpressoraConteudoState extends State<_ImpressoraConteudo> {
                 _larguraPapelMm.toInt().toString(),
                 (v) => setState(() => _larguraPapelMm = 58.0),
               ),
-              const SizedBox(width: 8),
               _botaoSelecao(
                 '80 mm (Balcão Padrão)',
                 '80',
@@ -1186,31 +1187,63 @@ class _ImpressoraConteudoState extends State<_ImpressoraConteudo> {
 
     Widget linhaComanda(String esquerda, String direita,
         {bool destaque = false}) {
+      final ehPreco = direita.trim().startsWith('R\$');
+
       return Padding(
         padding: const EdgeInsets.symmetric(vertical: 3),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Expanded(
-              child: Text(
+            if (ehPreco)
+              Expanded(
+                child: Text(
+                  esquerda,
+                  softWrap: true,
+                  style: estilo(
+                    fontSize: 12,
+                    color:
+                        destaque ? theme.textColor : theme.secondaryTextColor,
+                    fontWeight: destaque ? FontWeight.bold : FontWeight.normal,
+                  ),
+                ),
+              )
+            else
+              Text(
                 esquerda,
-                softWrap: true,
                 style: estilo(
                   fontSize: 12,
-                  color: destaque ? theme.textColor : theme.secondaryTextColor,
+                  color:
+                      destaque ? theme.textColor : theme.secondaryTextColor,
                   fontWeight: destaque ? FontWeight.bold : FontWeight.normal,
                 ),
               ),
-            ),
             const SizedBox(width: 8),
-            Text(
-              direita,
-              style: estilo(
-                fontSize: 12,
-                color: destaque ? theme.textColor : theme.secondaryTextColor,
-                fontWeight: destaque ? FontWeight.bold : FontWeight.normal,
+            if (ehPreco)
+              Text(
+                direita,
+                textAlign: TextAlign.right,
+                softWrap: false,
+                style: estilo(
+                  fontSize: 12,
+                  color:
+                      destaque ? theme.textColor : theme.secondaryTextColor,
+                  fontWeight: destaque ? FontWeight.bold : FontWeight.normal,
+                ),
+              )
+            else
+              Expanded(
+                child: Text(
+                  direita,
+                  textAlign: TextAlign.right,
+                  softWrap: true,
+                  style: estilo(
+                    fontSize: 12,
+                    color:
+                        destaque ? theme.textColor : theme.secondaryTextColor,
+                    fontWeight: destaque ? FontWeight.bold : FontWeight.normal,
+                  ),
+                ),
               ),
-            ),
           ],
         ),
       );
@@ -1242,7 +1275,9 @@ class _ImpressoraConteudoState extends State<_ImpressoraConteudo> {
         const SizedBox(height: 10),
         Center(
           child: Container(
-            constraints: const BoxConstraints(maxWidth: 320),
+            constraints: BoxConstraints(
+              maxWidth: (320.0 * theme.fontScale).clamp(320.0, 440.0),
+            ),
             padding: EdgeInsets.fromLTRB(padEsq, 14, padDir, 16),
             decoration: BoxDecoration(
               color: theme.backgroundColor.withValues(alpha: 0.4),

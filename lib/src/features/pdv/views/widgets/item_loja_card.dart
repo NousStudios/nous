@@ -259,9 +259,13 @@ class _ItemLojaCardState extends State<ItemLojaCard> {
   Widget build(BuildContext context) {
     final theme = widget.theme;
     final rotuloTipo = _rotuloDoTipo();
+    final double escala = theme.fontScale > 1.0 ? theme.fontScale : 1.0;
+    final double larguraCard =
+        (112 * (1.0 + (escala - 1.0) * 0.35)).clamp(112.0, 145.0);
+    final double alturaNome = (22 * escala).clamp(22.0, 34.0);
 
     return Container(
-      width: 112,
+      width: larguraCard,
       padding: const EdgeInsets.all(8),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(12),
@@ -274,27 +278,31 @@ class _ItemLojaCardState extends State<ItemLojaCard> {
           Expanded(child: _buildAreaImagem(theme)),
           const SizedBox(height: 6),
           _editandoNome
-              ? TextField(
-                  controller: _nomeController,
-                  focusNode: _nomeFocusNode,
-                  readOnly: !widget.podeEditar,
-                  textAlign: TextAlign.center,
-                  maxLines: 1,
-                  style: theme.getTextStyle(fontSize: 13, color: theme.textColor),
-                  decoration: InputDecoration(
-                    isDense: true,
-                    contentPadding: EdgeInsets.zero,
-                    border: InputBorder.none,
-                    hintText: 'Sem nome',
-                    hintStyle: theme.getTextStyle(
-                      fontSize: 13,
-                      color: theme.secondaryTextColor.withValues(alpha: 0.5),
+              ? SizedBox(
+                  height: alturaNome,
+                  child: TextField(
+                    controller: _nomeController,
+                    focusNode: _nomeFocusNode,
+                    readOnly: !widget.podeEditar,
+                    textAlign: TextAlign.center,
+                    maxLines: 1,
+                    style: theme.getTextStyle(
+                        fontSize: 13, color: theme.textColor),
+                    decoration: InputDecoration(
+                      isDense: true,
+                      contentPadding: EdgeInsets.zero,
+                      border: InputBorder.none,
+                      hintText: 'Sem nome',
+                      hintStyle: theme.getTextStyle(
+                        fontSize: 13,
+                        color: theme.secondaryTextColor.withValues(alpha: 0.5),
+                      ),
                     ),
+                    onSubmitted: (_) {
+                      if (mounted) setState(() => _editandoNome = false);
+                    },
+                    onChanged: widget.onNomeAlterado,
                   ),
-                  onSubmitted: (_) {
-                    if (mounted) setState(() => _editandoNome = false);
-                  },
-                  onChanged: widget.onNomeAlterado,
                 )
               : InkWell(
                   onTap: widget.podeEditar
@@ -305,10 +313,12 @@ class _ItemLojaCardState extends State<ItemLojaCard> {
                       : _avisarSemPermissao,
                   borderRadius: BorderRadius.circular(4),
                   child: SizedBox(
-                    height: 20,
+                    height: alturaNome,
                     width: double.infinity,
                     child: TextoRolante(
-                      texto: widget.nome.trim().isEmpty ? 'Sem nome' : widget.nome,
+                      texto: widget.nome.trim().isEmpty
+                          ? 'Sem nome'
+                          : widget.nome,
                       textAlign: TextAlign.center,
                       style: theme.getTextStyle(
                         fontSize: 13,

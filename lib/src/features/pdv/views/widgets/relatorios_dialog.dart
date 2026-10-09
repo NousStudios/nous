@@ -1,7 +1,11 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:nous/src/core/theme/theme_controller.dart';
+import 'package:nous/src/features/auth/providers/auth_provider.dart';
+import 'package:nous/src/features/pdv/models/cliente.dart';
 import 'package:nous/src/features/pdv/models/pedido_loja.dart';
 import 'package:nous/src/features/pdv/models/registro_acao.dart';
 import 'package:nous/src/features/pdv/providers/pdv_provider.dart';
@@ -412,6 +416,30 @@ class _RelatoriosConteudoState extends State<_RelatoriosConteudo> {
   }
 
   Widget _cardPendencia(PedidoLoja pedido) {
+    final pdv = context.read<PdvProvider>();
+    final auth = context.read<AuthProvider>();
+    final loja = pdv.buscarPorId(widget.lojaId);
+    Cliente? cliente;
+    if (pedido.clienteId != null && loja != null) {
+      for (final c in loja.clientesLoja) {
+        if (c.id == pedido.clienteId) {
+          cliente = c;
+          break;
+        }
+      }
+    }
+    String foto = '';
+    if (cliente != null) {
+      foto = cliente.foto.trim();
+      if (foto.isEmpty && cliente.cnpj.isNotEmpty) {
+        foto = auth.buscarFotoPorCpf(cliente.cnpj);
+        if (foto.isEmpty) {
+          foto = pdv.buscarFotoClientePorCpf(cliente.cnpj) ?? '';
+        }
+      }
+    }
+    final temFoto = foto.isNotEmpty && File(foto).existsSync();
+
     return _LinhaComHover(
       aoClicar: () => _clicarPendencia(pedido),
       builder: (hover) => Container(
@@ -427,7 +455,17 @@ class _RelatoriosConteudoState extends State<_RelatoriosConteudo> {
         ),
         child: Row(
           children: [
-            Icon(Icons.account_circle, size: 22, color: theme.textColor),
+            temFoto
+                ? CircleAvatar(
+                    radius: 12,
+                    backgroundImage: FileImage(File(foto)),
+                    backgroundColor: theme.borderColor.withValues(alpha: 0.2),
+                  )
+                : CircleAvatar(
+                    radius: 12,
+                    backgroundColor: theme.borderColor.withValues(alpha: 0.2),
+                    child: Icon(Icons.person, size: 14, color: theme.textColor),
+                  ),
             const SizedBox(width: 8),
             Expanded(
               child: Column(

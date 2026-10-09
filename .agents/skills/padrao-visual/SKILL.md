@@ -113,3 +113,15 @@ ThemedTextField(
   obrigatorio: true,
 )
 ```
+
+### 4.5 Linhas de Comprovantes, Comandas e Tickets Térmicos
+Em linhas que exibem itens e valores (como em `impressora_dialog.dart`, `comanda_pedido.dart`, `nova_venda_dialog.dart`):
+- **Valores Monetários à Direita (`R$ ...`):** NUNCA devem quebrar verticalmente letra por letra nem ser comprimidos. Devem manter largura intrínseca e `softWrap: false`.
+- **Nomes de Produtos e Descrições à Esquerda:** Devem ser encapsulados em `Expanded(child: Text(..., softWrap: true))` para quebrar em 2 ou mais linhas caso o nome seja longo ou a fonte esteja no tamanho máximo.
+- **Rótulos Fixos com Textos Longos à Direita (ex.: Pagamento / Forma):** A esquerda mantém largura intrínseca (`Text(rotulo)`) e a direita recebe `Expanded(child: Text(valor, softWrap: true, textAlign: TextAlign.right))`.
+
+### 4.6 Adaptabilidade à Escala de Fontes (`theme.fontScale`)
+O usuário pode alterar o tamanho da fonte para o máximo nas Configurações:
+- Containers de cupom e listas de produtos não devem ter larguras rígidas que estourem a tela; utilize limites elásticos: `(larguraBase * theme.fontScale).clamp(min, max)`.
+- Cards de catálogo (ex.: `item_loja_card.dart`) devem calcular alturas e larguras a partir de `theme.fontScale` para evitar sobreposição de preços e nomes.
+

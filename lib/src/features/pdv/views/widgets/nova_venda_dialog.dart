@@ -63,6 +63,7 @@ class NovaVendaDialog {
     required Future<void> Function(ItemLoja item, List<String> categoriaIds,
         List<String> grupoIds) aoCriarItem,
     required ConfiguracoesImpressora configuracoesImpressora,
+    List<MovimentoEstoque> movimentosEstoque = const [],
   }) {
     return showDialog<void>(
       context: context,
@@ -91,6 +92,7 @@ class NovaVendaDialog {
               onConcluir: onConcluir,
               aoCriarItem: aoCriarItem,
               configuracoesImpressora: configuracoesImpressora,
+              movimentosEstoque: movimentosEstoque,
             ),
           ),
         );
@@ -118,6 +120,7 @@ class _NovaVendaConteudo extends StatefulWidget {
   final Future<void> Function(
       ItemLoja item, List<String> categoriaIds, List<String> grupoIds) aoCriarItem;
   final ConfiguracoesImpressora configuracoesImpressora;
+  final List<MovimentoEstoque> movimentosEstoque;
 
   const _NovaVendaConteudo({
     required this.theme,
@@ -134,6 +137,7 @@ class _NovaVendaConteudo extends StatefulWidget {
     required this.onConcluir,
     required this.aoCriarItem,
     required this.configuracoesImpressora,
+    this.movimentosEstoque = const [],
   });
 
   @override
@@ -223,6 +227,16 @@ class _NovaVendaConteudoState extends State<_NovaVendaConteudo> {
       if (item.id == id) return item;
     }
     return null;
+  }
+
+  double _saldoDoItem(String itemId) {
+    var saldo = 0.0;
+    for (final m in widget.movimentosEstoque) {
+      if (m.itemId == itemId) {
+        saldo += m.quantidadeComSinal;
+      }
+    }
+    return saldo;
   }
 
   CategoriaLoja? _buscarCategoria(String id) {
@@ -1254,14 +1268,43 @@ class _NovaVendaConteudoState extends State<_NovaVendaConteudo> {
                     overflow: TextOverflow.ellipsis,
                     style: theme.getTextStyle(fontSize: 12, color: theme.textColor),
                   ),
-                  if (item.codigoBarras.trim().isNotEmpty)
-                    Text(
-                      'Cód: ${item.codigoBarras.trim()}',
-                      style: theme.getTextStyle(
-                        fontSize: 10,
-                        color: theme.secondaryTextColor,
-                      ),
-                    ),
+                  Wrap(
+                    spacing: 6,
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    children: [
+                      if (item.codigoBarras.trim().isNotEmpty)
+                        Text(
+                          'Cód: ${item.codigoBarras.trim()}',
+                          style: theme.getTextStyle(
+                            fontSize: 10,
+                            color: theme.secondaryTextColor,
+                          ),
+                        ),
+                      if (item.tipo != TipoItemLoja.servico)
+                        Builder(
+                          builder: (context) {
+                            final saldo = _saldoDoItem(item.id);
+                            final unidade = item.unidadeBase.name;
+                            return Text(
+                              saldo <= 0
+                                  ? 'Esgotado'
+                                  : 'Est: ${saldo.toStringAsFixed(saldo % 1 == 0 ? 0 : 2)} $unidade',
+                              style: theme.getTextStyle(
+                                fontSize: 10,
+                                color: saldo <= 0
+                                    ? Colors.redAccent
+                                    : (saldo < 10
+                                        ? Colors.orangeAccent
+                                        : theme.secondaryTextColor),
+                                fontWeight: saldo <= 0
+                                    ? FontWeight.bold
+                                    : FontWeight.normal,
+                              ),
+                            );
+                          },
+                        ),
+                    ],
+                  ),
                 ],
               ),
             ),
@@ -1479,13 +1522,16 @@ class _NovaVendaConteudoState extends State<_NovaVendaConteudo> {
                   ),
                 ),
               ),
-          ] else if (widget.itensDisponiveis.isNotEmpty) ...[
+          ] else if (widget.categoriasDisponiveis.isNotEmpty ||
+              widget.itensDisponiveis.isNotEmpty) ...[
             const SizedBox(height: 8),
             ConstrainedBox(
-              constraints: const BoxConstraints(maxHeight: 140),
+              constraints: const BoxConstraints(maxHeight: 220),
               child: SingleChildScrollView(
                 child: Column(
                   children: [
+                    for (final categoria in widget.categoriasDisponiveis)
+                      _linhaDeCategoriaNaBusca(categoria),
                     for (final item in widget.itensDisponiveis)
                       _linhaDeResultado(item),
                   ],
@@ -1505,13 +1551,27 @@ class _NovaVendaConteudoState extends State<_NovaVendaConteudo> {
 
   Widget _linhaComanda(String esquerda, String direita,
       {bool destaque = false}) {
+    final ehPreco = direita.trim().startsWith('R\$');
+
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Expanded(
-            child: Text(
+          if (ehPreco)
+            Expanded(
+              child: Text(
+                esquerda,
+                softWrap: true,
+                style: theme.getTextStyle(
+                  fontSize: 12,
+                  color: destaque ? theme.textColor : theme.secondaryTextColor,
+                  fontWeight: destaque ? FontWeight.bold : FontWeight.normal,
+                ),
+              ),
+            )
+          else
+            Text(
               esquerda,
               style: theme.getTextStyle(
                 fontSize: 12,
@@ -1519,16 +1579,31 @@ class _NovaVendaConteudoState extends State<_NovaVendaConteudo> {
                 fontWeight: destaque ? FontWeight.bold : FontWeight.normal,
               ),
             ),
-          ),
           const SizedBox(width: 8),
-          Text(
-            direita,
-            style: theme.getTextStyle(
-              fontSize: 12,
-              color: destaque ? theme.textColor : theme.secondaryTextColor,
-              fontWeight: destaque ? FontWeight.bold : FontWeight.normal,
+          if (ehPreco)
+            Text(
+              direita,
+              textAlign: TextAlign.right,
+              softWrap: false,
+              style: theme.getTextStyle(
+                fontSize: 12,
+                color: destaque ? theme.textColor : theme.secondaryTextColor,
+                fontWeight: destaque ? FontWeight.bold : FontWeight.normal,
+              ),
+            )
+          else
+            Expanded(
+              child: Text(
+                direita,
+                textAlign: TextAlign.right,
+                softWrap: true,
+                style: theme.getTextStyle(
+                  fontSize: 12,
+                  color: destaque ? theme.textColor : theme.secondaryTextColor,
+                  fontWeight: destaque ? FontWeight.bold : FontWeight.normal,
+                ),
+              ),
             ),
-          ),
         ],
       ),
     );

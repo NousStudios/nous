@@ -1,5 +1,7 @@
 import 'package:file_selector/file_selector.dart';
+import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:nous/src/core/theme/theme_controller.dart';
 import 'package:nous/src/features/pdv/services/imagem_service.dart';
@@ -127,6 +129,9 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
   List<MembroLoja> _membros = [];
   bool _lojaOnline = true;
   AbaPedidos _abaPedidos = AbaPedidos.novos;
+  int _tempoConclusaoMinutos = 0;
+  Timer? _timerVerificacaoPedidos;
+  final Set<String> _pedidosPerguntados = {};
 
   String? _categoriaExpandidaId;
   String? _grupoExpandidoId;
@@ -620,6 +625,192 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
             '(${_valorFormatado(pedido.valor)})',
       );
     }
+  }
+
+  void _iniciarTimerVerificacaoPedidos() {
+    _timerVerificacaoPedidos?.cancel();
+    _timerVerificacaoPedidos =
+        Timer.periodic(const Duration(seconds: 15), (_) {
+      _verificarPedidosTempoConclusao();
+    });
+  }
+
+  void _verificarPedidosTempoConclusao() {
+    if (!mounted || _tempoConclusaoMinutos <= 0) return;
+    final agora = DateTime.now();
+    for (final pedido in _pedidos) {
+      if (pedido.status == StatusPedido.aceito &&
+          !_pedidosPerguntados.contains(pedido.id)) {
+        final minutosDecorridos =
+            agora.difference(pedido.dataHora).inMinutes;
+        if (minutosDecorridos >= _tempoConclusaoMinutos) {
+          _pedidosPerguntados.add(pedido.id);
+          _perguntarConclusaoPedido(pedido);
+          break;
+        }
+      }
+    }
+  }
+
+  Future<void> _perguntarConclusaoPedido(PedidoLoja pedido) async {
+    if (!mounted) return;
+    final theme = ThemeController.currentTheme.value;
+    final minutosDecorridos =
+        DateTime.now().difference(pedido.dataHora).inMinutes;
+
+    await showDialog(
+      context: context,
+      barrierDismissible: true,
+      builder: (ctx) {
+        return Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 460),
+            child: Material(
+              color: Colors.transparent,
+              child: Container(
+                padding: const EdgeInsets.all(24),
+                decoration: BoxDecoration(
+                  color: theme.cardBackgroundColor,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(
+                    color: theme.borderColor.withValues(alpha: 0.6),
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.3),
+                      blurRadius: 16,
+                      offset: const Offset(0, 8),
+                    ),
+                  ],
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(10),
+                          decoration: BoxDecoration(
+                            color: theme.buttonColor.withValues(alpha: 0.15),
+                            shape: BoxShape.circle,
+                          ),
+                          child: Icon(
+                            Icons.timer_outlined,
+                            color: theme.buttonColor,
+                            size: 26,
+                          ),
+                        ),
+                        const SizedBox(width: 14),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Tempo Estimado Atingido',
+                                style: theme.getTextStyle(
+                                  fontSize: 17,
+                                  fontWeight: FontWeight.bold,
+                                  color: theme.textColor,
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                'Pedido ${_numeroPedido(pedido.numero)} decorreu $minutosDecorridos min',
+                                style: theme.getTextStyle(
+                                  fontSize: 12,
+                                  color: theme.secondaryTextColor,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 18),
+                    Text(
+                      'O Pedido ${_numeroPedido(pedido.numero)}${pedido.clienteNome.isNotEmpty ? " (${pedido.clienteNome})" : ""} atingiu o tempo de conclusão estipulado ($_tempoConclusaoMinutos min).\n\nEste pedido já foi concluído?',
+                      style: theme.getTextStyle(
+                        fontSize: 14,
+                        color: theme.textColor,
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: [
+                        OutlinedButton(
+                          style: OutlinedButton.styleFrom(
+                            side: BorderSide(
+                              color: theme.borderColor.withValues(alpha: 0.6),
+                            ),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 12,
+                            ),
+                          ),
+                          onPressed: () => Navigator.of(ctx).pop(),
+                          child: Text(
+                            'Ainda não',
+                            style: theme.getTextStyle(
+                              fontSize: 13,
+                              color: theme.secondaryTextColor,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        FilledButton(
+                          style: FilledButton.styleFrom(
+                            backgroundColor: theme.buttonColor,
+                            foregroundColor: theme.buttonTextColor,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 18,
+                              vertical: 12,
+                            ),
+                          ),
+                          onPressed: () {
+                            Navigator.of(ctx).pop();
+                            _alterarStatusPedido(
+                              pedido.id,
+                              StatusPedido.concluido,
+                            );
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                backgroundColor: theme.cardBackgroundColor,
+                                content: Text(
+                                  'Pedido ${_numeroPedido(pedido.numero)} marcado como concluído!',
+                                  style: theme.getTextStyle(
+                                    color: theme.textColor,
+                                  ),
+                                ),
+                              ),
+                            );
+                          },
+                          child: Text(
+                            'Sim, concluir pedido',
+                            style: theme.getTextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.bold,
+                              color: theme.buttonTextColor,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+    );
   }
 
   void _salvarComentarioPedido(String id, DadosComentario dados) {
@@ -1360,6 +1551,7 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
       nomeAutor: _nomeLogado,
       configuracoesImpressora:
           loja?.configuracoesImpressora ?? const ConfiguracoesImpressora(),
+      movimentosEstoque: _movimentosEstoque,
       onConcluir: (pedido, movimentosEstoque) {
         setState(() {
           _pedidos.add(pedido);
@@ -2080,6 +2272,8 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
     _movimentosEstoque.addAll(loja?.movimentosEstoque ?? []);
     _mesas.addAll(loja?.mesas ?? []);
     _membros = List.of(loja?.membros ?? []);
+    _tempoConclusaoMinutos = loja?.tempoConclusaoMinutos ?? 0;
+    _iniciarTimerVerificacaoPedidos();
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
@@ -2102,6 +2296,7 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
 
   @override
   void dispose() {
+    _timerVerificacaoPedidos?.cancel();
     _controllers.dispose();
     _pesquisaItens.dispose();
     _pesquisaCategorias.dispose();
@@ -2509,7 +2704,8 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
           const SizedBox(height: 12),
           if (itensFiltrados.isNotEmpty)
             SizedBox(
-              height: 175,
+              height: (175 * (theme.fontScale > 1.0 ? theme.fontScale : 1.0))
+                  .clamp(175.0, 235.0),
               child: ListView.separated(
                 scrollDirection: Axis.horizontal,
                 itemCount: itensFiltrados.length,
@@ -2562,6 +2758,119 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
           ),
           const SizedBox(height: 12),
           _listaGrupos(theme, gruposFiltrados, podeEditarLoja),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildContainerTempoConclusao(AppTheme theme, bool podeEditar) {
+    final decoracao = _decoracaoDoBloco(theme);
+    final opcoes = <int, String>{
+      0: 'Manual (sem aviso automático)',
+      5: '5 minutos',
+      10: '10 minutos',
+      15: '15 minutos',
+      20: '20 minutos',
+      30: '30 minutos',
+      45: '45 minutos',
+      60: '60 minutos (1 hora)',
+      90: '90 minutos (1h 30m)',
+      120: '120 minutos (2 horas)',
+    };
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: decoracao,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(
+                Icons.hourglass_bottom_rounded,
+                color: theme.buttonColor,
+                size: 20,
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'Tempo de Conclusão dos Pedidos',
+                  style: theme.getTextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.bold,
+                    color: theme.textColor,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Text(
+            'Estipule um tempo padrão para preparação ou entrega. Após esse tempo decorrido em pedidos aceitos, o sistema perguntará automaticamente na interface se o pedido foi concluído. Caso deixe como "Manual", nenhum aviso automático será disparado e você poderá concluí-los na aba Gestão quando desejar.',
+            style: theme.getTextStyle(
+              fontSize: 12,
+              color: theme.secondaryTextColor,
+            ),
+          ),
+          const SizedBox(height: 16),
+          AbsorbPointer(
+            absorbing: !podeEditar,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+              decoration: BoxDecoration(
+                color: theme.cardBackgroundColor,
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(
+                  color: theme.borderColor.withValues(alpha: 0.6),
+                ),
+              ),
+              child: DropdownButtonHideUnderline(
+                child: DropdownButton<int>(
+                  value: opcoes.containsKey(_tempoConclusaoMinutos)
+                      ? _tempoConclusaoMinutos
+                      : 0,
+                  isExpanded: true,
+                  dropdownColor: theme.cardBackgroundColor,
+                  icon: Icon(
+                    Icons.arrow_drop_down,
+                    color: theme.secondaryTextColor,
+                  ),
+                  items: opcoes.entries.map((e) {
+                    return DropdownMenuItem<int>(
+                      value: e.key,
+                      child: Text(
+                        e.value,
+                        style: theme.getTextStyle(
+                          fontSize: 13,
+                          color: theme.textColor,
+                        ),
+                      ),
+                    );
+                  }).toList(),
+                  onChanged: (novo) {
+                    if (novo == null) return;
+                    setState(() => _tempoConclusaoMinutos = novo);
+                    context
+                        .read<PdvProvider>()
+                        .atualizarTempoConclusao(widget.lojaId, novo);
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        backgroundColor: theme.cardBackgroundColor,
+                        duration: const Duration(seconds: 2),
+                        content: Text(
+                          novo == 0
+                              ? 'Conclusão de pedidos definida como Manual.'
+                              : 'Tempo de conclusão definido para $novo minutos.',
+                          style: theme.getTextStyle(color: theme.textColor),
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ),
+          ),
         ],
       ),
     );
@@ -2639,6 +2948,8 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
               onAtualizarPapel: _atualizarPapelMembro,
               onSair: _sairDaLoja,
             ),
+            const SizedBox(height: 16),
+            _buildContainerTempoConclusao(theme, possoEditarDados),
             const SizedBox(height: 16),
             GaleriaEstiloContainer(
               theme: theme,
@@ -2759,42 +3070,57 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
 
   @override
   Widget build(BuildContext context) {
-    return ValueListenableBuilder<AppTheme>(
-      valueListenable: ThemeController.currentTheme,
-      builder: (context, theme, child) {
-        return Scaffold(
-          backgroundColor: theme.backgroundColor,
-          appBar: CustomAppBar(
-            title: _tituloDaAba(),
-            onLogout: () => _handleLogout(context),
-          ),
-          body: SafeArea(
-            child: Center(
-              child: ConstrainedBox(
-                constraints:
-                    const BoxConstraints(maxWidth: _larguraMaximaConteudo),
-                child: SingleChildScrollView(
-                  padding: const EdgeInsets.all(16),
-                  child: _conteudoDaAba(theme),
+    return CallbackShortcuts(
+      bindings: <ShortcutActivator, VoidCallback>{
+        const SingleActivator(LogicalKeyboardKey.escape): () {
+          if (Navigator.of(context).canPop()) {
+            Navigator.of(context).maybePop();
+          }
+        },
+        const SingleActivator(LogicalKeyboardKey.f1): () {
+          _abrirPopupNovaVenda();
+        },
+      },
+      child: Focus(
+        autofocus: true,
+        child: ValueListenableBuilder<AppTheme>(
+          valueListenable: ThemeController.currentTheme,
+          builder: (context, theme, child) {
+            return Scaffold(
+              backgroundColor: theme.backgroundColor,
+              appBar: CustomAppBar(
+                title: _tituloDaAba(),
+                onLogout: () => _handleLogout(context),
+              ),
+              body: SafeArea(
+                child: Center(
+                  child: ConstrainedBox(
+                    constraints:
+                        const BoxConstraints(maxWidth: _larguraMaximaConteudo),
+                    child: SingleChildScrollView(
+                      padding: const EdgeInsets.all(16),
+                      child: _conteudoDaAba(theme),
+                    ),
+                  ),
                 ),
               ),
-            ),
-          ),
-          bottomNavigationBar: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              if (_abaSelecionada == AbaLoja.loja) _barraDeAcoesLoja(theme),
-              _BarraDeAbasDaLoja(
-                theme: theme,
-                abaSelecionada: _abaSelecionada,
-                aoTrocarAba: (novaAba) =>
-                    setState(() => _abaSelecionada = novaAba),
+              bottomNavigationBar: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (_abaSelecionada == AbaLoja.loja) _barraDeAcoesLoja(theme),
+                  _BarraDeAbasDaLoja(
+                    theme: theme,
+                    abaSelecionada: _abaSelecionada,
+                    aoTrocarAba: (novaAba) =>
+                        setState(() => _abaSelecionada = novaAba),
+                  ),
+                  FloatingBottomNavBar(maxWidth: _larguraMaximaConteudo),
+                ],
               ),
-              FloatingBottomNavBar(maxWidth: _larguraMaximaConteudo),
-            ],
-          ),
-        );
-      },
+            );
+          },
+        ),
+      ),
     );
   }
 }

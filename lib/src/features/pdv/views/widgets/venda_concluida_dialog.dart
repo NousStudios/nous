@@ -25,22 +25,33 @@ class VendaConcluidaDialog {
   }) async {
     final resultado = await showDialog<bool>(
       context: context,
-      barrierDismissible: true,
+      barrierDismissible: false,
       builder: (dialogContext) {
-        return Dialog(
-          backgroundColor: theme.cardBackgroundColor,
-          insetPadding: const EdgeInsets.all(16),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-            side: BorderSide(color: theme.borderColor),
-          ),
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 500),
-            child: _VendaConcluidaConteudo(
-              theme: theme,
-              pedido: pedido,
-              configuracoesImpressora: configuracoesImpressora,
-              cliente: cliente,
+        return PopScope(
+          canPop: false,
+          onPopInvokedWithResult: (didPop, result) async {
+            if (didPop) return;
+            final querRegistrar =
+                await _confirmarRegistroVenda(dialogContext, theme);
+            if (dialogContext.mounted) {
+              Navigator.of(dialogContext).pop(querRegistrar);
+            }
+          },
+          child: Dialog(
+            backgroundColor: theme.cardBackgroundColor,
+            insetPadding: const EdgeInsets.all(16),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+              side: BorderSide(color: theme.borderColor),
+            ),
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 500),
+              child: _VendaConcluidaConteudo(
+                theme: theme,
+                pedido: pedido,
+                configuracoesImpressora: configuracoesImpressora,
+                cliente: cliente,
+              ),
             ),
           ),
         );
@@ -48,6 +59,73 @@ class VendaConcluidaDialog {
     );
     return resultado ?? false;
   }
+}
+
+Future<bool> _confirmarRegistroVenda(
+    BuildContext context, AppTheme theme) async {
+  final resposta = await showDialog<bool>(
+    context: context,
+    builder: (ctx) => AlertDialog(
+      backgroundColor: theme.cardBackgroundColor,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(color: theme.borderColor),
+      ),
+      title: Text(
+        'Registrar Venda?',
+        textAlign: TextAlign.center,
+        style: theme.getTextStyle(
+          fontSize: 16,
+          fontWeight: FontWeight.bold,
+          color: theme.textColor,
+        ),
+      ),
+      content: Text(
+        'Deseja registrar e salvar esta venda no sistema ou descartá-la?',
+        textAlign: TextAlign.center,
+        style:
+            theme.getTextStyle(fontSize: 13, color: theme.secondaryTextColor),
+      ),
+      actionsAlignment: MainAxisAlignment.center,
+      actions: [
+        OutlinedButton(
+          style: OutlinedButton.styleFrom(
+            side: BorderSide(color: theme.borderColor),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(10),
+            ),
+          ),
+          onPressed: () => Navigator.of(ctx).pop(false),
+          child: Text(
+            'Descartar venda',
+            style: theme.getTextStyle(fontSize: 12, color: Colors.redAccent),
+          ),
+        ),
+        const SizedBox(width: 8),
+        ElevatedButton(
+          style: ElevatedButton.styleFrom(
+            backgroundColor: theme.buttonColor,
+            foregroundColor: theme.buttonTextColor,
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(10),
+            ),
+          ),
+          onPressed: () => Navigator.of(ctx).pop(true),
+          child: Text(
+            'Sim, registrar venda',
+            style: theme.getTextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.bold,
+              color: theme.buttonTextColor,
+            ),
+          ),
+        ),
+      ],
+    ),
+  );
+  return resposta ?? false;
 }
 
 class _VendaConcluidaConteudo extends StatefulWidget {

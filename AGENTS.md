@@ -33,6 +33,8 @@
   ```
 - **Higiene de Código:**
   Ao finalizar qualquer edição, certifique-se de que o arquivo esteja limpo: sem imports não utilizados, sem comentários óbvios ou inúteis, sem código morto e sem `// TODO` fictícios que não serão implementados imediatamente.
+- **Sincronização Proativa de Contexto (README, AGENTS.md e Skills):**
+  **REGRA MANDATÓRIA:** A cada ciclo de trabalho onde novas features, campos persistidos, padrões visuais, atalhos ou correções forem implementados, a IA **DEVE atualizar proativamente o `README.md`, o `AGENTS.md` e as skills pertinentes** antes de encerrar o turno, sem esperar que o desenvolvedor solicite. Isso garante que a memória do projeto permaneça sempre fresca, objetiva e sintética, prevenindo a repetição de erros e o retrabalho.
 
 ---
 
@@ -210,6 +212,17 @@ Este projeto apoia-se no **anarquismo plataformista brasileiro**: poder sem inte
   - O modelo `ItemLoja` armazena `codigoBarras` e `precoCusto`.
   - No diálogo `NovaVendaDialog`, a busca aceita leitores de código de barras USB (bipadores). Ao pressionar Enter ou bipar o código exato, o item é adicionado imediatamente ao carrinho e o campo é limpo para a próxima leitura.
   - O catálogo de produtos na venda exibe os itens cadastrados sem limites artificiais de exibição (`take(4)`/`take(3)` removidos), permitindo rolagem fluida.
+- **Estoque em Tempo Real e Prioridade para Categorias (`NovaVendaDialog`):**
+  - Cada item exibe o saldo de estoque real atualizado (`Est: X un` ou badge vermelho `Esgotado` quando $\le 0$).
+  - **Ordem de Preferência na Abertura:** Ao abrir a janela de Nova Venda (busca em branco), o container "Produto Solicitado" renderiza **primeiro todas as categorias disponíveis** e, logo abaixo, os itens soltos, permitindo acesso rápido a grupos de produtos.
+- **Atalhos Globais de Teclado no Desktop (`CallbackShortcuts`):**
+  - Implementados 2 atalhos no `DadosPerfilView`: <kbd>F1</kbd> abre a janela de Nova Venda imediatamente e <kbd>Esc</kbd> fecha qualquer janela, modal ou diálogo aberto.
+- **Tempo de Conclusão de Pedidos e Alerta Automático:**
+  - Campo persistido `tempoConclusaoMinutos` em `Loja` (com atualização em `copyWith`, `toJson`, `fromJson`).
+  - Container "Tempo de Conclusão dos Pedidos" na aba "Dados" da loja (abaixo de "Usuários Participantes") permitindo selecionar "Manual" ou tempos pré-definidos (15, 30, 45, 60 min, etc.).
+  - Timer periódico na aplicação: pedidos no status `aceito` que ultrapassarem o tempo estipulado disparam janela centralizada perguntando: *"O Pedido #[Nº] já foi concluído?"*, com opções "Ainda não" e "Sim, concluir pedido".
+- **Prevenção contra Perda de Vendas (`VendaConcluidaDialog`):**
+  - Diálogo protegido com `PopScope(canPop: false)` e barreira não descartável acidentalmente: ao tentar sair ou fechar, abre janela de confirmação de segurança perguntando se o operador deseja salvar a venda ou descartá-la.
 - **Ergonomia Visual de Pedidos:** A lista de pedidos na aba "Gestão da Loja" foi ampliada de 260px para 380px para melhor ergonomia de visualização em telas desktop.
 - **Cancelamento e Estorno de Pedidos (`CancelarPedidoDialog`):**
   - Pedidos nos status `novo` ou `aceito` podem ser cancelados através do diálogo de confirmação `CancelarPedidoDialog`, informando obrigatoriamente o motivo do cancelamento e permitindo a opção de devolver automaticamente as mercadorias ao estoque.
@@ -267,7 +280,10 @@ Este projeto apoia-se no **anarquismo plataformista brasileiro**: poder sem inte
   - No diálogo de impressora (`ImpressoraDialog`), a comanda simulada é renderizada **diretamente dentro do container de calibração bilateral**, variando o padding em tempo real conforme os ajustes de mm.
   - Sorteia dinamicamente 1 dos 10 perfis históricos anarquistas e do Nous (Makhno, Bakunin, Malatesta, Kropotkin, Emma Goldman, Durruti, Maria Lacerda de Moura, Comuna de Paris, CNT/FAI e Nous Autogestão).
   - Responde em tempo real a todos os seletores de dados do cliente (CNPJ, telefone, endereço, e-mail, redes sociais e descrição), integrando os canais oficiais do Nous (`nousstudios72@gmail.com`, `@nous.studios72`).
-  - **Formatação Resiliente contra Esmagamento e Overflows:** Renderiza dados do cliente com `linhaDadoCliente` onde o rótulo é mantido intacto e o valor reside em `Expanded(softWrap: true)` alinhado à direita, prevenindo qualquer deformação vertical ou estouro de layout em endereços extensos.
+  - **Formatação Resiliente contra Esmagamento e Overflows:**
+    - Renderiza dados do cliente com `linhaDadoCliente` onde o rótulo é mantido intacto e o valor reside em `Expanded(softWrap: true)` alinhado à direita.
+    - **Renderização Adaptativa de Itens e Preços (`linhaComanda`):** Se a coluna direita for valor monetário (`R$ ...`), ela mantém largura natural e `softWrap: false` (nunca quebra na vertical letra por letra nem sofre compressão), enquanto a coluna esquerda (nome do produto) recebe `Expanded(softWrap: true)`, quebrando suavemente em múltiplas linhas sem estourar o container.
+    - **Container Elástico por Escala de Fonte:** O preview tem largura máxima adaptável calculada por `(320.0 * theme.fontScale).clamp(320.0, 440.0)`, comportando zoom máximo de acessibilidade sem esmagamento visual.
   - **Impressão Direta do Exemplo:** Botão de ícone compacto (`Icons.print_outlined`) posicionado logo abaixo da prévia que envia o exemplo sorteado diretamente para a impressora física via `ImpressaoService.imprimirExemploComanda`.
 
 ### 7.9 Automação de Compras no Estoque, Notificações de Estoque Crítico e Financeiro Diário
@@ -286,8 +302,9 @@ Este projeto apoia-se no **anarquismo plataformista brasileiro**: poder sem inte
   - **Suprimento (Entrada):** Reforço de troco ou entrada avulsa em dinheiro com justificativa.
   - **Sangria (Saída):** Retirada de valores para cofre, despesas urgentes ou segurança, com justificativa obrigatória.
   - Ambas as ações são auditadas em `RegistroAcao` e integradas ao turno aberto.
-- **Fechamento Cego e Conferência de Valores:**
+- **Fechamento Cego, Acurácia de Troco e Conferência de Valores:**
   - O operador realiza o fechamento informando os valores contados fisicamente (dinheiro em espécie, cartão de crédito, cartão de débito, PIX, outros) sem visualização prévia das somas do sistema ("conferência cega").
+  - **Acurácia Rigorosa em Espécie:** O total de vendas em dinheiro desconta o troco devolvido aos clientes ($\text{Dinheiro Líquido} = \text{Entradas em Dinheiro} - \text{Troco}$), computando todos os pedidos do turno (`aceito` e `concluido`).
   - O sistema calcula o saldo apurado pelo sistema versus o saldo informado, apontando sobras ou faltas de caixa de forma transparente.
 - **Comprovante Térmico de Fechamento (`imprimirFechamentoCaixa`):**
   - Emite cupom térmico detalhado em 58mm ou 80mm com dados do operador, período, saldo inicial, total de vendas por forma de pagamento, sangrias, suprimentos, saldo esperado em dinheiro, saldo informado e divergência apurada.
