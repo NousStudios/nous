@@ -132,6 +132,29 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
   AbaPedidos _abaPedidos = AbaPedidos.novos;
   int _tempoConclusaoMinutos = 0;
   final Map<String, String> _sonsAlertas = {};
+  final Map<String, String> _atalhosTeclado = {};
+
+  static const List<String> _acoesAtalhosDisponiveis = [
+    'Nova Venda',
+    'Clientes',
+    'Caixa',
+    'Relatórios',
+    'Impressora',
+    'Financeiro',
+    'Status da Loja',
+    'Desativado',
+  ];
+
+  static const List<String> _teclasFuncao = [
+    'F1',
+    'F2',
+    'F3',
+    'F4',
+    'F5',
+    'F6',
+    'F7',
+    'F8',
+  ];
   Timer? _timerVerificacaoPedidos;
   final Set<String> _pedidosPerguntados = {};
 
@@ -2281,6 +2304,7 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
     _membros = List.of(loja?.membros ?? []);
     _tempoConclusaoMinutos = loja?.tempoConclusaoMinutos ?? 0;
     _sonsAlertas.addAll(loja?.sonsAlertas ?? {});
+    _atalhosTeclado.addAll(loja?.atalhosTeclado ?? {});
     _iniciarTimerVerificacaoPedidos();
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -2399,7 +2423,7 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
       case AbaLoja.dados:
         return 'Dados do Perfil';
       case AbaLoja.interface:
-        return 'Interface do Perfil';
+        return 'Ajustes do Perfil';
       case AbaLoja.loja:
         return 'Loja do Perfil';
       case AbaLoja.gestao:
@@ -2771,6 +2795,259 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
     );
   }
 
+  String _obterAcaoPorTecla(String tecla) {
+    if (_atalhosTeclado.containsKey(tecla)) {
+      return _atalhosTeclado[tecla]!;
+    }
+    final loja = context.read<PdvProvider>().buscarPorId(widget.lojaId);
+    if (loja != null && loja.atalhosTeclado.containsKey(tecla)) {
+      return loja.atalhosTeclado[tecla]!;
+    }
+    return switch (tecla) {
+      'F1' => 'Nova Venda',
+      'F2' => 'Clientes',
+      'F3' => 'Caixa',
+      'F4' => 'Relatórios',
+      'F5' => 'Impressora',
+      'F6' => 'Financeiro',
+      'F7' => 'Status da Loja',
+      'F8' => 'Desativado',
+      _ => 'Desativado',
+    };
+  }
+
+  void _executarAcaoAtalho(String tecla) {
+    final acao = _obterAcaoPorTecla(tecla);
+    switch (acao) {
+      case 'Nova Venda':
+        _abrirPopupNovaVenda();
+        break;
+      case 'Clientes':
+        _abrirPopupClientes();
+        break;
+      case 'Caixa':
+        _abrirPopupCaixa();
+        break;
+      case 'Relatórios':
+        _abrirPopupRelatorios();
+        break;
+      case 'Impressora':
+        _abrirPopupImpressora();
+        break;
+      case 'Financeiro':
+        _abrirFinanceiro();
+        break;
+      case 'Status da Loja':
+        _abrirStatusLoja();
+        break;
+    }
+  }
+
+  Widget _buildContainerComandos(AppTheme theme, bool podeEditar) {
+    final decoracao = _decoracaoDoBloco(theme);
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: decoracao,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(
+                Icons.keyboard_alt_outlined,
+                color: theme.buttonColor,
+                size: 22,
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'Comandos',
+                  style: theme.getTextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.bold,
+                    color: theme.textColor,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Text(
+            'Personalize as teclas de atalho do teclado para agilizar a operação diária no PDV. Defina qual ação cada tecla de função deve executar.',
+            style: theme.getTextStyle(
+              fontSize: 12,
+              color: theme.secondaryTextColor,
+            ),
+          ),
+          const SizedBox(height: 16),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            margin: const EdgeInsets.only(bottom: 8),
+            decoration: BoxDecoration(
+              color: theme.backgroundColor.withValues(alpha: 0.2),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(
+                color: theme.borderColor.withValues(alpha: 0.4),
+              ),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                  decoration: BoxDecoration(
+                    color: theme.borderColor.withValues(alpha: 0.2),
+                    borderRadius: BorderRadius.circular(6),
+                    border: Border.all(color: theme.borderColor),
+                  ),
+                  child: Text(
+                    'Esc',
+                    style: theme.getTextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                      color: theme.textColor,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Voltar / Fechar Janelas',
+                        style: theme.getTextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: theme.textColor,
+                        ),
+                      ),
+                      Text(
+                        'Comando universal para fechar modais, janelas e retornar telas',
+                        style: theme.getTextStyle(
+                          fontSize: 11,
+                          color: theme.secondaryTextColor,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: theme.buttonColor.withValues(alpha: 0.2),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Text(
+                    'Padrão',
+                    style: theme.getTextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                      color: theme.buttonColor,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          ..._teclasFuncao.map((tecla) {
+            final acaoAtual = _obterAcaoPorTecla(tecla);
+
+            return Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              margin: const EdgeInsets.only(bottom: 8),
+              decoration: BoxDecoration(
+                color: theme.backgroundColor.withValues(alpha: 0.2),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(
+                  color: theme.borderColor.withValues(alpha: 0.4),
+                ),
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    width: 44,
+                    padding: const EdgeInsets.symmetric(vertical: 5),
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      color: theme.borderColor.withValues(alpha: 0.2),
+                      borderRadius: BorderRadius.circular(6),
+                      border: Border.all(color: theme.borderColor),
+                    ),
+                    child: Text(
+                      tecla,
+                      style: theme.getTextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                        color: theme.textColor,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: AbsorbPointer(
+                      absorbing: !podeEditar,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 12, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: theme.cardBackgroundColor,
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(
+                            color: theme.borderColor.withValues(alpha: 0.6),
+                          ),
+                        ),
+                        child: DropdownButtonHideUnderline(
+                          child: DropdownButton<String>(
+                            value: _acoesAtalhosDisponiveis.contains(acaoAtual)
+                                ? acaoAtual
+                                : 'Desativado',
+                            isExpanded: true,
+                            dropdownColor: theme.cardBackgroundColor,
+                            icon: Icon(
+                              Icons.arrow_drop_down,
+                              color: theme.secondaryTextColor,
+                            ),
+                            items: _acoesAtalhosDisponiveis.map((acao) {
+                              return DropdownMenuItem<String>(
+                                value: acao,
+                                child: Text(
+                                  acao,
+                                  style: theme.getTextStyle(
+                                    fontSize: 13,
+                                    color: acao == 'Desativado'
+                                        ? theme.secondaryTextColor
+                                        : theme.textColor,
+                                  ),
+                                ),
+                              );
+                            }).toList(),
+                            onChanged: (novaAcao) {
+                              if (novaAcao == null) return;
+                              setState(() => _atalhosTeclado[tecla] = novaAcao);
+                              context.read<PdvProvider>().atualizarAtalhoTeclado(
+                                    widget.lojaId,
+                                    tecla,
+                                    novaAcao,
+                                  );
+                            },
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          }),
+        ],
+      ),
+    );
+  }
+
   Widget _buildContainerTempoConclusao(AppTheme theme, bool podeEditar) {
     final decoracao = _decoracaoDoBloco(theme);
     final opcoes = <int, String>{
@@ -2948,7 +3225,7 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
           ),
           const SizedBox(height: 6),
           Text(
-            'Personalize os efeitos sonoros para as principais operações. Você pode manter o bip padrão nativo do sistema, silenciar ou selecionar qualquer arquivo de áudio anexado no container "Arquivos de Áudio" acima.',
+            'Personalize os efeitos sonoros para as principais operações. Você pode manter o bip padrão nativo do sistema, silenciar ou selecionar qualquer arquivo de áudio anexado no container "Arquivos de Áudio" na aba Dados.',
             style: theme.getTextStyle(
               fontSize: 12,
               color: theme.secondaryTextColor,
@@ -3190,8 +3467,6 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
               onSair: _sairDaLoja,
             ),
             const SizedBox(height: 16),
-            _buildContainerTempoConclusao(theme, possoEditarDados),
-            const SizedBox(height: 16),
             GaleriaEstiloContainer(
               theme: theme,
               titulo: 'Galeria',
@@ -3256,8 +3531,6 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
               onRemover: (index) =>
                   _removerAnexo(TipoAnexoLoja.arquivosAudio, index),
             ),
-            const SizedBox(height: 16),
-            _buildContainerSonsAlertas(theme, possoEditarDados),
           ],
         );
 
@@ -3299,14 +3572,14 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
         );
 
       case AbaLoja.interface:
-        return Padding(
-          padding: const EdgeInsets.symmetric(vertical: 40),
-          child: Center(
-            child: Text(
-              'Em construção',
-              style: theme.getTextStyle(fontSize: 13),
-            ),
-          ),
+        return Column(
+          children: [
+            _buildContainerComandos(theme, possoEditarDados),
+            const SizedBox(height: 16),
+            _buildContainerTempoConclusao(theme, possoEditarDados),
+            const SizedBox(height: 16),
+            _buildContainerSonsAlertas(theme, possoEditarDados),
+          ],
         );
     }
   }
@@ -3320,9 +3593,22 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
             Navigator.of(context).maybePop();
           }
         },
-        const SingleActivator(LogicalKeyboardKey.f1): () {
-          _abrirPopupNovaVenda();
-        },
+        const SingleActivator(LogicalKeyboardKey.f1): () =>
+            _executarAcaoAtalho('F1'),
+        const SingleActivator(LogicalKeyboardKey.f2): () =>
+            _executarAcaoAtalho('F2'),
+        const SingleActivator(LogicalKeyboardKey.f3): () =>
+            _executarAcaoAtalho('F3'),
+        const SingleActivator(LogicalKeyboardKey.f4): () =>
+            _executarAcaoAtalho('F4'),
+        const SingleActivator(LogicalKeyboardKey.f5): () =>
+            _executarAcaoAtalho('F5'),
+        const SingleActivator(LogicalKeyboardKey.f6): () =>
+            _executarAcaoAtalho('F6'),
+        const SingleActivator(LogicalKeyboardKey.f7): () =>
+            _executarAcaoAtalho('F7'),
+        const SingleActivator(LogicalKeyboardKey.f8): () =>
+            _executarAcaoAtalho('F8'),
       },
       child: Focus(
         autofocus: true,
@@ -3384,7 +3670,7 @@ class _BarraDeAbasDaLoja extends StatelessWidget {
       case AbaLoja.dados:
         return 'Dados';
       case AbaLoja.interface:
-        return 'Interface';
+        return 'Ajustes';
       case AbaLoja.loja:
         return 'Loja';
       case AbaLoja.gestao:

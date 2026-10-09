@@ -27,7 +27,7 @@ String _dataHoraFormatada(DateTime data) {
 String _valorFormatado(double valor) =>
     'R\$ ${valor.toStringAsFixed(2).replaceAll('.', ',')}';
 
-class GestaoLojaContainer extends StatelessWidget {
+class GestaoLojaContainer extends StatefulWidget {
   final AppTheme theme;
   final String lojaId;
   final String autorCpf;
@@ -93,6 +93,51 @@ class GestaoLojaContainer extends StatelessWidget {
     this.aoCriarMesa,
     this.aoClicarMesa,
   });
+
+  @override
+  State<GestaoLojaContainer> createState() => _GestaoLojaContainerState();
+}
+
+class _GestaoLojaContainerState extends State<GestaoLojaContainer> {
+  final TextEditingController _buscaPedidosController = TextEditingController();
+
+  @override
+  void dispose() {
+    _buscaPedidosController.dispose();
+    super.dispose();
+  }
+
+  AppTheme get theme => widget.theme;
+  String get lojaId => widget.lojaId;
+  String get autorCpf => widget.autorCpf;
+  String get autorNome => widget.autorNome;
+  String get autorEmail => widget.autorEmail;
+  bool get lojaOnline => widget.lojaOnline;
+  ValueChanged<bool> get aoAlterarOnline => widget.aoAlterarOnline;
+  AbaPedidos get abaPedidos => widget.abaPedidos;
+  ValueChanged<AbaPedidos> get aoTrocarAbaPedidos => widget.aoTrocarAbaPedidos;
+  List<PedidoLoja> get pedidos => widget.pedidos;
+  ValueChanged<String> get aoAceitar => widget.aoAceitar;
+  ValueChanged<String> get aoRecusar => widget.aoRecusar;
+  ValueChanged<String> get aoConcluir => widget.aoConcluir;
+  ValueChanged<String>? get aoCancelarPedido => widget.aoCancelarPedido;
+  void Function(String pedidoId, DadosComentario dados)? get aoSalvarComentario =>
+      widget.aoSalvarComentario;
+  ValueChanged<String>? get aoExcluirPedido => widget.aoExcluirPedido;
+  List<Cliente> get clientes => widget.clientes;
+  List<ItemLoja> get itensDisponiveis => widget.itensDisponiveis;
+  VoidCallback get aoNovaVenda => widget.aoNovaVenda;
+  VoidCallback get aoClientes => widget.aoClientes;
+  VoidCallback get aoRelatorios => widget.aoRelatorios;
+  VoidCallback? get aoImpressora => widget.aoImpressora;
+  VoidCallback? get aoFinanceiro => widget.aoFinanceiro;
+  VoidCallback? get aoCaixa => widget.aoCaixa;
+  bool get caixaAberto => widget.caixaAberto;
+  VoidCallback? get aoStatus => widget.aoStatus;
+  bool get ehRestaurante => widget.ehRestaurante;
+  List<MesaLoja> get mesas => widget.mesas;
+  VoidCallback? get aoCriarMesa => widget.aoCriarMesa;
+  ValueChanged<MesaLoja>? get aoClicarMesa => widget.aoClicarMesa;
 
   BoxDecoration get _decoracaoDoBloco => BoxDecoration(
         color: theme.backgroundColor.withValues(alpha: 0.4),
@@ -255,7 +300,12 @@ class GestaoLojaContainer extends StatelessWidget {
     final selecionada = aba == abaPedidos;
     return Expanded(
       child: InkWell(
-        onTap: () => aoTrocarAbaPedidos(aba),
+        onTap: () {
+          if (aba != abaPedidos) {
+            _buscaPedidosController.clear();
+          }
+          aoTrocarAbaPedidos(aba);
+        },
         child: Padding(
           padding: const EdgeInsets.symmetric(vertical: 6),
           child: Center(
@@ -561,7 +611,35 @@ class GestaoLojaContainer extends StatelessWidget {
       pedidosDaAba.sort((a, b) => b.dataHora.compareTo(a.dataHora));
     }
 
-    if (pedidosDaAba.isEmpty) {
+    final termo = _buscaPedidosController.text.trim().toLowerCase();
+    final aplicarBusca = (abaPedidos == AbaPedidos.concluidos ||
+            abaPedidos == AbaPedidos.cancelados) &&
+        termo.isNotEmpty;
+
+    final pedidosFiltrados = aplicarBusca
+        ? pedidosDaAba.where((p) {
+            final numStr = p.numero.toString();
+            final numFormatado = _numeroFormatado(p.numero).toLowerCase();
+            final cliente = p.clienteNome.toLowerCase();
+            final produto = p.produtoNome.toLowerCase();
+            final itensStr = p.itens
+                .map((i) => '${i.nomeItem} ${i.nomeCategoria ?? ''}'.toLowerCase())
+                .join(' ');
+            return numStr.contains(termo) ||
+                numFormatado.contains(termo) ||
+                cliente.contains(termo) ||
+                produto.contains(termo) ||
+                itensStr.contains(termo);
+          }).toList()
+        : pedidosDaAba;
+
+    if (pedidosFiltrados.isEmpty) {
+      if (aplicarBusca) {
+        return EstadoVazioContainer(
+          theme: theme,
+          mensagem: 'Nenhum pedido encontrado para "$termo".',
+        );
+      }
       final mensagem = switch (abaPedidos) {
         AbaPedidos.novos => 'Nenhum pedido novo.',
         AbaPedidos.aceitos => 'Nenhum pedido aceito.',
@@ -574,15 +652,18 @@ class GestaoLojaContainer extends StatelessWidget {
     return SizedBox(
       height: _alturaListaPedidos,
       child: ListView.separated(
-        itemCount: pedidosDaAba.length,
+        itemCount: pedidosFiltrados.length,
         separatorBuilder: (context, index) => const SizedBox(height: 8),
         itemBuilder: (context, index) =>
-            _barraDoPedido(context, pedidosDaAba[index]),
+            _barraDoPedido(context, pedidosFiltrados[index]),
       ),
     );
   }
 
   Widget _blocoDePedidos(BuildContext context) {
+    final exibirBusca = abaPedidos == AbaPedidos.concluidos ||
+        abaPedidos == AbaPedidos.cancelados;
+
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(16),
@@ -597,6 +678,53 @@ class GestaoLojaContainer extends StatelessWidget {
               _abaDePedidos('Cancelados', AbaPedidos.cancelados),
             ],
           ),
+          if (exibirBusca) ...[
+            const SizedBox(height: 12),
+            Container(
+              height: 38,
+              decoration: BoxDecoration(
+                color: theme.backgroundColor.withValues(alpha: 0.25),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(
+                  color: theme.borderColor.withValues(alpha: 0.5),
+                ),
+              ),
+              child: TextField(
+                controller: _buscaPedidosController,
+                onChanged: (_) => setState(() {}),
+                style: theme.getTextStyle(fontSize: 13),
+                decoration: InputDecoration(
+                  isDense: true,
+                  contentPadding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                  hintText: 'Buscar por nº (#0001), cliente ou produto...',
+                  hintStyle: theme.getTextStyle(
+                    fontSize: 12,
+                    color: theme.secondaryTextColor,
+                  ),
+                  prefixIcon: Icon(
+                    Icons.search,
+                    size: 18,
+                    color: theme.secondaryTextColor,
+                  ),
+                  suffixIcon: _buscaPedidosController.text.isNotEmpty
+                      ? IconButton(
+                          icon: Icon(
+                            Icons.close,
+                            size: 16,
+                            color: theme.secondaryTextColor,
+                          ),
+                          onPressed: () {
+                            _buscaPedidosController.clear();
+                            setState(() {});
+                          },
+                        )
+                      : null,
+                  border: InputBorder.none,
+                ),
+              ),
+            ),
+          ],
           const SizedBox(height: 12),
           _listaDePedidos(context),
         ],

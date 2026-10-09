@@ -15,7 +15,7 @@ Aplica-se a todos os modelos persistidos em disco (banco local SQLite via `Banco
 
 ### Modelos Principais
 - **`UsuarioNous`** (`lib/src/features/auth/models/usuario_nous.dart`): Identidade cidadã e dados civis.
-- **`Loja`** (`lib/src/features/pdv/models/loja.dart`): Dados da loja, cofre, configurações operacionais e preferências de som (`sonsAlertas`).
+- **`Loja`** (`lib/src/features/pdv/models/loja.dart`): Dados da loja, cofre, configurações operacionais, preferências de som (`sonsAlertas`) e atalhos de teclado (`atalhosTeclado`).
 - **`Cliente`** (`lib/src/features/pdv/models/cliente.dart`): Cadastro de clientes com CPF/CNPJ.
 - **`Fornecedor`** (`lib/src/features/pdv/models/fornecedor.dart`): Cadastro de fornecedores.
 - **`PedidoLoja`** (`lib/src/features/pdv/models/pedido_loja.dart`): Pedidos, comandas e pagamentos.

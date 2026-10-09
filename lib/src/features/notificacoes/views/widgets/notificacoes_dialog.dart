@@ -7,10 +7,12 @@ import 'package:nous/src/features/notificacoes/providers/notificacoes_provider.d
 import 'package:nous/src/features/pdv/models/item_loja.dart';
 import 'package:nous/src/features/pdv/models/loja.dart';
 import 'package:nous/src/features/pdv/models/membro_loja.dart';
+import 'package:nous/src/features/pdv/models/movimento_estoque.dart';
 import 'package:nous/src/features/pdv/models/referencia_loja.dart';
 import 'package:nous/src/features/pdv/providers/pdv_provider.dart';
 import 'package:nous/src/features/pdv/services/lojas_service.dart';
 import 'package:nous/src/features/pdv/views/widgets/estado_vazio_container.dart';
+import 'package:nous/src/features/pdv/views/widgets/movimento_estoque_dialog.dart';
 
 String _formatarCpf(String cpf) {
   final digitos = cpf.replaceAll(RegExp(r'[^0-9]'), '');
@@ -321,6 +323,55 @@ class _NotificacoesConteudo extends StatelessWidget {
     );
   }
 
+  Future<void> _resolverAlertaEstoque(
+    BuildContext context,
+    ({ItemLoja item, double saldo, String lojaNome, String lojaId}) alerta,
+  ) async {
+    final pdv = context.read<PdvProvider>();
+    final auth = context.read<AuthProvider>();
+    final conta = auth.contaAtual;
+    final theme = ThemeController.currentTheme.value;
+
+    if (conta == null) {
+      _avisar(context, 'Você precisa estar logado.');
+      return;
+    }
+
+    final loja = pdv.buscarPorId(alerta.lojaId);
+    if (loja == null) {
+      _avisar(context, 'Loja não encontrada.');
+      return;
+    }
+
+    Navigator.of(context).pop();
+
+    final movimento = await MovimentoEstoqueDialog.mostrar(
+      context,
+      theme: theme,
+      itens: loja.itensLoja,
+      fornecedores: loja.fornecedoresLoja,
+      cpfAutor: conta.cpf,
+      nomeAutor: conta.nome,
+      itemInicial: alerta.item,
+      tipoInicial: TipoMovimentoEstoque.entrada,
+    );
+
+    if (movimento == null) return;
+    if (!context.mounted) return;
+
+    pdv.adicionarMovimentoEstoque(loja.id, movimento);
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        backgroundColor: theme.cardBackgroundColor,
+        content: Text(
+          'Entrada de estoque de "${alerta.item.nome}" registrada com sucesso!',
+          style: theme.getTextStyle(color: theme.textColor),
+        ),
+      ),
+    );
+  }
+
   Widget _linhaAlertaEstoque(
     BuildContext context,
     AppTheme theme,
@@ -332,92 +383,119 @@ class _NotificacoesConteudo extends StatelessWidget {
     final unidadeTexto = alerta.item.unidadeBase.name;
     final esgotado = alerta.saldo <= 0;
 
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      margin: const EdgeInsets.only(bottom: 8),
-      decoration: BoxDecoration(
-        color: theme.backgroundColor.withValues(alpha: 0.4),
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(
-          color: Colors.redAccent.withValues(alpha: 0.6),
-        ),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: Colors.redAccent.withValues(alpha: 0.15),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Icon(
-              esgotado
-                  ? Icons.remove_shopping_cart_outlined
-                  : Icons.warning_amber_rounded,
-              color: Colors.redAccent,
-              size: 20,
+        onTap: () => _resolverAlertaEstoque(context, alerta),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          margin: const EdgeInsets.only(bottom: 8),
+          decoration: BoxDecoration(
+            color: theme.backgroundColor.withValues(alpha: 0.4),
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(
+              color: Colors.redAccent.withValues(alpha: 0.6),
             ),
           ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.redAccent.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(
+                  esgotado
+                      ? Icons.remove_shopping_cart_outlined
+                      : Icons.warning_amber_rounded,
+                  color: Colors.redAccent,
+                  size: 20,
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Expanded(
-                      child: Text(
-                        esgotado
-                            ? 'Estoque Esgotado: ${alerta.item.nome}'
-                            : 'Estoque Baixo: ${alerta.item.nome}',
-                        style: theme.getTextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w600,
-                          color: theme.textColor,
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            esgotado
+                                ? 'Estoque Esgotado: ${alerta.item.nome}'
+                                : 'Estoque Baixo: ${alerta.item.nome}',
+                            style: theme.getTextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                              color: theme.textColor,
+                            ),
+                          ),
                         ),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: Colors.redAccent.withValues(alpha: 0.18),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: Text(
+                            '$saldoFormatado $unidadeTexto',
+                            style: theme.getTextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.redAccent,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Loja: ${alerta.lojaNome}',
+                      style: theme.getTextStyle(
+                        fontSize: 11,
+                        color: theme.secondaryTextColor,
                       ),
                     ),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 6, vertical: 2),
-                      decoration: BoxDecoration(
-                        color: Colors.redAccent.withValues(alpha: 0.18),
-                        borderRadius: BorderRadius.circular(6),
+                    const SizedBox(height: 2),
+                    Text(
+                      esgotado
+                          ? 'O item está sem saldo disponível. Toque para registrar uma nova entrada imediatamente.'
+                          : 'O saldo está abaixo de 10 unidades. Toque para reabastecer agora.',
+                      style: theme.getTextStyle(
+                        fontSize: 11,
+                        color: theme.secondaryTextColor,
                       ),
-                      child: Text(
-                        '$saldoFormatado $unidadeTexto',
-                        style: theme.getTextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.redAccent,
+                    ),
+                    const SizedBox(height: 8),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: [
+                        Text(
+                          'Adicionar ao estoque',
+                          style: theme.getTextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.bold,
+                            color: theme.textColor,
+                          ),
                         ),
-                      ),
+                        const SizedBox(width: 4),
+                        Icon(
+                          Icons.arrow_forward_rounded,
+                          size: 14,
+                          color: theme.textColor,
+                        ),
+                      ],
                     ),
                   ],
                 ),
-                const SizedBox(height: 4),
-                Text(
-                  'Loja: ${alerta.lojaNome}',
-                  style: theme.getTextStyle(
-                    fontSize: 11,
-                    color: theme.secondaryTextColor,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  esgotado
-                      ? 'O item está sem saldo disponível. Registre uma nova entrada no módulo de estoque.'
-                      : 'O saldo está abaixo de 10 unidades. Reabasteça para evitar rupturas de vendas.',
-                  style: theme.getTextStyle(
-                    fontSize: 11,
-                    color: theme.secondaryTextColor,
-                  ),
-                ),
-              ],
-            ),
+              ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }

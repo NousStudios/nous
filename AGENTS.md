@@ -215,8 +215,18 @@ Este projeto apoia-se no **anarquismo plataformista brasileiro**: poder sem inte
 - **Estoque em Tempo Real e Prioridade para Categorias (`NovaVendaDialog`):**
   - Cada item exibe o saldo de estoque real atualizado (`Est: X un` ou badge vermelho `Esgotado` quando $\le 0$).
   - **Ordem de Preferência na Abertura:** Ao abrir a janela de Nova Venda (busca em branco), o container "Produto Solicitado" renderiza **primeiro todas as categorias disponíveis** e, logo abaixo, os itens soltos, permitindo acesso rápido a grupos de produtos.
+- **Busca Rápida de Pedidos em "Concluídos" e "Cancelados" (`GestaoLojaContainer`):**
+  - Campo de busca no topo das abas "Concluídos" e "Cancelados" filtrando instantaneamente por número do pedido (`#0001`), cliente, produto ou descrição de itens com limpeza ágil e estado vazio contextualizado.
+- **Aba "Ajustes" e "Ajustes do Perfil" (`AbaLoja.interface`):**
+  - Renomeada a aba e o botão inferior de "Interface" para **"Ajustes"** ("Ajustes do Perfil"), concentrando todas as configurações operacionais do lojista:
+    - **Container "Comandos":** Gerenciamento e atribuição interativa das teclas de atalho (<kbd>F1</kbd> a <kbd>F8</kbd>) para ações de gestão ("Nova Venda", "Clientes", "Caixa", "Relatórios", "Impressora", "Financeiro", "Status da Loja" ou "Desativado") e tecla fixa <kbd>Esc</kbd> ("Voltar / Fechar Janelas"), persistido em `Loja.atalhosTeclado`.
+    - **Container "Tempo de Conclusão dos Pedidos":** Migrado da aba Dados para Ajustes.
+    - **Container "Sons e Alertas do Sistema":** Migrado da aba Dados para Ajustes.
+  - A aba **"Dados"** permanece despoluída, focando estritamente em Formulário de Dados da Loja, Usuários Participantes e Galeria/Anexos.
+- **Ação Imediata ao Clicar em Notificações (`NotificacoesDialog`):**
+  - Ao tocar em um alerta de estoque baixo ou esgotado na central de notificações (sino), a janela é fechada e abre imediatamente o diálogo `MovimentoEstoqueDialog` com o item e tipo "Entrada" pré-configurados, permitindo reabastecimento imediato e persistência direta no cofre da loja.
 - **Atalhos Globais de Teclado no Desktop (`CallbackShortcuts`):**
-  - Implementados 2 atalhos no `DadosPerfilView`: <kbd>F1</kbd> abre a janela de Nova Venda imediatamente e <kbd>Esc</kbd> fecha qualquer janela, modal ou diálogo aberto.
+  - Teclas <kbd>F1</kbd> a <kbd>F8</kbd> dinâmicas mapeadas para as ações definidas no container "Comandos", além de <kbd>Esc</kbd> para fechar modais e diálogos.
 - **Tempo de Conclusão de Pedidos e Alerta Automático:**
   - Campo persistido `tempoConclusaoMinutos` em `Loja` (com atualização em `copyWith`, `toJson`, `fromJson`).
   - Container "Tempo de Conclusão dos Pedidos" na aba "Dados" da loja (abaixo de "Usuários Participantes") permitindo selecionar "Manual" ou tempos pré-definidos (15, 30, 45, 60 min, etc.).

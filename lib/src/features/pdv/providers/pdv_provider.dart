@@ -429,6 +429,19 @@ class PdvProvider extends ChangeNotifier {
     _salvarLojaNoCofreCorreto(atualizada);
   }
 
+  void atualizarAtalhoTeclado(String id, String tecla, String acao) {
+    final indice = _lojas.indexWhere((loja) => loja.id == id);
+    if (indice == -1) return;
+
+    final mapa = Map<String, String>.from(_lojas[indice].atalhosTeclado);
+    mapa[tecla] = acao;
+
+    final atualizada = _lojas[indice].copyWith(atalhosTeclado: mapa);
+    _lojas[indice] = atualizada;
+    notifyListeners();
+    _salvarLojaNoCofreCorreto(atualizada);
+  }
+
   void atualizarListasLoja(
     String id, {
     List<CategoriaLoja>? categorias,

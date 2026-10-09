@@ -50,6 +50,7 @@ class Loja {
   final ConfiguracoesImpressora configuracoesImpressora;
   final int tempoConclusaoMinutos;
   final Map<String, String> sonsAlertas;
+  final Map<String, String> atalhosTeclado;
 
   const Loja({
     required this.id,
@@ -85,6 +86,7 @@ class Loja {
     this.configuracoesImpressora = const ConfiguracoesImpressora(),
     this.tempoConclusaoMinutos = 0,
     this.sonsAlertas = const {},
+    this.atalhosTeclado = const {},
   });
 
   Loja copyWith({
@@ -120,6 +122,7 @@ class Loja {
     ConfiguracoesImpressora? configuracoesImpressora,
     int? tempoConclusaoMinutos,
     Map<String, String>? sonsAlertas,
+    Map<String, String>? atalhosTeclado,
   }) {
     return Loja(
       id: id,
@@ -159,6 +162,7 @@ class Loja {
       tempoConclusaoMinutos:
           tempoConclusaoMinutos ?? this.tempoConclusaoMinutos,
       sonsAlertas: sonsAlertas ?? this.sonsAlertas,
+      atalhosTeclado: atalhosTeclado ?? this.atalhosTeclado,
     );
   }
 
@@ -201,6 +205,7 @@ class Loja {
       'configuracoesImpressora': configuracoesImpressora.toJson(),
       'tempoConclusaoMinutos': tempoConclusaoMinutos,
       'sonsAlertas': sonsAlertas,
+      'atalhosTeclado': atalhosTeclado,
     };
   }
 
@@ -289,9 +294,24 @@ class Loja {
       sonsAlertas:
           (json['sonsAlertas'] as Map<dynamic, dynamic>? ?? const {})
               .map((k, v) => MapEntry(k.toString(), v.toString())),
+      atalhosTeclado:
+          (json['atalhosTeclado'] as Map<dynamic, dynamic>? ?? const {})
+              .map((k, v) => MapEntry(k.toString(), v.toString())),
     );
   }
 
   TurnoCaixa? get turnoCaixaAberto =>
       turnosCaixa.where((t) => t.aberto).firstOrNull;
+
+  Map<String, String> get atalhosTecladoEfetivos => {
+        'F1': 'Nova Venda',
+        'F2': 'Clientes',
+        'F3': 'Caixa',
+        'F4': 'Relatórios',
+        'F5': 'Impressora',
+        'F6': 'Financeiro',
+        'F7': 'Status da Loja',
+        'Esc': 'Voltar / Fechar Janela',
+        ...atalhosTeclado,
+      };
 }
