@@ -342,7 +342,30 @@ Este projeto apoia-se no **anarquismo plataformista brasileiro**: poder sem inte
     2. *Tempo Limite / Alerta de Pedido* (`SomService.eventoConclusaoPedido`)
     3. *Bip de Leitura na Venda (Código de Barras / Item)* (`SomService.eventoBipVenda`)
   - Cada evento possui dropdown com opções ("Bip Padrão do Sistema", "Silencioso" ou qualquer áudio anexado em `_arquivosAudio`) e botão com ícone de reprodução para testes imediatos.
-  - Integração disparada no leitor de código de barras / clique de adicionar item em `NovaVendaDialog` e no timer de verificação de pedidos que atingem o tempo limite estipulado em `DadosPerfilView`.
+### 7.14 Ergonomia de Venda, Preservação de Rascunhos e Resumo Operacional Diário
+- **Estado Inicial Limpo, Foco Dinâmico e Regiões de Toque (`NovaVendaDialog`):**
+  - Ao abrir a tela de Nova Venda, os containers "Produtos Solicitados" e "Nome do Cliente" iniciam limpos, sem listagens soltas iniciais.
+  - Ao focar/clicar no campo de busca com pesquisa em branco, renderiza **exclusivamente as categorias cadastradas da loja**, sem produtos soltos.
+  - Produtos individuais aparecem apenas mediante pesquisa ativa por nome ou leitura por bipador de código de barras.
+  - O container "Nome do Cliente", ao receber foco com pesquisa em branco, renderiza **todos os clientes cadastrados da loja**, filtrando em tempo real conforme digitação.
+  - **Interação Estável com `TapRegion`:** Containers de produto e cliente envolvidos em `TapRegion` com controle de foco (`onTapOutside`), eliminando fechamentos prematuros ou perda de eventos de toque ao clicar em categorias ou clientes da lista.
+- **Desconto e Acréscimo em Porcentagem (`%`) ou Valor Fixo (`R$`):**
+  - Os campos de "Desconto" e "Acréscimo" aceitam valores numéricos diretos em reais ou porcentagens com o símbolo `%` (ex.: `10%`, `5%`, `2.5%`).
+  - O sistema calcula o valor percentual dinamicamente sobre o subtotal dos itens da comanda ($\text{Subtotal} \times \frac{\%}{100}$), atualizando a comanda viva, o valor total e o saldo restante de vendas a prazo em tempo real, discriminando na comanda e no cupom impresso `Desconto (X%)` ou `Acréscimo (X%)`.
+- **Seleção Numérica Total Instantânea em Pagamentos:**
+  - Ao adicionar qualquer forma de pagamento ou ao tocar no campo de valor correspondente (inclusive frete, desconto e acréscimo), todo o valor numérico é pré-selecionado (`TextSelection(baseOffset: 0, extentOffset: text.length)`). O operador pode digitar um novo valor diretamente sem precisar deletar dígito por dígito.
+- **Preservação de Rascunho Soberano contra Fechamento Acidental:**
+  - Caso o operador feche acidentalmente a tela de Nova Venda (via <kbd>Esc</kbd>, botão de voltar ou clique fora), todos os itens selecionados (quantidades, acompanhamentos dinâmicos, observações individuais), cliente, frete, desconto, acréscimo e formas de pagamento são preservados em memória (`_rascunhosPorLoja`).
+  - Ao reabrir a janela de Nova Venda na mesma loja, todos os dados são restaurados automaticamente no formulário e na comanda viva.
+  - Um botão dedicado de lixeira/limpeza ("Limpar campos da venda") é disponibilizado no cabeçalho para resetar o formulário manualmente com 1 clique caso desejado.
+  - Ao concluir a venda com sucesso, o rascunho é limpo automaticamente.
+- **Card de Resumo Operacional do Dia no Topo (`StatusLojaView`):**
+  - Posicionado no topo da tela de Status da Loja, **acima** do container de Status da Loja.
+  - Métricas em tempo real sob o princípio da transparência radical:
+    1. *Faturamento do Dia (R$)*: somatório das vendas não canceladas de hoje.
+    2. *Vendas Hoje (qtd)*: quantidade de pedidos realizados no dia.
+    3. *Ticket Médio (R$)*: média financeira por venda hoje.
+    4. *Situação do Caixa*: indicador visual dinâmico ("Caixa Aberto" ou "Caixa Fechado") com o saldo real apurado em dinheiro físico em mãos no momento ($\text{Saldo Inicial} + \text{Suprimentos} - \text{Sangrias} + \text{Vendas em Dinheiro Líquidas}$).
 
 ---
 

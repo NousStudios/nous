@@ -45,7 +45,51 @@ String _dataHoraCompleta(DateTime d) =>
     '${_doisDigitos(d.day)}/${_doisDigitos(d.month)}/${d.year} '
     '${_doisDigitos(d.hour)}:${_doisDigitos(d.minute)}';
 
+class _ItemRascunho {
+  final String chave;
+  final String itemId;
+  final String? categoriaId;
+  final int quantidade;
+  final Map<String, int> acompanhamentos;
+  final String observacao;
+
+  const _ItemRascunho({
+    required this.chave,
+    required this.itemId,
+    this.categoriaId,
+    required this.quantidade,
+    required this.acompanhamentos,
+    required this.observacao,
+  });
+}
+
+class _RascunhoVenda {
+  final List<_ItemRascunho> itens;
+  final List<({String forma, String valor})> pagamentos;
+  final String? clienteId;
+  final String clienteNomeDigitado;
+  final String frete;
+  final String desconto;
+  final String acrescimo;
+
+  const _RascunhoVenda({
+    required this.itens,
+    required this.pagamentos,
+    this.clienteId,
+    this.clienteNomeDigitado = '',
+    required this.frete,
+    required this.desconto,
+    required this.acrescimo,
+  });
+}
+
 class NovaVendaDialog {
+  static final Map<String, _RascunhoVenda> _rascunhosPorLoja = {};
+
+  static void limparRascunho(String? lojaId) {
+    _rascunhosPorLoja.remove(lojaId ?? '');
+  }
+
   static Future<void> mostrar(
     BuildContext context, {
     required AppTheme theme,
@@ -193,12 +237,17 @@ class _NovaVendaConteudoState extends State<_NovaVendaConteudo> {
   final _acrescimoController = TextEditingController();
   final _comandaScrollController = ScrollController();
   final _pagamentoScrollController = ScrollController();
+  final _buscaFocusNode = FocusNode();
+  final _clienteFocusNode = FocusNode();
 
   final List<_LinhaCarrinho> _carrinho = [];
   final List<_LinhaPagamento> _pagamentos = [];
   Cliente? _clienteSelecionado;
   String? _aviso;
   late final DateTime _dataHora;
+  bool _buscaFocada = false;
+  bool _clienteFocado = false;
+  bool _vendaConcluida = false;
 
   AppTheme get theme => widget.theme;
 
@@ -209,10 +258,122 @@ class _NovaVendaConteudoState extends State<_NovaVendaConteudo> {
   void initState() {
     super.initState();
     _dataHora = DateTime.now();
+
+    _buscaFocusNode.addListener(() {
+      if (mounted && _buscaFocusNode.hasFocus && !_buscaFocada) {
+        setState(() => _buscaFocada = true);
+      }
+    });
+
+    _clienteFocusNode.addListener(() {
+      if (mounted && _clienteFocusNode.hasFocus && !_clienteFocado) {
+        setState(() => _clienteFocado = true);
+      }
+    });
+
+    _restaurarRascunhoSeHouver();
+  }
+
+  void _restaurarRascunhoSeHouver() {
+    final chaveLoja = widget.lojaId ?? '';
+    final rascunho = NovaVendaDialog._rascunhosPorLoja[chaveLoja];
+    if (rascunho == null) return;
+
+    if (rascunho.clienteId != null) {
+      _clienteSelecionado = _buscarCliente(rascunho.clienteId!);
+    }
+    _clienteController.text = rascunho.clienteNomeDigitado;
+    _freteController.text = rascunho.frete;
+    _descontoController.text = rascunho.desconto;
+    _acrescimoController.text = rascunho.acrescimo;
+
+    for (final item in rascunho.itens) {
+      final linha = _LinhaCarrinho(
+        chave: item.chave,
+        itemId: item.itemId,
+        categoriaId: item.categoriaId,
+        acompanhamentos: Map<String, int>.from(item.acompanhamentos),
+      );
+      linha.quantidade = item.quantidade;
+      linha.observacaoController.text = item.observacao;
+      _carrinho.add(linha);
+    }
+
+    for (final pag in rascunho.pagamentos) {
+      _pagamentos.add(_LinhaPagamento(
+        forma: pag.forma,
+        valorInicial: pag.valor,
+      ));
+    }
+  }
+
+  void _salvarRascunhoAtual() {
+    final temDados = _carrinho.isNotEmpty ||
+        _pagamentos.isNotEmpty ||
+        _clienteSelecionado != null ||
+        _clienteController.text.trim().isNotEmpty ||
+        _freteController.text.trim().isNotEmpty ||
+        _descontoController.text.trim().isNotEmpty ||
+        _acrescimoController.text.trim().isNotEmpty;
+
+    final chaveLoja = widget.lojaId ?? '';
+    if (temDados) {
+      NovaVendaDialog._rascunhosPorLoja[chaveLoja] = _RascunhoVenda(
+        itens: _carrinho.map((linha) {
+          return _ItemRascunho(
+            chave: linha.chave,
+            itemId: linha.itemId,
+            categoriaId: linha.categoriaId,
+            quantidade: linha.quantidade,
+            acompanhamentos:
+                Map<String, int>.from(linha.acompanhamentosPorItemId),
+            observacao: linha.observacaoController.text,
+          );
+        }).toList(),
+        pagamentos: _pagamentos.map((p) {
+          return (forma: p.forma, valor: p.controller.text);
+        }).toList(),
+        clienteId: _clienteSelecionado?.id,
+        clienteNomeDigitado: _clienteController.text,
+        frete: _freteController.text,
+        desconto: _descontoController.text,
+        acrescimo: _acrescimoController.text,
+      );
+    } else {
+      NovaVendaDialog._rascunhosPorLoja.remove(chaveLoja);
+    }
+  }
+
+  void _limparTudo() {
+    setState(() {
+      for (final linha in _carrinho) {
+        linha.dispose();
+      }
+      _carrinho.clear();
+
+      for (final p in _pagamentos) {
+        p.dispose();
+      }
+      _pagamentos.clear();
+
+      _clienteSelecionado = null;
+      _clienteController.clear();
+      _buscaController.clear();
+      _freteController.clear();
+      _descontoController.clear();
+      _acrescimoController.clear();
+      _aviso = null;
+    });
+    NovaVendaDialog.limparRascunho(widget.lojaId);
   }
 
   @override
   void dispose() {
+    if (!_vendaConcluida) {
+      _salvarRascunhoAtual();
+    }
+    _buscaFocusNode.dispose();
+    _clienteFocusNode.dispose();
     _clienteController.dispose();
     _buscaController.dispose();
     _freteController.dispose();
@@ -323,11 +484,39 @@ class _NovaVendaConteudoState extends State<_NovaVendaConteudo> {
     return soma;
   }
 
+  double _calcularValorOuPorcentagem(String texto) {
+    final t = texto.trim();
+    if (t.isEmpty) return 0.0;
+    if (t.contains('%')) {
+      final limpo = t.replaceAll('%', '').trim();
+      final percentual = _precoComoNumero(limpo);
+      if (percentual <= 0) return 0.0;
+      return _subtotalDosItens * (percentual / 100.0);
+    }
+    return _precoComoNumero(t);
+  }
+
   double get _frete => _precoComoNumero(_freteController.text);
 
-  double get _desconto => _precoComoNumero(_descontoController.text);
+  double get _desconto => _calcularValorOuPorcentagem(_descontoController.text);
 
-  double get _acrescimo => _precoComoNumero(_acrescimoController.text);
+  double get _acrescimo => _calcularValorOuPorcentagem(_acrescimoController.text);
+
+  String get _rotuloDesconto {
+    final t = _descontoController.text.trim();
+    if (t.contains('%')) {
+      return 'Desconto ($t)';
+    }
+    return 'Desconto';
+  }
+
+  String get _rotuloAcrescimo {
+    final t = _acrescimoController.text.trim();
+    if (t.contains('%')) {
+      return 'Acréscimo ($t)';
+    }
+    return 'Acréscimo';
+  }
 
   double get _total {
     final total = _subtotalDosItens + _frete + _acrescimo - _desconto;
@@ -429,11 +618,10 @@ class _NovaVendaConteudoState extends State<_NovaVendaConteudo> {
       _categoriasEncontradas.isNotEmpty || _itensEncontrados.isNotEmpty;
 
   List<Cliente> get _sugestoesDeCliente {
-    if (_clienteSelecionado != null) return [];
     final termo = _clienteController.text.trim().toLowerCase();
-    if (termo.isEmpty) return [];
-    return widget
-        .obterClientes()
+    final todos = widget.obterClientes();
+    if (termo.isEmpty) return todos;
+    return todos
         .where((cliente) => cliente.nome.toLowerCase().contains(termo))
         .toList();
   }
@@ -544,11 +732,11 @@ class _NovaVendaConteudoState extends State<_NovaVendaConteudo> {
     buffer.writeln(linha('Frete', _valorComVirgula(_frete)));
     if (_desconto > 0) {
       buffer.writeln(
-        linha('Desconto', '-${_valorComVirgula(_desconto)}'),
+        linha(_rotuloDesconto, '-${_valorComVirgula(_desconto)}'),
       );
     }
     if (_acrescimo > 0) {
-      buffer.writeln(linha('Acrescimo', _valorComVirgula(_acrescimo)));
+      buffer.writeln(linha(_rotuloAcrescimo, _valorComVirgula(_acrescimo)));
     }
     buffer.writeln(linha('TOTAL', _valorComVirgula(_total)));
     if (_pagamentos.isNotEmpty) {
@@ -779,6 +967,7 @@ class _NovaVendaConteudoState extends State<_NovaVendaConteudo> {
     setState(() {
       _clienteSelecionado = cliente;
       _clienteController.text = cliente.nome;
+      _clienteFocado = false;
       _aviso = null;
     });
   }
@@ -835,7 +1024,13 @@ class _NovaVendaConteudoState extends State<_NovaVendaConteudo> {
     }
     setState(() {
       if (forma == _formaAPrazo) {
-        _pagamentos.add(_LinhaPagamento(forma: forma, valorInicial: '0,00'));
+        final novoPagamento =
+            _LinhaPagamento(forma: forma, valorInicial: '0,00');
+        novoPagamento.controller.selection = TextSelection(
+          baseOffset: 0,
+          extentOffset: novoPagamento.controller.text.length,
+        );
+        _pagamentos.add(novoPagamento);
       } else {
         final outras = _pagamentos
             .where((p) => p.forma != _formaAPrazo)
@@ -843,10 +1038,15 @@ class _NovaVendaConteudoState extends State<_NovaVendaConteudo> {
                 0.0, (s, p) => s + _precoComoNumero(p.controller.text));
         final restante = _total - outras;
         final valor = restante < 0 ? 0.0 : restante;
-        _pagamentos.add(_LinhaPagamento(
+        final novoPagamento = _LinhaPagamento(
           forma: forma,
           valorInicial: _valorComVirgula(valor),
-        ));
+        );
+        novoPagamento.controller.selection = TextSelection(
+          baseOffset: 0,
+          extentOffset: novoPagamento.controller.text.length,
+        );
+        _pagamentos.add(novoPagamento);
       }
       _recalcularPrazo();
       _aviso = null;
@@ -1070,6 +1270,8 @@ class _NovaVendaConteudoState extends State<_NovaVendaConteudo> {
     if (!mounted) return;
 
     if (confirmou) {
+      _vendaConcluida = true;
+      NovaVendaDialog.limparRascunho(widget.lojaId);
       Navigator.of(context).pop();
       widget.onConcluir(pedido, movimentosSugeridos);
     }
@@ -1127,6 +1329,7 @@ class _NovaVendaConteudoState extends State<_NovaVendaConteudo> {
 
   Widget _linhaDeCliente(Cliente cliente) {
     return InkWell(
+      borderRadius: BorderRadius.circular(8),
       onTap: () => _selecionarCliente(cliente),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
@@ -1149,57 +1352,93 @@ class _NovaVendaConteudoState extends State<_NovaVendaConteudo> {
   }
 
   Widget _blocoCliente() {
-    final sugestoes = _sugestoesDeCliente;
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(12),
-      decoration: _decoracaoDoBloco,
-      child: Column(
-        children: [
-          _tituloDoBloco('Nome do Cliente'),
-          Row(
-            children: [
-              Expanded(
-                child: TextField(
-                  controller: _clienteController,
-                  cursorColor: theme.textColor,
-                  style: theme.getTextStyle(fontSize: 12),
-                  decoration: _decoracaoCampo('Nome do cliente'),
-                  onChanged: _aoDigitarCliente,
+    final mostrarSugestoes = _clienteFocado ||
+        (_clienteController.text.trim().isNotEmpty &&
+            _clienteSelecionado == null);
+    final sugestoes = mostrarSugestoes ? _sugestoesDeCliente : <Cliente>[];
+    return TapRegion(
+      groupId: 'busca_cliente',
+      onTapOutside: (_) {
+        if (_clienteFocado) {
+          setState(() => _clienteFocado = false);
+        }
+      },
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(12),
+        decoration: _decoracaoDoBloco,
+        child: Column(
+          children: [
+            _tituloDoBloco('Nome do Cliente'),
+            Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: _clienteController,
+                    focusNode: _clienteFocusNode,
+                    cursorColor: theme.textColor,
+                    style: theme.getTextStyle(fontSize: 12),
+                    decoration: _decoracaoCampo('Nome do cliente'),
+                    onTap: () {
+                      setState(() {
+                        _clienteFocado = true;
+                        if (_clienteController.text.isNotEmpty) {
+                          _clienteController.selection = TextSelection(
+                            baseOffset: 0,
+                            extentOffset: _clienteController.text.length,
+                          );
+                        }
+                      });
+                    },
+                    onChanged: _aoDigitarCliente,
+                  ),
                 ),
-              ),
-              const SizedBox(width: 8),
-              _botaoPequeno('Novo Cliente', _abrirClientes),
+                const SizedBox(width: 8),
+                _botaoPequeno('Novo Cliente', _abrirClientes),
+              ],
+            ),
+            if (mostrarSugestoes) ...[
+              const SizedBox(height: 8),
+              if (sugestoes.isEmpty)
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 6),
+                  child: Text(
+                    widget.obterClientes().isEmpty
+                        ? 'Nenhum cliente cadastrado ainda.'
+                        : 'Nenhum resultado.',
+                    style: theme.getTextStyle(fontSize: 11),
+                  ),
+                )
+              else
+                ConstrainedBox(
+                  constraints: const BoxConstraints(maxHeight: 180),
+                  child: SingleChildScrollView(
+                    child: Column(
+                      children: [
+                        for (final cliente in sugestoes)
+                          _linhaDeCliente(cliente),
+                      ],
+                    ),
+                  ),
+                ),
             ],
-          ),
-          if (sugestoes.isNotEmpty) ...[
-            const SizedBox(height: 8),
-            ConstrainedBox(
-              constraints: const BoxConstraints(maxHeight: 180),
-              child: SingleChildScrollView(
-                child: Column(
-                  children: [
-                    for (final cliente in sugestoes) _linhaDeCliente(cliente),
-                  ],
+            if (_clienteSelecionado != null)
+              Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: Text(
+                  'Cliente cadastrado selecionado.',
+                  style: theme.getTextStyle(fontSize: 11),
                 ),
               ),
-            ),
           ],
-          if (_clienteSelecionado != null)
-            Padding(
-              padding: const EdgeInsets.only(top: 8),
-              child: Text(
-                'Cliente cadastrado selecionado.',
-                style: theme.getTextStyle(fontSize: 11),
-              ),
-            ),
-        ],
+        ),
       ),
     );
   }
 
   Widget _linhaDeCategoriaNaBusca(CategoriaLoja categoria) {
     return InkWell(
+      borderRadius: BorderRadius.circular(8),
       onTap: () => _abrirSeletorDeItemDaCategoria(categoria),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
@@ -1484,80 +1723,90 @@ class _NovaVendaConteudoState extends State<_NovaVendaConteudo> {
     final categorias = _categoriasEncontradas;
     final itens = _itensEncontrados;
     final buscando = _buscaController.text.trim().isNotEmpty;
+    final mostrarResultados = _buscaFocada || buscando;
 
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(12),
-      decoration: _decoracaoDoBloco,
-      child: Column(
-        children: [
-          _tituloDoBloco('Produto Solicitado'),
-          Row(
-            children: [
-              Expanded(
-                child: TextField(
-                  controller: _buscaController,
-                  cursorColor: theme.textColor,
-                  style: theme.getTextStyle(fontSize: 12),
-                  decoration: _decoracaoCampo(
-                      'Pesquisar nome ou bipar código de barras'),
-                  onChanged: (_) => setState(() {}),
-                  onSubmitted: _aoSubmeterBusca,
-                ),
-              ),
-              const SizedBox(width: 8),
-              _botaoPequeno('Novo Produto', _abrirNovoProduto),
-            ],
-          ),
-          if (buscando) ...[
-            const SizedBox(height: 8),
-            if (!_temResultadoDeBusca)
-              Padding(
-                padding: const EdgeInsets.symmetric(vertical: 6),
-                child: Text(
-                  widget.itensDisponiveis.isEmpty &&
-                          widget.categoriasDisponiveis.isEmpty
-                      ? 'Nenhum item ou categoria criado na aba Loja ainda.'
-                      : 'Nenhum resultado.',
-                  style: theme.getTextStyle(fontSize: 11),
-                ),
-              )
-            else
-              ConstrainedBox(
-                constraints: const BoxConstraints(maxHeight: 220),
-                child: SingleChildScrollView(
-                  child: Column(
-                    children: [
-                      for (final categoria in categorias)
-                        _linhaDeCategoriaNaBusca(categoria),
-                      for (final item in itens) _linhaDeResultado(item),
-                    ],
+    return TapRegion(
+      groupId: 'busca_produto',
+      onTapOutside: (_) {
+        if (_buscaFocada) {
+          setState(() => _buscaFocada = false);
+        }
+      },
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(12),
+        decoration: _decoracaoDoBloco,
+        child: Column(
+          children: [
+            _tituloDoBloco('Produto Solicitado'),
+            Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: _buscaController,
+                    focusNode: _buscaFocusNode,
+                    cursorColor: theme.textColor,
+                    style: theme.getTextStyle(fontSize: 12),
+                    decoration: _decoracaoCampo(
+                        'Pesquisar nome ou bipar código de barras'),
+                    onTap: () => setState(() => _buscaFocada = true),
+                    onChanged: (_) => setState(() {}),
+                    onSubmitted: _aoSubmeterBusca,
                   ),
                 ),
-              ),
-          ] else if (widget.categoriasDisponiveis.isNotEmpty ||
-              widget.itensDisponiveis.isNotEmpty) ...[
-            const SizedBox(height: 8),
-            ConstrainedBox(
-              constraints: const BoxConstraints(maxHeight: 220),
-              child: SingleChildScrollView(
-                child: Column(
-                  children: [
-                    for (final categoria in widget.categoriasDisponiveis)
-                      _linhaDeCategoriaNaBusca(categoria),
-                    for (final item in widget.itensDisponiveis)
-                      _linhaDeResultado(item),
-                  ],
-                ),
-              ),
+                const SizedBox(width: 8),
+                _botaoPequeno('Novo Produto', _abrirNovoProduto),
+              ],
             ),
+            if (mostrarResultados) ...[
+              if (buscando) ...[
+                const SizedBox(height: 8),
+                if (!_temResultadoDeBusca)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 6),
+                    child: Text(
+                      widget.itensDisponiveis.isEmpty &&
+                              widget.categoriasDisponiveis.isEmpty
+                          ? 'Nenhum item ou categoria criado na aba Loja ainda.'
+                          : 'Nenhum resultado.',
+                      style: theme.getTextStyle(fontSize: 11),
+                    ),
+                  )
+                else
+                  ConstrainedBox(
+                    constraints: const BoxConstraints(maxHeight: 220),
+                    child: SingleChildScrollView(
+                      child: Column(
+                        children: [
+                          for (final categoria in categorias)
+                            _linhaDeCategoriaNaBusca(categoria),
+                          for (final item in itens) _linhaDeResultado(item),
+                        ],
+                      ),
+                    ),
+                  ),
+              ] else if (widget.categoriasDisponiveis.isNotEmpty) ...[
+                const SizedBox(height: 8),
+                ConstrainedBox(
+                  constraints: const BoxConstraints(maxHeight: 220),
+                  child: SingleChildScrollView(
+                    child: Column(
+                      children: [
+                        for (final categoria in widget.categoriasDisponiveis)
+                          _linhaDeCategoriaNaBusca(categoria),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ],
+            if (_carrinho.isNotEmpty) ...[
+              const SizedBox(height: 8),
+              Divider(color: theme.borderColor.withValues(alpha: 0.6)),
+              for (final linha in _carrinho) _linhaDoItemSelecionado(linha),
+            ],
           ],
-          if (_carrinho.isNotEmpty) ...[
-            const SizedBox(height: 8),
-            Divider(color: theme.borderColor.withValues(alpha: 0.6)),
-            for (final linha in _carrinho) _linhaDoItemSelecionado(linha),
-          ],
-        ],
+        ),
       ),
     );
   }
@@ -1804,10 +2053,10 @@ class _NovaVendaConteudoState extends State<_NovaVendaConteudo> {
                         _linhaComanda(
                             'Frete', 'R\$ ${_valorComVirgula(_frete)}'),
                         if (_desconto > 0)
-                          _linhaComanda('Desconto',
+                          _linhaComanda(_rotuloDesconto,
                               '-R\$ ${_valorComVirgula(_desconto)}'),
                         if (_acrescimo > 0)
-                          _linhaComanda('Acréscimo',
+                          _linhaComanda(_rotuloAcrescimo,
                               'R\$ ${_valorComVirgula(_acrescimo)}'),
                         _linhaComanda(
                             'TOTAL', 'R\$ ${_valorComVirgula(_total)}',
@@ -1849,14 +2098,24 @@ class _NovaVendaConteudoState extends State<_NovaVendaConteudo> {
   Widget _campoValor({
     required TextEditingController controller,
     required String rotulo,
+    TextInputType keyboardType =
+        const TextInputType.numberWithOptions(decimal: true),
   }) {
     return Expanded(
       child: TextField(
         controller: controller,
-        keyboardType: const TextInputType.numberWithOptions(decimal: true),
+        keyboardType: keyboardType,
         cursorColor: theme.textColor,
         style: theme.getTextStyle(fontSize: 12),
         decoration: _decoracaoCampo(rotulo),
+        onTap: () {
+          if (controller.text.isNotEmpty) {
+            controller.selection = TextSelection(
+              baseOffset: 0,
+              extentOffset: controller.text.length,
+            );
+          }
+        },
         onChanged: (_) => setState(_recalcularPrazo),
       ),
     );
@@ -1872,12 +2131,22 @@ class _NovaVendaConteudoState extends State<_NovaVendaConteudo> {
           _tituloDoBloco('Frete, Desconto e Acréscimo'),
           Row(
             children: [
-              _campoValor(controller: _freteController, rotulo: 'Frete'),
-              const SizedBox(width: 8),
-              _campoValor(controller: _descontoController, rotulo: 'Desconto'),
+              _campoValor(
+                controller: _freteController,
+                rotulo: 'Frete',
+              ),
               const SizedBox(width: 8),
               _campoValor(
-                  controller: _acrescimoController, rotulo: 'Acréscimo'),
+                controller: _descontoController,
+                rotulo: 'Desconto (R\$ ou %)',
+                keyboardType: TextInputType.text,
+              ),
+              const SizedBox(width: 8),
+              _campoValor(
+                controller: _acrescimoController,
+                rotulo: 'Acréscimo (R\$ ou %)',
+                keyboardType: TextInputType.text,
+              ),
             ],
           ),
         ],
@@ -1908,6 +2177,14 @@ class _NovaVendaConteudoState extends State<_NovaVendaConteudo> {
               cursorColor: theme.textColor,
               style: theme.getTextStyle(fontSize: 12),
               decoration: _decoracaoCampo('Valor'),
+              onTap: () {
+                if (!ehPrazo && p.controller.text.isNotEmpty) {
+                  p.controller.selection = TextSelection(
+                    baseOffset: 0,
+                    extentOffset: p.controller.text.length,
+                  );
+                }
+              },
               onChanged: (_) => setState(_recalcularPrazo),
             ),
           ),
@@ -2075,7 +2352,20 @@ class _NovaVendaConteudoState extends State<_NovaVendaConteudo> {
                   ),
                 ),
               ),
-              const SizedBox(width: 48),
+              if (_carrinho.isNotEmpty ||
+                  _pagamentos.isNotEmpty ||
+                  _clienteController.text.isNotEmpty ||
+                  _freteController.text.isNotEmpty ||
+                  _descontoController.text.isNotEmpty ||
+                  _acrescimoController.text.isNotEmpty)
+                IconButton(
+                  icon: Icon(Icons.delete_sweep_outlined,
+                      size: 20, color: theme.secondaryTextColor),
+                  tooltip: 'Limpar campos da venda',
+                  onPressed: _limparTudo,
+                )
+              else
+                const SizedBox(width: 48),
             ],
           ),
         ),
