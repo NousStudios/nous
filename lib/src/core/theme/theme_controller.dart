@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:nous/src/core/theme/fontes_app.dart';
 
 /// Modelo de dados para armazenar tanto cores sólidas quanto gradientes nas seleções rápidas
 class ColorOption {
@@ -134,8 +135,8 @@ class AppTheme {
     Color? color,
   }) {
     final baseMultiplier = ThemeController.isLoginScreen ? 1.0 : 1.2;
-    return TextStyle(
-      fontFamily: fontName,
+    return FontesApp.criarTextStyle(
+      fontName: fontName,
       fontSize: fontSize * baseMultiplier * fontScale,
       fontWeight: fontWeight,
       color: color ?? secondaryTextColor,

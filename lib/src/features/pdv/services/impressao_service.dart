@@ -2,11 +2,11 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:file_selector/file_selector.dart';
-import 'package:flutter/services.dart' show rootBundle;
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 
+import 'package:nous/src/core/theme/fontes_app.dart';
 import 'package:nous/src/features/pdv/models/cliente.dart';
 import 'package:nous/src/features/pdv/models/configuracoes_impressora.dart';
 import 'package:nous/src/features/pdv/models/loja.dart';
@@ -34,50 +34,12 @@ const List<String> _formasDePagamento = [
 ];
 
 class ImpressaoService {
-  static pw.Font? _fonteBellezaCache;
-
   static Future<pw.Font> _resolverFonte(String modelo) async {
-    switch (modelo) {
-      case 'mono':
-        return pw.Font.courier();
-      case 'serifada':
-        return pw.Font.times();
-      case 'padrao':
-        return pw.Font.helvetica();
-      case 'belleza':
-      default:
-        try {
-          if (_fonteBellezaCache != null) return _fonteBellezaCache!;
-          final bytes =
-              await rootBundle.load('assets/fonts/Belleza-Regular.ttf');
-          _fonteBellezaCache = pw.Font.ttf(bytes);
-          return _fonteBellezaCache!;
-        } catch (_) {
-          return pw.Font.helvetica();
-        }
-    }
+    return FontesApp.resolverFontePdf(modelo);
   }
 
   static Future<pw.Font> _resolverFonteNegrito(String modelo) async {
-    switch (modelo) {
-      case 'mono':
-        return pw.Font.courierBold();
-      case 'serifada':
-        return pw.Font.timesBold();
-      case 'padrao':
-        return pw.Font.helveticaBold();
-      case 'belleza':
-      default:
-        try {
-          if (_fonteBellezaCache != null) return _fonteBellezaCache!;
-          final bytes =
-              await rootBundle.load('assets/fonts/Belleza-Regular.ttf');
-          _fonteBellezaCache = pw.Font.ttf(bytes);
-          return _fonteBellezaCache!;
-        } catch (_) {
-          return pw.Font.helveticaBold();
-        }
-    }
+    return FontesApp.resolverFonteNegritoPdf(modelo);
   }
 
   static PdfPageFormat formatoPapel(ConfiguracoesImpressora? config) {

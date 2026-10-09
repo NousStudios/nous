@@ -1,11 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_colorpicker/flutter_colorpicker.dart';
+import 'package:nous/src/core/theme/fontes_app.dart';
 import 'package:nous/src/core/theme/theme_controller.dart';
 
 class ThemeCustomizerDialog extends StatelessWidget {
   const ThemeCustomizerDialog({super.key});
-
-  static const List<String> fonts = ['Belleza', 'Inter', 'Roboto', 'Poppins', 'Lato'];
 
   void _openCanvaStyleColorPicker({
     required BuildContext context,
@@ -407,17 +406,18 @@ class ThemeCustomizerDialog extends StatelessWidget {
                           ),
                           child: DropdownButtonHideUnderline(
                             child: DropdownButton<String>(
-                              value: theme.fontName,
+                              value: FontesApp.obterPorIdOuNome(theme.fontName).familiaFlutter,
                               dropdownColor: theme.cardBackgroundColor,
                               isExpanded: true,
                               icon: Icon(Icons.keyboard_arrow_down, color: theme.textColor),
-                              items: fonts.map((font) {
+                              items: FontesApp.todas.map((opcao) {
                                 return DropdownMenuItem<String>(
-                                  value: font,
+                                  value: opcao.familiaFlutter,
                                   child: Text(
-                                    font,
+                                    opcao.rotulo,
                                     overflow: TextOverflow.ellipsis,
-                                    style: theme.getTextStyle(
+                                    style: FontesApp.criarTextStyle(
+                                      fontName: opcao.familiaFlutter,
                                       color: theme.textColor,
                                       fontSize: 14,
                                     ),

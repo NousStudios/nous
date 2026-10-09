@@ -284,12 +284,18 @@ Este projeto apoia-se no **anarquismo plataformista brasileiro**: poder sem inte
     - `margemEsquerdaMm` (default: 5.0 mm): calibra o recuo inicial do texto à esquerda.
     - `margemDireitaMm` (default: 3.0 mm): calibra o recuo final de valores e descrições à direita.
     - Ajustáveis com precisão de 0.5 mm (`[-] / [+]`) e atalhos rápidos pré-calibrados.
-- **Tipografia e Família de Letras Personalizável:**
-  - O usuário pode definir o modelo de fonte da comanda térmica (`modeloFonte`):
-    - `belleza`: Fonte padrão oficial do ecossistema Nous, carregada dinamicamente via `rootBundle.load('assets/fonts/Belleza-Regular.ttf')`.
-    - `padrao`: Sem serifa limpa (*Helvetica*).
-    - `mono`: Monoespaçada clássica de máquina/cupom (*Courier*).
-    - `serifada`: Clássica com serifa (*Times*).
+- **Tipografia Unificada Soberana e Lista Expansível (`FontesApp`):**
+  - Mapeamento centralizado de tipografia compartilhado simultaneamente entre a aplicação ("Personalizar Aparência") e as comandas ("Tipografia da Comanda").
+  - **Lista Mestra com 11 Opções Consagradas no Mercado:**
+    - `Belleza`: Identidade visual oficial do Nous (carregada offline de `assets/fonts/Belleza-Regular.ttf`).
+    - `Arial / Helvetica`: Campeã absoluta para cabeças térmicas (traços uniformes sem quebras em 203 DPI).
+    - `Courier`: Monoespaçada clássica de recibos/bobinas com alinhamento vertical estrito de colunas e números.
+    - `Roboto` e `Roboto Mono`: Sem serifa universal e monoespaçada moderna de alta precisão.
+    - `Open Sans`: Traços amplos e abertos que evitam manchas/borrões com a saturação de calor no papel térmico.
+    - `Inter`, `Lato`, `Poppins` e `Montserrat`: Opções geométricas e modernas consagradas.
+    - `Times New Roman`: Serifada tradicional para extratos e documentos formais.
+  - **Interface com Lista Expansível (Dropdown):** No container "Tipografia da Comanda" de `ImpressoraDialog`, a seleção de fonte adota o componente de lista expansível idêntico ao de "Personalizar Aparência", exibindo o rótulo descritivo e o preview tipográfico em tempo real no simulador da comanda.
+  - **Resolução no PDF e na Interface:** Zero dependência externa ou APIs de Big Techs — na interface utiliza a renderização nativa do Windows e no PDF (`ImpressaoService`) resolve fontes vetoriais otimizadas para impressoras térmicas.
 - **Prévia Dinâmica Integrada com Variações Históricas do Anarquismo:**
   - No diálogo de impressora (`ImpressoraDialog`), a comanda simulada é renderizada **diretamente dentro do container de calibração bilateral**, variando o padding em tempo real conforme os ajustes de mm.
   - Sorteia dinamicamente 1 dos 10 perfis históricos anarquistas e do Nous (Makhno, Bakunin, Malatesta, Kropotkin, Emma Goldman, Durruti, Maria Lacerda de Moura, Comuna de Paris, CNT/FAI e Nous Autogestão).

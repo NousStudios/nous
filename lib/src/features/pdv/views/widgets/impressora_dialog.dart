@@ -2,6 +2,7 @@ import 'dart:math';
 
 import 'package:flutter/material.dart';
 import 'package:printing/printing.dart';
+import 'package:nous/src/core/theme/fontes_app.dart';
 import 'package:nous/src/core/theme/theme_controller.dart';
 import 'package:nous/src/features/pdv/models/configuracoes_impressora.dart';
 import 'package:nous/src/features/pdv/services/impressao_service.dart';
@@ -552,20 +553,40 @@ class _ImpressoraConteudoState extends State<_ImpressoraConteudo> {
             ),
           ),
           const SizedBox(height: 6),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            alignment: WrapAlignment.center,
-            children: [
-              _botaoSelecao('Belleza (Nous)', 'belleza', _modeloFonte,
-                  (v) => setState(() => _modeloFonte = v)),
-              _botaoSelecao('Sem Serifa (Moderna)', 'padrao', _modeloFonte,
-                  (v) => setState(() => _modeloFonte = v)),
-              _botaoSelecao('Monoespaçada (Recibo)', 'mono', _modeloFonte,
-                  (v) => setState(() => _modeloFonte = v)),
-              _botaoSelecao('Serifada (Times)', 'serifada', _modeloFonte,
-                  (v) => setState(() => _modeloFonte = v)),
-            ],
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            decoration: BoxDecoration(
+              color: theme.cardBackgroundColor,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: theme.borderColor),
+            ),
+            child: DropdownButtonHideUnderline(
+              child: DropdownButton<String>(
+                value: FontesApp.obterPorIdOuNome(_modeloFonte).id,
+                dropdownColor: theme.cardBackgroundColor,
+                isExpanded: true,
+                icon: Icon(Icons.keyboard_arrow_down, color: theme.textColor),
+                items: FontesApp.todas.map((opcao) {
+                  return DropdownMenuItem<String>(
+                    value: opcao.id,
+                    child: Text(
+                      opcao.rotulo,
+                      overflow: TextOverflow.ellipsis,
+                      style: FontesApp.criarTextStyle(
+                        fontName: opcao.familiaFlutter,
+                        color: theme.textColor,
+                        fontSize: 13,
+                      ),
+                    ),
+                  );
+                }).toList(),
+                onChanged: (novoId) {
+                  if (novoId != null) {
+                    setState(() => _modeloFonte = novoId);
+                  }
+                },
+              ),
+            ),
           ),
           const SizedBox(height: 12),
           Text(
@@ -1165,37 +1186,19 @@ class _ImpressoraConteudoState extends State<_ImpressoraConteudo> {
             ? 1.15
             : 1.0;
 
-    String? familiaFonte;
-    switch (_modeloFonte) {
-      case 'belleza':
-        familiaFonte = 'Belleza';
-        break;
-      case 'mono':
-        familiaFonte = 'monospace';
-        break;
-      case 'serifada':
-        familiaFonte = 'serif';
-        break;
-      case 'padrao':
-      default:
-        familiaFonte = null;
-        break;
-    }
+    final opcaoFonte = FontesApp.obterPorIdOuNome(_modeloFonte);
 
     TextStyle estilo({
       required double fontSize,
       Color? color,
       FontWeight fontWeight = FontWeight.normal,
     }) {
-      return theme
-          .getTextStyle(
-            fontSize: fontSize * escalaFonte,
-            color: color ?? theme.textColor,
-            fontWeight: fontWeight,
-          )
-          .copyWith(
-            fontFamily: familiaFonte,
-          );
+      return FontesApp.criarTextStyle(
+        fontName: opcaoFonte.familiaFlutter,
+        fontSize: fontSize * escalaFonte,
+        color: color ?? theme.textColor,
+        fontWeight: fontWeight,
+      );
     }
 
     Widget linhaDadoCliente(String rotulo, String valor) {
