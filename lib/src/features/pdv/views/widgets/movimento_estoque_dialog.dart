@@ -87,7 +87,12 @@ class _MovimentoEstoqueConteudoState
   @override
   void initState() {
     super.initState();
-    _item = widget.itemInicial;
+    _item = widget.itemInicial != null
+        ? widget.itens.firstWhere(
+            (i) => i.id == widget.itemInicial!.id,
+            orElse: () => widget.itemInicial!,
+          )
+        : null;
     if (widget.tipoInicial != null) {
       _tipo = widget.tipoInicial!;
       _categoria = _tipo == TipoMovimentoEstoque.entrada

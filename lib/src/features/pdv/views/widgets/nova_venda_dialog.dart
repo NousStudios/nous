@@ -618,11 +618,11 @@ class _NovaVendaConteudoState extends State<_NovaVendaConteudo> {
       _categoriasEncontradas.isNotEmpty || _itensEncontrados.isNotEmpty;
 
   List<Cliente> get _sugestoesDeCliente {
-    final termo = _clienteController.text.trim().toLowerCase();
+    final termo = _clienteController.text.trim();
     final todos = widget.obterClientes();
     if (termo.isEmpty) return todos;
     return todos
-        .where((cliente) => cliente.nome.toLowerCase().contains(termo))
+        .where((cliente) => cliente.correspondeABusca(termo))
         .toList();
   }
 

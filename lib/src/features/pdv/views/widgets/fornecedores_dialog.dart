@@ -663,11 +663,11 @@ class _FornecedoresConteudoState extends State<_FornecedoresConteudo> {
   }
 
   Widget _blocoLista() {
-    final termo = _pesquisaController.text.trim().toLowerCase();
+    final termo = _pesquisaController.text.trim();
     final filtrados = termo.isEmpty
         ? _fornecedores
         : _fornecedores
-            .where((f) => f.nome.toLowerCase().contains(termo))
+            .where((f) => f.correspondeABusca(termo))
             .toList();
 
     return Container(
@@ -684,7 +684,7 @@ class _FornecedoresConteudoState extends State<_FornecedoresConteudo> {
               onChanged: (_) => setState(() {}),
               cursorColor: theme.textColor,
               style: theme.getTextStyle(fontSize: 12),
-              decoration: _decoracaoPesquisa('Pesquisar fornecedores...'),
+              decoration: _decoracaoPesquisa('Pesquisar por nome, rua, número, CNPJ...'),
             ),
           ),
           if (_fornecedores.isEmpty)
@@ -707,6 +707,13 @@ class _FornecedoresConteudoState extends State<_FornecedoresConteudo> {
                     const SizedBox(height: 8),
                 itemBuilder: (context, index) {
                   final fornecedor = filtrados[index];
+                  final temEndereco = fornecedor.endereco.isNotEmpty ||
+                      fornecedor.numero.isNotEmpty;
+                  final enderecoTexto = [
+                    if (fornecedor.endereco.isNotEmpty) fornecedor.endereco,
+                    if (fornecedor.numero.isNotEmpty) 'nº ${fornecedor.numero}',
+                  ].join(', ');
+
                   return _LinhaComHover(
                     aoClicar: () => _abrirEdicao(fornecedor),
                     builder: (hover) => Container(
@@ -744,14 +751,30 @@ class _FornecedoresConteudoState extends State<_FornecedoresConteudo> {
                           ),
                           const SizedBox(width: 8),
                           Expanded(
-                            child: Text(
-                              fornecedor.nome,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: theme.getTextStyle(
-                                fontSize: 12,
-                                color: theme.textColor,
-                              ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text(
+                                  fornecedor.nome,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: theme.getTextStyle(
+                                    fontSize: 12,
+                                    color: theme.textColor,
+                                  ),
+                                ),
+                                if (temEndereco)
+                                  Text(
+                                    enderecoTexto,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: theme.getTextStyle(
+                                      fontSize: 10,
+                                      color: theme.secondaryTextColor,
+                                    ),
+                                  ),
+                              ],
                             ),
                           ),
                           if (fornecedor.telefone.isNotEmpty)

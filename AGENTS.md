@@ -202,6 +202,10 @@ Este projeto apoia-se no **anarquismo plataformista brasileiro**: poder sem inte
 - **Cadastro de Clientes com CNPJ ou CPF Adaptável e Autopreenchimento:**
   - O campo de documento em `ClientesDialog` utiliza label `"CNPJ ou CPF"` e o formatador `CpfOuCnpjInputFormatter`. Ele adapta a máscara automaticamente: até 11 dígitos formata como CPF (`000.000.000-00`) e de 12 a 14 dígitos formata como CNPJ (`00.000.000/0000-00`).
   - **Autopreenchimento Local Soberano (`DadosLocaisService`):** Ao preencher o campo com um documento completo (11 ou 14 dígitos), o sistema pesquisa automaticamente nas contas de usuários Nous, nas lojas locais registradas e nos cadastros prévios da máquina. Se encontrar correspondência, autopreencha Nome, Telefone, Endereço, Número, E-mail, Redes Sociais e Foto, exibindo a origem do registro em tela. A busca é unificada: cruza o CPF da conta com cadastros prévios de clientes e com a loja criada pelo próprio titular (por CPF do cofre, e-mails associados e nome), garantindo que dados como telefone e endereço nunca fiquem vazios.
+- **Busca Universal Multicampo de Clientes e Fornecedores (`correspondeABusca`):**
+  - Nos containers "Clientes Cadastrados" (`ClientesDialog`), "Fornecedores" (`FornecedoresDialog`) e na busca de cliente na Nova Venda (`NovaVendaDialog`), o filtro pesquisa simultaneamente por **qualquer dado da ficha**: nome, rua/logradouro, número do imóvel, CPF/CNPJ (com ou sem pontuação), telefone (com ou sem pontuação), e-mail, redes sociais ou descrição.
+  - Permite pesquisar apenas o nome de uma rua para listar imediatamente todos os clientes residentes nela.
+  - Cada card de cliente e fornecedor na listagem renderiza visualmente o endereço (`rua, nº número`) abaixo do nome em tipografia secundária para conferência instantânea.
 
 ### 7.3 Fluxo de Venda, Comandas e Estoque
 - Itens vendidos (`ItemVendido`) guardam a foto do produto, garantindo miniaturas na vitrine, no carrinho, na busca, nas abas de gestão (`Novos`, `Aceitos`, `Concluídos`, `Cancelados`) e nas comandas (`ComandaPedido` e `PedidoAceitoDialog`).
@@ -299,10 +303,18 @@ Este projeto apoia-se no **anarquismo plataformista brasileiro**: poder sem inte
 ### 7.9 Automação de Compras no Estoque, Notificações de Estoque Crítico e Financeiro Diário
 - **Cálculo Automático em Movimento de Estoque (`MovimentoEstoqueDialog`):**
   - Campo "Custo da compra (R$)" com sincronização recíproca automática: ao digitar a quantidade e o valor total pago, calcula e preenche o custo unitário instantaneamente ($C_{\text{unit}} = \frac{C_{\text{total}}}{Q}$), e vice-versa.
-- **Indicador Visual de Estoque Baixo / Esgotado (< 10 un):**
+- **Indicador Visual de Estoque Baixo / Esgotado (< 10 un) e Resolução Sincronizada:**
   - Monitoramento contínuo em `PdvProvider.todosItensEstoqueBaixo` para qualquer produto não-serviço com saldo menor que 10 unidades ou esgotado ($\le 0$).
   - O botão de notificações na `CustomAppBar` acende com ícone de alerta ativo e soma o total de itens críticos no badge vermelho.
   - A janela `NotificacoesDialog` exibe cards de alerta dedicados indicando o nome da loja, produto, saldo exato com unidade (`un`, `g`, `ml`) e instruções de reposição.
+  - **Ação Imediata, Auditoria e Sincronismo Soberano (`NotificacoesDialog` & `DadosPerfilView`):**
+    - Ao tocar no alerta, o diálogo delega a resolução para a tela ativa e abre `MovimentoEstoqueDialog` com o item e tipo "Entrada" pré-selecionados.
+    - Ao salvar a entrada de mercadorias:
+      - Registra a movimentação no cofre SQLite via `pdv.adicionarMovimentoEstoque`.
+      - Registra a auditoria em `loja.acoes` via `pdv.registrarAcao` com `TipoAcao.movimentoEstoqueRegistrado`, contendo autor, data/hora, quantidade formatada e nome do produto.
+      - Recalcula o saldo imediatamente; com estoque $\ge 10$, a notificação é removida do sino e do diálogo.
+      - `DadosPerfilView` mantém sincronização reativa com `PdvProvider.addListener`, atualizando `_movimentosEstoque`, `_pedidos` e `_membros` em tempo real para impedir qualquer sobrescrita por dados defasados.
+      - `ItemLoja` implementa `operator ==` e `hashCode` por `id`, assegurando equivalência exata nos seletores e `DropdownButton`.
 - **Resumo Financeiro Diário com Exportação em PDF:**
   - O botão "Financeiro" na aba Gestão da loja abre diretamente no período "Hoje", apresentando vendas, pagamentos, sugestão de divisão igualitária e botão "Exportar PDF" gerado em folha A4.
 

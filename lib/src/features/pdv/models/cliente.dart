@@ -77,4 +77,38 @@ class Cliente {
       foto: json['foto'] as String? ?? '',
     );
   }
+
+  bool correspondeABusca(String termo) {
+    if (termo.isEmpty) return true;
+    final termoLimpo = termo.trim().toLowerCase();
+    if (termoLimpo.isEmpty) return true;
+
+    final termoDigitos = termo.replaceAll(RegExp(r'[^0-9]'), '');
+
+    if (nome.toLowerCase().contains(termoLimpo)) return true;
+    if (endereco.toLowerCase().contains(termoLimpo)) return true;
+    if (numero.toLowerCase().contains(termoLimpo)) return true;
+    if (email.toLowerCase().contains(termoLimpo)) return true;
+    if (redesSociais.toLowerCase().contains(termoLimpo)) return true;
+    if (descricao.toLowerCase().contains(termoLimpo)) return true;
+    if (cnpj.toLowerCase().contains(termoLimpo)) return true;
+    if (telefone.toLowerCase().contains(termoLimpo)) return true;
+
+    if (termoDigitos.isNotEmpty) {
+      final docDigitos = cnpj.replaceAll(RegExp(r'[^0-9]'), '');
+      if (docDigitos.contains(termoDigitos)) return true;
+      final telDigitos = telefone.replaceAll(RegExp(r'[^0-9]'), '');
+      if (telDigitos.contains(termoDigitos)) return true;
+    }
+
+    return false;
+  }
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is Cliente && runtimeType == other.runtimeType && id == other.id;
+
+  @override
+  int get hashCode => id.hashCode;
 }

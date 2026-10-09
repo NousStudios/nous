@@ -1,5 +1,6 @@
 import 'package:file_selector/file_selector.dart';
 import 'dart:async';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -133,6 +134,7 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
   int _tempoConclusaoMinutos = 0;
   final Map<String, String> _sonsAlertas = {};
   final Map<String, String> _atalhosTeclado = {};
+  late final PdvProvider _pdvProvider;
 
   static const List<String> _acoesAtalhosDisponiveis = [
     'Nova Venda',
@@ -2307,6 +2309,9 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
     _atalhosTeclado.addAll(loja?.atalhosTeclado ?? {});
     _iniciarTimerVerificacaoPedidos();
 
+    _pdvProvider = context.read<PdvProvider>();
+    _pdvProvider.addListener(_aoAtualizarPdv);
+
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       if (_tentouGarantirDono) return;
@@ -2326,8 +2331,53 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
     });
   }
 
+  void _aoAtualizarPdv() {
+    if (!mounted) return;
+    final lojaAtual = _pdvProvider.buscarPorId(widget.lojaId);
+    if (lojaAtual == null) return;
+
+    final novosMovs = lojaAtual.movimentosEstoque;
+    final movsMudaram = _movimentosEstoque.length != novosMovs.length ||
+        !listEquals(
+          _movimentosEstoque.map((m) => m.id).toList(),
+          novosMovs.map((m) => m.id).toList(),
+        );
+
+    final novosPedidos = lojaAtual.pedidosLoja;
+    final pedidosMudaram = _pedidos.length != novosPedidos.length ||
+        !listEquals(
+          _pedidos.map((p) => p.id).toList(),
+          novosPedidos.map((p) => p.id).toList(),
+        );
+
+    final membrosMudaram = _membros.length != lojaAtual.membros.length ||
+        !listEquals(
+          _membros.map((m) => '${m.cpf}_${m.papel.name}').toList(),
+          lojaAtual.membros.map((m) => '${m.cpf}_${m.papel.name}').toList(),
+        );
+
+    if (movsMudaram || pedidosMudaram || membrosMudaram) {
+      setState(() {
+        if (movsMudaram) {
+          _movimentosEstoque
+            ..clear()
+            ..addAll(novosMovs);
+        }
+        if (pedidosMudaram) {
+          _pedidos
+            ..clear()
+            ..addAll(novosPedidos);
+        }
+        if (membrosMudaram) {
+          _membros = List.of(lojaAtual.membros);
+        }
+      });
+    }
+  }
+
   @override
   void dispose() {
+    _pdvProvider.removeListener(_aoAtualizarPdv);
     _timerVerificacaoPedidos?.cancel();
     _controllers.dispose();
     _pesquisaItens.dispose();

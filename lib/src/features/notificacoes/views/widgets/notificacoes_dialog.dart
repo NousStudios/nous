@@ -9,6 +9,7 @@ import 'package:nous/src/features/pdv/models/loja.dart';
 import 'package:nous/src/features/pdv/models/membro_loja.dart';
 import 'package:nous/src/features/pdv/models/movimento_estoque.dart';
 import 'package:nous/src/features/pdv/models/referencia_loja.dart';
+import 'package:nous/src/features/pdv/models/registro_acao.dart';
 import 'package:nous/src/features/pdv/providers/pdv_provider.dart';
 import 'package:nous/src/features/pdv/services/lojas_service.dart';
 import 'package:nous/src/features/pdv/views/widgets/estado_vazio_container.dart';
@@ -40,13 +41,124 @@ String _dataHoraCurta(DateTime d) =>
     '${_doisDigitos(d.day)}/${_doisDigitos(d.month)}/${d.year} '
     '${_doisDigitos(d.hour)}:${_doisDigitos(d.minute)}';
 
+String _formatarQuantidade(double v) {
+  if (v == v.truncateToDouble()) return v.toInt().toString();
+  return v.toStringAsFixed(2).replaceAll('.', ',');
+}
+
+String _rotuloUnidadeCurto(UnidadeItemLoja u) {
+  switch (u) {
+    case UnidadeItemLoja.un:
+      return 'un';
+    case UnidadeItemLoja.g:
+      return 'g';
+    case UnidadeItemLoja.ml:
+      return 'ml';
+  }
+}
+
 class NotificacoesDialog {
-  static Future<void> mostrar(BuildContext context) {
-    return showDialog<void>(
+  static Future<void> mostrar(BuildContext context) async {
+    final alertaEscolhido = await showDialog<
+        ({ItemLoja item, double saldo, String lojaNome, String lojaId})?>(
       context: context,
       builder: (dialogContext) {
         return const _NotificacoesConteudo();
       },
+    );
+
+    if (alertaEscolhido == null || !context.mounted) return;
+
+    await _abrirResolucaoAlertaEstoque(context, alertaEscolhido);
+  }
+
+  static Future<void> _abrirResolucaoAlertaEstoque(
+    BuildContext context,
+    ({ItemLoja item, double saldo, String lojaNome, String lojaId}) alerta,
+  ) async {
+    final pdv = context.read<PdvProvider>();
+    final auth = context.read<AuthProvider>();
+    final notificacoes = context.read<NotificacoesProvider>();
+    final conta = auth.contaAtual;
+    final theme = ThemeController.currentTheme.value;
+
+    if (conta == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          backgroundColor: theme.cardBackgroundColor,
+          content: Text(
+            'Você precisa estar logado.',
+            style: theme.getTextStyle(color: theme.textColor),
+          ),
+        ),
+      );
+      return;
+    }
+
+    final loja = pdv.buscarPorId(alerta.lojaId);
+    if (loja == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          backgroundColor: theme.cardBackgroundColor,
+          content: Text(
+            'Loja não encontrada.',
+            style: theme.getTextStyle(color: theme.textColor),
+          ),
+        ),
+      );
+      return;
+    }
+
+    final movimento = await MovimentoEstoqueDialog.mostrar(
+      context,
+      theme: theme,
+      itens: loja.itensLoja,
+      fornecedores: loja.fornecedoresLoja,
+      cpfAutor: conta.cpf,
+      nomeAutor: conta.nome,
+      itemInicial: alerta.item,
+      tipoInicial: TipoMovimentoEstoque.entrada,
+    );
+
+    if (movimento == null || !context.mounted) return;
+
+    pdv.adicionarMovimentoEstoque(loja.id, movimento);
+
+    final item = loja.itensLoja.firstWhere(
+      (i) => i.id == movimento.itemId,
+      orElse: () => alerta.item,
+    );
+    final tipo = movimento.ehEntrada ? 'Entrada' : 'Saída';
+    final sufixoFornecedor = movimento.fornecedorNome.isNotEmpty
+        ? ' de "${movimento.fornecedorNome}"'
+        : '';
+    final qtdFormatada = _formatarQuantidade(movimento.quantidade);
+    final unidadeTexto = _rotuloUnidadeCurto(item.unidadeBase);
+
+    final acao = RegistroAcao(
+      id: DateTime.now().millisecondsSinceEpoch.toString(),
+      dataHora: DateTime.now(),
+      tipo: TipoAcao.movimentoEstoqueRegistrado,
+      descricao:
+          '$tipo$sufixoFornecedor de $qtdFormatada $unidadeTexto em "${item.nome}"',
+      cpfAutor: conta.cpf,
+      nomeAutor: conta.nome,
+      emailAutor: auth.emailAtivo ?? '',
+    );
+
+    pdv.registrarAcao(loja.id, acao);
+
+    notificacoes
+        .dispensarNaSessao('alerta_estoque_${alerta.lojaId}_${alerta.item.id}');
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        backgroundColor: theme.cardBackgroundColor,
+        content: Text(
+          'Entrada de estoque de "${item.nome}" registrada com sucesso!',
+          style: theme.getTextStyle(color: theme.textColor),
+        ),
+      ),
     );
   }
 }
@@ -323,53 +435,11 @@ class _NotificacoesConteudo extends StatelessWidget {
     );
   }
 
-  Future<void> _resolverAlertaEstoque(
+  void _resolverAlertaEstoque(
     BuildContext context,
     ({ItemLoja item, double saldo, String lojaNome, String lojaId}) alerta,
-  ) async {
-    final pdv = context.read<PdvProvider>();
-    final auth = context.read<AuthProvider>();
-    final conta = auth.contaAtual;
-    final theme = ThemeController.currentTheme.value;
-
-    if (conta == null) {
-      _avisar(context, 'Você precisa estar logado.');
-      return;
-    }
-
-    final loja = pdv.buscarPorId(alerta.lojaId);
-    if (loja == null) {
-      _avisar(context, 'Loja não encontrada.');
-      return;
-    }
-
-    Navigator.of(context).pop();
-
-    final movimento = await MovimentoEstoqueDialog.mostrar(
-      context,
-      theme: theme,
-      itens: loja.itensLoja,
-      fornecedores: loja.fornecedoresLoja,
-      cpfAutor: conta.cpf,
-      nomeAutor: conta.nome,
-      itemInicial: alerta.item,
-      tipoInicial: TipoMovimentoEstoque.entrada,
-    );
-
-    if (movimento == null) return;
-    if (!context.mounted) return;
-
-    pdv.adicionarMovimentoEstoque(loja.id, movimento);
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        backgroundColor: theme.cardBackgroundColor,
-        content: Text(
-          'Entrada de estoque de "${alerta.item.nome}" registrada com sucesso!',
-          style: theme.getTextStyle(color: theme.textColor),
-        ),
-      ),
-    );
+  ) {
+    Navigator.of(context).pop(alerta);
   }
 
   Widget _linhaAlertaEstoque(
