@@ -29,7 +29,8 @@ Aplica-se a todos os modelos persistidos em disco (banco local SQLite via `Banco
 - **`PagamentoFuncionario`** (`lib/src/features/pdv/models/pagamento_funcionario.dart`): Registro de rateio e retiradas financeiras.
 - **`RegistroAcao`** (`lib/src/features/pdv/models/registro_acao.dart`): Trilha de auditoria transparente.
 - **`ConviteLoja`** (`lib/src/features/notificacoes/models/convite_loja.dart`): Convites, governança e deliberações.
-- **`ConfiguracoesImpressora`** (`lib/src/features/pdv/models/configuracoes_impressora.dart`): Parâmetros de impressão térmica 58mm.
+- **`TurnoCaixa`**, **`MovimentoCaixa`** (`lib/src/features/pdv/models/turno_caixa.dart`): Abertura, fechamento cego, sangrias e suprimentos de caixa.
+- **`ConfiguracoesImpressora`** (`lib/src/features/pdv/models/configuracoes_impressora.dart`): Parâmetros de impressão térmica 58mm e 80mm.
 - **`AppTheme`** (`lib/src/core/theme/theme_controller.dart`): Esquema de temas e customizações visuais.
 
 ### Submodelos Serializados

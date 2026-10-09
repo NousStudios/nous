@@ -2,6 +2,8 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:file_selector/file_selector.dart';
+import 'package:path/path.dart' as p;
+import 'package:path_provider/path_provider.dart';
 import 'package:nous/src/core/services/banco_dados_service.dart';
 import 'package:nous/src/features/auth/models/usuario_nous.dart';
 import 'package:nous/src/features/auth/services/contas_nous_service.dart';
@@ -103,6 +105,45 @@ class BackupService {
       'cofres': cofres,
       'convites': convites,
     };
+  }
+
+  static Future<void> realizarBackupAutomaticoSeNecessario() async {
+    try {
+      await BancoDadosService.db;
+      final dir = await getApplicationSupportDirectory();
+      final pastaBackups = Directory(p.join(dir.path, 'Nous', 'backups'));
+      if (!pastaBackups.existsSync()) {
+        await pastaBackups.create(recursive: true);
+      }
+
+      final agora = DateTime.now();
+      String dois(int n) => n.toString().padLeft(2, '0');
+      final nomeHoje =
+          'nous_backup_${agora.year}_${dois(agora.month)}_${dois(agora.day)}.json';
+      final arquivoHoje = File(p.join(pastaBackups.path, nomeHoje));
+
+      if (arquivoHoje.existsSync()) return;
+
+      final dados = await gerarJson();
+      final jsonStr = const JsonEncoder.withIndent('  ').convert(dados);
+      await arquivoHoje.writeAsString(jsonStr);
+
+      final arquivos = pastaBackups
+          .listSync()
+          .whereType<File>()
+          .where((f) => f.path.endsWith('.json'))
+          .toList();
+      if (arquivos.length > 15) {
+        arquivos.sort(
+            (a, b) => a.lastModifiedSync().compareTo(b.lastModifiedSync()));
+        final excedentes = arquivos.length - 15;
+        for (var i = 0; i < excedentes; i++) {
+          try {
+            arquivos[i].deleteSync();
+          } catch (_) {}
+        }
+      }
+    } catch (_) {}
   }
 
   static Future<String?> exportar() async {

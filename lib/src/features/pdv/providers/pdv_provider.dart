@@ -15,6 +15,7 @@ import 'package:nous/src/features/pdv/models/pagamento_funcionario.dart';
 import 'package:nous/src/features/pdv/models/pedido_loja.dart';
 import 'package:nous/src/features/pdv/models/referencia_loja.dart';
 import 'package:nous/src/features/pdv/models/registro_acao.dart';
+import 'package:nous/src/features/pdv/models/turno_caixa.dart';
 import 'package:nous/src/features/pdv/services/backup_service.dart';
 import 'package:nous/src/features/pdv/services/lojas_service.dart';
 
@@ -693,6 +694,109 @@ class PdvProvider extends ChangeNotifier {
       final lojaAtualizada = loja.copyWith(membros: outros);
       await _salvarLojaNoCofreCorreto(lojaAtualizada);
       await LojasService.removerReferencia(cpf, lojaId);
+    }
+  }
+
+  TurnoCaixa? turnoCaixaAberto(String lojaId) {
+    final loja = buscarPorId(lojaId);
+    return loja?.turnoCaixaAberto;
+  }
+
+  Future<void> abrirCaixa(
+    String lojaId,
+    double saldoInicial, {
+    required String cpf,
+    required String nome,
+  }) async {
+    final loja = buscarPorId(lojaId);
+    if (loja == null) return;
+
+    final novoTurno = TurnoCaixa.abrir(
+      saldoInicial: saldoInicial,
+      abertoPorCpf: cpf,
+      abertoPorNome: nome,
+    );
+
+    final novosTurnos = [...loja.turnosCaixa, novoTurno];
+    final atualizada = loja.copyWith(turnosCaixa: novosTurnos);
+
+    final indice = _lojas.indexWhere((l) => l.id == lojaId);
+    if (indice != -1) {
+      _lojas[indice] = atualizada;
+      await _salvarLojaNoCofreCorreto(atualizada);
+      notifyListeners();
+    }
+  }
+
+  Future<void> registrarMovimentoCaixa(
+    String lojaId, {
+    required TipoMovimentoCaixa tipo,
+    required double valor,
+    required String motivo,
+    required String cpf,
+    required String nome,
+  }) async {
+    final loja = buscarPorId(lojaId);
+    if (loja == null) return;
+    final aberto = loja.turnoCaixaAberto;
+    if (aberto == null) return;
+
+    final mov = MovimentoCaixa.novo(
+      tipo: tipo,
+      valor: valor,
+      motivo: motivo,
+      autorCpf: cpf,
+      autorNome: nome,
+    );
+
+    final turnoAtualizado = aberto.copyWith(
+      movimentacoes: [...aberto.movimentacoes, mov],
+    );
+
+    final novosTurnos = loja.turnosCaixa
+        .map((t) => t.id == turnoAtualizado.id ? turnoAtualizado : t)
+        .toList();
+
+    final atualizada = loja.copyWith(turnosCaixa: novosTurnos);
+    final indice = _lojas.indexWhere((l) => l.id == lojaId);
+    if (indice != -1) {
+      _lojas[indice] = atualizada;
+      await _salvarLojaNoCofreCorreto(atualizada);
+      notifyListeners();
+    }
+  }
+
+  Future<void> fecharCaixa(
+    String lojaId,
+    double saldoInformado, {
+    required String cpf,
+    required String nome,
+    String observacao = '',
+  }) async {
+    final loja = buscarPorId(lojaId);
+    if (loja == null) return;
+    final aberto = loja.turnoCaixaAberto;
+    if (aberto == null) return;
+
+    final turnoFechado = aberto.copyWith(
+      status: StatusTurnoCaixa.fechado,
+      dataFechamento: DateTime.now(),
+      fechadoPorCpf: cpf,
+      fechadoPorNome: nome,
+      saldoFinalInformado: saldoInformado,
+      observacao: observacao,
+    );
+
+    final novosTurnos = loja.turnosCaixa
+        .map((t) => t.id == turnoFechado.id ? turnoFechado : t)
+        .toList();
+
+    final atualizada = loja.copyWith(turnosCaixa: novosTurnos);
+    final indice = _lojas.indexWhere((l) => l.id == lojaId);
+    if (indice != -1) {
+      _lojas[indice] = atualizada;
+      await _salvarLojaNoCofreCorreto(atualizada);
+      notifyListeners();
     }
   }
 }

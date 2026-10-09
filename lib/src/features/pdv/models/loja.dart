@@ -10,6 +10,7 @@ import 'package:nous/src/features/pdv/models/movimento_estoque.dart';
 import 'package:nous/src/features/pdv/models/pagamento_funcionario.dart';
 import 'package:nous/src/features/pdv/models/pedido_loja.dart';
 import 'package:nous/src/features/pdv/models/registro_acao.dart';
+import 'package:nous/src/features/pdv/models/turno_caixa.dart';
 
 class Loja {
   final String id;
@@ -37,6 +38,7 @@ class Loja {
   final List<MesaLoja> mesas;
   final List<MovimentoEstoque> movimentosEstoque;
   final List<PagamentoFuncionario> pagamentosFuncionarios;
+  final List<TurnoCaixa> turnosCaixa;
 
   final List<String> galeria;
   final List<String> arquivos;
@@ -71,6 +73,7 @@ class Loja {
     this.mesas = const [],
     this.movimentosEstoque = const [],
     this.pagamentosFuncionarios = const [],
+    this.turnosCaixa = const [],
     this.galeria = const [],
     this.arquivos = const [],
     this.musicas = const [],
@@ -103,6 +106,7 @@ class Loja {
     List<MesaLoja>? mesas,
     List<MovimentoEstoque>? movimentosEstoque,
     List<PagamentoFuncionario>? pagamentosFuncionarios,
+    List<TurnoCaixa>? turnosCaixa,
     List<String>? galeria,
     List<String>? arquivos,
     List<String>? musicas,
@@ -137,6 +141,7 @@ class Loja {
       movimentosEstoque: movimentosEstoque ?? this.movimentosEstoque,
       pagamentosFuncionarios:
           pagamentosFuncionarios ?? this.pagamentosFuncionarios,
+      turnosCaixa: turnosCaixa ?? this.turnosCaixa,
       galeria: galeria ?? this.galeria,
       arquivos: arquivos ?? this.arquivos,
       musicas: musicas ?? this.musicas,
@@ -177,6 +182,7 @@ class Loja {
           movimentosEstoque.map((m) => m.toJson()).toList(),
       'pagamentosFuncionarios':
           pagamentosFuncionarios.map((p) => p.toJson()).toList(),
+      'turnosCaixa': turnosCaixa.map((t) => t.toJson()).toList(),
       'galeria': galeria,
       'arquivos': arquivos,
       'musicas': musicas,
@@ -241,6 +247,9 @@ class Loja {
               .map((item) =>
                   PagamentoFuncionario.fromJson(item as Map<String, dynamic>))
               .toList(),
+      turnosCaixa: (json['turnosCaixa'] as List<dynamic>? ?? const [])
+          .map((item) => TurnoCaixa.fromJson(item as Map<String, dynamic>))
+          .toList(),
       galeria: (json['galeria'] as List<dynamic>? ?? const [])
           .map((item) => item.toString())
           .toList(),
@@ -266,4 +275,7 @@ class Loja {
             ),
     );
   }
+
+  TurnoCaixa? get turnoCaixaAberto =>
+      turnosCaixa.where((t) => t.aberto).firstOrNull;
 }

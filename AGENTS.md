@@ -204,8 +204,13 @@ Este projeto apoia-se no **anarquismo plataformista brasileiro**: poder sem inte
 ### 7.3 Fluxo de Venda, Comandas e Estoque
 - Itens vendidos (`ItemVendido`) guardam a foto do produto, garantindo miniaturas na vitrine, no carrinho, na busca, nas abas de gestão (`Novos`, `Aceitos`, `Concluídos`, `Cancelados`) e nas comandas (`ComandaPedido` e `PedidoAceitoDialog`).
 - Suporte a pagamentos múltiplos (`List<PagamentoParcial>`) acessados prioritariamente via getter `pedido.todosPagamentos`.
-- Impressão térmica padrão de 58mm gerada em PDF via `ImpressaoService`.
+- Impressão térmica padrão de 58mm e 80mm gerada em PDF via `ImpressaoService`.
 - Controle de estoque com unidades (`un`, `g`, `ml`) e baixa automática sugerida (`BaixaEstoqueDialog`) com ajuste humano obrigatório.
+- **Leitor de Código de Barras e Bipador Rápido:**
+  - O modelo `ItemLoja` armazena `codigoBarras` e `precoCusto`.
+  - No diálogo `NovaVendaDialog`, a busca aceita leitores de código de barras USB (bipadores). Ao pressionar Enter ou bipar o código exato, o item é adicionado imediatamente ao carrinho e o campo é limpo para a próxima leitura.
+  - O catálogo de produtos na venda exibe os itens cadastrados sem limites artificiais de exibição (`take(4)`/`take(3)` removidos), permitindo rolagem fluida.
+- **Ergonomia Visual de Pedidos:** A lista de pedidos na aba "Gestão da Loja" foi ampliada de 260px para 380px para melhor ergonomia de visualização em telas desktop.
 - **Cancelamento e Estorno de Pedidos (`CancelarPedidoDialog`):**
   - Pedidos nos status `novo` ou `aceito` podem ser cancelados através do diálogo de confirmação `CancelarPedidoDialog`, informando obrigatoriamente o motivo do cancelamento e permitindo a opção de devolver automaticamente as mercadorias ao estoque.
   - Pedidos cancelados recebem `StatusPedido.cancelado` e são movidos para a aba dedicada **"Cancelados"** na gestão da loja. Eles **nunca são apagados silenciosamente do sistema**, preservando a transparência e auditoria coletiva.
@@ -217,7 +222,7 @@ Este projeto apoia-se no **anarquismo plataformista brasileiro**: poder sem inte
 - No perfil profissional **Restaurante**, é exibido o container retrátil **"Mesas"** entre as ações rápidas e o painel de pedidos.
 - Cada mesa possui status (`livre` ou `ocupada`), número, descrição/capacidade, nome do cliente e atendente responsável persistidos em cofre.
 - **Lançamento de Itens:** Permite adicionar produtos com adicionais e acompanhamentos dinâmicos de grupos de componentes vinculados.
-- **Impressão de Conferência:** Emite via `ImpressaoService.imprimirConferenciaMesa` o comprovante de pré-fechamento térmico em 58mm.
+- **Impressão de Conferência:** Emite via `ImpressaoService.imprimirConferenciaMesa` o comprovante de pré-fechamento térmico em 58mm ou 80mm.
 - **Múltiplos Pagamentos e Divisão de Conta:** No fechamento (`FecharContaMesaDialog`), permite pagamento único ou parcelamento dinâmico em múltiplas formas de pagamento (dividindo a conta entre várias pessoas com cálculo automático de saldo restante), botão de acréscimo de 10% de atendimento e descontos.
 - **Transferência e Unificação de Mesas:** Permite transferir uma comanda para outra mesa livre ou unir comandas existentes (`TransferirMesaDialog`), registrando ação de auditoria (`TipoAcao.mesaTransferida`).
 
@@ -239,12 +244,16 @@ Este projeto apoia-se no **anarquismo plataformista brasileiro**: poder sem inte
 - **Identificação Unificada por CNPJ / Documento:**
   - Ao mesclar, o sistema compara os documentos (`cnpj`) ignorando pontuações (`mesmoDocumento`). Se o documento coincidir ou o `id` for o mesmo, o sistema **NUNCA cria uma loja duplicada** no container *"Meus Perfis Profissionais"*.
   - **Precedência da Categoria Ativa:** Se a loja atual possui categoria mais especializada (ex.: `Restaurante` com dinâmica de mesas e comandas) e a loja do backup era `Loja Padrão`, a categoria `Restaurante` e suas mesas são preservadas intactas.
-  - **Mesclagem Granular e Enriquecimento:** Itens/produtos, clientes, categorias, grupos de adicionais, histórico de auditoria de ações (`RegistroAcao`), pedidos de venda, movimentações de estoque, pagamentos e anexos são unificados e enriquecidos sem sobrescrita destrutiva nem duplicatas de produtos/clientes.
+  - **Mesclagem Granular e Enriquecimento:** Itens/produtos, clientes, categorias, grupos de adicionais, histórico de auditoria de ações (`RegistroAcao`), pedidos de venda, movimentações de estoque, turnos de caixa, pagamentos e anexos são unificados e enriquecidos sem sobrescrita destrutiva nem duplicatas de produtos/clientes.
   - **Reatividade Pós-Importação:** Ao finalizar o fluxo no `BackupDialog`, o sistema recarrega automaticamente `AuthProvider`, `PdvProvider` e `NotificacoesProvider`, refletindo os dados mesclados imediatamente em tela sem exigir reinicialização do aplicativo.
+- **Backup Diário Automático e Silencioso:** No arranque do sistema (`main.dart`), o `BackupService.realizarBackupAutomaticoSeNecessario()` gera silenciosamente uma cópia soberana em `%APPDATA%\Nous\backups\backup_nous_YYYY-MM-DD.json`, mantendo até 30 versões diárias para proteção contra falhas de hardware ou exclusões acidentais.
 
 ### 7.8 Impressão Térmica Soberana, Calibração Bilateral e Prévia Viva (`features/pdv/services/impressao_service.dart`)
+- **Suporte a Bobinas de 58mm e 80mm com Calibração Dinâmica:**
+  - Em `ConfiguracoesImpressora`, o campo `larguraPapelMm` permite alternar entre bobinas padrão de 58.0 mm e bobinas largas de 80.0 mm.
+  - O `ImpressaoService` ajusta dinamicamente a área imprimível, larguras de coluna e divisores conforme a bobina selecionada.
 - **Adaptação Universal a Fabricantes (Knup, B&G, Elgin, Daruma, etc.):**
-  - Diferentes impressoras térmicas de 58mm apresentam pequenas variações mecânicas na cabeça de impressão (geralmente 48mm de área imprimível / 384 dots). Para sanar definitivamente cortes indesejados no início das linhas ou no último caractere dos preços sem perder padronização, o sistema disponibiliza **Calibração Bilateral Independente**:
+  - Para sanar cortes mecânicos na cabeça de impressão sem perder padronização, o sistema disponibiliza **Calibração Bilateral Independente**:
     - `margemEsquerdaMm` (default: 5.0 mm): calibra o recuo inicial do texto à esquerda.
     - `margemDireitaMm` (default: 3.0 mm): calibra o recuo final de valores e descrições à direita.
     - Ajustáveis com precisão de 0.5 mm (`[-] / [+]`) e atalhos rápidos pré-calibrados.
@@ -261,17 +270,29 @@ Este projeto apoia-se no **anarquismo plataformista brasileiro**: poder sem inte
   - **Formatação Resiliente contra Esmagamento e Overflows:** Renderiza dados do cliente com `linhaDadoCliente` onde o rótulo é mantido intacto e o valor reside em `Expanded(softWrap: true)` alinhado à direita, prevenindo qualquer deformação vertical ou estouro de layout em endereços extensos.
   - **Impressão Direta do Exemplo:** Botão de ícone compacto (`Icons.print_outlined`) posicionado logo abaixo da prévia que envia o exemplo sorteado diretamente para a impressora física via `ImpressaoService.imprimirExemploComanda`.
 
-### 7.9 Automação de Compras no Estoque, Notificações de Estoque Crítico e Caixa Diário
+### 7.9 Automação de Compras no Estoque, Notificações de Estoque Crítico e Financeiro Diário
 - **Cálculo Automático em Movimento de Estoque (`MovimentoEstoqueDialog`):**
   - Campo "Custo da compra (R$)" com sincronização recíproca automática: ao digitar a quantidade e o valor total pago, calcula e preenche o custo unitário instantaneamente ($C_{\text{unit}} = \frac{C_{\text{total}}}{Q}$), e vice-versa.
 - **Indicador Visual de Estoque Baixo / Esgotado (< 10 un):**
   - Monitoramento contínuo em `PdvProvider.todosItensEstoqueBaixo` para qualquer produto não-serviço com saldo menor que 10 unidades ou esgotado ($\le 0$).
   - O botão de notificações na `CustomAppBar` acende com ícone de alerta ativo e soma o total de itens críticos no badge vermelho.
   - A janela `NotificacoesDialog` exibe cards de alerta dedicados indicando o nome da loja, produto, saldo exato com unidade (`un`, `g`, `ml`) e instruções de reposição.
-- **Resumo e Fechamento de Caixa Diário com Exportação em PDF:**
+- **Resumo Financeiro Diário com Exportação em PDF:**
   - O botão "Financeiro" na aba Gestão da loja abre diretamente no período "Hoje", apresentando vendas, pagamentos, sugestão de divisão igualitária e botão "Exportar PDF" gerado em folha A4.
 
-### 7.10 Instalador Oficial Windows — Versão Teste
+### 7.10 Gestão de Turno de Caixa e Controle de Gaveta (`features/pdv/views/widgets/caixa_dialog.dart`)
+- **Abertura de Caixa e Fundo de Troco:** O operador inicia o turno informando o valor inicial da gaveta (troco), associando o CPF e nome do responsável e data/hora de abertura.
+- **Movimentações Avulsas (Sangrias e Suprimentos):**
+  - **Suprimento (Entrada):** Reforço de troco ou entrada avulsa em dinheiro com justificativa.
+  - **Sangria (Saída):** Retirada de valores para cofre, despesas urgentes ou segurança, com justificativa obrigatória.
+  - Ambas as ações são auditadas em `RegistroAcao` e integradas ao turno aberto.
+- **Fechamento Cego e Conferência de Valores:**
+  - O operador realiza o fechamento informando os valores contados fisicamente (dinheiro em espécie, cartão de crédito, cartão de débito, PIX, outros) sem visualização prévia das somas do sistema ("conferência cega").
+  - O sistema calcula o saldo apurado pelo sistema versus o saldo informado, apontando sobras ou faltas de caixa de forma transparente.
+- **Comprovante Térmico de Fechamento (`imprimirFechamentoCaixa`):**
+  - Emite cupom térmico detalhado em 58mm ou 80mm com dados do operador, período, saldo inicial, total de vendas por forma de pagamento, sangrias, suprimentos, saldo esperado em dinheiro, saldo informado e divergência apurada.
+
+### 7.11 Instalador Oficial Windows — Versão Teste
 - Configurado em `windows/installer.iss` (Inno Setup 6) gerando `dist/Nous_Instalador_v1.0.0_Versao_Teste.exe`.
 - Automação completa pelo script PowerShell `scripts/gerar_instalador.ps1`.
 
@@ -280,7 +301,7 @@ Este projeto apoia-se no **anarquismo plataformista brasileiro**: poder sem inte
 ## 8. REGRAS CRÍTICAS DE ENGENHARIA (PARA NUNCA QUEBRAR O SISTEMA)
 
 1. **Modelos Persistidos e Serialização JSON:**
-   Aplica-se a: `Loja`, `Cliente`, `Fornecedor`, `PedidoLoja`, `ItemLoja`, `CategoriaLoja`, `GrupoComponentesLoja`, `ConfiguracoesImpressora`, `MembroLoja`, `RegistroAcao`, `ConviteLoja`, `ReferenciaLoja`, `MovimentoEstoque`, `PagamentoFuncionario`, `UsuarioNous`:
+   Aplica-se a: `Loja`, `Cliente`, `Fornecedor`, `PedidoLoja`, `ItemLoja`, `CategoriaLoja`, `GrupoComponentesLoja`, `ConfiguracoesImpressora`, `MembroLoja`, `RegistroAcao`, `ConviteLoja`, `ReferenciaLoja`, `MovimentoEstoque`, `PagamentoFuncionario`, `TurnoCaixa`, `MovimentoCaixa`, `UsuarioNous`:
    - **Valores padrão obrigatórios no `fromJson`:** Nunca confie em nulos vindos do disco. Use `json['campo'] ?? ''` ou `?? false` ou `?? 0.0`.
    - **Atualização Quádrupla Obrigatória:** Sempre atualize Construtor, `copyWith`, `toJson` e `fromJson`.
    - **Enums sempre com `orElse`:** Use `Enum.values.firstWhere(..., orElse: () => EnumPadrao)` para evitar quebra de compatibilidade com dados antigos.

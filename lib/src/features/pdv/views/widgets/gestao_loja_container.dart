@@ -14,7 +14,7 @@ import 'package:nous/src/features/pdv/views/widgets/venda_registrada_dialog.dart
 
 enum AbaPedidos { novos, aceitos, concluidos, cancelados }
 
-const double _alturaListaPedidos = 260;
+const double _alturaListaPedidos = 380;
 
 String _numeroFormatado(int numero) => '#${numero.toString().padLeft(4, '0')}';
 
@@ -52,6 +52,8 @@ class GestaoLojaContainer extends StatelessWidget {
   final VoidCallback aoRelatorios;
   final VoidCallback? aoImpressora;
   final VoidCallback? aoFinanceiro;
+  final VoidCallback? aoCaixa;
+  final bool caixaAberto;
   final VoidCallback? aoStatus;
   final bool ehRestaurante;
   final List<MesaLoja> mesas;
@@ -83,6 +85,8 @@ class GestaoLojaContainer extends StatelessWidget {
     required this.aoRelatorios,
     this.aoImpressora,
     this.aoFinanceiro,
+    this.aoCaixa,
+    this.caixaAberto = false,
     this.aoStatus,
     this.ehRestaurante = false,
     this.mesas = const [],
@@ -221,7 +225,11 @@ class GestaoLojaContainer extends StatelessWidget {
             children: [
               _botaoDeGestao(context, 'Relatórios', aoPressionar: aoRelatorios),
               espaco,
-              _botaoDeGestao(context, 'Perfil'),
+              _botaoDeGestao(
+                context,
+                caixaAberto ? 'Caixa (Aberto)' : 'Caixa',
+                aoPressionar: aoCaixa,
+              ),
               espaco,
               _botaoDeGestao(
                 context,

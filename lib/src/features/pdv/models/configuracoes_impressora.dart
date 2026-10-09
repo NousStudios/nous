@@ -13,6 +13,7 @@ const List<String> kCamposClienteComandaPadrao = [
 ];
 
 class ConfiguracoesImpressora {
+  final double larguraPapelMm;
   final String rodape;
   final String tamanhoFonte;
   final String tipoConexao;
@@ -25,6 +26,7 @@ class ConfiguracoesImpressora {
   final String modeloFonte;
 
   const ConfiguracoesImpressora({
+    this.larguraPapelMm = 58.0,
     this.rodape = 'linktr.ee/nous72',
     this.tamanhoFonte = 'normal',
     this.tipoConexao = 'usb',
@@ -38,6 +40,7 @@ class ConfiguracoesImpressora {
   });
 
   ConfiguracoesImpressora copyWith({
+    double? larguraPapelMm,
     String? rodape,
     String? tamanhoFonte,
     String? tipoConexao,
@@ -50,6 +53,7 @@ class ConfiguracoesImpressora {
     String? modeloFonte,
   }) {
     return ConfiguracoesImpressora(
+      larguraPapelMm: larguraPapelMm ?? this.larguraPapelMm,
       rodape: rodape ?? this.rodape,
       tamanhoFonte: tamanhoFonte ?? this.tamanhoFonte,
       tipoConexao: tipoConexao ?? this.tipoConexao,
@@ -67,6 +71,7 @@ class ConfiguracoesImpressora {
 
   Map<String, dynamic> toJson() {
     return {
+      'larguraPapelMm': larguraPapelMm,
       'rodape': rodape,
       'tamanhoFonte': tamanhoFonte,
       'tipoConexao': tipoConexao,
@@ -103,6 +108,7 @@ class ConfiguracoesImpressora {
           : List.of(kCamposClienteComandaPadrao);
     }
     return ConfiguracoesImpressora(
+      larguraPapelMm: (json['larguraPapelMm'] as num?)?.toDouble() ?? 58.0,
       rodape: json['rodape'] as String? ?? 'linktr.ee/nous72',
       tamanhoFonte: json['tamanhoFonte'] as String? ?? 'normal',
       tipoConexao: json['tipoConexao'] as String? ?? 'usb',

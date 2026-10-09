@@ -49,6 +49,8 @@ class ItemLoja {
   final String nome;
   final TipoItemLoja? tipo;
   final String preco;
+  final String precoCusto;
+  final String codigoBarras;
   final List<VarianteItem> variantes;
   final List<String> imagens;
   final String descricao;
@@ -64,6 +66,8 @@ class ItemLoja {
     required this.nome,
     this.tipo,
     this.preco = '',
+    this.precoCusto = '',
+    this.codigoBarras = '',
     this.variantes = const [],
     this.imagens = const [],
     this.descricao = '',
@@ -79,6 +83,8 @@ class ItemLoja {
     required String nome,
     TipoItemLoja? tipo,
     String preco = '',
+    String precoCusto = '',
+    String codigoBarras = '',
     List<VarianteItem> variantes = const [],
     List<String> imagens = const [],
     String descricao = '',
@@ -94,6 +100,8 @@ class ItemLoja {
       nome: nome,
       tipo: tipo,
       preco: preco,
+      precoCusto: precoCusto,
+      codigoBarras: codigoBarras,
       variantes: variantes,
       imagens: imagens,
       descricao: descricao,
@@ -110,6 +118,8 @@ class ItemLoja {
     String? nome,
     TipoItemLoja? tipo,
     String? preco,
+    String? precoCusto,
+    String? codigoBarras,
     List<VarianteItem>? variantes,
     List<String>? imagens,
     String? descricao,
@@ -125,6 +135,8 @@ class ItemLoja {
       nome: nome ?? this.nome,
       tipo: tipo ?? this.tipo,
       preco: preco ?? this.preco,
+      precoCusto: precoCusto ?? this.precoCusto,
+      codigoBarras: codigoBarras ?? this.codigoBarras,
       variantes: variantes ?? this.variantes,
       imagens: imagens ?? this.imagens,
       descricao: descricao ?? this.descricao,
@@ -143,6 +155,8 @@ class ItemLoja {
       'nome': nome,
       'tipo': tipo?.name,
       'preco': preco,
+      'precoCusto': precoCusto,
+      'codigoBarras': codigoBarras,
       'variantes': variantes.map((v) => v.toJson()).toList(),
       'imagens': imagens,
       'descricao': descricao,
@@ -169,8 +183,13 @@ class ItemLoja {
       nome: json['nome'] as String,
       tipo: tipoTexto == null
           ? null
-          : TipoItemLoja.values.firstWhere((t) => t.name == tipoTexto),
+          : TipoItemLoja.values.firstWhere(
+              (t) => t.name == tipoTexto,
+              orElse: () => TipoItemLoja.produto,
+            ),
       preco: json['preco'] as String? ?? '',
+      precoCusto: json['precoCusto'] as String? ?? '',
+      codigoBarras: json['codigoBarras'] as String? ?? '',
       variantes: (json['variantes'] as List<dynamic>? ?? const [])
           .map((item) => VarianteItem.fromJson(item))
           .toList(),

@@ -8,6 +8,7 @@ import 'package:nous/src/features/auth/providers/auth_provider.dart';
 import 'package:nous/src/features/auth/views/login_view.dart';
 import 'package:nous/src/features/notificacoes/providers/notificacoes_provider.dart';
 import 'package:nous/src/features/pdv/providers/pdv_provider.dart';
+import 'package:nous/src/features/pdv/services/backup_service.dart';
 
 class AppScrollBehavior extends MaterialScrollBehavior {
   @override
@@ -29,6 +30,8 @@ Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await BancoDadosService.inicializar();
   await ThemeController.init();
+  // Dispara o snapshot de segurança diário em segundo plano sem travar a inicialização
+  BackupService.realizarBackupAutomaticoSeNecessario();
   runApp(const MyApp());
 }
 

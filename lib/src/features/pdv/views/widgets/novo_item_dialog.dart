@@ -92,6 +92,8 @@ class NovoItemDialog extends StatefulWidget {
 class _NovoItemDialogState extends State<NovoItemDialog> {
   final _nomeController = TextEditingController();
   final _precoController = TextEditingController();
+  final _precoCustoController = TextEditingController();
+  final _codigoBarrasController = TextEditingController();
   final _descricaoController = TextEditingController();
   final _freteGratisAteController = TextEditingController();
   final _valorPorKmController = TextEditingController();
@@ -128,6 +130,8 @@ class _NovoItemDialogState extends State<NovoItemDialog> {
 
     _nomeController.text = item.nome;
     _precoController.text = item.preco;
+    _precoCustoController.text = item.precoCusto;
+    _codigoBarrasController.text = item.codigoBarras;
     _descricaoController.text = item.descricao;
     _freteGratisAteController.text = item.freteGratisAte;
     _valorPorKmController.text = item.valorPorKm;
@@ -151,6 +155,8 @@ class _NovoItemDialogState extends State<NovoItemDialog> {
   void dispose() {
     _nomeController.dispose();
     _precoController.dispose();
+    _precoCustoController.dispose();
+    _codigoBarrasController.dispose();
     _descricaoController.dispose();
     _freteGratisAteController.dispose();
     _valorPorKmController.dispose();
@@ -604,6 +610,8 @@ class _NovoItemDialogState extends State<NovoItemDialog> {
             nome: nome,
             tipo: _tipo,
             preco: _precoController.text.trim(),
+            precoCusto: _precoCustoController.text.trim(),
+            codigoBarras: _codigoBarrasController.text.trim(),
             variantes: variantes,
             imagens: _imagens,
             descricao: _descricaoController.text.trim(),
@@ -618,6 +626,8 @@ class _NovoItemDialogState extends State<NovoItemDialog> {
             nome: nome,
             tipo: _tipo,
             preco: _precoController.text.trim(),
+            precoCusto: _precoCustoController.text.trim(),
+            codigoBarras: _codigoBarrasController.text.trim(),
             variantes: variantes,
             imagens: _imagens,
             descricao: _descricaoController.text.trim(),
@@ -702,8 +712,23 @@ class _NovoItemDialogState extends State<NovoItemDialog> {
               ThemedTextField(
                 theme: theme,
                 controller: _precoController,
-                label: 'Preço (ex: 12,50)',
+                label: 'Preço de venda (ex: 12,50)',
                 tipoDeTeclado: TextInputType.number,
+              ),
+              const SizedBox(height: 16),
+
+              ThemedTextField(
+                theme: theme,
+                controller: _precoCustoController,
+                label: 'Preço de custo (ex: 8,00) (opcional)',
+                tipoDeTeclado: TextInputType.number,
+              ),
+              const SizedBox(height: 16),
+
+              ThemedTextField(
+                theme: theme,
+                controller: _codigoBarrasController,
+                label: 'Código de barras / EAN (opcional)',
               ),
               const SizedBox(height: 16),
 

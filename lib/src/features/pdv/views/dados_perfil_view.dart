@@ -31,6 +31,8 @@ import 'package:nous/src/features/pdv/views/widgets/mesas/fechar_conta_mesa_dial
 import 'package:nous/src/features/pdv/views/financeiro_view.dart';
 import 'package:nous/src/features/pdv/views/perfis_pdv_view.dart';
 import 'package:nous/src/features/pdv/views/status_loja_view.dart';
+import 'package:nous/src/features/pdv/models/turno_caixa.dart';
+import 'package:nous/src/features/pdv/views/widgets/caixa_dialog.dart';
 import 'package:nous/src/features/pdv/views/widgets/cancelar_pedido_dialog.dart';
 import 'package:nous/src/features/pdv/views/widgets/categoria_loja_container.dart';
 import 'package:nous/src/features/pdv/views/widgets/clientes_dialog.dart';
@@ -928,6 +930,67 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
           pedidos: List.of(_pedidos),
         ),
       ),
+    );
+  }
+
+  void _abrirPopupCaixa() {
+    final loja = context.read<PdvProvider>().buscarPorId(widget.lojaId);
+    if (loja == null) return;
+
+    CaixaDialog.mostrar(
+      context,
+      theme: ThemeController.currentTheme.value,
+      lojaNome: loja.nome,
+      lojaCnpj: loja.cnpj,
+      turnoAberto: loja.turnoCaixaAberto,
+      pedidosLoja: _pedidos,
+      configuracoesImpressora: loja.configuracoesImpressora,
+      aoAbrirCaixa: (saldoInicial) async {
+        await context.read<PdvProvider>().abrirCaixa(
+              widget.lojaId,
+              saldoInicial,
+              cpf: _cpfLogado,
+              nome: _nomeLogado,
+            );
+        _registrarAcao(
+          TipoAcao.caixaAberto,
+          'Caixa aberto com fundo de ${_valorFormatado(saldoInicial)}',
+        );
+        setState(() {});
+      },
+      aoRegistrarMovimento: (tipo, valor, motivo) async {
+        await context.read<PdvProvider>().registrarMovimentoCaixa(
+              widget.lojaId,
+              tipo: tipo,
+              valor: valor,
+              motivo: motivo,
+              cpf: _cpfLogado,
+              nome: _nomeLogado,
+            );
+        final rotulo =
+            tipo == TipoMovimentoCaixa.sangria ? 'Sangria' : 'Suprimento';
+        _registrarAcao(
+          tipo == TipoMovimentoCaixa.sangria
+              ? TipoAcao.sangriaRegistrada
+              : TipoAcao.suprimentoRegistrado,
+          '$rotulo de ${_valorFormatado(valor)} registrado ($motivo)',
+        );
+        setState(() {});
+      },
+      aoFecharCaixa: (saldoInformado, observacao) async {
+        await context.read<PdvProvider>().fecharCaixa(
+              widget.lojaId,
+              saldoInformado,
+              cpf: _cpfLogado,
+              nome: _nomeLogado,
+              observacao: observacao,
+            );
+        _registrarAcao(
+          TipoAcao.caixaFechado,
+          'Caixa fechado. Saldo informado: ${_valorFormatado(saldoInformado)}',
+        );
+        setState(() {});
+      },
     );
   }
 
@@ -2672,6 +2735,8 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
           aoRelatorios: _abrirPopupRelatorios,
           aoImpressora: _abrirPopupImpressora,
           aoFinanceiro: _abrirFinanceiro,
+          aoCaixa: _abrirPopupCaixa,
+          caixaAberto: context.watch<PdvProvider>().buscarPorId(widget.lojaId)?.turnoCaixaAberto != null,
           aoStatus: _abrirStatusLoja,
           ehRestaurante: _ehRestaurante,
           mesas: _mesas,

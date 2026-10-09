@@ -355,7 +355,6 @@ class _NovaVendaConteudoState extends State<_NovaVendaConteudo> {
     if (termo.isEmpty) return [];
     return widget.categoriasDisponiveis
         .where((c) => c.nome.toLowerCase().contains(termo))
-        .take(4)
         .toList();
   }
 
@@ -366,11 +365,43 @@ class _NovaVendaConteudoState extends State<_NovaVendaConteudo> {
     for (final categoria in _categoriasEncontradas) {
       idsDeItensEmCategoriasEncontradas.addAll(categoria.itemIds);
     }
+    final termoLimpo = termo.replaceAll(RegExp(r'[^0-9a-zA-Z]'), '');
     return widget.itensDisponiveis
-        .where((item) => item.nome.toLowerCase().contains(termo))
+        .where((item) {
+          final nomeMatch = item.nome.toLowerCase().contains(termo);
+          final codigoLimpo = item.codigoBarras
+              .trim()
+              .replaceAll(RegExp(r'[^0-9a-zA-Z]'), '')
+              .toLowerCase();
+          final codigoMatch = codigoLimpo.isNotEmpty &&
+              (codigoLimpo == termoLimpo || codigoLimpo.contains(termoLimpo));
+          return nomeMatch || codigoMatch;
+        })
         .where((item) => !idsDeItensEmCategoriasEncontradas.contains(item.id))
-        .take(4)
         .toList();
+  }
+
+  void _aoSubmeterBusca(String valor) {
+    final termo = valor.trim();
+    if (termo.isEmpty) return;
+    final termoLimpo = termo.replaceAll(RegExp(r'[^0-9a-zA-Z]'), '').toLowerCase();
+
+    final itemPorCodigo = widget.itensDisponiveis.where((i) {
+      final c = i.codigoBarras.trim().replaceAll(RegExp(r'[^0-9a-zA-Z]'), '').toLowerCase();
+      return c.isNotEmpty && c == termoLimpo;
+    }).firstOrNull;
+
+    if (itemPorCodigo != null) {
+      _adicionarLinhaAoCarrinho(itemId: itemPorCodigo.id);
+      _buscaController.clear();
+      return;
+    }
+
+    final itens = _itensEncontrados;
+    if (itens.length == 1) {
+      _adicionarLinhaAoCarrinho(itemId: itens.first.id);
+      _buscaController.clear();
+    }
   }
 
   bool get _temResultadoDeBusca =>
@@ -383,7 +414,6 @@ class _NovaVendaConteudoState extends State<_NovaVendaConteudo> {
     return widget
         .obterClientes()
         .where((cliente) => cliente.nome.toLowerCase().contains(termo))
-        .take(3)
         .toList();
   }
 
@@ -1117,7 +1147,16 @@ class _NovaVendaConteudoState extends State<_NovaVendaConteudo> {
           ),
           if (sugestoes.isNotEmpty) ...[
             const SizedBox(height: 8),
-            for (final cliente in sugestoes) _linhaDeCliente(cliente),
+            ConstrainedBox(
+              constraints: const BoxConstraints(maxHeight: 180),
+              child: SingleChildScrollView(
+                child: Column(
+                  children: [
+                    for (final cliente in sugestoes) _linhaDeCliente(cliente),
+                  ],
+                ),
+              ),
+            ),
           ],
           if (_clienteSelecionado != null)
             Padding(
@@ -1205,11 +1244,25 @@ class _NovaVendaConteudoState extends State<_NovaVendaConteudo> {
                   ),
             const SizedBox(width: 8),
             Expanded(
-              child: Text(
-                item.nome,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: theme.getTextStyle(fontSize: 12, color: theme.textColor),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    item.nome,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.getTextStyle(fontSize: 12, color: theme.textColor),
+                  ),
+                  if (item.codigoBarras.trim().isNotEmpty)
+                    Text(
+                      'Cód: ${item.codigoBarras.trim()}',
+                      style: theme.getTextStyle(
+                        fontSize: 10,
+                        color: theme.secondaryTextColor,
+                      ),
+                    ),
+                ],
               ),
             ),
             Text(
@@ -1390,8 +1443,10 @@ class _NovaVendaConteudoState extends State<_NovaVendaConteudo> {
                   controller: _buscaController,
                   cursorColor: theme.textColor,
                   style: theme.getTextStyle(fontSize: 12),
-                  decoration: _decoracaoCampo('Pesquisar produtos cadastrados'),
+                  decoration: _decoracaoCampo(
+                      'Pesquisar nome ou bipar código de barras'),
                   onChanged: (_) => setState(() {}),
+                  onSubmitted: _aoSubmeterBusca,
                 ),
               ),
               const SizedBox(width: 8),
@@ -1411,11 +1466,32 @@ class _NovaVendaConteudoState extends State<_NovaVendaConteudo> {
                   style: theme.getTextStyle(fontSize: 11),
                 ),
               )
-            else ...[
-              for (final categoria in categorias)
-                _linhaDeCategoriaNaBusca(categoria),
-              for (final item in itens) _linhaDeResultado(item),
-            ],
+            else
+              ConstrainedBox(
+                constraints: const BoxConstraints(maxHeight: 220),
+                child: SingleChildScrollView(
+                  child: Column(
+                    children: [
+                      for (final categoria in categorias)
+                        _linhaDeCategoriaNaBusca(categoria),
+                      for (final item in itens) _linhaDeResultado(item),
+                    ],
+                  ),
+                ),
+              ),
+          ] else if (widget.itensDisponiveis.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            ConstrainedBox(
+              constraints: const BoxConstraints(maxHeight: 140),
+              child: SingleChildScrollView(
+                child: Column(
+                  children: [
+                    for (final item in widget.itensDisponiveis)
+                      _linhaDeResultado(item),
+                  ],
+                ),
+              ),
+            ),
           ],
           if (_carrinho.isNotEmpty) ...[
             const SizedBox(height: 8),

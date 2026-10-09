@@ -39,6 +39,10 @@ enum TipoAcao {
   itemAdicionadoMesa,
   mesaFechada,
   mesaTransferida,
+  caixaAberto,
+  caixaFechado,
+  sangriaRegistrada,
+  suprimentoRegistrado,
 }
 
 class RegistroAcao {

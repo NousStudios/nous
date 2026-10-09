@@ -210,6 +210,7 @@ class _ImpressoraConteudoState extends State<_ImpressoraConteudo> {
   late String _tamanhoFonte;
   late String _modeloFonte;
   late String _tipoConexao;
+  late double _larguraPapelMm;
   late double _margemEsquerdaMm;
   late double _margemDireitaMm;
   late List<String> _camposClienteComanda;
@@ -238,6 +239,7 @@ class _ImpressoraConteudoState extends State<_ImpressoraConteudo> {
     _tamanhoFonte = c.tamanhoFonte;
     _modeloFonte = c.modeloFonte;
     _tipoConexao = c.tipoConexao;
+    _larguraPapelMm = c.larguraPapelMm;
     _margemEsquerdaMm = c.margemEsquerdaMm;
     _margemDireitaMm = c.margemDireitaMm;
     final camposConfig = c.camposClienteComanda;
@@ -473,6 +475,46 @@ class _ImpressoraConteudoState extends State<_ImpressoraConteudo> {
                   'Desmarcar todos',
                   style: theme.getTextStyle(fontSize: 11),
                 ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _blocoLarguraBobina() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: _decoracaoDoBloco,
+      child: Column(
+        children: [
+          _tituloDoBloco('Largura da Bobina Térmica'),
+          Text(
+            'Escolha a largura do papel térmico instalado na sua impressora.',
+            textAlign: TextAlign.center,
+            style: theme.getTextStyle(
+              fontSize: 11,
+              color: theme.secondaryTextColor,
+            ),
+          ),
+          const SizedBox(height: 10),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              _botaoSelecao(
+                '58 mm (Mini / Portátil)',
+                '58',
+                _larguraPapelMm.toInt().toString(),
+                (v) => setState(() => _larguraPapelMm = 58.0),
+              ),
+              const SizedBox(width: 8),
+              _botaoSelecao(
+                '80 mm (Balcão Padrão)',
+                '80',
+                _larguraPapelMm.toInt().toString(),
+                (v) => setState(() => _larguraPapelMm = 80.0),
               ),
             ],
           ),
@@ -926,6 +968,7 @@ class _ImpressoraConteudoState extends State<_ImpressoraConteudo> {
 
   void _salvar() {
     final novas = ConfiguracoesImpressora(
+      larguraPapelMm: _larguraPapelMm,
       rodape: _rodapeController.text.trim(),
       tamanhoFonte: _tamanhoFonte,
       modeloFonte: _modeloFonte,
@@ -1388,6 +1431,8 @@ class _ImpressoraConteudoState extends State<_ImpressoraConteudo> {
             child: Column(
               children: [
                 _blocoConexao(),
+                const SizedBox(height: 12),
+                _blocoLarguraBobina(),
                 const SizedBox(height: 12),
                 _blocoFonte(),
                 const SizedBox(height: 12),

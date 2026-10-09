@@ -14,6 +14,7 @@ import 'package:nous/src/features/pdv/models/mesa_loja.dart';
 import 'package:nous/src/features/pdv/models/movimento_estoque.dart';
 import 'package:nous/src/features/pdv/models/pagamento_funcionario.dart';
 import 'package:nous/src/features/pdv/models/pedido_loja.dart';
+import 'package:nous/src/features/pdv/models/turno_caixa.dart';
 
 const PdfPageFormat _papel58mm = PdfPageFormat(
   58 * PdfPageFormat.mm,
@@ -88,8 +89,11 @@ class ImpressaoService {
             ? config.margemDireitaMm
             : 3.0) *
         PdfPageFormat.mm;
+    final larguraMm = (config != null && config.larguraPapelMm > 0)
+        ? config.larguraPapelMm
+        : 58.0;
     return PdfPageFormat(
-      58 * PdfPageFormat.mm,
+      larguraMm * PdfPageFormat.mm,
       200 * PdfPageFormat.mm,
       marginLeft: margemEsquerda,
       marginRight: margemDireita,
@@ -656,6 +660,129 @@ class ImpressaoService {
       bytes: bytes,
       nomeImpressora: config.nomeImpressora,
       jobName: 'ComandaNous-${pedido.numero}',
+      format: pageFormat,
+    );
+  }
+
+  static Future<void> imprimirFechamentoCaixa({
+    required ConfiguracoesImpressora config,
+    required String lojaNome,
+    required String lojaCnpj,
+    required TurnoCaixa turno,
+    required double vendasDinheiro,
+    required double vendasOutros,
+    required double saldoEsperado,
+    required double saldoInformado,
+    String observacao = '',
+  }) async {
+    final doc = pw.Document();
+    final tamanho = _tamanhoEmPontos(config.tamanhoFonte);
+    final pageFormat = formatoPapel(config);
+    final fonteNormal = await _resolverFonte(config.modeloFonte);
+    final fonteNegrito = await _resolverFonteNegrito(config.modeloFonte);
+
+    pw.TextStyle estilo({bool negrito = false, double? tamanhoCustom}) {
+      return pw.TextStyle(
+        font: negrito ? fonteNegrito : fonteNormal,
+        fontSize: tamanhoCustom ?? tamanho,
+        fontWeight: negrito ? pw.FontWeight.bold : pw.FontWeight.normal,
+      );
+    }
+
+    pw.Widget linhaDupla(
+      String esquerda,
+      String direita, {
+      bool negrito = false,
+    }) {
+      return pw.Padding(
+        padding: const pw.EdgeInsets.symmetric(vertical: 1.5),
+        child: pw.Row(
+          crossAxisAlignment: pw.CrossAxisAlignment.start,
+          children: [
+            pw.Expanded(
+              child: pw.Text(esquerda, style: estilo(negrito: negrito)),
+            ),
+            pw.Text(direita, style: estilo(negrito: negrito)),
+          ],
+        ),
+      );
+    }
+
+    final diferenca = saldoInformado - saldoEsperado;
+
+    doc.addPage(
+      pw.Page(
+        pageFormat: pageFormat,
+        build: (context) {
+          return pw.Column(
+            crossAxisAlignment: pw.CrossAxisAlignment.stretch,
+            children: [
+              if (lojaNome.isNotEmpty)
+                pw.Center(
+                  child: pw.Text(
+                    lojaNome,
+                    style: estilo(negrito: true, tamanhoCustom: tamanho + 1.5),
+                  ),
+                ),
+              if (lojaCnpj.isNotEmpty)
+                pw.Center(
+                  child: pw.Text(
+                    'CNPJ: $lojaCnpj',
+                    style: estilo(tamanhoCustom: tamanho - 1),
+                  ),
+                ),
+              pw.SizedBox(height: 4),
+              pw.Center(
+                child: pw.Text(
+                  'FECHAMENTO DE CAIXA',
+                  style: estilo(negrito: true, tamanhoCustom: tamanho + 1),
+                ),
+              ),
+              pw.Divider(thickness: 0.5),
+              linhaDupla('Abertura', _dataHora(turno.dataAbertura)),
+              if (turno.dataFechamento != null)
+                linhaDupla('Fechamento', _dataHora(turno.dataFechamento!)),
+              if (turno.abertoPorNome.isNotEmpty)
+                linhaDupla('Operador', turno.abertoPorNome),
+              pw.Divider(thickness: 0.5),
+              linhaDupla('Fundo Inicial', _valor(turno.saldoInicial)),
+              linhaDupla('Vendas Dinheiro (+)', _valor(vendasDinheiro)),
+              linhaDupla('Vendas Outros (Pix/Cartão)', _valor(vendasOutros)),
+              if (turno.totalSuprimentos > 0)
+                linhaDupla('Suprimentos (+)', _valor(turno.totalSuprimentos)),
+              if (turno.totalSangrias > 0)
+                linhaDupla('Sangrias (-)', '-${_valor(turno.totalSangrias)}'),
+              pw.Divider(thickness: 0.5),
+              linhaDupla('Dinheiro Esperado', _valor(saldoEsperado), negrito: true),
+              linhaDupla('Dinheiro Contado', _valor(saldoInformado), negrito: true),
+              linhaDupla(
+                diferenca.abs() < 0.01
+                    ? 'Diferença'
+                    : (diferenca > 0 ? 'Sobra de Caixa' : 'Quebra de Caixa'),
+                diferenca.abs() < 0.01 ? 'R\$ 0,00' : _valor(diferenca.abs()),
+                negrito: true,
+              ),
+              if (observacao.isNotEmpty) ...[
+                pw.SizedBox(height: 4),
+                pw.Text('Obs: $observacao', style: estilo(tamanhoCustom: tamanho - 1)),
+              ],
+              pw.SizedBox(height: 12),
+              pw.Center(child: pw.Text('___________________________________', style: estilo())),
+              pw.Center(child: pw.Text('Assinatura do Responsável', style: estilo(tamanhoCustom: tamanho - 1.5))),
+              pw.SizedBox(height: 8),
+              if (config.rodape.isNotEmpty)
+                pw.Center(child: pw.Text(config.rodape, style: estilo(tamanhoCustom: tamanho - 1.5))),
+            ],
+          );
+        },
+      ),
+    );
+
+    final bytes = await doc.save();
+    await _enviarParaImpressora(
+      bytes: bytes,
+      nomeImpressora: config.nomeImpressora,
+      jobName: 'FechamentoCaixa-${turno.id}',
       format: pageFormat,
     );
   }
