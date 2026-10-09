@@ -412,6 +412,23 @@ class PdvProvider extends ChangeNotifier {
     _salvarLojaNoCofreCorreto(atualizada);
   }
 
+  void atualizarSomAlerta(String id, String evento, String som) {
+    final indice = _lojas.indexWhere((loja) => loja.id == id);
+    if (indice == -1) return;
+
+    final mapa = Map<String, String>.from(_lojas[indice].sonsAlertas);
+    if (som.isEmpty || som == 'padrao') {
+      mapa.remove(evento);
+    } else {
+      mapa[evento] = som;
+    }
+
+    final atualizada = _lojas[indice].copyWith(sonsAlertas: mapa);
+    _lojas[indice] = atualizada;
+    notifyListeners();
+    _salvarLojaNoCofreCorreto(atualizada);
+  }
+
   void atualizarListasLoja(
     String id, {
     List<CategoriaLoja>? categorias,

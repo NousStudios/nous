@@ -20,6 +20,7 @@ import 'package:nous/src/features/pdv/models/fornecedor.dart';
 import 'package:nous/src/features/pdv/models/grupo_componentes_loja.dart';
 import 'package:nous/src/features/pdv/models/item_loja.dart';
 import 'package:nous/src/core/services/gerador_id.dart';
+import 'package:nous/src/core/services/som_service.dart';
 import 'package:nous/src/features/pdv/models/membro_loja.dart';
 import 'package:nous/src/features/pdv/models/mesa_loja.dart';
 import 'package:nous/src/features/pdv/models/movimento_estoque.dart';
@@ -130,6 +131,7 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
   bool _lojaOnline = true;
   AbaPedidos _abaPedidos = AbaPedidos.novos;
   int _tempoConclusaoMinutos = 0;
+  final Map<String, String> _sonsAlertas = {};
   Timer? _timerVerificacaoPedidos;
   final Set<String> _pedidosPerguntados = {};
 
@@ -654,6 +656,10 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
 
   Future<void> _perguntarConclusaoPedido(PedidoLoja pedido) async {
     if (!mounted) return;
+    final pdv = context.read<PdvProvider>();
+    final loja = pdv.buscarPorId(widget.lojaId);
+    SomService.tocarEvento(SomService.eventoConclusaoPedido, loja: loja);
+
     final theme = ThemeController.currentTheme.value;
     final minutosDecorridos =
         DateTime.now().difference(pedido.dataHora).inMinutes;
@@ -1539,6 +1545,7 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
     NovaVendaDialog.mostrar(
       context,
       theme: ThemeController.currentTheme.value,
+      lojaId: widget.lojaId,
       itensDisponiveis: _itens,
       categoriasDisponiveis: _categorias,
       gruposDisponiveis: _gruposComponentes,
@@ -2273,6 +2280,7 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
     _mesas.addAll(loja?.mesas ?? []);
     _membros = List.of(loja?.membros ?? []);
     _tempoConclusaoMinutos = loja?.tempoConclusaoMinutos ?? 0;
+    _sonsAlertas.addAll(loja?.sonsAlertas ?? {});
     _iniciarTimerVerificacaoPedidos();
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -2876,6 +2884,239 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
     );
   }
 
+  Widget _buildContainerSonsAlertas(AppTheme theme, bool podeEditar) {
+    final decoracao = BoxDecoration(
+      color: theme.backgroundColor.withValues(alpha: 0.4),
+      borderRadius: BorderRadius.circular(12),
+      border: Border.all(
+        color: theme.borderColor.withValues(alpha: 0.6),
+      ),
+    );
+
+    final eventos = [
+      (
+        chave: SomService.eventoNovoPedido,
+        titulo: 'Novo Pedido Recebido',
+        descricao: 'Tocado quando um novo pedido entra no sistema.',
+      ),
+      (
+        chave: SomService.eventoConclusaoPedido,
+        titulo: 'Tempo Limite / Alerta de Pedido',
+        descricao: 'Tocado quando um pedido atinge o tempo limite estipulado.',
+      ),
+      (
+        chave: SomService.eventoBipVenda,
+        titulo: 'Bip de Leitura na Venda (Código de Barras / Item)',
+        descricao:
+            'Tocado ao adicionar um item ou ler com leitor de código de barras.',
+      ),
+    ];
+
+    String extrairNomeArquivo(String caminho) {
+      final desc = _descricoesAnexos[caminho]?.trim();
+      if (desc != null && desc.isNotEmpty) return desc;
+      final partes = caminho.split(RegExp(r'[\\/]'));
+      return partes.isNotEmpty ? partes.last : caminho;
+    }
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: decoracao,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(
+                Icons.volume_up_outlined,
+                color: theme.buttonColor,
+                size: 20,
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'Sons e Alertas do Sistema',
+                  style: theme.getTextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.bold,
+                    color: theme.textColor,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Text(
+            'Personalize os efeitos sonoros para as principais operações. Você pode manter o bip padrão nativo do sistema, silenciar ou selecionar qualquer arquivo de áudio anexado no container "Arquivos de Áudio" acima.',
+            style: theme.getTextStyle(
+              fontSize: 12,
+              color: theme.secondaryTextColor,
+            ),
+          ),
+          const SizedBox(height: 16),
+          ...eventos.map((ev) {
+            final valorAtual = _sonsAlertas[ev.chave] ?? SomService.opcaoPadrao;
+            final existeArquivo = valorAtual == SomService.opcaoPadrao ||
+                valorAtual == SomService.opcaoSilencioso ||
+                _arquivosAudio.contains(valorAtual);
+            final valorSelecionado =
+                existeArquivo ? valorAtual : SomService.opcaoPadrao;
+
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 14),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    ev.titulo,
+                    style: theme.getTextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: theme.textColor,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    ev.descricao,
+                    style: theme.getTextStyle(
+                      fontSize: 11,
+                      color: theme.secondaryTextColor,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: AbsorbPointer(
+                          absorbing: !podeEditar,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 12, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: theme.cardBackgroundColor,
+                              borderRadius: BorderRadius.circular(10),
+                              border: Border.all(
+                                color: theme.borderColor.withValues(alpha: 0.6),
+                              ),
+                            ),
+                            child: DropdownButtonHideUnderline(
+                              child: DropdownButton<String>(
+                                value: valorSelecionado,
+                                isExpanded: true,
+                                dropdownColor: theme.cardBackgroundColor,
+                                icon: Icon(
+                                  Icons.arrow_drop_down,
+                                  color: theme.secondaryTextColor,
+                                ),
+                                items: [
+                                  DropdownMenuItem(
+                                    value: SomService.opcaoPadrao,
+                                    child: Text(
+                                      'Bip Padrão do Sistema',
+                                      style: theme.getTextStyle(
+                                        fontSize: 13,
+                                        color: theme.textColor,
+                                      ),
+                                    ),
+                                  ),
+                                  DropdownMenuItem(
+                                    value: SomService.opcaoSilencioso,
+                                    child: Text(
+                                      'Silencioso (Sem som)',
+                                      style: theme.getTextStyle(
+                                        fontSize: 13,
+                                        color: theme.secondaryTextColor,
+                                      ),
+                                    ),
+                                  ),
+                                  ..._arquivosAudio.map((caminho) {
+                                    return DropdownMenuItem(
+                                      value: caminho,
+                                      child: Text(
+                                        'Áudio: ${extrairNomeArquivo(caminho)}',
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: theme.getTextStyle(
+                                          fontSize: 13,
+                                          color: theme.textColor,
+                                        ),
+                                      ),
+                                    );
+                                  }),
+                                ],
+                                onChanged: (novo) {
+                                  if (novo == null) return;
+                                  setState(() => _sonsAlertas[ev.chave] = novo);
+                                  context.read<PdvProvider>().atualizarSomAlerta(
+                                        widget.lojaId,
+                                        ev.chave,
+                                        novo,
+                                      );
+                                  if (novo == SomService.opcaoSilencioso) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(
+                                        backgroundColor:
+                                            theme.cardBackgroundColor,
+                                        duration: const Duration(seconds: 1),
+                                        content: Text(
+                                          '${ev.titulo} silenciado.',
+                                          style: theme.getTextStyle(
+                                              color: theme.textColor),
+                                        ),
+                                      ),
+                                    );
+                                  } else if (novo == SomService.opcaoPadrao) {
+                                    SomService.tocarBipPadrao();
+                                  } else {
+                                    SomService.tocarArquivo(novo);
+                                  }
+                                },
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      IconButton(
+                        tooltip: 'Testar som',
+                        icon: Icon(
+                          Icons.play_circle_outline_rounded,
+                          color: theme.buttonColor,
+                          size: 26,
+                        ),
+                        onPressed: () {
+                          if (valorSelecionado == SomService.opcaoSilencioso) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                backgroundColor: theme.cardBackgroundColor,
+                                duration: const Duration(seconds: 1),
+                                content: Text(
+                                  'Este evento está configurado como silencioso.',
+                                  style: theme.getTextStyle(
+                                      color: theme.textColor),
+                                ),
+                              ),
+                            );
+                          } else if (valorSelecionado ==
+                              SomService.opcaoPadrao) {
+                            SomService.tocarBipPadrao();
+                          } else {
+                            SomService.tocarArquivo(valorSelecionado);
+                          }
+                        },
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            );
+          }),
+        ],
+      ),
+    );
+  }
+
   Widget _conteudoDaAba(AppTheme theme) {
     final cpfLogado = context.read<AuthProvider>().contaAtual?.cpf ?? '';
     final pdv = context.read<PdvProvider>();
@@ -3015,6 +3256,8 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
               onRemover: (index) =>
                   _removerAnexo(TipoAnexoLoja.arquivosAudio, index),
             ),
+            const SizedBox(height: 16),
+            _buildContainerSonsAlertas(theme, possoEditarDados),
           ],
         );
 

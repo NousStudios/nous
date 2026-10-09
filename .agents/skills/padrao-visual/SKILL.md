@@ -131,4 +131,11 @@ Para listas onde o usuário pode descartar itens por gesto horizontal (como na j
 - `background` e `secondaryBackground` com `color: Colors.redAccent.withValues(alpha: 0.2)`, `borderRadius: BorderRadius.circular(10)` e ícone discreto (`Icons.visibility_off_outlined` ou similar).
 - Dispensas de sessão não devem apagar dados do banco; use um `Set<String>` em memória no Provider para que pendências reais reapareçam ao reabrir o app caso o problema subjacente não tenha sido resolvido.
 
+### 4.8 Modais de Confirmação Segura com Prévia de Saldo
+Para operações financeiras críticas (como quitação ou abate de dívidas a prazo em `ClientesDialog`):
+- Abra sempre `showDialog` com `AlertDialog` centralizado (`maxWidth: 420` a `500`).
+- Apresente um container interno com borda e fundo translúcido `theme.backgroundColor.withValues(alpha: 0.4)` detalhando: Valor da Ação, Saldo Atual e Saldo Restante calculado em tempo real.
+- Botão "Cancelar" com `theme.secondaryTextColor` e botão afirmativo de confirmação destacado com `theme.buttonColor` e `theme.buttonTextColor`.
+
+
 

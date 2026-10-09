@@ -1,8 +1,13 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'package:nous/src/core/theme/theme_controller.dart';
+import 'package:nous/src/features/pdv/models/cliente.dart';
+import 'package:nous/src/features/pdv/models/configuracoes_impressora.dart';
 import 'package:nous/src/features/pdv/models/pedido_loja.dart';
+import 'package:nous/src/features/pdv/providers/pdv_provider.dart';
+import 'package:nous/src/features/pdv/services/impressao_service.dart';
 
 String _doisDigitos(int n) => n.toString().padLeft(2, '0');
 
@@ -19,6 +24,7 @@ class PedidoAceitoDialog {
     BuildContext context, {
     required AppTheme theme,
     required PedidoLoja pedido,
+    String? lojaId,
     required VoidCallback aoConcluir,
     VoidCallback? aoCancelar,
   }) {
@@ -37,6 +43,7 @@ class PedidoAceitoDialog {
             child: _PedidoAceitoConteudo(
               theme: theme,
               pedido: pedido,
+              lojaId: lojaId,
               aoConcluir: () {
                 Navigator.of(dialogContext).pop();
                 aoConcluir();
@@ -58,12 +65,14 @@ class PedidoAceitoDialog {
 class _PedidoAceitoConteudo extends StatelessWidget {
   final AppTheme theme;
   final PedidoLoja pedido;
+  final String? lojaId;
   final VoidCallback aoConcluir;
   final VoidCallback? aoCancelar;
 
   const _PedidoAceitoConteudo({
     required this.theme,
     required this.pedido,
+    this.lojaId,
     required this.aoConcluir,
     this.aoCancelar,
   });
@@ -309,6 +318,49 @@ class _PedidoAceitoConteudo extends StatelessWidget {
     );
   }
 
+  Future<void> _imprimir(BuildContext context) async {
+    final pdv = context.read<PdvProvider>();
+    final loja = lojaId != null ? pdv.buscarPorId(lojaId!) : null;
+    final config =
+        loja?.configuracoesImpressora ?? const ConfiguracoesImpressora();
+    Cliente? cliente;
+    if (pedido.clienteId != null && loja != null) {
+      try {
+        cliente = loja.clientesLoja.firstWhere((c) => c.id == pedido.clienteId);
+      } catch (_) {}
+    }
+    try {
+      await ImpressaoService.imprimirComanda(
+        config: config,
+        pedido: pedido,
+        cliente: cliente,
+      );
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            backgroundColor: theme.cardBackgroundColor,
+            content: Text(
+              'Comanda enviada para a impressora.',
+              style: theme.getTextStyle(color: theme.textColor),
+            ),
+          ),
+        );
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            backgroundColor: theme.cardBackgroundColor,
+            content: Text(
+              'Falha ao imprimir: $e',
+              style: theme.getTextStyle(color: theme.textColor),
+            ),
+          ),
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Column(
@@ -343,7 +395,20 @@ class _PedidoAceitoConteudo extends StatelessWidget {
             child: Column(
               children: [
                 _blocoComanda(),
-                const SizedBox(height: 12),
+                const SizedBox(height: 6),
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: IconButton(
+                    tooltip: 'Imprimir Comanda',
+                    icon: Icon(
+                      Icons.print_outlined,
+                      size: 20,
+                      color: theme.textColor,
+                    ),
+                    onPressed: () => _imprimir(context),
+                  ),
+                ),
+                const SizedBox(height: 6),
                 if (aoCancelar != null)
                   Row(
                     children: [

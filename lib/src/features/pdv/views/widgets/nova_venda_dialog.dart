@@ -1,7 +1,10 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import 'package:nous/src/core/services/som_service.dart';
 import 'package:nous/src/core/theme/theme_controller.dart';
+import 'package:nous/src/features/pdv/providers/pdv_provider.dart';
 import 'package:nous/src/features/pdv/models/categoria_loja.dart';
 import 'package:nous/src/features/pdv/models/cliente.dart';
 import 'package:nous/src/features/pdv/models/configuracoes_impressora.dart';
@@ -63,6 +66,7 @@ class NovaVendaDialog {
     required Future<void> Function(ItemLoja item, List<String> categoriaIds,
         List<String> grupoIds) aoCriarItem,
     required ConfiguracoesImpressora configuracoesImpressora,
+    String? lojaId,
     List<MovimentoEstoque> movimentosEstoque = const [],
   }) {
     return showDialog<void>(
@@ -79,6 +83,7 @@ class NovaVendaDialog {
             constraints: const BoxConstraints(maxWidth: 500),
             child: _NovaVendaConteudo(
               theme: theme,
+              lojaId: lojaId,
               itensDisponiveis: itensDisponiveis,
               categoriasDisponiveis: categoriasDisponiveis,
               gruposDisponiveis: gruposDisponiveis,
@@ -103,6 +108,7 @@ class NovaVendaDialog {
 
 class _NovaVendaConteudo extends StatefulWidget {
   final AppTheme theme;
+  final String? lojaId;
   final List<ItemLoja> itensDisponiveis;
   final List<CategoriaLoja> categoriasDisponiveis;
   final List<GrupoComponentesLoja> gruposDisponiveis;
@@ -124,6 +130,7 @@ class _NovaVendaConteudo extends StatefulWidget {
 
   const _NovaVendaConteudo({
     required this.theme,
+    this.lojaId,
     required this.itensDisponiveis,
     required this.categoriasDisponiveis,
     required this.gruposDisponiveis,
@@ -578,6 +585,12 @@ class _NovaVendaConteudoState extends State<_NovaVendaConteudo> {
       }
       _aviso = null;
     });
+    try {
+      final loja = widget.lojaId != null
+          ? context.read<PdvProvider>().buscarPorId(widget.lojaId!)
+          : null;
+      SomService.tocarEvento(SomService.eventoBipVenda, loja: loja);
+    } catch (_) {}
   }
 
   void _alterarQuantidade(String chave, int variacao) {

@@ -49,6 +49,7 @@ class Loja {
 
   final ConfiguracoesImpressora configuracoesImpressora;
   final int tempoConclusaoMinutos;
+  final Map<String, String> sonsAlertas;
 
   const Loja({
     required this.id,
@@ -83,6 +84,7 @@ class Loja {
     this.descricoesAnexos = const {},
     this.configuracoesImpressora = const ConfiguracoesImpressora(),
     this.tempoConclusaoMinutos = 0,
+    this.sonsAlertas = const {},
   });
 
   Loja copyWith({
@@ -117,6 +119,7 @@ class Loja {
     Map<String, String>? descricoesAnexos,
     ConfiguracoesImpressora? configuracoesImpressora,
     int? tempoConclusaoMinutos,
+    Map<String, String>? sonsAlertas,
   }) {
     return Loja(
       id: id,
@@ -155,6 +158,7 @@ class Loja {
           configuracoesImpressora ?? this.configuracoesImpressora,
       tempoConclusaoMinutos:
           tempoConclusaoMinutos ?? this.tempoConclusaoMinutos,
+      sonsAlertas: sonsAlertas ?? this.sonsAlertas,
     );
   }
 
@@ -196,6 +200,7 @@ class Loja {
       'descricoesAnexos': descricoesAnexos,
       'configuracoesImpressora': configuracoesImpressora.toJson(),
       'tempoConclusaoMinutos': tempoConclusaoMinutos,
+      'sonsAlertas': sonsAlertas,
     };
   }
 
@@ -281,6 +286,9 @@ class Loja {
             ),
       tempoConclusaoMinutos:
           (json['tempoConclusaoMinutos'] as num?)?.toInt() ?? 0,
+      sonsAlertas:
+          (json['sonsAlertas'] as Map<dynamic, dynamic>? ?? const {})
+              .map((k, v) => MapEntry(k.toString(), v.toString())),
     );
   }
 

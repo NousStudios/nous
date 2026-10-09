@@ -329,6 +329,21 @@ Este projeto apoia-se no **anarquismo plataformista brasileiro**: poder sem inte
 - **Ficha Kardex do Produto (`estoque_container.dart`):**
   - Ao tocar em um item no estoque, abre a Ficha Kardex completa exibindo dados cadastrais (preço de venda, preço de custo, estoque mínimo, código de barras), saldo atual em tempo real e a lista cronológica de movimentações (com tipo, data/hora, fornecedor, quantidade e custos).
 
+### 7.13 Impressão em Pedidos Aceitos, Confirmação de Quitação e Bips Sonoros Customizáveis
+- **Botão de Impressão Direta em Pedidos Aceitos (`PedidoAceitoDialog`):**
+  - Adicionado botão compacto de impressora (`IconButton(Icons.print_outlined)`) posicionado logo acima dos botões de ação ("Cancelar Pedido" e "Concluir"), permitindo emitir a comanda térmica a qualquer momento durante a preparação sem precisar concluir o pedido previamente.
+- **Confirmação de Segurança no Abate de Dívidas (`ClientesDialog`):**
+  - Implementada janela modal de confirmação (`showDialog`) ao clicar em "Quitar valor" ou "Quitar tudo".
+  - O modal detalha o nome do cliente, o valor que será abatido, a dívida atual e o saldo restante calculado em tempo real, prevenindo baixas acidentais de contas de clientes a prazo.
+- **Ecossistema de Sons e Bips Personalizáveis (`SomService` / `Loja.sonsAlertas` / `DadosPerfilView`):**
+  - Serviço nativo `SomService` que executa bips do sistema com latência zero e reprodução de arquivos WAV/MP3 anexados sem dependências pesadas externas.
+  - Novo container "Sons e Alertas do Sistema" na aba "Dados" da loja (posicionado logo abaixo de "Arquivos de Áudio"), permitindo configurar efeitos sonoros para 3 eventos principais:
+    1. *Novo Pedido Recebido* (`SomService.eventoNovoPedido`)
+    2. *Tempo Limite / Alerta de Pedido* (`SomService.eventoConclusaoPedido`)
+    3. *Bip de Leitura na Venda (Código de Barras / Item)* (`SomService.eventoBipVenda`)
+  - Cada evento possui dropdown com opções ("Bip Padrão do Sistema", "Silencioso" ou qualquer áudio anexado em `_arquivosAudio`) e botão com ícone de reprodução para testes imediatos.
+  - Integração disparada no leitor de código de barras / clique de adicionar item em `NovaVendaDialog` e no timer de verificação de pedidos que atingem o tempo limite estipulado em `DadosPerfilView`.
+
 ---
 
 ## 8. REGRAS CRÍTICAS DE ENGENHARIA (PARA NUNCA QUEBRAR O SISTEMA)

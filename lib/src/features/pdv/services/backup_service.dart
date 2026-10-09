@@ -604,6 +604,11 @@ class BackupService {
         ? existente.configuracoesImpressora
         : importada.configuracoesImpressora;
 
+    final sonsFinal = <String, String>{
+      ...importada.sonsAlertas,
+      ...existente.sonsAlertas,
+    };
+
     return existente.copyWith(
       nome: nomeFinal,
       cnpj: cnpjFinal,
@@ -633,6 +638,7 @@ class BackupService {
       arquivosAudio: audiosFinal,
       descricoesAnexos: descricoesFinal,
       configuracoesImpressora: impressoraFinal,
+      sonsAlertas: sonsFinal,
     );
   }
 }

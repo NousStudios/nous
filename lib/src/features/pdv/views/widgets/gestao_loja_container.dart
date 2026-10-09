@@ -368,6 +368,7 @@ class GestaoLojaContainer extends StatelessWidget {
         context,
         theme: theme,
         pedido: pedido,
+        lojaId: lojaId,
         aoConcluir: () => aoConcluir(pedido.id),
         aoCancelar: aoCancelarPedido == null
             ? null
