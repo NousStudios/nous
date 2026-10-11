@@ -12,7 +12,7 @@ const List<String> _formasDePagamento = [
   'Pix',
   'Cartão de Crédito',
   'Cartão de Débito',
-  'Fiado / A Prazo',
+  'À Prazo',
 ];
 
 class ResultadoFechamentoMesa {

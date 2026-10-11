@@ -150,12 +150,18 @@ class _CaixaConteudoState extends State<_CaixaConteudo> {
   double get _vendasDinheiro {
     var soma = 0.0;
     for (final p in _pedidosDoTurno) {
-      for (final pag in p.todosPagamentos) {
-        if (pag.forma.toLowerCase() == 'dinheiro') {
-          soma += pag.valor;
+      if (p.pagamentosExtras.isNotEmpty) {
+        for (final pag in p.todosPagamentos) {
+          if (pag.forma.toLowerCase() == 'dinheiro') {
+            soma += pag.valor;
+          }
+        }
+        soma -= p.troco;
+      } else {
+        if (p.formaPagamento.toLowerCase() == 'dinheiro') {
+          soma += p.valor;
         }
       }
-      soma -= p.troco;
     }
     return soma < 0 ? 0.0 : soma;
   }

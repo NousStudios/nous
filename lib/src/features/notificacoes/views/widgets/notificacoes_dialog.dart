@@ -215,8 +215,10 @@ class _NotificacoesConteudo extends StatelessWidget {
       return;
     }
 
-    final cofreDoDono =
-        await LojasService.carregar(convite.cpfConvidante);
+    final donoCofre = convite.cpfDonoOriginal.isNotEmpty
+        ? convite.cpfDonoOriginal
+        : convite.cpfConvidante;
+    var cofreDoDono = await LojasService.carregar(donoCofre);
     if (!context.mounted) return;
 
     Loja? lojaOriginal;
@@ -227,6 +229,19 @@ class _NotificacoesConteudo extends StatelessWidget {
       }
     }
 
+    if (lojaOriginal == null && convite.cpfConvidante != donoCofre) {
+      final cofreAlternativo =
+          await LojasService.carregar(convite.cpfConvidante);
+      if (!context.mounted) return;
+      for (final loja in cofreAlternativo) {
+        if (loja.id == convite.lojaId) {
+          lojaOriginal = loja;
+          cofreDoDono = cofreAlternativo;
+          break;
+        }
+      }
+    }
+
     if (lojaOriginal == null) {
       _avisar(context, 'A loja deste convite não está mais disponível.');
       await notificacoes.aceitar(convite.id);
@@ -234,7 +249,7 @@ class _NotificacoesConteudo extends StatelessWidget {
     }
 
     final cpfDonoOriginal = lojaOriginal.cpfDonoOriginal.isEmpty
-        ? convite.cpfConvidante
+        ? donoCofre
         : lojaOriginal.cpfDonoOriginal;
 
     if (convite.tipo == TipoNotificacao.alteracaoPapel) {

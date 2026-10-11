@@ -395,6 +395,16 @@ Este projeto apoia-se no **anarquismo plataformista brasileiro**: poder sem inte
     3. *Ticket Médio (R$)*: média financeira por venda hoje.
     4. *Situação do Caixa*: indicador visual dinâmico ("Caixa Aberto" ou "Caixa Fechado") com o saldo real apurado em dinheiro físico em mãos no momento ($\text{Saldo Inicial} + \text{Suprimentos} - \text{Sangrias} + \text{Vendas em Dinheiro Líquidas}$).
 
+### 7.9 Integridade de Relacionamentos, Governança e Auditoria Contábil
+- **Convites com `cpfDonoOriginal` Soberano:** O modelo `ConviteLoja` persiste `cpfDonoOriginal`, garantindo que convites enviados por Sócios ou Admins acessem e salvem a loja diretamente no cofre do dono titular, eliminando o falso erro *"A loja deste convite não está mais disponível"*.
+- **Comandas de Mesas com Múltiplos Pagamentos Preservados:** `PedidoLoja.pagamentosExtras` armazena a totalidade dos pagamentos realizados no fechamento de mesa (sem descarte do índice 0), corrigindo relatórios, caixas e impressões térmicas.
+- **Nomenclatura Unificada e Defensiva de "À Prazo":** Padronizado `'À Prazo'` em todo o sistema e getter `PedidoLoja.temAPrazo` tolerante a variações (`'À Prazo'`, `'A Prazo'`, `'Fiado / A Prazo'`). No fechamento de mesa, o `clienteId` é vinculado automaticamente caso haja cliente cadastrado com o nome da comanda.
+- **Cálculo de Troco no Caixa sem Dupla Dedução:** `_vendasDinheiro` em `CaixaDialog` diferencia pagamento único (onde `p.valor` já é líquido) de pagamentos múltiplos, evitando subtrair o troco duas vezes.
+- **Limpeza em Cascata no SQLite:** Ao excluir lojas em `LojasService.salvar`, os registros de `pedidos`, `movimentos_estoque` e `pagamentos_funcionarios` correspondentes são excluídos, eliminando dados órfãos.
+- **Mesclagem Completa no Backup:** `BackupService.mesclarLojas` unifica `turnosCaixa`, `atalhosTeclado`, `tempoConclusaoMinutos` da loja, bem como `codigoBarras`, `precoCusto`, `unidadeBase` e `consumoPorVenda` de `ItemLoja`.
+- **Auditoria Transparente em Pagamentos aos Membros:** Pagamentos aos trabalhadores em `FinanceiroView` registram ações `RegistroAcao` com autor, valor e delta discriminado em relação à sugestão igualitária calculada pelo sistema.
+- **Sincronização de Fornecedores por Foto:** Ao atualizar foto de usuário por CPF, a foto é propagada para clientes e fornecedores originados.
+
 ---
 
 ## 8. REGRAS CRÍTICAS DE ENGENHARIA (PARA NUNCA QUEBRAR O SISTEMA)

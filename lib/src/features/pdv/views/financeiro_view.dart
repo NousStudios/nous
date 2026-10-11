@@ -9,6 +9,8 @@ import 'package:nous/src/features/pdv/models/movimento_estoque.dart';
 import 'package:nous/src/features/pdv/models/pagamento_funcionario.dart';
 import 'package:nous/src/features/pdv/models/pedido_loja.dart';
 import 'package:nous/src/features/pdv/providers/pdv_provider.dart';
+import 'package:nous/src/core/services/gerador_id.dart';
+import 'package:nous/src/features/pdv/models/registro_acao.dart';
 import 'package:nous/src/features/pdv/services/impressao_service.dart';
 import 'package:nous/src/features/pdv/views/widgets/estado_vazio_container.dart';
 import 'package:nous/src/features/pdv/views/widgets/registrar_pagamento_dialog.dart';
@@ -673,6 +675,25 @@ class _FinanceiroViewState extends State<FinanceiroView> {
     context
         .read<PdvProvider>()
         .adicionarPagamentoFuncionario(widget.lojaId, pagamento);
+
+    final delta = sugestao > 0 ? (resultado.valor - sugestao) : 0.0;
+    final detalheDelta = delta.abs() < 0.01
+        ? 'valor igual à sugestão de divisão'
+        : (delta > 0
+            ? '+R\$ ${delta.toStringAsFixed(2).replaceAll('.', ',')} acima da sugestão'
+            : '-R\$ ${(-delta).toStringAsFixed(2).replaceAll('.', ',')} abaixo da sugestão');
+
+    final acao = RegistroAcao(
+      id: gerarIdUnico(),
+      dataHora: DateTime.now(),
+      tipo: TipoAcao.pagamentoFuncionarioRegistrado,
+      descricao:
+          'Pagamento de ${_valorFormatado(resultado.valor)} para "${resultado.nome}" ($detalheDelta)',
+      cpfAutor: conta.cpf,
+      nomeAutor: conta.nome,
+      emailAutor: auth.emailAtivo ?? '',
+    );
+    context.read<PdvProvider>().registrarAcao(widget.lojaId, acao);
   }
 
   Future<void> _excluirPagamento(PagamentoFuncionario p) async {
@@ -727,6 +748,22 @@ class _FinanceiroViewState extends State<FinanceiroView> {
     context
         .read<PdvProvider>()
         .removerPagamentoFuncionario(widget.lojaId, p.id);
+
+    final auth = context.read<AuthProvider>();
+    final conta = auth.contaAtual;
+    if (conta != null) {
+      final acao = RegistroAcao(
+        id: gerarIdUnico(),
+        dataHora: DateTime.now(),
+        tipo: TipoAcao.pagamentoFuncionarioRemovido,
+        descricao:
+            'Pagamento de ${_valorFormatado(p.valor)} para "${p.nome}" excluído',
+        cpfAutor: conta.cpf,
+        nomeAutor: conta.nome,
+        emailAutor: auth.emailAtivo ?? '',
+      );
+      context.read<PdvProvider>().registrarAcao(widget.lojaId, acao);
+    }
   }
 
   Widget _blocoEntradas(AppTheme theme) {

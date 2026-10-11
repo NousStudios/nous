@@ -261,8 +261,10 @@ class PedidoLoja {
     return [PagamentoParcial(forma: formaPagamento, valor: valor)];
   }
 
-  bool get temAPrazo =>
-      todosPagamentos.any((p) => p.forma == 'À Prazo');
+  bool get temAPrazo => todosPagamentos.any((p) {
+        final f = p.forma.trim().toLowerCase();
+        return f == 'à prazo' || f == 'a prazo' || f.contains('prazo');
+      });
 
   bool get aPrazoEmAberto => temAPrazo && !quitado;
 

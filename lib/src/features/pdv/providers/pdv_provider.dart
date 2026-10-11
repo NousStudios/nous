@@ -124,8 +124,20 @@ class PdvProvider extends ChangeNotifier {
         return c;
       }).toList();
 
+      final novosFornecedores = loja.fornecedoresLoja.map((f) {
+        final fDigits = f.cnpj.replaceAll(RegExp(r'[^0-9]'), '');
+        if (fDigits == digitos && f.foto != novaFoto) {
+          alterou = true;
+          return f.copyWith(foto: novaFoto);
+        }
+        return f;
+      }).toList();
+
       if (alterou) {
-        final atualizada = loja.copyWith(clientesLoja: novosClientes);
+        final atualizada = loja.copyWith(
+          clientesLoja: novosClientes,
+          fornecedoresLoja: novosFornecedores,
+        );
         _lojas[i] = atualizada;
         _salvarLojaNoCofreCorreto(atualizada);
       }

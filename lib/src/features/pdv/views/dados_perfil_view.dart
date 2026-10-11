@@ -234,6 +234,7 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
       id: DateTime.now().millisecondsSinceEpoch.toString(),
       cpfConvidante: autor.cpf,
       nomeConvidante: autor.nome,
+      cpfDonoOriginal: loja.cpfDonoOriginal.isNotEmpty ? loja.cpfDonoOriginal : autor.cpf,
       cpfConvidado: conta.cpf,
       lojaId: loja.id,
       nomeLoja: loja.nome,
@@ -267,6 +268,15 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
 
     final notificacoes = context.read<NotificacoesProvider>();
     final pdv = context.read<PdvProvider>();
+    final donoOriginal = loja.cpfDonoOriginal.isNotEmpty ? loja.cpfDonoOriginal : autor.cpf;
+
+    // Regra do Manifesto: Sócios NÃO podem excluir outros Sócios nem Donos
+    final autorMembro = loja.membros.where((m) => m.cpf == autor.cpf).firstOrNull;
+    if (autorMembro?.papel == PapelMembro.socio &&
+        (membro.papel == PapelMembro.socio || membro.papel == PapelMembro.dono)) {
+      _avisar('Sócios não possuem permissão para excluir outros sócios ou donos.');
+      return;
+    }
 
     // Se o membro alvo for outro Dono, não remove diretamente: envia solicitação de consentimento
     if (membro.papel == PapelMembro.dono && membro.cpf != autor.cpf) {
@@ -274,6 +284,7 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
         id: DateTime.now().millisecondsSinceEpoch.toString(),
         cpfConvidante: autor.cpf,
         nomeConvidante: autor.nome,
+        cpfDonoOriginal: donoOriginal,
         cpfConvidado: membro.cpf,
         lojaId: loja.id,
         nomeLoja: loja.nome,
@@ -306,6 +317,7 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
       id: DateTime.now().millisecondsSinceEpoch.toString(),
       cpfConvidante: autor.cpf,
       nomeConvidante: autor.nome,
+      cpfDonoOriginal: donoOriginal,
       cpfConvidado: membro.cpf,
       lojaId: loja.id,
       nomeLoja: loja.nome,
@@ -353,10 +365,14 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
       final auth = context.read<AuthProvider>();
       final conta = auth.contaAtual;
       if (conta != null) {
+        final donoOriginal = loja?.cpfDonoOriginal.isNotEmpty == true
+            ? loja!.cpfDonoOriginal
+            : conta.cpf;
         final notificacao = ConviteLoja(
           id: DateTime.now().millisecondsSinceEpoch.toString(),
           cpfConvidante: conta.cpf,
           nomeConvidante: conta.nome,
+          cpfDonoOriginal: donoOriginal,
           cpfConvidado: membro.cpf,
           lojaId: widget.lojaId,
           nomeLoja: loja?.nome ?? '',
@@ -1431,10 +1447,18 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
         .map((i) => '${i.quantidade}x ${i.nomeItem}')
         .join(', ');
 
+    Cliente? clienteMesa;
+    if (mesa.clienteNome.trim().isNotEmpty) {
+      final nomeLimpo = mesa.clienteNome.trim().toLowerCase();
+      clienteMesa = lojaAtual?.clientesLoja.where((c) {
+        return c.nome.trim().toLowerCase() == nomeLimpo;
+      }).firstOrNull;
+    }
+
     final pedido = PedidoLoja(
       id: gerarIdUnico(),
       numero: proximoNumero,
-      clienteId: '',
+      clienteId: clienteMesa?.id ?? '',
       clienteNome: mesa.clienteNome.isNotEmpty
           ? mesa.clienteNome
           : 'Mesa ${mesa.numero}',
@@ -1444,7 +1468,7 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
       itens: itensVendidos,
       formaPagamento: resultado.formaPagamento,
       pagamentosExtras: resultado.pagamentos.length > 1
-          ? resultado.pagamentos.sublist(1)
+          ? resultado.pagamentos
           : const [],
       desconto: resultado.desconto,
       acrescimo: resultado.acrescimo,

@@ -22,6 +22,7 @@ import 'package:nous/src/features/pdv/models/pagamento_funcionario.dart';
 import 'package:nous/src/features/pdv/models/pedido_loja.dart';
 import 'package:nous/src/features/pdv/models/referencia_loja.dart';
 import 'package:nous/src/features/pdv/models/registro_acao.dart';
+import 'package:nous/src/features/pdv/models/turno_caixa.dart';
 import 'package:nous/src/features/pdv/services/lojas_service.dart';
 
 class ResultadoImportacao {
@@ -413,12 +414,24 @@ class BackupService {
         itensMesclados[idx] = atual.copyWith(
           tipo: atual.tipo ?? itemImp.tipo,
           preco: atual.preco.trim().isNotEmpty ? atual.preco : itemImp.preco,
+          precoCusto: atual.precoCusto.trim().isNotEmpty
+              ? atual.precoCusto
+              : itemImp.precoCusto,
+          codigoBarras: atual.codigoBarras.trim().isNotEmpty
+              ? atual.codigoBarras
+              : itemImp.codigoBarras,
           descricao: atual.descricao.trim().isNotEmpty
               ? atual.descricao
               : itemImp.descricao,
           estoqueMinimo: atual.estoqueMinimo.trim().isNotEmpty
               ? atual.estoqueMinimo
               : itemImp.estoqueMinimo,
+          unidadeBase: atual.unidadeBase != UnidadeItemLoja.un
+              ? atual.unidadeBase
+              : itemImp.unidadeBase,
+          consumoPorVenda: atual.consumoPorVenda != 1.0
+              ? atual.consumoPorVenda
+              : itemImp.consumoPorVenda,
           imagens: imagensUnidas,
           variantes: variantesUnidas,
           possuiDelivery: atual.possuiDelivery || itemImp.possuiDelivery,
@@ -604,6 +617,23 @@ class BackupService {
         ? existente.configuracoesImpressora
         : importada.configuracoesImpressora;
 
+    final turnosMesclados = <TurnoCaixa>[...existente.turnosCaixa];
+    for (final tImp in importada.turnosCaixa) {
+      if (!turnosMesclados.any((t) => t.id == tImp.id)) {
+        turnosMesclados.add(tImp);
+      }
+    }
+    turnosMesclados.sort((a, b) => b.dataAbertura.compareTo(a.dataAbertura));
+
+    final atalhosFinais = <String, String>{
+      ...importada.atalhosTeclado,
+      ...existente.atalhosTeclado,
+    };
+
+    final tempoFinal = existente.tempoConclusaoMinutos > 0
+        ? existente.tempoConclusaoMinutos
+        : importada.tempoConclusaoMinutos;
+
     final sonsFinal = <String, String>{
       ...importada.sonsAlertas,
       ...existente.sonsAlertas,
@@ -631,6 +661,7 @@ class BackupService {
       mesas: mesasMescladas,
       movimentosEstoque: estoqueMesclado,
       pagamentosFuncionarios: pagamentosMesclados,
+      turnosCaixa: turnosMesclados,
       galeria: galeriaFinal,
       arquivos: arquivosFinal,
       musicas: musicasFinal,
@@ -639,6 +670,8 @@ class BackupService {
       descricoesAnexos: descricoesFinal,
       configuracoesImpressora: impressoraFinal,
       sonsAlertas: sonsFinal,
+      atalhosTeclado: atalhosFinais,
+      tempoConclusaoMinutos: tempoFinal,
     );
   }
 }

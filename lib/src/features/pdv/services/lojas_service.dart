@@ -77,9 +77,37 @@ class LojasService {
       final idsAtuais = lojas.map((l) => l.id).toList();
 
       if (idsAtuais.isEmpty) {
+        final lojasParaDeletar = await txn.query(
+          'lojas',
+          columns: ['id'],
+          where: 'cpf_dono = ?',
+          whereArgs: [cpf],
+        );
+        for (final row in lojasParaDeletar) {
+          final lId = row['id'] as String;
+          await txn.delete('pedidos', where: 'loja_id = ?', whereArgs: [lId]);
+          await txn.delete('movimentos_estoque',
+              where: 'loja_id = ?', whereArgs: [lId]);
+          await txn.delete('pagamentos_funcionarios',
+              where: 'loja_id = ?', whereArgs: [lId]);
+        }
         await txn.delete('lojas', where: 'cpf_dono = ?', whereArgs: [cpf]);
       } else {
         final placeholders = List.filled(idsAtuais.length, '?').join(',');
+        final lojasParaDeletar = await txn.query(
+          'lojas',
+          columns: ['id'],
+          where: 'cpf_dono = ? AND id NOT IN ($placeholders)',
+          whereArgs: [cpf, ...idsAtuais],
+        );
+        for (final row in lojasParaDeletar) {
+          final lId = row['id'] as String;
+          await txn.delete('pedidos', where: 'loja_id = ?', whereArgs: [lId]);
+          await txn.delete('movimentos_estoque',
+              where: 'loja_id = ?', whereArgs: [lId]);
+          await txn.delete('pagamentos_funcionarios',
+              where: 'loja_id = ?', whereArgs: [lId]);
+        }
         await txn.delete(
           'lojas',
           where: 'cpf_dono = ? AND id NOT IN ($placeholders)',

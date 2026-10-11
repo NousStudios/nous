@@ -13,6 +13,7 @@ class ConviteLoja {
   final String id;
   final String cpfConvidante;
   final String nomeConvidante;
+  final String cpfDonoOriginal;
   final String cpfConvidado;
   final String lojaId;
   final String nomeLoja;
@@ -25,6 +26,7 @@ class ConviteLoja {
     required this.id,
     required this.cpfConvidante,
     required this.nomeConvidante,
+    this.cpfDonoOriginal = '',
     required this.cpfConvidado,
     required this.lojaId,
     required this.nomeLoja,
@@ -37,11 +39,13 @@ class ConviteLoja {
   ConviteLoja copyWith({
     StatusConvite? status,
     TipoNotificacao? tipo,
+    String? cpfDonoOriginal,
   }) {
     return ConviteLoja(
       id: id,
       cpfConvidante: cpfConvidante,
       nomeConvidante: nomeConvidante,
+      cpfDonoOriginal: cpfDonoOriginal ?? this.cpfDonoOriginal,
       cpfConvidado: cpfConvidado,
       lojaId: lojaId,
       nomeLoja: nomeLoja,
@@ -57,6 +61,7 @@ class ConviteLoja {
       'id': id,
       'cpfConvidante': cpfConvidante,
       'nomeConvidante': nomeConvidante,
+      'cpfDonoOriginal': cpfDonoOriginal,
       'cpfConvidado': cpfConvidado,
       'lojaId': lojaId,
       'nomeLoja': nomeLoja,
@@ -68,10 +73,13 @@ class ConviteLoja {
   }
 
   factory ConviteLoja.fromJson(Map<String, dynamic> json) {
+    final convidante = json['cpfConvidante'] as String? ?? '';
+    final dono = json['cpfDonoOriginal'] as String? ?? '';
     return ConviteLoja(
       id: json['id'] as String,
-      cpfConvidante: json['cpfConvidante'] as String? ?? '',
+      cpfConvidante: convidante,
       nomeConvidante: json['nomeConvidante'] as String? ?? '',
+      cpfDonoOriginal: dono.isNotEmpty ? dono : convidante,
       cpfConvidado: json['cpfConvidado'] as String? ?? '',
       lojaId: json['lojaId'] as String? ?? '',
       nomeLoja: json['nomeLoja'] as String? ?? '',
