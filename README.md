@@ -172,7 +172,7 @@ screen-specific components).
 
 ## Roadmap
 
-1. **PDV & Governance Core** — functional and evolving. Complete point of sale, USB barcode scanning, shift & cash drawer control (`TurnoCaixa`), multi-unit inventory control (`un`/`g`/`ml`), customers/suppliers with sovereign auto-fill, egalitarian financial module, 58mm/80mm thermal printing with bilateral calibration, automatic daily backup, and consent-based collective governance.
+1. **PDV & Governance Core** — functional and evolving. Complete point of sale, USB barcode scanning, shift & cash drawer control (`TurnoCaixa`) with automatic cash drawer reconciliation on debt clearance, multi-unit inventory control (`un`/`g`/`ml`) with smart stock return on order deletion, customers/suppliers with sovereign auto-fill, egalitarian financial module with invariant operational profit sharing base and reconciled mixed/credit payments, 58mm/80mm thermal printing with bilateral calibration, persistent hover feedback across all selectors, automatic daily backup, and consent-based collective governance.
 2. Internal Chat (`features/chat`)
 3. Social Timeline (`features/timeline`)
 4. Autonomous Delivery Network (`features/delivery`), with driver-negotiated route pricing and direct dispatch
@@ -396,7 +396,7 @@ componentes específicos daquela tela).
 
 ## Roteiro (Roadmap)
 
-1. **Núcleo de PDV e Governança** — funcional e em evolução contínua. Ponto de venda completo, leitor de código de barras USB (bipador), controle de turno de caixa (`TurnoCaixa`) com sangria/suprimento e conferência cega, estoque multivariado (`un`/`g`/`ml`) com cálculo automático de compras e alertas de estoque crítico (< 10 un) no sino da barra superior, clientes e fornecedores com autopreenchimento local soberano, financeiro cooperativo com divisão igualitária e fechamento diário em PDF, impressão térmica de 58mm e 80mm universal com calibração bilateral de recuo, tipografia configurável, prévia viva com perfis históricos do anarquismo e impressão direta de amostras, backup diário automático silencioso e instalador oficial Windows para testes (`Nous_Instalador_v1.0.0_Versao_Teste.exe`).
+1. **Núcleo de PDV e Governança** — funcional e em evolução contínua. Ponto de venda completo, leitor de código de barras USB (bipador), controle de turno de caixa (`TurnoCaixa`) com sangria/suprimento e conciliação automática na quitação de dívidas/fiado, estoque multivariado (`un`/`g`/`ml`) com cálculo automático de compras, alertas de estoque crítico (< 10 un) no sino e estorno inteligente na exclusão de pedidos, clientes e fornecedores com autopreenchimento local soberano, financeiro cooperativo com base estável de divisão igualitária, quitação exata de vendas à prazo e fechamento diário em PDF, botões e seletores com hover persistente universal, impressão térmica de 58mm e 80mm universal com calibração bilateral de recuo, tipografia configurável, prévia viva com perfis históricos do anarquismo e impressão direta de amostras, backup diário automático silencioso e instalador oficial Windows para testes (`Nous_Instalador_v1.0.0_Versao_Teste.exe`).
 2. Chat interno (`features/chat`)
 3. Timeline social (`features/timeline`)
 4. Rede autônoma de entregadores (`features/delivery`), com negociação de rotas pelo próprio trabalhador

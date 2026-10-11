@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:nous/src/core/theme/theme_controller.dart';
+import 'package:nous/src/core/widgets/themed_switch.dart';
+import 'package:nous/src/core/widgets/themed_text_field.dart';
+import 'package:nous/src/features/pdv/models/cliente.dart';
 import 'package:nous/src/features/pdv/models/mesa_loja.dart';
 import 'package:nous/src/features/pdv/models/pedido_loja.dart';
 
@@ -22,6 +25,8 @@ class ResultadoFechamentoMesa {
   final double acrescimo;
   final double valorFinal;
   final bool baixarEstoque;
+  final String? clienteId;
+  final String? clienteNome;
 
   const ResultadoFechamentoMesa({
     required this.formaPagamento,
@@ -30,23 +35,31 @@ class ResultadoFechamentoMesa {
     this.acrescimo = 0,
     required this.valorFinal,
     required this.baixarEstoque,
+    this.clienteId,
+    this.clienteNome,
   });
 }
 
 class FecharContaMesaDialog extends StatefulWidget {
   final AppTheme theme;
   final MesaLoja mesa;
+  final List<Cliente> clientes;
+  final Future<void> Function(Cliente novoCliente)? onSalvarCliente;
 
   const FecharContaMesaDialog({
     super.key,
     required this.theme,
     required this.mesa,
+    this.clientes = const [],
+    this.onSalvarCliente,
   });
 
   static Future<ResultadoFechamentoMesa?> mostrar(
     BuildContext context, {
     required AppTheme theme,
     required MesaLoja mesa,
+    List<Cliente> clientes = const [],
+    Future<void> Function(Cliente)? onSalvarCliente,
   }) {
     return showDialog<ResultadoFechamentoMesa>(
       context: context,
@@ -64,6 +77,8 @@ class FecharContaMesaDialog extends StatefulWidget {
             child: FecharContaMesaDialog(
               theme: theme,
               mesa: mesa,
+              clientes: clientes,
+              onSalvarCliente: onSalvarCliente,
             ),
           ),
         );
@@ -163,7 +178,67 @@ class _FecharContaMesaDialogState extends State<FecharContaMesaDialog> {
     });
   }
 
-  void _concluirFechamento() {
+  Future<void> _concluirFechamento() async {
+    final temAPrazo = _dividirPagamento
+        ? _pagamentosParciais.any((p) {
+            final f = p.forma.trim().toLowerCase();
+            return f == 'à prazo' || f == 'a prazo';
+          })
+        : (_formaPagamento.trim().toLowerCase() == 'à prazo' ||
+            _formaPagamento.trim().toLowerCase() == 'a prazo');
+
+    String? clienteIdFinal;
+    String? clienteNomeFinal = widget.mesa.clienteNome;
+
+    if (temAPrazo) {
+      final nomeAtual = clienteNomeFinal.trim();
+      Cliente? clienteCadastrado;
+      if (nomeAtual.isNotEmpty) {
+        clienteCadastrado = widget.clientes.where((c) {
+          return c.nome.trim().toLowerCase() == nomeAtual.toLowerCase();
+        }).firstOrNull;
+      }
+
+      if (clienteCadastrado == null) {
+        final novoCliente = await showDialog<Cliente>(
+          context: context,
+          barrierColor: Colors.black.withValues(alpha: 0.5),
+          builder: (dialogCtx) {
+            return _CadastroClienteRapidoMesaDialog(
+              theme: widget.theme,
+              nomeInicial: nomeAtual,
+              numeroMesa: widget.mesa.numero,
+            );
+          },
+        );
+
+        if (novoCliente == null) {
+          if (!mounted) return;
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              backgroundColor: widget.theme.cardBackgroundColor,
+              content: Text(
+                'Venda à prazo cancelada: é necessário cadastrar o cliente.',
+                style: widget.theme.getTextStyle(color: Colors.redAccent),
+              ),
+            ),
+          );
+          return;
+        }
+
+        if (widget.onSalvarCliente != null) {
+          await widget.onSalvarCliente!(novoCliente);
+        }
+        clienteIdFinal = novoCliente.id;
+        clienteNomeFinal = novoCliente.nome;
+      } else {
+        clienteIdFinal = clienteCadastrado.id;
+        clienteNomeFinal = clienteCadastrado.nome;
+      }
+    }
+
+    if (!mounted) return;
+
     if (_dividirPagamento) {
       if (_restantePagar > 0.01) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -171,6 +246,19 @@ class _FecharContaMesaDialogState extends State<FecharContaMesaDialog> {
             backgroundColor: widget.theme.cardBackgroundColor,
             content: Text(
               'Ainda restam ${_valorFormatado(_restantePagar)} a serem quitados.',
+              style: widget.theme.getTextStyle(color: Colors.redAccent),
+            ),
+          ),
+        );
+        return;
+      }
+
+      if (_totalPagoDividido > _totalFinal + 0.01) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            backgroundColor: widget.theme.cardBackgroundColor,
+            content: Text(
+              'A soma dos pagamentos (${_valorFormatado(_totalPagoDividido)}) excede o total da conta (${_valorFormatado(_totalFinal)}). Ajuste os valores adicionados.',
               style: widget.theme.getTextStyle(color: Colors.redAccent),
             ),
           ),
@@ -188,6 +276,8 @@ class _FecharContaMesaDialogState extends State<FecharContaMesaDialog> {
           acrescimo: _acrescimo,
           valorFinal: _totalFinal,
           baixarEstoque: _baixarEstoque,
+          clienteId: clienteIdFinal,
+          clienteNome: clienteNomeFinal,
         ),
       );
     } else {
@@ -201,6 +291,8 @@ class _FecharContaMesaDialogState extends State<FecharContaMesaDialog> {
           acrescimo: _acrescimo,
           valorFinal: _totalFinal,
           baixarEstoque: _baixarEstoque,
+          clienteId: clienteIdFinal,
+          clienteNome: clienteNomeFinal,
         ),
       );
     }
@@ -713,12 +805,10 @@ class _FecharContaMesaDialogState extends State<FecharContaMesaDialog> {
                       ],
                     ),
                   ),
-                  Switch(
+                  ThemedSwitch(
+                    theme: theme,
                     value: _baixarEstoque,
                     onChanged: (v) => setState(() => _baixarEstoque = v),
-                    activeThumbColor: theme.textColor,
-                    activeTrackColor:
-                        theme.borderColor.withValues(alpha: 0.4),
                   ),
                 ],
               ),
@@ -728,13 +818,31 @@ class _FecharContaMesaDialogState extends State<FecharContaMesaDialog> {
 
           // Botão Concluir
           OutlinedButton(
-            style: OutlinedButton.styleFrom(
-              backgroundColor: theme.buttonColor,
-              foregroundColor: theme.buttonTextColor,
-              side: BorderSide(color: theme.borderColor),
-              padding: const EdgeInsets.symmetric(vertical: 14),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(10),
+            style: ButtonStyle(
+              backgroundColor: WidgetStateProperty.resolveWith((states) {
+                if (states.contains(WidgetState.hovered)) {
+                  return theme.borderColor.withValues(alpha: 0.18);
+                }
+                return theme.buttonColor != Colors.transparent
+                    ? theme.buttonColor
+                    : Colors.transparent;
+              }),
+              foregroundColor: WidgetStateProperty.resolveWith((states) {
+                return theme.buttonColor != Colors.transparent
+                    ? theme.buttonTextColor
+                    : theme.textColor;
+              }),
+              side: WidgetStateProperty.resolveWith((states) {
+                if (states.contains(WidgetState.hovered)) {
+                  return BorderSide(color: theme.textColor, width: 1.4);
+                }
+                return BorderSide(color: theme.borderColor, width: 1.0);
+              }),
+              padding: const WidgetStatePropertyAll(
+                EdgeInsets.symmetric(vertical: 14),
+              ),
+              shape: WidgetStatePropertyAll(
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
               ),
             ),
             onPressed: _concluirFechamento,
@@ -743,11 +851,208 @@ class _FecharContaMesaDialogState extends State<FecharContaMesaDialog> {
               style: theme.getTextStyle(
                 fontSize: 14,
                 fontWeight: FontWeight.bold,
-                color: theme.buttonTextColor,
+                color: theme.buttonColor != Colors.transparent
+                    ? theme.buttonTextColor
+                    : theme.textColor,
               ),
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _CadastroClienteRapidoMesaDialog extends StatefulWidget {
+  final AppTheme theme;
+  final String nomeInicial;
+  final String numeroMesa;
+
+  const _CadastroClienteRapidoMesaDialog({
+    required this.theme,
+    required this.nomeInicial,
+    required this.numeroMesa,
+  });
+
+  @override
+  State<_CadastroClienteRapidoMesaDialog> createState() =>
+      _CadastroClienteRapidoMesaDialogState();
+}
+
+class _CadastroClienteRapidoMesaDialogState
+    extends State<_CadastroClienteRapidoMesaDialog> {
+  late final TextEditingController _nomeController;
+  final _enderecoController = TextEditingController();
+  final _telefoneController = TextEditingController();
+  String? _erro;
+
+  @override
+  void initState() {
+    super.initState();
+    _nomeController = TextEditingController(text: widget.nomeInicial);
+  }
+
+  @override
+  void dispose() {
+    _nomeController.dispose();
+    _enderecoController.dispose();
+    _telefoneController.dispose();
+    super.dispose();
+  }
+
+  void _confirmar() {
+    final nome = _nomeController.text.trim();
+    if (nome.isEmpty) {
+      setState(() => _erro = 'Informe o nome do cliente.');
+      return;
+    }
+
+    final cliente = Cliente(
+      id: DateTime.now().millisecondsSinceEpoch.toString(),
+      nome: nome,
+      endereco: _enderecoController.text.trim(),
+      telefone: _telefoneController.text.trim(),
+    );
+
+    Navigator.of(context).pop(cliente);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = widget.theme;
+
+    return Dialog(
+      backgroundColor: theme.cardBackgroundColor,
+      insetPadding: const EdgeInsets.all(16),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(color: theme.borderColor),
+      ),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 440),
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
+                children: [
+                  Icon(Icons.person_add_alt_1_outlined,
+                      color: theme.textColor, size: 22),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Cadastro Rápido de Cliente',
+                      style: theme.getTextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 6),
+              Text(
+                'Venda à prazo na Mesa ${widget.numeroMesa}: informe os dados básicos do cliente para registro no sistema.',
+                style: theme.getTextStyle(
+                  fontSize: 12,
+                  color: theme.secondaryTextColor,
+                ),
+              ),
+              const SizedBox(height: 16),
+              ThemedTextField(
+                theme: theme,
+                controller: _nomeController,
+                label: 'Nome do Cliente',
+                obrigatorio: true,
+              ),
+              const SizedBox(height: 12),
+              ThemedTextField(
+                theme: theme,
+                controller: _enderecoController,
+                label: 'Endereço (Rua, Número, Bairro)',
+              ),
+              const SizedBox(height: 12),
+              ThemedTextField(
+                theme: theme,
+                controller: _telefoneController,
+                label: 'Telefone / WhatsApp',
+                tipoDeTeclado: TextInputType.phone,
+              ),
+              if (_erro != null) ...[
+                const SizedBox(height: 10),
+                Text(
+                  _erro!,
+                  style: theme.getTextStyle(
+                    fontSize: 12,
+                    color: Colors.redAccent,
+                  ),
+                ),
+              ],
+              const SizedBox(height: 20),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  TextButton(
+                    onPressed: () => Navigator.of(context).pop(null),
+                    child: Text(
+                      'Cancelar',
+                      style: theme.getTextStyle(
+                        color: theme.secondaryTextColor,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  OutlinedButton(
+                    style: ButtonStyle(
+                      backgroundColor:
+                          WidgetStateProperty.resolveWith((states) {
+                        if (states.contains(WidgetState.hovered)) {
+                          return theme.borderColor.withValues(alpha: 0.18);
+                        }
+                        return theme.buttonColor != Colors.transparent
+                            ? theme.buttonColor
+                            : Colors.transparent;
+                      }),
+                      foregroundColor:
+                          WidgetStateProperty.resolveWith((states) {
+                        return theme.buttonColor != Colors.transparent
+                            ? theme.buttonTextColor
+                            : theme.textColor;
+                      }),
+                      side: WidgetStateProperty.resolveWith((states) {
+                        if (states.contains(WidgetState.hovered)) {
+                          return BorderSide(color: theme.textColor, width: 1.4);
+                        }
+                        return BorderSide(color: theme.borderColor, width: 1.0);
+                      }),
+                      shape: const WidgetStatePropertyAll(
+                        RoundedRectangleBorder(
+                          borderRadius: BorderRadius.all(Radius.circular(10)),
+                        ),
+                      ),
+                      padding: const WidgetStatePropertyAll(
+                        EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                      ),
+                    ),
+                    onPressed: _confirmar,
+                    child: Text(
+                      'Cadastrar e Continuar',
+                      style: theme.getTextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                        color: theme.buttonColor != Colors.transparent
+                            ? theme.buttonTextColor
+                            : theme.textColor,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

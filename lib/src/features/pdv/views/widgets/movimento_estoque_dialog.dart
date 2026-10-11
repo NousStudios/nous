@@ -255,19 +255,11 @@ class _MovimentoEstoqueConteudoState
   Widget _botaoTipo(String rotulo, TipoMovimentoEstoque tipo) {
     final selecionado = _tipo == tipo;
     return Expanded(
-      child: OutlinedButton(
-        style: OutlinedButton.styleFrom(
-          backgroundColor:
-              selecionado ? theme.buttonColor : Colors.transparent,
-          foregroundColor:
-              selecionado ? theme.buttonTextColor : theme.textColor,
-          side: BorderSide(color: theme.borderColor),
-          padding: const EdgeInsets.symmetric(vertical: 12),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(10),
-          ),
-        ),
-        onPressed: () => setState(() {
+      child: _BotaoHoverTipoEstoque(
+        theme: theme,
+        rotulo: rotulo,
+        selecionado: selecionado,
+        aoClicar: () => setState(() {
           _tipo = tipo;
           if (tipo == TipoMovimentoEstoque.saida) {
             _fornecedor = null;
@@ -277,13 +269,6 @@ class _MovimentoEstoqueConteudoState
           }
           _aviso = null;
         }),
-        child: Text(
-          rotulo,
-          style: theme.getTextStyle(
-            fontSize: 12,
-            color: selecionado ? theme.buttonTextColor : theme.textColor,
-          ),
-        ),
       ),
     );
   }
@@ -618,13 +603,35 @@ class _MovimentoEstoqueConteudoState
                 SizedBox(
                   width: double.infinity,
                   child: OutlinedButton(
-                    style: OutlinedButton.styleFrom(
-                      backgroundColor: theme.buttonColor,
-                      foregroundColor: theme.buttonTextColor,
-                      side: BorderSide(color: theme.borderColor),
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(10),
+                    style: ButtonStyle(
+                      backgroundColor:
+                          WidgetStateProperty.resolveWith((states) {
+                        if (states.contains(WidgetState.hovered)) {
+                          return theme.borderColor.withValues(alpha: 0.18);
+                        }
+                        return theme.buttonColor != Colors.transparent
+                            ? theme.buttonColor
+                            : Colors.transparent;
+                      }),
+                      foregroundColor:
+                          WidgetStateProperty.resolveWith((states) {
+                        return theme.buttonColor != Colors.transparent
+                            ? theme.buttonTextColor
+                            : theme.textColor;
+                      }),
+                      side: WidgetStateProperty.resolveWith((states) {
+                        if (states.contains(WidgetState.hovered)) {
+                          return BorderSide(color: theme.textColor, width: 1.4);
+                        }
+                        return BorderSide(color: theme.borderColor, width: 1.0);
+                      }),
+                      padding: const WidgetStatePropertyAll(
+                        EdgeInsets.symmetric(vertical: 14),
+                      ),
+                      shape: WidgetStatePropertyAll(
+                        RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
                       ),
                     ),
                     onPressed: widget.itens.isEmpty ? null : _confirmar,
@@ -632,7 +639,10 @@ class _MovimentoEstoqueConteudoState
                       'Registrar',
                       style: theme.getTextStyle(
                         fontSize: 14,
-                        color: theme.buttonTextColor,
+                        fontWeight: FontWeight.bold,
+                        color: theme.buttonColor != Colors.transparent
+                            ? theme.buttonTextColor
+                            : theme.textColor,
                       ),
                     ),
                   ),
@@ -642,6 +652,85 @@ class _MovimentoEstoqueConteudoState
           ),
         ),
       ],
+    );
+  }
+}
+
+class _BotaoHoverTipoEstoque extends StatefulWidget {
+  final AppTheme theme;
+  final String rotulo;
+  final bool selecionado;
+  final VoidCallback aoClicar;
+
+  const _BotaoHoverTipoEstoque({
+    required this.theme,
+    required this.rotulo,
+    required this.selecionado,
+    required this.aoClicar,
+  });
+
+  @override
+  State<_BotaoHoverTipoEstoque> createState() => _BotaoHoverTipoEstoqueState();
+}
+
+class _BotaoHoverTipoEstoqueState extends State<_BotaoHoverTipoEstoque> {
+  bool _hover = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = widget.theme;
+    final ativo = widget.selecionado;
+    final corAtiva = theme.buttonColor != Colors.transparent
+        ? theme.buttonColor
+        : theme.borderColor.withValues(alpha: 0.25);
+
+    final corFundo = ativo
+        ? (_hover ? corAtiva.withValues(alpha: 0.35) : corAtiva)
+        : (_hover
+            ? theme.borderColor.withValues(alpha: 0.12)
+            : Colors.transparent);
+
+    final corBorda = ativo
+        ? theme.textColor
+        : (_hover
+            ? theme.borderColor
+            : theme.borderColor.withValues(alpha: 0.6));
+
+    final corTexto = ativo
+        ? (theme.buttonColor != Colors.transparent
+            ? theme.buttonTextColor
+            : theme.textColor)
+        : theme.textColor;
+
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      onEnter: (_) => setState(() => _hover = true),
+      onExit: (_) => setState(() => _hover = false),
+      child: GestureDetector(
+        onTap: widget.aoClicar,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 140),
+          padding: const EdgeInsets.symmetric(vertical: 12),
+          decoration: BoxDecoration(
+            color: corFundo,
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(
+              color: corBorda,
+              width: ativo ? 1.6 : 1.0,
+            ),
+          ),
+          child: Center(
+            child: Text(
+              widget.rotulo,
+              style: theme.getTextStyle(
+                fontSize: 12,
+                fontWeight: ativo ? FontWeight.bold : FontWeight.normal,
+                color: corTexto,
+              ),
+            ),
+          ),
+        ),
+      ),
     );
   }
 }

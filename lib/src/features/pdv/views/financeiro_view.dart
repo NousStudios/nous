@@ -175,16 +175,40 @@ class _FinanceiroViewState extends State<FinanceiroView> {
   }
 
   double get _totalEntradas =>
-      _vendasConcluidas.fold(0.0, (soma, p) => soma + p.valor);
+      _formasDePagamento.fold(0.0, (soma, f) => soma + _entradasPorForma(f));
 
-  double get _totalAReceber =>
-      _pedidosAceitos.fold(0.0, (soma, p) => soma + p.valor);
+  double get _totalAReceber {
+    final aReceberPedidosAceitos =
+        _pedidosAceitos.fold(0.0, (soma, p) => soma + p.valor);
+    final aReceberPrazoConcluidas = _vendasConcluidas
+        .where((p) => p.aPrazoEmAberto)
+        .fold(0.0, (soma, p) => soma + p.valorRestante);
+    return aReceberPedidosAceitos + aReceberPrazoConcluidas;
+  }
 
   double _entradasPorForma(String forma) {
     var soma = 0.0;
+    final ehPrazo = forma.trim().toLowerCase() == 'à prazo' ||
+        forma.trim().toLowerCase() == 'a prazo';
     for (final venda in _vendasConcluidas) {
-      for (final p in venda.todosPagamentos) {
-        if (p.forma == forma) soma += p.valor;
+      if (ehPrazo) {
+        if (!venda.temAPrazo) continue;
+        final entradasNaoPrazo = venda.todosPagamentos
+            .where((p) {
+              final f = p.forma.trim().toLowerCase();
+              return f != 'à prazo' && f != 'a prazo';
+            })
+            .fold<double>(0.0, (s, p) => s + p.valor);
+        final recebidoDoPrazo = venda.valorPago - entradasNaoPrazo;
+        if (recebidoDoPrazo > 0) {
+          soma += recebidoDoPrazo;
+        }
+      } else {
+        for (final p in venda.todosPagamentos) {
+          if (p.forma.trim().toLowerCase() == forma.trim().toLowerCase()) {
+            soma += p.valor;
+          }
+        }
       }
     }
     return soma;
@@ -265,38 +289,60 @@ class _FinanceiroViewState extends State<FinanceiroView> {
     );
   }
 
+  Widget _botaoPeriodo(AppTheme theme, PeriodoFinanceiro p) {
+    final selecionado = p == _periodo;
+    final fundoAtivo = theme.buttonColor != Colors.transparent
+        ? theme.buttonColor
+        : theme.borderColor.withValues(alpha: 0.25);
+    final textoAtivo = theme.buttonColor != Colors.transparent
+        ? theme.buttonTextColor
+        : theme.textColor;
+
+    return _LinhaComHover(
+      aoClicar: () => setState(() => _periodo = p),
+      builder: (hover) => Container(
+        width: 80,
+        padding: const EdgeInsets.symmetric(vertical: 10),
+        decoration: BoxDecoration(
+          color: selecionado
+              ? (hover
+                  ? (theme.buttonColor != Colors.transparent
+                      ? theme.buttonColor.withValues(alpha: 0.85)
+                      : theme.borderColor.withValues(alpha: 0.35))
+                  : fundoAtivo)
+              : (hover
+                  ? theme.borderColor.withValues(alpha: 0.18)
+                  : Colors.transparent),
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(
+            color: selecionado || hover
+                ? theme.textColor
+                : theme.borderColor.withValues(alpha: 0.45),
+            width: selecionado ? 1.6 : 1.0,
+          ),
+        ),
+        child: Text(
+          _rotuloPeriodoDe(p),
+          textAlign: TextAlign.center,
+          style: theme.getTextStyle(
+            fontSize: 12,
+            fontWeight: selecionado ? FontWeight.bold : FontWeight.normal,
+            color: selecionado
+                ? textoAtivo
+                : (hover ? theme.textColor : theme.secondaryTextColor),
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _filtroPeriodo(AppTheme theme) {
     const double larguraBotao = 80;
     const double espaco = 8;
 
-    final botoes = PeriodoFinanceiro.values.map((p) {
-      final selecionado = p == _periodo;
-      return SizedBox(
-        width: larguraBotao,
-        child: OutlinedButton(
-          style: OutlinedButton.styleFrom(
-            backgroundColor:
-                selecionado ? theme.buttonColor : Colors.transparent,
-            foregroundColor:
-                selecionado ? theme.buttonTextColor : theme.textColor,
-            side: BorderSide(color: theme.borderColor),
-            padding: const EdgeInsets.symmetric(vertical: 10),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(10),
-            ),
-          ),
-          onPressed: () => setState(() => _periodo = p),
-          child: Text(
-            _rotuloPeriodoDe(p),
-            style: theme.getTextStyle(
-              fontSize: 12,
-              color:
-                  selecionado ? theme.buttonTextColor : theme.textColor,
-            ),
-          ),
-        ),
-      );
-    }).toList();
+    final botoes = PeriodoFinanceiro.values
+        .map((p) => _botaoPeriodo(theme, p))
+        .toList();
 
     final larguraTotal =
         larguraBotao * botoes.length + espaco * (botoes.length - 1);
@@ -448,6 +494,46 @@ class _FinanceiroViewState extends State<FinanceiroView> {
     } catch (e) {
       if (!mounted) return;
       _snack('Falha ao exportar: $e');
+    } finally {
+      if (mounted) setState(() => _exportando = false);
+    }
+  }
+
+  Future<void> _exportarDRE(Loja loja) async {
+    if (_exportando) return;
+    setState(() => _exportando = true);
+    try {
+      final receita = _totalEntradas;
+      final cmv = _saidaEstoqueDoPeriodo(loja);
+      final lucroBruto = receita - cmv;
+      final margemBruta = receita > 0 ? (lucroBruto / receita * 100) : 0.0;
+      final pagamentos = _pagamentosDoPeriodo(loja);
+      final despesasPessoal = pagamentos.fold(0.0, (s, p) => s + p.valor);
+      final resultadoLiquido = lucroBruto - despesasPessoal;
+      final margemLiquida =
+          receita > 0 ? (resultadoLiquido / receita * 100) : 0.0;
+
+      final caminho = await ImpressaoService.exportarDREPDF(
+        loja: loja,
+        periodo: _rotuloPeriodoAtual,
+        receita: receita,
+        cmv: cmv,
+        lucroBruto: lucroBruto,
+        margemBruta: margemBruta,
+        despesasPessoal: despesasPessoal,
+        resultadoLiquido: resultadoLiquido,
+        margemLiquida: margemLiquida,
+        rodape: loja.configuracoesImpressora.rodape,
+      );
+      if (!mounted) return;
+      if (caminho == null) {
+        _snack('Exportação da DRE cancelada.');
+      } else {
+        _snack('PDF da DRE salvo em: $caminho');
+      }
+    } catch (e) {
+      if (!mounted) return;
+      _snack('Falha ao exportar DRE: $e');
     } finally {
       if (mounted) setState(() => _exportando = false);
     }
@@ -612,12 +698,12 @@ class _FinanceiroViewState extends State<FinanceiroView> {
                         ),
                         onPressed: () {
                           Navigator.of(dialogContext).pop();
-                          _exportar(loja);
+                          _exportarDRE(loja);
                         },
                         icon: Icon(Icons.picture_as_pdf_outlined,
                             size: 14, color: theme.textColor),
                         label: Text(
-                          'Exportar PDF',
+                          'Exportar DRE em PDF',
                           style: theme.getTextStyle(fontSize: 12),
                         ),
                       ),
@@ -644,12 +730,12 @@ class _FinanceiroViewState extends State<FinanceiroView> {
     for (final p in pagamentos) {
       totalPagamentos += p.valor;
     }
-    final saidas = totalPagamentos + (_contarEstoque ? saidaEstoque : 0);
-    final disponivel = entradas - saidas;
+    final baseRateio = entradas - (_contarEstoque ? saidaEstoque : 0);
+    final disponivel = baseRateio - totalPagamentos;
     final numeroMembros = loja.membros.isEmpty ? 0 : loja.membros.length;
     final sugestao = numeroMembros == 0
         ? 0.0
-        : (disponivel <= 0 ? 0.0 : disponivel / numeroMembros);
+        : (baseRateio <= 0 ? 0.0 : baseRateio / numeroMembros);
 
     final resultado = await RegistrarPagamentoDialog.mostrar(
       context,
@@ -800,7 +886,6 @@ class _FinanceiroViewState extends State<FinanceiroView> {
         totalPagamentos + (_contarEstoque ? saidaEstoque : 0);
     final saldo = entradas - saidas;
     final aReceber = _totalAReceber;
-    final quantidadeAReceber = _pedidosAceitos.length;
 
     return Container(
       width: 320,
@@ -832,10 +917,10 @@ class _FinanceiroViewState extends State<FinanceiroView> {
             destaque: true,
             negativo: saldo < 0,
           ),
-          if (quantidadeAReceber > 0) ...[
+          if (aReceber > 0) ...[
             const SizedBox(height: 8),
             Text(
-              'A receber ($quantidadeAReceber ${quantidadeAReceber == 1 ? 'pedido aceito' : 'pedidos aceitos'}): ${_valorFormatado(aReceber)}',
+              'A receber (pedidos e saldo a prazo): ${_valorFormatado(aReceber)}',
               textAlign: TextAlign.center,
               style: theme.getTextStyle(
                 fontSize: 11,
@@ -1374,6 +1459,34 @@ class _LinhaCompraEstoqueState extends State<_LinhaCompraEstoque> {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _LinhaComHover extends StatefulWidget {
+  final Widget Function(bool hover) builder;
+  final VoidCallback aoClicar;
+
+  const _LinhaComHover({required this.builder, required this.aoClicar});
+
+  @override
+  State<_LinhaComHover> createState() => _LinhaComHoverState();
+}
+
+class _LinhaComHoverState extends State<_LinhaComHover> {
+  bool _hover = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      onEnter: (_) => setState(() => _hover = true),
+      onExit: (_) => setState(() => _hover = false),
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: widget.aoClicar,
+        child: widget.builder(_hover),
       ),
     );
   }

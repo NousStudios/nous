@@ -197,15 +197,28 @@ class _StatusLojaViewState extends State<StatusLojaView> {
     final agora = DateTime.now();
     final hoje = DateTime(agora.year, agora.month, agora.day);
 
-    final pedidosHoje = loja.pedidosLoja.where((p) {
-      if (p.status == StatusPedido.cancelado) return false;
+    final pedidosHojeConcluidos = loja.pedidosLoja.where((p) {
+      if (p.status != StatusPedido.concluido) return false;
       final dataPedido =
           DateTime(p.dataHora.year, p.dataHora.month, p.dataHora.day);
       return dataPedido == hoje;
     }).toList();
 
-    final totalVendasHoje = pedidosHoje.length;
-    final faturamentoHoje = pedidosHoje.fold<double>(
+    final pedidosHojeEmAberto = loja.pedidosLoja.where((p) {
+      if (p.status != StatusPedido.aceito && p.status != StatusPedido.novo) {
+        return false;
+      }
+      final dataPedido =
+          DateTime(p.dataHora.year, p.dataHora.month, p.dataHora.day);
+      return dataPedido == hoje;
+    }).toList();
+
+    final totalVendasHoje = pedidosHojeConcluidos.length;
+    final faturamentoHoje = pedidosHojeConcluidos.fold<double>(
+      0.0,
+      (soma, p) => soma + p.valor,
+    );
+    final totalEmAbertoHoje = pedidosHojeEmAberto.fold<double>(
       0.0,
       (soma, p) => soma + p.valor,
     );
@@ -223,14 +236,21 @@ class _StatusLojaViewState extends State<StatusLojaView> {
         if (p.status == StatusPedido.cancelado) continue;
         if (p.dataHora.isAfter(turnoAberto.dataAbertura) ||
             p.dataHora.isAtSameMomentAs(turnoAberto.dataAbertura)) {
-          for (final pag in p.todosPagamentos) {
-            if (pag.forma.toLowerCase() == 'dinheiro') {
-              vendasDinheiroTurno += pag.valor;
+          if (p.pagamentosExtras.isNotEmpty) {
+            for (final pag in p.todosPagamentos) {
+              if (pag.forma.toLowerCase() == 'dinheiro') {
+                vendasDinheiroTurno += pag.valor;
+              }
+            }
+            vendasDinheiroTurno -= p.troco;
+          } else {
+            if (p.formaPagamento.toLowerCase() == 'dinheiro') {
+              vendasDinheiroTurno += p.valor;
             }
           }
-          vendasDinheiroTurno -= p.troco;
         }
       }
+      if (vendasDinheiroTurno < 0) vendasDinheiroTurno = 0.0;
       saldoEmDinheiro = turnoAberto.saldoInicial +
           turnoAberto.totalSuprimentos -
           turnoAberto.totalSangrias +
@@ -345,6 +365,17 @@ class _StatusLojaViewState extends State<StatusLojaView> {
               ),
             ],
           ),
+          if (pedidosHojeEmAberto.isNotEmpty) ...[
+            const SizedBox(height: 10),
+            Text(
+              'A receber hoje (${pedidosHojeEmAberto.length} ${pedidosHojeEmAberto.length == 1 ? 'pedido em aberto' : 'pedidos em aberto'}): ${moeda(totalEmAbertoHoje)}',
+              textAlign: TextAlign.center,
+              style: theme.getTextStyle(
+                fontSize: 11,
+                color: theme.secondaryTextColor,
+              ),
+            ),
+          ],
         ],
       ),
     );

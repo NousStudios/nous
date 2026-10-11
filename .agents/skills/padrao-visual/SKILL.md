@@ -40,7 +40,8 @@ Diretrizes obrigatórias para criação e edição de widgets, telas, diálogos 
 | **Diálogos / Popups** | **Sempre centralizados** via `showDialog`. Fundo `theme.cardBackgroundColor`, `borderRadius: 16` e largura máxima de `500`. **Nunca use Bottom Sheets.** |
 | **Barras com Hover** | Todo item de lista (membros, fornecedores, clientes, trabalhadores) deve usar hover com borda contrastante e leve fundo translúcido `theme.borderColor.withValues(alpha: 0.18)` ao passar o cursor. |
 | **Listas Vazias** | Use sempre `EstadoVazioContainer(theme: theme, mensagem: '...')`. |
-| **Botões de Ação** | Ativos com `theme.buttonColor` e texto em `theme.buttonTextColor`. Secundários com `OutlinedButton` arredondado. |
+| **Botões de Ação** | Ativos com `theme.buttonColor` (com fallback `theme.borderColor.withValues(alpha: 0.25)` quando `buttonColor == Colors.transparent`) e texto em `theme.buttonTextColor`. Secundários com `OutlinedButton` arredondado. |
+| **Botões e Seletores com Hover Persistente** | Botões de opção/toggle (impressora, filtros de relatórios, abas da loja, períodos no financeiro, tipo de estoque, unidades de medida e formas de pagamento) **mantêm destaque visual ativo quando selecionados** e respondem dinamicamente ao mouse em hover: fundo translúcido `alpha: 0.22` (ou `0.35` em hover), borda contrastante `1.6px` em `textColor`, `SystemMouseCursors.click` e fallback para temas escuros. |
 | **Campos de Formulário** | Use `ThemedTextField(theme: theme, controller: ..., label: ...)` para garantir inputs coerentes com bordas arredondadas ou sublinhado padronizado. |
 
 ---

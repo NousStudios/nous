@@ -1222,7 +1222,13 @@ class _NovaVendaConteudoState extends State<_NovaVendaConteudo> {
         .where((p) => p.forma != _formaAPrazo)
         .fold<double>(0.0, (s, p) => s + p.valor);
 
-    final trocoFinal = valorPagoNaoPrazo - _total;
+    final totalPagamentos =
+        pagamentosPedido.fold<double>(0.0, (s, p) => s + p.valor);
+    final trocoCalculado = totalPagamentos - _total;
+    final trocoFinal = trocoCalculado > 0.005 ? trocoCalculado : 0.0;
+    final temPrazo = pagamentosPedido.any((p) => p.forma == _formaAPrazo);
+    final valorEntradaAVista =
+        (valorPagoNaoPrazo - trocoFinal).clamp(0.0, _total);
 
     final pedido = PedidoLoja(
       id: DateTime.now().millisecondsSinceEpoch.toString(),
@@ -1238,7 +1244,9 @@ class _NovaVendaConteudoState extends State<_NovaVendaConteudo> {
       pagamentosExtras:
           pagamentosPedido.length > 1 ? pagamentosPedido : const [],
       valorRecebido: valorPagoNaoPrazo,
-      troco: trocoFinal > 0 ? trocoFinal : 0.0,
+      troco: trocoFinal,
+      quitado: !temPrazo || valorEntradaAVista >= _total,
+      valorPago: !temPrazo ? _total : valorEntradaAVista,
       itens: itensVendidos,
       frete: _frete,
       desconto: _desconto,
@@ -2279,28 +2287,11 @@ class _NovaVendaConteudoState extends State<_NovaVendaConteudo> {
 
   Widget _botaoDeForma(String forma) {
     final selecionada = _pagamentos.any((p) => p.forma == forma);
-    return OutlinedButton(
-      style: OutlinedButton.styleFrom(
-        backgroundColor: selecionada ? theme.buttonColor : Colors.transparent,
-        foregroundColor:
-            selecionada ? theme.buttonTextColor : theme.textColor,
-        side: BorderSide(
-          color: selecionada ? theme.buttonColor : theme.borderColor,
-        ),
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-      ),
-      onPressed: () => _escolherForma(forma),
-      child: FittedBox(
-        fit: BoxFit.scaleDown,
-        child: Text(
-          forma,
-          style: theme.getTextStyle(
-            fontSize: 11,
-            color: selecionada ? theme.buttonTextColor : theme.textColor,
-          ),
-        ),
-      ),
+    return _BotaoHoverForma(
+      theme: theme,
+      rotulo: forma,
+      selecionada: selecionada,
+      aoClicar: () => _escolherForma(forma),
     );
   }
 
@@ -2308,20 +2299,42 @@ class _NovaVendaConteudoState extends State<_NovaVendaConteudo> {
     return SizedBox(
       width: double.infinity,
       child: OutlinedButton(
-        style: OutlinedButton.styleFrom(
-          backgroundColor: theme.buttonColor,
-          foregroundColor: theme.buttonTextColor,
-          side: BorderSide(color: theme.borderColor),
-          padding: const EdgeInsets.symmetric(vertical: 14),
-          shape:
-              RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        style: ButtonStyle(
+          backgroundColor: WidgetStateProperty.resolveWith((states) {
+            if (states.contains(WidgetState.hovered)) {
+              return theme.borderColor.withValues(alpha: 0.18);
+            }
+            return theme.buttonColor != Colors.transparent
+                ? theme.buttonColor
+                : Colors.transparent;
+          }),
+          foregroundColor: WidgetStateProperty.resolveWith((states) {
+            return theme.buttonColor != Colors.transparent
+                ? theme.buttonTextColor
+                : theme.textColor;
+          }),
+          side: WidgetStateProperty.resolveWith((states) {
+            if (states.contains(WidgetState.hovered)) {
+              return BorderSide(color: theme.textColor, width: 1.4);
+            }
+            return BorderSide(color: theme.borderColor, width: 1.0);
+          }),
+          padding: const WidgetStatePropertyAll(
+            EdgeInsets.symmetric(vertical: 14),
+          ),
+          shape: WidgetStatePropertyAll(
+            RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          ),
         ),
         onPressed: _concluir,
         child: Text(
           'Concluir',
           style: theme.getTextStyle(
             fontSize: 14,
-            color: theme.buttonTextColor,
+            fontWeight: FontWeight.bold,
+            color: theme.buttonColor != Colors.transparent
+                ? theme.buttonTextColor
+                : theme.textColor,
           ),
         ),
       ),
@@ -2398,6 +2411,88 @@ class _NovaVendaConteudoState extends State<_NovaVendaConteudo> {
           ),
         ),
       ],
+    );
+  }
+}
+
+class _BotaoHoverForma extends StatefulWidget {
+  final AppTheme theme;
+  final String rotulo;
+  final bool selecionada;
+  final VoidCallback aoClicar;
+
+  const _BotaoHoverForma({
+    required this.theme,
+    required this.rotulo,
+    required this.selecionada,
+    required this.aoClicar,
+  });
+
+  @override
+  State<_BotaoHoverForma> createState() => _BotaoHoverFormaState();
+}
+
+class _BotaoHoverFormaState extends State<_BotaoHoverForma> {
+  bool _hover = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = widget.theme;
+    final ativo = widget.selecionada;
+    final corAtiva = theme.buttonColor != Colors.transparent
+        ? theme.buttonColor
+        : theme.borderColor.withValues(alpha: 0.25);
+
+    final corFundo = ativo
+        ? (_hover ? corAtiva.withValues(alpha: 0.35) : corAtiva)
+        : (_hover
+            ? theme.borderColor.withValues(alpha: 0.12)
+            : Colors.transparent);
+
+    final corBorda = ativo
+        ? theme.textColor
+        : (_hover
+            ? theme.borderColor
+            : theme.borderColor.withValues(alpha: 0.6));
+
+    final corTexto = ativo
+        ? (theme.buttonColor != Colors.transparent
+            ? theme.buttonTextColor
+            : theme.textColor)
+        : theme.textColor;
+
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      onEnter: (_) => setState(() => _hover = true),
+      onExit: (_) => setState(() => _hover = false),
+      child: GestureDetector(
+        onTap: widget.aoClicar,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 140),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+          decoration: BoxDecoration(
+            color: corFundo,
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(
+              color: corBorda,
+              width: ativo ? 1.6 : 1.0,
+            ),
+          ),
+          child: Center(
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Text(
+                widget.rotulo,
+                style: theme.getTextStyle(
+                  fontSize: 11,
+                  fontWeight: ativo ? FontWeight.bold : FontWeight.normal,
+                  color: corTexto,
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
     );
   }
 }

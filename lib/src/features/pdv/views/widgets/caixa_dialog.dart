@@ -13,6 +13,7 @@ class CaixaDialog {
     required String lojaNome,
     required String lojaCnpj,
     required TurnoCaixa? turnoAberto,
+    List<TurnoCaixa> turnosAnteriores = const [],
     required List<PedidoLoja> pedidosLoja,
     required ConfiguracoesImpressora configuracoesImpressora,
     required Future<void> Function(double saldoInicial) aoAbrirCaixa,
@@ -43,6 +44,7 @@ class CaixaDialog {
               lojaNome: lojaNome,
               lojaCnpj: lojaCnpj,
               turnoAberto: turnoAberto,
+              turnosAnteriores: turnosAnteriores,
               pedidosLoja: pedidosLoja,
               configuracoesImpressora: configuracoesImpressora,
               aoAbrirCaixa: aoAbrirCaixa,
@@ -61,6 +63,7 @@ class _CaixaConteudo extends StatefulWidget {
   final String lojaNome;
   final String lojaCnpj;
   final TurnoCaixa? turnoAberto;
+  final List<TurnoCaixa> turnosAnteriores;
   final List<PedidoLoja> pedidosLoja;
   final ConfiguracoesImpressora configuracoesImpressora;
   final Future<void> Function(double saldoInicial) aoAbrirCaixa;
@@ -79,6 +82,7 @@ class _CaixaConteudo extends StatefulWidget {
     required this.lojaNome,
     required this.lojaCnpj,
     required this.turnoAberto,
+    this.turnosAnteriores = const [],
     required this.pedidosLoja,
     required this.configuracoesImpressora,
     required this.aoAbrirCaixa,
@@ -317,6 +321,183 @@ class _CaixaConteudoState extends State<_CaixaConteudo> {
     setState(() => _salvando = true);
     await widget.aoFecharCaixa(valorInformado, obs);
     if (mounted) Navigator.of(context).pop();
+  }
+
+  Future<void> _reimprimirFechamento(TurnoCaixa t) async {
+    final pedidosDoTurno = widget.pedidosLoja.where((p) {
+      if (p.status == StatusPedido.cancelado) return false;
+      final aposAbertura = p.dataHora.isAfter(t.dataAbertura) ||
+          p.dataHora.isAtSameMomentAs(t.dataAbertura);
+      final antesFechamento = t.dataFechamento == null ||
+          p.dataHora.isBefore(t.dataFechamento!) ||
+          p.dataHora.isAtSameMomentAs(t.dataFechamento!);
+      return aposAbertura && antesFechamento;
+    }).toList();
+
+    double vDinheiro = 0.0;
+    double vOutros = 0.0;
+    for (final p in pedidosDoTurno) {
+      if (p.pagamentosExtras.isNotEmpty) {
+        for (final pag in p.todosPagamentos) {
+          if (pag.forma.toLowerCase() == 'dinheiro') {
+            vDinheiro += pag.valor;
+          } else {
+            vOutros += pag.valor;
+          }
+        }
+        vDinheiro -= p.troco;
+      } else {
+        if (p.formaPagamento.toLowerCase() == 'dinheiro') {
+          vDinheiro += p.valor;
+        } else {
+          vOutros += p.valor;
+        }
+      }
+    }
+    if (vDinheiro < 0) vDinheiro = 0.0;
+
+    final saldoEsperado = t.saldoInicial +
+        vDinheiro +
+        t.totalSuprimentos -
+        t.totalSangrias;
+
+    try {
+      await ImpressaoService.imprimirFechamentoCaixa(
+        config: widget.configuracoesImpressora,
+        lojaNome: widget.lojaNome,
+        lojaCnpj: widget.lojaCnpj,
+        turno: t,
+        vendasDinheiro: vDinheiro,
+        vendasOutros: vOutros,
+        saldoEsperado: saldoEsperado,
+        saldoInformado: t.saldoFinalInformado ?? saldoEsperado,
+        observacao: t.observacao,
+      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            backgroundColor: theme.cardBackgroundColor,
+            content: Text(
+              'Comprovante do turno enviado para a impressora.',
+              style: theme.getTextStyle(color: theme.textColor),
+            ),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            backgroundColor: theme.cardBackgroundColor,
+            content: Text(
+              'Falha ao imprimir comprovante: $e',
+              style: theme.getTextStyle(color: Colors.redAccent),
+            ),
+          ),
+        );
+      }
+    }
+  }
+
+  Widget _blocoHistoricoTurnosFechados() {
+    final fechados = widget.turnosAnteriores.where((t) => !t.aberto).toList()
+      ..sort((a, b) => (b.dataFechamento ?? b.dataAbertura)
+          .compareTo(a.dataFechamento ?? a.dataAbertura));
+
+    if (fechados.isEmpty) return const SizedBox.shrink();
+
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.only(top: 14),
+      padding: const EdgeInsets.all(12),
+      decoration: _decoracaoBloco,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.history, size: 16, color: theme.textColor),
+              const SizedBox(width: 6),
+              Text(
+                'Últimos Turnos Fechados (${fechados.length})',
+                style: theme.getTextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.bold,
+                  color: theme.textColor,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          ConstrainedBox(
+            constraints: const BoxConstraints(maxHeight: 200),
+            child: ListView.separated(
+              shrinkWrap: true,
+              itemCount: fechados.length,
+              separatorBuilder: (context, index) => const SizedBox(height: 6),
+              itemBuilder: (context, index) {
+                final t = fechados[index];
+                return Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: theme.borderColor.withValues(alpha: 0.08),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(
+                      color: theme.borderColor.withValues(alpha: 0.4),
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Fechado em ${_formatarDataHora(t.dataFechamento ?? t.dataAbertura)}',
+                              style: theme.getTextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.bold,
+                                color: theme.textColor,
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              'Saldo Final: ${_formatarMoeda(t.saldoFinalInformado ?? 0.0)}'
+                              '${t.fechadoPorNome.isNotEmpty ? " • Operador: ${t.fechadoPorNome}" : ""}',
+                              style: theme.getTextStyle(
+                                fontSize: 10,
+                                color: theme.secondaryTextColor,
+                              ),
+                            ),
+                            if (t.observacao.trim().isNotEmpty)
+                              Text(
+                                'Obs: ${t.observacao.trim()}',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: theme.getTextStyle(
+                                  fontSize: 10,
+                                  color: theme.secondaryTextColor,
+                                ),
+                              ),
+                          ],
+                        ),
+                      ),
+                      IconButton(
+                        tooltip: 'Reimprimir comprovante',
+                        icon: Icon(Icons.print_outlined,
+                            size: 16, color: theme.textColor),
+                        onPressed: () => _reimprimirFechamento(t),
+                      ),
+                    ],
+                  ),
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   Widget _blocoAbertura() {
@@ -1002,7 +1183,15 @@ class _CaixaConteudoState extends State<_CaixaConteudo> {
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
             child: Column(
               children: [
-                if (turno == null) _blocoAbertura() else _blocoTurnoAberto(turno),
+                if (turno == null) ...[
+                  _blocoAbertura(),
+                  if (widget.turnosAnteriores.isNotEmpty)
+                    _blocoHistoricoTurnosFechados(),
+                ] else ...[
+                  _blocoTurnoAberto(turno),
+                  if (widget.turnosAnteriores.isNotEmpty)
+                    _blocoHistoricoTurnosFechados(),
+                ],
                 if (_aviso != null) ...[
                   const SizedBox(height: 8),
                   Text(

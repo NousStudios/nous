@@ -356,19 +356,43 @@ class _FornecedoresConteudoState extends State<_FornecedoresConteudo> {
   Widget _botao(String rotulo, VoidCallback aoPressionar,
       {bool destaque = false}) {
     return OutlinedButton(
-      style: OutlinedButton.styleFrom(
-        backgroundColor: destaque ? theme.buttonColor : Colors.transparent,
-        foregroundColor: destaque ? theme.buttonTextColor : theme.textColor,
-        side: BorderSide(color: theme.borderColor),
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      style: ButtonStyle(
+        backgroundColor: WidgetStateProperty.resolveWith((states) {
+          if (states.contains(WidgetState.hovered)) {
+            return theme.borderColor.withValues(alpha: 0.18);
+          }
+          return (destaque && theme.buttonColor != Colors.transparent)
+              ? theme.buttonColor
+              : Colors.transparent;
+        }),
+        foregroundColor: WidgetStateProperty.resolveWith((states) {
+          if (destaque && theme.buttonColor != Colors.transparent) {
+            return theme.buttonTextColor;
+          }
+          return theme.textColor;
+        }),
+        side: WidgetStateProperty.resolveWith((states) {
+          if (states.contains(WidgetState.hovered)) {
+            return BorderSide(color: theme.textColor, width: 1.4);
+          }
+          return BorderSide(color: theme.borderColor, width: 1.0);
+        }),
+        padding: const WidgetStatePropertyAll(
+          EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        ),
+        shape: WidgetStatePropertyAll(
+          RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        ),
       ),
       onPressed: aoPressionar,
       child: Text(
         rotulo,
         style: theme.getTextStyle(
           fontSize: 12,
-          color: destaque ? theme.buttonTextColor : theme.textColor,
+          fontWeight: destaque ? FontWeight.bold : FontWeight.normal,
+          color: (destaque && theme.buttonColor != Colors.transparent)
+              ? theme.buttonTextColor
+              : theme.textColor,
         ),
       ),
     );

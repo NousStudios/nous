@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
 import 'package:nous/src/core/theme/theme_controller.dart';
+import 'package:nous/src/core/widgets/themed_switch.dart';
 import 'package:nous/src/core/widgets/themed_text_field.dart';
 import 'package:nous/src/features/pdv/models/categoria_loja.dart';
 import 'package:nous/src/features/pdv/models/grupo_componentes_loja.dart';
@@ -449,26 +450,11 @@ class _NovoItemDialogState extends State<NovoItemDialog> {
   ) {
     final selecionado = _unidadeBase == valor;
     return Expanded(
-      child: OutlinedButton(
-        style: OutlinedButton.styleFrom(
-          backgroundColor:
-              selecionado ? theme.buttonColor : Colors.transparent,
-          foregroundColor:
-              selecionado ? theme.buttonTextColor : theme.textColor,
-          side: BorderSide(color: theme.borderColor),
-          padding: const EdgeInsets.symmetric(vertical: 12),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(10),
-          ),
-        ),
-        onPressed: () => setState(() => _unidadeBase = valor),
-        child: Text(
-          rotulo,
-          style: theme.getTextStyle(
-            fontSize: 12,
-            color: selecionado ? theme.buttonTextColor : theme.textColor,
-          ),
-        ),
+      child: _BotaoHoverUnidade(
+        theme: theme,
+        rotulo: rotulo,
+        selecionado: selecionado,
+        aoClicar: () => setState(() => _unidadeBase = valor),
       ),
     );
   }
@@ -889,9 +875,9 @@ class _NovoItemDialogState extends State<NovoItemDialog> {
                       style: theme.getTextStyle(fontSize: 13),
                     ),
                   ),
-                  Switch(
+                  ThemedSwitch(
+                    theme: theme,
                     value: _possuiDelivery,
-                    activeThumbColor: theme.buttonColor,
                     onChanged: (valor) =>
                         setState(() => _possuiDelivery = valor),
                   ),
@@ -936,22 +922,42 @@ class _NovoItemDialogState extends State<NovoItemDialog> {
         ),
         SizedBox(
           width: 140,
-          child: ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: theme.buttonColor,
-              foregroundColor: theme.buttonTextColor,
-              side: BorderSide(color: theme.borderColor),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(10),
+          child: OutlinedButton(
+            style: ButtonStyle(
+              backgroundColor: WidgetStateProperty.resolveWith((states) {
+                if (states.contains(WidgetState.hovered)) {
+                  return theme.borderColor.withValues(alpha: 0.18);
+                }
+                return theme.buttonColor != Colors.transparent
+                    ? theme.buttonColor
+                    : Colors.transparent;
+              }),
+              foregroundColor: WidgetStateProperty.resolveWith((states) {
+                return theme.buttonColor != Colors.transparent
+                    ? theme.buttonTextColor
+                    : theme.textColor;
+              }),
+              side: WidgetStateProperty.resolveWith((states) {
+                if (states.contains(WidgetState.hovered)) {
+                  return BorderSide(color: theme.textColor, width: 1.4);
+                }
+                return BorderSide(color: theme.borderColor, width: 1.0);
+              }),
+              shape: WidgetStatePropertyAll(
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
               ),
-              padding: const EdgeInsets.symmetric(vertical: 10),
+              padding: const WidgetStatePropertyAll(
+                EdgeInsets.symmetric(vertical: 10),
+              ),
             ),
             onPressed: _criar,
             child: Text(
               editando ? 'Salvar' : 'Criar',
               style: theme.getTextStyle(
                 fontWeight: FontWeight.bold,
-                color: theme.buttonTextColor,
+                color: theme.buttonColor != Colors.transparent
+                    ? theme.buttonTextColor
+                    : theme.textColor,
               ),
             ),
           ),
@@ -966,6 +972,85 @@ class _NovoItemDialogState extends State<NovoItemDialog> {
         Text(rotulo, style: theme.getTextStyle(fontSize: 13)),
         Radio<TipoItemLoja>(value: valor, activeColor: theme.borderColor),
       ],
+    );
+  }
+}
+
+class _BotaoHoverUnidade extends StatefulWidget {
+  final AppTheme theme;
+  final String rotulo;
+  final bool selecionado;
+  final VoidCallback aoClicar;
+
+  const _BotaoHoverUnidade({
+    required this.theme,
+    required this.rotulo,
+    required this.selecionado,
+    required this.aoClicar,
+  });
+
+  @override
+  State<_BotaoHoverUnidade> createState() => _BotaoHoverUnidadeState();
+}
+
+class _BotaoHoverUnidadeState extends State<_BotaoHoverUnidade> {
+  bool _hover = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = widget.theme;
+    final ativo = widget.selecionado;
+    final corAtiva = theme.buttonColor != Colors.transparent
+        ? theme.buttonColor
+        : theme.borderColor.withValues(alpha: 0.25);
+
+    final corFundo = ativo
+        ? (_hover ? corAtiva.withValues(alpha: 0.35) : corAtiva)
+        : (_hover
+            ? theme.borderColor.withValues(alpha: 0.12)
+            : Colors.transparent);
+
+    final corBorda = ativo
+        ? theme.textColor
+        : (_hover
+            ? theme.borderColor
+            : theme.borderColor.withValues(alpha: 0.6));
+
+    final corTexto = ativo
+        ? (theme.buttonColor != Colors.transparent
+            ? theme.buttonTextColor
+            : theme.textColor)
+        : theme.textColor;
+
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      onEnter: (_) => setState(() => _hover = true),
+      onExit: (_) => setState(() => _hover = false),
+      child: GestureDetector(
+        onTap: widget.aoClicar,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 140),
+          padding: const EdgeInsets.symmetric(vertical: 12),
+          decoration: BoxDecoration(
+            color: corFundo,
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(
+              color: corBorda,
+              width: ativo ? 1.6 : 1.0,
+            ),
+          ),
+          child: Center(
+            child: Text(
+              widget.rotulo,
+              style: theme.getTextStyle(
+                fontSize: 12,
+                fontWeight: ativo ? FontWeight.bold : FontWeight.normal,
+                color: corTexto,
+              ),
+            ),
+          ),
+        ),
+      ),
     );
   }
 }

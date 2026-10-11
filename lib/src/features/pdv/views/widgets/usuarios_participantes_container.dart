@@ -571,27 +571,61 @@ class _ConviteDialogState extends State<_ConviteDialog> {
 
   Widget _botaoDePapel(PapelMembro papel) {
     final selecionado = papel == _papelEscolhido;
+    final corAtiva = theme.buttonColor != Colors.transparent
+        ? theme.buttonColor
+        : theme.borderColor.withValues(alpha: 0.25);
+
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 3),
-      child: OutlinedButton(
-        style: OutlinedButton.styleFrom(
-          backgroundColor: selecionado ? theme.buttonColor : Colors.transparent,
-          foregroundColor:
-              selecionado ? theme.buttonTextColor : theme.textColor,
-          side: BorderSide(color: theme.borderColor),
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(10),
-          ),
-        ),
-        onPressed: () => setState(() => _papelEscolhido = papel),
-        child: Text(
-          _rotuloPapel(papel),
-          style: theme.getTextStyle(
-            fontSize: 11,
-            color: selecionado ? theme.buttonTextColor : theme.textColor,
-          ),
-        ),
+      child: _MembroLinhaComHover(
+        builder: (hover) {
+          final corFundo = selecionado
+              ? (hover ? corAtiva.withValues(alpha: 0.35) : corAtiva)
+              : (hover
+                  ? theme.borderColor.withValues(alpha: 0.12)
+                  : Colors.transparent);
+
+          final corBorda = selecionado
+              ? theme.textColor
+              : (hover
+                  ? theme.borderColor
+                  : theme.borderColor.withValues(alpha: 0.6));
+
+          final corTexto = selecionado
+              ? (theme.buttonColor != Colors.transparent
+                  ? theme.buttonTextColor
+                  : theme.textColor)
+              : theme.textColor;
+
+          return MouseRegion(
+            cursor: SystemMouseCursors.click,
+            child: GestureDetector(
+              onTap: () => setState(() => _papelEscolhido = papel),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 140),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                decoration: BoxDecoration(
+                  color: corFundo,
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(
+                    color: corBorda,
+                    width: selecionado ? 1.6 : 1.0,
+                  ),
+                ),
+                child: Text(
+                  _rotuloPapel(papel),
+                  style: theme.getTextStyle(
+                    fontSize: 11,
+                    fontWeight:
+                        selecionado ? FontWeight.bold : FontWeight.normal,
+                    color: corTexto,
+                  ),
+                ),
+              ),
+            ),
+          );
+        },
       ),
     );
   }

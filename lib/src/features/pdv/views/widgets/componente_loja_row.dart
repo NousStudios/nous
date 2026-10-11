@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:nous/src/core/theme/theme_controller.dart';
+import 'package:nous/src/core/widgets/themed_switch.dart';
 
 class ComponenteLojaRow extends StatefulWidget {
   final AppTheme theme;
@@ -53,9 +54,9 @@ class _ComponenteLojaRowState extends State<ComponenteLojaRow> {
               style: theme.getTextStyle(fontSize: 11),
             ),
           ),
-          Switch(
+          ThemedSwitch(
+            theme: theme,
             value: _ativo,
-            activeThumbColor: theme.buttonColor,
             onChanged: podeEditar
                 ? (valor) => setState(() => _ativo = valor)
                 : null,

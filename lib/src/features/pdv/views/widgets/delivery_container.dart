@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:nous/src/core/theme/theme_controller.dart';
+import 'package:nous/src/core/widgets/themed_switch.dart';
 import 'package:nous/src/core/widgets/themed_text_field.dart';
 
 // Agrupa os controllers de texto usados no formulário de Delivery, no
@@ -90,13 +91,9 @@ class _DeliveryContainerState extends State<DeliveryContainer> {
                   style: theme.getTextStyle(fontSize: 13),
                 ),
               ),
-              Switch(
+              ThemedSwitch(
+                theme: theme,
                 value: _possuiDelivery,
-                // activeColor foi renomeado para activeThumbColor pelo
-                // Flutter (o antigo nome era ambíguo — dava a entender
-                // que pintava o Switch inteiro, quando na verdade só
-                // pinta a "bolinha"/thumb). Mesmo efeito visual de antes.
-                activeThumbColor: theme.buttonColor,
                 onChanged: (novoValor) {
                   setState(() => _possuiDelivery = novoValor);
                 },

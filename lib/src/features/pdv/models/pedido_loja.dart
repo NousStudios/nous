@@ -266,7 +266,8 @@ class PedidoLoja {
         return f == 'à prazo' || f == 'a prazo' || f.contains('prazo');
       });
 
-  bool get aPrazoEmAberto => temAPrazo && !quitado;
+  bool get aPrazoEmAberto =>
+      status != StatusPedido.cancelado && temAPrazo && !quitado;
 
   double get valorRestante {
     final restante = valor - valorPago;
@@ -419,11 +420,20 @@ class PedidoLoja {
 List<PedidoLoja> aplicarPagamentoAPrazo(
   List<PedidoLoja> pedidos,
   String clienteId,
-  double valor,
-) {
-  final abertos = pedidos
-      .where((p) => p.clienteId == clienteId && p.aPrazoEmAberto)
-      .toList();
+  double valor, {
+  String? clienteNome,
+}) {
+  final nomeLimpo = clienteNome?.trim().toLowerCase();
+  final abertos = pedidos.where((p) {
+    if (!p.aPrazoEmAberto) return false;
+    if (p.clienteId == clienteId) return true;
+    if (nomeLimpo != null &&
+        nomeLimpo.isNotEmpty &&
+        p.clienteNome.trim().toLowerCase() == nomeLimpo) {
+      return true;
+    }
+    return false;
+  }).toList();
   abertos.sort((a, b) => a.dataHora.compareTo(b.dataHora));
 
   var restante = valor;

@@ -190,21 +190,39 @@ class _BackupConteudoState extends State<_BackupConteudo> {
     required VoidCallback aoPressionar,
     bool destaque = false,
   }) {
-    final Color corFundo =
-        destaque ? theme.buttonColor : Colors.transparent;
-    final Color corTexto =
-        destaque ? theme.buttonTextColor : theme.textColor;
+    final Color corTexto = (destaque && theme.buttonColor != Colors.transparent)
+        ? theme.buttonTextColor
+        : theme.textColor;
 
     return SizedBox(
       width: double.infinity,
       child: OutlinedButton.icon(
-        style: OutlinedButton.styleFrom(
-          backgroundColor: corFundo,
-          foregroundColor: corTexto,
-          side: BorderSide(color: theme.borderColor),
-          padding: const EdgeInsets.symmetric(vertical: 14),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(10),
+        style: ButtonStyle(
+          backgroundColor: WidgetStateProperty.resolveWith((states) {
+            if (states.contains(WidgetState.hovered)) {
+              return theme.borderColor.withValues(alpha: 0.18);
+            }
+            return (destaque && theme.buttonColor != Colors.transparent)
+                ? theme.buttonColor
+                : Colors.transparent;
+          }),
+          foregroundColor: WidgetStateProperty.resolveWith((states) {
+            if (destaque && theme.buttonColor != Colors.transparent) {
+              return theme.buttonTextColor;
+            }
+            return theme.textColor;
+          }),
+          side: WidgetStateProperty.resolveWith((states) {
+            if (states.contains(WidgetState.hovered)) {
+              return BorderSide(color: theme.textColor, width: 1.4);
+            }
+            return BorderSide(color: theme.borderColor, width: 1.0);
+          }),
+          padding: const WidgetStatePropertyAll(
+            EdgeInsets.symmetric(vertical: 14),
+          ),
+          shape: WidgetStatePropertyAll(
+            RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
           ),
         ),
         onPressed: carregando ? null : aoPressionar,

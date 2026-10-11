@@ -28,7 +28,9 @@ class ClientesDialog {
     required List<Cliente> clientes,
     required List<PedidoLoja> pedidos,
     required ValueChanged<Cliente> onSalvar,
-    required void Function(String clienteId, double valor) onPagar,
+    required void Function(
+            String clienteId, double valor, String formaPagamento)
+        onPagar,
     required ValueChanged<String> onExcluir,
     String? clienteInicialId,
   }) {
@@ -67,7 +69,8 @@ class _ClientesConteudo extends StatefulWidget {
   final List<Cliente> clientes;
   final List<PedidoLoja> pedidos;
   final ValueChanged<Cliente> onSalvar;
-  final void Function(String clienteId, double valor) onPagar;
+  final void Function(
+      String clienteId, double valor, String formaPagamento) onPagar;
   final ValueChanged<String> onExcluir;
   final String? clienteInicialId;
 
@@ -323,164 +326,246 @@ class _ClientesConteudoState extends State<_ClientesConteudo> {
     });
   }
 
-  void _aplicarPagamento(String clienteId, double valor) {
-    widget.onPagar(clienteId, valor);
+  void _aplicarPagamento(
+      String clienteId, double valor, String formaPagamento) {
+    widget.onPagar(clienteId, valor, formaPagamento);
     setState(() {
-      _pedidos = aplicarPagamentoAPrazo(_pedidos, clienteId, valor);
+      _pedidos = aplicarPagamentoAPrazo(
+        _pedidos,
+        clienteId,
+        valor,
+        clienteNome: _editando?.nome,
+      );
       _pagamentoController.clear();
       _avisoPagamento = null;
     });
   }
 
-  Future<bool> _confirmarAbateDivida(Cliente cliente, double valorAbate) async {
+  Future<String?> _confirmarAbateDivida(
+      Cliente cliente, double valorAbate) async {
     final devido = _devido(cliente.id, nome: cliente.nome);
     final restante = (devido - valorAbate).clamp(0.0, double.infinity);
+    String formaEscolhida = 'Dinheiro';
+    const formas = [
+      'Dinheiro',
+      'Pix',
+      'Cartão de Débito',
+      'Cartão de Crédito',
+      'Outro',
+    ];
 
-    final confirmou = await showDialog<bool>(
+    final resultado = await showDialog<String>(
       context: context,
       builder: (dialogContext) {
-        return AlertDialog(
-          backgroundColor: theme.cardBackgroundColor,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-            side: BorderSide(color: theme.borderColor),
-          ),
-          title: Text(
-            'Confirmar Quitação',
-            textAlign: TextAlign.center,
-            style: theme.getTextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-              color: theme.textColor,
-            ),
-          ),
-          content: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 420),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Text(
-                  'Deseja abater o valor abaixo da dívida de ${cliente.nome}?',
-                  textAlign: TextAlign.center,
-                  style: theme.getTextStyle(
-                    fontSize: 14,
-                    color: theme.textColor,
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            return AlertDialog(
+              backgroundColor: theme.cardBackgroundColor,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+                side: BorderSide(color: theme.borderColor),
+              ),
+              title: Text(
+                'Confirmar Quitação',
+                textAlign: TextAlign.center,
+                style: theme.getTextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: theme.textColor,
+                ),
+              ),
+              content: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 420),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Text(
+                      'Deseja abater o valor abaixo da dívida de ${cliente.nome}?',
+                      textAlign: TextAlign.center,
+                      style: theme.getTextStyle(
+                        fontSize: 14,
+                        color: theme.textColor,
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: theme.backgroundColor.withValues(alpha: 0.4),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: theme.borderColor.withValues(alpha: 0.6),
+                        ),
+                      ),
+                      child: Column(
+                        children: [
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text(
+                                'Valor a abater:',
+                                style: theme.getTextStyle(
+                                  fontSize: 13,
+                                  color: theme.secondaryTextColor,
+                                ),
+                              ),
+                              Text(
+                                _valor(valorAbate),
+                                style: theme.getTextStyle(
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.bold,
+                                  color: theme.textColor,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 8),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text(
+                                'Dívida atual:',
+                                style: theme.getTextStyle(
+                                  fontSize: 13,
+                                  color: theme.secondaryTextColor,
+                                ),
+                              ),
+                              Text(
+                                _valor(devido),
+                                style: theme.getTextStyle(
+                                  fontSize: 13,
+                                  color: Colors.redAccent,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 4),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text(
+                                'Saldo restante:',
+                                style: theme.getTextStyle(
+                                  fontSize: 13,
+                                  color: theme.secondaryTextColor,
+                                ),
+                              ),
+                              Text(
+                                _valor(restante),
+                                style: theme.getTextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w600,
+                                  color: restante <= 0
+                                      ? theme.textColor
+                                      : Colors.redAccent,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 12),
+                          Divider(
+                            color: theme.borderColor.withValues(alpha: 0.4),
+                          ),
+                          const SizedBox(height: 8),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text(
+                                'Forma recebida:',
+                                style: theme.getTextStyle(
+                                  fontSize: 13,
+                                  color: theme.secondaryTextColor,
+                                ),
+                              ),
+                              DropdownButtonHideUnderline(
+                                child: DropdownButton<String>(
+                                  value: formaEscolhida,
+                                  dropdownColor: theme.cardBackgroundColor,
+                                  items: formas.map((f) {
+                                    return DropdownMenuItem(
+                                      value: f,
+                                      child: Text(
+                                        f,
+                                        style: theme.getTextStyle(
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                    );
+                                  }).toList(),
+                                  onChanged: (novo) {
+                                    if (novo != null) {
+                                      setModalState(
+                                          () => formaEscolhida = novo);
+                                    }
+                                  },
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              actionsAlignment: MainAxisAlignment.center,
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(dialogContext).pop(null),
+                  child: Text(
+                    'Cancelar',
+                    style: theme.getTextStyle(color: theme.secondaryTextColor),
                   ),
                 ),
-                const SizedBox(height: 16),
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: theme.backgroundColor.withValues(alpha: 0.4),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(
-                      color: theme.borderColor.withValues(alpha: 0.6),
+                OutlinedButton(
+                  style: ButtonStyle(
+                    backgroundColor: WidgetStateProperty.resolveWith((states) {
+                      if (states.contains(WidgetState.hovered)) {
+                        return theme.borderColor.withValues(alpha: 0.18);
+                      }
+                      return theme.buttonColor != Colors.transparent
+                          ? theme.buttonColor
+                          : Colors.transparent;
+                    }),
+                    foregroundColor: WidgetStateProperty.resolveWith((states) {
+                      return theme.buttonColor != Colors.transparent
+                          ? theme.buttonTextColor
+                          : theme.textColor;
+                    }),
+                    side: WidgetStateProperty.resolveWith((states) {
+                      if (states.contains(WidgetState.hovered)) {
+                        return BorderSide(color: theme.textColor, width: 1.4);
+                      }
+                      return BorderSide(color: theme.borderColor, width: 1.0);
+                    }),
+                    shape: const WidgetStatePropertyAll(
+                      RoundedRectangleBorder(
+                        borderRadius: BorderRadius.all(Radius.circular(10)),
+                      ),
                     ),
                   ),
-                  child: Column(
-                    children: [
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Text(
-                            'Valor a abater:',
-                            style: theme.getTextStyle(
-                              fontSize: 13,
-                              color: theme.secondaryTextColor,
-                            ),
-                          ),
-                          Text(
-                            _valor(valorAbate),
-                            style: theme.getTextStyle(
-                              fontSize: 15,
-                              fontWeight: FontWeight.bold,
-                              color: theme.textColor,
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 8),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Text(
-                            'Dívida atual:',
-                            style: theme.getTextStyle(
-                              fontSize: 13,
-                              color: theme.secondaryTextColor,
-                            ),
-                          ),
-                          Text(
-                            _valor(devido),
-                            style: theme.getTextStyle(
-                              fontSize: 13,
-                              color: Colors.redAccent,
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 4),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Text(
-                            'Saldo restante:',
-                            style: theme.getTextStyle(
-                              fontSize: 13,
-                              color: theme.secondaryTextColor,
-                            ),
-                          ),
-                          Text(
-                            _valor(restante),
-                            style: theme.getTextStyle(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w600,
-                              color: restante <= 0
-                                  ? theme.textColor
-                                  : Colors.redAccent,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
+                  onPressed: () =>
+                      Navigator.of(dialogContext).pop(formaEscolhida),
+                  child: Text(
+                    'Confirmar Abate',
+                    style: theme.getTextStyle(
+                      color: theme.buttonColor != Colors.transparent
+                          ? theme.buttonTextColor
+                          : theme.textColor,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                 ),
               ],
-            ),
-          ),
-          actionsAlignment: MainAxisAlignment.center,
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(dialogContext).pop(false),
-              child: Text(
-                'Cancelar',
-                style: theme.getTextStyle(color: theme.secondaryTextColor),
-              ),
-            ),
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: theme.buttonColor,
-                foregroundColor: theme.buttonTextColor,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(10),
-                ),
-              ),
-              onPressed: () => Navigator.of(dialogContext).pop(true),
-              child: Text(
-                'Confirmar Abate',
-                style: theme.getTextStyle(
-                  color: theme.buttonTextColor,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ),
-          ],
+            );
+          },
         );
       },
     );
 
-    return confirmou == true;
+    return resultado;
   }
 
   Future<void> _quitarTudo() async {
@@ -489,10 +574,10 @@ class _ClientesConteudoState extends State<_ClientesConteudo> {
     final devido = _devido(cliente.id, nome: cliente.nome);
     if (devido <= 0) return;
 
-    final confirmou = await _confirmarAbateDivida(cliente, devido);
-    if (!confirmou) return;
+    final forma = await _confirmarAbateDivida(cliente, devido);
+    if (forma == null) return;
 
-    _aplicarPagamento(cliente.id, devido);
+    _aplicarPagamento(cliente.id, devido, forma);
   }
 
   Future<void> _quitarValor() async {
@@ -512,10 +597,10 @@ class _ClientesConteudoState extends State<_ClientesConteudo> {
       return;
     }
 
-    final confirmou = await _confirmarAbateDivida(cliente, valor);
-    if (!confirmou) return;
+    final forma = await _confirmarAbateDivida(cliente, valor);
+    if (forma == null) return;
 
-    _aplicarPagamento(cliente.id, valor);
+    _aplicarPagamento(cliente.id, valor, forma);
   }
 
   Future<void> _confirmarExclusao(Cliente cliente) async {
@@ -676,19 +761,43 @@ class _ClientesConteudoState extends State<_ClientesConteudo> {
   Widget _botao(String rotulo, VoidCallback aoPressionar,
       {bool destaque = false}) {
     return OutlinedButton(
-      style: OutlinedButton.styleFrom(
-        backgroundColor: destaque ? theme.buttonColor : Colors.transparent,
-        foregroundColor: destaque ? theme.buttonTextColor : theme.textColor,
-        side: BorderSide(color: theme.borderColor),
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      style: ButtonStyle(
+        backgroundColor: WidgetStateProperty.resolveWith((states) {
+          if (states.contains(WidgetState.hovered)) {
+            return theme.borderColor.withValues(alpha: 0.18);
+          }
+          return (destaque && theme.buttonColor != Colors.transparent)
+              ? theme.buttonColor
+              : Colors.transparent;
+        }),
+        foregroundColor: WidgetStateProperty.resolveWith((states) {
+          if (destaque && theme.buttonColor != Colors.transparent) {
+            return theme.buttonTextColor;
+          }
+          return theme.textColor;
+        }),
+        side: WidgetStateProperty.resolveWith((states) {
+          if (states.contains(WidgetState.hovered)) {
+            return BorderSide(color: theme.textColor, width: 1.4);
+          }
+          return BorderSide(color: theme.borderColor, width: 1.0);
+        }),
+        padding: const WidgetStatePropertyAll(
+          EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        ),
+        shape: WidgetStatePropertyAll(
+          RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        ),
       ),
       onPressed: aoPressionar,
       child: Text(
         rotulo,
         style: theme.getTextStyle(
           fontSize: 12,
-          color: destaque ? theme.buttonTextColor : theme.textColor,
+          fontWeight: destaque ? FontWeight.bold : FontWeight.normal,
+          color: (destaque && theme.buttonColor != Colors.transparent)
+              ? theme.buttonTextColor
+              : theme.textColor,
         ),
       ),
     );

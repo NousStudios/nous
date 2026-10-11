@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:nous/src/core/theme/theme_controller.dart';
+import 'package:nous/src/core/widgets/themed_switch.dart';
 import 'package:nous/src/features/pdv/models/item_loja.dart';
 import 'package:nous/src/features/pdv/views/widgets/produto_loja_row.dart';
 
@@ -225,10 +226,9 @@ class _GrupoComponentesLojaContainerState
                 height: 20,
                 child: FittedBox(
                   fit: BoxFit.fill,
-                  child: Switch(
+                  child: ThemedSwitch(
+                    theme: theme,
                     value: _ativa,
-                    activeThumbColor: theme.buttonColor,
-                    materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
                     onChanged: podeEditar
                         ? (valor) => setState(() => _ativa = valor)
                         : null,

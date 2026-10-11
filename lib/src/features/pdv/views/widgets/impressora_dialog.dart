@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:printing/printing.dart';
 import 'package:nous/src/core/theme/fontes_app.dart';
 import 'package:nous/src/core/theme/theme_controller.dart';
+import 'package:nous/src/core/widgets/themed_switch.dart';
 import 'package:nous/src/features/pdv/models/configuracoes_impressora.dart';
 import 'package:nous/src/features/pdv/services/impressao_service.dart';
 
@@ -328,26 +329,38 @@ class _ImpressoraConteudoState extends State<_ImpressoraConteudo> {
         ? theme.buttonTextColor
         : theme.textColor;
 
-    return OutlinedButton(
-      style: OutlinedButton.styleFrom(
-        backgroundColor: selecionado ? fundoAtivo : Colors.transparent,
-        foregroundColor: selecionado ? textoAtivo : theme.secondaryTextColor,
-        side: BorderSide(
-          color: selecionado
-              ? theme.textColor
-              : theme.borderColor.withValues(alpha: 0.45),
-          width: selecionado ? 1.6 : 1.0,
-        ),
+    return _LinhaComHover(
+      aoClicar: () => aoSelecionar(valor),
+      builder: (hover) => Container(
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-      ),
-      onPressed: () => aoSelecionar(valor),
-      child: Text(
-        rotulo,
-        style: theme.getTextStyle(
-          fontSize: 12,
-          fontWeight: selecionado ? FontWeight.bold : FontWeight.normal,
-          color: selecionado ? textoAtivo : theme.textColor,
+        decoration: BoxDecoration(
+          color: selecionado
+              ? (hover
+                  ? (theme.buttonColor != Colors.transparent
+                      ? theme.buttonColor.withValues(alpha: 0.85)
+                      : theme.borderColor.withValues(alpha: 0.35))
+                  : fundoAtivo)
+              : (hover
+                  ? theme.borderColor.withValues(alpha: 0.18)
+                  : Colors.transparent),
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(
+            color: selecionado || hover
+                ? theme.textColor
+                : theme.borderColor.withValues(alpha: 0.45),
+            width: selecionado ? 1.6 : 1.0,
+          ),
+        ),
+        child: Text(
+          rotulo,
+          textAlign: TextAlign.center,
+          style: theme.getTextStyle(
+            fontSize: 12,
+            fontWeight: selecionado ? FontWeight.bold : FontWeight.normal,
+            color: selecionado
+                ? textoAtivo
+                : (hover ? theme.textColor : theme.secondaryTextColor),
+          ),
         ),
       ),
     );
@@ -700,21 +713,30 @@ class _ImpressoraConteudoState extends State<_ImpressoraConteudo> {
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                OutlinedButton(
-                  style: OutlinedButton.styleFrom(
-                    minimumSize: const Size(30, 30),
-                    padding: EdgeInsets.zero,
-                    side: BorderSide(
-                      color: theme.borderColor.withValues(alpha: 0.5),
-                    ),
-                    shape: RoundedRectangleBorder(
+                _LinhaComHover(
+                  aoClicar: valor > 0.5
+                      ? () => aoMudar((valor - 0.5).clamp(0.5, 15.0))
+                      : () {},
+                  builder: (hover) => Container(
+                    width: 30,
+                    height: 30,
+                    decoration: BoxDecoration(
+                      color: hover
+                          ? theme.borderColor.withValues(alpha: 0.18)
+                          : Colors.transparent,
                       borderRadius: BorderRadius.circular(8),
+                      border: Border.all(
+                        color: hover
+                            ? theme.textColor
+                            : theme.borderColor.withValues(alpha: 0.5),
+                      ),
+                    ),
+                    child: Icon(
+                      Icons.remove,
+                      size: 16,
+                      color: valor > 0.5 ? theme.textColor : theme.secondaryTextColor,
                     ),
                   ),
-                  onPressed: valor > 0.5
-                      ? () => aoMudar((valor - 0.5).clamp(0.5, 15.0))
-                      : null,
-                  child: Icon(Icons.remove, size: 16, color: theme.textColor),
                 ),
                 const SizedBox(width: 8),
                 Container(
@@ -735,21 +757,30 @@ class _ImpressoraConteudoState extends State<_ImpressoraConteudo> {
                   ),
                 ),
                 const SizedBox(width: 8),
-                OutlinedButton(
-                  style: OutlinedButton.styleFrom(
-                    minimumSize: const Size(30, 30),
-                    padding: EdgeInsets.zero,
-                    side: BorderSide(
-                      color: theme.borderColor.withValues(alpha: 0.5),
-                    ),
-                    shape: RoundedRectangleBorder(
+                _LinhaComHover(
+                  aoClicar: valor < 15.0
+                      ? () => aoMudar((valor + 0.5).clamp(0.5, 15.0))
+                      : () {},
+                  builder: (hover) => Container(
+                    width: 30,
+                    height: 30,
+                    decoration: BoxDecoration(
+                      color: hover
+                          ? theme.borderColor.withValues(alpha: 0.18)
+                          : Colors.transparent,
                       borderRadius: BorderRadius.circular(8),
+                      border: Border.all(
+                        color: hover
+                            ? theme.textColor
+                            : theme.borderColor.withValues(alpha: 0.5),
+                      ),
+                    ),
+                    child: Icon(
+                      Icons.add,
+                      size: 16,
+                      color: valor < 15.0 ? theme.textColor : theme.secondaryTextColor,
                     ),
                   ),
-                  onPressed: valor < 15.0
-                      ? () => aoMudar((valor + 0.5).clamp(0.5, 15.0))
-                      : null,
-                  child: Icon(Icons.add, size: 16, color: theme.textColor),
                 ),
               ],
             ),
@@ -788,26 +819,37 @@ class _ImpressoraConteudoState extends State<_ImpressoraConteudo> {
         ? theme.buttonTextColor
         : theme.textColor;
 
-    return OutlinedButton(
-      style: OutlinedButton.styleFrom(
-        backgroundColor: selecionado ? fundoAtivo : Colors.transparent,
-        foregroundColor: selecionado ? textoAtivo : theme.secondaryTextColor,
-        side: BorderSide(
-          color: selecionado
-              ? theme.textColor
-              : theme.borderColor.withValues(alpha: 0.45),
-          width: selecionado ? 1.5 : 1.0,
-        ),
+    return _LinhaComHover(
+      aoClicar: () => aoSelecionar(valor),
+      builder: (hover) => Container(
         padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
-      ),
-      onPressed: () => aoSelecionar(valor),
-      child: Text(
-        rotulo,
-        style: theme.getTextStyle(
-          fontSize: 10,
-          fontWeight: selecionado ? FontWeight.bold : FontWeight.normal,
-          color: selecionado ? textoAtivo : theme.textColor,
+        decoration: BoxDecoration(
+          color: selecionado
+              ? (hover
+                  ? (theme.buttonColor != Colors.transparent
+                      ? theme.buttonColor.withValues(alpha: 0.85)
+                      : theme.borderColor.withValues(alpha: 0.35))
+                  : fundoAtivo)
+              : (hover
+                  ? theme.borderColor.withValues(alpha: 0.18)
+                  : Colors.transparent),
+          borderRadius: BorderRadius.circular(6),
+          border: Border.all(
+            color: selecionado || hover
+                ? theme.textColor
+                : theme.borderColor.withValues(alpha: 0.45),
+            width: selecionado ? 1.5 : 1.0,
+          ),
+        ),
+        child: Text(
+          rotulo,
+          style: theme.getTextStyle(
+            fontSize: 10,
+            fontWeight: selecionado ? FontWeight.bold : FontWeight.normal,
+            color: selecionado
+                ? textoAtivo
+                : (hover ? theme.textColor : theme.secondaryTextColor),
+          ),
         ),
       ),
     );
@@ -1019,9 +1061,9 @@ class _ImpressoraConteudoState extends State<_ImpressoraConteudo> {
               ],
             ),
           ),
-          Switch(
+          ThemedSwitch(
+            theme: theme,
             value: _imprimirAutomaticoAoConcluir,
-            activeThumbColor: theme.buttonColor,
             onChanged: (val) {
               setState(() => _imprimirAutomaticoAoConcluir = val);
             },

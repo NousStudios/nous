@@ -180,6 +180,7 @@ class _RelatoriosConteudoState extends State<_RelatoriosConteudo> {
     final desde = _dataInicial;
 
     final lista = _pedidos.where((p) {
+      if (p.status == StatusPedido.cancelado) return false;
       if (_forma != null &&
           !p.todosPagamentos.any((pag) => pag.forma == _forma)) {
         return false;
@@ -301,20 +302,44 @@ class _RelatoriosConteudoState extends State<_RelatoriosConteudo> {
 
   Widget _botaoDeFiltro(String forma) {
     final selecionada = _forma == forma;
-    return OutlinedButton(
-      style: OutlinedButton.styleFrom(
-        backgroundColor: selecionada ? theme.buttonColor : Colors.transparent,
-        foregroundColor: selecionada ? theme.buttonTextColor : theme.textColor,
-        side: BorderSide(color: theme.borderColor),
+    final fundoAtivo = theme.buttonColor != Colors.transparent
+        ? theme.buttonColor
+        : theme.borderColor.withValues(alpha: 0.25);
+    final textoAtivo = theme.buttonColor != Colors.transparent
+        ? theme.buttonTextColor
+        : theme.textColor;
+
+    return _LinhaComHover(
+      aoClicar: () => setState(() => _forma = selecionada ? null : forma),
+      builder: (hover) => Container(
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-      ),
-      onPressed: () => setState(() => _forma = selecionada ? null : forma),
-      child: Text(
-        forma,
-        style: theme.getTextStyle(
-          fontSize: 11,
-          color: selecionada ? theme.buttonTextColor : theme.textColor,
+        decoration: BoxDecoration(
+          color: selecionada
+              ? (hover
+                  ? (theme.buttonColor != Colors.transparent
+                      ? theme.buttonColor.withValues(alpha: 0.85)
+                      : theme.borderColor.withValues(alpha: 0.35))
+                  : fundoAtivo)
+              : (hover
+                  ? theme.borderColor.withValues(alpha: 0.18)
+                  : Colors.transparent),
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(
+            color: selecionada || hover
+                ? theme.textColor
+                : theme.borderColor.withValues(alpha: 0.45),
+            width: selecionada ? 1.6 : 1.0,
+          ),
+        ),
+        child: Text(
+          forma,
+          style: theme.getTextStyle(
+            fontSize: 11,
+            fontWeight: selecionada ? FontWeight.bold : FontWeight.normal,
+            color: selecionada
+                ? textoAtivo
+                : (hover ? theme.textColor : theme.secondaryTextColor),
+          ),
         ),
       ),
     );

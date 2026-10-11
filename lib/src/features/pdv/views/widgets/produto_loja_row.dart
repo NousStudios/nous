@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:nous/src/core/theme/theme_controller.dart';
+import 'package:nous/src/core/widgets/themed_switch.dart';
 import 'package:nous/src/features/pdv/models/item_loja.dart';
 import 'package:nous/src/features/pdv/views/widgets/grupo_componentes_container.dart';
 
@@ -190,9 +191,9 @@ class _ProdutoLojaRowState extends State<ProdutoLojaRow> {
               ),
               Transform.scale(
                 scale: 0.85,
-                child: Switch(
+                child: ThemedSwitch(
+                  theme: theme,
                   value: _ativo,
-                  activeThumbColor: theme.buttonColor,
                   onChanged: podeEditar
                       ? (valor) => setState(() => _ativo = valor)
                       : null,

@@ -957,19 +957,110 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
     );
   }
 
-  void _excluirPedido(String id) {
+  Future<void> _excluirPedido(String id) async {
     final indice = _pedidos.indexWhere((p) => p.id == id);
     if (indice == -1) return;
     final pedido = _pedidos[indice];
 
-    setState(() => _pedidos.removeAt(indice));
+    bool devolverEstoque = false;
+    final podeEstornar = pedido.itens.isNotEmpty && !pedido.estoqueEstornado;
+
+    if (podeEstornar) {
+      final confirmouEstorno = await showDialog<bool>(
+        context: context,
+        builder: (ctx) {
+          final theme = ThemeController.currentTheme.value;
+          return AlertDialog(
+            backgroundColor: theme.cardBackgroundColor,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+              side: BorderSide(color: theme.borderColor),
+            ),
+            title: Text(
+              'Estorno de Estoque',
+              textAlign: TextAlign.center,
+              style: theme.getTextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: theme.textColor,
+              ),
+            ),
+            content: Text(
+              'Deseja devolver os ${pedido.itens.length} itens do Pedido ${_numeroPedido(pedido.numero)} de volta ao estoque?',
+              textAlign: TextAlign.center,
+              style: theme.getTextStyle(fontSize: 14),
+            ),
+            actionsAlignment: MainAxisAlignment.center,
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(ctx).pop(false),
+                child: Text(
+                  'Não devolver',
+                  style: theme.getTextStyle(color: theme.secondaryTextColor),
+                ),
+              ),
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: theme.buttonColor,
+                  foregroundColor: theme.buttonTextColor,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                ),
+                onPressed: () => Navigator.of(ctx).pop(true),
+                child: Text(
+                  'Sim, devolver ao estoque',
+                  style: theme.getTextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: theme.buttonTextColor,
+                  ),
+                ),
+              ),
+            ],
+          );
+        },
+      );
+      devolverEstoque = confirmouEstorno == true;
+    }
+
+    if (!mounted) return;
+
+    setState(() {
+      _pedidos.removeWhere((p) => p.id == id);
+      if (devolverEstoque) {
+        for (final item in pedido.itens) {
+          final mov = MovimentoEstoque.novo(
+            itemId: item.itemId,
+            tipo: TipoMovimentoEstoque.entrada,
+            quantidade: item.quantidade.toDouble(),
+            motivo:
+                'Estorno por exclusão do Pedido ${_numeroPedido(pedido.numero)}',
+            cpfAutor: _cpfLogado,
+            nomeAutor: _nomeLogado,
+            categoria: CategoriaMovimentoEstoque.ajuste,
+          );
+          _movimentosEstoque.add(mov);
+        }
+      }
+    });
     _persistirListasLoja();
 
     _registrarAcao(
       TipoAcao.pedidoExcluido,
       'Pedido ${_numeroPedido(pedido.numero)} excluído '
-          '(${_valorFormatado(pedido.valor)})',
+          '(${_valorFormatado(pedido.valor)})'
+          '${devolverEstoque ? " [Estoque estornado]" : ""}',
     );
+
+    if (devolverEstoque) {
+      for (final item in pedido.itens) {
+        _registrarAcao(
+          TipoAcao.movimentoEstoqueRegistrado,
+          'Estorno de estoque: ${_formatarQuantidade(item.quantidade.toDouble())} de '
+              '"${item.nomeItem}" pela exclusão do pedido ${_numeroPedido(pedido.numero)}',
+        );
+      }
+    }
   }
 
   void _salvarCliente(Cliente cliente) {
@@ -1001,8 +1092,17 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
     );
   }
 
-  void _pagarCliente(String clienteId, double valor) {
-    final atualizados = aplicarPagamentoAPrazo(_pedidos, clienteId, valor);
+  void _pagarCliente(String clienteId, double valor, String formaPagamento) {
+    final indiceCliente = _clientes.indexWhere((c) => c.id == clienteId);
+    final nomeCliente =
+        indiceCliente == -1 ? '' : _clientes[indiceCliente].nome;
+
+    final atualizados = aplicarPagamentoAPrazo(
+      _pedidos,
+      clienteId,
+      valor,
+      clienteNome: nomeCliente.isNotEmpty ? nomeCliente : null,
+    );
     setState(() {
       _pedidos
         ..clear()
@@ -1010,13 +1110,20 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
     });
     _persistirListasLoja();
 
-    final indiceCliente = _clientes.indexWhere((c) => c.id == clienteId);
-    final nomeCliente =
-        indiceCliente == -1 ? '' : _clientes[indiceCliente].nome;
+    if (formaPagamento.trim().toLowerCase() == 'dinheiro') {
+      context.read<PdvProvider>().registrarMovimentoCaixa(
+            widget.lojaId,
+            tipo: TipoMovimentoCaixa.suprimento,
+            valor: valor,
+            motivo: 'Recebimento de fiado - $nomeCliente',
+            cpf: _cpfLogado,
+            nome: _nomeLogado,
+          );
+    }
 
     _registrarAcao(
       TipoAcao.pagamentoPrazoRecebido,
-      'Pagamento à prazo recebido de "$nomeCliente" '
+      'Pagamento à prazo recebido ($formaPagamento) de "$nomeCliente" '
           '(${_valorFormatado(valor)})',
     );
   }
@@ -1181,6 +1288,7 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
       lojaNome: loja.nome,
       lojaCnpj: loja.cnpj,
       turnoAberto: loja.turnoCaixaAberto,
+      turnosAnteriores: loja.turnosCaixa.where((t) => !t.aberto).toList(),
       pedidosLoja: _pedidos,
       configuracoesImpressora: loja.configuracoesImpressora,
       aoAbrirCaixa: (saldoInicial) async {
@@ -1272,6 +1380,10 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
         final statusMudou = _mesas[indice].status != mesaAtualizada.status;
         final novosItens =
             mesaAtualizada.itens.length > _mesas[indice].itens.length;
+        final itensRemovidos =
+            mesaAtualizada.itens.length < _mesas[indice].itens.length;
+        final itensAnteriores = _mesas[indice].itens;
+
         setState(() => _mesas[indice] = mesaAtualizada);
         _persistirListasLoja();
 
@@ -1281,11 +1393,28 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
             'Mesa "${mesaAtualizada.numero}" aberta por $_nomeLogado'
             '${mesaAtualizada.clienteNome.isNotEmpty ? " (Cliente: ${mesaAtualizada.clienteNome})" : ""}',
           );
+        } else if (statusMudou && mesaAtualizada.status == StatusMesa.livre) {
+          _registrarAcao(
+            TipoAcao.mesaLiberada,
+            'Mesa "${mesaAtualizada.numero}" liberada por $_nomeLogado',
+          );
         } else if (novosItens) {
           final ultimoItem = mesaAtualizada.itens.last;
           _registrarAcao(
             TipoAcao.itemAdicionadoMesa,
             'Adicionado ${ultimoItem.item.quantidade}x "${ultimoItem.item.nomeItem}" na Mesa "${mesaAtualizada.numero}" por ${ultimoItem.autorNome}',
+          );
+        } else if (itensRemovidos) {
+          final atuaisIds = mesaAtualizada.itens.map((i) => i.id).toSet();
+          final removidos =
+              itensAnteriores.where((i) => !atuaisIds.contains(i.id)).toList();
+          final itemRemovido = removidos.isNotEmpty ? removidos.first : null;
+          final descricao = itemRemovido != null
+              ? '${itemRemovido.item.quantidade}x "${itemRemovido.item.nomeItem}"'
+              : 'item';
+          _registrarAcao(
+            TipoAcao.itemRemovidoMesa,
+            'Removido $descricao da Mesa "${mesaAtualizada.numero}" por $_nomeLogado',
           );
         }
       },
@@ -1430,6 +1559,10 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
       context,
       theme: ThemeController.currentTheme.value,
       mesa: mesa,
+      clientes: _clientes,
+      onSalvarCliente: (novoCliente) async {
+        _salvarCliente(novoCliente);
+      },
     );
 
     if (resultado == null || !mounted) return;
@@ -1448,20 +1581,47 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
         .join(', ');
 
     Cliente? clienteMesa;
-    if (mesa.clienteNome.trim().isNotEmpty) {
-      final nomeLimpo = mesa.clienteNome.trim().toLowerCase();
-      clienteMesa = lojaAtual?.clientesLoja.where((c) {
+    final nomeParaBuscar = (resultado.clienteNome != null &&
+            resultado.clienteNome!.trim().isNotEmpty)
+        ? resultado.clienteNome!.trim()
+        : mesa.clienteNome.trim();
+    if (nomeParaBuscar.isNotEmpty) {
+      final nomeLimpo = nomeParaBuscar.toLowerCase();
+      clienteMesa = _clientes.where((c) {
         return c.nome.trim().toLowerCase() == nomeLimpo;
       }).firstOrNull;
     }
 
+    final temPrazoMesa = resultado.pagamentos.any((p) {
+      final f = p.forma.trim().toLowerCase();
+      return f == 'à prazo' || f == 'a prazo';
+    });
+    final valorPagoMesa = resultado.pagamentos
+        .where((p) {
+          final f = p.forma.trim().toLowerCase();
+          return f != 'à prazo' && f != 'a prazo';
+        })
+        .fold<double>(0.0, (s, p) => s + p.valor);
+    final valorEntradaMesa = valorPagoMesa > resultado.valorFinal
+        ? resultado.valorFinal
+        : valorPagoMesa;
+
+    final clienteIdFinal = (resultado.clienteId != null &&
+            resultado.clienteId!.isNotEmpty)
+        ? resultado.clienteId!
+        : (clienteMesa?.id ?? '');
+    final clienteNomeFinal = (resultado.clienteNome != null &&
+            resultado.clienteNome!.trim().isNotEmpty)
+        ? resultado.clienteNome!
+        : (mesa.clienteNome.isNotEmpty
+            ? mesa.clienteNome
+            : 'Mesa ${mesa.numero}');
+
     final pedido = PedidoLoja(
       id: gerarIdUnico(),
       numero: proximoNumero,
-      clienteId: clienteMesa?.id ?? '',
-      clienteNome: mesa.clienteNome.isNotEmpty
-          ? mesa.clienteNome
-          : 'Mesa ${mesa.numero}',
+      clienteId: clienteIdFinal,
+      clienteNome: clienteNomeFinal,
       produtoNome: nomesItens.isNotEmpty
           ? nomesItens
           : 'Consumo Mesa ${mesa.numero}',
@@ -1473,6 +1633,8 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
       desconto: resultado.desconto,
       acrescimo: resultado.acrescimo,
       valor: resultado.valorFinal,
+      quitado: !temPrazoMesa || valorEntradaMesa >= resultado.valorFinal,
+      valorPago: !temPrazoMesa ? resultado.valorFinal : valorEntradaMesa,
       dataHora: DateTime.now(),
       status: StatusPedido.concluido,
       nomeVendedor: lojaAtual?.nome ?? '',
@@ -3775,31 +3937,90 @@ class _BarraDeAbasDaLoja extends StatelessWidget {
           return Expanded(
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 4),
-              child: OutlinedButton(
-                style: OutlinedButton.styleFrom(
-                  backgroundColor:
-                      selecionada ? theme.buttonColor : Colors.transparent,
-                  foregroundColor:
-                      selecionada ? theme.buttonTextColor : theme.textColor,
-                  side: BorderSide(color: theme.borderColor),
-                  padding: const EdgeInsets.symmetric(vertical: 10),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                ),
-                onPressed: () => aoTrocarAba(aba),
-                child: Text(
-                  _rotulo(aba),
-                  style: theme.getTextStyle(
-                    fontSize: 12,
-                    color:
-                        selecionada ? theme.buttonTextColor : theme.textColor,
-                  ),
-                ),
+              child: _BotaoAbaLoja(
+                theme: theme,
+                rotulo: _rotulo(aba),
+                selecionada: selecionada,
+                aoClicar: () => aoTrocarAba(aba),
               ),
             ),
           );
         }).toList(),
+      ),
+    );
+  }
+}
+
+class _BotaoAbaLoja extends StatefulWidget {
+  final AppTheme theme;
+  final String rotulo;
+  final bool selecionada;
+  final VoidCallback aoClicar;
+
+  const _BotaoAbaLoja({
+    required this.theme,
+    required this.rotulo,
+    required this.selecionada,
+    required this.aoClicar,
+  });
+
+  @override
+  State<_BotaoAbaLoja> createState() => _BotaoAbaLojaState();
+}
+
+class _BotaoAbaLojaState extends State<_BotaoAbaLoja> {
+  bool _hover = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = widget.theme;
+    final selecionada = widget.selecionada;
+    final fundoAtivo = theme.buttonColor != Colors.transparent
+        ? theme.buttonColor
+        : theme.borderColor.withValues(alpha: 0.25);
+    final textoAtivo = theme.buttonColor != Colors.transparent
+        ? theme.buttonTextColor
+        : theme.textColor;
+
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      onEnter: (_) => setState(() => _hover = true),
+      onExit: (_) => setState(() => _hover = false),
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: widget.aoClicar,
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 10),
+          decoration: BoxDecoration(
+            color: selecionada
+                ? (_hover
+                    ? (theme.buttonColor != Colors.transparent
+                        ? theme.buttonColor.withValues(alpha: 0.85)
+                        : theme.borderColor.withValues(alpha: 0.35))
+                    : fundoAtivo)
+                : (_hover
+                    ? theme.borderColor.withValues(alpha: 0.18)
+                    : Colors.transparent),
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(
+              color: selecionada || _hover
+                  ? theme.textColor
+                  : theme.borderColor.withValues(alpha: 0.45),
+              width: selecionada ? 1.6 : 1.0,
+            ),
+          ),
+          child: Text(
+            widget.rotulo,
+            textAlign: TextAlign.center,
+            style: theme.getTextStyle(
+              fontSize: 12,
+              fontWeight: selecionada ? FontWeight.bold : FontWeight.normal,
+              color: selecionada
+                  ? textoAtivo
+                  : (_hover ? theme.textColor : theme.secondaryTextColor),
+            ),
+          ),
+        ),
       ),
     );
   }

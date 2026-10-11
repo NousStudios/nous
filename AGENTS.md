@@ -147,7 +147,9 @@ Este projeto apoia-se no **anarquismo plataformista brasileiro**: poder sem inte
 | **Diálogos / Popups** | **Sempre centralizados** via `showDialog`. Fundo `theme.cardBackgroundColor`, `borderRadius: 16` e largura máxima de `500`. **Nunca use Bottom Sheets.** |
 | **Barras com Hover** | Todo item de lista (membros, fornecedores, clientes, trabalhadores) deve usar o widget de hover com borda contrastante e leve fundo translúcido `theme.borderColor.withValues(alpha: 0.18)` ao passar o cursor. |
 | **Listas Vazias** | Use sempre `EstadoVazioContainer(theme: theme, mensagem: '...')`. |
-| **Botões de Ação** | Ativos com `theme.buttonColor` e texto em `theme.buttonTextColor`. Secundários com `OutlinedButton` arredondado. |
+| **Botões de Ação** | No repouso, respeitam o tema (`theme.buttonColor` ou transparente com borda fina `1.0`), **nunca nascendo com o visual de hover ativado**. Respondem dinamicamente ao mouse em hover: fundo translúcido `alpha: 0.18`, borda `1.4` em `textColor` e cursor pointer. |
+| **Botões e Seletores com Hover Persistente** | Botões de opção/toggle (impressora, filtros de relatórios, abas da loja, períodos no financeiro, tipo de movimento de estoque, unidades e formas de pagamento) **mantêm destaque visual ativo quando selecionados** e respondem dinamicamente ao mouse em hover: fundo translúcido `alpha: 0.22` (ou `0.35` em hover), borda contrastante `1.6px` em `textColor`, `SystemMouseCursors.click` e fallback para temas escuros. |
+| **Botões On/Off (`ThemedSwitch`)** | Interruptores padronizados de alto contraste (`activeThumbColor: theme.textColor`, `activeTrackColor: theme.borderColor.withValues(alpha: 0.45)`, `inactiveThumbColor: theme.secondaryTextColor`, `inactiveTrackColor: Colors.transparent`, `trackOutlineColor: theme.borderColor`), eliminando switches apagados no modo escuro. |
 
 ### 6.4 Ecossistema de Imagens e Continuidade Visual Estrita
 - **Proibição de Elementos Fictícios:** Se um componente visual possui espaço para avatar ou imagem, ela **NUNCA é meramente decorativa**. Deve ser persistida, vinculada ao modelo e exibida em todas as telas que representam aquela entidade.
@@ -248,14 +250,22 @@ Este projeto apoia-se no **anarquismo plataformista brasileiro**: poder sem inte
 ### 7.4 Dinâmica de Restaurante, Mesas e Comandas Abertas (`features/pdv/views/widgets/mesas`)
 - No perfil profissional **Restaurante**, é exibido o container retrátil **"Mesas"** entre as ações rápidas e o painel de pedidos.
 - Cada mesa possui status (`livre` ou `ocupada`), número, descrição/capacidade, nome do cliente e atendente responsável persistidos em cofre.
-- **Lançamento de Itens:** Permite adicionar produtos com adicionais e acompanhamentos dinâmicos de grupos de componentes vinculados.
+- **Lançamento e Auditoria de Itens:** Permite adicionar produtos com adicionais e acompanhamentos dinâmicos de grupos de componentes vinculados. Cada item lançado gera `TipoAcao.itemAdicionadoMesa`, e qualquer cancelamento ou remoção de item da comanda gera obrigatoriamente `TipoAcao.itemRemovidoMesa`, preservando o princípio inegociável de transparência radical do Nous.
+- **Liberação e Fechamento:** A liberação da mesa gera `TipoAcao.mesaLiberada`.
 - **Impressão de Conferência:** Emite via `ImpressaoService.imprimirConferenciaMesa` o comprovante de pré-fechamento térmico em 58mm ou 80mm.
 - **Múltiplos Pagamentos e Divisão de Conta:** No fechamento (`FecharContaMesaDialog`), permite pagamento único ou parcelamento dinâmico em múltiplas formas de pagamento (dividindo a conta entre várias pessoas com cálculo automático de saldo restante), botão de acréscimo de 10% de atendimento e descontos.
+- **Cadastro Rápido de Cliente para Venda à Prazo na Mesa:** Ao fechar a conta com a opção "À Prazo", caso o cliente não esteja cadastrado na loja, o sistema abre automaticamente o diálogo centralizado `_CadastroClienteRapidoMesaDialog` solicitando Nome (obrigatório), Endereço e Telefone/WhatsApp. Ao salvar, persiste o cliente na loja, vincula à comanda e conclui o fechamento com o fiado devidamente registrado na ficha do cliente.
 - **Transferência e Unificação de Mesas:** Permite transferir uma comanda para outra mesa livre ou unir comandas existentes (`TransferirMesaDialog`), registrando ação de auditoria (`TipoAcao.mesaTransferida`).
 
-### 7.5 Ficha do Cliente e Extrato em PDF (`features/pdv/views/widgets/clientes_dialog.dart`)
+### 7.5 Ficha do Cliente, Quitação Universal e Extrato em PDF (`features/pdv/views/widgets/clientes_dialog.dart`)
+- **Quitação Universal a Prazo (`aplicarPagamentoAPrazo`):** A baixa de pagamentos a prazo localiza e quita pedidos tanto pelo `clienteId` quanto por correspondência de `clienteNome` (`clienteNome: cliente.nome`), garantindo que pedidos anotados a prazo antes da criação formal do cadastro ou associados pelo nome sejam abatidos sem deixar dívidas fantasmas.
+- **Exclusão de Clientes com Alerta de Débito:** No formulário de edição de cliente, o lojista conta com botão "Excluir Cliente". Caso o cliente possua débito a prazo em aberto, o sistema exibe alerta em destaque avisando o saldo devedor antes de confirmar a exclusão. O histórico de pedidos concluidos permanece intacto para contabilidade e auditoria.
 - **Extrato Financeiro e de Compras:** Ao tocar em um cliente cadastrado no diálogo de clientes, o lojista visualiza o valor total acumulado já gasto e o botão **"Exportar Extrato PDF"**.
 - O `ImpressaoService.exportarExtratoClientePDF` gera um documento paginado em formato A4 contendo dados cadastrais, saldo devedor a prazo em aberto e tabela completa com data, número do pedido, itens e valores.
+
+### 7.5.1 Caixa do Balcão, Turnos e Alinhamento de Saldos (`features/pdv/views/widgets/caixa_dialog.dart`)
+- **Cálculo Preciso de Dinheiro:** Tanto no diálogo do Caixa quanto no painel "Status da Loja", o cálculo de vendas em dinheiro distingue vendas simples (onde o valor do pedido já é o líquido arrecadado) de vendas com pagamentos múltiplos (onde o troco é abatido do montante em dinheiro), eliminando qualquer divergência entre telas.
+- **Histórico e Reimpressão de Turnos Fechados:** Quando o caixa está fechado, além do formulário de abertura de novo turno, o diálogo lista os últimos turnos de caixa fechados, exibindo datas de abertura/fechamento, operadores, fundos iniciais, saldos informados e observações, com botão para reimpressão imediata do comprovante térmico de fechamento.
 
 ### 7.6 Atualizações do Sistema e Instalador Windows
 - **Atualização Local-First Soberana:** Botão na `CustomAppBar` ao lado da engrenagem com `AtualizacaoDialog`, exibindo versão instalada, checagem via `AtualizacaoService` e garantia de preservação de dados locais. O botão na AppBar só é renderizado quando há atualização detectada.
@@ -352,8 +362,9 @@ Este projeto apoia-se no **anarquismo plataformista brasileiro**: poder sem inte
   - Ao registrar uma sangria ou suprimento, o operador pode clicar em "Confirmar" ou "Confirmar e Imprimir".
   - O comprovante térmico (`imprimirMovimentoCaixa`) inclui dados da loja, operador, tipo de movimentação, valor, motivo, data/hora e linha pontilhada para assinatura de conferência.
   - Histórico de movimentações do turno exibe botão de reimpressão de 2ª via.
-- **Demonstrativo do Resultado do Exercício — DRE Simples (`FinanceiroView`):**
-  - Botão "DRE Simples" na barra de ações financeiras. Exibe popup centralizado com Receita Operacional Bruta, (-) Custos das Mercadorias/Insumos (CMV), (=) Lucro Bruto com margem %, (-) Pagamentos a Trabalhadores e (=) Resultado Líquido com margem %, além de botão de exportação direta em PDF.
+- **Demonstrativo do Resultado do Exercício — DRE Simples (`FinanceiroView` / `ImpressaoService.exportarDREPDF`):**
+  - Botão "DRE Simples" na barra de ações financeiras. Exibe popup centralizado com Receita Operacional Bruta, (-) Custos das Mercadorias/Insumos (CMV), (=) Lucro Bruto com margem %, (-) Pagamentos a Trabalhadores e (=) Resultado Líquido com margem %.
+  - **Exportação Dedicada em PDF (`exportarDREPDF`):** O botão "Exportar DRE em PDF" dentro do modal gera um documento contábil executivo exclusivo de página única (`dre_AAAAMMDD_HHMM.pdf`), separado do relatório financeiro geral analítico (`financeiro_AAAAMMDD_HHMM.pdf`). Inclui tabela estruturada, destaque de margens, dados da loja e nota de autogestão e transparência.
 - **Ficha Kardex do Produto (`estoque_container.dart`):**
   - Ao tocar em um item no estoque, abre a Ficha Kardex completa exibindo dados cadastrais (preço de venda, preço de custo, estoque mínimo, código de barras), saldo atual em tempo real e a lista cronológica de movimentações (com tipo, data/hora, fornecedor, quantidade e custos).
 
@@ -395,10 +406,26 @@ Este projeto apoia-se no **anarquismo plataformista brasileiro**: poder sem inte
     3. *Ticket Médio (R$)*: média financeira por venda hoje.
     4. *Situação do Caixa*: indicador visual dinâmico ("Caixa Aberto" ou "Caixa Fechado") com o saldo real apurado em dinheiro físico em mãos no momento ($\text{Saldo Inicial} + \text{Suprimentos} - \text{Sangrias} + \text{Vendas em Dinheiro Líquidas}$).
 
-### 7.9 Integridade de Relacionamentos, Governança e Auditoria Contábil
+### 7.15 Integridade de Relacionamentos, Governança e Auditoria Contábil
 - **Convites com `cpfDonoOriginal` Soberano:** O modelo `ConviteLoja` persiste `cpfDonoOriginal`, garantindo que convites enviados por Sócios ou Admins acessem e salvem a loja diretamente no cofre do dono titular, eliminando o falso erro *"A loja deste convite não está mais disponível"*.
 - **Comandas de Mesas com Múltiplos Pagamentos Preservados:** `PedidoLoja.pagamentosExtras` armazena a totalidade dos pagamentos realizados no fechamento de mesa (sem descarte do índice 0), corrigindo relatórios, caixas e impressões térmicas.
 - **Nomenclatura Unificada e Defensiva de "À Prazo":** Padronizado `'À Prazo'` em todo o sistema e getter `PedidoLoja.temAPrazo` tolerante a variações (`'À Prazo'`, `'A Prazo'`, `'Fiado / A Prazo'`). No fechamento de mesa, o `clienteId` é vinculado automaticamente caso haja cliente cadastrado com o nome da comanda.
+- **Consistência de Pagamentos à Prazo, Vendas Mistas e Fechamento de Mesas:**
+  - Vendas quitadas ou sem débito à prazo nascem com `quitado: true` e `valorPago: total`.
+  - Vendas à prazo ou mistas (com entrada à vista) registram em `valorPago` o valor real já recebido na hora da venda (`valorPagoNaoPrazo`), permitindo que `valorRestante` calcule a dívida real exata sem cobrar duas vezes o valor pago.
+  - Vendas canceladas (`StatusPedido.cancelado`) são estritamente excluídas do cálculo de débitos em aberto (`aPrazoEmAberto`), relatórios gerenciais e faturamento do dia.
+  - Fechamento de comanda de mesa com forma à prazo exige cliente selecionado ou cadastrado antes da conclusão.
+- **Estorno Inteligente de Estoque na Exclusão de Pedidos:** Ao excluir um pedido da listagem da loja, o lojista é consultado se deseja estornar os produtos de volta ao estoque, registrando a entrada correspondente com trilha de auditoria (`cpfAutor`, `nomeAutor` e justificativa).
+- **Base de Rateio Igualitário Estável aos Trabalhadores:**
+  - O cálculo da sugestão de divisão igualitária aos membros (`RegistrarPagamentoDialog`) baseia-se no resultado operacional do período ($\text{Entradas} - \text{ComprasEstoque}$), dividindo a cota de forma constante entre todos os membros ($\text{Cota} = \text{BaseRateio} / \text{Membros}$), sem degradar em cascata conforme os membros anteriores recebem suas retiradas.
+- **Isolamento de Entradas em Vendas Mistas (Sem Faturamento Duplo):**
+  - No `FinanceiroView` e no `ImpressaoService` (tela, térmica e PDF), a linha de pagamento `'À Prazo'` computa estritamente o valor que exceder as entradas à vista da venda ($\max(0, \text{venda.valorPago} - \text{EntradasÀVista})$), eliminando qualquer duplicação contábil.
+- **Troco Real e Entrada em Vendas Mistas no PDV:**
+  - O troco em `NovaVendaDialog` é calculado pelo excesso real sobre o total ($\text{TotalPagamentos} - \text{Total}$), gravando o valor líquido recebido no ato e garantindo conciliação física da gaveta de caixa sem quebras.
+- **Quitação de Fiados Integrada ao Caixa Aberto:**
+  - Ao abater dívidas de clientes em `ClientesDialog`, o lojista indica a forma de pagamento (Dinheiro, Pix, Cartão). Sendo em dinheiro e com caixa aberto no balcão, o sistema registra automaticamente um suprimento de caixa no turno atual, impedindo "sobras" de dinheiro inexplicadas na conferência cega.
+- **Validação Estrita de Pagamentos em Mesas:**
+  - `FecharContaMesaDialog` valida e bloqueia o fechamento tanto quando faltar quitar o saldo quanto quando a soma dos pagamentos parciais ultrapassar o total da comanda (por exemplo, após concessão de desconto tardio).
 - **Cálculo de Troco no Caixa sem Dupla Dedução:** `_vendasDinheiro` em `CaixaDialog` diferencia pagamento único (onde `p.valor` já é líquido) de pagamentos múltiplos, evitando subtrair o troco duas vezes.
 - **Limpeza em Cascata no SQLite:** Ao excluir lojas em `LojasService.salvar`, os registros de `pedidos`, `movimentos_estoque` e `pagamentos_funcionarios` correspondentes são excluídos, eliminando dados órfãos.
 - **Mesclagem Completa no Backup:** `BackupService.mesclarLojas` unifica `turnosCaixa`, `atalhosTeclado`, `tempoConclusaoMinutos` da loja, bem como `codigoBarras`, `precoCusto`, `unidadeBase` e `consumoPorVenda` de `ItemLoja`.

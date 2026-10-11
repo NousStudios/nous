@@ -1058,13 +1058,45 @@ class ImpressaoService {
       );
     }
 
-    double totalEntradas = 0;
+    final entradasPorForma = <String, double>{
+      for (final f in _formasDePagamento) f: 0.0,
+    };
     for (final p in vendas) {
-      totalEntradas += p.valor;
+      final entradasNaoPrazo = p.todosPagamentos
+          .where((pag) {
+            final f = pag.forma.trim().toLowerCase();
+            return f != 'à prazo' && f != 'a prazo';
+          })
+          .fold<double>(0.0, (s, pag) => s + pag.valor);
+
+      for (final pag in p.todosPagamentos) {
+        final ehPrazo = pag.forma.trim().toLowerCase() == 'à prazo' ||
+            pag.forma.trim().toLowerCase() == 'a prazo';
+        if (ehPrazo) {
+          final recebidoDoPrazo = p.valorPago - entradasNaoPrazo;
+          if (recebidoDoPrazo > 0) {
+            entradasPorForma[pag.forma] =
+                (entradasPorForma[pag.forma] ?? 0) + recebidoDoPrazo;
+          }
+        } else {
+          entradasPorForma[pag.forma] =
+              (entradasPorForma[pag.forma] ?? 0) + pag.valor;
+        }
+      }
+    }
+
+    double totalEntradas = 0;
+    for (final v in entradasPorForma.values) {
+      totalEntradas += v;
     }
     double totalAReceber = 0;
     for (final p in pedidosAceitos) {
       totalAReceber += p.valor;
+    }
+    for (final p in vendas) {
+      if (p.aPrazoEmAberto) {
+        totalAReceber += p.valorRestante;
+      }
     }
     double totalPagamentos = 0;
     for (final p in pagamentos) {
@@ -1073,16 +1105,6 @@ class ImpressaoService {
     final totalSaidas =
         totalPagamentos + (contarEstoque ? saidaEstoque : 0);
     final saldo = totalEntradas - totalSaidas;
-
-    final entradasPorForma = <String, double>{
-      for (final f in _formasDePagamento) f: 0.0,
-    };
-    for (final p in vendas) {
-      for (final pag in p.todosPagamentos) {
-        entradasPorForma[pag.forma] =
-            (entradasPorForma[pag.forma] ?? 0) + pag.valor;
-      }
-    }
 
     final comprasPorFornecedor = _comprasPorFornecedor(movimentos);
     final comprasOrdenadas = comprasPorFornecedor.entries.toList()
@@ -1719,13 +1741,45 @@ class ImpressaoService {
       color: PdfColors.grey700,
     );
 
-    double totalEntradas = 0;
+    final entradasPorForma = <String, double>{
+      for (final f in _formasDePagamento) f: 0.0,
+    };
     for (final p in vendas) {
-      totalEntradas += p.valor;
+      final entradasNaoPrazo = p.todosPagamentos
+          .where((pag) {
+            final f = pag.forma.trim().toLowerCase();
+            return f != 'à prazo' && f != 'a prazo';
+          })
+          .fold<double>(0.0, (s, pag) => s + pag.valor);
+
+      for (final pag in p.todosPagamentos) {
+        final ehPrazo = pag.forma.trim().toLowerCase() == 'à prazo' ||
+            pag.forma.trim().toLowerCase() == 'a prazo';
+        if (ehPrazo) {
+          final recebidoDoPrazo = p.valorPago - entradasNaoPrazo;
+          if (recebidoDoPrazo > 0) {
+            entradasPorForma[pag.forma] =
+                (entradasPorForma[pag.forma] ?? 0) + recebidoDoPrazo;
+          }
+        } else {
+          entradasPorForma[pag.forma] =
+              (entradasPorForma[pag.forma] ?? 0) + pag.valor;
+        }
+      }
+    }
+
+    double totalEntradas = 0;
+    for (final v in entradasPorForma.values) {
+      totalEntradas += v;
     }
     double totalAReceber = 0;
     for (final p in pedidosAceitos) {
       totalAReceber += p.valor;
+    }
+    for (final p in vendas) {
+      if (p.aPrazoEmAberto) {
+        totalAReceber += p.valorRestante;
+      }
     }
     double totalPagamentos = 0;
     for (final p in pagamentos) {
@@ -1734,16 +1788,6 @@ class ImpressaoService {
     final totalSaidas =
         totalPagamentos + (contarEstoque ? saidaEstoque : 0);
     final saldo = totalEntradas - totalSaidas;
-
-    final entradasPorForma = <String, double>{
-      for (final f in _formasDePagamento) f: 0.0,
-    };
-    for (final p in vendas) {
-      for (final pag in p.todosPagamentos) {
-        entradasPorForma[pag.forma] =
-            (entradasPorForma[pag.forma] ?? 0) + pag.valor;
-      }
-    }
 
     final comprasPorFornecedor = _comprasPorFornecedor(movimentos);
     final comprasOrdenadas = comprasPorFornecedor.entries.toList()
@@ -2069,6 +2113,251 @@ class ImpressaoService {
     const grupo = XTypeGroup(label: 'PDF', extensions: ['pdf']);
     final local = await getSaveLocation(
       suggestedName: 'financeiro_$sufixo.pdf',
+      acceptedTypeGroups: const [grupo],
+    );
+
+    if (local == null) return null;
+
+    final arquivo = File(local.path);
+    await arquivo.writeAsBytes(bytes);
+    return local.path;
+  }
+
+  static Future<String?> exportarDREPDF({
+    required Loja loja,
+    required String periodo,
+    required double receita,
+    required double cmv,
+    required double lucroBruto,
+    required double margemBruta,
+    required double despesasPessoal,
+    required double resultadoLiquido,
+    required double margemLiquida,
+    required String rodape,
+  }) async {
+    final doc = pw.Document();
+
+    final estiloTitulo = pw.TextStyle(
+      fontSize: 18,
+      fontWeight: pw.FontWeight.bold,
+    );
+    final estiloMiudo = const pw.TextStyle(
+      fontSize: 9,
+      color: PdfColors.grey700,
+    );
+
+    pw.Widget linhaDRE(
+      String descricao,
+      String valor, {
+      bool destaque = false,
+      bool subtrair = false,
+      bool resultado = false,
+      PdfColor? corValor,
+    }) {
+      return pw.Padding(
+        padding: const pw.EdgeInsets.symmetric(vertical: 4),
+        child: pw.Row(
+          mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+          children: [
+            pw.Text(
+              descricao,
+              style: pw.TextStyle(
+                fontSize: resultado ? 12 : 11,
+                fontWeight:
+                    destaque || resultado ? pw.FontWeight.bold : pw.FontWeight.normal,
+              ),
+            ),
+            pw.Text(
+              valor,
+              style: pw.TextStyle(
+                fontSize: resultado ? 12 : 11,
+                fontWeight:
+                    destaque || resultado ? pw.FontWeight.bold : pw.FontWeight.normal,
+                color: corValor,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    doc.addPage(
+      pw.Page(
+        pageFormat: PdfPageFormat.a4,
+        margin: const pw.EdgeInsets.all(36),
+        build: (context) {
+          final blocos = <pw.Widget>[];
+
+          blocos.add(
+            pw.Center(
+              child: pw.Text(
+                'Demonstrativo de Resultado do Exercício (DRE)',
+                style: estiloTitulo,
+              ),
+            ),
+          );
+
+          if (loja.nome.isNotEmpty) {
+            blocos.add(
+              pw.Center(
+                child: pw.Padding(
+                  padding: const pw.EdgeInsets.only(top: 4),
+                  child: pw.Text(
+                    loja.nome,
+                    style: pw.TextStyle(
+                      fontSize: 13,
+                      fontWeight: pw.FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ),
+            );
+          }
+
+          if (loja.cnpj.isNotEmpty) {
+            blocos.add(
+              pw.Center(
+                child: pw.Padding(
+                  padding: const pw.EdgeInsets.only(top: 2),
+                  child: pw.Text('CNPJ: ${loja.cnpj}', style: estiloMiudo),
+                ),
+              ),
+            );
+          }
+
+          blocos.add(
+            pw.Center(
+              child: pw.Padding(
+                padding: const pw.EdgeInsets.only(top: 6),
+                child: pw.Text(
+                  'Período: $periodo • Emitido em ${_dataHora(DateTime.now())}',
+                  style: estiloMiudo,
+                ),
+              ),
+            ),
+          );
+
+          blocos.add(pw.SizedBox(height: 20));
+          blocos.add(pw.Divider(thickness: 1.2));
+          blocos.add(pw.SizedBox(height: 12));
+
+          blocos.add(
+            pw.Container(
+              padding: const pw.EdgeInsets.all(16),
+              decoration: pw.BoxDecoration(
+                border: pw.Border.all(color: PdfColors.grey400),
+                borderRadius: pw.BorderRadius.circular(8),
+              ),
+              child: pw.Column(
+                crossAxisAlignment: pw.CrossAxisAlignment.stretch,
+                children: [
+                  linhaDRE(
+                    '1. Receita Operacional Bruta',
+                    _valor(receita),
+                    destaque: true,
+                  ),
+                  pw.SizedBox(height: 4),
+                  linhaDRE(
+                    '2. (-) Custo dos Produtos / Insumos (CMV)',
+                    _valor(cmv),
+                    subtrair: true,
+                  ),
+                  pw.Divider(color: PdfColors.grey300),
+                  linhaDRE(
+                    '3. (=) Lucro Operacional Bruto',
+                    _valor(lucroBruto),
+                    destaque: true,
+                    resultado: true,
+                    corValor: lucroBruto < 0 ? PdfColors.red800 : null,
+                  ),
+                  pw.Align(
+                    alignment: pw.Alignment.centerRight,
+                    child: pw.Text(
+                      'Margem Bruta: ${margemBruta.toStringAsFixed(1)}%',
+                      style: estiloMiudo,
+                    ),
+                  ),
+                  pw.SizedBox(height: 8),
+                  linhaDRE(
+                    '4. (-) Pagamentos a Trabalhadores',
+                    _valor(despesasPessoal),
+                    subtrair: true,
+                  ),
+                  pw.Divider(color: PdfColors.grey400, thickness: 1.2),
+                  linhaDRE(
+                    '5. (=) Resultado Líquido do Período',
+                    _valor(resultadoLiquido),
+                    destaque: true,
+                    resultado: true,
+                    corValor:
+                        resultadoLiquido < 0 ? PdfColors.red800 : PdfColors.green800,
+                  ),
+                  pw.Align(
+                    alignment: pw.Alignment.centerRight,
+                    child: pw.Text(
+                      'Margem Líquida: ${margemLiquida.toStringAsFixed(1)}%',
+                      style: pw.TextStyle(
+                        fontSize: 10,
+                        fontWeight: pw.FontWeight.bold,
+                        color: resultadoLiquido < 0
+                            ? PdfColors.red800
+                            : PdfColors.grey800,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+
+          blocos.add(pw.SizedBox(height: 24));
+          blocos.add(
+            pw.Container(
+              padding: const pw.EdgeInsets.all(10),
+              decoration: pw.BoxDecoration(
+                color: PdfColors.grey100,
+                borderRadius: pw.BorderRadius.circular(6),
+                border: pw.Border.all(color: PdfColors.grey300),
+              ),
+              child: pw.Text(
+                'Nota de Transparência e Autogestão: O Demonstrativo de Resultado (DRE) sintetiza o desempenho operacional e cooperativo do negócio no período, sem camuflagem de custos ou perdas, proporcionando visibilidade equitativa para toda a comunidade trabalhadora.',
+                style: pw.TextStyle(fontSize: 8.5, color: PdfColors.grey800),
+                textAlign: pw.TextAlign.justify,
+              ),
+            ),
+          );
+
+          if (rodape.isNotEmpty) {
+            blocos.add(pw.SizedBox(height: 18));
+            for (final l in rodape.split('\n')) {
+              blocos.add(
+                pw.Center(
+                  child: pw.Text(l, style: estiloMiudo),
+                ),
+              );
+            }
+          }
+
+          return pw.Column(
+            crossAxisAlignment: pw.CrossAxisAlignment.stretch,
+            children: blocos,
+          );
+        },
+      ),
+    );
+
+    final bytes = await doc.save();
+
+    final agora = DateTime.now();
+    final sufixo =
+        '${agora.year}${agora.month.toString().padLeft(2, '0')}'
+        '${agora.day.toString().padLeft(2, '0')}_'
+        '${agora.hour.toString().padLeft(2, '0')}'
+        '${agora.minute.toString().padLeft(2, '0')}';
+
+    const grupo = XTypeGroup(label: 'PDF', extensions: ['pdf']);
+    final local = await getSaveLocation(
+      suggestedName: 'dre_$sufixo.pdf',
       acceptedTypeGroups: const [grupo],
     );
 
