@@ -1572,15 +1572,40 @@ class _ImpressoraConteudoState extends State<_ImpressoraConteudo> {
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     OutlinedButton.icon(
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: theme.textColor,
-                        side: BorderSide(color: theme.borderColor),
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 16,
-                          vertical: 12,
+                      style: ButtonStyle(
+                        backgroundColor:
+                            WidgetStateProperty.resolveWith((states) {
+                          if (states.contains(WidgetState.hovered)) {
+                            return theme.borderColor.withValues(alpha: 0.18);
+                          }
+                          return Colors.transparent;
+                        }),
+                        foregroundColor:
+                            WidgetStateProperty.resolveWith((states) {
+                          if (states.contains(WidgetState.hovered)) {
+                            return theme.textColor;
+                          }
+                          return theme.textColor;
+                        }),
+                        iconColor: WidgetStateProperty.resolveWith((states) {
+                          return theme.textColor;
+                        }),
+                        side: WidgetStateProperty.resolveWith((states) {
+                          if (states.contains(WidgetState.hovered)) {
+                            return BorderSide(color: theme.textColor, width: 1.4);
+                          }
+                          return BorderSide(color: theme.borderColor, width: 1.0);
+                        }),
+                        padding: const WidgetStatePropertyAll(
+                          EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                         ),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(10),
+                        shape: WidgetStatePropertyAll(
+                          RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                        ),
+                        mouseCursor: const WidgetStatePropertyAll(
+                          SystemMouseCursors.click,
                         ),
                       ),
                       onPressed: _imprimindo ? null : _imprimirTeste,
@@ -1601,25 +1626,51 @@ class _ImpressoraConteudoState extends State<_ImpressoraConteudo> {
                     ),
                     const SizedBox(width: 10),
                     OutlinedButton.icon(
-                      style: OutlinedButton.styleFrom(
-                        backgroundColor: theme.buttonColor,
-                        foregroundColor: theme.buttonTextColor,
-                        side: BorderSide(color: theme.borderColor),
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 20,
-                          vertical: 12,
+                      style: ButtonStyle(
+                        backgroundColor:
+                            WidgetStateProperty.resolveWith((states) {
+                          if (states.contains(WidgetState.hovered)) {
+                            return theme.borderColor.withValues(alpha: 0.18);
+                          }
+                          return theme.buttonColor;
+                        }),
+                        foregroundColor:
+                            WidgetStateProperty.resolveWith((states) {
+                          if (states.contains(WidgetState.hovered)) {
+                            return theme.textColor;
+                          }
+                          return theme.buttonTextColor;
+                        }),
+                        iconColor: WidgetStateProperty.resolveWith((states) {
+                          if (states.contains(WidgetState.hovered)) {
+                            return theme.textColor;
+                          }
+                          return theme.buttonTextColor;
+                        }),
+                        side: WidgetStateProperty.resolveWith((states) {
+                          if (states.contains(WidgetState.hovered)) {
+                            return BorderSide(color: theme.textColor, width: 1.4);
+                          }
+                          return BorderSide(color: theme.borderColor, width: 1.0);
+                        }),
+                        padding: const WidgetStatePropertyAll(
+                          EdgeInsets.symmetric(horizontal: 20, vertical: 12),
                         ),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(10),
+                        shape: WidgetStatePropertyAll(
+                          RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                        ),
+                        mouseCursor: const WidgetStatePropertyAll(
+                          SystemMouseCursors.click,
                         ),
                       ),
                       onPressed: _salvar,
-                      icon: Icon(Icons.check, size: 16, color: theme.buttonTextColor),
+                      icon: const Icon(Icons.check, size: 16),
                       label: Text(
                         'Salvar Configurações',
                         style: theme.getTextStyle(
                           fontSize: 12,
-                          color: theme.buttonTextColor,
                           fontWeight: FontWeight.bold,
                         ),
                       ),

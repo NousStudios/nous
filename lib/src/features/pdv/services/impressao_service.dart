@@ -633,6 +633,7 @@ class ImpressaoService {
     required TurnoCaixa turno,
     required double vendasDinheiro,
     required double vendasOutros,
+    double vendasAPrazo = 0.0,
     required double saldoEsperado,
     required double saldoInformado,
     String observacao = '',
@@ -709,7 +710,9 @@ class ImpressaoService {
               pw.Divider(thickness: 0.5),
               linhaDupla('Fundo Inicial', _valor(turno.saldoInicial)),
               linhaDupla('Vendas Dinheiro (+)', _valor(vendasDinheiro)),
-              linhaDupla('Vendas Outros (Pix/Cartão)', _valor(vendasOutros)),
+              linhaDupla('Vendas Pix / Cartão (+)', _valor(vendasOutros)),
+              if (vendasAPrazo > 0)
+                linhaDupla('Vendas à Prazo / Fiado', _valor(vendasAPrazo)),
               if (turno.totalSuprimentos > 0)
                 linhaDupla('Suprimentos (+)', _valor(turno.totalSuprimentos)),
               if (turno.totalSangrias > 0)

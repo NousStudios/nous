@@ -170,11 +170,29 @@ class _CaixaConteudoState extends State<_CaixaConteudo> {
     return soma < 0 ? 0.0 : soma;
   }
 
-  double get _vendasOutros {
+  bool _ehFormaPrazo(String forma) {
+    final f = forma.trim().toLowerCase();
+    return f == 'à prazo' || f == 'a prazo';
+  }
+
+  double get _vendasEletronico {
     var soma = 0.0;
     for (final p in _pedidosDoTurno) {
       for (final pag in p.todosPagamentos) {
-        if (pag.forma.toLowerCase() != 'dinheiro') {
+        final f = pag.forma.trim().toLowerCase();
+        if (f != 'dinheiro' && !_ehFormaPrazo(pag.forma)) {
+          soma += pag.valor;
+        }
+      }
+    }
+    return soma;
+  }
+
+  double get _vendasAPrazo {
+    var soma = 0.0;
+    for (final p in _pedidosDoTurno) {
+      for (final pag in p.todosPagamentos) {
+        if (_ehFormaPrazo(pag.forma)) {
           soma += pag.valor;
         }
       }
@@ -303,7 +321,8 @@ class _CaixaConteudoState extends State<_CaixaConteudo> {
       lojaCnpj: widget.lojaCnpj,
       turno: t,
       vendasDinheiro: _vendasDinheiro,
-      vendasOutros: _vendasOutros,
+      vendasOutros: _vendasEletronico,
+      vendasAPrazo: _vendasAPrazo,
       saldoEsperado: _saldoEsperadoDinheiro,
       saldoInformado: imprimirComoFechado ? informado : _saldoEsperadoDinheiro,
       observacao: obs,
@@ -335,22 +354,29 @@ class _CaixaConteudoState extends State<_CaixaConteudo> {
     }).toList();
 
     double vDinheiro = 0.0;
-    double vOutros = 0.0;
+    double vEletronico = 0.0;
+    double vPrazo = 0.0;
     for (final p in pedidosDoTurno) {
       if (p.pagamentosExtras.isNotEmpty) {
         for (final pag in p.todosPagamentos) {
-          if (pag.forma.toLowerCase() == 'dinheiro') {
+          final f = pag.forma.trim().toLowerCase();
+          if (f == 'dinheiro') {
             vDinheiro += pag.valor;
+          } else if (_ehFormaPrazo(pag.forma)) {
+            vPrazo += pag.valor;
           } else {
-            vOutros += pag.valor;
+            vEletronico += pag.valor;
           }
         }
         vDinheiro -= p.troco;
       } else {
-        if (p.formaPagamento.toLowerCase() == 'dinheiro') {
+        final f = p.formaPagamento.trim().toLowerCase();
+        if (f == 'dinheiro') {
           vDinheiro += p.valor;
+        } else if (_ehFormaPrazo(p.formaPagamento)) {
+          vPrazo += p.valor;
         } else {
-          vOutros += p.valor;
+          vEletronico += p.valor;
         }
       }
     }
@@ -368,7 +394,8 @@ class _CaixaConteudoState extends State<_CaixaConteudo> {
         lojaCnpj: widget.lojaCnpj,
         turno: t,
         vendasDinheiro: vDinheiro,
-        vendasOutros: vOutros,
+        vendasOutros: vEletronico,
+        vendasAPrazo: vPrazo,
         saldoEsperado: saldoEsperado,
         saldoInformado: t.saldoFinalInformado ?? saldoEsperado,
         observacao: t.observacao,
@@ -752,7 +779,9 @@ class _CaixaConteudoState extends State<_CaixaConteudo> {
               Divider(color: theme.borderColor.withValues(alpha: 0.6)),
               _linhaResumo('Fundo de troco inicial', _formatarMoeda(turno.saldoInicial)),
               _linhaResumo('Vendas em dinheiro (+)', _formatarMoeda(_vendasDinheiro)),
-              _linhaResumo('Vendas outras formas (Pix/Cartão)', _formatarMoeda(_vendasOutros)),
+              _linhaResumo('Vendas Pix / Cartão (+)', _formatarMoeda(_vendasEletronico)),
+              if (_vendasAPrazo > 0)
+                _linhaResumo('Vendas à prazo (a receber)', _formatarMoeda(_vendasAPrazo)),
               if (turno.totalSuprimentos > 0)
                 _linhaResumo('Suprimentos (+ troco adicionado)', _formatarMoeda(turno.totalSuprimentos)),
               if (turno.totalSangrias > 0)

@@ -224,11 +224,21 @@ Este projeto apoia-se no **anarquismo plataformista brasileiro**: poder sem inte
 - **Busca Rápida de Pedidos em "Concluídos" e "Cancelados" (`GestaoLojaContainer`):**
   - Campo de busca no topo das abas "Concluídos" e "Cancelados" filtrando instantaneamente por número do pedido (`#0001`), cliente, produto ou descrição de itens com limpeza ágil e estado vazio contextualizado.
 - **Aba "Ajustes" e "Ajustes do Perfil" (`AbaLoja.interface`):**
-  - Renomeada a aba e o botão inferior de "Interface" para **"Ajustes"** ("Ajustes do Perfil"), concentrando todas as configurações operacionais do lojista:
-    - **Container "Comandos":** Gerenciamento e atribuição interativa das teclas de atalho (<kbd>F1</kbd> a <kbd>F8</kbd>) para ações de gestão ("Nova Venda", "Clientes", "Caixa", "Relatórios", "Impressora", "Financeiro", "Status da Loja" ou "Desativado") e tecla fixa <kbd>Esc</kbd> ("Voltar / Fechar Janelas"), persistido em `Loja.atalhosTeclado`.
-    - **Container "Tempo de Conclusão dos Pedidos":** Migrado da aba Dados para Ajustes.
-    - **Container "Sons e Alertas do Sistema":** Migrado da aba Dados para Ajustes.
+  - Renomeada a aba e o botão inferior de "Interface" para **"Ajustes"** ("Ajustes do Perfil"), concentrando todas as configurações operacionais do lojista com títulos de containers centralizados:
+    - **Container "Comandos":** Título centralizado e gerenciamento de teclas de atalho (<kbd>F1</kbd> a <kbd>F8</kbd>) organizadas elegantemente em **duas colunas lado a lado** (F1–F4 e F5–F8) com seletores compactos, além da tecla fixa <kbd>Esc</kbd> no topo ("Voltar / Fechar Janelas"), persistido em `Loja.atalhosTeclado`.
+    - **Container "Tempo de Conclusão dos Pedidos":** Título centralizado, definindo tempo de conclusão automática ou manual.
+    - **Container "Sons e Alertas do Sistema":** Título centralizado, gerenciando efeitos sonoros do PDV.
   - A aba **"Dados"** permanece despoluída, focando estritamente em Formulário de Dados da Loja, Usuários Participantes e Galeria/Anexos.
+- **Caixa e Fechamento com Discriminação de Vendas À Prazo (`CaixaDialog` e `ImpressaoService`):**
+  - O diálogo de Caixa e o cupom de fechamento térmico separam categoricamente:
+    - `Vendas em Dinheiro (+)` (entradas na gaveta física).
+    - `Vendas Pix / Cartão (+)` (entradas eletrônicas comprovadas).
+    - `Vendas à Prazo / Fiado (a receber)` (crédito concedido na sessão, que não compõe saldo de caixa imediato).
+    Garante conciliação bancária sem falsas discrepâncias com maquininhas de cartão.
+- **Auditoria Interativa de Ações em Relatórios (`RelatoriosDialog` e `_DetalhesAcaoDialog`):**
+  - Cada barra na aba "Ações" de Relatórios é interativa (com efeito hover dinâmico, cursor pointer e chevron de navegação).
+  - Ao clicar na barra, abre a janela centralizada `_DetalhesAcaoDialog` com data/hora completa, autor (com CPF e e-mail) e descrição detalhada.
+  - **Navegação Inteligente:** Se a ação refere-se a um cliente ativo, disponibiliza o botão *"Ver Perfil de [Cliente]"* (abrindo diretamente a ficha do cliente); se refere-se a um pedido ativo, disponibiliza *"Ver Comanda do Pedido #[Nº]"* (abrindo a comanda completa); para exclusões ou dados históricos, exibe nota de auditoria preservada.
 - **Ação Imediata ao Clicar em Notificações (`NotificacoesDialog`):**
   - Ao tocar em um alerta de estoque baixo ou esgotado na central de notificações (sino), a janela é fechada e abre imediatamente o diálogo `MovimentoEstoqueDialog` com o item e tipo "Entrada" pré-configurados, permitindo reabastecimento imediato e persistência direta no cofre da loja.
 - **Atalhos Globais de Teclado no Desktop (`CallbackShortcuts`):**

@@ -3079,6 +3079,103 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
     }
   }
 
+  Widget _buildItemTeclaAtalho(
+    AppTheme theme,
+    String tecla,
+    bool podeEditar,
+  ) {
+    final acaoAtual = _obterAcaoPorTecla(tecla);
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+      margin: const EdgeInsets.only(bottom: 8),
+      decoration: BoxDecoration(
+        color: theme.backgroundColor.withValues(alpha: 0.2),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(
+          color: theme.borderColor.withValues(alpha: 0.4),
+        ),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 36,
+            padding: const EdgeInsets.symmetric(vertical: 4),
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: theme.borderColor.withValues(alpha: 0.2),
+              borderRadius: BorderRadius.circular(6),
+              border: Border.all(color: theme.borderColor),
+            ),
+            child: Text(
+              tecla,
+              style: theme.getTextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.bold,
+                color: theme.textColor,
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: AbsorbPointer(
+              absorbing: !podeEditar,
+              child: Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                decoration: BoxDecoration(
+                  color: theme.cardBackgroundColor,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                    color: theme.borderColor.withValues(alpha: 0.6),
+                  ),
+                ),
+                child: DropdownButtonHideUnderline(
+                  child: DropdownButton<String>(
+                    value: _acoesAtalhosDisponiveis.contains(acaoAtual)
+                        ? acaoAtual
+                        : 'Desativado',
+                    isExpanded: true,
+                    isDense: true,
+                    dropdownColor: theme.cardBackgroundColor,
+                    icon: Icon(
+                      Icons.arrow_drop_down,
+                      size: 18,
+                      color: theme.secondaryTextColor,
+                    ),
+                    items: _acoesAtalhosDisponiveis.map((acao) {
+                      return DropdownMenuItem<String>(
+                        value: acao,
+                        child: Text(
+                          acao,
+                          style: theme.getTextStyle(
+                            fontSize: 12,
+                            color: acao == 'Desativado'
+                                ? theme.secondaryTextColor
+                                : theme.textColor,
+                          ),
+                        ),
+                      );
+                    }).toList(),
+                    onChanged: (novaAcao) {
+                      if (novaAcao == null) return;
+                      setState(() => _atalhosTeclado[tecla] = novaAcao);
+                      context.read<PdvProvider>().atualizarAtalhoTeclado(
+                            widget.lojaId,
+                            tecla,
+                            novaAcao,
+                          );
+                    },
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildContainerComandos(AppTheme theme, bool podeEditar) {
     final decoracao = _decoracaoDoBloco(theme);
 
@@ -3087,18 +3184,19 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
       padding: const EdgeInsets.all(16),
       decoration: decoracao,
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Row(
-            children: [
-              Icon(
-                Icons.keyboard_alt_outlined,
-                color: theme.buttonColor,
-                size: 22,
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
+          Center(
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  Icons.keyboard_alt_outlined,
+                  color: theme.buttonColor,
+                  size: 22,
+                ),
+                const SizedBox(width: 8),
+                Text(
                   'Comandos',
                   style: theme.getTextStyle(
                     fontSize: 15,
@@ -3106,21 +3204,24 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
                     color: theme.textColor,
                   ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
           const SizedBox(height: 6),
-          Text(
-            'Personalize as teclas de atalho do teclado para agilizar a operação diária no PDV. Defina qual ação cada tecla de função deve executar.',
-            style: theme.getTextStyle(
-              fontSize: 12,
-              color: theme.secondaryTextColor,
+          Center(
+            child: Text(
+              'Personalize as teclas de atalho do teclado para agilizar a operação diária no PDV. Defina qual ação cada tecla de função deve executar.',
+              textAlign: TextAlign.center,
+              style: theme.getTextStyle(
+                fontSize: 12,
+                color: theme.secondaryTextColor,
+              ),
             ),
           ),
           const SizedBox(height: 16),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            margin: const EdgeInsets.only(bottom: 8),
+            margin: const EdgeInsets.only(bottom: 12),
             decoration: BoxDecoration(
               color: theme.backgroundColor.withValues(alpha: 0.2),
               borderRadius: BorderRadius.circular(10),
@@ -3189,96 +3290,28 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
               ],
             ),
           ),
-          ..._teclasFuncao.map((tecla) {
-            final acaoAtual = _obterAcaoPorTecla(tecla);
-
-            return Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              margin: const EdgeInsets.only(bottom: 8),
-              decoration: BoxDecoration(
-                color: theme.backgroundColor.withValues(alpha: 0.2),
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(
-                  color: theme.borderColor.withValues(alpha: 0.4),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Column(
+                  children: _teclasFuncao
+                      .take(4)
+                      .map((t) => _buildItemTeclaAtalho(theme, t, podeEditar))
+                      .toList(),
                 ),
               ),
-              child: Row(
-                children: [
-                  Container(
-                    width: 44,
-                    padding: const EdgeInsets.symmetric(vertical: 5),
-                    alignment: Alignment.center,
-                    decoration: BoxDecoration(
-                      color: theme.borderColor.withValues(alpha: 0.2),
-                      borderRadius: BorderRadius.circular(6),
-                      border: Border.all(color: theme.borderColor),
-                    ),
-                    child: Text(
-                      tecla,
-                      style: theme.getTextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.bold,
-                        color: theme.textColor,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: AbsorbPointer(
-                      absorbing: !podeEditar,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 12, vertical: 2),
-                        decoration: BoxDecoration(
-                          color: theme.cardBackgroundColor,
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(
-                            color: theme.borderColor.withValues(alpha: 0.6),
-                          ),
-                        ),
-                        child: DropdownButtonHideUnderline(
-                          child: DropdownButton<String>(
-                            value: _acoesAtalhosDisponiveis.contains(acaoAtual)
-                                ? acaoAtual
-                                : 'Desativado',
-                            isExpanded: true,
-                            dropdownColor: theme.cardBackgroundColor,
-                            icon: Icon(
-                              Icons.arrow_drop_down,
-                              color: theme.secondaryTextColor,
-                            ),
-                            items: _acoesAtalhosDisponiveis.map((acao) {
-                              return DropdownMenuItem<String>(
-                                value: acao,
-                                child: Text(
-                                  acao,
-                                  style: theme.getTextStyle(
-                                    fontSize: 13,
-                                    color: acao == 'Desativado'
-                                        ? theme.secondaryTextColor
-                                        : theme.textColor,
-                                  ),
-                                ),
-                              );
-                            }).toList(),
-                            onChanged: (novaAcao) {
-                              if (novaAcao == null) return;
-                              setState(() => _atalhosTeclado[tecla] = novaAcao);
-                              context.read<PdvProvider>().atualizarAtalhoTeclado(
-                                    widget.lojaId,
-                                    tecla,
-                                    novaAcao,
-                                  );
-                            },
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  children: _teclasFuncao
+                      .skip(4)
+                      .map((t) => _buildItemTeclaAtalho(theme, t, podeEditar))
+                      .toList(),
+                ),
               ),
-            );
-          }),
+            ],
+          ),
         ],
       ),
     );
@@ -3304,18 +3337,19 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
       padding: const EdgeInsets.all(16),
       decoration: decoracao,
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Row(
-            children: [
-              Icon(
-                Icons.hourglass_bottom_rounded,
-                color: theme.buttonColor,
-                size: 20,
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
+          Center(
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  Icons.hourglass_bottom_rounded,
+                  color: theme.buttonColor,
+                  size: 20,
+                ),
+                const SizedBox(width: 8),
+                Text(
                   'Tempo de Conclusão dos Pedidos',
                   style: theme.getTextStyle(
                     fontSize: 15,
@@ -3323,15 +3357,18 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
                     color: theme.textColor,
                   ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
           const SizedBox(height: 6),
-          Text(
-            'Estipule um tempo padrão para preparação ou entrega. Após esse tempo decorrido em pedidos aceitos, o sistema perguntará automaticamente na interface se o pedido foi concluído. Caso deixe como "Manual", nenhum aviso automático será disparado e você poderá concluí-los na aba Gestão quando desejar.',
-            style: theme.getTextStyle(
-              fontSize: 12,
-              color: theme.secondaryTextColor,
+          Center(
+            child: Text(
+              'Estipule um tempo padrão para preparação ou entrega. Após esse tempo decorrido em pedidos aceitos, o sistema perguntará automaticamente na interface se o pedido foi concluído. Caso deixe como "Manual", nenhum aviso automático será disparado e você poderá concluí-los na aba Gestão quando desejar.',
+              textAlign: TextAlign.center,
+              style: theme.getTextStyle(
+                fontSize: 12,
+                color: theme.secondaryTextColor,
+              ),
             ),
           ),
           const SizedBox(height: 16),
@@ -3437,18 +3474,19 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
       padding: const EdgeInsets.all(16),
       decoration: decoracao,
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Row(
-            children: [
-              Icon(
-                Icons.volume_up_outlined,
-                color: theme.buttonColor,
-                size: 20,
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
+          Center(
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  Icons.volume_up_outlined,
+                  color: theme.buttonColor,
+                  size: 20,
+                ),
+                const SizedBox(width: 8),
+                Text(
                   'Sons e Alertas do Sistema',
                   style: theme.getTextStyle(
                     fontSize: 15,
@@ -3456,15 +3494,18 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
                     color: theme.textColor,
                   ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
           const SizedBox(height: 6),
-          Text(
-            'Personalize os efeitos sonoros para as principais operações. Você pode manter o bip padrão nativo do sistema, silenciar ou selecionar qualquer arquivo de áudio anexado no container "Arquivos de Áudio" na aba Dados.',
-            style: theme.getTextStyle(
-              fontSize: 12,
-              color: theme.secondaryTextColor,
+          Center(
+            child: Text(
+              'Personalize os efeitos sonoros para as principais operações. Você pode manter o bip padrão nativo do sistema, silenciar ou selecionar qualquer arquivo de áudio anexado no container "Arquivos de Áudio" na aba Dados.',
+              textAlign: TextAlign.center,
+              style: theme.getTextStyle(
+                fontSize: 12,
+                color: theme.secondaryTextColor,
+              ),
             ),
           ),
           const SizedBox(height: 16),
