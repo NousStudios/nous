@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:nous/src/core/theme/theme_controller.dart';
+import 'package:nous/src/core/services/janela_windows_service.dart';
 import 'package:nous/src/core/widgets/custom_app_bar.dart';
 import 'package:nous/src/features/auth/providers/auth_provider.dart';
 import 'package:nous/src/features/pdv/models/item_loja.dart';
@@ -1191,7 +1192,7 @@ class _FinanceiroViewState extends State<FinanceiroView> {
     return CallbackShortcuts(
       bindings: <ShortcutActivator, VoidCallback>{
         const SingleActivator(LogicalKeyboardKey.f11): () {
-          context.read<PdvProvider>().alternarLayoutExpandido(widget.lojaId);
+          JanelaWindowsService.alternarTelaCheia();
         },
       },
       child: Focus(

@@ -21,6 +21,7 @@ import 'package:nous/src/features/pdv/models/fornecedor.dart';
 import 'package:nous/src/features/pdv/models/grupo_componentes_loja.dart';
 import 'package:nous/src/features/pdv/models/item_loja.dart';
 import 'package:nous/src/core/services/gerador_id.dart';
+import 'package:nous/src/core/services/janela_windows_service.dart';
 import 'package:nous/src/core/services/som_service.dart';
 import 'package:nous/src/features/pdv/models/loja.dart';
 import 'package:nous/src/features/pdv/models/membro_loja.dart';
@@ -147,7 +148,6 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
     'Impressora',
     'Financeiro',
     'Status da Loja',
-    'Alternar Layout',
     'Desativado',
   ];
 
@@ -3149,6 +3149,9 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
   }
 
   String _obterAcaoPorTecla(String tecla) {
+    if (tecla == 'F11') {
+      return 'Tela Cheia';
+    }
     if (_atalhosTeclado.containsKey(tecla)) {
       return _atalhosTeclado[tecla]!;
     }
@@ -3156,21 +3159,7 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
     if (loja != null && loja.atalhosTeclado.containsKey(tecla)) {
       return loja.atalhosTeclado[tecla]!;
     }
-    return switch (tecla) {
-      'F1' => 'Nova Venda',
-      'F2' => 'Clientes',
-      'F3' => 'Caixa',
-      'F4' => 'Relatórios',
-      'F5' => 'Impressora',
-      'F6' => 'Financeiro',
-      'F7' => 'Status da Loja',
-      'F8' => 'Desativado',
-      'F9' => 'Desativado',
-      'F10' => 'Desativado',
-      'F11' => 'Alternar Layout',
-      'F12' => 'Desativado',
-      _ => 'Desativado',
-    };
+    return 'Desativado';
   }
 
   void _alternarLayout() {
@@ -3185,8 +3174,8 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
         duration: const Duration(seconds: 2),
         content: Text(
           expandido
-              ? 'Layout Desktop PDV Expandido ativado (F11).'
-              : 'Layout Compacto ativado (F11).',
+              ? 'Layout Desktop PDV Expandido ativado.'
+              : 'Layout Compacto ativado.',
           style: theme.getTextStyle(color: theme.textColor),
         ),
       ),
@@ -3194,6 +3183,10 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
   }
 
   void _executarAcaoAtalho(String tecla) {
+    if (tecla == 'F11') {
+      JanelaWindowsService.alternarTelaCheia();
+      return;
+    }
     final acao = _obterAcaoPorTecla(tecla);
     switch (acao) {
       case 'Nova Venda':
@@ -3217,8 +3210,8 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
       case 'Status da Loja':
         _abrirStatusLoja();
         break;
-      case 'Alternar Layout':
-        _alternarLayout();
+      case 'Tela Cheia':
+        JanelaWindowsService.alternarTelaCheia();
         break;
     }
   }
@@ -3228,6 +3221,85 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
     String tecla,
     bool podeEditar,
   ) {
+    if (tecla == 'F11') {
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+        margin: const EdgeInsets.only(bottom: 8),
+        decoration: BoxDecoration(
+          color: theme.backgroundColor.withValues(alpha: 0.2),
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(
+            color: theme.borderColor.withValues(alpha: 0.4),
+          ),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 36,
+              padding: const EdgeInsets.symmetric(vertical: 4),
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: theme.borderColor.withValues(alpha: 0.2),
+                borderRadius: BorderRadius.circular(6),
+                border: Border.all(color: theme.borderColor),
+              ),
+              child: Text(
+                'F11',
+                style: theme.getTextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.bold,
+                  color: theme.textColor,
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+                decoration: BoxDecoration(
+                  color: theme.cardBackgroundColor.withValues(alpha: 0.5),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                    color: theme.borderColor.withValues(alpha: 0.4),
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        'Tela Cheia (Padrão do Sistema)',
+                        style: theme.getTextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: theme.textColor,
+                        ),
+                      ),
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: theme.borderColor.withValues(alpha: 0.2),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: Text(
+                        'Fixo',
+                        style: theme.getTextStyle(
+                          fontSize: 10,
+                          color: theme.secondaryTextColor,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
     final acaoAtual = _obterAcaoPorTecla(tecla);
 
     return Container(
@@ -3330,7 +3402,7 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
       podeEditar: podeEditar,
       layoutExpandido: expandido,
       tipoLayoutSelecionado: tipoAtual,
-      onAlternarF11: _alternarLayout,
+      onAlternarLayout: _alternarLayout,
       onSelecionarTipo: (novoTipo) {
         final pdv = context.read<PdvProvider>();
         pdv.definirTipoLayoutMaior(novoTipo, widget.lojaId);
@@ -3340,7 +3412,7 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
             backgroundColor: theme.cardBackgroundColor,
             duration: const Duration(seconds: 2),
             content: Text(
-              'Layout Desktop em tela cheia ativado (F11)',
+              'Layout Desktop Expandido ativado.',
               style: theme.getTextStyle(color: theme.textColor),
             ),
           ),
@@ -4202,8 +4274,8 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
                         onTrocarAba: (novaAba) =>
                             setState(() => _abaSelecionada = novaAba),
                         onExecutarAtalho: _executarAcaoAtalho,
-                        onAlternarF11: _alternarLayout,
-                        tipoLayoutNome: 'PDV Expandido (F11)',
+                        onAlternarLayout: _alternarLayout,
+                        tipoLayoutNome: 'Layout Desktop Expandido',
                         caixaAberto: lojaAtual?.turnoCaixaAberto != null,
                       ),
                       Expanded(

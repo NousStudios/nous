@@ -225,18 +225,19 @@ Este projeto apoia-se no **anarquismo plataformista brasileiro**: poder sem inte
   - Campo de busca no topo das abas "Concluídos" e "Cancelados" filtrando instantaneamente por número do pedido (`#0001`), cliente, produto ou descrição de itens com limpeza ágil e estado vazio contextualizado.
 - **Aba "Ajustes" e "Ajustes do Perfil" (`AbaLoja.interface`):**
   - Renomeada a aba e o botão inferior de "Interface" para **"Ajustes"** ("Ajustes do Perfil"), concentrando todas as configurações operacionais do lojista com títulos de containers centralizados:
-    - **Container "Modo de Visualização e Layout (F11)":** Card único, limpo e direto (`SeletorLayoutsDesktopWidget`) simbolizando o modo desktop em tela cheia ativado pela tecla <kbd>F11</kbd>. As opções fictícias redundantes foram removidas, apresentando o status do modo, recursos ativos (barra lateral, colunas ampliadas, atalhos F1-F7) e botão de alternância rápida.
-    - **Tela Cheia Real do Windows via FFI (`JanelaWindowsService`):**
-      - Ao pressionar <kbd>F11</kbd> ou alternar o modo desktop, o sistema aciona diretamente a API Win32 (`user32.dll` via `dart:ffi`) para transformar a janela do programa Windows em tela cheia soberana sem bordas (`WS_POPUP`), ocupando 100% das dimensões do monitor e ocultando a barra de título nativa do SO.
-      - Ao desativar, restaura fielmente o estilo e dimensões de janela anteriores (`WS_OVERLAPPEDWINDOW`).
+    - **Container "Modo de Visualização e Layout do PDV":** Card único e limpo (`SeletorLayoutsDesktopWidget`) permitindo alternar unicamente entre o **Layout Desktop PDV Expandido** (com barra lateral de navegação e comandos) e o **Layout Compacto Padrão**. A alternância de layout é controlada exclusivamente por este botão dentro de "Ajustes".
+    - **Tela Cheia Real do Windows via FFI (`JanelaWindowsService` e Tecla <kbd>F11</kbd>):**
+      - A tecla <kbd>F11</kbd> é a tecla padrão fixa do sistema e não pode ser reconfigurada: ela alterna exclusivamente o modo **Full Screen** (tela cheia sem bordas `WS_POPUP` cobrindo 100% da tela do Windows).
+      - **Preservação de Janela Maximizada:** Ao ativar tela cheia, o sistema detecta se a janela do Windows já estava maximizada (`IsZoomed` da `user32.dll`). Ao desativar o <kbd>F11</kbd>, se a janela estava maximizada, o Windows a restaura fielmente no estado **maximizado** (`ShowWindow(SW_MAXIMIZE)`), sem reduzi-la para tamanho menor. Se não estava maximizada, restaura para as coordenadas e dimensões livres anteriores (`SW_RESTORE`).
+      - O <kbd>F11</kbd> opera de forma totalmente independente do layout (funciona tanto no layout compacto quanto no layout expandido).
     - **Barra Superior (`CustomAppBar`):**
       - Exibe o título da aba/tela centralizado, a seta de retorno (quando aplicável) e, no canto direito:
         - Sino de **Notificações**.
         - Botão de **Atualizações de Versão** (`_botaoAtualizacoes`): exibido reativamente com indicador visual vermelho **apenas se houver uma nova versão disponível** do aplicativo via `AtualizacaoService.temAtualizacao`.
         - Engrenagem de **Configurações**.
     - **Moldura Desktop Soberana (`DesktopSidebarWidget`) e Ocultação de Botões Redundantes:**
-      - Quando o modo tela cheia está ativo (<kbd>F11</kbd>), a aplicação ocupa toda a área útil do monitor com uma **Barra Lateral Fixa à Esquerda** (logo real da loja, status do caixa, módulos de navegação [Loja, Gestão, Dados, Ajustes] e comandos rápidos <kbd>F1</kbd> a <kbd>F7</kbd> com badges de atalho).
-      - Na tela "Gestão do Perfil" (`GestaoLojaContainer`), os botões de ação do topo ("Nova Venda", "Clientes", "Impressora", "Relatórios", "Caixa", "Financeiro", "Mensagens", "Status da Loja") são **automaticamente ocultados no modo full screen**, pois já estão acessíveis de forma permanente na barra lateral, eliminando redundância visual e aproveitando melhor o espaço de comandas e pedidos. No modo compacto, os botões permanecem visíveis.
+      - Quando o layout expandido está ativo, a aplicação exibe a **Barra Lateral Fixa à Esquerda** (logo real da loja, status do caixa, módulos de navegação [Loja, Gestão, Dados, Ajustes] e comandos rápidos com badges de atalho).
+      - Na tela "Gestão do Perfil" (`GestaoLojaContainer`), os botões de ação do topo ("Nova Venda", "Clientes", "Impressora", "Relatórios", "Caixa", "Financeiro", "Mensagens", "Status da Loja") são **automaticamente ocultados no modo expandido**, pois já estão acessíveis de forma permanente na barra lateral, eliminando redundância visual e aproveitando melhor o espaço de comandas e pedidos. No modo compacto, os botões permanecem visíveis.
       - O catálogo de produtos e itens (`ItemLojaCard`) conta com altura e largura delimitadas, eliminando o erro de *unbounded height* no motor do Flutter e garantindo rolagem fluida e estabilidade absoluta.
     - **Diálogos Operacionais Ampliados e Reativos (`NovaVendaDialog`, `ClientesDialog`, `CaixaDialog`, `RelatoriosDialog`, `FornecedoresDialog`, `ImpressoraDialog`):**
       - Todas as janelas operacionais acompanham a nova configuração desktop:
@@ -246,19 +247,23 @@ Este projeto apoia-se no **anarquismo plataformista brasileiro**: poder sem inte
         - **`Relatórios`:** Amplia para 1050px e divide filtros/pendências à esquerda e histórico de ações à direita.
         - **`Fornecedores`:** Amplia para 1050px e exibe lista e clientes vinculados à esquerda e cadastro à direita.
         - **`Impressora`:** Amplia para até 1050px e divide em **duas colunas paralelas**: coluna 1 com conexão, largura da bobina (58mm/80mm), tipografia e calibração; coluna 2 com dados da loja/cliente no recibo, automações, rodapé e botões de teste/salvar.
-        - **Atalho F11 Reativo:** Todas as janelas operacionais capturam a tecla <kbd>F11</kbd> em tempo real via `CallbackShortcuts` e se reconstroem dinamicamente via `Consumer<PdvProvider>`, permitindo alternar tela cheia e layout a qualquer instante da venda ou consulta sem fechar o diálogo.
+        - **Atalho F11 Reativo:** Todas as janelas operacionais capturam a tecla <kbd>F11</kbd> em tempo real via `CallbackShortcuts` alternando a tela cheia do Windows via `JanelaWindowsService.alternarTelaCheia()`.
     - **Persistência Global da Experiência Desktop em Todas as Telas:**
-      - A tecla <kbd>F11</kbd> e o modo tela cheia funcionam e se adaptam dinamicamente em:
+      - O layout expandido e a tecla <kbd>F11</kbd> funcionam em:
         - `DadosPerfilView`: Moldura com sidebar à esquerda e área de trabalho em tela cheia à direita;
         - `FinanceiroView`: Organização automática em duas colunas amplas (ações, período e balanço à esquerda; compras e trabalhadores à direita);
         - `StatusLojaView`: Divisão em duas colunas amplas (resumo do dia à esquerda; trabalhadores e membros à direita);
         - `PerfisPdvView`: Distribuição dos perfis profissionais e participações em grid de duas colunas.
-    - **Container "Comandos":** Título centralizado e gerenciamento de teclas de atalho (<kbd>F1</kbd> a <kbd>F12</kbd>) organizadas elegantemente em **duas colunas lado a lado** (F1–F6 e F7–F12) com seletores compactos, além da tecla fixa <kbd>Esc</kbd> no topo ("Voltar / Fechar Janelas"), persistido em `Loja.atalhosTeclado`. A tecla <kbd>F11</kbd> vem pré-configurada para *"Alternar Layout"*.
+    - **Container "Comandos":**
+      - Gerenciamento de teclas de atalho (<kbd>F1</kbd> a <kbd>F12</kbd>) organizadas em **duas colunas lado a lado** (F1–F6 e F7–F12).
+      - **Padrão Inicial Desativado:** Todas as teclas configuráveis (<kbd>F1</kbd> a <kbd>F10</kbd> e <kbd>F12</kbd>) iniciam categoricamente como **"Desativado"**, cabendo ao usuário configurá-las manualmente segundo sua preferência de operação.
+      - **Tecla <kbd>F11</kbd> Fixa:** A tecla <kbd>F11</kbd> é reservada e fixa como *"Tela Cheia (Padrão do Sistema)"*, com indicador visual "Fixo" e bloqueio contra alteração indevida.
+      - A tecla <kbd>Esc</kbd> permanece fixa no topo ("Voltar / Fechar Janelas").
     - **Container "Tempo de Conclusão dos Pedidos":** Título centralizado, definindo tempo de conclusão automática ou manual.
-    - **Container "Sons e Alertas do Sistema":** Título centralizado com catálogo de 9 efeitos sonoros nativos registrados em `assets/sounds` (`SomService.sonsNativos`), botão de teste/preview sonoro imediato e seleção por tipo de evento (Novo Pedido, Pedido Pronto, Alerta de Estoque, Conclusão de Venda).
-- **Player Interno de Áudio Soberano (`PlayerAudioService` & `DetalhesMidiaDialog`):**
-  - Reprodução nativa de músicas e arquivos de áudio anexados à loja diretamente na janela de detalhes da mídia, sem dependência de tocadores externos do sistema operacional.
-  - Exibe controle completo: Play/Pause, Stop, barra de progresso interativa, tempo decorrido e duração total formatada (`00:00 / 00:00`), com encerramento automático de processos em segundo plano no descarte (`dispose`).
+    - **Container "Sons e Alertas do Sistema":** Título centralizado com catálogo de 9 efeitos sonoros nativos registrados em `assets/sounds` (`SomService.sonsNativos`), botão de teste/preview sonoro imediato e seleção por tipo de evento.
+- **Player Interno de Áudio Soberano via MCI FFI (`PlayerAudioService` & `DetalhesMidiaDialog`):**
+  - Reprodução nativa de áudio através da API WinMM Media Control Interface (`winmm.dll` via `dart:ffi`), sem criação de processos secundários do PowerShell, sem atrasos e sem bloqueios de política de execução.
+  - Oferece Play, Pause real, Resume, Stop, leitura de duração exata em milissegundos e atualização de progresso contínuo em tempo real na interface.
 - **Caixa e Fechamento com Discriminação de Vendas À Prazo (`CaixaDialog` e `ImpressaoService`):**
   - O diálogo de Caixa e o cupom de fechamento térmico separam categoricamente:
     - `Vendas em Dinheiro (+)` (entradas na gaveta física).

@@ -6,7 +6,7 @@ class SeletorLayoutsDesktopWidget extends StatelessWidget {
   final bool podeEditar;
   final bool layoutExpandido;
   final String tipoLayoutSelecionado;
-  final VoidCallback onAlternarF11;
+  final VoidCallback onAlternarLayout;
   final ValueChanged<String> onSelecionarTipo;
 
   const SeletorLayoutsDesktopWidget({
@@ -15,7 +15,7 @@ class SeletorLayoutsDesktopWidget extends StatelessWidget {
     required this.podeEditar,
     required this.layoutExpandido,
     required this.tipoLayoutSelecionado,
-    required this.onAlternarF11,
+    required this.onAlternarLayout,
     required this.onSelecionarTipo,
   });
 
@@ -36,7 +36,7 @@ class SeletorLayoutsDesktopWidget extends StatelessWidget {
         children: [
           Center(
             child: Text(
-              'Modo de Visualização e Layout (F11)',
+              'Modo de Visualização e Layout do PDV',
               textAlign: TextAlign.center,
               style: theme.getTextStyle(
                 fontSize: 15,
@@ -48,7 +48,7 @@ class SeletorLayoutsDesktopWidget extends StatelessWidget {
           const SizedBox(height: 8),
           Center(
             child: Text(
-              'Alterne entre a versão compacta e a experiência desktop completa em tela cheia.',
+              'Alterne entre a versão compacta e a experiência desktop expandida com barra lateral e painéis amplos.',
               textAlign: TextAlign.center,
               style: theme.getTextStyle(
                 fontSize: 12,
@@ -79,7 +79,7 @@ class SeletorLayoutsDesktopWidget extends StatelessWidget {
                 Row(
                   children: [
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                      padding: const EdgeInsets.all(8),
                       decoration: BoxDecoration(
                         color: ativo
                             ? (theme.buttonColor != Colors.transparent
@@ -91,13 +91,13 @@ class SeletorLayoutsDesktopWidget extends StatelessWidget {
                           color: ativo ? theme.textColor : theme.borderColor,
                         ),
                       ),
-                      child: Text(
-                        'F11',
-                        style: theme.getTextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.bold,
-                          color: ativo ? theme.textColor : theme.secondaryTextColor,
-                        ),
+                      child: Icon(
+                        ativo
+                            ? Icons.view_sidebar_rounded
+                            : Icons.view_compact_outlined,
+                        size: 20,
+                        color:
+                            ativo ? theme.textColor : theme.secondaryTextColor,
                       ),
                     ),
                     const SizedBox(width: 12),
@@ -116,8 +116,8 @@ class SeletorLayoutsDesktopWidget extends StatelessWidget {
                           const SizedBox(height: 2),
                           Text(
                             ativo
-                                ? 'Ativado no Windows e na aplicação'
-                                : 'Pressione F11 no teclado ou clique ao lado para ativar',
+                                ? 'Layout expandido ativo na aplicação'
+                                : 'Layout compacto padrão ativo na aplicação',
                             style: theme.getTextStyle(
                               fontSize: 11,
                               color: theme.secondaryTextColor,
@@ -130,7 +130,7 @@ class SeletorLayoutsDesktopWidget extends StatelessWidget {
                     _BotaoAlternarDesktop(
                       theme: theme,
                       ativo: ativo,
-                      onPressed: onAlternarF11,
+                      onPressed: onAlternarLayout,
                     ),
                   ],
                 ),
@@ -151,20 +151,20 @@ class SeletorLayoutsDesktopWidget extends StatelessWidget {
                 const SizedBox(height: 6),
                 _itemRecurso(
                   theme,
-                  Icons.fullscreen_rounded,
-                  'Tela cheia nativa do executável Windows sem bordas.',
-                ),
-                const SizedBox(height: 4),
-                _itemRecurso(
-                  theme,
                   Icons.view_sidebar_rounded,
-                  'Barra lateral com logo, status de caixa e atalhos F1 a F7.',
+                  'Barra lateral com logo, status de caixa e atalhos rápidos.',
                 ),
                 const SizedBox(height: 4),
                 _itemRecurso(
                   theme,
                   Icons.dashboard_customize_rounded,
-                  'Janelas operacionais (Nova Venda, Relatórios, Clientes, Caixa, Impressora) em colunas duplas amplas.',
+                  'Janelas operacionais (Nova Venda, Clientes, Caixa, Relatórios, Impressora) em colunas duplas amplas.',
+                ),
+                const SizedBox(height: 4),
+                _itemRecurso(
+                  theme,
+                  Icons.fullscreen_rounded,
+                  'Pressione a tecla F11 no teclado a qualquer momento para alternar a tela cheia do Windows.',
                 ),
               ],
             ),
@@ -248,12 +248,12 @@ class _BotaoAlternarDesktopState extends State<_BotaoAlternarDesktop> {
         ),
         onPressed: widget.onPressed,
         icon: Icon(
-          ativo ? Icons.fullscreen_exit_rounded : Icons.fullscreen_rounded,
+          ativo ? Icons.view_compact_outlined : Icons.view_sidebar_outlined,
           size: 18,
           color: theme.textColor,
         ),
         label: Text(
-          ativo ? 'Modo Padrão' : 'Tela Cheia (F11)',
+          ativo ? 'Usar Layout Compacto' : 'Usar Layout Expandido',
           style: theme.getTextStyle(
             fontSize: 12,
             fontWeight: ativo ? FontWeight.bold : FontWeight.normal,

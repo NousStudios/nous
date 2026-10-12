@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:printing/printing.dart';
 import 'package:nous/src/core/theme/fontes_app.dart';
+import 'package:nous/src/core/services/janela_windows_service.dart';
 import 'package:nous/src/core/theme/theme_controller.dart';
 import 'package:nous/src/core/widgets/themed_switch.dart';
 import 'package:nous/src/features/pdv/models/configuracoes_impressora.dart';
@@ -175,9 +176,7 @@ class ImpressoraDialog {
         return CallbackShortcuts(
           bindings: <ShortcutActivator, VoidCallback>{
             const SingleActivator(LogicalKeyboardKey.f11): () {
-              dialogContext
-                  .read<PdvProvider>()
-                  .alternarLayoutExpandido(lojaId);
+              JanelaWindowsService.alternarTelaCheia();
             },
           },
           child: Consumer<PdvProvider>(

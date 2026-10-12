@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:nous/src/core/theme/theme_controller.dart';
+import 'package:nous/src/core/services/janela_windows_service.dart';
 import 'package:nous/src/core/widgets/themed_text_field.dart';
 import 'package:nous/src/features/pdv/models/cliente.dart';
 import 'package:nous/src/features/pdv/models/fornecedor.dart';
@@ -31,9 +32,7 @@ class FornecedoresDialog {
         return CallbackShortcuts(
           bindings: <ShortcutActivator, VoidCallback>{
             const SingleActivator(LogicalKeyboardKey.f11): () {
-              dialogContext
-                  .read<PdvProvider>()
-                  .alternarLayoutExpandido(lojaId);
+              JanelaWindowsService.alternarTelaCheia();
             },
           },
           child: Consumer<PdvProvider>(

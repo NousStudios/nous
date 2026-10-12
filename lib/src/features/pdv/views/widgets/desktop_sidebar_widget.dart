@@ -10,7 +10,7 @@ class DesktopSidebarWidget extends StatelessWidget {
   final AbaLoja abaSelecionada;
   final ValueChanged<AbaLoja> onTrocarAba;
   final Function(String tecla) onExecutarAtalho;
-  final VoidCallback onAlternarF11;
+  final VoidCallback onAlternarLayout;
   final String tipoLayoutNome;
   final bool caixaAberto;
 
@@ -22,7 +22,7 @@ class DesktopSidebarWidget extends StatelessWidget {
     required this.abaSelecionada,
     required this.onTrocarAba,
     required this.onExecutarAtalho,
-    required this.onAlternarF11,
+    required this.onAlternarLayout,
     required this.tipoLayoutNome,
     this.caixaAberto = false,
   });
@@ -279,10 +279,10 @@ class DesktopSidebarWidget extends StatelessWidget {
                       borderRadius: BorderRadius.circular(8),
                     ),
                   ),
-                  onPressed: onAlternarF11,
-                  icon: const Icon(Icons.fullscreen_exit, size: 16),
+                  onPressed: onAlternarLayout,
+                  icon: const Icon(Icons.view_compact_outlined, size: 16),
                   label: Text(
-                    'Modo Padrão (F11)',
+                    'Usar Layout Compacto',
                     style: theme.getTextStyle(fontSize: 11),
                   ),
                 ),

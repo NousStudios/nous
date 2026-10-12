@@ -292,8 +292,9 @@ O núcleo atualmente funcional reúne:
   - Gestão de pedidos e fluxo de comandas em tempo real (Novos, Aceitos, Concluídos, Cancelados com estorno de estoque e auditoria) com suporte a pagamentos parciais múltiplos, reimpressão térmica direta em pedidos aceitos, busca rápida por número (#0001), cliente ou produto nas abas Concluídos e Cancelados e lista de pedidos desktop ampliada.
   - Controle de estoque multivariado (`un`, `g`, `ml`) com proposta automática de baixa, confirmação humana mandatória e notificações de estoque baixo/esgotado interativas com reposição direta via diálogo de entrada de mercadorias.
   - Aba dedicada "Ajustes do Perfil" (antiga Interface do Perfil):
-    - Container "Modo de Visualização e Layout (F11)": Alternância para tela cheia real sem bordas via Win32 FFI (`JanelaWindowsService`), barra lateral desktop com atalhos F1-F7, expansão proporcional de catálogo e ocultação automática de botões redundantes na Gestão de Pedidos.
-    - Container "Comandos": Menu configurável de teclas de atalho de função (<kbd>F1</kbd> a <kbd>F8</kbd>) e <kbd>Esc</kbd> universal para as ações de gestão da loja.
+    - Container "Modo de Visualização e Layout do PDV": Alternância direta entre o Layout Expandido (com barra lateral e colunas duplas) e o Layout Compacto Padrão.
+    - Tela Cheia Nativa Windows (<kbd>F11</kbd>): Alternância independente de tela cheia sem bordas via Win32 FFI (`JanelaWindowsService`), com preservação exata da janela maximizada ao sair do modo full screen.
+    - Container "Comandos": Menu de teclas de atalho (<kbd>F1</kbd> a <kbd>F12</kbd>) iniciando com todas as funções como "Desativado" por padrão para configuração manual do usuário, <kbd>F11</kbd> fixo para Tela Cheia e <kbd>Esc</kbd> para fechar janelas.
     - Container "Tempo de Conclusão dos Pedidos": Definição de prazo médio com verificação automática de status de pedidos aceitos.
     - Container "Sons e Alertas do Sistema": Personalização e teste de áudio/bip para novos pedidos, prazos e leituras de códigos de barra.
   - Cadastro de clientes e fornecedores com máscara adaptável CPF/CNPJ, autopreenchimento local soberano unificado (`DadosLocaisService`) e exportação de extrato completo de compras em PDF A4 com cálculo de dívida a prazo em tempo real.

@@ -30,6 +30,9 @@ typedef _SetWindowPosDart = int Function(
 typedef _ShowWindowNative = Int32 Function(IntPtr hWnd, Int32 nCmdShow);
 typedef _ShowWindowDart = int Function(int hWnd, int nCmdShow);
 
+typedef _IsZoomedNative = Int32 Function(IntPtr hWnd);
+typedef _IsZoomedDart = int Function(int hWnd);
+
 final class RECT extends Struct {
   @Int32()
   external int left;
@@ -49,15 +52,20 @@ class JanelaWindowsService {
   static const int _wsOverlappedWindow = 0x00CF0000;
   static const int _wsPopup = 0x80000000;
   static const int _wsVisible = 0x10000000;
+  static const int _wsMaximize = 0x01000000;
 
   static const int _smCxScreen = 0;
   static const int _smCyScreen = 1;
 
+  static const int _swpNoMove = 0x0002;
+  static const int _swpNoSize = 0x0001;
   static const int _swpFrameChanged = 0x0020;
   static const int _swpShowWindow = 0x0040;
+  static const int _swMaximize = 3;
   static const int _swRestore = 9;
 
   static bool _emTelaCheia = false;
+  static bool _estavaMaximizado = false;
   static int _estiloAnterior = 0;
   static int _prevLeft = 100;
   static int _prevTop = 100;
@@ -133,25 +141,34 @@ class JanelaWindowsService {
               'SetWindowPos');
       final getWindowRect = lib.lookupFunction<_GetWindowRectNative,
           _GetWindowRectDart>('GetWindowRect');
+      final isZoomed =
+          lib.lookupFunction<_IsZoomedNative, _IsZoomedDart>('IsZoomed');
 
-      // Salva estilo e posição anteriores
+      // Verifica se a janela já estava maximizada pelo Windows antes do F11
+      _estavaMaximizado = isZoomed(hwnd) != 0;
       _estiloAnterior = getWindowLong(hwnd, _gwlStyle);
 
-      final rectPtr = calloc<RECT>();
-      if (getWindowRect(hwnd, rectPtr) != 0) {
-        _prevLeft = rectPtr.ref.left;
-        _prevTop = rectPtr.ref.top;
-        _prevWidth = rectPtr.ref.right - rectPtr.ref.left;
-        _prevHeight = rectPtr.ref.bottom - rectPtr.ref.top;
+      // Se não estava maximizada, salva o retângulo de restauração
+      if (!_estavaMaximizado) {
+        final rectPtr = calloc<RECT>();
+        if (getWindowRect(hwnd, rectPtr) != 0) {
+          _prevLeft = rectPtr.ref.left;
+          _prevTop = rectPtr.ref.top;
+          _prevWidth = rectPtr.ref.right - rectPtr.ref.left;
+          _prevHeight = rectPtr.ref.bottom - rectPtr.ref.top;
+        }
+        calloc.free(rectPtr);
       }
-      calloc.free(rectPtr);
 
       // Obtém resolução total do monitor
       final screenWidth = getSystemMetrics(_smCxScreen);
       final screenHeight = getSystemMetrics(_smCyScreen);
 
       // Aplica estilo sem bordas (fullscreen total)
-      final novoEstilo = (_estiloAnterior & ~_wsOverlappedWindow) | _wsPopup | _wsVisible;
+      final novoEstilo =
+          (_estiloAnterior & ~_wsOverlappedWindow & ~_wsMaximize) |
+              _wsPopup |
+              _wsVisible;
       setWindowLong(hwnd, _gwlStyle, novoEstilo);
 
       // Posiciona cobrindo 100% da tela do Windows
@@ -191,22 +208,35 @@ class JanelaWindowsService {
 
       // Restaura estilo original da janela do Windows
       final estiloRestaurar = _estiloAnterior != 0
-          ? _estiloAnterior
-          : _wsOverlappedWindow | _wsVisible;
+          ? (_estiloAnterior & ~_wsPopup)
+          : (_wsOverlappedWindow | _wsVisible);
       setWindowLong(hwnd, _gwlStyle, estiloRestaurar);
 
-      // Restaura posição e tamanho anteriores
-      setWindowPos(
-        hwnd,
-        0, // HWND_TOP
-        _prevLeft,
-        _prevTop,
-        _prevWidth > 200 ? _prevWidth : 1000,
-        _prevHeight > 200 ? _prevHeight : 700,
-        _swpFrameChanged | _swpShowWindow,
-      );
-
-      showWindow(hwnd, _swRestore);
+      if (_estavaMaximizado) {
+        // Se a janela estava maximizada antes do F11, restaura como MAXIMIZADA
+        showWindow(hwnd, _swMaximize);
+        setWindowPos(
+          hwnd,
+          0,
+          0,
+          0,
+          0,
+          0,
+          _swpFrameChanged | _swpNoMove | _swpNoSize | _swpShowWindow,
+        );
+      } else {
+        // Restaura posição e tamanho anteriores da janela livre
+        setWindowPos(
+          hwnd,
+          0, // HWND_TOP
+          _prevLeft,
+          _prevTop,
+          _prevWidth > 200 ? _prevWidth : 1000,
+          _prevHeight > 200 ? _prevHeight : 700,
+          _swpFrameChanged | _swpShowWindow,
+        );
+        showWindow(hwnd, _swRestore);
+      }
 
       _emTelaCheia = false;
     } catch (_) {
