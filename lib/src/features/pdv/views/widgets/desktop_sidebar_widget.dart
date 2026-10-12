@@ -9,7 +9,9 @@ class DesktopSidebarWidget extends StatelessWidget {
   final String logoLoja;
   final AbaLoja abaSelecionada;
   final ValueChanged<AbaLoja> onTrocarAba;
-  final Function(String tecla) onExecutarAtalho;
+  final Function(String tecla)? onExecutarAtalho;
+  final Function(String acao)? onExecutarAcao;
+  final Map<String, String> atalhosTeclado;
   final VoidCallback onAlternarLayout;
   final String tipoLayoutNome;
   final bool caixaAberto;
@@ -21,11 +23,33 @@ class DesktopSidebarWidget extends StatelessWidget {
     required this.logoLoja,
     required this.abaSelecionada,
     required this.onTrocarAba,
-    required this.onExecutarAtalho,
+    this.onExecutarAtalho,
+    this.onExecutarAcao,
+    this.atalhosTeclado = const {},
     required this.onAlternarLayout,
     required this.tipoLayoutNome,
     this.caixaAberto = false,
   });
+
+  String _obterTeclaParaAcao(String acao) {
+    for (final entry in atalhosTeclado.entries) {
+      if (entry.value == acao) {
+        return entry.key;
+      }
+    }
+    return '';
+  }
+
+  void _executar(String acao) {
+    if (onExecutarAcao != null) {
+      onExecutarAcao!(acao);
+      return;
+    }
+    final tecla = _obterTeclaParaAcao(acao);
+    if (tecla.isNotEmpty && onExecutarAtalho != null) {
+      onExecutarAtalho!(tecla);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -111,7 +135,7 @@ class DesktopSidebarWidget extends StatelessWidget {
             color: theme.borderColor.withValues(alpha: 0.4),
           ),
 
-          // Navegação de Abas do Sistema
+          // Navegação de Abas do Sistema (Ordem: Dados > Ajustes > Loja > Gestão)
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
             child: Column(
@@ -130,20 +154,6 @@ class DesktopSidebarWidget extends StatelessWidget {
                 ),
                 _ItemAbaSidebar(
                   theme: theme,
-                  titulo: 'Loja / Catálogo',
-                  icone: Icons.storefront,
-                  selecionada: abaSelecionada == AbaLoja.loja,
-                  onTap: () => onTrocarAba(AbaLoja.loja),
-                ),
-                _ItemAbaSidebar(
-                  theme: theme,
-                  titulo: 'Gestão de Pedidos',
-                  icone: Icons.receipt_long,
-                  selecionada: abaSelecionada == AbaLoja.gestao,
-                  onTap: () => onTrocarAba(AbaLoja.gestao),
-                ),
-                _ItemAbaSidebar(
-                  theme: theme,
                   titulo: 'Dados da Loja',
                   icone: Icons.badge_outlined,
                   selecionada: abaSelecionada == AbaLoja.dados,
@@ -156,6 +166,20 @@ class DesktopSidebarWidget extends StatelessWidget {
                   selecionada: abaSelecionada == AbaLoja.interface,
                   onTap: () => onTrocarAba(AbaLoja.interface),
                 ),
+                _ItemAbaSidebar(
+                  theme: theme,
+                  titulo: 'Loja / Catálogo',
+                  icone: Icons.storefront,
+                  selecionada: abaSelecionada == AbaLoja.loja,
+                  onTap: () => onTrocarAba(AbaLoja.loja),
+                ),
+                _ItemAbaSidebar(
+                  theme: theme,
+                  titulo: 'Gestão de Pedidos',
+                  icone: Icons.receipt_long,
+                  selecionada: abaSelecionada == AbaLoja.gestao,
+                  onTap: () => onTrocarAba(AbaLoja.gestao),
+                ),
               ],
             ),
           ),
@@ -164,7 +188,7 @@ class DesktopSidebarWidget extends StatelessWidget {
             color: theme.borderColor.withValues(alpha: 0.4),
           ),
 
-          // Seção de Comandos de Teclado Rápidos (F1 a F7)
+          // Seção de Comandos de Teclado Rápidos (Acompanha atalhos configurados)
           Expanded(
             child: SingleChildScrollView(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
@@ -184,52 +208,52 @@ class DesktopSidebarWidget extends StatelessWidget {
                   ),
                   _BotaoAtalhoSidebar(
                     theme: theme,
-                    tecla: 'F1',
+                    tecla: _obterTeclaParaAcao('Nova Venda'),
                     rotulo: 'Nova Venda',
                     icone: Icons.add_shopping_cart,
-                    onTap: () => onExecutarAtalho('F1'),
+                    onTap: () => _executar('Nova Venda'),
                   ),
                   _BotaoAtalhoSidebar(
                     theme: theme,
-                    tecla: 'F2',
+                    tecla: _obterTeclaParaAcao('Clientes'),
                     rotulo: 'Clientes',
                     icone: Icons.people_outline,
-                    onTap: () => onExecutarAtalho('F2'),
+                    onTap: () => _executar('Clientes'),
                   ),
                   _BotaoAtalhoSidebar(
                     theme: theme,
-                    tecla: 'F3',
+                    tecla: _obterTeclaParaAcao('Caixa'),
                     rotulo: 'Caixa',
                     icone: Icons.point_of_sale,
-                    onTap: () => onExecutarAtalho('F3'),
+                    onTap: () => _executar('Caixa'),
                   ),
                   _BotaoAtalhoSidebar(
                     theme: theme,
-                    tecla: 'F4',
+                    tecla: _obterTeclaParaAcao('Relatórios'),
                     rotulo: 'Relatórios',
                     icone: Icons.bar_chart,
-                    onTap: () => onExecutarAtalho('F4'),
+                    onTap: () => _executar('Relatórios'),
                   ),
                   _BotaoAtalhoSidebar(
                     theme: theme,
-                    tecla: 'F5',
+                    tecla: _obterTeclaParaAcao('Impressora'),
                     rotulo: 'Impressora',
                     icone: Icons.print_outlined,
-                    onTap: () => onExecutarAtalho('F5'),
+                    onTap: () => _executar('Impressora'),
                   ),
                   _BotaoAtalhoSidebar(
                     theme: theme,
-                    tecla: 'F6',
+                    tecla: _obterTeclaParaAcao('Financeiro'),
                     rotulo: 'Financeiro',
                     icone: Icons.account_balance_wallet_outlined,
-                    onTap: () => onExecutarAtalho('F6'),
+                    onTap: () => _executar('Financeiro'),
                   ),
                   _BotaoAtalhoSidebar(
                     theme: theme,
-                    tecla: 'F7',
+                    tecla: _obterTeclaParaAcao('Status da Loja'),
                     rotulo: 'Status da Loja',
                     icone: Icons.insights,
-                    onTap: () => onExecutarAtalho('F7'),
+                    onTap: () => _executar('Status da Loja'),
                   ),
                 ],
               ),
@@ -432,25 +456,37 @@ class _BotaoAtalhoSidebarState extends State<_BotaoAtalhoSidebar> {
             ),
             child: Row(
               children: [
-                Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                  decoration: BoxDecoration(
-                    color: theme.borderColor.withValues(alpha: 0.25),
-                    borderRadius: BorderRadius.circular(4),
-                    border: Border.all(
-                      color: theme.textColor.withValues(alpha: 0.4),
-                    ),
-                  ),
-                  child: Text(
-                    widget.tecla,
-                    style: theme.getTextStyle(
-                      fontSize: 10,
-                      fontWeight: FontWeight.bold,
-                      color: theme.textColor,
-                    ),
-                  ),
-                ),
+                widget.tecla.isNotEmpty
+                    ? Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: theme.borderColor.withValues(alpha: 0.25),
+                          borderRadius: BorderRadius.circular(4),
+                          border: Border.all(
+                            color: theme.textColor.withValues(alpha: 0.4),
+                          ),
+                        ),
+                        child: Text(
+                          widget.tecla,
+                          style: theme.getTextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold,
+                            color: theme.textColor,
+                          ),
+                        ),
+                      )
+                    : Container(
+                        width: 22,
+                        height: 18,
+                        decoration: BoxDecoration(
+                          color: theme.borderColor.withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(4),
+                          border: Border.all(
+                            color: theme.textColor.withValues(alpha: 0.25),
+                          ),
+                        ),
+                      ),
                 const SizedBox(width: 8),
                 Icon(widget.icone, size: 16, color: theme.secondaryTextColor),
                 const SizedBox(width: 8),

@@ -3182,12 +3182,7 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
     );
   }
 
-  void _executarAcaoAtalho(String tecla) {
-    if (tecla == 'F11') {
-      JanelaWindowsService.alternarTelaCheia();
-      return;
-    }
-    final acao = _obterAcaoPorTecla(tecla);
+  void _executarAcaoPorNome(String acao) {
     switch (acao) {
       case 'Nova Venda':
         _abrirPopupNovaVenda();
@@ -3213,6 +3208,17 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
       case 'Tela Cheia':
         JanelaWindowsService.alternarTelaCheia();
         break;
+    }
+  }
+
+  void _executarAcaoAtalho(String tecla) {
+    if (tecla == 'F11') {
+      JanelaWindowsService.alternarTelaCheia();
+      return;
+    }
+    final acao = _obterAcaoPorTecla(tecla);
+    if (acao != 'Desativado') {
+      _executarAcaoPorNome(acao);
     }
   }
 
@@ -4274,6 +4280,10 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
                         onTrocarAba: (novaAba) =>
                             setState(() => _abaSelecionada = novaAba),
                         onExecutarAtalho: _executarAcaoAtalho,
+                        onExecutarAcao: _executarAcaoPorNome,
+                        atalhosTeclado: _atalhosTeclado.isNotEmpty
+                            ? _atalhosTeclado
+                            : (lojaAtual?.atalhosTeclado ?? const {}),
                         onAlternarLayout: _alternarLayout,
                         tipoLayoutNome: 'Layout Desktop Expandido',
                         caixaAberto: lojaAtual?.turnoCaixaAberto != null,

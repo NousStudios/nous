@@ -160,8 +160,17 @@ Este projeto apoia-se no **anarquismo plataformista brasileiro**: poder sem inte
   - Se o campo está vazio: o clique abre diretamente o seletor de arquivos (`openFile`).
 - **Limites e Formatos:** Até 500MB via `ImagemService.salvarImagemLocal` (`jpg`, `jpeg`, `png`, `webp`).
 - **Visualizador de Mídias e Anexos Soberanos:**
-  - **Imagens:** Ao tocar no card em `GaleriaEstiloContainer`, abre `VisualizadorGaleriaDialog` em tela cheia com zoom interativo (`InteractiveViewer`), navegação contínua entre fotos da lista (setas visuais, teclado `ArrowLeft`/`ArrowRight`, arraste `PageView`), contador e barra inferior com descrição persistida em `Loja.descricoesAnexos`.
-  - **Áudios, Vídeos e Documentos:** Ao tocar no card, abre `DetalhesMidiaDialog` com metadados do arquivo (tamanho, formato), legenda editável e reprodução/abertura soberana no reprodutor padrão do sistema operacional via `ImagemService.abrirNoSistema` sem inchaço de dependências.
+  - **Cards de Anexos Ampliados com Prévia Visual Rica (`GaleriaEstiloContainer`):**
+    - Cards ampliados para 156px de altura e 126px de largura, proporcionando ergonomia e leitura clara de cada anexo nos dados do perfil da loja.
+    - **Prévias Visuais por Tipo:** Para músicas/áudios com tags ID3 (`MetadadosAudioService`), exibe a imagem real da capa do álbum com badge sonoro, além do título e artista legíveis; para áudios sem capa, gradiente temático com badge da extensão (`.MP3`, `.WAV`); para imagens, foto em alta qualidade; para vídeos, fundo cinematográfico com badge de formato; para documentos, ícone temático com badge (`PDF`, `DOCX`) e tamanho formatado em bytes/KB/MB.
+  - **Imagens:** Ao tocar no card em `GaleriaEstiloContainer`, abre `VisualizadorGaleriaDialog` em tela cheia com zoom interativo (`InteractiveViewer`), navegação contínua entre fotos da lista (setas visuais flutuantes, teclado <kbd>ArrowLeft</kbd>/<kbd>ArrowRight</kbd>, arraste `PageView`), contador e barra inferior com descrição persistida em `Loja.descricoesAnexos`.
+  - **Navegação Contínua e Playlist em Áudios, Vídeos e Documentos (`DetalhesMidiaDialog` & `ReprodutorAudioWidget`):**
+    - Ao abrir qualquer anexo na lista, o modal conecta a coleção inteira de arquivos:
+      - Exibe contador de posição no topo (`X / Total`);
+      - Botões flutuantes laterais com bordas circulares e sombra (`chevron_left` e `chevron_right`) para passar para o arquivo anterior ou próximo;
+      - Atalhos de teclado no desktop (<kbd>ArrowLeft</kbd> e <kbd>ArrowRight</kbd>);
+      - Botões dedicados de controle no player de áudio (`skip_previous_rounded` e `skip_next_rounded`);
+      - **Autoplay Inteligente:** ao finalizar uma faixa com o player ativo, se houver próxima música na playlist e o loop não estiver ligado, o sistema avança e inicia automaticamente a reprodução da próxima faixa.
   - **Legendas em Anexos:** Ao subir um anexo ou a qualquer momento pelo card/diálogo, o usuário pode adicionar/editar uma descrição persistida no cofre local da loja.
 
 ---
@@ -236,9 +245,23 @@ Este projeto apoia-se no **anarquismo plataformista brasileiro**: poder sem inte
         - Botão de **Atualizações de Versão** (`_botaoAtualizacoes`): exibido reativamente com indicador visual vermelho **apenas se houver uma nova versão disponível** do aplicativo via `AtualizacaoService.temAtualizacao`.
         - Engrenagem de **Configurações**.
     - **Moldura Desktop Soberana (`DesktopSidebarWidget`) e Ocultação de Botões Redundantes:**
-      - Quando o layout expandido está ativo, a aplicação exibe a **Barra Lateral Fixa à Esquerda** (logo real da loja, status do caixa, módulos de navegação [Loja, Gestão, Dados, Ajustes] e comandos rápidos com badges de atalho).
+      - Quando o layout expandido está ativo, a aplicação exibe a **Barra Lateral Fixa à Esquerda**:
+        - **Identidade:** logo real da loja, nome e indicador em tempo real do status do caixa (aberto/fechado).
+        - **Módulos do PDV ordenados estritamente de cima para baixo:**
+          1. **"Dados da Loja"** (`AbaLoja.dados`)
+          2. **"Ajustes do Perfil"** (`AbaLoja.interface`)
+          3. **"Loja / Catálogo"** (`AbaLoja.loja`)
+          4. **"Gestão de Pedidos"** (`AbaLoja.gestao`)
+        - **Comandos Rápidos e Acompanhamento Dinâmico de Teclas:**
+          - Os atalhos padrão nascem com todas as teclas desativadas para autonomia total do usuário.
+          - Cada botão de comando rápido reflete dinamicamente a tecla configurada em "Ajustes do Perfil" -> "Comandos do Teclado" (`loja.atalhosTeclado`).
+          - Se a função estiver configurada com uma tecla (ex: `F1`), a prévia exibe o badge estilizado com a identificação da tecla.
+          - Se a função estiver **Desativada**, exibe apenas o **pequeno quadrado elegante sem identificação textual** (22x18px), mantendo o alinhamento visual perfeito.
+          - O clique via mouse em qualquer botão da barra lateral aciona a ação correspondente imediatamente, independente de haver tecla associada.
       - Na tela "Gestão do Perfil" (`GestaoLojaContainer`), os botões de ação do topo ("Nova Venda", "Clientes", "Impressora", "Relatórios", "Caixa", "Financeiro", "Mensagens", "Status da Loja") são **automaticamente ocultados no modo expandido**, pois já estão acessíveis de forma permanente na barra lateral, eliminando redundância visual e aproveitando melhor o espaço de comandas e pedidos. No modo compacto, os botões permanecem visíveis.
       - O catálogo de produtos e itens (`ItemLojaCard`) conta com altura e largura delimitadas, eliminando o erro de *unbounded height* no motor do Flutter e garantindo rolagem fluida e estabilidade absoluta.
+    - **Instalador Oficial Windows (`dist/Nous_Instalador_v1.0.0_Versao_Teste.exe`):**
+      - Script automatizado PowerShell `scripts\gerar_instalador.ps1` realiza a compilação Release nativa e invoca o Inno Setup Compiler (`ISCC.exe`), gerando o instalador executável completo com ícones, dependências C++ e SQLite integradas.
     - **Diálogos Operacionais Ampliados e Reativos (`NovaVendaDialog`, `ClientesDialog`, `CaixaDialog`, `RelatoriosDialog`, `FornecedoresDialog`, `ImpressoraDialog`):**
       - Todas as janelas operacionais acompanham a nova configuração desktop:
         - **`Nova Venda`:** Em modo expandido, amplia sua largura para até 1150px e distribui os blocos em **duas colunas paralelas** (Catálogo de produtos e leitor de código de barras à esquerda; cliente, carrinho, descontos, pagamento e conclusão à direita).
@@ -261,9 +284,16 @@ Este projeto apoia-se no **anarquismo plataformista brasileiro**: poder sem inte
       - A tecla <kbd>Esc</kbd> permanece fixa no topo ("Voltar / Fechar Janelas").
     - **Container "Tempo de Conclusão dos Pedidos":** Título centralizado, definindo tempo de conclusão automática ou manual.
     - **Container "Sons e Alertas do Sistema":** Título centralizado com catálogo de 9 efeitos sonoros nativos registrados em `assets/sounds` (`SomService.sonsNativos`), botão de teste/preview sonoro imediato e seleção por tipo de evento.
-- **Player Interno de Áudio Soberano via MCI FFI (`PlayerAudioService` & `DetalhesMidiaDialog`):**
-  - Reprodução nativa de áudio através da API WinMM Media Control Interface (`winmm.dll` via `dart:ffi`), sem criação de processos secundários do PowerShell, sem atrasos e sem bloqueios de política de execução.
-  - Oferece Play, Pause real, Resume, Stop, leitura de duração exata em milissegundos e atualização de progresso contínuo em tempo real na interface.
+- **Player Interno de Áudio Soberano, Metadados ID3 e Reprodutor Visual Moderno (`PlayerAudioService`, `MetadadosAudioService` & `ReprodutorAudioWidget`):**
+  - **Saída de Som Física Confiável:** Reprodução nativa via Microsoft Media Foundation (`audioplayers`), garantindo que o som saia com fidelidade nos autofalantes e fones do computador em Windows 10/11, sem problemas de direcionamento de canais do MCI legado.
+  - **Extração Soberana de Metadados e Capas ID3v2 (`MetadadosAudioService`):** Parser puro em Dart que lê tags de arquivos MP3/áudio, extraindo bytes de capa de álbum incorporadas (frames `APIC` JPEG/PNG), título, artista e álbum, com fallback para busca de imagem na pasta do arquivo (`cover.jpg`, etc.).
+  - **Componente Reutilizável de SuperApp (`ReprodutorAudioWidget`):** Widget desacoplado com padrão visual contemporâneo (inspirado nos melhores elementos de plataformas como Spotify, SoundCloud e YouTube Music):
+    - Fundo imersivo com imagem da capa do áudio translúcida em baixa opacidade;
+    - Miniatura quadrada com cantos arredondados, sombra e badge dinâmico "TOCANDO";
+    - Barra de progresso deslizante contínua (seek bar) com minutos e segundos decorridos/totais;
+    - Controle de volume contínuo com slider e botão de silenciar (mute) e restauração rápida;
+    - Controles de reprodução: Play/Pause circular em destaque de tema, pular/voltar 10 segundos, repetição contínua (loop) e botão de parada total.
+    - Totalmente desacoplado para ser reutilizado em qualquer tela de rede social, perfis ou anexos da plataforma.
 - **Caixa e Fechamento com Discriminação de Vendas À Prazo (`CaixaDialog` e `ImpressaoService`):**
   - O diálogo de Caixa e o cupom de fechamento térmico separam categoricamente:
     - `Vendas em Dinheiro (+)` (entradas na gaveta física).
