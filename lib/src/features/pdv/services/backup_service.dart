@@ -672,6 +672,10 @@ class BackupService {
       sonsAlertas: sonsFinal,
       atalhosTeclado: atalhosFinais,
       tempoConclusaoMinutos: tempoFinal,
+      layoutExpandido: existente.layoutExpandido,
+      tipoLayoutMaior: existente.tipoLayoutMaior.isNotEmpty
+          ? existente.tipoLayoutMaior
+          : importada.tipoLayoutMaior,
     );
   }
 }

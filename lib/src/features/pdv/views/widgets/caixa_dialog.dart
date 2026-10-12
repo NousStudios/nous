@@ -1,15 +1,19 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:provider/provider.dart';
 import 'package:nous/src/core/theme/theme_controller.dart';
 import 'package:nous/src/core/widgets/themed_text_field.dart';
 import 'package:nous/src/features/pdv/models/configuracoes_impressora.dart';
 import 'package:nous/src/features/pdv/models/pedido_loja.dart';
 import 'package:nous/src/features/pdv/models/turno_caixa.dart';
+import 'package:nous/src/features/pdv/providers/pdv_provider.dart';
 import 'package:nous/src/features/pdv/services/impressao_service.dart';
 
 class CaixaDialog {
   static Future<void> mostrar(
     BuildContext context, {
     required AppTheme theme,
+    String? lojaId,
     required String lojaNome,
     required String lojaCnpj,
     required TurnoCaixa? turnoAberto,
@@ -30,27 +34,47 @@ class CaixaDialog {
     return showDialog<void>(
       context: context,
       builder: (dialogContext) {
-        return Dialog(
-          backgroundColor: theme.cardBackgroundColor,
-          insetPadding: const EdgeInsets.all(16),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-            side: BorderSide(color: theme.borderColor),
-          ),
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 500),
-            child: _CaixaConteudo(
-              theme: theme,
-              lojaNome: lojaNome,
-              lojaCnpj: lojaCnpj,
-              turnoAberto: turnoAberto,
-              turnosAnteriores: turnosAnteriores,
-              pedidosLoja: pedidosLoja,
-              configuracoesImpressora: configuracoesImpressora,
-              aoAbrirCaixa: aoAbrirCaixa,
-              aoRegistrarMovimento: aoRegistrarMovimento,
-              aoFecharCaixa: aoFecharCaixa,
-            ),
+        return CallbackShortcuts(
+          bindings: <ShortcutActivator, VoidCallback>{
+            const SingleActivator(LogicalKeyboardKey.f11): () {
+              dialogContext
+                  .read<PdvProvider>()
+                  .alternarLayoutExpandido(lojaId);
+            },
+          },
+          child: Consumer<PdvProvider>(
+            builder: (ctx, pdv, child) {
+              final expandido = pdv.layoutDesktopAtivo(lojaId);
+              final larguraTela = MediaQuery.sizeOf(ctx).width;
+              final maxWidth = expandido
+                  ? (larguraTela > 1150 ? 1050.0 : larguraTela * 0.92)
+                  : 500.0;
+
+              return Dialog(
+                backgroundColor: theme.cardBackgroundColor,
+                insetPadding: const EdgeInsets.all(16),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                  side: BorderSide(color: theme.borderColor),
+                ),
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(maxWidth: maxWidth),
+                  child: _CaixaConteudo(
+                    theme: theme,
+                    expandido: expandido,
+                    lojaNome: lojaNome,
+                    lojaCnpj: lojaCnpj,
+                    turnoAberto: turnoAberto,
+                    turnosAnteriores: turnosAnteriores,
+                    pedidosLoja: pedidosLoja,
+                    configuracoesImpressora: configuracoesImpressora,
+                    aoAbrirCaixa: aoAbrirCaixa,
+                    aoRegistrarMovimento: aoRegistrarMovimento,
+                    aoFecharCaixa: aoFecharCaixa,
+                  ),
+                ),
+              );
+            },
           ),
         );
       },
@@ -60,6 +84,7 @@ class CaixaDialog {
 
 class _CaixaConteudo extends StatefulWidget {
   final AppTheme theme;
+  final bool expandido;
   final String lojaNome;
   final String lojaCnpj;
   final TurnoCaixa? turnoAberto;
@@ -79,6 +104,7 @@ class _CaixaConteudo extends StatefulWidget {
 
   const _CaixaConteudo({
     required this.theme,
+    this.expandido = false,
     required this.lojaNome,
     required this.lojaCnpj,
     required this.turnoAberto,
@@ -1210,29 +1236,67 @@ class _CaixaConteudoState extends State<_CaixaConteudo> {
         Flexible(
           child: SingleChildScrollView(
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-            child: Column(
-              children: [
-                if (turno == null) ...[
-                  _blocoAbertura(),
-                  if (widget.turnosAnteriores.isNotEmpty)
-                    _blocoHistoricoTurnosFechados(),
-                ] else ...[
-                  _blocoTurnoAberto(turno),
-                  if (widget.turnosAnteriores.isNotEmpty)
-                    _blocoHistoricoTurnosFechados(),
-                ],
-                if (_aviso != null) ...[
-                  const SizedBox(height: 8),
-                  Text(
-                    _aviso!,
-                    style: theme.getTextStyle(
-                      fontSize: 12,
-                      color: Colors.redAccent,
-                    ),
+            child: widget.expandido
+                ? Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        flex: 5,
+                        child: Column(
+                          children: [
+                            if (turno == null)
+                              _blocoAbertura()
+                            else
+                              _blocoTurnoAberto(turno),
+                            if (_aviso != null) ...[
+                              const SizedBox(height: 8),
+                              Text(
+                                _aviso!,
+                                style: theme.getTextStyle(
+                                  fontSize: 12,
+                                  color: Colors.redAccent,
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
+                      if (widget.turnosAnteriores.isNotEmpty) ...[
+                        const SizedBox(width: 16),
+                        Expanded(
+                          flex: 5,
+                          child: Column(
+                            children: [
+                              _blocoHistoricoTurnosFechados(),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ],
+                  )
+                : Column(
+                    children: [
+                      if (turno == null) ...[
+                        _blocoAbertura(),
+                        if (widget.turnosAnteriores.isNotEmpty)
+                          _blocoHistoricoTurnosFechados(),
+                      ] else ...[
+                        _blocoTurnoAberto(turno),
+                        if (widget.turnosAnteriores.isNotEmpty)
+                          _blocoHistoricoTurnosFechados(),
+                      ],
+                      if (_aviso != null) ...[
+                        const SizedBox(height: 8),
+                        Text(
+                          _aviso!,
+                          style: theme.getTextStyle(
+                            fontSize: 12,
+                            color: Colors.redAccent,
+                          ),
+                        ),
+                      ],
+                    ],
                   ),
-                ],
-              ],
-            ),
           ),
         ),
       ],

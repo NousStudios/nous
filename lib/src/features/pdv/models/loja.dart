@@ -51,6 +51,8 @@ class Loja {
   final int tempoConclusaoMinutos;
   final Map<String, String> sonsAlertas;
   final Map<String, String> atalhosTeclado;
+  final bool layoutExpandido;
+  final String tipoLayoutMaior;
 
   const Loja({
     required this.id,
@@ -87,6 +89,8 @@ class Loja {
     this.tempoConclusaoMinutos = 0,
     this.sonsAlertas = const {},
     this.atalhosTeclado = const {},
+    this.layoutExpandido = false,
+    this.tipoLayoutMaior = 'painel_duplo',
   });
 
   Loja copyWith({
@@ -123,6 +127,8 @@ class Loja {
     int? tempoConclusaoMinutos,
     Map<String, String>? sonsAlertas,
     Map<String, String>? atalhosTeclado,
+    bool? layoutExpandido,
+    String? tipoLayoutMaior,
   }) {
     return Loja(
       id: id,
@@ -163,6 +169,8 @@ class Loja {
           tempoConclusaoMinutos ?? this.tempoConclusaoMinutos,
       sonsAlertas: sonsAlertas ?? this.sonsAlertas,
       atalhosTeclado: atalhosTeclado ?? this.atalhosTeclado,
+      layoutExpandido: layoutExpandido ?? this.layoutExpandido,
+      tipoLayoutMaior: tipoLayoutMaior ?? this.tipoLayoutMaior,
     );
   }
 
@@ -206,6 +214,8 @@ class Loja {
       'tempoConclusaoMinutos': tempoConclusaoMinutos,
       'sonsAlertas': sonsAlertas,
       'atalhosTeclado': atalhosTeclado,
+      'layoutExpandido': layoutExpandido,
+      'tipoLayoutMaior': tipoLayoutMaior,
     };
   }
 
@@ -297,6 +307,8 @@ class Loja {
       atalhosTeclado:
           (json['atalhosTeclado'] as Map<dynamic, dynamic>? ?? const {})
               .map((k, v) => MapEntry(k.toString(), v.toString())),
+      layoutExpandido: json['layoutExpandido'] as bool? ?? false,
+      tipoLayoutMaior: json['tipoLayoutMaior'] as String? ?? 'painel_duplo',
     );
   }
 
@@ -311,6 +323,11 @@ class Loja {
         'F5': 'Impressora',
         'F6': 'Financeiro',
         'F7': 'Status da Loja',
+        'F8': 'Desativado',
+        'F9': 'Desativado',
+        'F10': 'Desativado',
+        'F11': 'Alternar Layout',
+        'F12': 'Desativado',
         'Esc': 'Voltar / Fechar Janela',
         ...atalhosTeclado,
       };

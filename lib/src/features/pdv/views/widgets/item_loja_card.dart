@@ -262,10 +262,13 @@ class _ItemLojaCardState extends State<ItemLojaCard> {
     final double escala = theme.fontScale > 1.0 ? theme.fontScale : 1.0;
     final double larguraCard =
         (112 * (1.0 + (escala - 1.0) * 0.35)).clamp(112.0, 145.0);
+    final double alturaCard =
+        (185 * (1.0 + (escala - 1.0) * 0.35)).clamp(185.0, 240.0);
     final double alturaNome = (22 * escala).clamp(22.0, 34.0);
 
     return Container(
       width: larguraCard,
+      height: alturaCard,
       padding: const EdgeInsets.all(8),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(12),

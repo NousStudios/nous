@@ -22,6 +22,7 @@ import 'package:nous/src/features/pdv/models/grupo_componentes_loja.dart';
 import 'package:nous/src/features/pdv/models/item_loja.dart';
 import 'package:nous/src/core/services/gerador_id.dart';
 import 'package:nous/src/core/services/som_service.dart';
+import 'package:nous/src/features/pdv/models/loja.dart';
 import 'package:nous/src/features/pdv/models/membro_loja.dart';
 import 'package:nous/src/features/pdv/models/mesa_loja.dart';
 import 'package:nous/src/features/pdv/models/movimento_estoque.dart';
@@ -57,6 +58,8 @@ import 'package:nous/src/features/pdv/views/widgets/novo_item_dialog.dart';
 import 'package:nous/src/features/pdv/views/widgets/opcoes_imagem_dialog.dart';
 import 'package:nous/src/features/pdv/views/widgets/relatorios_dialog.dart';
 import 'package:nous/src/features/pdv/views/widgets/usuarios_participantes_container.dart';
+import 'package:nous/src/features/pdv/views/widgets/desktop_sidebar_widget.dart';
+import 'package:nous/src/features/pdv/views/widgets/seletor_layouts_desktop_widget.dart';
 
 class DadosPerfilView extends StatefulWidget {
   final String lojaId;
@@ -144,6 +147,7 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
     'Impressora',
     'Financeiro',
     'Status da Loja',
+    'Alternar Layout',
     'Desativado',
   ];
 
@@ -156,6 +160,10 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
     'F6',
     'F7',
     'F8',
+    'F9',
+    'F10',
+    'F11',
+    'F12',
   ];
   Timer? _timerVerificacaoPedidos;
   final Set<String> _pedidosPerguntados = {};
@@ -1218,6 +1226,7 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
     return FornecedoresDialog.mostrar(
       context,
       theme: ThemeController.currentTheme.value,
+      lojaId: widget.lojaId,
       clientes: _clientes,
       fornecedores: _fornecedores,
       onSalvar: _salvarFornecedor,
@@ -1253,6 +1262,7 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
     ImpressoraDialog.mostrar(
       context,
       theme: ThemeController.currentTheme.value,
+      lojaId: widget.lojaId,
       configuracoes: atuais,
       onSalvar: (configuracoes) {
         context
@@ -1285,6 +1295,7 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
     CaixaDialog.mostrar(
       context,
       theme: ThemeController.currentTheme.value,
+      lojaId: widget.lojaId,
       lojaNome: loja.nome,
       lojaCnpj: loja.cnpj,
       turnoAberto: loja.turnoCaixaAberto,
@@ -2751,14 +2762,14 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
     );
   }
 
-  Widget _barraDeAcoesLoja(AppTheme theme) {
+  Widget _barraDeAcoesLoja(AppTheme theme, double maxWidth) {
     return Container(
       width: double.infinity,
       color: theme.backgroundColor,
       padding: const EdgeInsets.symmetric(vertical: 10),
       child: Center(
         child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: _larguraMaximaConteudo),
+          constraints: BoxConstraints(maxWidth: maxWidth),
           child: SingleChildScrollView(
             scrollDirection: Axis.horizontal,
             padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -2956,6 +2967,112 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
             .where((g) => g.nome.toLowerCase().contains(termoGrupos))
             .toList();
 
+    final loja = context.watch<PdvProvider>().buscarPorId(widget.lojaId);
+    final expandido = loja?.layoutExpandido ?? false;
+    final larguraDaTela = MediaQuery.sizeOf(context).width;
+
+    if (expandido && larguraDaTela > 850) {
+      return Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Coluna Esquerda: Categorias e Grupos de Componentes
+          Expanded(
+            flex: 5,
+            child: Container(
+              padding: const EdgeInsets.all(16),
+              decoration: _decoracaoDoBloco(theme),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  _tituloDeSecao(theme, 'Categorias'),
+                  const SizedBox(height: 12),
+                  _campoDePesquisa(
+                    theme,
+                    _pesquisaCategorias,
+                    'Pesquisar categorias...',
+                  ),
+                  const SizedBox(height: 12),
+                  _listaCategorias(theme, categoriasFiltradas, podeEditarLoja),
+                  const SizedBox(height: 24),
+                  _tituloDeSecao(theme, 'Grupos de Componentes'),
+                  const SizedBox(height: 12),
+                  _campoDePesquisa(
+                    theme,
+                    _pesquisaGrupos,
+                    'Pesquisar grupos...',
+                  ),
+                  const SizedBox(height: 12),
+                  _listaGrupos(theme, gruposFiltrados, podeEditarLoja),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(width: 16),
+          // Coluna Direita: Catálogo Expandido de Itens
+          Expanded(
+            flex: 6,
+            child: Container(
+              padding: const EdgeInsets.all(16),
+              decoration: _decoracaoDoBloco(theme),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      _tituloDeSecao(theme, 'Catálogo de Produtos'),
+                      Text(
+                        '${itensFiltrados.length} ${itensFiltrados.length == 1 ? 'item' : 'itens'}',
+                        style: theme.getTextStyle(
+                          fontSize: 12,
+                          color: theme.secondaryTextColor,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  _campoDePesquisa(
+                    theme,
+                    _pesquisaItens,
+                    'Pesquisar itens do catálogo...',
+                  ),
+                  const SizedBox(height: 16),
+                  if (itensFiltrados.isNotEmpty)
+                    Wrap(
+                      spacing: 12,
+                      runSpacing: 12,
+                      children: itensFiltrados.map((item) {
+                        return ItemLojaCard(
+                          key: ValueKey('item_${item.id}'),
+                          theme: theme,
+                          nome: item.nome,
+                          preco: item.preco,
+                          tipo: item.tipo,
+                          imagemUrl: item.imagens.isNotEmpty
+                              ? item.imagens.first
+                              : null,
+                          podeEditar: podeEditarLoja,
+                          onEditar: () => _abrirPopupEditarItem(item),
+                          onExcluir: () => _removerItem(item.id),
+                          onNomeAlterado: (novoNome) =>
+                              _editarNomeItem(item.id, novoNome),
+                          onPrecoAlterado: (novoPreco) =>
+                              _editarPrecoItem(item.id, novoPreco),
+                        );
+                      }).toList(),
+                    )
+                  else if (_itens.isEmpty)
+                    _textoListaVazia(theme, 'Nenhum item criado ainda.')
+                  else
+                    _textoListaVazia(theme, 'Nenhum item encontrado.'),
+                ],
+              ),
+            ),
+          ),
+        ],
+      );
+    }
+
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(16),
@@ -3048,8 +3165,32 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
       'F6' => 'Financeiro',
       'F7' => 'Status da Loja',
       'F8' => 'Desativado',
+      'F9' => 'Desativado',
+      'F10' => 'Desativado',
+      'F11' => 'Alternar Layout',
+      'F12' => 'Desativado',
       _ => 'Desativado',
     };
+  }
+
+  void _alternarLayout() {
+    final pdv = context.read<PdvProvider>();
+    pdv.alternarLayoutExpandido(widget.lojaId);
+    final loja = pdv.buscarPorId(widget.lojaId);
+    final expandido = loja?.layoutExpandido ?? false;
+    final theme = ThemeController.currentTheme.value;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        backgroundColor: theme.cardBackgroundColor,
+        duration: const Duration(seconds: 2),
+        content: Text(
+          expandido
+              ? 'Layout Desktop PDV Expandido ativado (F11).'
+              : 'Layout Compacto ativado (F11).',
+          style: theme.getTextStyle(color: theme.textColor),
+        ),
+      ),
+    );
   }
 
   void _executarAcaoAtalho(String tecla) {
@@ -3075,6 +3216,9 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
         break;
       case 'Status da Loja':
         _abrirStatusLoja();
+        break;
+      case 'Alternar Layout':
+        _alternarLayout();
         break;
     }
   }
@@ -3173,6 +3317,35 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildContainerModoLayout(AppTheme theme, bool podeEditar) {
+    final loja = context.watch<PdvProvider>().buscarPorId(widget.lojaId);
+    final expandido = loja?.layoutExpandido ?? false;
+    final tipoAtual = loja?.tipoLayoutMaior ?? 'balcao_operacional';
+
+    return SeletorLayoutsDesktopWidget(
+      theme: theme,
+      podeEditar: podeEditar,
+      layoutExpandido: expandido,
+      tipoLayoutSelecionado: tipoAtual,
+      onAlternarF11: _alternarLayout,
+      onSelecionarTipo: (novoTipo) {
+        final pdv = context.read<PdvProvider>();
+        pdv.definirTipoLayoutMaior(novoTipo, widget.lojaId);
+        pdv.definirLayoutExpandido(true, widget.lojaId);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            backgroundColor: theme.cardBackgroundColor,
+            duration: const Duration(seconds: 2),
+            content: Text(
+              'Layout Desktop em tela cheia ativado (F11)',
+              style: theme.getTextStyle(color: theme.textColor),
+            ),
+          ),
+        );
+      },
     );
   }
 
@@ -3296,7 +3469,7 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
               Expanded(
                 child: Column(
                   children: _teclasFuncao
-                      .take(4)
+                      .take(6)
                       .map((t) => _buildItemTeclaAtalho(theme, t, podeEditar))
                       .toList(),
                 ),
@@ -3305,7 +3478,7 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
               Expanded(
                 child: Column(
                   children: _teclasFuncao
-                      .skip(4)
+                      .skip(6)
                       .map((t) => _buildItemTeclaAtalho(theme, t, podeEditar))
                       .toList(),
                 ),
@@ -3511,8 +3684,11 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
           const SizedBox(height: 16),
           ...eventos.map((ev) {
             final valorAtual = _sonsAlertas[ev.chave] ?? SomService.opcaoPadrao;
+            final ehSomNativo =
+                SomService.sonsNativos.any((s) => s.id == valorAtual);
             final existeArquivo = valorAtual == SomService.opcaoPadrao ||
                 valorAtual == SomService.opcaoSilencioso ||
+                ehSomNativo ||
                 _arquivosAudio.contains(valorAtual);
             final valorSelecionado =
                 existeArquivo ? valorAtual : SomService.opcaoPadrao;
@@ -3567,7 +3743,7 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
                                   DropdownMenuItem(
                                     value: SomService.opcaoPadrao,
                                     child: Text(
-                                      'Bip Padrão do Sistema',
+                                      'Bip Padrão do Sistema (OS)',
                                       style: theme.getTextStyle(
                                         fontSize: 13,
                                         color: theme.textColor,
@@ -3584,11 +3760,37 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
                                       ),
                                     ),
                                   ),
+                                  ...SomService.sonsNativos.map((s) {
+                                    return DropdownMenuItem(
+                                      value: s.id,
+                                      child: Row(
+                                        children: [
+                                          Icon(
+                                            Icons.music_note_rounded,
+                                            size: 14,
+                                            color: theme.buttonColor,
+                                          ),
+                                          const SizedBox(width: 6),
+                                          Expanded(
+                                            child: Text(
+                                              s.nome,
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
+                                              style: theme.getTextStyle(
+                                                fontSize: 13,
+                                                color: theme.textColor,
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    );
+                                  }),
                                   ..._arquivosAudio.map((caminho) {
                                     return DropdownMenuItem(
                                       value: caminho,
                                       child: Text(
-                                        'Áudio: ${extrairNomeArquivo(caminho)}',
+                                        'Áudio da Loja: ${extrairNomeArquivo(caminho)}',
                                         maxLines: 1,
                                         overflow: TextOverflow.ellipsis,
                                         style: theme.getTextStyle(
@@ -3620,10 +3822,8 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
                                         ),
                                       ),
                                     );
-                                  } else if (novo == SomService.opcaoPadrao) {
-                                    SomService.tocarBipPadrao();
                                   } else {
-                                    SomService.tocarArquivo(novo);
+                                    SomService.tocarConfiguracao(novo);
                                   }
                                 },
                               ),
@@ -3652,12 +3852,9 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
                                 ),
                               ),
                             );
-                          } else if (valorSelecionado ==
-                              SomService.opcaoPadrao) {
-                            SomService.tocarBipPadrao();
-                          } else {
-                            SomService.tocarArquivo(valorSelecionado);
+                            return;
                           }
+                          SomService.tocarConfiguracao(valorSelecionado);
                         },
                       ),
                     ],
@@ -3671,143 +3868,194 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
     );
   }
 
+  double _obterLarguraMaxima(Loja? loja) {
+    if (loja == null || !loja.layoutExpandido) {
+      return _larguraMaximaConteudo;
+    }
+    switch (loja.tipoLayoutMaior) {
+      case 'grid_amplo':
+        return 1440;
+      case 'balcao_operacional':
+        return 1380;
+      case 'painel_duplo':
+      default:
+        return 1200;
+    }
+  }
+
   Widget _conteudoDaAba(AppTheme theme) {
     final cpfLogado = context.read<AuthProvider>().contaAtual?.cpf ?? '';
     final pdv = context.read<PdvProvider>();
     final possoEditarDados = pdv.possoEditarDadosLoja(widget.lojaId);
     final possoGerenciarMembros = pdv.possoGerenciarMembros(widget.lojaId);
+    final lojaAtual = pdv.buscarPorId(widget.lojaId);
+    final expandido = lojaAtual?.layoutExpandido ?? false;
+    final larguraDaTela = MediaQuery.sizeOf(context).width;
 
     switch (_abaSelecionada) {
       case AbaLoja.dados:
         final decoracaoDoBloco = _decoracaoDoBloco(theme);
 
+        final blocoFormulario = Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(16),
+          decoration: decoracaoDoBloco,
+          child: Column(
+            children: [
+              AbsorbPointer(
+                absorbing: !possoEditarDados,
+                child: FormularioDadosLoja(
+                  theme: theme,
+                  controllers: _controllers,
+                  logo: _logo,
+                  onAlterarLogo: _alterarLogoLoja,
+                ),
+              ),
+              const SizedBox(height: 20),
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton(
+                  style: FilledButton.styleFrom(
+                    backgroundColor: theme.buttonColor,
+                    foregroundColor: theme.buttonTextColor,
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                  ),
+                  onPressed: _salvarDadosLoja,
+                  child: Text(
+                    'Salvar Dados',
+                    style: theme.getTextStyle(
+                      fontSize: 13,
+                      color: theme.buttonTextColor,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextButton(
+                onPressed: () => _confirmarExclusao(context),
+                child: Text(
+                  'Excluir Loja',
+                  style: theme.getTextStyle(fontSize: 13),
+                ),
+              ),
+            ],
+          ),
+        );
+
+        final blocoMembros = UsuariosParticipantesContainer(
+          theme: theme,
+          membros: _membros,
+          cpfLogado: cpfLogado,
+          podeGerenciar: possoGerenciarMembros,
+          buscarConta: _buscarContaPorCpf,
+          onEnviarConvite: _enviarConvite,
+          onRemover: _removerMembro,
+          onAtualizarPapel: _atualizarPapelMembro,
+          onSair: _sairDaLoja,
+        );
+
+        final blocoGalerias = [
+          GaleriaEstiloContainer(
+            theme: theme,
+            titulo: 'Galeria',
+            itens: _galeria,
+            tipo: TipoAnexoLoja.galeria,
+            descricoes: _descricoesAnexos,
+            onAtualizarDescricao: _atualizarDescricaoAnexo,
+            onAdicionar: (caminho) =>
+                _adicionarAnexo(TipoAnexoLoja.galeria, caminho),
+            onRemover: (index) =>
+                _removerAnexo(TipoAnexoLoja.galeria, index),
+          ),
+          const SizedBox(height: 16),
+          GaleriaEstiloContainer(
+            theme: theme,
+            titulo: 'Arquivos',
+            itens: _arquivos,
+            tipo: TipoAnexoLoja.arquivos,
+            descricoes: _descricoesAnexos,
+            onAtualizarDescricao: _atualizarDescricaoAnexo,
+            onAdicionar: (caminho) =>
+                _adicionarAnexo(TipoAnexoLoja.arquivos, caminho),
+            onRemover: (index) =>
+                _removerAnexo(TipoAnexoLoja.arquivos, index),
+          ),
+          const SizedBox(height: 16),
+          GaleriaEstiloContainer(
+            theme: theme,
+            titulo: 'Músicas',
+            itens: _musicas,
+            tipo: TipoAnexoLoja.musicas,
+            descricoes: _descricoesAnexos,
+            onAtualizarDescricao: _atualizarDescricaoAnexo,
+            onAdicionar: (caminho) =>
+                _adicionarAnexo(TipoAnexoLoja.musicas, caminho),
+            onRemover: (index) =>
+                _removerAnexo(TipoAnexoLoja.musicas, index),
+          ),
+          const SizedBox(height: 16),
+          GaleriaEstiloContainer(
+            theme: theme,
+            titulo: 'Vídeos',
+            itens: _videos,
+            tipo: TipoAnexoLoja.videos,
+            descricoes: _descricoesAnexos,
+            onAtualizarDescricao: _atualizarDescricaoAnexo,
+            onAdicionar: (caminho) =>
+                _adicionarAnexo(TipoAnexoLoja.videos, caminho),
+            onRemover: (index) =>
+                _removerAnexo(TipoAnexoLoja.videos, index),
+          ),
+          const SizedBox(height: 16),
+          GaleriaEstiloContainer(
+            theme: theme,
+            titulo: 'Arquivos de Áudio',
+            itens: _arquivosAudio,
+            tipo: TipoAnexoLoja.arquivosAudio,
+            descricoes: _descricoesAnexos,
+            onAtualizarDescricao: _atualizarDescricaoAnexo,
+            onAdicionar: (caminho) =>
+                _adicionarAnexo(TipoAnexoLoja.arquivosAudio, caminho),
+            onRemover: (index) =>
+                _removerAnexo(TipoAnexoLoja.arquivosAudio, index),
+          ),
+        ];
+
+        if (expandido && larguraDaTela > 850) {
+          return Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                flex: 5,
+                child: Column(
+                  children: [
+                    blocoFormulario,
+                    const SizedBox(height: 16),
+                    blocoMembros,
+                  ],
+                ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                flex: 6,
+                child: Column(
+                  children: blocoGalerias,
+                ),
+              ),
+            ],
+          );
+        }
+
         return Column(
           children: [
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(16),
-              decoration: decoracaoDoBloco,
-              child: Column(
-                children: [
-                  AbsorbPointer(
-                    absorbing: !possoEditarDados,
-                    child: FormularioDadosLoja(
-                      theme: theme,
-                      controllers: _controllers,
-                      logo: _logo,
-                      onAlterarLogo: _alterarLogoLoja,
-                    ),
-                  ),
-                  const SizedBox(height: 20),
-                  SizedBox(
-                    width: double.infinity,
-                    child: FilledButton(
-                      style: FilledButton.styleFrom(
-                        backgroundColor: theme.buttonColor,
-                        foregroundColor: theme.buttonTextColor,
-                        padding: const EdgeInsets.symmetric(vertical: 12),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                      ),
-                      onPressed: _salvarDadosLoja,
-                      child: Text(
-                        'Salvar Dados',
-                        style: theme.getTextStyle(
-                          fontSize: 13,
-                          color: theme.buttonTextColor,
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  TextButton(
-                    onPressed: () => _confirmarExclusao(context),
-                    child: Text(
-                      'Excluir Loja',
-                      style: theme.getTextStyle(fontSize: 13),
-                    ),
-                  ),
-                ],
-              ),
-            ),
+            blocoFormulario,
             const SizedBox(height: 16),
-            UsuariosParticipantesContainer(
-              theme: theme,
-              membros: _membros,
-              cpfLogado: cpfLogado,
-              podeGerenciar: possoGerenciarMembros,
-              buscarConta: _buscarContaPorCpf,
-              onEnviarConvite: _enviarConvite,
-              onRemover: _removerMembro,
-              onAtualizarPapel: _atualizarPapelMembro,
-              onSair: _sairDaLoja,
-            ),
+            blocoMembros,
             const SizedBox(height: 16),
-            GaleriaEstiloContainer(
-              theme: theme,
-              titulo: 'Galeria',
-              itens: _galeria,
-              tipo: TipoAnexoLoja.galeria,
-              descricoes: _descricoesAnexos,
-              onAtualizarDescricao: _atualizarDescricaoAnexo,
-              onAdicionar: (caminho) =>
-                  _adicionarAnexo(TipoAnexoLoja.galeria, caminho),
-              onRemover: (index) =>
-                  _removerAnexo(TipoAnexoLoja.galeria, index),
-            ),
-            const SizedBox(height: 16),
-            GaleriaEstiloContainer(
-              theme: theme,
-              titulo: 'Arquivos',
-              itens: _arquivos,
-              tipo: TipoAnexoLoja.arquivos,
-              descricoes: _descricoesAnexos,
-              onAtualizarDescricao: _atualizarDescricaoAnexo,
-              onAdicionar: (caminho) =>
-                  _adicionarAnexo(TipoAnexoLoja.arquivos, caminho),
-              onRemover: (index) =>
-                  _removerAnexo(TipoAnexoLoja.arquivos, index),
-            ),
-            const SizedBox(height: 16),
-            GaleriaEstiloContainer(
-              theme: theme,
-              titulo: 'Músicas',
-              itens: _musicas,
-              tipo: TipoAnexoLoja.musicas,
-              descricoes: _descricoesAnexos,
-              onAtualizarDescricao: _atualizarDescricaoAnexo,
-              onAdicionar: (caminho) =>
-                  _adicionarAnexo(TipoAnexoLoja.musicas, caminho),
-              onRemover: (index) =>
-                  _removerAnexo(TipoAnexoLoja.musicas, index),
-            ),
-            const SizedBox(height: 16),
-            GaleriaEstiloContainer(
-              theme: theme,
-              titulo: 'Vídeos',
-              itens: _videos,
-              tipo: TipoAnexoLoja.videos,
-              descricoes: _descricoesAnexos,
-              onAtualizarDescricao: _atualizarDescricaoAnexo,
-              onAdicionar: (caminho) =>
-                  _adicionarAnexo(TipoAnexoLoja.videos, caminho),
-              onRemover: (index) =>
-                  _removerAnexo(TipoAnexoLoja.videos, index),
-            ),
-            const SizedBox(height: 16),
-            GaleriaEstiloContainer(
-              theme: theme,
-              titulo: 'Arquivos de Áudio',
-              itens: _arquivosAudio,
-              tipo: TipoAnexoLoja.arquivosAudio,
-              descricoes: _descricoesAnexos,
-              onAtualizarDescricao: _atualizarDescricaoAnexo,
-              onAdicionar: (caminho) =>
-                  _adicionarAnexo(TipoAnexoLoja.arquivosAudio, caminho),
-              onRemover: (index) =>
-                  _removerAnexo(TipoAnexoLoja.arquivosAudio, index),
-            ),
+            ...blocoGalerias,
           ],
         );
 
@@ -3846,11 +4094,41 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
           mesas: _mesas,
           aoCriarMesa: _abrirCriarMesa,
           aoClicarMesa: _abrirComandaMesa,
+          ocultarBotoesTopo: expandido,
         );
 
       case AbaLoja.interface:
+        if (expandido && larguraDaTela > 850) {
+          return Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Column(
+                  children: [
+                    _buildContainerModoLayout(theme, possoEditarDados),
+                    const SizedBox(height: 16),
+                    _buildContainerComandos(theme, possoEditarDados),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  children: [
+                    _buildContainerTempoConclusao(theme, possoEditarDados),
+                    const SizedBox(height: 16),
+                    _buildContainerSonsAlertas(theme, possoEditarDados),
+                  ],
+                ),
+              ),
+            ],
+          );
+        }
+
         return Column(
           children: [
+            _buildContainerModoLayout(theme, possoEditarDados),
+            const SizedBox(height: 16),
             _buildContainerComandos(theme, possoEditarDados),
             const SizedBox(height: 16),
             _buildContainerTempoConclusao(theme, possoEditarDados),
@@ -3863,6 +4141,9 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
 
   @override
   Widget build(BuildContext context) {
+    final lojaAtual = context.watch<PdvProvider>().buscarPorId(widget.lojaId);
+    final larguraDinamica = _obterLarguraMaxima(lojaAtual);
+
     return CallbackShortcuts(
       bindings: <ShortcutActivator, VoidCallback>{
         const SingleActivator(LogicalKeyboardKey.escape): () {
@@ -3886,12 +4167,65 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
             _executarAcaoAtalho('F7'),
         const SingleActivator(LogicalKeyboardKey.f8): () =>
             _executarAcaoAtalho('F8'),
+        const SingleActivator(LogicalKeyboardKey.f9): () =>
+            _executarAcaoAtalho('F9'),
+        const SingleActivator(LogicalKeyboardKey.f10): () =>
+            _executarAcaoAtalho('F10'),
+        const SingleActivator(LogicalKeyboardKey.f11): () =>
+            _executarAcaoAtalho('F11'),
+        const SingleActivator(LogicalKeyboardKey.f12): () =>
+            _executarAcaoAtalho('F12'),
       },
       child: Focus(
         autofocus: true,
         child: ValueListenableBuilder<AppTheme>(
           valueListenable: ThemeController.currentTheme,
           builder: (context, theme, child) {
+            final larguraDaTela = MediaQuery.sizeOf(context).width;
+            final expandido = (lojaAtual?.layoutExpandido ?? false) && larguraDaTela > 850;
+
+            if (expandido) {
+              return Scaffold(
+                backgroundColor: theme.backgroundColor,
+                appBar: CustomAppBar(
+                  title: _tituloDaAba(),
+                  onLogout: () => _handleLogout(context),
+                ),
+                body: SafeArea(
+                  child: Row(
+                    children: [
+                      DesktopSidebarWidget(
+                        theme: theme,
+                        nomeLoja: lojaAtual?.nome ?? '',
+                        logoLoja: lojaAtual?.logo ?? '',
+                        abaSelecionada: _abaSelecionada,
+                        onTrocarAba: (novaAba) =>
+                            setState(() => _abaSelecionada = novaAba),
+                        onExecutarAtalho: _executarAcaoAtalho,
+                        onAlternarF11: _alternarLayout,
+                        tipoLayoutNome: 'PDV Expandido (F11)',
+                        caixaAberto: lojaAtual?.turnoCaixaAberto != null,
+                      ),
+                      Expanded(
+                        child: Column(
+                          children: [
+                            if (_abaSelecionada == AbaLoja.loja)
+                              _barraDeAcoesLoja(theme, double.infinity),
+                            Expanded(
+                              child: SingleChildScrollView(
+                                padding: const EdgeInsets.all(20),
+                                child: _conteudoDaAba(theme),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            }
+
             return Scaffold(
               backgroundColor: theme.backgroundColor,
               appBar: CustomAppBar(
@@ -3902,7 +4236,7 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
                 child: Center(
                   child: ConstrainedBox(
                     constraints:
-                        const BoxConstraints(maxWidth: _larguraMaximaConteudo),
+                        BoxConstraints(maxWidth: larguraDinamica),
                     child: SingleChildScrollView(
                       padding: const EdgeInsets.all(16),
                       child: _conteudoDaAba(theme),
@@ -3913,14 +4247,16 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
               bottomNavigationBar: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  if (_abaSelecionada == AbaLoja.loja) _barraDeAcoesLoja(theme),
+                  if (_abaSelecionada == AbaLoja.loja)
+                    _barraDeAcoesLoja(theme, larguraDinamica),
                   _BarraDeAbasDaLoja(
                     theme: theme,
                     abaSelecionada: _abaSelecionada,
                     aoTrocarAba: (novaAba) =>
                         setState(() => _abaSelecionada = novaAba),
+                    maxWidth: larguraDinamica,
                   ),
-                  FloatingBottomNavBar(maxWidth: _larguraMaximaConteudo),
+                  FloatingBottomNavBar(maxWidth: larguraDinamica),
                 ],
               ),
             );
@@ -3935,11 +4271,13 @@ class _BarraDeAbasDaLoja extends StatelessWidget {
   final AppTheme theme;
   final AbaLoja abaSelecionada;
   final ValueChanged<AbaLoja> aoTrocarAba;
+  final double maxWidth;
 
   const _BarraDeAbasDaLoja({
     required this.theme,
     required this.abaSelecionada,
     required this.aoTrocarAba,
+    this.maxWidth = _larguraMaximaConteudo,
   });
 
   String _rotulo(AbaLoja aba) {
@@ -3958,7 +4296,7 @@ class _BarraDeAbasDaLoja extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final larguraDaTela = MediaQuery.sizeOf(context).width;
-    final sobra = larguraDaTela - _larguraMaximaConteudo;
+    final sobra = larguraDaTela - maxWidth;
     final margemLateral = (sobra / 2).clamp(0.0, larguraDaTela / 2);
 
     return Container(

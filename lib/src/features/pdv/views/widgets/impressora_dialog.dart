@@ -1,11 +1,14 @@
 import 'dart:math';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:provider/provider.dart';
 import 'package:printing/printing.dart';
 import 'package:nous/src/core/theme/fontes_app.dart';
 import 'package:nous/src/core/theme/theme_controller.dart';
 import 'package:nous/src/core/widgets/themed_switch.dart';
 import 'package:nous/src/features/pdv/models/configuracoes_impressora.dart';
+import 'package:nous/src/features/pdv/providers/pdv_provider.dart';
 import 'package:nous/src/features/pdv/services/impressao_service.dart';
 
 class _PerfilHistoricoAnarquista {
@@ -162,26 +165,47 @@ class ImpressoraDialog {
   static Future<void> mostrar(
     BuildContext context, {
     required AppTheme theme,
+    String? lojaId,
     required ConfiguracoesImpressora configuracoes,
     required ValueChanged<ConfiguracoesImpressora> onSalvar,
   }) {
     return showDialog<void>(
       context: context,
       builder: (dialogContext) {
-        return Dialog(
-          backgroundColor: theme.cardBackgroundColor,
-          insetPadding: const EdgeInsets.all(16),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-            side: BorderSide(color: theme.borderColor),
-          ),
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 500),
-            child: _ImpressoraConteudo(
-              theme: theme,
-              configuracoesIniciais: configuracoes,
-              onSalvar: onSalvar,
-            ),
+        return CallbackShortcuts(
+          bindings: <ShortcutActivator, VoidCallback>{
+            const SingleActivator(LogicalKeyboardKey.f11): () {
+              dialogContext
+                  .read<PdvProvider>()
+                  .alternarLayoutExpandido(lojaId);
+            },
+          },
+          child: Consumer<PdvProvider>(
+            builder: (ctx, pdv, child) {
+              final expandido = pdv.layoutDesktopAtivo(lojaId);
+              final larguraTela = MediaQuery.sizeOf(ctx).width;
+              final maxWidth = expandido
+                  ? (larguraTela > 1150 ? 1050.0 : larguraTela * 0.92)
+                  : 500.0;
+
+              return Dialog(
+                backgroundColor: theme.cardBackgroundColor,
+                insetPadding: const EdgeInsets.all(16),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                  side: BorderSide(color: theme.borderColor),
+                ),
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(maxWidth: maxWidth),
+                  child: _ImpressoraConteudo(
+                    theme: theme,
+                    expandido: expandido,
+                    configuracoesIniciais: configuracoes,
+                    onSalvar: onSalvar,
+                  ),
+                ),
+              );
+            },
           ),
         );
       },
@@ -191,11 +215,13 @@ class ImpressoraDialog {
 
 class _ImpressoraConteudo extends StatefulWidget {
   final AppTheme theme;
+  final bool expandido;
   final ConfiguracoesImpressora configuracoesIniciais;
   final ValueChanged<ConfiguracoesImpressora> onSalvar;
 
   const _ImpressoraConteudo({
     required this.theme,
+    this.expandido = false,
     required this.configuracoesIniciais,
     required this.onSalvar,
   });
@@ -1521,6 +1547,111 @@ class _ImpressoraConteudoState extends State<_ImpressoraConteudo> {
     );
   }
 
+  Widget _botoesAcao() {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        OutlinedButton.icon(
+          style: ButtonStyle(
+            backgroundColor: WidgetStateProperty.resolveWith((states) {
+              if (states.contains(WidgetState.hovered)) {
+                return theme.borderColor.withValues(alpha: 0.18);
+              }
+              return Colors.transparent;
+            }),
+            foregroundColor: WidgetStateProperty.resolveWith((states) {
+              return theme.textColor;
+            }),
+            iconColor: WidgetStateProperty.resolveWith((states) {
+              return theme.textColor;
+            }),
+            side: WidgetStateProperty.resolveWith((states) {
+              if (states.contains(WidgetState.hovered)) {
+                return BorderSide(color: theme.textColor, width: 1.4);
+              }
+              return BorderSide(color: theme.borderColor, width: 1.0);
+            }),
+            padding: const WidgetStatePropertyAll(
+              EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            ),
+            shape: WidgetStatePropertyAll(
+              RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
+            ),
+            mouseCursor: const WidgetStatePropertyAll(
+              SystemMouseCursors.click,
+            ),
+          ),
+          onPressed: _imprimindo ? null : _imprimirTeste,
+          icon: _imprimindo
+              ? SizedBox(
+                  width: 14,
+                  height: 14,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: theme.textColor,
+                  ),
+                )
+              : Icon(Icons.print_outlined, size: 16, color: theme.textColor),
+          label: Text(
+            'Imprimir Teste',
+            style: theme.getTextStyle(fontSize: 12),
+          ),
+        ),
+        const SizedBox(width: 10),
+        OutlinedButton.icon(
+          style: ButtonStyle(
+            backgroundColor: WidgetStateProperty.resolveWith((states) {
+              if (states.contains(WidgetState.hovered)) {
+                return theme.borderColor.withValues(alpha: 0.18);
+              }
+              return theme.buttonColor;
+            }),
+            foregroundColor: WidgetStateProperty.resolveWith((states) {
+              if (states.contains(WidgetState.hovered)) {
+                return theme.textColor;
+              }
+              return theme.buttonTextColor;
+            }),
+            iconColor: WidgetStateProperty.resolveWith((states) {
+              if (states.contains(WidgetState.hovered)) {
+                return theme.textColor;
+              }
+              return theme.buttonTextColor;
+            }),
+            side: WidgetStateProperty.resolveWith((states) {
+              if (states.contains(WidgetState.hovered)) {
+                return BorderSide(color: theme.textColor, width: 1.4);
+              }
+              return BorderSide(color: theme.borderColor, width: 1.0);
+            }),
+            padding: const WidgetStatePropertyAll(
+              EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+            ),
+            shape: WidgetStatePropertyAll(
+              RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
+            ),
+            mouseCursor: const WidgetStatePropertyAll(
+              SystemMouseCursors.click,
+            ),
+          ),
+          onPressed: _salvar,
+          icon: const Icon(Icons.check, size: 16),
+          label: Text(
+            'Salvar Configurações',
+            style: theme.getTextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Column(
@@ -1552,133 +1683,60 @@ class _ImpressoraConteudoState extends State<_ImpressoraConteudo> {
         Flexible(
           child: SingleChildScrollView(
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-            child: Column(
-              children: [
-                _blocoConexao(),
-                const SizedBox(height: 12),
-                _blocoLarguraBobina(),
-                const SizedBox(height: 12),
-                _blocoFonte(),
-                const SizedBox(height: 12),
-                _blocoCalibracao(),
-                const SizedBox(height: 12),
-                _blocoDadosCliente(),
-                const SizedBox(height: 12),
-                _blocoAutomacao(),
-                const SizedBox(height: 12),
-                _blocoRodape(),
-                const SizedBox(height: 18),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    OutlinedButton.icon(
-                      style: ButtonStyle(
-                        backgroundColor:
-                            WidgetStateProperty.resolveWith((states) {
-                          if (states.contains(WidgetState.hovered)) {
-                            return theme.borderColor.withValues(alpha: 0.18);
-                          }
-                          return Colors.transparent;
-                        }),
-                        foregroundColor:
-                            WidgetStateProperty.resolveWith((states) {
-                          if (states.contains(WidgetState.hovered)) {
-                            return theme.textColor;
-                          }
-                          return theme.textColor;
-                        }),
-                        iconColor: WidgetStateProperty.resolveWith((states) {
-                          return theme.textColor;
-                        }),
-                        side: WidgetStateProperty.resolveWith((states) {
-                          if (states.contains(WidgetState.hovered)) {
-                            return BorderSide(color: theme.textColor, width: 1.4);
-                          }
-                          return BorderSide(color: theme.borderColor, width: 1.0);
-                        }),
-                        padding: const WidgetStatePropertyAll(
-                          EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                        ),
-                        shape: WidgetStatePropertyAll(
-                          RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                        ),
-                        mouseCursor: const WidgetStatePropertyAll(
-                          SystemMouseCursors.click,
+            child: widget.expandido
+                ? Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        flex: 5,
+                        child: Column(
+                          children: [
+                            _blocoConexao(),
+                            const SizedBox(height: 12),
+                            _blocoLarguraBobina(),
+                            const SizedBox(height: 12),
+                            _blocoFonte(),
+                            const SizedBox(height: 12),
+                            _blocoCalibracao(),
+                          ],
                         ),
                       ),
-                      onPressed: _imprimindo ? null : _imprimirTeste,
-                      icon: _imprimindo
-                          ? SizedBox(
-                              width: 14,
-                              height: 14,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                color: theme.textColor,
-                              ),
-                            )
-                          : Icon(Icons.print_outlined, size: 16, color: theme.textColor),
-                      label: Text(
-                        'Imprimir Teste',
-                        style: theme.getTextStyle(fontSize: 12),
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    OutlinedButton.icon(
-                      style: ButtonStyle(
-                        backgroundColor:
-                            WidgetStateProperty.resolveWith((states) {
-                          if (states.contains(WidgetState.hovered)) {
-                            return theme.borderColor.withValues(alpha: 0.18);
-                          }
-                          return theme.buttonColor;
-                        }),
-                        foregroundColor:
-                            WidgetStateProperty.resolveWith((states) {
-                          if (states.contains(WidgetState.hovered)) {
-                            return theme.textColor;
-                          }
-                          return theme.buttonTextColor;
-                        }),
-                        iconColor: WidgetStateProperty.resolveWith((states) {
-                          if (states.contains(WidgetState.hovered)) {
-                            return theme.textColor;
-                          }
-                          return theme.buttonTextColor;
-                        }),
-                        side: WidgetStateProperty.resolveWith((states) {
-                          if (states.contains(WidgetState.hovered)) {
-                            return BorderSide(color: theme.textColor, width: 1.4);
-                          }
-                          return BorderSide(color: theme.borderColor, width: 1.0);
-                        }),
-                        padding: const WidgetStatePropertyAll(
-                          EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                        ),
-                        shape: WidgetStatePropertyAll(
-                          RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                        ),
-                        mouseCursor: const WidgetStatePropertyAll(
-                          SystemMouseCursors.click,
+                      const SizedBox(width: 16),
+                      Expanded(
+                        flex: 5,
+                        child: Column(
+                          children: [
+                            _blocoDadosCliente(),
+                            const SizedBox(height: 12),
+                            _blocoAutomacao(),
+                            const SizedBox(height: 12),
+                            _blocoRodape(),
+                            const SizedBox(height: 18),
+                            _botoesAcao(),
+                          ],
                         ),
                       ),
-                      onPressed: _salvar,
-                      icon: const Icon(Icons.check, size: 16),
-                      label: Text(
-                        'Salvar Configurações',
-                        style: theme.getTextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
+                    ],
+                  )
+                : Column(
+                    children: [
+                      _blocoConexao(),
+                      const SizedBox(height: 12),
+                      _blocoLarguraBobina(),
+                      const SizedBox(height: 12),
+                      _blocoFonte(),
+                      const SizedBox(height: 12),
+                      _blocoCalibracao(),
+                      const SizedBox(height: 12),
+                      _blocoDadosCliente(),
+                      const SizedBox(height: 12),
+                      _blocoAutomacao(),
+                      const SizedBox(height: 12),
+                      _blocoRodape(),
+                      const SizedBox(height: 18),
+                      _botoesAcao(),
+                    ],
+                  ),
           ),
         ),
       ],

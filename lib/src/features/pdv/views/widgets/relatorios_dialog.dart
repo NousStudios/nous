@@ -75,26 +75,46 @@ class RelatoriosDialog {
     return showDialog<void>(
       context: context,
       builder: (dialogContext) {
-        return Dialog(
-          backgroundColor: theme.cardBackgroundColor,
-          insetPadding: const EdgeInsets.all(16),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-            side: BorderSide(color: theme.borderColor),
-          ),
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 500),
-            child: _RelatoriosConteudo(
-              theme: theme,
-              lojaId: lojaId,
-              pedidos: pedidos,
-              autorCpf: autorCpf,
-              autorNome: autorNome,
-              autorEmail: autorEmail,
-              onExcluirPedido: onExcluirPedido,
-              onSalvarComentario: onSalvarComentario,
-              aoAbrirClientes: aoAbrirClientes,
-            ),
+        return CallbackShortcuts(
+          bindings: <ShortcutActivator, VoidCallback>{
+            const SingleActivator(LogicalKeyboardKey.f11): () {
+              dialogContext
+                  .read<PdvProvider>()
+                  .alternarLayoutExpandido(lojaId);
+            },
+          },
+          child: Consumer<PdvProvider>(
+            builder: (ctx, pdv, child) {
+              final expandido = pdv.layoutDesktopAtivo(lojaId);
+              final larguraTela = MediaQuery.sizeOf(ctx).width;
+              final maxWidth = expandido
+                  ? (larguraTela > 1150 ? 1050.0 : larguraTela * 0.92)
+                  : 500.0;
+
+              return Dialog(
+                backgroundColor: theme.cardBackgroundColor,
+                insetPadding: const EdgeInsets.all(16),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                  side: BorderSide(color: theme.borderColor),
+                ),
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(maxWidth: maxWidth),
+                  child: _RelatoriosConteudo(
+                    theme: theme,
+                    lojaId: lojaId,
+                    expandido: expandido,
+                    pedidos: pedidos,
+                    autorCpf: autorCpf,
+                    autorNome: autorNome,
+                    autorEmail: autorEmail,
+                    onExcluirPedido: onExcluirPedido,
+                    onSalvarComentario: onSalvarComentario,
+                    aoAbrirClientes: aoAbrirClientes,
+                  ),
+                ),
+              );
+            },
           ),
         );
       },
@@ -105,6 +125,7 @@ class RelatoriosDialog {
 class _RelatoriosConteudo extends StatefulWidget {
   final AppTheme theme;
   final String lojaId;
+  final bool expandido;
   final List<PedidoLoja> pedidos;
   final String autorCpf;
   final String autorNome;
@@ -117,6 +138,7 @@ class _RelatoriosConteudo extends StatefulWidget {
   const _RelatoriosConteudo({
     required this.theme,
     required this.lojaId,
+    this.expandido = false,
     required this.pedidos,
     required this.autorCpf,
     required this.autorNome,
@@ -716,15 +738,40 @@ class _RelatoriosConteudoState extends State<_RelatoriosConteudo> {
         Flexible(
           child: SingleChildScrollView(
             padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
-            child: Column(
-              children: [
-                _blocoRelatorios(),
-                const SizedBox(height: 12),
-                _blocoPendencias(),
-                const SizedBox(height: 12),
-                _blocoAcoes(acoes),
-              ],
-            ),
+            child: widget.expandido
+                ? Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        flex: 5,
+                        child: Column(
+                          children: [
+                            _blocoRelatorios(),
+                            const SizedBox(height: 12),
+                            _blocoPendencias(),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        flex: 5,
+                        child: Column(
+                          children: [
+                            _blocoAcoes(acoes),
+                          ],
+                        ),
+                      ),
+                    ],
+                  )
+                : Column(
+                    children: [
+                      _blocoRelatorios(),
+                      const SizedBox(height: 12),
+                      _blocoPendencias(),
+                      const SizedBox(height: 12),
+                      _blocoAcoes(acoes),
+                    ],
+                  ),
           ),
         ),
       ],

@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:nous/src/core/services/som_service.dart';
 import 'package:nous/src/core/theme/theme_controller.dart';
@@ -116,33 +117,53 @@ class NovaVendaDialog {
     return showDialog<void>(
       context: context,
       builder: (dialogContext) {
-        return Dialog(
-          backgroundColor: theme.cardBackgroundColor,
-          insetPadding: const EdgeInsets.all(16),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-            side: BorderSide(color: theme.borderColor),
-          ),
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 500),
-            child: _NovaVendaConteudo(
-              theme: theme,
-              lojaId: lojaId,
-              itensDisponiveis: itensDisponiveis,
-              categoriasDisponiveis: categoriasDisponiveis,
-              gruposDisponiveis: gruposDisponiveis,
-              obterClientes: obterClientes,
-              aoAbrirClientes: aoAbrirClientes,
-              nomeVendedor: nomeVendedor,
-              cnpjVendedor: cnpjVendedor,
-              proximoNumero: proximoNumero,
-              cpfAutor: cpfAutor,
-              nomeAutor: nomeAutor,
-              onConcluir: onConcluir,
-              aoCriarItem: aoCriarItem,
-              configuracoesImpressora: configuracoesImpressora,
-              movimentosEstoque: movimentosEstoque,
-            ),
+        return CallbackShortcuts(
+          bindings: <ShortcutActivator, VoidCallback>{
+            const SingleActivator(LogicalKeyboardKey.f11): () {
+              dialogContext
+                  .read<PdvProvider>()
+                  .alternarLayoutExpandido(lojaId);
+            },
+          },
+          child: Consumer<PdvProvider>(
+            builder: (ctx, pdv, child) {
+              final expandido = pdv.layoutDesktopAtivo(lojaId);
+              final larguraTela = MediaQuery.sizeOf(ctx).width;
+              final maxWidth = expandido
+                  ? (larguraTela > 1250 ? 1150.0 : larguraTela * 0.92)
+                  : 500.0;
+
+              return Dialog(
+                backgroundColor: theme.cardBackgroundColor,
+                insetPadding: const EdgeInsets.all(16),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                  side: BorderSide(color: theme.borderColor),
+                ),
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(maxWidth: maxWidth),
+                  child: _NovaVendaConteudo(
+                    theme: theme,
+                    lojaId: lojaId,
+                    expandido: expandido,
+                    itensDisponiveis: itensDisponiveis,
+                    categoriasDisponiveis: categoriasDisponiveis,
+                    gruposDisponiveis: gruposDisponiveis,
+                    obterClientes: obterClientes,
+                    aoAbrirClientes: aoAbrirClientes,
+                    nomeVendedor: nomeVendedor,
+                    cnpjVendedor: cnpjVendedor,
+                    proximoNumero: proximoNumero,
+                    cpfAutor: cpfAutor,
+                    nomeAutor: nomeAutor,
+                    onConcluir: onConcluir,
+                    aoCriarItem: aoCriarItem,
+                    configuracoesImpressora: configuracoesImpressora,
+                    movimentosEstoque: movimentosEstoque,
+                  ),
+                ),
+              );
+            },
           ),
         );
       },
@@ -171,10 +192,12 @@ class _NovaVendaConteudo extends StatefulWidget {
       ItemLoja item, List<String> categoriaIds, List<String> grupoIds) aoCriarItem;
   final ConfiguracoesImpressora configuracoesImpressora;
   final List<MovimentoEstoque> movimentosEstoque;
+  final bool expandido;
 
   const _NovaVendaConteudo({
     required this.theme,
     this.lojaId,
+    this.expandido = false,
     required this.itensDisponiveis,
     required this.categoriasDisponiveis,
     required this.gruposDisponiveis,
@@ -2385,29 +2408,68 @@ class _NovaVendaConteudoState extends State<_NovaVendaConteudo> {
         Flexible(
           child: SingleChildScrollView(
             padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
-            child: Column(
-              children: [
-                _blocoCliente(),
-                const SizedBox(height: 12),
-                _blocoProduto(),
-                const SizedBox(height: 12),
-                _blocoComanda(),
-                const SizedBox(height: 12),
-                _blocoAjustes(),
-                const SizedBox(height: 12),
-                _blocoPagamento(),
-                const SizedBox(height: 12),
-                if (_aviso != null) ...[
-                  Text(
-                    _aviso!,
-                    textAlign: TextAlign.center,
-                    style: theme.getTextStyle(fontSize: 12),
+            child: widget.expandido
+                ? Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        flex: 6,
+                        child: Column(
+                          children: [
+                            _blocoProduto(),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        flex: 5,
+                        child: Column(
+                          children: [
+                            _blocoCliente(),
+                            const SizedBox(height: 12),
+                            _blocoComanda(),
+                            const SizedBox(height: 12),
+                            _blocoAjustes(),
+                            const SizedBox(height: 12),
+                            _blocoPagamento(),
+                            const SizedBox(height: 12),
+                            if (_aviso != null) ...[
+                              Text(
+                                _aviso!,
+                                textAlign: TextAlign.center,
+                                style: theme.getTextStyle(fontSize: 12),
+                              ),
+                              const SizedBox(height: 8),
+                            ],
+                            _botaoConcluir(),
+                          ],
+                        ),
+                      ),
+                    ],
+                  )
+                : Column(
+                    children: [
+                      _blocoCliente(),
+                      const SizedBox(height: 12),
+                      _blocoProduto(),
+                      const SizedBox(height: 12),
+                      _blocoComanda(),
+                      const SizedBox(height: 12),
+                      _blocoAjustes(),
+                      const SizedBox(height: 12),
+                      _blocoPagamento(),
+                      const SizedBox(height: 12),
+                      if (_aviso != null) ...[
+                        Text(
+                          _aviso!,
+                          textAlign: TextAlign.center,
+                          style: theme.getTextStyle(fontSize: 12),
+                        ),
+                        const SizedBox(height: 8),
+                      ],
+                      _botaoConcluir(),
+                    ],
                   ),
-                  const SizedBox(height: 8),
-                ],
-                _botaoConcluir(),
-              ],
-            ),
           ),
         ),
       ],

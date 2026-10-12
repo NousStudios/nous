@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:nous/src/core/services/player_audio_service.dart';
 import 'package:nous/src/core/theme/theme_controller.dart';
 import 'package:nous/src/features/pdv/services/imagem_service.dart';
 import 'package:nous/src/features/pdv/views/widgets/galeria_estilo_container.dart';
@@ -58,6 +59,23 @@ class _DetalhesMidiaDialogState extends State<DetalhesMidiaDialog> {
   void initState() {
     super.initState();
     _descricaoAtual = widget.descricao;
+  }
+
+  @override
+  void dispose() {
+    if (widget.tipo == TipoAnexoLoja.musicas ||
+        widget.tipo == TipoAnexoLoja.arquivosAudio) {
+      if (PlayerAudioService.instancia.estadoAtual.caminho == widget.caminho) {
+        PlayerAudioService.instancia.parar();
+      }
+    }
+    super.dispose();
+  }
+
+  String _formatarTempo(Duration d) {
+    final m = d.inMinutes.remainder(60).toString().padLeft(2, '0');
+    final s = d.inSeconds.remainder(60).toString().padLeft(2, '0');
+    return '$m:$s';
   }
 
   String _extrairNomeArquivo(String caminho) {
@@ -307,41 +325,239 @@ class _DetalhesMidiaDialogState extends State<DetalhesMidiaDialog> {
                     ],
                   ),
                 ),
-                const SizedBox(height: 22),
+                const SizedBox(height: 18),
 
-                // Botão de Ação Principal: Reproduzir no Sistema ou Abrir
-                ElevatedButton.icon(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: theme.buttonColor,
-                    foregroundColor: theme.buttonTextColor,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 18,
-                      vertical: 14,
-                    ),
-                    elevation: 0,
+                // Player Interno para Áudios e Músicas
+                if (widget.tipo == TipoAnexoLoja.musicas ||
+                    widget.tipo == TipoAnexoLoja.arquivosAudio) ...[
+                  ValueListenableBuilder<DadosPlayerAudio>(
+                    valueListenable:
+                        PlayerAudioService.instancia.estadoNotifier,
+                    builder: (context, estado, child) {
+                      final ehEsteArquivo = estado.caminho == widget.caminho;
+                      final tocando = ehEsteArquivo &&
+                          estado.estado == EstadoPlayerAudio.reproduzindo;
+                      final pausado = ehEsteArquivo &&
+                          estado.estado == EstadoPlayerAudio.pausado;
+
+                      final progressoFracao = (ehEsteArquivo &&
+                              estado.duracaoEstimada.inSeconds > 0)
+                          ? (estado.posicao.inMilliseconds /
+                                  estado.duracaoEstimada.inMilliseconds)
+                              .clamp(0.0, 1.0)
+                          : 0.0;
+
+                      return Container(
+                        padding: const EdgeInsets.all(14),
+                        decoration: BoxDecoration(
+                          color: theme.backgroundColor.withValues(alpha: 0.5),
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(
+                            color: tocando
+                                ? theme.buttonColor.withValues(alpha: 0.8)
+                                : theme.borderColor.withValues(alpha: 0.6),
+                            width: tocando ? 1.6 : 1.0,
+                          ),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Row(
+                                  children: [
+                                    Icon(
+                                      tocando
+                                          ? Icons.graphic_eq_rounded
+                                          : Icons.music_note_rounded,
+                                      size: 18,
+                                      color: tocando
+                                          ? theme.buttonColor
+                                          : theme.secondaryTextColor,
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Text(
+                                      tocando
+                                          ? 'Reproduzindo internamente...'
+                                          : (pausado
+                                              ? 'Pausado'
+                                              : 'Player Interno de Áudio'),
+                                      style: theme.getTextStyle(
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w600,
+                                        color: tocando
+                                            ? theme.textColor
+                                            : theme.secondaryTextColor,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                Text(
+                                  ehEsteArquivo
+                                      ? '${_formatarTempo(estado.posicao)} / ${_formatarTempo(estado.duracaoEstimada)}'
+                                      : '00:00',
+                                  style: theme.getTextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.bold,
+                                    color: theme.secondaryTextColor,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 10),
+                            ClipRRect(
+                              borderRadius: BorderRadius.circular(4),
+                              child: LinearProgressIndicator(
+                                value: progressoFracao,
+                                minHeight: 6,
+                                backgroundColor:
+                                    theme.borderColor.withValues(alpha: 0.3),
+                                valueColor: AlwaysStoppedAnimation<Color>(
+                                  theme.buttonColor,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                ElevatedButton.icon(
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: theme.buttonColor,
+                                    foregroundColor: theme.buttonTextColor,
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(10),
+                                    ),
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 16,
+                                      vertical: 10,
+                                    ),
+                                    elevation: 0,
+                                  ),
+                                  icon: Icon(
+                                    tocando
+                                        ? Icons.pause_rounded
+                                        : Icons.play_arrow_rounded,
+                                    size: 20,
+                                    color: theme.buttonTextColor,
+                                  ),
+                                  label: Text(
+                                    tocando ? 'Pausar' : 'Tocar',
+                                    style: theme.getTextStyle(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.bold,
+                                      color: theme.buttonTextColor,
+                                    ),
+                                  ),
+                                  onPressed: () {
+                                    PlayerAudioService.instancia
+                                        .alternarPlayPause(widget.caminho);
+                                  },
+                                ),
+                                if (tocando || pausado) ...[
+                                  const SizedBox(width: 8),
+                                  OutlinedButton.icon(
+                                    style: OutlinedButton.styleFrom(
+                                      foregroundColor: theme.textColor,
+                                      side: BorderSide(
+                                        color: theme.borderColor
+                                            .withValues(alpha: 0.6),
+                                      ),
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius:
+                                            BorderRadius.circular(10),
+                                      ),
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 14,
+                                        vertical: 10,
+                                      ),
+                                    ),
+                                    icon: Icon(
+                                      Icons.stop_rounded,
+                                      size: 18,
+                                      color: theme.textColor,
+                                    ),
+                                    label: Text(
+                                      'Parar',
+                                      style: theme.getTextStyle(
+                                        fontSize: 12,
+                                        color: theme.textColor,
+                                      ),
+                                    ),
+                                    onPressed: () {
+                                      PlayerAudioService.instancia.parar();
+                                    },
+                                  ),
+                                ],
+                              ],
+                            ),
+                          ],
+                        ),
+                      );
+                    },
                   ),
-                  icon: Icon(
-                    ehMidiaReprodutivel
-                        ? Icons.play_circle_outline_rounded
-                        : Icons.open_in_new_rounded,
-                    size: 20,
-                    color: theme.buttonTextColor,
+                  const SizedBox(height: 10),
+                  OutlinedButton.icon(
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: theme.secondaryTextColor,
+                      side: BorderSide(
+                        color: theme.borderColor.withValues(alpha: 0.4),
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      padding: const EdgeInsets.symmetric(vertical: 10),
+                    ),
+                    icon: Icon(
+                      Icons.open_in_new_rounded,
+                      size: 16,
+                      color: theme.secondaryTextColor,
+                    ),
+                    label: Text(
+                      'Abrir no Reprodutor do Windows',
+                      style: theme.getTextStyle(
+                        fontSize: 12,
+                        color: theme.secondaryTextColor,
+                      ),
+                    ),
+                    onPressed: _reproduzirNoSistema,
                   ),
-                  label: Text(
-                    ehMidiaReprodutivel
-                        ? 'Reproduzir no Reprodutor do Sistema'
-                        : 'Abrir Arquivo no Computador',
-                    style: theme.getTextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
+                ] else ...[
+                  // Arquivo de vídeo ou documento comum
+                  ElevatedButton.icon(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: theme.buttonColor,
+                      foregroundColor: theme.buttonTextColor,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 18,
+                        vertical: 14,
+                      ),
+                      elevation: 0,
+                    ),
+                    icon: Icon(
+                      ehMidiaReprodutivel
+                          ? Icons.play_circle_outline_rounded
+                          : Icons.open_in_new_rounded,
+                      size: 20,
                       color: theme.buttonTextColor,
                     ),
+                    label: Text(
+                      ehMidiaReprodutivel
+                          ? 'Reproduzir Vídeo no Reprodutor do Sistema'
+                          : 'Abrir Arquivo no Computador',
+                      style: theme.getTextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: theme.buttonTextColor,
+                      ),
+                    ),
+                    onPressed: _reproduzirNoSistema,
                   ),
-                  onPressed: _reproduzirNoSistema,
-                ),
+                ],
                 const SizedBox(height: 10),
 
                 // Botão Fechar

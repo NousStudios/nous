@@ -23,12 +23,14 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
   final String title;
   final bool showBackButton;
   final VoidCallback? onLogout;
+  final List<Widget>? actions;
 
   const CustomAppBar({
     super.key,
     required this.title,
     this.showBackButton = true,
     this.onLogout,
+    this.actions,
   });
 
   void _showThemeSelector(BuildContext context) {
@@ -500,6 +502,7 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
                 )
               : null,
           actions: [
+            ...?actions,
             _botaoNotificacoes(context, theme),
             _botaoAtualizacoes(context, theme),
             IconButton(

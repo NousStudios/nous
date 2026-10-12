@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:nous/src/core/theme/theme_controller.dart';
 import 'package:nous/src/core/widgets/custom_app_bar.dart';
@@ -1187,43 +1188,89 @@ class _FinanceiroViewState extends State<FinanceiroView> {
 
   @override
   Widget build(BuildContext context) {
-    return ValueListenableBuilder<AppTheme>(
-      valueListenable: ThemeController.currentTheme,
-      builder: (context, theme, child) {
-        final loja =
-            context.watch<PdvProvider>().buscarPorId(widget.lojaId);
+    return CallbackShortcuts(
+      bindings: <ShortcutActivator, VoidCallback>{
+        const SingleActivator(LogicalKeyboardKey.f11): () {
+          context.read<PdvProvider>().alternarLayoutExpandido(widget.lojaId);
+        },
+      },
+      child: Focus(
+        autofocus: true,
+        child: ValueListenableBuilder<AppTheme>(
+          valueListenable: ThemeController.currentTheme,
+          builder: (context, theme, child) {
+            final loja =
+                context.watch<PdvProvider>().buscarPorId(widget.lojaId);
+            final larguraDaTela = MediaQuery.sizeOf(context).width;
+            final expandido =
+                (loja?.layoutExpandido ?? false) && larguraDaTela > 850;
 
-        return Scaffold(
-          backgroundColor: theme.backgroundColor,
-          appBar: const CustomAppBar(title: 'Financeiro'),
-          body: SafeArea(
-            child: Center(
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 500),
-                child: SingleChildScrollView(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      _barraAcoes(theme, loja),
-                      const SizedBox(height: 12),
-                      _filtroPeriodo(theme),
-                      const SizedBox(height: 16),
-                      Center(child: _blocoEntradas(theme)),
-                      const SizedBox(height: 16),
-                      Center(child: _blocoBalanco(theme, loja)),
-                      const SizedBox(height: 16),
-                      Center(child: _blocoCompras(theme, loja)),
-                      const SizedBox(height: 16),
-                      Center(child: _blocoFuncionarios(theme, loja)),
-                    ],
+            final conteudoColuna1 = [
+              _barraAcoes(theme, loja),
+              const SizedBox(height: 12),
+              _filtroPeriodo(theme),
+              const SizedBox(height: 16),
+              _blocoEntradas(theme),
+              const SizedBox(height: 16),
+              _blocoBalanco(theme, loja),
+            ];
+
+            final conteudoColuna2 = [
+              _blocoCompras(theme, loja),
+              const SizedBox(height: 16),
+              _blocoFuncionarios(theme, loja),
+            ];
+
+            return Scaffold(
+              backgroundColor: theme.backgroundColor,
+              appBar: const CustomAppBar(title: 'Financeiro'),
+              body: SafeArea(
+                child: Center(
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(
+                      maxWidth: expandido ? 1300 : 500,
+                    ),
+                    child: SingleChildScrollView(
+                      padding: const EdgeInsets.all(16),
+                      child: expandido
+                          ? Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Expanded(
+                                  flex: 5,
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.stretch,
+                                    children: conteudoColuna1,
+                                  ),
+                                ),
+                                const SizedBox(width: 16),
+                                Expanded(
+                                  flex: 5,
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.stretch,
+                                    children: conteudoColuna2,
+                                  ),
+                                ),
+                              ],
+                            )
+                          : Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                ...conteudoColuna1,
+                                const SizedBox(height: 16),
+                                ...conteudoColuna2,
+                              ],
+                            ),
+                    ),
                   ),
                 ),
               ),
-            ),
-          ),
-        );
-      },
+            );
+          },
+        ),
+      ),
     );
   }
 }

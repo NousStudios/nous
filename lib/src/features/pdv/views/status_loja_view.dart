@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:nous/src/core/theme/theme_controller.dart';
 import 'package:nous/src/core/widgets/custom_app_bar.dart';
@@ -569,34 +570,83 @@ class _StatusLojaViewState extends State<StatusLojaView> {
 
   @override
   Widget build(BuildContext context) {
-    return ValueListenableBuilder<AppTheme>(
-      valueListenable: ThemeController.currentTheme,
-      builder: (context, theme, child) {
-        return Scaffold(
-          backgroundColor: theme.backgroundColor,
-          appBar: const CustomAppBar(title: 'Status da Loja'),
-          body: SafeArea(
-            child: Center(
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 500),
-                child: SingleChildScrollView(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      _blocoResumoDoDia(theme),
-                      const SizedBox(height: 16),
-                      _blocoStatus(theme),
-                      const SizedBox(height: 16),
-                      _blocoTrabalhadores(theme),
-                    ],
+    return CallbackShortcuts(
+      bindings: <ShortcutActivator, VoidCallback>{
+        const SingleActivator(LogicalKeyboardKey.f11): () {
+          context.read<PdvProvider>().alternarLayoutExpandido(widget.lojaId);
+        },
+      },
+      child: Focus(
+        autofocus: true,
+        child: ValueListenableBuilder<AppTheme>(
+          valueListenable: ThemeController.currentTheme,
+          builder: (context, theme, child) {
+            final loja =
+                context.watch<PdvProvider>().buscarPorId(widget.lojaId);
+            final larguraDaTela = MediaQuery.sizeOf(context).width;
+            final expandido =
+                (loja?.layoutExpandido ?? false) && larguraDaTela > 850;
+
+            final conteudoColuna1 = [
+              _blocoResumoDoDia(theme),
+              const SizedBox(height: 16),
+              _blocoStatus(theme),
+            ];
+
+            final conteudoColuna2 = [
+              _blocoTrabalhadores(theme),
+            ];
+
+            return Scaffold(
+              backgroundColor: theme.backgroundColor,
+              appBar: const CustomAppBar(title: 'Status da Loja'),
+              body: SafeArea(
+                child: Center(
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(
+                      maxWidth: expandido ? 1200 : 500,
+                    ),
+                    child: SingleChildScrollView(
+                      padding: const EdgeInsets.all(16),
+                      child: expandido
+                          ? Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Expanded(
+                                  flex: 5,
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.stretch,
+                                    children: conteudoColuna1,
+                                  ),
+                                ),
+                                const SizedBox(width: 16),
+                                Expanded(
+                                  flex: 5,
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.stretch,
+                                    children: conteudoColuna2,
+                                  ),
+                                ),
+                              ],
+                            )
+                          : Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                ...conteudoColuna1,
+                                const SizedBox(height: 16),
+                                ...conteudoColuna2,
+                              ],
+                            ),
+                    ),
                   ),
                 ),
               ),
-            ),
-          ),
-        );
-      },
+            );
+          },
+        ),
+      ),
     );
   }
 }

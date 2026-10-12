@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:nous/src/core/theme/theme_controller.dart';
 import 'package:nous/src/core/widgets/custom_app_bar.dart';
@@ -92,120 +93,151 @@ class PerfisPdvView extends StatelessWidget {
   Widget build(BuildContext context) {
     final pdvProvider = context.watch<PdvProvider>();
 
-    return ValueListenableBuilder<AppTheme>(
-      valueListenable: ThemeController.currentTheme,
-      builder: (context, theme, child) {
-        return Scaffold(
-          backgroundColor: theme.backgroundColor,
-          appBar: CustomAppBar(
-            title: 'Meus Perfis',
-            showBackButton: false,
-            onLogout: () => _handleLogout(context),
-          ),
-          body: SafeArea(
-            child: Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: Column(
+    return CallbackShortcuts(
+      bindings: <ShortcutActivator, VoidCallback>{
+        const SingleActivator(LogicalKeyboardKey.f11): () {
+          pdvProvider.alternarLayoutExpandido();
+        },
+      },
+      child: Focus(
+        autofocus: true,
+        child: ValueListenableBuilder<AppTheme>(
+          valueListenable: ThemeController.currentTheme,
+          builder: (context, theme, child) {
+            final larguraDaTela = MediaQuery.sizeOf(context).width;
+            final expandido =
+                pdvProvider.layoutDesktopGlobal && larguraDaTela > 850;
+
+            final blocoAdministro = _blocoComTitulo(
+              theme: theme,
+              titulo: 'Meus Perfis Profissionais',
+              conteudo: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  Expanded(
-                    child: Center(
-                      child: ConstrainedBox(
-                        constraints: const BoxConstraints(
-                          maxWidth: _larguraMaximaConteudo,
+                  if (pdvProvider.lojasQueAdministro.isEmpty)
+                    EstadoVazioContainer(
+                      theme: theme,
+                      mensagem: 'Nenhum perfil profissional ainda.',
+                    )
+                  else
+                    _wrapDeLojas(
+                      context: context,
+                      theme: theme,
+                      lojas: pdvProvider.lojasQueAdministro,
+                    ),
+                  const SizedBox(height: 16),
+                  Center(
+                    child: OutlinedButton.icon(
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: theme.textColor,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 20,
+                          vertical: 10,
                         ),
-                        child: SingleChildScrollView(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            children: [
-                              _blocoComTitulo(
-                                theme: theme,
-                                titulo: 'Meus Perfis Profissionais',
-                                conteudo: Column(
-                                  crossAxisAlignment:
-                                      CrossAxisAlignment.stretch,
-                                  children: [
-                                    if (pdvProvider
-                                        .lojasQueAdministro.isEmpty)
-                                      EstadoVazioContainer(
-                                        theme: theme,
-                                        mensagem:
-                                            'Nenhum perfil profissional ainda.',
-                                      )
-                                    else
-                                      _wrapDeLojas(
-                                        context: context,
-                                        theme: theme,
-                                        lojas: pdvProvider.lojasQueAdministro,
-                                      ),
-                                    const SizedBox(height: 16),
-                                    Center(
-                                      child: OutlinedButton.icon(
-                                        style: OutlinedButton.styleFrom(
-                                          foregroundColor: theme.textColor,
-                                          padding: const EdgeInsets.symmetric(
-                                            horizontal: 20,
-                                            vertical: 10,
-                                          ),
-                                          side: BorderSide(
-                                              color: theme.borderColor),
-                                          shape: RoundedRectangleBorder(
-                                            borderRadius:
-                                                BorderRadius.circular(10),
-                                          ),
-                                        ),
-                                        onPressed: () {
-                                          showCriarPerfilDialog(context);
-                                        },
-                                        icon: Icon(
-                                          Icons.add,
-                                          color: theme.textColor,
-                                          size: 18,
-                                        ),
-                                        label: Text(
-                                          'Criar Perfil',
-                                          style: theme.getTextStyle(
-                                            fontSize: 14,
-                                            color: theme.textColor,
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              const SizedBox(height: 16),
-                              _blocoComTitulo(
-                                theme: theme,
-                                titulo: 'Perfis que eu participo',
-                                conteudo: pdvProvider
-                                        .lojasQueParticipo.isEmpty
-                                    ? EstadoVazioContainer(
-                                        theme: theme,
-                                        mensagem:
-                                            'Você não participa de nenhum perfil.',
-                                      )
-                                    : _wrapDeLojas(
-                                        context: context,
-                                        theme: theme,
-                                        lojas: pdvProvider.lojasQueParticipo,
-                                      ),
-                              ),
-                            ],
-                          ),
+                        side: BorderSide(color: theme.borderColor),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                      ),
+                      onPressed: () {
+                        showCriarPerfilDialog(context);
+                      },
+                      icon: Icon(
+                        Icons.add,
+                        color: theme.textColor,
+                        size: 18,
+                      ),
+                      label: Text(
+                        'Criar Perfil',
+                        style: theme.getTextStyle(
+                          fontSize: 14,
+                          color: theme.textColor,
                         ),
                       ),
                     ),
                   ),
                 ],
               ),
-            ),
-          ),
-          bottomNavigationBar: const FloatingBottomNavBar(
-            maxWidth: _larguraMaximaConteudo,
-          ),
-        );
-      },
+            );
+
+            final blocoParticipo = _blocoComTitulo(
+              theme: theme,
+              titulo: 'Perfis que eu participo',
+              conteudo: pdvProvider.lojasQueParticipo.isEmpty
+                  ? EstadoVazioContainer(
+                      theme: theme,
+                      mensagem:
+                          'Você não participa de nenhum perfil.',
+                    )
+                  : _wrapDeLojas(
+                      context: context,
+                      theme: theme,
+                      lojas: pdvProvider.lojasQueParticipo,
+                    ),
+            );
+
+            return Scaffold(
+              backgroundColor: theme.backgroundColor,
+              appBar: CustomAppBar(
+                title: 'Meus Perfis',
+                showBackButton: false,
+                onLogout: () => _handleLogout(context),
+              ),
+              body: SafeArea(
+                child: Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Expanded(
+                        child: Center(
+                          child: ConstrainedBox(
+                            constraints: BoxConstraints(
+                              maxWidth: expandido
+                                  ? 1200
+                                  : _larguraMaximaConteudo,
+                            ),
+                            child: SingleChildScrollView(
+                              child: expandido
+                                  ? Row(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Expanded(
+                                          flex: 5,
+                                          child: blocoAdministro,
+                                        ),
+                                        const SizedBox(width: 16),
+                                        Expanded(
+                                          flex: 5,
+                                          child: blocoParticipo,
+                                        ),
+                                      ],
+                                    )
+                                  : Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.stretch,
+                                      children: [
+                                        blocoAdministro,
+                                        const SizedBox(height: 16),
+                                        blocoParticipo,
+                                      ],
+                                    ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              bottomNavigationBar: FloatingBottomNavBar(
+                maxWidth: expandido ? 1200 : _larguraMaximaConteudo,
+              ),
+            );
+          },
+        ),
+      ),
     );
   }
 }

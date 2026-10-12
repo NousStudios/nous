@@ -59,6 +59,7 @@ class GestaoLojaContainer extends StatefulWidget {
   final List<MesaLoja> mesas;
   final VoidCallback? aoCriarMesa;
   final ValueChanged<MesaLoja>? aoClicarMesa;
+  final bool ocultarBotoesTopo;
 
   const GestaoLojaContainer({
     super.key,
@@ -92,6 +93,7 @@ class GestaoLojaContainer extends StatefulWidget {
     this.mesas = const [],
     this.aoCriarMesa,
     this.aoClicarMesa,
+    this.ocultarBotoesTopo = false,
   });
 
   @override
@@ -736,17 +738,19 @@ class _GestaoLojaContainerState extends State<GestaoLojaContainer> {
   Widget build(BuildContext context) {
     return Column(
       children: [
-        _blocoDeBotoes(context),
-        if (ehRestaurante && aoCriarMesa != null && aoClicarMesa != null) ...[
+        if (!widget.ocultarBotoesTopo) ...[
+          _blocoDeBotoes(context),
           const SizedBox(height: 16),
+        ],
+        if (ehRestaurante && aoCriarMesa != null && aoClicarMesa != null) ...[
           MesasContainer(
             theme: theme,
             mesas: mesas,
             aoCriarMesa: aoCriarMesa!,
             aoClicarMesa: aoClicarMesa!,
           ),
+          const SizedBox(height: 16),
         ],
-        const SizedBox(height: 16),
         _blocoDePedidos(context),
       ],
     );

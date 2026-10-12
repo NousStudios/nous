@@ -37,25 +37,45 @@ class ClientesDialog {
     return showDialog<void>(
       context: context,
       builder: (dialogContext) {
-        return Dialog(
-          backgroundColor: theme.cardBackgroundColor,
-          insetPadding: const EdgeInsets.all(16),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-            side: BorderSide(color: theme.borderColor),
-          ),
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 500),
-            child: _ClientesConteudo(
-              theme: theme,
-              lojaId: lojaId,
-              clientes: clientes,
-              pedidos: pedidos,
-              onSalvar: onSalvar,
-              onPagar: onPagar,
-              onExcluir: onExcluir,
-              clienteInicialId: clienteInicialId,
-            ),
+        return CallbackShortcuts(
+          bindings: <ShortcutActivator, VoidCallback>{
+            const SingleActivator(LogicalKeyboardKey.f11): () {
+              dialogContext
+                  .read<PdvProvider>()
+                  .alternarLayoutExpandido(lojaId);
+            },
+          },
+          child: Consumer<PdvProvider>(
+            builder: (ctx, pdv, child) {
+              final expandido = pdv.layoutDesktopAtivo(lojaId);
+              final larguraTela = MediaQuery.sizeOf(ctx).width;
+              final maxWidth = expandido
+                  ? (larguraTela > 1150 ? 1050.0 : larguraTela * 0.92)
+                  : 500.0;
+
+              return Dialog(
+                backgroundColor: theme.cardBackgroundColor,
+                insetPadding: const EdgeInsets.all(16),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                  side: BorderSide(color: theme.borderColor),
+                ),
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(maxWidth: maxWidth),
+                  child: _ClientesConteudo(
+                    theme: theme,
+                    lojaId: lojaId,
+                    expandido: expandido,
+                    clientes: clientes,
+                    pedidos: pedidos,
+                    onSalvar: onSalvar,
+                    onPagar: onPagar,
+                    onExcluir: onExcluir,
+                    clienteInicialId: clienteInicialId,
+                  ),
+                ),
+              );
+            },
           ),
         );
       },
@@ -66,6 +86,7 @@ class ClientesDialog {
 class _ClientesConteudo extends StatefulWidget {
   final AppTheme theme;
   final String lojaId;
+  final bool expandido;
   final List<Cliente> clientes;
   final List<PedidoLoja> pedidos;
   final ValueChanged<Cliente> onSalvar;
@@ -77,6 +98,7 @@ class _ClientesConteudo extends StatefulWidget {
   const _ClientesConteudo({
     required this.theme,
     required this.lojaId,
+    this.expandido = false,
     required this.clientes,
     required this.pedidos,
     required this.onSalvar,
@@ -1363,21 +1385,69 @@ class _ClientesConteudoState extends State<_ClientesConteudo> {
         Flexible(
           child: SingleChildScrollView(
             padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
-            child: Column(
-              children: [
-                if (editando != null) ...[
-                  _blocoFormulario(),
-                  const SizedBox(height: 12),
-                  _blocoDivida(editando),
-                  const SizedBox(height: 12),
-                  _blocoHistorico(editando),
-                ] else ...[
-                  _blocoLista(),
-                  const SizedBox(height: 12),
-                  _blocoFormulario(),
-                ],
-              ],
-            ),
+            child: widget.expandido
+                ? (editando != null
+                    ? Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Expanded(
+                            flex: 5,
+                            child: Column(
+                              children: [
+                                _blocoFormulario(),
+                                const SizedBox(height: 12),
+                                _blocoDivida(editando),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(width: 16),
+                          Expanded(
+                            flex: 5,
+                            child: Column(
+                              children: [
+                                _blocoHistorico(editando),
+                              ],
+                            ),
+                          ),
+                        ],
+                      )
+                    : Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Expanded(
+                            flex: 5,
+                            child: Column(
+                              children: [
+                                _blocoLista(),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(width: 16),
+                          Expanded(
+                            flex: 5,
+                            child: Column(
+                              children: [
+                                _blocoFormulario(),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ))
+                : Column(
+                    children: [
+                      if (editando != null) ...[
+                        _blocoFormulario(),
+                        const SizedBox(height: 12),
+                        _blocoDivida(editando),
+                        const SizedBox(height: 12),
+                        _blocoHistorico(editando),
+                      ] else ...[
+                        _blocoLista(),
+                        const SizedBox(height: 12),
+                        _blocoFormulario(),
+                      ],
+                    ],
+                  ),
           ),
         ),
       ],

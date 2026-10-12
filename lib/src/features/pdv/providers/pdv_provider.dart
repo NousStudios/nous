@@ -16,15 +16,38 @@ import 'package:nous/src/features/pdv/models/pedido_loja.dart';
 import 'package:nous/src/features/pdv/models/referencia_loja.dart';
 import 'package:nous/src/features/pdv/models/registro_acao.dart';
 import 'package:nous/src/features/pdv/models/turno_caixa.dart';
+import 'package:nous/src/core/services/janela_windows_service.dart';
 import 'package:nous/src/features/pdv/services/backup_service.dart';
 import 'package:nous/src/features/pdv/services/lojas_service.dart';
 
 class PdvProvider extends ChangeNotifier {
   final List<Loja> _lojas = [];
   String? _cpfAtual;
+  bool _layoutDesktopGlobal = false;
+  String _tipoLayoutDesktopGlobal = 'balcao_operacional';
 
   String? get cpfAtual => _cpfAtual;
   List<Loja> get lojas => List.unmodifiable(_lojas);
+  bool get layoutDesktopGlobal => _layoutDesktopGlobal;
+  String get tipoLayoutDesktopGlobal => _tipoLayoutDesktopGlobal;
+
+  bool layoutDesktopAtivo([String? lojaId]) {
+    if (lojaId != null && lojaId.isNotEmpty) {
+      final loja = buscarPorId(lojaId);
+      if (loja != null) return loja.layoutExpandido;
+    }
+    return _layoutDesktopGlobal;
+  }
+
+  String tipoLayoutAtivo([String? lojaId]) {
+    if (lojaId != null && lojaId.isNotEmpty) {
+      final loja = buscarPorId(lojaId);
+      if (loja != null && loja.tipoLayoutMaior.isNotEmpty) {
+        return loja.tipoLayoutMaior;
+      }
+    }
+    return _tipoLayoutDesktopGlobal;
+  }
 
   bool get temLojaSalva => _lojas.isNotEmpty;
 
@@ -452,6 +475,53 @@ class PdvProvider extends ChangeNotifier {
     _lojas[indice] = atualizada;
     notifyListeners();
     _salvarLojaNoCofreCorreto(atualizada);
+  }
+
+  void alternarLayoutExpandido([String? id]) {
+    bool novoValor = !_layoutDesktopGlobal;
+    if (id != null && id.isNotEmpty) {
+      final indice = _lojas.indexWhere((loja) => loja.id == id);
+      if (indice != -1) {
+        novoValor = !_lojas[indice].layoutExpandido;
+        _layoutDesktopGlobal = novoValor;
+        final atualizada = _lojas[indice].copyWith(layoutExpandido: novoValor);
+        _lojas[indice] = atualizada;
+        notifyListeners();
+        _salvarLojaNoCofreCorreto(atualizada);
+        JanelaWindowsService.alternarTelaCheia(novoValor);
+        return;
+      }
+    }
+    _layoutDesktopGlobal = novoValor;
+    notifyListeners();
+    JanelaWindowsService.alternarTelaCheia(novoValor);
+  }
+
+  void definirLayoutExpandido(bool ativo, [String? id]) {
+    _layoutDesktopGlobal = ativo;
+    if (id != null && id.isNotEmpty) {
+      final indice = _lojas.indexWhere((loja) => loja.id == id);
+      if (indice != -1) {
+        final atualizada = _lojas[indice].copyWith(layoutExpandido: ativo);
+        _lojas[indice] = atualizada;
+        _salvarLojaNoCofreCorreto(atualizada);
+      }
+    }
+    notifyListeners();
+    JanelaWindowsService.alternarTelaCheia(ativo);
+  }
+
+  void definirTipoLayoutMaior(String tipo, [String? id]) {
+    _tipoLayoutDesktopGlobal = tipo;
+    if (id != null && id.isNotEmpty) {
+      final indice = _lojas.indexWhere((loja) => loja.id == id);
+      if (indice != -1) {
+        final atualizada = _lojas[indice].copyWith(tipoLayoutMaior: tipo);
+        _lojas[indice] = atualizada;
+        _salvarLojaNoCofreCorreto(atualizada);
+      }
+    }
+    notifyListeners();
   }
 
   void atualizarListasLoja(

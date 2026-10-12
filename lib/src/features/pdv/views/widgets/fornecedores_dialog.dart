@@ -2,10 +2,13 @@ import 'dart:io';
 
 import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:provider/provider.dart';
 import 'package:nous/src/core/theme/theme_controller.dart';
 import 'package:nous/src/core/widgets/themed_text_field.dart';
 import 'package:nous/src/features/pdv/models/cliente.dart';
 import 'package:nous/src/features/pdv/models/fornecedor.dart';
+import 'package:nous/src/features/pdv/providers/pdv_provider.dart';
 import 'package:nous/src/features/pdv/services/cnpj_input_formatter.dart';
 import 'package:nous/src/features/pdv/services/imagem_service.dart';
 import 'package:nous/src/features/pdv/services/telefone_input_formatter.dart';
@@ -16,6 +19,7 @@ class FornecedoresDialog {
   static Future<void> mostrar(
     BuildContext context, {
     required AppTheme theme,
+    String? lojaId,
     required List<Cliente> clientes,
     required List<Fornecedor> fornecedores,
     required ValueChanged<Fornecedor> onSalvar,
@@ -24,22 +28,42 @@ class FornecedoresDialog {
     return showDialog<void>(
       context: context,
       builder: (dialogContext) {
-        return Dialog(
-          backgroundColor: theme.cardBackgroundColor,
-          insetPadding: const EdgeInsets.all(16),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-            side: BorderSide(color: theme.borderColor),
-          ),
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 500),
-            child: _FornecedoresConteudo(
-              theme: theme,
-              clientes: clientes,
-              fornecedores: fornecedores,
-              onSalvar: onSalvar,
-              onExcluir: onExcluir,
-            ),
+        return CallbackShortcuts(
+          bindings: <ShortcutActivator, VoidCallback>{
+            const SingleActivator(LogicalKeyboardKey.f11): () {
+              dialogContext
+                  .read<PdvProvider>()
+                  .alternarLayoutExpandido(lojaId);
+            },
+          },
+          child: Consumer<PdvProvider>(
+            builder: (ctx, pdv, child) {
+              final expandido = pdv.layoutDesktopAtivo(lojaId);
+              final larguraTela = MediaQuery.sizeOf(ctx).width;
+              final maxWidth = expandido
+                  ? (larguraTela > 1150 ? 1050.0 : larguraTela * 0.92)
+                  : 500.0;
+
+              return Dialog(
+                backgroundColor: theme.cardBackgroundColor,
+                insetPadding: const EdgeInsets.all(16),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                  side: BorderSide(color: theme.borderColor),
+                ),
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(maxWidth: maxWidth),
+                  child: _FornecedoresConteudo(
+                    theme: theme,
+                    expandido: expandido,
+                    clientes: clientes,
+                    fornecedores: fornecedores,
+                    onSalvar: onSalvar,
+                    onExcluir: onExcluir,
+                  ),
+                ),
+              );
+            },
           ),
         );
       },
@@ -49,6 +73,7 @@ class FornecedoresDialog {
 
 class _FornecedoresConteudo extends StatefulWidget {
   final AppTheme theme;
+  final bool expandido;
   final List<Cliente> clientes;
   final List<Fornecedor> fornecedores;
   final ValueChanged<Fornecedor> onSalvar;
@@ -56,6 +81,7 @@ class _FornecedoresConteudo extends StatefulWidget {
 
   const _FornecedoresConteudo({
     required this.theme,
+    this.expandido = false,
     required this.clientes,
     required this.fornecedores,
     required this.onSalvar,
@@ -852,21 +878,48 @@ class _FornecedoresConteudoState extends State<_FornecedoresConteudo> {
         Flexible(
           child: SingleChildScrollView(
             padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
-            child: Column(
-              children: [
-                if (editando != null || veioDeCliente) ...[
-                  _blocoFormulario(),
-                  const SizedBox(height: 12),
-                  _blocoLista(),
-                ] else ...[
-                  _blocoLista(),
-                  const SizedBox(height: 12),
-                  _blocoClientes(),
-                  const SizedBox(height: 12),
-                  _blocoFormulario(),
-                ],
-              ],
-            ),
+            child: widget.expandido
+                ? Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        flex: 5,
+                        child: Column(
+                          children: [
+                            _blocoLista(),
+                            if (editando == null && !veioDeCliente) ...[
+                              const SizedBox(height: 12),
+                              _blocoClientes(),
+                            ],
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        flex: 5,
+                        child: Column(
+                          children: [
+                            _blocoFormulario(),
+                          ],
+                        ),
+                      ),
+                    ],
+                  )
+                : Column(
+                    children: [
+                      if (editando != null || veioDeCliente) ...[
+                        _blocoFormulario(),
+                        const SizedBox(height: 12),
+                        _blocoLista(),
+                      ] else ...[
+                        _blocoLista(),
+                        const SizedBox(height: 12),
+                        _blocoClientes(),
+                        const SizedBox(height: 12),
+                        _blocoFormulario(),
+                      ],
+                    ],
+                  ),
           ),
         ),
       ],
