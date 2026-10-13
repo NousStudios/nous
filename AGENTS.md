@@ -216,9 +216,21 @@ Este projeto apoia-se no **anarquismo plataformista brasileiro**: poder sem inte
 - **Busca Universal Multicampo de Clientes e Fornecedores (`correspondeABusca`):**
   - Nos containers "Clientes Cadastrados" (`ClientesDialog`), "Fornecedores" (`FornecedoresDialog`) e na busca de cliente na Nova Venda (`NovaVendaDialog`), o filtro pesquisa simultaneamente por **qualquer dado da ficha**: nome, rua/logradouro, número do imóvel, CPF/CNPJ (com ou sem pontuação), telefone (com ou sem pontuação), e-mail, redes sociais ou descrição.
   - Permite pesquisar apenas o nome de uma rua para listar imediatamente todos os clientes residentes nela.
-  - Cada card de cliente e fornecedor na listagem renderiza visualmente o endereço (`rua, nº número`) abaixo do nome em tipografia secundária para conferência instantânea.
+- **Container "Cargos e Permissões" (Estilo Discord, `CargosEPermissoesContainer`):**
+  - Posicionado acima do container "Usuários Participantes" na aba "Dados do Perfil".
+  - Minimizado por padrão com expansão/recolhimento sob clique para preservar a ergonomia visual.
+  - Abas horizontais no estilo Discord para cargos nativos (`Dono`, `Sócio`, `Administrador`, `Funcionário`) e novos cargos customizados criados via `+ Novo Cargo`.
+  - Transparência radical: lista todas as permissões do sistema (`PermissaoLojaConst.todas`) com explicação didática e `ThemedSwitch`. Nos cargos nativos, os switches permanecem travados com badge explicativo de *"Regra fundamental do sistema (inalterável)"*. Nos cargos personalizados, quem tem permissão pode alternar livremente cada permissão, renomear ou excluir o cargo.
+  - Modelo `CargoLoja` com mapa de permissões flexível persistido no cofre da `Loja` (`cargosPersonalizados`) e suporte a `cargoPersonalizadoId` em `MembroLoja`.
 
 ### 7.3 Fluxo de Venda, Comandas e Estoque
+- **Reordenação Fluida por Pressão sem Alça de Arraste (Loja do Perfil):**
+  - Na tela "Loja do Perfil", usuários com permissão (`possoEditarAbaLoja`) podem segurar por 1 segundo (`LongPressDraggable` com `delay: const Duration(seconds: 1)` e `dragAnchorStrategy: pointerDragAnchorStrategy`) qualquer card ou barra para reordenar:
+    - **Categorias** (lista vertical com `DragTarget<int>` e `AnimatedSize` de 250ms abrindo caminho suave para baixo);
+    - **Grupos de Componentes** (lista vertical com `DragTarget<int>` e `AnimatedSize` de 250ms abrindo caminho suave para baixo);
+    - **Produtos** (no modo compacto horizontal e no modo expandido em Wrap com `DragTarget<int>` e `AnimatedSize` abrindo slot com contorno do tema e empurrando os itens vizinhos para o lado).
+  - **Proibição Estrita de GlobalKey em Itens Reordenáveis:** É mandatório usar `ValueKey('cat_${id}')` e `ValueKey('grp_${id}')`. O uso de `GlobalKey` em widgets dentro de `LongPressDraggable` é proibido pois duplica a chave no overlay de feedback do Flutter e causa travamento imediato (`Duplicate GlobalKey detected`).
+  - Ao soltar o card/barra, ele se encaixa no slot aberto e a nova ordem é salva imediatamente no cofre da loja (`_persistirListasLoja`).
 - Itens vendidos (`ItemVendido`) guardam a foto do produto, garantindo miniaturas na vitrine, no carrinho, na busca, nas abas de gestão (`Novos`, `Aceitos`, `Concluídos`, `Cancelados`) e nas comandas (`ComandaPedido` e `PedidoAceitoDialog`).
 - Suporte a pagamentos múltiplos (`List<PagamentoParcial>`) acessados prioritariamente via getter `pedido.todosPagamentos`.
 - Impressão térmica padrão de 58mm e 80mm gerada em PDF via `ImpressaoService`.

@@ -20,6 +20,7 @@ import 'package:nous/src/features/pdv/models/configuracoes_impressora.dart';
 import 'package:nous/src/features/pdv/models/fornecedor.dart';
 import 'package:nous/src/features/pdv/models/grupo_componentes_loja.dart';
 import 'package:nous/src/features/pdv/models/item_loja.dart';
+import 'package:nous/src/features/pdv/views/widgets/cargos_permissoes_container.dart';
 import 'package:nous/src/core/services/gerador_id.dart';
 import 'package:nous/src/core/services/janela_windows_service.dart';
 import 'package:nous/src/core/services/som_service.dart';
@@ -177,9 +178,6 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
 
   bool _tentouGarantirDono = false;
 
-  final Map<String, GlobalKey> _chavesCategorias = {};
-  final Map<String, GlobalKey> _chavesGrupos = {};
-
   bool _tratarTecladoGlobal(KeyEvent event) {
     if (event is KeyDownEvent && event.logicalKey == LogicalKeyboardKey.f11) {
       JanelaWindowsService.alternarTelaCheia();
@@ -187,12 +185,6 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
     }
     return false;
   }
-
-  GlobalKey _chaveCategoria(String id) =>
-      _chavesCategorias.putIfAbsent(id, () => GlobalKey());
-
-  GlobalKey _chaveGrupo(String id) =>
-      _chavesGrupos.putIfAbsent(id, () => GlobalKey());
 
   void _avisarSemPermissao() {
     final theme = ThemeController.currentTheme.value;
@@ -454,29 +446,28 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
     }
   }
 
-  void _rolarAteOTopo(GlobalKey chave) {
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      final contextoDoWidget = chave.currentContext;
-      if (contextoDoWidget == null) return;
-      Scrollable.ensureVisible(
-        contextoDoWidget,
-        duration: const Duration(milliseconds: 300),
-        curve: Curves.easeInOut,
-        alignment: 0.0,
-      );
-    });
-  }
-
   void _alternarExpansaoCategoria(String id) {
     final vaiExpandir = _categoriaExpandidaId != id;
     setState(() => _categoriaExpandidaId = vaiExpandir ? id : null);
-    if (vaiExpandir) _rolarAteOTopo(_chaveCategoria(id));
+    if (vaiExpandir && _scrollCategorias.hasClients) {
+      _scrollCategorias.animateTo(
+        0,
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeInOut,
+      );
+    }
   }
 
   void _alternarExpansaoGrupo(String id) {
     final vaiExpandir = _grupoExpandidoId != id;
     setState(() => _grupoExpandidoId = vaiExpandir ? id : null);
-    if (vaiExpandir) _rolarAteOTopo(_chaveGrupo(id));
+    if (vaiExpandir && _scrollGrupos.hasClients) {
+      _scrollGrupos.animateTo(
+        0,
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeInOut,
+      );
+    }
   }
 
   void _persistirListasLoja() {
@@ -3035,7 +3026,7 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
     bool podeEditarLoja,
   ) {
     return CategoriaLojaContainer(
-      key: _chaveCategoria(categoria.id),
+      key: ValueKey('cat_${categoria.id}'),
       theme: theme,
       nome: categoria.nome,
       preco: categoria.preco,
@@ -3075,18 +3066,116 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
     }
 
     if (_categoriaExpandidaId == null) {
+      final podeReordenar =
+          podeEditarLoja && _pesquisaCategorias.text.trim().isEmpty;
+
       return SizedBox(
         height: _alturaMaximaListaSecundaria,
-        child: ListView.separated(
-          controller: _scrollCategorias,
-          padding: const EdgeInsets.only(right: 8),
-          itemCount: categorias.length,
-          separatorBuilder: (context, index) => const SizedBox(height: 8),
-          itemBuilder: (context, index) => _construirCategoria(
-            theme,
-            categorias[index],
-            podeEditarLoja,
-          ),
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            return ListView.separated(
+              controller: _scrollCategorias,
+              padding: const EdgeInsets.only(right: 8),
+              itemCount: categorias.length,
+              separatorBuilder: (context, index) => const SizedBox(height: 8),
+              itemBuilder: (context, index) {
+                final cat = categorias[index];
+                final cardWidget =
+                    _construirCategoria(theme, cat, podeEditarLoja);
+
+                if (!podeReordenar) {
+                  return cardWidget;
+                }
+
+                return DragTarget<int>(
+                  key: ValueKey('target_cat_${cat.id}'),
+                  onWillAcceptWithDetails: (details) => details.data != index,
+                  onAcceptWithDetails: (details) {
+                    setState(() {
+                      final oldIndex = details.data;
+                      final item = _categorias.removeAt(oldIndex);
+                      _categorias.insert(index, item);
+                      _persistirListasLoja();
+                    });
+                  },
+                  builder: (context, candidateData, rejectedData) {
+                    final isSobre = candidateData.isNotEmpty;
+                    return Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        AnimatedSize(
+                          duration: const Duration(milliseconds: 250),
+                          curve: Curves.easeOutCubic,
+                          child: isSobre
+                              ? Container(
+                                  height: 48,
+                                  margin: const EdgeInsets.only(bottom: 8),
+                                  decoration: BoxDecoration(
+                                    borderRadius: BorderRadius.circular(10),
+                                    color: theme.textColor.withValues(alpha: 0.08),
+                                    border: Border.all(
+                                      color: theme.textColor.withValues(alpha: 0.6),
+                                      width: 1.6,
+                                    ),
+                                  ),
+                                  child: Center(
+                                    child: Row(
+                                      mainAxisAlignment: MainAxisAlignment.center,
+                                      children: [
+                                        Icon(
+                                          Icons.swap_vert_rounded,
+                                          size: 18,
+                                          color: theme.textColor.withValues(alpha: 0.7),
+                                        ),
+                                        const SizedBox(width: 6),
+                                        Text(
+                                          'Mover categoria para cá',
+                                          style: theme.getTextStyle(
+                                            fontSize: 12,
+                                            fontWeight: FontWeight.w600,
+                                            color: theme.textColor.withValues(alpha: 0.8),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                )
+                              : const SizedBox.shrink(),
+                        ),
+                        LongPressDraggable<int>(
+                          delay: const Duration(seconds: 1),
+                          data: index,
+                          dragAnchorStrategy: pointerDragAnchorStrategy,
+                          feedback: Material(
+                            color: Colors.transparent,
+                            elevation: 16,
+                            shadowColor: Colors.black.withValues(alpha: 0.5),
+                            borderRadius: BorderRadius.circular(10),
+                            child: SizedBox(
+                              width: constraints.maxWidth,
+                              child: Transform.scale(
+                                scale: 1.02,
+                                child: Opacity(
+                                  opacity: 0.95,
+                                  child: cardWidget,
+                                ),
+                              ),
+                            ),
+                          ),
+                          childWhenDragging: Opacity(
+                            opacity: 0.25,
+                            child: cardWidget,
+                          ),
+                          child: cardWidget,
+                        ),
+                      ],
+                    );
+                  },
+                );
+              },
+            );
+          },
         ),
       );
     }
@@ -3107,7 +3196,7 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
     bool podeEditarLoja,
   ) {
     return GrupoComponentesLojaContainer(
-      key: _chaveGrupo(grupo.id),
+      key: ValueKey('grp_${grupo.id}'),
       theme: theme,
       nome: grupo.nome,
       foto: grupo.foto,
@@ -3146,18 +3235,115 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
     }
 
     if (_grupoExpandidoId == null) {
+      final podeReordenar =
+          podeEditarLoja && _pesquisaGrupos.text.trim().isEmpty;
+
       return SizedBox(
         height: _alturaMaximaListaSecundaria,
-        child: ListView.separated(
-          controller: _scrollGrupos,
-          padding: const EdgeInsets.only(right: 8),
-          itemCount: grupos.length,
-          separatorBuilder: (context, index) => const SizedBox(height: 8),
-          itemBuilder: (context, index) => _construirGrupo(
-            theme,
-            grupos[index],
-            podeEditarLoja,
-          ),
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            return ListView.separated(
+              controller: _scrollGrupos,
+              padding: const EdgeInsets.only(right: 8),
+              itemCount: grupos.length,
+              separatorBuilder: (context, index) => const SizedBox(height: 8),
+              itemBuilder: (context, index) {
+                final grp = grupos[index];
+                final cardWidget = _construirGrupo(theme, grp, podeEditarLoja);
+
+                if (!podeReordenar) {
+                  return cardWidget;
+                }
+
+                return DragTarget<int>(
+                  key: ValueKey('target_grp_${grp.id}'),
+                  onWillAcceptWithDetails: (details) => details.data != index,
+                  onAcceptWithDetails: (details) {
+                    setState(() {
+                      final oldIndex = details.data;
+                      final item = _gruposComponentes.removeAt(oldIndex);
+                      _gruposComponentes.insert(index, item);
+                      _persistirListasLoja();
+                    });
+                  },
+                  builder: (context, candidateData, rejectedData) {
+                    final isSobre = candidateData.isNotEmpty;
+                    return Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        AnimatedSize(
+                          duration: const Duration(milliseconds: 250),
+                          curve: Curves.easeOutCubic,
+                          child: isSobre
+                              ? Container(
+                                  height: 48,
+                                  margin: const EdgeInsets.only(bottom: 8),
+                                  decoration: BoxDecoration(
+                                    borderRadius: BorderRadius.circular(10),
+                                    color: theme.textColor.withValues(alpha: 0.08),
+                                    border: Border.all(
+                                      color: theme.textColor.withValues(alpha: 0.6),
+                                      width: 1.6,
+                                    ),
+                                  ),
+                                  child: Center(
+                                    child: Row(
+                                      mainAxisAlignment: MainAxisAlignment.center,
+                                      children: [
+                                        Icon(
+                                          Icons.swap_vert_rounded,
+                                          size: 18,
+                                          color: theme.textColor.withValues(alpha: 0.7),
+                                        ),
+                                        const SizedBox(width: 6),
+                                        Text(
+                                          'Mover grupo para cá',
+                                          style: theme.getTextStyle(
+                                            fontSize: 12,
+                                            fontWeight: FontWeight.w600,
+                                            color: theme.textColor.withValues(alpha: 0.8),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                )
+                              : const SizedBox.shrink(),
+                        ),
+                        LongPressDraggable<int>(
+                          delay: const Duration(seconds: 1),
+                          data: index,
+                          dragAnchorStrategy: pointerDragAnchorStrategy,
+                          feedback: Material(
+                            color: Colors.transparent,
+                            elevation: 16,
+                            shadowColor: Colors.black.withValues(alpha: 0.5),
+                            borderRadius: BorderRadius.circular(10),
+                            child: SizedBox(
+                              width: constraints.maxWidth,
+                              child: Transform.scale(
+                                scale: 1.02,
+                                child: Opacity(
+                                  opacity: 0.95,
+                                  child: cardWidget,
+                                ),
+                              ),
+                            ),
+                          ),
+                          childWhenDragging: Opacity(
+                            opacity: 0.25,
+                            child: cardWidget,
+                          ),
+                          child: cardWidget,
+                        ),
+                      ],
+                    );
+                  },
+                );
+              },
+            );
+          },
         ),
       );
     }
@@ -3271,8 +3457,10 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
                     Wrap(
                       spacing: 12,
                       runSpacing: 12,
-                      children: itensFiltrados.map((item) {
-                        return ItemLojaCard(
+                      children: itensFiltrados.asMap().entries.map((entry) {
+                        final index = entry.key;
+                        final item = entry.value;
+                        final card = ItemLojaCard(
                           key: ValueKey('item_${item.id}'),
                           theme: theme,
                           nome: item.nome,
@@ -3291,6 +3479,115 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
                           onPrecoAlterado: (novoPreco) =>
                               _editarPrecoItem(item.id, novoPreco),
                         );
+
+                        if (podeEditarLoja &&
+                            _pesquisaItens.text.trim().isEmpty) {
+                          return DragTarget<int>(
+                            key: ValueKey('target_item_w_${item.id}'),
+                            onWillAcceptWithDetails: (details) =>
+                                details.data != index,
+                            onAcceptWithDetails: (details) {
+                              setState(() {
+                                final oldIndex = details.data;
+                                final itemRemovido = _itens.removeAt(oldIndex);
+                                _itens.insert(index, itemRemovido);
+                                _persistirListasLoja();
+                              });
+                            },
+                            builder: (context, candidateData, rejectedData) {
+                              final isSobre = candidateData.isNotEmpty;
+                              return Row(
+                                mainAxisSize: MainAxisSize.min,
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  AnimatedSize(
+                                    duration: const Duration(milliseconds: 250),
+                                    curve: Curves.easeOutCubic,
+                                    child: isSobre
+                                        ? Container(
+                                            width: 130,
+                                            height: (175 *
+                                                    (theme.fontScale > 1.0
+                                                        ? theme.fontScale
+                                                        : 1.0))
+                                                .clamp(175.0, 235.0),
+                                            margin: const EdgeInsets.only(right: 12),
+                                            decoration: BoxDecoration(
+                                              borderRadius:
+                                                  BorderRadius.circular(12),
+                                              color: theme.textColor
+                                                  .withValues(alpha: 0.08),
+                                              border: Border.all(
+                                                color: theme.textColor
+                                                    .withValues(alpha: 0.6),
+                                                width: 1.6,
+                                              ),
+                                            ),
+                                            child: Center(
+                                              child: Column(
+                                                mainAxisAlignment:
+                                                    MainAxisAlignment.center,
+                                                children: [
+                                                  Icon(
+                                                    Icons.swap_horiz_rounded,
+                                                    size: 24,
+                                                    color: theme.textColor
+                                                        .withValues(alpha: 0.7),
+                                                  ),
+                                                  const SizedBox(height: 6),
+                                                  Text(
+                                                    'Mover para cá',
+                                                    textAlign: TextAlign.center,
+                                                    style: theme.getTextStyle(
+                                                      fontSize: 11,
+                                                      fontWeight:
+                                                          FontWeight.w600,
+                                                      color: theme.textColor
+                                                          .withValues(
+                                                              alpha: 0.8),
+                                                    ),
+                                                  ),
+                                                ],
+                                              ),
+                                            ),
+                                          )
+                                        : const SizedBox.shrink(),
+                                  ),
+                                  LongPressDraggable<int>(
+                                    delay: const Duration(seconds: 1),
+                                    data: index,
+                                    dragAnchorStrategy:
+                                        pointerDragAnchorStrategy,
+                                    feedback: Material(
+                                      color: Colors.transparent,
+                                      elevation: 16,
+                                      shadowColor: Colors.black
+                                          .withValues(alpha: 0.5),
+                                      borderRadius: BorderRadius.circular(12),
+                                      child: Transform.scale(
+                                        scale: 1.05,
+                                        child: Opacity(
+                                          opacity: 0.95,
+                                          child: SizedBox(
+                                            width: 130,
+                                            child: card,
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                    childWhenDragging: Opacity(
+                                      opacity: 0.25,
+                                      child: card,
+                                    ),
+                                    child: card,
+                                  ),
+                                ],
+                              );
+                            },
+                          );
+                        }
+
+                        return card;
                       }).toList(),
                     )
                   else if (_itens.isEmpty)
@@ -3330,7 +3627,7 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
                     const SizedBox(width: 12),
                 itemBuilder: (context, index) {
                   final item = itensFiltrados[index];
-                  return ItemLojaCard(
+                  final card = ItemLojaCard(
                     key: ValueKey('item_${item.id}'),
                     theme: theme,
                     nome: item.nome,
@@ -3348,6 +3645,107 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
                     onPrecoAlterado: (novoPreco) =>
                         _editarPrecoItem(item.id, novoPreco),
                   );
+
+                  if (podeEditarLoja &&
+                      _pesquisaItens.text.trim().isEmpty) {
+                    return DragTarget<int>(
+                      key: ValueKey('target_item_h_${item.id}'),
+                      onWillAcceptWithDetails: (details) =>
+                          details.data != index,
+                      onAcceptWithDetails: (details) {
+                        setState(() {
+                          final oldIndex = details.data;
+                          final itemRemovido = _itens.removeAt(oldIndex);
+                          _itens.insert(index, itemRemovido);
+                          _persistirListasLoja();
+                        });
+                      },
+                      builder: (context, candidateData, rejectedData) {
+                        final isSobre = candidateData.isNotEmpty;
+                        return Row(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            AnimatedSize(
+                              duration: const Duration(milliseconds: 250),
+                              curve: Curves.easeOutCubic,
+                              child: isSobre
+                                  ? Container(
+                                      width: 130,
+                                      margin: const EdgeInsets.only(right: 12),
+                                      decoration: BoxDecoration(
+                                        borderRadius:
+                                            BorderRadius.circular(12),
+                                        color: theme.textColor
+                                            .withValues(alpha: 0.08),
+                                        border: Border.all(
+                                          color: theme.textColor
+                                              .withValues(alpha: 0.6),
+                                          width: 1.6,
+                                        ),
+                                      ),
+                                      child: Center(
+                                        child: Column(
+                                          mainAxisAlignment:
+                                              MainAxisAlignment.center,
+                                          children: [
+                                            Icon(
+                                              Icons.swap_horiz_rounded,
+                                              size: 24,
+                                              color: theme.textColor
+                                                  .withValues(alpha: 0.7),
+                                            ),
+                                            const SizedBox(height: 6),
+                                            Text(
+                                              'Mover para cá',
+                                              textAlign: TextAlign.center,
+                                              style: theme.getTextStyle(
+                                                fontSize: 11,
+                                                fontWeight: FontWeight.w600,
+                                                color: theme.textColor
+                                                    .withValues(alpha: 0.8),
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    )
+                                  : const SizedBox.shrink(),
+                            ),
+                            LongPressDraggable<int>(
+                              delay: const Duration(seconds: 1),
+                              data: index,
+                              dragAnchorStrategy: pointerDragAnchorStrategy,
+                              feedback: Material(
+                                color: Colors.transparent,
+                                elevation: 16,
+                                shadowColor:
+                                    Colors.black.withValues(alpha: 0.5),
+                                borderRadius: BorderRadius.circular(12),
+                                child: Transform.scale(
+                                  scale: 1.05,
+                                  child: Opacity(
+                                    opacity: 0.95,
+                                    child: SizedBox(
+                                      width: 130,
+                                      child: card,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              childWhenDragging: Opacity(
+                                opacity: 0.25,
+                                child: card,
+                              ),
+                              child: card,
+                            ),
+                          ],
+                        );
+                      },
+                    );
+                  }
+
+                  return card;
                 },
               ),
             )
@@ -4260,6 +4658,18 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
           ),
         );
 
+        final blocoCargos = CargosEPermissoesContainer(
+          theme: theme,
+          cargosPersonalizados: lojaAtual?.cargosPersonalizados ?? const [],
+          podeGerenciar: possoGerenciarMembros,
+          onAdicionarCargo: (novoCargo) =>
+              pdv.adicionarCargoLoja(widget.lojaId, novoCargo),
+          onAtualizarCargo: (cargo) =>
+              pdv.atualizarCargoLoja(widget.lojaId, cargo),
+          onRemoverCargo: (cargoId) =>
+              pdv.removerCargoLoja(widget.lojaId, cargoId),
+        );
+
         final blocoMembros = UsuariosParticipantesContainer(
           theme: theme,
           membros: _membros,
@@ -4351,6 +4761,8 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
                   children: [
                     blocoFormulario,
                     const SizedBox(height: 16),
+                    blocoCargos,
+                    const SizedBox(height: 16),
                     blocoMembros,
                   ],
                 ),
@@ -4369,6 +4781,8 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
         return Column(
           children: [
             blocoFormulario,
+            const SizedBox(height: 16),
+            blocoCargos,
             const SizedBox(height: 16),
             blocoMembros,
             const SizedBox(height: 16),

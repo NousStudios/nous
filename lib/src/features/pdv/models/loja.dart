@@ -1,3 +1,4 @@
+import 'package:nous/src/features/pdv/models/cargo_loja.dart';
 import 'package:nous/src/features/pdv/models/categoria_loja.dart';
 import 'package:nous/src/features/pdv/models/cliente.dart';
 import 'package:nous/src/features/pdv/models/configuracoes_impressora.dart';
@@ -35,6 +36,7 @@ class Loja {
   final List<PedidoLoja> pedidosLoja;
   final List<RegistroAcao> acoes;
   final List<MembroLoja> membros;
+  final List<CargoLoja> cargosPersonalizados;
   final List<MesaLoja> mesas;
   final List<MovimentoEstoque> movimentosEstoque;
   final List<PagamentoFuncionario> pagamentosFuncionarios;
@@ -75,6 +77,7 @@ class Loja {
     this.pedidosLoja = const [],
     this.acoes = const [],
     this.membros = const [],
+    this.cargosPersonalizados = const [],
     this.mesas = const [],
     this.movimentosEstoque = const [],
     this.pagamentosFuncionarios = const [],
@@ -113,6 +116,7 @@ class Loja {
     List<PedidoLoja>? pedidosLoja,
     List<RegistroAcao>? acoes,
     List<MembroLoja>? membros,
+    List<CargoLoja>? cargosPersonalizados,
     List<MesaLoja>? mesas,
     List<MovimentoEstoque>? movimentosEstoque,
     List<PagamentoFuncionario>? pagamentosFuncionarios,
@@ -152,6 +156,7 @@ class Loja {
       pedidosLoja: pedidosLoja ?? this.pedidosLoja,
       acoes: acoes ?? this.acoes,
       membros: membros ?? this.membros,
+      cargosPersonalizados: cargosPersonalizados ?? this.cargosPersonalizados,
       mesas: mesas ?? this.mesas,
       movimentosEstoque: movimentosEstoque ?? this.movimentosEstoque,
       pagamentosFuncionarios:
@@ -198,6 +203,8 @@ class Loja {
       'pedidosLoja': pedidosLoja.map((p) => p.toJson()).toList(),
       'acoes': acoes.map((a) => a.toJson()).toList(),
       'membros': membros.map((m) => m.toJson()).toList(),
+      'cargosPersonalizados':
+          cargosPersonalizados.map((c) => c.toJson()).toList(),
       'mesas': mesas.map((m) => m.toJson()).toList(),
       'movimentosEstoque':
           movimentosEstoque.map((m) => m.toJson()).toList(),
@@ -260,6 +267,10 @@ class Loja {
       membros: (json['membros'] as List<dynamic>? ?? const [])
           .map((item) => MembroLoja.fromJson(item as Map<String, dynamic>))
           .toList(),
+      cargosPersonalizados:
+          (json['cargosPersonalizados'] as List<dynamic>? ?? const [])
+              .map((item) => CargoLoja.fromJson(item as Map<String, dynamic>))
+              .toList(),
       mesas: (json['mesas'] as List<dynamic>? ?? const [])
           .map((item) => MesaLoja.fromJson(item as Map<String, dynamic>))
           .toList(),

@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
+import 'package:nous/src/features/pdv/models/cargo_loja.dart';
 import 'package:nous/src/features/pdv/models/categoria_loja.dart';
 import 'package:nous/src/features/pdv/models/cliente.dart';
 import 'package:nous/src/features/pdv/models/configuracoes_impressora.dart';
@@ -168,51 +169,113 @@ class PdvProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  PapelMembro? meuPapel(String lojaId) {
+  MembroLoja? meuMembro(String lojaId) {
     final cpf = _cpfAtual;
     if (cpf == null) return null;
     final loja = buscarPorId(lojaId);
     if (loja == null) return null;
     for (final m in loja.membros) {
-      if (m.cpf == cpf) return m.papel;
+      if (m.cpf == cpf) return m;
+    }
+    if (loja.cpfDonoOriginal.isNotEmpty && loja.cpfDonoOriginal == cpf) {
+      return MembroLoja(
+        cpf: cpf,
+        nome: 'Dono',
+        papel: PapelMembro.dono,
+        desde: DateTime.now(),
+      );
     }
     return null;
   }
 
+  PapelMembro? meuPapel(String lojaId) {
+    return meuMembro(lojaId)?.papel;
+  }
+
+  CargoLoja? meuCargoPersonalizado(String lojaId) {
+    final membro = meuMembro(lojaId);
+    if (membro?.cargoPersonalizadoId == null) return null;
+    final loja = buscarPorId(lojaId);
+    return loja?.cargosPersonalizados
+        .where((c) => c.id == membro!.cargoPersonalizadoId)
+        .firstOrNull;
+  }
+
   bool possoEditarAbaLoja(String lojaId) {
-    final p = meuPapel(lojaId);
-    return p != null && p != PapelMembro.funcionario;
+    final m = meuMembro(lojaId);
+    if (m == null) return false;
+    if (m.papel == PapelMembro.dono) return true;
+    final cargo = meuCargoPersonalizado(lojaId);
+    if (cargo != null) {
+      return cargo.temPermissao(PermissaoLojaConst.editarAbaLoja);
+    }
+    return m.papel != PapelMembro.funcionario;
   }
 
   bool possoUsarImpressora(String lojaId) {
-    final p = meuPapel(lojaId);
-    return p != null && p != PapelMembro.funcionario;
+    final m = meuMembro(lojaId);
+    if (m == null) return false;
+    if (m.papel == PapelMembro.dono) return true;
+    final cargo = meuCargoPersonalizado(lojaId);
+    if (cargo != null) {
+      return cargo.temPermissao(PermissaoLojaConst.usarImpressora);
+    }
+    return m.papel != PapelMembro.funcionario;
   }
 
   bool possoEditarDadosLoja(String lojaId) {
-    final p = meuPapel(lojaId);
-    return p == PapelMembro.dono || p == PapelMembro.socio;
+    final m = meuMembro(lojaId);
+    if (m == null) return false;
+    if (m.papel == PapelMembro.dono) return true;
+    final cargo = meuCargoPersonalizado(lojaId);
+    if (cargo != null) {
+      return cargo.temPermissao(PermissaoLojaConst.editarDadosLoja);
+    }
+    return m.papel == PapelMembro.socio;
   }
 
   bool possoUsarFinanceiro(String lojaId) {
-    return meuPapel(lojaId) != null;
+    final m = meuMembro(lojaId);
+    if (m == null) return false;
+    if (m.papel == PapelMembro.dono) return true;
+    final cargo = meuCargoPersonalizado(lojaId);
+    if (cargo != null) {
+      return cargo.temPermissao(PermissaoLojaConst.usarFinanceiro);
+    }
+    return true;
   }
 
   bool possoRegistrarPagamento(String lojaId) {
-    final p = meuPapel(lojaId);
-    return p == PapelMembro.dono ||
-        p == PapelMembro.socio ||
-        p == PapelMembro.admin;
+    final m = meuMembro(lojaId);
+    if (m == null) return false;
+    if (m.papel == PapelMembro.dono) return true;
+    final cargo = meuCargoPersonalizado(lojaId);
+    if (cargo != null) {
+      return cargo.temPermissao(PermissaoLojaConst.registrarPagamento);
+    }
+    return m.papel == PapelMembro.socio || m.papel == PapelMembro.admin;
   }
 
   bool possoGerenciarMembros(String lojaId) {
-    final p = meuPapel(lojaId);
-    return p == PapelMembro.dono || p == PapelMembro.socio;
+    final m = meuMembro(lojaId);
+    if (m == null) return false;
+    if (m.papel == PapelMembro.dono) return true;
+    final cargo = meuCargoPersonalizado(lojaId);
+    if (cargo != null) {
+      return cargo.temPermissao(PermissaoLojaConst.gerenciarMembros);
+    }
+    return m.papel == PapelMembro.socio;
   }
 
   bool possoExcluirLoja(String lojaId) {
-    final p = meuPapel(lojaId);
-    return p == PapelMembro.dono || p == PapelMembro.socio;
+    final m = meuMembro(lojaId);
+    if (m == null) return false;
+    if (m.papel == PapelMembro.dono) return true;
+    final cargo = meuCargoPersonalizado(lojaId);
+    if (cargo != null) {
+      return cargo.temPermissao(PermissaoLojaConst.excluirLoja);
+    }
+    return m.papel == PapelMembro.socio;
   }
 
   Future<void> entrarComCpf(String cpf) async {
@@ -810,6 +873,69 @@ class PdvProvider extends ChangeNotifier {
     _lojas[indice] = atualizada;
     notifyListeners();
 
+    await _salvarLojaNoCofreCorreto(atualizada);
+  }
+
+  Future<void> adicionarCargoLoja(String lojaId, CargoLoja cargo) async {
+    final indice = _lojas.indexWhere((l) => l.id == lojaId);
+    if (indice == -1) return;
+    final loja = _lojas[indice];
+    final novos = [...loja.cargosPersonalizados, cargo];
+    final atualizada = loja.copyWith(cargosPersonalizados: novos);
+    _lojas[indice] = atualizada;
+    notifyListeners();
+    await _salvarLojaNoCofreCorreto(atualizada);
+  }
+
+  Future<void> atualizarCargoLoja(String lojaId, CargoLoja cargo) async {
+    final indice = _lojas.indexWhere((l) => l.id == lojaId);
+    if (indice == -1) return;
+    final loja = _lojas[indice];
+    final novos = loja.cargosPersonalizados
+        .map((c) => c.id == cargo.id ? cargo : c)
+        .toList();
+    final atualizada = loja.copyWith(cargosPersonalizados: novos);
+    _lojas[indice] = atualizada;
+    notifyListeners();
+    await _salvarLojaNoCofreCorreto(atualizada);
+  }
+
+  Future<void> removerCargoLoja(String lojaId, String cargoId) async {
+    final indice = _lojas.indexWhere((l) => l.id == lojaId);
+    if (indice == -1) return;
+    final loja = _lojas[indice];
+    final novos =
+        loja.cargosPersonalizados.where((c) => c.id != cargoId).toList();
+    final membrosAtualizados = loja.membros.map((m) {
+      if (m.cargoPersonalizadoId == cargoId) {
+        return m.copyWith(cargoPersonalizadoId: null);
+      }
+      return m;
+    }).toList();
+    final atualizada = loja.copyWith(
+      cargosPersonalizados: novos,
+      membros: membrosAtualizados,
+    );
+    _lojas[indice] = atualizada;
+    notifyListeners();
+    await _salvarLojaNoCofreCorreto(atualizada);
+  }
+
+  Future<void> vincularCargoAoMembro(
+    String lojaId,
+    String cpf,
+    String? cargoId,
+  ) async {
+    final indice = _lojas.indexWhere((loja) => loja.id == lojaId);
+    if (indice == -1) return;
+    final loja = _lojas[indice];
+    final novos = loja.membros
+        .map((m) =>
+            m.cpf == cpf ? m.copyWith(cargoPersonalizadoId: cargoId) : m)
+        .toList();
+    final atualizada = loja.copyWith(membros: novos);
+    _lojas[indice] = atualizada;
+    notifyListeners();
     await _salvarLojaNoCofreCorreto(atualizada);
   }
 

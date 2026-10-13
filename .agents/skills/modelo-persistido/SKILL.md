@@ -15,14 +15,15 @@ Aplica-se a todos os modelos persistidos em disco (banco local SQLite via `Banco
 
 ### Modelos Principais
 - **`UsuarioNous`** (`lib/src/features/auth/models/usuario_nous.dart`): Identidade cidadã e dados civis.
-- **`Loja`** (`lib/src/features/pdv/models/loja.dart`): Dados da loja, cofre, configurações operacionais, preferências de som (`sonsAlertas`), atalhos de teclado (<kbd>F1</kbd> a <kbd>F12</kbd> em `atalhosTeclado`), modo de layout expandido (`layoutExpandido`) e tipo de layout ampliado (`tipoLayoutMaior`).
+- **`Loja`** (`lib/src/features/pdv/models/loja.dart`): Dados da loja, cofre, cargos personalizados (`cargosPersonalizados`), configurações operacionais, preferências de som (`sonsAlertas`), atalhos de teclado (<kbd>F1</kbd> a <kbd>F12</kbd> em `atalhosTeclado`), modo de layout expandido (`layoutExpandido`) e tipo de layout ampliado (`tipoLayoutMaior`).
+- **`CargoLoja`** (`lib/src/features/pdv/models/cargo_loja.dart`): Cargos personalizados da loja e mapa de permissões operacionais do sistema (`permissoes`).
 - **`Cliente`** (`lib/src/features/pdv/models/cliente.dart`): Cadastro de clientes com CPF/CNPJ.
 - **`Fornecedor`** (`lib/src/features/pdv/models/fornecedor.dart`): Cadastro de fornecedores.
 - **`PedidoLoja`** (`lib/src/features/pdv/models/pedido_loja.dart`): Pedidos, comandas e pagamentos.
 - **`ItemLoja`** (`lib/src/features/pdv/models/item_loja.dart`): Produtos, ficha técnica e controle de estoque.
 - **`CategoriaLoja`** (`lib/src/features/pdv/models/categoria_loja.dart`): Categorias de itens.
 - **`GrupoComponentesLoja`** (`lib/src/features/pdv/models/grupo_componentes_loja.dart`): Grupos de acompanhamentos e adicionais.
-- **`MembroLoja`** (`lib/src/features/pdv/models/membro_loja.dart`): Papéis operacionais e permissões na loja.
+- **`MembroLoja`** (`lib/src/features/pdv/models/membro_loja.dart`): Papéis operacionais nativos (`PapelMembro`), cargos personalizados vinculados (`cargoPersonalizadoId`) e permissões na loja.
 - **`MesaLoja`** (`lib/src/features/pdv/models/mesa_loja.dart`): Mesas, comandas ativas e consumo no salão de restaurantes.
 - **`ReferenciaLoja`** (`lib/src/features/pdv/models/referencia_loja.dart`): Ponte de acesso ao cofre do titular.
 - **`MovimentoEstoque`** (`lib/src/features/pdv/models/movimento_estoque.dart`): Histórico de entradas/saídas de estoque.
