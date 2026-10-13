@@ -278,17 +278,23 @@ Este projeto apoia-se no **anarquismo plataformista brasileiro**: poder sem inte
           - O clique via mouse em qualquer botão da barra lateral aciona a ação correspondente imediatamente, independente de haver tecla associada.
       - Na tela "Gestão do Perfil" (`GestaoLojaContainer`), os botões de ação do topo ("Nova Venda", "Clientes", "Impressora", "Relatórios", "Caixa", "Financeiro", "Mensagens", "Status da Loja") são **automaticamente ocultados no modo expandido**, pois já estão acessíveis de forma permanente na barra lateral, eliminando redundância visual e aproveitando melhor o espaço de comandas e pedidos. No modo compacto, os botões permanecem visíveis.
       - O catálogo de produtos e itens (`ItemLojaCard`) conta com altura e largura delimitadas, eliminando o erro de *unbounded height* no motor do Flutter e garantindo rolagem fluida e estabilidade absoluta.
-    - **Integração Bidirecional e Persistência de Custo Unitário entre Cadastro e Estoque:**
-      - **Em `NovoItemDialog`:**
-        - Bloco dedicado e harmônico **"Preço de Custo e Compra"** posicionado imediatamente após Preço de Venda e Unidade de Medida.
-        - Campos vinculados de **Custo Total da Compra (R$)** e **Quantidade Comprada** (na unidade do item: `un`, `g`, `ml`), que calculam automaticamente em tempo real o **Preço de Custo Unitário** ($C_{\text{unit}} = \frac{C_{\text{total}}}{Q}$) e preenchem o campo persistido `precoCusto` do item.
-        - Memória de cálculo viva (`Cálculo: R$ 35,00 ÷ 50 un = R$ 0,70 por unidade`) e indicador de margem bruta estimada sobre o preço de venda.
-        - Pré-carregamento automático na edição do item recuperando a quantidade e o custo total da última entrada com custo registrada no estoque.
-        - Ao criar novo item, se o operador preencher a quantidade da compra, o sistema sugere/preenche automaticamente o estoque inicial.
-        - Bloco integrado "Controle de Estoque" para estoque inicial/saldo real e estoque mínimo, com botão de atalho para "Lançar Movimento Detalhado".
-      - **Em `MovimentoEstoqueDialog` e `PdvProvider`:**
-        - Verificação explícita de campos alterados (`precoCusto`, `preco`, `codigoBarras`, `unidadeBase`) eliminando o bug em que `itemModificado != item` avaliava falso devido à igualdade baseada unicamente no ID do modelo `ItemLoja`.
-        - Sincronização e gravação garantida do `precoCusto` em `_itens` e no banco local SQLite/cofre da loja ao lançar entradas com custo unitário, persistindo por toda a aplicação.
+    - **Altura Dinâmica de Categorias e Grupos de Componentes no Desktop:**
+      - No modo Desktop (`MediaQuery.sizeOf(context).width > 720` ou `layoutExpandido`), as listas verticais de "Categorias" e "Grupos de Componentes" em `dados_perfil_view.dart` comportam até 7 ou 8 barras completas (`maxHeight: 440.0`) antes de habilitar a rolagem interna suave, preenchendo harmonicamente a altura da tela sem acionar o scroll da página. No modo mobile/compacto, mantém limite ergonômico de 180.0.
+    - **Reorganização, Container Unificado e Modo Expandido de `NovoItemDialog`:**
+      - **Disposição Estrita dos Campos:**
+        1. **Foto** (espaço de fotos com recorte/ajuste e seleção);
+        2. **Nome do Item**;
+        3. **Descrição do Item Minimizada** (bloco expansível com prévia da primeira linha e chevron de recolhimento);
+        4. **Tipo do Item** (seletor moderno com hover persistente e indicador entre Produto e Serviço);
+        5. **Preço de Venda**;
+        6. **Barras de Seleção** (Categorias do Item e Grupos de Componente);
+        7. **Variantes** (lista de variantes cadastradas e botão "Adicionar variante");
+        8. **Código de Barras / EAN**;
+        9. **Botões de Unidade de Medida** (`un`, `g`, `ml`);
+        10. **Consumo por Venda** (na unidade base);
+        11. **Container Unificado "Estoque e Preço de Custo":** unifica estoque atual com badge de saldo, campo de ajuste/inicial, estoque mínimo, botão de "Lançar Movimento Detalhado" e bloco de custo de compra com cálculo unitário e margem bruta estimada;
+        12. **Delivery** (ThemedSwitch com campos condicionais de frete grátis e km).
+      - **Adaptação Estrita aos Ajustes do Perfil:** A janela obedece exclusivamente à configuração de layout da loja definida em "Ajustes do Perfil". Quando o **Layout Desktop PDV Expandido** está ativado, a janela abre no formato expandido em duas colunas ergonômicas (~740px de largura). Quando o **Layout Compacto Padrão** está ativado (ou em telas de celulares), a janela abre estritamente no formato compacto em coluna única (~380px de largura), sem botões soltos ou redundantes no cabeçalho.
     - **Modo Balcão (Frente de Caixa Profissional de Alto Desempenho):**
       - **Acesso:** Comando rápido dedicado "Modo Balcão" na barra lateral desktop (`DesktopSidebarWidget`) abaixo de "Status da Loja", com tecla de atalho configurável e clique via mouse.
       - **Tela Imersiva (`ModoBalcaoWidget`):** Ocupa 100% da área do PDV dividida em 2 grandes setores de alta visibilidade ergonômica:

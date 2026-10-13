@@ -1317,6 +1317,7 @@ class _NovaVendaConteudoState extends State<_NovaVendaConteudo> {
       theme: theme,
       categorias: widget.categoriasDisponiveis,
       gruposComponentes: widget.gruposDisponiveis,
+      layoutExpandido: widget.expandido,
       onEstoqueAjustado: (novoSaldo) {
         estoqueInicialInformado = novoSaldo;
       },

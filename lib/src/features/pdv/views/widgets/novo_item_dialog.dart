@@ -41,6 +41,7 @@ class NovoItemDialog extends StatefulWidget {
   final void Function(ItemLoja item)? onAbrirMovimentoDetalhado;
   final void Function(CategoriaLoja)? onCategoriaCriada;
   final void Function(GrupoComponentesLoja)? onGrupoCriado;
+  final bool layoutExpandido;
   final void Function(
     ItemLoja item,
     List<String> categoriaIds,
@@ -58,6 +59,7 @@ class NovoItemDialog extends StatefulWidget {
     this.saldoEstoqueAtual,
     this.ultimaQuantidadeCompra,
     this.ultimoCustoTotalCompra,
+    this.layoutExpandido = false,
     this.onEstoqueAjustado,
     this.onAbrirMovimentoDetalhado,
     this.onCategoriaCriada,
@@ -76,6 +78,7 @@ class NovoItemDialog extends StatefulWidget {
     double? saldoEstoqueAtual,
     double? ultimaQuantidadeCompra,
     double? ultimoCustoTotalCompra,
+    bool layoutExpandido = false,
     void Function(double novoSaldo)? onEstoqueAjustado,
     void Function(ItemLoja item)? onAbrirMovimentoDetalhado,
     void Function(CategoriaLoja)? onCategoriaCriada,
@@ -98,6 +101,7 @@ class NovoItemDialog extends StatefulWidget {
         saldoEstoqueAtual: saldoEstoqueAtual,
         ultimaQuantidadeCompra: ultimaQuantidadeCompra,
         ultimoCustoTotalCompra: ultimoCustoTotalCompra,
+        layoutExpandido: layoutExpandido,
         onEstoqueAjustado: onEstoqueAjustado,
         onAbrirMovimentoDetalhado: onAbrirMovimentoDetalhado,
         onCategoriaCriada: onCategoriaCriada,
@@ -129,6 +133,7 @@ class _NovoItemDialogState extends State<NovoItemDialog> {
   TipoItemLoja? _tipo;
   bool _possuiDelivery = false;
   UnidadeItemLoja _unidadeBase = UnidadeItemLoja.un;
+  bool _descricaoExpandida = false;
 
   late final List<CategoriaLoja> _categorias = List.from(widget.categorias);
   late final List<GrupoComponentesLoja> _grupos =
@@ -151,6 +156,7 @@ class _NovoItemDialogState extends State<NovoItemDialog> {
     final item = widget.itemParaEditar;
     if (item == null) {
       _consumoController.text = '1';
+      _tipo = TipoItemLoja.produto;
       if (widget.saldoEstoqueAtual != null && widget.saldoEstoqueAtual! > 0) {
         _estoqueAtualController.text =
             _formatarNumero(widget.saldoEstoqueAtual!);
@@ -161,6 +167,9 @@ class _NovoItemDialogState extends State<NovoItemDialog> {
       _precoCustoController.text = item.precoCusto;
       _codigoBarrasController.text = item.codigoBarras;
       _descricaoController.text = item.descricao;
+      if (item.descricao.isNotEmpty) {
+        _descricaoExpandida = true;
+      }
       _freteGratisAteController.text = item.freteGratisAte;
       _valorPorKmController.text = item.valorPorKm;
       _estoqueMinimoController.text = item.estoqueMinimo;
@@ -168,7 +177,7 @@ class _NovoItemDialogState extends State<NovoItemDialog> {
         _estoqueAtualController.text =
             _formatarNumero(widget.saldoEstoqueAtual!);
       }
-      _tipo = item.tipo;
+      _tipo = item.tipo ?? TipoItemLoja.produto;
       _possuiDelivery = item.possuiDelivery;
       _unidadeBase = item.unidadeBase;
       _consumoController.text = _formatarNumero(item.consumoPorVenda);
@@ -673,7 +682,103 @@ class _NovoItemDialogState extends State<NovoItemDialog> {
     return v.toStringAsFixed(2).replaceAll('.', ',');
   }
 
-  Widget _buildBlocoPrecoCustoECompra(AppTheme theme) {
+  Widget _buildBlocoDescricao(AppTheme theme) {
+    final temDescricao = _descricaoController.text.trim().isNotEmpty;
+    return Container(
+      decoration: BoxDecoration(
+        color: theme.backgroundColor.withValues(alpha: 0.25),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(
+          color: theme.borderColor.withValues(alpha: 0.4),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          InkWell(
+            borderRadius: BorderRadius.circular(10),
+            onTap: () => setState(() => _descricaoExpandida = !_descricaoExpandida),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.notes_rounded,
+                    size: 18,
+                    color: theme.secondaryTextColor,
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      temDescricao
+                          ? (_descricaoExpandida
+                              ? 'Descrição do item'
+                              : 'Descrição: ${_descricaoController.text.trim().split('\n').first}')
+                          : 'Descrição do item (opcional)',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.getTextStyle(
+                        fontSize: 13,
+                        color: temDescricao ? theme.textColor : theme.secondaryTextColor,
+                        fontWeight: temDescricao ? FontWeight.w500 : FontWeight.normal,
+                      ),
+                    ),
+                  ),
+                  Icon(
+                    _descricaoExpandida
+                        ? Icons.keyboard_arrow_up_rounded
+                        : Icons.keyboard_arrow_down_rounded,
+                    color: theme.secondaryTextColor,
+                    size: 20,
+                  ),
+                ],
+              ),
+            ),
+          ),
+          if (_descricaoExpandida) ...[
+            Padding(
+              padding: const EdgeInsets.fromLTRB(10, 0, 10, 10),
+              child: ThemedTextField(
+                theme: theme,
+                controller: _descricaoController,
+                label: 'Escreva a descrição do item',
+                linhas: 3,
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSeletorTipo(AppTheme theme) {
+    final tipoAtual = _tipo ?? TipoItemLoja.produto;
+    return Row(
+      children: [
+        Expanded(
+          child: _BotaoHoverTipo(
+            theme: theme,
+            rotulo: 'Produto',
+            icone: Icons.inventory_2_outlined,
+            selecionado: tipoAtual == TipoItemLoja.produto,
+            aoClicar: () => setState(() => _tipo = TipoItemLoja.produto),
+          ),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: _BotaoHoverTipo(
+            theme: theme,
+            rotulo: 'Serviço',
+            icone: Icons.handyman_outlined,
+            selecionado: tipoAtual == TipoItemLoja.servico,
+            aoClicar: () => setState(() => _tipo = TipoItemLoja.servico),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildContainerUnificadoEstoqueECusto(AppTheme theme, bool editando) {
     final custoUnitarioTexto = _precoCustoController.text.trim();
     final custoTotalTexto = _custoTotalCompraController.text.trim();
     final qtdTexto = _quantidadeCompraController.text.trim();
@@ -725,14 +830,14 @@ class _NovoItemDialogState extends State<NovoItemDialog> {
           Row(
             children: [
               Icon(
-                Icons.payments_outlined,
+                Icons.inventory_2_outlined,
                 size: 16,
                 color: theme.textColor,
               ),
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
-                  'Preço de Custo e Compra',
+                  'Estoque e Preço de Custo',
                   style: theme.getTextStyle(
                     fontSize: 13,
                     fontWeight: FontWeight.bold,
@@ -740,15 +845,89 @@ class _NovoItemDialogState extends State<NovoItemDialog> {
                   ),
                 ),
               ),
+              if (editando && widget.saldoEstoqueAtual != null) ...[
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: theme.borderColor.withValues(alpha: 0.16),
+                    borderRadius: BorderRadius.circular(6),
+                    border: Border.all(
+                      color: theme.borderColor.withValues(alpha: 0.4),
+                    ),
+                  ),
+                  child: Text(
+                    'Saldo: ${_formatarNumero(widget.saldoEstoqueAtual!)} ${_rotuloUnidade()}',
+                    style: theme.getTextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.bold,
+                      color: theme.textColor,
+                    ),
+                  ),
+                ),
+              ],
             ],
           ),
-          const SizedBox(height: 4),
-          Text(
-            'Calcule o custo unitário a partir da compra ou informe diretamente:',
-            style: theme.getTextStyle(
-              fontSize: 11,
-              color: theme.secondaryTextColor,
+          const SizedBox(height: 10),
+          ThemedTextField(
+            theme: theme,
+            controller: _estoqueAtualController,
+            label: editando
+                ? 'Atualizar estoque atual (${_rotuloUnidade()})'
+                : 'Estoque inicial (${_rotuloUnidade()}) (opcional)',
+            tipoDeTeclado: TextInputType.number,
+          ),
+          const SizedBox(height: 10),
+          ThemedTextField(
+            theme: theme,
+            controller: _estoqueMinimoController,
+            label: 'Estoque mínimo em ${_rotuloUnidade()} (opcional)',
+            tipoDeTeclado: TextInputType.number,
+          ),
+          if (editando && widget.onAbrirMovimentoDetalhado != null) ...[
+            const SizedBox(height: 10),
+            OutlinedButton.icon(
+              style: OutlinedButton.styleFrom(
+                foregroundColor: theme.textColor,
+                side: BorderSide(color: theme.borderColor),
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+              ),
+              onPressed: () {
+                Navigator.of(context).pop();
+                widget.onAbrirMovimentoDetalhado!(widget.itemParaEditar!);
+              },
+              icon: const Icon(Icons.sync_alt, size: 16),
+              label: Text(
+                'Lançar Movimento Detalhado',
+                style: theme.getTextStyle(fontSize: 11),
+              ),
             ),
+          ],
+          const SizedBox(height: 12),
+          Divider(
+            height: 1,
+            color: theme.borderColor.withValues(alpha: 0.3),
+          ),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              Icon(
+                Icons.payments_outlined,
+                size: 15,
+                color: theme.secondaryTextColor,
+              ),
+              const SizedBox(width: 6),
+              Text(
+                'Formação de Custo e Compra',
+                style: theme.getTextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: theme.textColor,
+                ),
+              ),
+            ],
           ),
           const SizedBox(height: 10),
           Row(
@@ -1050,7 +1229,14 @@ class _NovoItemDialogState extends State<NovoItemDialog> {
     final editando = widget.itemParaEditar != null;
 
     final larguraTela = MediaQuery.sizeOf(context).width;
-    final larguraPopup = larguraTela < 380 ? larguraTela * 0.9 : 340.0;
+    final modoExpandido = widget.layoutExpandido && larguraTela >= 680;
+
+    final double larguraPopup;
+    if (modoExpandido) {
+      larguraPopup = (larguraTela * 0.90).clamp(680.0, 780.0);
+    } else {
+      larguraPopup = larguraTela < 440 ? larguraTela * 0.94 : 380.0;
+    }
 
     final opcoesCategorias = {
       for (final categoria in _categorias) categoria.id: categoria.nome,
@@ -1074,6 +1260,201 @@ class _NovoItemDialogState extends State<NovoItemDialog> {
         .map((g) => g.nome)
         .join(', ');
 
+    Widget buildColunaIdentificacao() {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _buildEspacoFotos(theme),
+          const SizedBox(height: 16),
+          ThemedTextField(
+            theme: theme,
+            controller: _nomeController,
+            label: 'Nome do novo item',
+          ),
+          const SizedBox(height: 14),
+          _buildBlocoDescricao(theme),
+          const SizedBox(height: 14),
+          _buildSeletorTipo(theme),
+          const SizedBox(height: 14),
+          ThemedTextField(
+            theme: theme,
+            controller: _precoController,
+            label: 'Preço de venda (ex: 12,50)',
+            tipoDeTeclado: TextInputType.number,
+          ),
+          const SizedBox(height: 14),
+          _campoSelecao(
+            label: 'Categorias do item',
+            valorExibido: nomesCategoriasSelecionadas,
+            onTap: () => _abrirSeletorMultiplo(
+              titulo: 'Categorias do item',
+              opcoes: opcoesCategorias,
+              fotos: fotosCategorias,
+              selecionados: _categoriasSelecionadas,
+              onCriarNovo: _abrirCriarNovaCategoria,
+              textoCriarNovo: '+ Nova Categoria',
+            ),
+          ),
+          const SizedBox(height: 12),
+          _campoSelecao(
+            label: 'Grupos de componentes',
+            valorExibido: nomesGruposSelecionados,
+            onTap: () => _abrirSeletorMultiplo(
+              titulo: 'Grupos de componentes',
+              opcoes: opcoesGrupos,
+              fotos: fotosGrupos,
+              selecionados: _gruposSelecionados,
+              onCriarNovo: _abrirCriarNovoGrupo,
+              textoCriarNovo: '+ Novo Grupo de Componentes',
+            ),
+          ),
+          const SizedBox(height: 14),
+          for (var i = 0; i < _variantesControllers.length; i++) ...[
+            Container(
+              margin: const EdgeInsets.only(bottom: 8),
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: theme.backgroundColor.withValues(alpha: 0.25),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(
+                  color: theme.borderColor.withValues(alpha: 0.4),
+                ),
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    flex: 3,
+                    child: ThemedTextField(
+                      theme: theme,
+                      controller: _variantesControllers[i].nomeController,
+                      label: 'Variante ${i + 1} (ex: G, 500ml)',
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    flex: 2,
+                    child: ThemedTextField(
+                      theme: theme,
+                      controller: _variantesControllers[i].precoController,
+                      label: 'Preço (R\$)',
+                      tipoDeTeclado: TextInputType.number,
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(
+                      Icons.close,
+                      color: Colors.redAccent,
+                      size: 20,
+                    ),
+                    tooltip: 'Remover variante',
+                    onPressed: () => _removerCampoVariante(i),
+                  ),
+                ],
+              ),
+            ),
+          ],
+          OutlinedButton.icon(
+            style: OutlinedButton.styleFrom(
+              foregroundColor: theme.textColor,
+              side: BorderSide(color: theme.borderColor),
+              minimumSize: const Size(double.infinity, 44),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
+            ),
+            onPressed: _adicionarCampoVariante,
+            icon: Icon(Icons.add, color: theme.textColor, size: 18),
+            label: Text(
+              'Adicionar variante',
+              style: theme.getTextStyle(fontSize: 13),
+            ),
+          ),
+        ],
+      );
+    }
+
+    Widget buildColunaOperacaoEEstoque() {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          ThemedTextField(
+            theme: theme,
+            controller: _codigoBarrasController,
+            label: 'Código de barras / EAN (opcional)',
+          ),
+          const SizedBox(height: 14),
+          Text(
+            'Unidade de medida',
+            textAlign: TextAlign.center,
+            style: theme.getTextStyle(
+              fontSize: 13,
+              color: theme.secondaryTextColor,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              _botaoUnidade(theme, 'Unidade', UnidadeItemLoja.un),
+              const SizedBox(width: 8),
+              _botaoUnidade(theme, 'Grama', UnidadeItemLoja.g),
+              const SizedBox(width: 8),
+              _botaoUnidade(theme, 'Mililitro', UnidadeItemLoja.ml),
+            ],
+          ),
+          const SizedBox(height: 14),
+          ThemedTextField(
+            theme: theme,
+            controller: _consumoController,
+            label: 'Consumo por venda (${_rotuloUnidade()})',
+            tipoDeTeclado: TextInputType.number,
+          ),
+          const SizedBox(height: 14),
+          _buildContainerUnificadoEstoqueECusto(theme, editando),
+          const SizedBox(height: 14),
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  'O Produto possui delivery',
+                  style: theme.getTextStyle(fontSize: 13),
+                ),
+              ),
+              ThemedSwitch(
+                theme: theme,
+                value: _possuiDelivery,
+                onChanged: (valor) =>
+                    setState(() => _possuiDelivery = valor),
+              ),
+            ],
+          ),
+          if (_possuiDelivery) ...[
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                Expanded(
+                  child: ThemedTextField(
+                    theme: theme,
+                    controller: _freteGratisAteController,
+                    label: 'Frete Grátis até',
+                    tipoDeTeclado: TextInputType.number,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: ThemedTextField(
+                    theme: theme,
+                    controller: _valorPorKmController,
+                    label: 'R\$ por Km',
+                    tipoDeTeclado: TextInputType.number,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ],
+      );
+    }
+
     return AlertDialog(
       backgroundColor: theme.cardBackgroundColor,
       surfaceTintColor: Colors.transparent,
@@ -1093,293 +1474,24 @@ class _NovoItemDialogState extends State<NovoItemDialog> {
       content: SizedBox(
         width: larguraPopup,
         child: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              _buildEspacoFotos(theme),
-              const SizedBox(height: 16),
-
-              ThemedTextField(
-                theme: theme,
-                controller: _nomeController,
-                label: 'Nome do novo item',
-              ),
-              const SizedBox(height: 16),
-
-              Text(
-                'Unidade de medida',
-                textAlign: TextAlign.center,
-                style: theme.getTextStyle(
-                  fontSize: 13,
-                  color: theme.secondaryTextColor,
-                ),
-              ),
-              const SizedBox(height: 8),
-              Row(
-                children: [
-                  _botaoUnidade(theme, 'Unidade', UnidadeItemLoja.un),
-                  const SizedBox(width: 8),
-                  _botaoUnidade(theme, 'Grama', UnidadeItemLoja.g),
-                  const SizedBox(width: 8),
-                  _botaoUnidade(theme, 'Mililitro', UnidadeItemLoja.ml),
-                ],
-              ),
-              const SizedBox(height: 16),
-
-              ThemedTextField(
-                theme: theme,
-                controller: _precoController,
-                label: 'Preço de venda (ex: 12,50)',
-                tipoDeTeclado: TextInputType.number,
-              ),
-              const SizedBox(height: 16),
-
-              _buildBlocoPrecoCustoECompra(theme),
-              const SizedBox(height: 16),
-
-              ThemedTextField(
-                theme: theme,
-                controller: _consumoController,
-                label: 'Consumo por venda (${_rotuloUnidade()})',
-                tipoDeTeclado: TextInputType.number,
-              ),
-              const SizedBox(height: 16),
-
-              ThemedTextField(
-                theme: theme,
-                controller: _codigoBarrasController,
-                label: 'Código de barras / EAN (opcional)',
-              ),
-              const SizedBox(height: 16),
-
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: theme.backgroundColor.withValues(alpha: 0.25),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(
-                    color: theme.borderColor.withValues(alpha: 0.4),
-                  ),
-                ),
-                child: Column(
+          child: modoExpandido
+              ? Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(child: buildColunaIdentificacao()),
+                    const SizedBox(width: 18),
+                    Expanded(child: buildColunaOperacaoEEstoque()),
+                  ],
+                )
+              : Column(
+                  mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    Row(
-                      children: [
-                        Icon(
-                          Icons.inventory_2_outlined,
-                          size: 16,
-                          color: theme.textColor,
-                        ),
-                        const SizedBox(width: 8),
-                        Text(
-                          'Controle de Estoque',
-                          style: theme.getTextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.bold,
-                            color: theme.textColor,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 10),
-                    ThemedTextField(
-                      theme: theme,
-                      controller: _estoqueAtualController,
-                      label: editando
-                          ? 'Estoque atual em ${_rotuloUnidade()}'
-                          : 'Estoque inicial em ${_rotuloUnidade()} (opcional)',
-                      tipoDeTeclado: TextInputType.number,
-                    ),
-                    const SizedBox(height: 10),
-                    ThemedTextField(
-                      theme: theme,
-                      controller: _estoqueMinimoController,
-                      label: 'Estoque mínimo em ${_rotuloUnidade()} (opcional)',
-                      tipoDeTeclado: TextInputType.number,
-                    ),
-                    if (editando && widget.onAbrirMovimentoDetalhado != null) ...[
-                      const SizedBox(height: 10),
-                      OutlinedButton.icon(
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: theme.textColor,
-                          side: BorderSide(color: theme.borderColor),
-                          padding: const EdgeInsets.symmetric(vertical: 8),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                        ),
-                        onPressed: () {
-                          Navigator.of(context).pop();
-                          widget.onAbrirMovimentoDetalhado!(widget.itemParaEditar!);
-                        },
-                        icon: const Icon(Icons.sync_alt, size: 16),
-                        label: Text(
-                          'Lançar Movimento Detalhado',
-                          style: theme.getTextStyle(fontSize: 11),
-                        ),
-                      ),
-                    ],
+                    buildColunaIdentificacao(),
+                    const SizedBox(height: 14),
+                    buildColunaOperacaoEEstoque(),
                   ],
                 ),
-              ),
-              const SizedBox(height: 16),
-
-              RadioGroup<TipoItemLoja>(
-                groupValue: _tipo,
-                onChanged: (valor) => setState(() => _tipo = valor),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    _opcaoTipo(theme, 'Produto', TipoItemLoja.produto),
-                    const SizedBox(width: 32),
-                    _opcaoTipo(theme, 'Serviço', TipoItemLoja.servico),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 16),
-
-              _campoSelecao(
-                label: 'Categorias do item',
-                valorExibido: nomesCategoriasSelecionadas,
-                onTap: () => _abrirSeletorMultiplo(
-                  titulo: 'Categorias do item',
-                  opcoes: opcoesCategorias,
-                  fotos: fotosCategorias,
-                  selecionados: _categoriasSelecionadas,
-                  onCriarNovo: _abrirCriarNovaCategoria,
-                  textoCriarNovo: '+ Nova Categoria',
-                ),
-              ),
-              const SizedBox(height: 12),
-
-              _campoSelecao(
-                label: 'Grupos de componentes',
-                valorExibido: nomesGruposSelecionados,
-                onTap: () => _abrirSeletorMultiplo(
-                  titulo: 'Grupos de componentes',
-                  opcoes: opcoesGrupos,
-                  fotos: fotosGrupos,
-                  selecionados: _gruposSelecionados,
-                  onCriarNovo: _abrirCriarNovoGrupo,
-                  textoCriarNovo: '+ Novo Grupo de Componentes',
-                ),
-              ),
-              const SizedBox(height: 16),
-
-              for (var i = 0; i < _variantesControllers.length; i++) ...[
-                Container(
-                  margin: const EdgeInsets.only(bottom: 8),
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: theme.backgroundColor.withValues(alpha: 0.25),
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(
-                      color: theme.borderColor.withValues(alpha: 0.4),
-                    ),
-                  ),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        flex: 3,
-                        child: ThemedTextField(
-                          theme: theme,
-                          controller: _variantesControllers[i].nomeController,
-                          label: 'Variante ${i + 1} (ex: G, 500ml)',
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        flex: 2,
-                        child: ThemedTextField(
-                          theme: theme,
-                          controller: _variantesControllers[i].precoController,
-                          label: 'Preço (R\$)',
-                          tipoDeTeclado: TextInputType.number,
-                        ),
-                      ),
-                      IconButton(
-                        icon: const Icon(
-                          Icons.close,
-                          color: Colors.redAccent,
-                          size: 20,
-                        ),
-                        tooltip: 'Remover variante',
-                        onPressed: () => _removerCampoVariante(i),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-
-              OutlinedButton.icon(
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: theme.textColor,
-                  side: BorderSide(color: theme.borderColor),
-                  minimumSize: const Size(double.infinity, 46),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                ),
-                onPressed: _adicionarCampoVariante,
-                icon: Icon(Icons.add, color: theme.textColor, size: 18),
-                label: Text(
-                  'Adicionar variante',
-                  style: theme.getTextStyle(fontSize: 13),
-                ),
-              ),
-              const SizedBox(height: 16),
-
-              ThemedTextField(
-                theme: theme,
-                controller: _descricaoController,
-                label: 'Descrição do item',
-                linhas: 3,
-              ),
-              const SizedBox(height: 16),
-
-              Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      'O Produto possui delivery',
-                      style: theme.getTextStyle(fontSize: 13),
-                    ),
-                  ),
-                  ThemedSwitch(
-                    theme: theme,
-                    value: _possuiDelivery,
-                    onChanged: (valor) =>
-                        setState(() => _possuiDelivery = valor),
-                  ),
-                ],
-              ),
-              if (_possuiDelivery) ...[
-                const SizedBox(height: 8),
-                Row(
-                  children: [
-                    Expanded(
-                      child: ThemedTextField(
-                        theme: theme,
-                        controller: _freteGratisAteController,
-                        label: 'Frete Grátis até',
-                        tipoDeTeclado: TextInputType.number,
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: ThemedTextField(
-                        theme: theme,
-                        controller: _valorPorKmController,
-                        label: 'R\$ por Km',
-                        tipoDeTeclado: TextInputType.number,
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ],
-          ),
         ),
       ),
       actionsAlignment: MainAxisAlignment.center,
@@ -1433,15 +1545,6 @@ class _NovoItemDialogState extends State<NovoItemDialog> {
             ),
           ),
         ),
-      ],
-    );
-  }
-
-  Widget _opcaoTipo(AppTheme theme, String rotulo, TipoItemLoja valor) {
-    return Column(
-      children: [
-        Text(rotulo, style: theme.getTextStyle(fontSize: 13)),
-        Radio<TipoItemLoja>(value: valor, activeColor: theme.borderColor),
       ],
     );
   }
@@ -1519,6 +1622,104 @@ class _BotaoHoverUnidadeState extends State<_BotaoHoverUnidade> {
                 color: corTexto,
               ),
             ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _BotaoHoverTipo extends StatefulWidget {
+  final AppTheme theme;
+  final String rotulo;
+  final IconData icone;
+  final bool selecionado;
+  final VoidCallback aoClicar;
+
+  const _BotaoHoverTipo({
+    required this.theme,
+    required this.rotulo,
+    required this.icone,
+    required this.selecionado,
+    required this.aoClicar,
+  });
+
+  @override
+  State<_BotaoHoverTipo> createState() => _BotaoHoverTipoState();
+}
+
+class _BotaoHoverTipoState extends State<_BotaoHoverTipo> {
+  bool _hover = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = widget.theme;
+    final ativo = widget.selecionado;
+    final corAtiva = theme.buttonColor != Colors.transparent
+        ? theme.buttonColor
+        : theme.borderColor.withValues(alpha: 0.25);
+
+    final corFundo = ativo
+        ? (_hover ? corAtiva.withValues(alpha: 0.35) : corAtiva)
+        : (_hover
+            ? theme.borderColor.withValues(alpha: 0.12)
+            : Colors.transparent);
+
+    final corBorda = ativo
+        ? theme.textColor
+        : (_hover
+            ? theme.borderColor
+            : theme.borderColor.withValues(alpha: 0.6));
+
+    final corTexto = ativo
+        ? (theme.buttonColor != Colors.transparent
+            ? theme.buttonTextColor
+            : theme.textColor)
+        : theme.textColor;
+
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      onEnter: (_) => setState(() => _hover = true),
+      onExit: (_) => setState(() => _hover = false),
+      child: GestureDetector(
+        onTap: widget.aoClicar,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 140),
+          padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
+          decoration: BoxDecoration(
+            color: corFundo,
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(
+              color: corBorda,
+              width: ativo ? 1.6 : 1.0,
+            ),
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                widget.icone,
+                size: 16,
+                color: corTexto,
+              ),
+              const SizedBox(width: 8),
+              Text(
+                widget.rotulo,
+                style: theme.getTextStyle(
+                  fontSize: 12,
+                  fontWeight: ativo ? FontWeight.bold : FontWeight.normal,
+                  color: corTexto,
+                ),
+              ),
+              const SizedBox(width: 6),
+              Icon(
+                ativo
+                    ? Icons.check_circle_rounded
+                    : Icons.radio_button_unchecked_rounded,
+                size: 15,
+                color: ativo ? corTexto : theme.secondaryTextColor,
+              ),
+            ],
           ),
         ),
       ),

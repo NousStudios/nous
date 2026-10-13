@@ -82,8 +82,6 @@ enum AbaLoja { dados, interface, loja, gestao }
 
 const double _larguraMaximaConteudo = 500;
 
-const double _alturaMaximaListaSecundaria = 136;
-
 String _valorFormatado(double v) =>
     'R\$ ${v.toStringAsFixed(2).replaceAll('.', ',')}';
 
@@ -2094,6 +2092,9 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
       theme: ThemeController.currentTheme.value,
       categorias: _categorias,
       gruposComponentes: _gruposComponentes,
+      layoutExpandido:
+          context.read<PdvProvider>().buscarPorId(widget.lojaId)?.layoutExpandido ??
+              false,
       onEstoqueAjustado: (novoSaldo) {
         estoqueInicialInformado = novoSaldo;
       },
@@ -2180,6 +2181,9 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
       ultimoCustoTotalCompra: ultimaEntrada != null
           ? (ultimaEntrada.quantidade * ultimaEntrada.custoUnitario)
           : null,
+      layoutExpandido:
+          context.read<PdvProvider>().buscarPorId(widget.lojaId)?.layoutExpandido ??
+              false,
       onEstoqueAjustado: (novoSaldo) {
         novoEstoqueInformado = novoSaldo;
       },
@@ -3068,13 +3072,19 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
     if (_categoriaExpandidaId == null) {
       final podeReordenar =
           podeEditarLoja && _pesquisaCategorias.text.trim().isEmpty;
+      final loja = context.read<PdvProvider>().buscarPorId(widget.lojaId);
+      final expandido = loja?.layoutExpandido ?? false;
+      final larguraDaTela = MediaQuery.sizeOf(context).width;
+      final ehDesktop = expandido && larguraDaTela > 850;
+      final alturaMaxima = ehDesktop ? 440.0 : 180.0;
 
-      return SizedBox(
-        height: _alturaMaximaListaSecundaria,
+      return ConstrainedBox(
+        constraints: BoxConstraints(maxHeight: alturaMaxima),
         child: LayoutBuilder(
           builder: (context, constraints) {
             return ListView.separated(
               controller: _scrollCategorias,
+              shrinkWrap: true,
               padding: const EdgeInsets.only(right: 8),
               itemCount: categorias.length,
               separatorBuilder: (context, index) => const SizedBox(height: 8),
@@ -3237,13 +3247,19 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
     if (_grupoExpandidoId == null) {
       final podeReordenar =
           podeEditarLoja && _pesquisaGrupos.text.trim().isEmpty;
+      final loja = context.read<PdvProvider>().buscarPorId(widget.lojaId);
+      final expandido = loja?.layoutExpandido ?? false;
+      final larguraDaTela = MediaQuery.sizeOf(context).width;
+      final ehDesktop = expandido && larguraDaTela > 850;
+      final alturaMaxima = ehDesktop ? 440.0 : 180.0;
 
-      return SizedBox(
-        height: _alturaMaximaListaSecundaria,
+      return ConstrainedBox(
+        constraints: BoxConstraints(maxHeight: alturaMaxima),
         child: LayoutBuilder(
           builder: (context, constraints) {
             return ListView.separated(
               controller: _scrollGrupos,
+              shrinkWrap: true,
               padding: const EdgeInsets.only(right: 8),
               itemCount: grupos.length,
               separatorBuilder: (context, index) => const SizedBox(height: 8),
