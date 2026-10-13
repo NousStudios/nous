@@ -98,12 +98,15 @@ class _VendaConteudoState extends State<_VendaConteudo> {
   bool _imprimindo = false;
   bool _exportando = false;
 
+  late PedidoLoja _pedidoAtual;
+
   AppTheme get theme => widget.theme;
-  PedidoLoja get pedido => widget.pedido;
+  PedidoLoja get pedido => _pedidoAtual;
 
   @override
   void initState() {
     super.initState();
+    _pedidoAtual = widget.pedido;
     _comentarioSalvo = widget.pedido.comentario;
     _comentarioDataHoraSalvo = widget.pedido.comentarioDataHora;
     _comentarioAutorNomeSalvo = widget.pedido.comentarioAutorNome;
@@ -387,9 +390,178 @@ class _VendaConteudoState extends State<_VendaConteudo> {
     );
   }
 
+  Future<void> _confirmarQuitacaoPrazo() async {
+    final restante = pedido.valorRestante;
+    String formaEscolhida = 'Dinheiro';
+    const formas = [
+      'Dinheiro',
+      'Pix',
+      'Cartão de Débito',
+      'Cartão de Crédito',
+      'Outro',
+    ];
+
+    final resultado = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            return AlertDialog(
+              backgroundColor: theme.cardBackgroundColor,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+                side: BorderSide(color: theme.borderColor),
+              ),
+              title: Text(
+                'Quitar Venda à Prazo',
+                textAlign: TextAlign.center,
+                style: theme.getTextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: theme.textColor,
+                ),
+              ),
+              content: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 400),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      'Confirmar o recebimento do saldo restante deste pedido?',
+                      textAlign: TextAlign.center,
+                      style: theme.getTextStyle(fontSize: 13),
+                    ),
+                    const SizedBox(height: 12),
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: theme.backgroundColor.withValues(alpha: 0.4),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(
+                          color: theme.borderColor.withValues(alpha: 0.6),
+                        ),
+                      ),
+                      child: Column(
+                        children: [
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text(
+                                'Valor a quitar:',
+                                style: theme.getTextStyle(
+                                  fontSize: 12,
+                                  color: theme.secondaryTextColor,
+                                ),
+                              ),
+                              Text(
+                                _valor(restante),
+                                style: theme.getTextStyle(
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.bold,
+                                  color: theme.textColor,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 8),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text(
+                                'Forma recebida:',
+                                style: theme.getTextStyle(
+                                  fontSize: 12,
+                                  color: theme.secondaryTextColor,
+                                ),
+                              ),
+                              DropdownButtonHideUnderline(
+                                child: DropdownButton<String>(
+                                  value: formaEscolhida,
+                                  dropdownColor: theme.cardBackgroundColor,
+                                  items: formas.map((f) {
+                                    return DropdownMenuItem(
+                                      value: f,
+                                      child: Text(
+                                        f,
+                                        style: theme.getTextStyle(
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                    );
+                                  }).toList(),
+                                  onChanged: (novo) {
+                                    if (novo != null) {
+                                      setModalState(() => formaEscolhida = novo);
+                                    }
+                                  },
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              actionsAlignment: MainAxisAlignment.center,
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(dialogContext).pop(null),
+                  child: Text(
+                    'Cancelar',
+                    style: theme.getTextStyle(color: theme.secondaryTextColor),
+                  ),
+                ),
+                FilledButton(
+                  style: FilledButton.styleFrom(
+                    backgroundColor: theme.buttonColor,
+                    foregroundColor: theme.buttonTextColor,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                  ),
+                  onPressed: () => Navigator.of(dialogContext).pop(formaEscolhida),
+                  child: Text(
+                    'Confirmar Quitação',
+                    style: theme.getTextStyle(
+                      color: theme.buttonTextColor,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+
+    if (resultado == null || !mounted) return;
+
+    context.read<PdvProvider>().quitarPedidoLoja(
+          widget.lojaId,
+          pedido.id,
+          formaRecebimento: resultado,
+          autorCpf: widget.autorCpf,
+          autorNome: widget.autorNome,
+          autorEmail: widget.autorEmail,
+        );
+
+    setState(() {
+      _pedidoAtual = _pedidoAtual.copyWith(
+        quitado: true,
+        valorPago: _pedidoAtual.valor,
+      );
+    });
+
+    _snack('Pedido #${pedido.numero} quitado com sucesso!');
+  }
+
   Widget _blocoResumo() {
     final pagamentos = pedido.todosPagamentos;
-    final temAPrazo = pagamentos.any((p) => p.forma == 'À Prazo');
+    final temAPrazo = pedido.temAPrazo;
     final pago = pedido.quitado ? pedido.valor : pedido.valorPago;
     final restante = pedido.quitado ? 0.0 : pedido.valorRestante;
 
@@ -426,6 +598,53 @@ class _VendaConteudoState extends State<_VendaConteudo> {
                   pedido.quitado ? 'Quitado' : 'Em aberto'),
               _linha('Já pago', _valor(pago)),
               _linha('Restante', _valor(restante)),
+              if (pedido.aPrazoEmAberto) ...[
+                const SizedBox(height: 10),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton.icon(
+                      style: OutlinedButton.styleFrom(
+                        backgroundColor:
+                            theme.buttonColor != Colors.transparent
+                                ? theme.buttonColor
+                                : theme.borderColor.withValues(alpha: 0.2),
+                        foregroundColor:
+                            theme.buttonColor != Colors.transparent
+                                ? theme.buttonTextColor
+                                : theme.textColor,
+                        side: BorderSide(
+                          color: theme.textColor,
+                          width: 1.2,
+                        ),
+                        padding: const EdgeInsets.symmetric(vertical: 10),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                      ),
+                      onPressed: _confirmarQuitacaoPrazo,
+                      icon: Icon(
+                        Icons.check_circle_outline,
+                        size: 16,
+                        color: theme.buttonColor != Colors.transparent
+                            ? theme.buttonTextColor
+                            : theme.textColor,
+                      ),
+                      label: Text(
+                        'Quitar Pagamento à Prazo',
+                        style: theme.getTextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                          color: theme.buttonColor != Colors.transparent
+                              ? theme.buttonTextColor
+                              : theme.textColor,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
             ],
           ],
         ),

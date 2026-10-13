@@ -75,5 +75,32 @@ void main() {
       expect(mesa.quantidadeItensTotal, equals(2));
       expect(mesa.itens.first.item.nomeExibicao, equals('Marmitas Embalagem Pequena'));
     });
+
+    test('Item com variante e acompanhamentos na mesa calcula total e exibe nome com variante', () {
+      final itemComandaVariante = ItemComandaMesa(
+        id: 'cmd-2',
+        item: ItemVendido(
+          itemId: 'pizza-1',
+          nomeItem: 'Pizza Especial',
+          varianteNome: 'Grande (8 Fatias)',
+          precoItem: 65.0,
+          precoCategoria: 0.0,
+          quantidade: 1,
+        ),
+        autorCpf: '111.111.111-11',
+        autorNome: 'Garçom',
+        dataHora: DateTime.now(),
+      );
+
+      final mesa = MesaLoja(
+        id: 'mesa-2',
+        numero: '02',
+        status: StatusMesa.ocupada,
+        itens: [itemComandaVariante],
+      );
+
+      expect(mesa.totalAcumulado, equals(65.0));
+      expect(mesa.itens.first.item.nomeExibicao, equals('Pizza Especial (Grande (8 Fatias))'));
+    });
   });
 }

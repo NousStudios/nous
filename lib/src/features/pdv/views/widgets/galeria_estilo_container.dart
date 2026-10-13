@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:nous/src/core/services/metadados_audio_service.dart';
 import 'package:nous/src/core/theme/theme_controller.dart';
 import 'package:nous/src/features/pdv/services/imagem_service.dart';
+import 'package:nous/src/features/pdv/views/widgets/ajustar_imagem_dialog.dart';
 import 'package:nous/src/features/pdv/views/widgets/midia/detalhes_midia_dialog.dart';
 import 'package:nous/src/features/pdv/views/widgets/midia/editar_descricao_dialog.dart';
 import 'package:nous/src/features/pdv/views/widgets/midia/visualizador_galeria_dialog.dart';
@@ -24,6 +25,7 @@ class GaleriaEstiloContainer extends StatelessWidget {
   final TipoAnexoLoja tipo;
   final ValueChanged<String> onAdicionar;
   final ValueChanged<int> onRemover;
+  final void Function(int index, String novoCaminho)? onSubstituirItem;
   final Map<String, String> descricoes;
   final void Function(String caminho, String novaDescricao)? onAtualizarDescricao;
 
@@ -35,6 +37,7 @@ class GaleriaEstiloContainer extends StatelessWidget {
     this.tipo = TipoAnexoLoja.galeria,
     required this.onAdicionar,
     required this.onRemover,
+    this.onSubstituirItem,
     this.descricoes = const {},
     this.onAtualizarDescricao,
   });
@@ -561,28 +564,71 @@ class GaleriaEstiloContainer extends StatelessWidget {
                 ),
               ),
 
-            // Botão Excluir (X)
+            // Botão Ajustar / Recortar (para fotos da galeria)
+            if (tipo == TipoAnexoLoja.galeria && onSubstituirItem != null)
+              Positioned(
+                top: 6,
+                left: 6,
+                child: Tooltip(
+                  message: 'Ajustar / Recortar imagem',
+                  child: GestureDetector(
+                    onTap: () async {
+                      final novo = await AjustarImagemDialog.mostrar(
+                        context,
+                        theme: theme,
+                        caminhoImagem: caminho,
+                      );
+                      if (novo != null) {
+                        onSubstituirItem!(index, novo);
+                      }
+                    },
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: theme.cardBackgroundColor.withValues(alpha: 0.9),
+                        shape: BoxShape.circle,
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.3),
+                            blurRadius: 4,
+                          ),
+                        ],
+                      ),
+                      padding: const EdgeInsets.all(4),
+                      child: Icon(
+                        Icons.crop,
+                        size: 13,
+                        color: theme.textColor,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+
+            // Botão Excluir (X) com confirmação
             Positioned(
               top: 6,
               right: 6,
-              child: GestureDetector(
-                onTap: () => onRemover(index),
-                child: Container(
-                  decoration: BoxDecoration(
-                    color: theme.cardBackgroundColor.withValues(alpha: 0.9),
-                    shape: BoxShape.circle,
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.3),
-                        blurRadius: 4,
-                      ),
-                    ],
-                  ),
-                  padding: const EdgeInsets.all(4),
-                  child: Icon(
-                    Icons.close,
-                    size: 13,
-                    color: theme.textColor,
+              child: Tooltip(
+                message: 'Remover anexo',
+                child: GestureDetector(
+                  onTap: () => _confirmarRemover(context, index),
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: theme.cardBackgroundColor.withValues(alpha: 0.9),
+                      shape: BoxShape.circle,
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.3),
+                          blurRadius: 4,
+                        ),
+                      ],
+                    ),
+                    padding: const EdgeInsets.all(4),
+                    child: Icon(
+                      Icons.close,
+                      size: 13,
+                      color: Colors.redAccent,
+                    ),
                   ),
                 ),
               ),
@@ -591,6 +637,61 @@ class GaleriaEstiloContainer extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  Future<void> _confirmarRemover(BuildContext context, int index) async {
+    final confirmar = await showDialog<bool>(
+      context: context,
+      builder: (dialogCtx) => AlertDialog(
+        backgroundColor: theme.cardBackgroundColor,
+        surfaceTintColor: Colors.transparent,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+          side: BorderSide(color: theme.borderColor),
+        ),
+        title: Text(
+          'Remover Anexo',
+          textAlign: TextAlign.center,
+          style: theme.getTextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.bold,
+            color: theme.textColor,
+          ),
+        ),
+        content: Text(
+          'Tem certeza de que deseja retirar este anexo da galeria?',
+          textAlign: TextAlign.center,
+          style: theme.getTextStyle(
+            fontSize: 13,
+            color: theme.secondaryTextColor,
+          ),
+        ),
+        actionsAlignment: MainAxisAlignment.center,
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogCtx).pop(false),
+            child: Text(
+              'Cancelar',
+              style: theme.getTextStyle(color: theme.secondaryTextColor),
+            ),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(dialogCtx).pop(true),
+            child: Text(
+              'Remover',
+              style: theme.getTextStyle(
+                color: Colors.redAccent,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmar == true) {
+      onRemover(index);
+    }
   }
 
   @override

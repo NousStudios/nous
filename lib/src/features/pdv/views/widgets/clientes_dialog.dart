@@ -1259,7 +1259,9 @@ class _ClientesConteudoState extends State<_ClientesConteudo> {
             )
           else
             ConstrainedBox(
-              constraints: const BoxConstraints(maxHeight: 200),
+              constraints: BoxConstraints(
+                maxHeight: widget.expandido ? 490 : 200,
+              ),
               child: ListView.separated(
                 shrinkWrap: true,
                 itemCount: filtrados.length,

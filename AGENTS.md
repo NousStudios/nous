@@ -232,6 +232,12 @@ Este projeto apoia-se no **anarquismo plataformista brasileiro**: poder sem inte
   - **Ordem de Preferência na Abertura:** Ao abrir a janela de Nova Venda (busca em branco), o container "Produto Solicitado" renderiza **primeiro todas as categorias disponíveis** e, logo abaixo, os itens soltos, permitindo acesso rápido a grupos de produtos.
 - **Busca Rápida de Pedidos em "Concluídos" e "Cancelados" (`GestaoLojaContainer`):**
   - Campo de busca no topo das abas "Concluídos" e "Cancelados" filtrando instantaneamente por número do pedido (`#0001`), cliente, produto ou descrição de itens com limpeza ágil e estado vazio contextualizado.
+- **Controle de Estoque e Cálculo de Custos Unitários (`MovimentoEstoqueDialog` e `NovoItemDialog`):**
+  - **Custo Unitário e Persistência Universal:** Ao registrar uma entrada de estoque informando quantidade e custo total da compra (ex: 50 copos por R$ 35,00 = R$ 0,70/un), o sistema persiste o custo unitário calculado no cadastro do item (`precoCusto`), garantindo sincronização e exibição imediata na janela "Editar Item". A tela de edição também exibe bloco visual dedicado com o "Custo Unitário da Última Compra".
+  - **Estoque Inicial na Criação Rápida de Produto (`NovaVendaDialog`):** Quando um item é cadastrado rapidamente pelo botão de adição na tela de Nova Venda com saldo inicial de estoque, o sistema gera e persiste automaticamente o `MovimentoEstoque.ajuste` de entrada correspondente, garantindo integridade de estoque idêntica ao cadastro pela aba de produtos.
+  - **Variantes em Comandas de Restaurante (`AdicionarItemMesaDialog`):** Ao lançar um produto na mesa ou comanda aberta, o sistema disponibiliza seletor interativo de variantes ("Padrão" e variantes cadastradas com badge de preço), calculando o valor exato no pedido e persistindo `varianteNome` em `ItemVendido`.
+  - **Estorno Integral em Cancelamento de Pedidos (`_cancelarPedidoComDialog`):** Ao cancelar um pedido, o estorno de estoque devolve a quantidade real ponderada pela receita cadastrada (`quantidade * consumoPorVenda`) e estorna recursivamente todos os acompanhamentos/componentes selecionados na venda.
+  - **Baixa de Estoque Proporcional no Fechamento de Mesas (`_fecharContaMesa`):** Ao fechar a conta da mesa, o sistema calcula a baixa considerando o consumo real da unidade de medida do produto (`item.quantidade * itemCadastrado.consumoPorVenda`) e a quantidade de cada adicional (`acomp.quantidadePorUnidade * item.quantidade * acompCadastrado.consumoPorVenda`), eliminando baixas truncadas em produtos fracionados (g/ml).
 - **Aba "Ajustes" e "Ajustes do Perfil" (`AbaLoja.interface`):**
   - Renomeada a aba e o botão inferior de "Interface" para **"Ajustes"** ("Ajustes do Perfil"), concentrando todas as configurações operacionais do lojista com títulos de containers centralizados:
     - **Container "Modo de Visualização e Layout do PDV":** Card único e limpo (`SeletorLayoutsDesktopWidget`) permitindo alternar unicamente entre o **Layout Desktop PDV Expandido** (com barra lateral de navegação e comandos) e o **Layout Compacto Padrão**. A alternância de layout é controlada exclusivamente por este botão dentro de "Ajustes".
@@ -260,6 +266,55 @@ Este projeto apoia-se no **anarquismo plataformista brasileiro**: poder sem inte
           - O clique via mouse em qualquer botão da barra lateral aciona a ação correspondente imediatamente, independente de haver tecla associada.
       - Na tela "Gestão do Perfil" (`GestaoLojaContainer`), os botões de ação do topo ("Nova Venda", "Clientes", "Impressora", "Relatórios", "Caixa", "Financeiro", "Mensagens", "Status da Loja") são **automaticamente ocultados no modo expandido**, pois já estão acessíveis de forma permanente na barra lateral, eliminando redundância visual e aproveitando melhor o espaço de comandas e pedidos. No modo compacto, os botões permanecem visíveis.
       - O catálogo de produtos e itens (`ItemLojaCard`) conta com altura e largura delimitadas, eliminando o erro de *unbounded height* no motor do Flutter e garantindo rolagem fluida e estabilidade absoluta.
+    - **Integração Bidirecional e Persistência de Custo Unitário entre Cadastro e Estoque:**
+      - **Em `NovoItemDialog`:**
+        - Bloco dedicado e harmônico **"Preço de Custo e Compra"** posicionado imediatamente após Preço de Venda e Unidade de Medida.
+        - Campos vinculados de **Custo Total da Compra (R$)** e **Quantidade Comprada** (na unidade do item: `un`, `g`, `ml`), que calculam automaticamente em tempo real o **Preço de Custo Unitário** ($C_{\text{unit}} = \frac{C_{\text{total}}}{Q}$) e preenchem o campo persistido `precoCusto` do item.
+        - Memória de cálculo viva (`Cálculo: R$ 35,00 ÷ 50 un = R$ 0,70 por unidade`) e indicador de margem bruta estimada sobre o preço de venda.
+        - Pré-carregamento automático na edição do item recuperando a quantidade e o custo total da última entrada com custo registrada no estoque.
+        - Ao criar novo item, se o operador preencher a quantidade da compra, o sistema sugere/preenche automaticamente o estoque inicial.
+        - Bloco integrado "Controle de Estoque" para estoque inicial/saldo real e estoque mínimo, com botão de atalho para "Lançar Movimento Detalhado".
+      - **Em `MovimentoEstoqueDialog` e `PdvProvider`:**
+        - Verificação explícita de campos alterados (`precoCusto`, `preco`, `codigoBarras`, `unidadeBase`) eliminando o bug em que `itemModificado != item` avaliava falso devido à igualdade baseada unicamente no ID do modelo `ItemLoja`.
+        - Sincronização e gravação garantida do `precoCusto` em `_itens` e no banco local SQLite/cofre da loja ao lançar entradas com custo unitário, persistindo por toda a aplicação.
+    - **Modo Balcão (Frente de Caixa Profissional de Alto Desempenho):**
+      - **Acesso:** Comando rápido dedicado "Modo Balcão" na barra lateral desktop (`DesktopSidebarWidget`) abaixo de "Status da Loja", com tecla de atalho configurável e clique via mouse.
+      - **Tela Imersiva (`ModoBalcaoWidget`):** Ocupa 100% da área do PDV dividida em 2 grandes setores de alta visibilidade ergonômica:
+        - **Área do Operador (Esquerda):**
+          - Campo bipador/leitor de código de barras USB de resposta instantânea com foco persistente após cada bipada ou clique;
+          - Visor panorâmico do último produto registrado com foto real, quantidade, nome com categoria e valor unitário somado;
+          - Catálogo visual com navegação por categorias, miniaturas reais, badges de saldo em estoque formatado de forma adaptável e aviso de esgotado, com cálculo e nomeação automática da categoria no item vendido (`nomeCategoria`, `precoCategoria`, `nomeExibicao` e `precoUnitario`);
+          - Seção de vinculação interativa de clientes (`_buildSecaoClienteEAjustes`): painel flutuante de busca instantânea multicampo (`_sugestoesClientes`) com avatares, CPF/CNPJ, telefone e endereço, e chip visual do cliente selecionado com botão de desvinculação ágil.
+        - **Área da Comanda Ampliada (Direita), Grupos de Componentes e Observações:**
+          - Comanda ampliada para facilitar a leitura simultânea do cliente e do operador no balcão, exibindo o nome completo com categoria e variante (`nomeExibicao`) e preço unitário somado;
+          - **Suporte a Grupos de Componentes / Adicionais e Observações do Item:** Para cada item adicionado na comanda do balcão, o sistema exibe resumo dos adicionais escolhidos (`item.acompanhamentos`), a observação em itálico (`Obs: ...`) e botões interativos `+ Componentes` e `+ Observação` (ou `Editar Obs`). Ao clicar em `+ Componentes`, abre diálogo para ajustar componentes e campo direto para observação. O botão `+ Observação` abre modal rápido para inclusão ou edição de observações mesmo em itens sem grupos de componentes cadastrados. A observação é integrada fielmente na comanda impressa (`_montarComanda`);
+          - Controles ergonômicos de quantidade (+ / - / remover) para cada item;
+          - Campos de Desconto e Acréscimo monetário com cálculo instantâneo;
+          - Bloco de **TOTAL GERAL GIGANTE** com alto contraste temático;
+          - Seletor de formas de pagamento (Dinheiro, Pix, Débito, Crédito, À Prazo) com campo de valor recebido e visor de troco destacado em verde;
+          - Botão gigante de "FINALIZAR VENDA (ENTER)" integrado a baixas automáticas de estoque e diálogo de cupom térmico (`VendaConcluidaDialog`);
+          - Botão no topo e tecla <kbd>Esc</kbd> para retornar à navegação normal do PDV a qualquer momento.
+      - **Seleção e Persistência de Variantes em Qualquer Layout (`NovaVendaDialog` e `ModoBalcaoWidget`):**
+        - Ao selecionar, clicar ou bipar um produto que possua variantes cadastradas (`ItemLoja.variantes`), o sistema abre modal de seleção (`_selecionarVarianteDialog`), apresentando a opção "Padrão" e a lista de variantes com seus respectivos preços específicos (ex: "Copo 400ml" com variante "Isopor" a R$ 4,50).
+        - O item vendido (`ItemVendido`) persiste `varianteNome` no banco de dados SQLite e JSON, formatando o nome de exibição como `Nome ($varianteNome)` no carrinho, na comanda, nos relatórios gerenciais e na impressão de cupons térmicos.
+        - Os rascunhos de venda (`_ItemRascunho`) preservam as variantes selecionadas caso o operador alterne de tela.
+      - **Ajuste e Recorte de Imagens com Confirmação Segura de Exclusão (`AjustarImagemDialog`):**
+        - **Recorte e Enquadramento Visual:** Ferramenta nativa em Flutter com zoom interativo (`InteractiveViewer`), botões de ampliação (+ / - / reset) e captura de alta definição via `RenderRepaintBoundary.toImage(pixelRatio: 2.5)` salvando o corte em PNG. Disponível no cadastro e edição de itens (`NovoItemDialog`) e na galeria de anexos da loja (`GaleriaEstiloContainer`).
+        - **Segurança contra Exclusão Acidental:** Ao clicar no botão de fechar ("X") em fotos de itens ou anexos de mídia, o sistema exibe diálogo de confirmação ("Tem certeza de que deseja retirar esta imagem?"), impedindo a perda imediata de arquivos por clique involuntário.
+      - **Máscara e Formatação Adaptável de Unidades de Medida (`formatarQuantidadeComUnidade`):**
+        - O sistema formata automaticamente volumes e pesos para a unidade mais intuitiva quando os valores forem grandes:
+          - $\ge 1000\text{g} \rightarrow \text{kg}$ (ex: $1000\text{g} \rightarrow 1\text{ kg}$, $1500\text{g} \rightarrow 1,5\text{ kg}$, $2250\text{g} \rightarrow 2,25\text{ kg}$);
+          - $\ge 1000\text{ml} \rightarrow \text{L}$ (ex: $1000\text{ml} \rightarrow 1\text{ L}$, $1500\text{ml} \rightarrow 1,5\text{ L}$);
+          - Valores menores ou contagens em `un` mantêm sua unidade base ($500\text{ g}$, $350\text{ ml}$, $10\text{ un}$);
+          - Saldos negativos preservam o sinal com a conversão apropriada ($-1000\text{g} \rightarrow -1\text{ kg}$).
+      - **Badge de Saldo de Estoque e Esgotado nos Cards de Produto (`ItemLojaCard`):**
+        - No catálogo de produtos do PDV (tanto no layout expandido desktop quanto no layout compacto), os cards de item exibem badge no topo da imagem com o saldo atual formatado de forma adaptável (`Est: X`) ou o badge de alerta `Esgotado` em vermelho quando o saldo for $\le 0$.
+      - **Ajuste de Unidade de Medida no "Movimento de Estoque" (`MovimentoEstoqueDialog`):**
+        - No container "Dados do cadastro do item", a seção de ajustes rápidos permite alterar o preço de venda, código de barras e também selecionar diretamente a unidade de medida do item (`un`, `g`, `ml`), sincronizando os rótulos do diálogo e persistindo a alteração no cadastro do produto.
+      - **Container "Clientes Cadastrados" com Altura Adaptável (`ClientesDialog`):**
+        - Em modo desktop expandido (duas colunas), a lista de clientes cadastrados possui altura ampliada (`maxHeight: 490px`), acompanhando o tamanho do formulário "Novo Cliente" vizinho sem ativar rolagem prematura em 3 clientes. No layout padrão compacto, preserva a altura de 200px para ergonomia na visualização em coluna única.
+      - **Handler Global do Atalho F11:** Registro de listener no motor do framework via `HardwareKeyboard.instance.addHandler` tanto em `DadosPerfilView` quanto em `ModoBalcaoWidget`, garantindo que o atalho <kbd>F11</kbd> funcione de forma ininterrupta dentro do modo balcão e após o retorno à navegação padrão, sem perda de foco.
+      - **Retorno e Edição Segura em `VendaConcluidaDialog`:** Adicionados botões dedicados de "Voltar" (no topo à esquerda e na barra inferior de ações) e opção amigável "Voltar para edição" no diálogo de confirmação, permitindo que o lojista retorne para a comanda ou para o balcão com todos os produtos, quantidades e pagamentos preservados caso queira corrigir algo antes de efetivar.
     - **Instalador Oficial Windows (`dist/Nous_Instalador_v1.0.0_Versao_Teste.exe`):**
       - Script automatizado PowerShell `scripts\gerar_instalador.ps1` realiza a compilação Release nativa e invoca o Inno Setup Compiler (`ISCC.exe`), gerando o instalador executável completo com ícones, dependências C++ e SQLite integradas.
     - **Diálogos Operacionais Ampliados e Reativos (`NovaVendaDialog`, `ClientesDialog`, `CaixaDialog`, `RelatoriosDialog`, `FornecedoresDialog`, `ImpressoraDialog`):**
@@ -493,8 +548,15 @@ Este projeto apoia-se no **anarquismo plataformista brasileiro**: poder sem inte
 - **Estorno Inteligente de Estoque na Exclusão de Pedidos:** Ao excluir um pedido da listagem da loja, o lojista é consultado se deseja estornar os produtos de volta ao estoque, registrando a entrada correspondente com trilha de auditoria (`cpfAutor`, `nomeAutor` e justificativa).
 - **Base de Rateio Igualitário Estável aos Trabalhadores:**
   - O cálculo da sugestão de divisão igualitária aos membros (`RegistrarPagamentoDialog`) baseia-se no resultado operacional do período ($\text{Entradas} - \text{ComprasEstoque}$), dividindo a cota de forma constante entre todos os membros ($\text{Cota} = \text{BaseRateio} / \text{Membros}$), sem degradar em cascata conforme os membros anteriores recebem suas retiradas.
-- **Isolamento de Entradas em Vendas Mistas (Sem Faturamento Duplo):**
-  - No `FinanceiroView` e no `ImpressaoService` (tela, térmica e PDF), a linha de pagamento `'À Prazo'` computa estritamente o valor que exceder as entradas à vista da venda ($\max(0, \text{venda.valorPago} - \text{EntradasÀVista})$), eliminando qualquer duplicação contábil.
+- **Contabilização Fiel de Vendas À Prazo no Financeiro e Impressão:**
+  - No `FinanceiroView` e no `ImpressaoService` (tela, térmica e PDF), o container "Entradas por forma de pagamento" soma e exibe com exatidão o valor faturado em cada modalidade, incluindo `'À Prazo'`. Vendas lançadas a prazo atualizam imediatamente a linha correspondente, garantindo conferência visual fiel de tudo o que foi vendido no período.
+- **Pendências Agrupadas por Cliente em Relatórios (`RelatoriosDialog`):**
+  - No container "Pendências", múltiplos pedidos a prazo em aberto de um mesmo cliente são consolidados em uma única barra. A barra exibe o total devido somado no canto direito e, abaixo do nome do cliente, a indicação textual do último pedido realizado (`Último pedido: #XXXX • Data/Hora`), além de badge com a quantidade de pedidos em aberto quando houver mais de um.
+  - Ao clicar na barra, o sistema abre a ficha do cliente para conferência e quitação. Se for um pedido avulso antigo ou sem cadastro vinculado, o sistema abre diretamente a comanda (`VendaRegistradaDialog`), garantindo que nenhuma barra de pendência fique inacessível ou travada.
+- **Bloqueio de Vendas à Prazo sem Cliente no Modo Balcão (`ModoBalcaoWidget`):**
+  - No modo balcão, a modalidade "À Prazo" exige cliente cadastrado: o clique na opção "À Prazo" sem cliente abre imediatamente a busca de clientes com foco no campo. Ao tentar finalizar a venda (`_finalizarVenda`), o sistema bloqueia e emite aviso para seleção de cliente, impedindo a criação indevida de pendências anônimas como "Consumidor Final". Se o cliente for desmarcado, a forma de pagamento é revertida automaticamente para "Dinheiro".
+- **Quitação Rápida e Direta de Pedidos à Prazo (`VendaRegistradaDialog` & `PdvProvider`):**
+  - Em qualquer comanda de venda registrada que possua saldo a prazo em aberto (`pedido.aPrazoEmAberto`), o trabalhador conta com o botão direto "Quitar Pagamento à Prazo". O diálogo confirma o valor, permite selecionar a forma recebida (Dinheiro, Pix, Cartão) e aciona `PdvProvider.quitarPedidoLoja`, atualizando o pedido no cofre, gerando suprimento de caixa caso recebido em dinheiro e registrando a ação de auditoria com rastreabilidade total.
 - **Troco Real e Entrada em Vendas Mistas no PDV:**
   - O troco em `NovaVendaDialog` é calculado pelo excesso real sobre o total ($\text{TotalPagamentos} - \text{Total}$), gravando o valor líquido recebido no ato e garantindo conciliação física da gaveta de caixa sem quebras.
 - **Quitação de Fiados Integrada ao Caixa Aberto:**

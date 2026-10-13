@@ -2,7 +2,48 @@ import 'package:nous/src/core/services/gerador_id.dart';
 
 enum TipoItemLoja { produto, servico }
 
-enum UnidadeItemLoja { un, g, ml }
+enum UnidadeItemLoja {
+  un,
+  g,
+  ml;
+
+  String formatar(num quantidade) =>
+      formatarQuantidadeComUnidade(quantidade.toDouble(), this);
+}
+
+String formatarQuantidadeComUnidade(double quantidade, UnidadeItemLoja unidade) {
+  final absQtd = quantidade.abs();
+  if (unidade == UnidadeItemLoja.g && absQtd >= 1000) {
+    final kg = quantidade / 1000;
+    final formatado = (kg == kg.roundToDouble())
+        ? kg.toInt().toString()
+        : kg
+            .toStringAsFixed(kg.abs() >= 10 ? 1 : 2)
+            .replaceAll(RegExp(r'0+$'), '')
+            .replaceAll(RegExp(r'\.$'), '')
+            .replaceAll('.', ',');
+    return '$formatado kg';
+  }
+  if (unidade == UnidadeItemLoja.ml && absQtd >= 1000) {
+    final l = quantidade / 1000;
+    final formatado = (l == l.roundToDouble())
+        ? l.toInt().toString()
+        : l
+            .toStringAsFixed(l.abs() >= 10 ? 1 : 2)
+            .replaceAll(RegExp(r'0+$'), '')
+            .replaceAll(RegExp(r'\.$'), '')
+            .replaceAll('.', ',');
+    return '$formatado L';
+  }
+  final formatado = (quantidade == quantidade.roundToDouble())
+      ? quantidade.toInt().toString()
+      : quantidade
+          .toStringAsFixed(2)
+          .replaceAll(RegExp(r'0+$'), '')
+          .replaceAll(RegExp(r'\.$'), '')
+          .replaceAll('.', ',');
+  return '$formatado ${unidade.name}';
+}
 
 class VarianteItem {
   final String nome;

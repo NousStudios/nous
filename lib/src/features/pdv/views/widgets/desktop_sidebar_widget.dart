@@ -255,6 +255,13 @@ class DesktopSidebarWidget extends StatelessWidget {
                     icone: Icons.insights,
                     onTap: () => _executar('Status da Loja'),
                   ),
+                  _BotaoAtalhoSidebar(
+                    theme: theme,
+                    tecla: _obterTeclaParaAcao('Modo Balcão'),
+                    rotulo: 'Modo Balcão',
+                    icone: Icons.point_of_sale_rounded,
+                    onTap: () => _executar('Modo Balcão'),
+                  ),
                 ],
               ),
             ),

@@ -94,6 +94,7 @@ class _AdicionarItemMesaDialogState extends State<AdicionarItemMesaDialog> {
   CategoriaLoja? _categoriaSelecionada;
   bool _modoAvulso = false;
   ItemLoja? _itemSelecionado;
+  VarianteItem? _varianteSelecionada;
   int _quantidade = 1;
   final Map<String, int> _acompanhamentosQuantidades = {};
 
@@ -108,7 +109,12 @@ class _AdicionarItemMesaDialogState extends State<AdicionarItemMesaDialog> {
 
   double get _precoBaseItemAtual {
     if (_itemSelecionado == null) return 0.0;
-    var base = _precoComoNumero(_itemSelecionado!.preco);
+    var precoItemStr = _itemSelecionado!.preco;
+    if (_varianteSelecionada != null &&
+        _varianteSelecionada!.preco.isNotEmpty) {
+      precoItemStr = _varianteSelecionada!.preco;
+    }
+    var base = _precoComoNumero(precoItemStr);
     if (_categoriaSelecionada != null) {
       base += _precoComoNumero(_categoriaSelecionada!.preco);
     }
@@ -135,6 +141,8 @@ class _AdicionarItemMesaDialogState extends State<AdicionarItemMesaDialog> {
   void _selecionarItem(ItemLoja item) {
     setState(() {
       _itemSelecionado = item;
+      _varianteSelecionada =
+          item.variantes.isNotEmpty ? item.variantes.first : null;
       _quantidade = 1;
       _acompanhamentosQuantidades.clear();
       _observacaoController.clear();
@@ -167,7 +175,10 @@ class _AdicionarItemMesaDialogState extends State<AdicionarItemMesaDialog> {
         ? _itemSelecionado!.imagens.first
         : '';
 
-    final precoItem = _precoComoNumero(_itemSelecionado!.preco);
+    final precoItem = (_varianteSelecionada != null &&
+            _varianteSelecionada!.preco.isNotEmpty)
+        ? _precoComoNumero(_varianteSelecionada!.preco)
+        : _precoComoNumero(_itemSelecionado!.preco);
     final precoCategoria = _categoriaSelecionada != null
         ? _precoComoNumero(_categoriaSelecionada!.preco)
         : 0.0;
@@ -175,6 +186,7 @@ class _AdicionarItemMesaDialogState extends State<AdicionarItemMesaDialog> {
     final itemVendido = ItemVendido(
       itemId: _itemSelecionado!.id,
       nomeItem: _itemSelecionado!.nome,
+      varianteNome: _varianteSelecionada?.nome ?? '',
       foto: fotoItem,
       categoriaId: _categoriaSelecionada?.id,
       nomeCategoria: _categoriaSelecionada?.nome,
@@ -832,9 +844,12 @@ class _AdicionarItemMesaDialogState extends State<AdicionarItemMesaDialog> {
       }
     }
 
-    final tituloExibicao = _categoriaSelecionada != null
-        ? '${_categoriaSelecionada!.nome} • ${item.nome}'
+    final tituloItemComVariante = _varianteSelecionada != null
+        ? '${item.nome} (${_varianteSelecionada!.nome})'
         : item.nome;
+    final tituloExibicao = _categoriaSelecionada != null
+        ? '${_categoriaSelecionada!.nome} • $tituloItemComVariante'
+        : tituloItemComVariante;
 
     return SingleChildScrollView(
       child: Column(
@@ -878,6 +893,90 @@ class _AdicionarItemMesaDialogState extends State<AdicionarItemMesaDialog> {
               ),
             ],
           ),
+          if (item.variantes.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            Text(
+              'Escolha a Variante / Opção:',
+              style: widget.theme.getTextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: widget.theme.textColor,
+              ),
+            ),
+            const SizedBox(height: 6),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                for (final variante in item.variantes) ...[
+                  InkWell(
+                    onTap: () {
+                      setState(() {
+                        _varianteSelecionada = variante;
+                      });
+                    },
+                    borderRadius: BorderRadius.circular(8),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 8,
+                      ),
+                      decoration: BoxDecoration(
+                        color: _varianteSelecionada == variante
+                            ? widget.theme.borderColor.withValues(alpha: 0.25)
+                            : widget.theme.backgroundColor
+                                .withValues(alpha: 0.3),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(
+                          color: _varianteSelecionada == variante
+                              ? widget.theme.textColor
+                              : widget.theme.borderColor
+                                  .withValues(alpha: 0.5),
+                          width:
+                              _varianteSelecionada == variante ? 1.6 : 1.0,
+                        ),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            _varianteSelecionada == variante
+                                ? Icons.radio_button_checked
+                                : Icons.radio_button_off,
+                            size: 15,
+                            color: _varianteSelecionada == variante
+                                ? widget.theme.textColor
+                                : widget.theme.secondaryTextColor,
+                          ),
+                          const SizedBox(width: 6),
+                          Text(
+                            variante.nome,
+                            style: widget.theme.getTextStyle(
+                              fontSize: 13,
+                              fontWeight: _varianteSelecionada == variante
+                                  ? FontWeight.bold
+                                  : FontWeight.normal,
+                              color: widget.theme.textColor,
+                            ),
+                          ),
+                          if (variante.preco.isNotEmpty) ...[
+                            const SizedBox(width: 4),
+                            Text(
+                              '(${_valorFormatado(_precoComoNumero(variante.preco))})',
+                              style: widget.theme.getTextStyle(
+                                fontSize: 11,
+                                color: widget.theme.secondaryTextColor,
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ],
           const SizedBox(height: 16),
           // Seletor de Quantidade
           Row(

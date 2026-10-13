@@ -1065,26 +1065,13 @@ class ImpressaoService {
       for (final f in _formasDePagamento) f: 0.0,
     };
     for (final p in vendas) {
-      final entradasNaoPrazo = p.todosPagamentos
-          .where((pag) {
-            final f = pag.forma.trim().toLowerCase();
-            return f != 'à prazo' && f != 'a prazo';
-          })
-          .fold<double>(0.0, (s, pag) => s + pag.valor);
-
       for (final pag in p.todosPagamentos) {
         final ehPrazo = pag.forma.trim().toLowerCase() == 'à prazo' ||
-            pag.forma.trim().toLowerCase() == 'a prazo';
-        if (ehPrazo) {
-          final recebidoDoPrazo = p.valorPago - entradasNaoPrazo;
-          if (recebidoDoPrazo > 0) {
-            entradasPorForma[pag.forma] =
-                (entradasPorForma[pag.forma] ?? 0) + recebidoDoPrazo;
-          }
-        } else {
-          entradasPorForma[pag.forma] =
-              (entradasPorForma[pag.forma] ?? 0) + pag.valor;
-        }
+            pag.forma.trim().toLowerCase() == 'a prazo' ||
+            pag.forma.toLowerCase().contains('prazo');
+        final chave = ehPrazo ? 'À Prazo' : pag.forma;
+        entradasPorForma[chave] =
+            (entradasPorForma[chave] ?? 0) + pag.valor;
       }
     }
 
@@ -1748,26 +1735,13 @@ class ImpressaoService {
       for (final f in _formasDePagamento) f: 0.0,
     };
     for (final p in vendas) {
-      final entradasNaoPrazo = p.todosPagamentos
-          .where((pag) {
-            final f = pag.forma.trim().toLowerCase();
-            return f != 'à prazo' && f != 'a prazo';
-          })
-          .fold<double>(0.0, (s, pag) => s + pag.valor);
-
       for (final pag in p.todosPagamentos) {
         final ehPrazo = pag.forma.trim().toLowerCase() == 'à prazo' ||
-            pag.forma.trim().toLowerCase() == 'a prazo';
-        if (ehPrazo) {
-          final recebidoDoPrazo = p.valorPago - entradasNaoPrazo;
-          if (recebidoDoPrazo > 0) {
-            entradasPorForma[pag.forma] =
-                (entradasPorForma[pag.forma] ?? 0) + recebidoDoPrazo;
-          }
-        } else {
-          entradasPorForma[pag.forma] =
-              (entradasPorForma[pag.forma] ?? 0) + pag.valor;
-        }
+            pag.forma.trim().toLowerCase() == 'a prazo' ||
+            pag.forma.toLowerCase().contains('prazo');
+        final chave = ehPrazo ? 'À Prazo' : pag.forma;
+        entradasPorForma[chave] =
+            (entradasPorForma[chave] ?? 0) + pag.valor;
       }
     }
 

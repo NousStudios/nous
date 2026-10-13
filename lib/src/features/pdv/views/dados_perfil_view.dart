@@ -61,6 +61,7 @@ import 'package:nous/src/features/pdv/views/widgets/relatorios_dialog.dart';
 import 'package:nous/src/features/pdv/views/widgets/usuarios_participantes_container.dart';
 import 'package:nous/src/features/pdv/views/widgets/desktop_sidebar_widget.dart';
 import 'package:nous/src/features/pdv/views/widgets/seletor_layouts_desktop_widget.dart';
+import 'package:nous/src/features/pdv/views/widgets/modo_balcao_widget.dart';
 
 class DadosPerfilView extends StatefulWidget {
   final String lojaId;
@@ -148,8 +149,11 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
     'Impressora',
     'Financeiro',
     'Status da Loja',
+    'Modo Balcão',
     'Desativado',
   ];
+
+  bool _modoBalcaoAtivo = false;
 
   static const List<String> _teclasFuncao = [
     'F1',
@@ -175,6 +179,14 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
 
   final Map<String, GlobalKey> _chavesCategorias = {};
   final Map<String, GlobalKey> _chavesGrupos = {};
+
+  bool _tratarTecladoGlobal(KeyEvent event) {
+    if (event is KeyDownEvent && event.logicalKey == LogicalKeyboardKey.f11) {
+      JanelaWindowsService.alternarTelaCheia();
+      return true;
+    }
+    return false;
+  }
 
   GlobalKey _chaveCategoria(String id) =>
       _chavesCategorias.putIfAbsent(id, () => GlobalKey());
@@ -625,6 +637,34 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
     _persistirAnexosLoja();
   }
 
+  void _substituirAnexo(TipoAnexoLoja tipo, int index, String novoCaminho) {
+    if (!context.read<PdvProvider>().possoEditarDadosLoja(widget.lojaId)) {
+      _avisarSemPermissao();
+      return;
+    }
+
+    setState(() {
+      switch (tipo) {
+        case TipoAnexoLoja.galeria:
+          _galeria[index] = novoCaminho;
+          break;
+        case TipoAnexoLoja.arquivos:
+          _arquivos[index] = novoCaminho;
+          break;
+        case TipoAnexoLoja.musicas:
+          _musicas[index] = novoCaminho;
+          break;
+        case TipoAnexoLoja.videos:
+          _videos[index] = novoCaminho;
+          break;
+        case TipoAnexoLoja.arquivosAudio:
+          _arquivosAudio[index] = novoCaminho;
+          break;
+      }
+    });
+    _persistirAnexosLoja();
+  }
+
   void _atualizarDescricaoAnexo(String caminho, String novaDescricao) {
     if (!context.read<PdvProvider>().possoEditarDadosLoja(widget.lojaId)) {
       _avisarSemPermissao();
@@ -915,17 +955,50 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
 
       if (resultado.devolverEstoque) {
         for (final item in pedido.itens) {
-          final mov = MovimentoEstoque.novo(
-            itemId: item.itemId,
-            tipo: TipoMovimentoEstoque.entrada,
-            quantidade: item.quantidade.toDouble(),
-            motivo:
-                'Estorno - Pedido ${_numeroPedido(pedido.numero)} cancelado: ${resultado.motivo}',
-            cpfAutor: _cpfLogado,
-            nomeAutor: _nomeLogado,
-            categoria: CategoriaMovimentoEstoque.ajuste,
+          final itemCadastrado =
+              _itens.where((i) => i.id == item.itemId).firstOrNull;
+          final consumo = (itemCadastrado?.consumoPorVenda != null &&
+                  itemCadastrado!.consumoPorVenda > 0)
+              ? itemCadastrado.consumoPorVenda
+              : 1.0;
+          final qtdEstornar = item.quantidade * consumo;
+
+          _movimentosEstoque.add(
+            MovimentoEstoque.novo(
+              itemId: item.itemId,
+              tipo: TipoMovimentoEstoque.entrada,
+              quantidade: qtdEstornar,
+              motivo:
+                  'Estorno - Pedido ${_numeroPedido(pedido.numero)} cancelado: ${resultado.motivo}',
+              cpfAutor: _cpfLogado,
+              nomeAutor: _nomeLogado,
+              categoria: CategoriaMovimentoEstoque.ajuste,
+            ),
           );
-          _movimentosEstoque.add(mov);
+
+          for (final acomp in item.acompanhamentos) {
+            final acompCadastrado =
+                _itens.where((i) => i.id == acomp.itemId).firstOrNull;
+            final consumoAcomp = (acompCadastrado?.consumoPorVenda != null &&
+                    acompCadastrado!.consumoPorVenda > 0)
+                ? acompCadastrado.consumoPorVenda
+                : 1.0;
+            final qtdAcompEstornar =
+                acomp.quantidadePorUnidade * item.quantidade * consumoAcomp;
+
+            _movimentosEstoque.add(
+              MovimentoEstoque.novo(
+                itemId: acomp.itemId,
+                tipo: TipoMovimentoEstoque.entrada,
+                quantidade: qtdAcompEstornar,
+                motivo:
+                    'Estorno Acompanhamento - Pedido ${_numeroPedido(pedido.numero)} cancelado: ${resultado.motivo}',
+                cpfAutor: _cpfLogado,
+                nomeAutor: _nomeLogado,
+                categoria: CategoriaMovimentoEstoque.ajuste,
+              ),
+            );
+          }
         }
       }
     });
@@ -1656,11 +1729,19 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
     final novosMovimentos = <MovimentoEstoque>[];
     if (resultado.baixarEstoque) {
       for (final item in itensVendidos) {
+        final itemCadastrado =
+            _itens.where((i) => i.id == item.itemId).firstOrNull;
+        final consumo = (itemCadastrado?.consumoPorVenda != null &&
+                itemCadastrado!.consumoPorVenda > 0)
+            ? itemCadastrado.consumoPorVenda
+            : 1.0;
+        final qtdBaixar = item.quantidade * consumo;
+
         novosMovimentos.add(
           MovimentoEstoque.novo(
             itemId: item.itemId,
             tipo: TipoMovimentoEstoque.saida,
-            quantidade: item.quantidade.toDouble(),
+            quantidade: qtdBaixar,
             motivo:
                 'Consumo Mesa ${mesa.numero} - Pedido #${_numeroPedido(proximoNumero)}',
             cpfAutor: _cpfLogado,
@@ -1669,12 +1750,20 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
           ),
         );
         for (final acomp in item.acompanhamentos) {
+          final acompCadastrado =
+              _itens.where((i) => i.id == acomp.itemId).firstOrNull;
+          final consumoAcomp = (acompCadastrado?.consumoPorVenda != null &&
+                  acompCadastrado!.consumoPorVenda > 0)
+              ? acompCadastrado.consumoPorVenda
+              : 1.0;
+          final qtdAcompBaixar =
+              acomp.quantidadePorUnidade * item.quantidade * consumoAcomp;
+
           novosMovimentos.add(
             MovimentoEstoque.novo(
               itemId: acomp.itemId,
               tipo: TipoMovimentoEstoque.saida,
-              quantidade:
-                  (acomp.quantidadePorUnidade * item.quantidade).toDouble(),
+              quantidade: qtdAcompBaixar,
               motivo:
                   'Acompanhamento Mesa ${mesa.numero} - Pedido #${_numeroPedido(proximoNumero)}',
               cpfAutor: _cpfLogado,
@@ -1756,6 +1845,40 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
     );
   }
 
+  void _processarConclusaoVenda(
+    PedidoLoja pedido,
+    List<MovimentoEstoque> movimentosEstoque,
+  ) {
+    setState(() {
+      _pedidos.add(pedido);
+      _abaPedidos = AbaPedidos.aceitos;
+      for (final m in movimentosEstoque) {
+        _movimentosEstoque.add(m);
+      }
+    });
+    _persistirListasLoja();
+
+    _registrarAcao(
+      TipoAcao.novaVenda,
+      'Nova venda ${_numeroPedido(pedido.numero)} para '
+          '"${pedido.clienteNome}" (${_valorFormatado(pedido.valor)})',
+    );
+
+    for (final movimento in movimentosEstoque) {
+      final item = _itens.firstWhere(
+        (i) => i.id == movimento.itemId,
+        orElse: () => const ItemLoja(id: '', nome: ''),
+      );
+      final quantidade = _formatarQuantidade(movimento.quantidade);
+      final unidade = _rotuloUnidadeCurto(item.unidadeBase);
+      _registrarAcao(
+        TipoAcao.movimentoEstoqueRegistrado,
+        'Baixa automática de $quantidade $unidade de '
+            '"${item.nome}" pelo pedido ${_numeroPedido(pedido.numero)}',
+      );
+    }
+  }
+
   void _abrirPopupNovaVenda() {
     final loja = context.read<PdvProvider>().buscarPorId(widget.lojaId);
     final proximoNumero = _pedidos.fold<int>(
@@ -1781,39 +1904,28 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
       configuracoesImpressora:
           loja?.configuracoesImpressora ?? const ConfiguracoesImpressora(),
       movimentosEstoque: _movimentosEstoque,
-      onConcluir: (pedido, movimentosEstoque) {
-        setState(() {
-          _pedidos.add(pedido);
-          _abaPedidos = AbaPedidos.aceitos;
-          for (final m in movimentosEstoque) {
-            _movimentosEstoque.add(m);
-          }
-        });
-        _persistirListasLoja();
-
-        _registrarAcao(
-          TipoAcao.novaVenda,
-          'Nova venda ${_numeroPedido(pedido.numero)} para '
-              '"${pedido.clienteNome}" (${_valorFormatado(pedido.valor)})',
-        );
-
-        for (final movimento in movimentosEstoque) {
-          final item = _itens.firstWhere(
-            (i) => i.id == movimento.itemId,
-            orElse: () => const ItemLoja(id: '', nome: ''),
-          );
-          final quantidade = _formatarQuantidade(movimento.quantidade);
-          final unidade = _rotuloUnidadeCurto(item.unidadeBase);
-          _registrarAcao(
-            TipoAcao.movimentoEstoqueRegistrado,
-            'Baixa automática de $quantidade $unidade de '
-                '"${item.nome}" pelo pedido ${_numeroPedido(pedido.numero)}',
-          );
-        }
-      },
-      aoCriarItem: (item, categoriaIds, grupoIds) async {
+      onConcluir: _processarConclusaoVenda,
+      aoCriarItem: (item, categoriaIds, grupoIds, [estoqueInicial]) async {
         setState(() => _itens.add(item));
         _sincronizarVinculosItem(item.id, categoriaIds, grupoIds);
+
+        if (estoqueInicial != null && estoqueInicial > 0) {
+          final custoTexto =
+              item.precoCusto.trim().replaceAll('.', '').replaceAll(',', '.');
+          final custo = double.tryParse(custoTexto) ?? 0.0;
+          final mov = MovimentoEstoque.novo(
+            itemId: item.id,
+            tipo: TipoMovimentoEstoque.entrada,
+            quantidade: estoqueInicial,
+            custoUnitario: custo,
+            motivo: 'Estoque inicial cadastrado na criação do item',
+            cpfAutor: _cpfLogado,
+            nomeAutor: _nomeLogado,
+            categoria: CategoriaMovimentoEstoque.ajuste,
+          );
+          setState(() => _movimentosEstoque.add(mov));
+        }
+
         _persistirListasLoja();
 
         _registrarAcao(
@@ -1959,17 +2071,41 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
     });
   }
 
+  double _saldoEstoqueDoItem(String itemId) {
+    var saldo = 0.0;
+    for (final m in _movimentosEstoque) {
+      if (m.itemId == itemId) {
+        saldo += m.quantidadeComSinal;
+      }
+    }
+    return saldo;
+  }
+
+  MovimentoEstoque? _ultimaEntradaComCustoDoItem(String itemId) {
+    for (final m in _movimentosEstoque.reversed) {
+      if (m.itemId == itemId && m.ehEntrada && m.custoUnitario > 0) {
+        return m;
+      }
+    }
+    return null;
+  }
+
   void _abrirPopupNovoItem() {
     if (!_podeEditarAbaLoja()) {
       _avisarSemPermissao();
       return;
     }
 
+    double? estoqueInicialInformado;
+
     NovoItemDialog.mostrar(
       context,
       theme: ThemeController.currentTheme.value,
       categorias: _categorias,
       gruposComponentes: _gruposComponentes,
+      onEstoqueAjustado: (novoSaldo) {
+        estoqueInicialInformado = novoSaldo;
+      },
       onCategoriaCriada: (novaCategoria) {
         setState(() => _categorias.add(novaCategoria));
         _persistirListasLoja();
@@ -1989,6 +2125,24 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
       onCriar: (item, categoriaIds, grupoIds) {
         setState(() => _itens.add(item));
         _sincronizarVinculosItem(item.id, categoriaIds, grupoIds);
+
+        if (estoqueInicialInformado != null && estoqueInicialInformado! > 0) {
+          final custoTexto =
+              item.precoCusto.trim().replaceAll('.', '').replaceAll(',', '.');
+          final custo = double.tryParse(custoTexto) ?? 0.0;
+          final mov = MovimentoEstoque.novo(
+            itemId: item.id,
+            tipo: TipoMovimentoEstoque.entrada,
+            quantidade: estoqueInicialInformado!,
+            custoUnitario: custo,
+            motivo: 'Estoque inicial cadastrado na criação do item',
+            cpfAutor: _cpfLogado,
+            nomeAutor: _nomeLogado,
+            categoria: CategoriaMovimentoEstoque.ajuste,
+          );
+          setState(() => _movimentosEstoque.add(mov));
+        }
+
         _persistirListasLoja();
 
         _registrarAcao(
@@ -2005,23 +2159,42 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
       return;
     }
 
+    final itemAtualizado = _itens.firstWhere(
+      (i) => i.id == item.id,
+      orElse: () => item,
+    );
+
     final categoriaIdsIniciais = _categorias
-        .where((c) => c.itemIds.contains(item.id))
+        .where((c) => c.itemIds.contains(itemAtualizado.id))
         .map((c) => c.id)
         .toList();
     final grupoIdsIniciais = _gruposComponentes
-        .where((g) => g.itemIds.contains(item.id))
+        .where((g) => g.itemIds.contains(itemAtualizado.id))
         .map((g) => g.id)
         .toList();
+
+    double? novoEstoqueInformado;
+    final ultimaEntrada = _ultimaEntradaComCustoDoItem(itemAtualizado.id);
 
     NovoItemDialog.mostrar(
       context,
       theme: ThemeController.currentTheme.value,
       categorias: _categorias,
       gruposComponentes: _gruposComponentes,
-      itemParaEditar: item,
+      itemParaEditar: itemAtualizado,
       categoriaIdsIniciais: categoriaIdsIniciais,
       grupoIdsIniciais: grupoIdsIniciais,
+      saldoEstoqueAtual: _saldoEstoqueDoItem(itemAtualizado.id),
+      ultimaQuantidadeCompra: ultimaEntrada?.quantidade,
+      ultimoCustoTotalCompra: ultimaEntrada != null
+          ? (ultimaEntrada.quantidade * ultimaEntrada.custoUnitario)
+          : null,
+      onEstoqueAjustado: (novoSaldo) {
+        novoEstoqueInformado = novoSaldo;
+      },
+      onAbrirMovimentoDetalhado: (itemParaMovimento) {
+        _abrirPopupNovoMovimento(itemInicial: itemParaMovimento);
+      },
       onCategoriaCriada: (novaCategoria) {
         setState(() => _categorias.add(novaCategoria));
         _persistirListasLoja();
@@ -2049,6 +2222,32 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
           if (indice != -1) _itens[indice] = itemEditado;
         });
         _sincronizarVinculosItem(itemEditado.id, categoriaIds, grupoIds);
+
+        if (novoEstoqueInformado != null) {
+          final saldoAtual = _saldoEstoqueDoItem(itemEditado.id);
+          final delta = novoEstoqueInformado! - saldoAtual;
+          if (delta.abs() > 0.0001) {
+            final custoTexto = itemEditado.precoCusto
+                .trim()
+                .replaceAll('.', '')
+                .replaceAll(',', '.');
+            final custo = double.tryParse(custoTexto) ?? 0.0;
+            final mov = MovimentoEstoque.novo(
+              itemId: itemEditado.id,
+              tipo: delta > 0
+                  ? TipoMovimentoEstoque.entrada
+                  : TipoMovimentoEstoque.saida,
+              quantidade: delta.abs(),
+              custoUnitario: custo,
+              motivo: 'Ajuste direto de saldo na edição do item',
+              cpfAutor: _cpfLogado,
+              nomeAutor: _nomeLogado,
+              categoria: CategoriaMovimentoEstoque.ajuste,
+            );
+            setState(() => _movimentosEstoque.add(mov));
+          }
+        }
+
         _persistirListasLoja();
 
         final mudouNome = anterior.nome != itemEditado.nome;
@@ -2315,7 +2514,7 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
     );
   }
 
-  Future<void> _abrirPopupNovoMovimento() async {
+  Future<void> _abrirPopupNovoMovimento({ItemLoja? itemInicial}) async {
     if (!_podeEditarAbaLoja()) {
       _avisarSemPermissao();
       return;
@@ -2328,12 +2527,41 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
       fornecedores: _fornecedores,
       cpfAutor: _cpfLogado,
       nomeAutor: _nomeLogado,
+      itemInicial: itemInicial,
+      onItemAtualizado: (itemAtualizado) {
+        setState(() {
+          final idx = _itens.indexWhere((i) => i.id == itemAtualizado.id);
+          if (idx != -1) {
+            _itens[idx] = itemAtualizado;
+          }
+        });
+        _persistirListasLoja();
+        _registrarAcao(
+          TipoAcao.itemAtualizado,
+          'Dados do item "${itemAtualizado.nome}" atualizados via Movimento de Estoque',
+        );
+      },
+      onEditarItemCompleto: (itemParaEditar) {
+        _abrirPopupEditarItem(itemParaEditar);
+      },
     );
 
     if (movimento == null) return;
     if (!mounted) return;
 
-    setState(() => _movimentosEstoque.add(movimento));
+    setState(() {
+      _movimentosEstoque.add(movimento);
+      if (movimento.ehEntrada && movimento.custoUnitario > 0) {
+        final idx = _itens.indexWhere((i) => i.id == movimento.itemId);
+        if (idx != -1) {
+          final custoFormatado =
+              movimento.custoUnitario.toStringAsFixed(2).replaceAll('.', ',');
+          if (_itens[idx].precoCusto != custoFormatado) {
+            _itens[idx] = _itens[idx].copyWith(precoCusto: custoFormatado);
+          }
+        }
+      }
+    });
     _persistirListasLoja();
 
     final item = _itens.firstWhere(
@@ -2469,6 +2697,7 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
   @override
   void initState() {
     super.initState();
+    HardwareKeyboard.instance.addHandler(_tratarTecladoGlobal);
 
     _abaSelecionada = widget.abaInicial;
 
@@ -2574,6 +2803,7 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
 
   @override
   void dispose() {
+    HardwareKeyboard.instance.removeHandler(_tratarTecladoGlobal);
     _pdvProvider.removeListener(_aoAtualizarPdv);
     _timerVerificacaoPedidos?.cancel();
     _controllers.dispose();
@@ -3051,6 +3281,8 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
                           imagemUrl: item.imagens.isNotEmpty
                               ? item.imagens.first
                               : null,
+                          saldoEstoque: _saldoEstoqueDoItem(item.id),
+                          unidade: item.unidadeBase,
                           podeEditar: podeEditarLoja,
                           onEditar: () => _abrirPopupEditarItem(item),
                           onExcluir: () => _removerItem(item.id),
@@ -3106,6 +3338,8 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
                     tipo: item.tipo,
                     imagemUrl:
                         item.imagens.isNotEmpty ? item.imagens.first : null,
+                    saldoEstoque: _saldoEstoqueDoItem(item.id),
+                    unidade: item.unidadeBase,
                     podeEditar: podeEditarLoja,
                     onEditar: () => _abrirPopupEditarItem(item),
                     onExcluir: () => _removerItem(item.id),
@@ -3204,6 +3438,9 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
         break;
       case 'Status da Loja':
         _abrirStatusLoja();
+        break;
+      case 'Modo Balcão':
+        setState(() => _modoBalcaoAtivo = true);
         break;
       case 'Tela Cheia':
         JanelaWindowsService.alternarTelaCheia();
@@ -4047,6 +4284,8 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
                 _adicionarAnexo(TipoAnexoLoja.galeria, caminho),
             onRemover: (index) =>
                 _removerAnexo(TipoAnexoLoja.galeria, index),
+            onSubstituirItem: (index, novo) =>
+                _substituirAnexo(TipoAnexoLoja.galeria, index, novo),
           ),
           const SizedBox(height: 16),
           GaleriaEstiloContainer(
@@ -4259,6 +4498,35 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
         child: ValueListenableBuilder<AppTheme>(
           valueListenable: ThemeController.currentTheme,
           builder: (context, theme, child) {
+            if (_modoBalcaoAtivo) {
+              final proximoNumero = _pedidos.fold<int>(
+                    0,
+                    (maior, pedido) =>
+                        pedido.numero > maior ? pedido.numero : maior,
+                  ) +
+                  1;
+
+              return ModoBalcaoWidget(
+                theme: theme,
+                lojaId: widget.lojaId,
+                nomeLoja: lojaAtual?.nome ?? '',
+                logoLoja: lojaAtual?.logo ?? '',
+                itens: _itens,
+                categorias: _categorias,
+                gruposComponentes: _gruposComponentes,
+                clientes: _clientes,
+                movimentosEstoque: _movimentosEstoque,
+                configuracoesImpressora: lojaAtual?.configuracoesImpressora ??
+                    const ConfiguracoesImpressora(),
+                cpfAutor: _cpfLogado,
+                nomeAutor: _nomeLogado,
+                proximoNumero: proximoNumero,
+                caixaAberto: lojaAtual?.turnoCaixaAberto != null,
+                onSair: () => setState(() => _modoBalcaoAtivo = false),
+                onConcluirVenda: _processarConclusaoVenda,
+              );
+            }
+
             final larguraDaTela = MediaQuery.sizeOf(context).width;
             final expandido = (lojaAtual?.layoutExpandido ?? false) && larguraDaTela > 850;
 

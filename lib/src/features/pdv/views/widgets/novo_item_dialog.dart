@@ -9,6 +9,7 @@ import 'package:nous/src/features/pdv/models/categoria_loja.dart';
 import 'package:nous/src/features/pdv/models/grupo_componentes_loja.dart';
 import 'package:nous/src/features/pdv/models/item_loja.dart';
 import 'package:nous/src/features/pdv/services/imagem_service.dart';
+import 'package:nous/src/features/pdv/views/widgets/ajustar_imagem_dialog.dart';
 import 'package:nous/src/features/pdv/views/widgets/nova_categoria_dialog.dart';
 import 'package:nous/src/features/pdv/views/widgets/novo_grupo_componentes_dialog.dart';
 
@@ -33,6 +34,11 @@ class NovoItemDialog extends StatefulWidget {
   final ItemLoja? itemParaEditar;
   final List<String> categoriaIdsIniciais;
   final List<String> grupoIdsIniciais;
+  final double? saldoEstoqueAtual;
+  final double? ultimaQuantidadeCompra;
+  final double? ultimoCustoTotalCompra;
+  final void Function(double novoSaldo)? onEstoqueAjustado;
+  final void Function(ItemLoja item)? onAbrirMovimentoDetalhado;
   final void Function(CategoriaLoja)? onCategoriaCriada;
   final void Function(GrupoComponentesLoja)? onGrupoCriado;
   final void Function(
@@ -49,6 +55,11 @@ class NovoItemDialog extends StatefulWidget {
     this.itemParaEditar,
     this.categoriaIdsIniciais = const [],
     this.grupoIdsIniciais = const [],
+    this.saldoEstoqueAtual,
+    this.ultimaQuantidadeCompra,
+    this.ultimoCustoTotalCompra,
+    this.onEstoqueAjustado,
+    this.onAbrirMovimentoDetalhado,
     this.onCategoriaCriada,
     this.onGrupoCriado,
     required this.onCriar,
@@ -62,6 +73,11 @@ class NovoItemDialog extends StatefulWidget {
     ItemLoja? itemParaEditar,
     List<String> categoriaIdsIniciais = const [],
     List<String> grupoIdsIniciais = const [],
+    double? saldoEstoqueAtual,
+    double? ultimaQuantidadeCompra,
+    double? ultimoCustoTotalCompra,
+    void Function(double novoSaldo)? onEstoqueAjustado,
+    void Function(ItemLoja item)? onAbrirMovimentoDetalhado,
     void Function(CategoriaLoja)? onCategoriaCriada,
     void Function(GrupoComponentesLoja)? onGrupoCriado,
     required void Function(
@@ -79,6 +95,11 @@ class NovoItemDialog extends StatefulWidget {
         itemParaEditar: itemParaEditar,
         categoriaIdsIniciais: categoriaIdsIniciais,
         grupoIdsIniciais: grupoIdsIniciais,
+        saldoEstoqueAtual: saldoEstoqueAtual,
+        ultimaQuantidadeCompra: ultimaQuantidadeCompra,
+        ultimoCustoTotalCompra: ultimoCustoTotalCompra,
+        onEstoqueAjustado: onEstoqueAjustado,
+        onAbrirMovimentoDetalhado: onAbrirMovimentoDetalhado,
         onCategoriaCriada: onCategoriaCriada,
         onGrupoCriado: onGrupoCriado,
         onCriar: onCriar,
@@ -94,13 +115,17 @@ class _NovoItemDialogState extends State<NovoItemDialog> {
   final _nomeController = TextEditingController();
   final _precoController = TextEditingController();
   final _precoCustoController = TextEditingController();
+  final _custoTotalCompraController = TextEditingController();
+  final _quantidadeCompraController = TextEditingController();
   final _codigoBarrasController = TextEditingController();
   final _descricaoController = TextEditingController();
   final _freteGratisAteController = TextEditingController();
   final _valorPorKmController = TextEditingController();
   final _estoqueMinimoController = TextEditingController();
+  final _estoqueAtualController = TextEditingController();
   final _consumoController = TextEditingController();
 
+  bool _calculandoCusto = false;
   TipoItemLoja? _tipo;
   bool _possuiDelivery = false;
   UnidadeItemLoja _unidadeBase = UnidadeItemLoja.un;
@@ -126,29 +151,133 @@ class _NovoItemDialogState extends State<NovoItemDialog> {
     final item = widget.itemParaEditar;
     if (item == null) {
       _consumoController.text = '1';
-      return;
+      if (widget.saldoEstoqueAtual != null && widget.saldoEstoqueAtual! > 0) {
+        _estoqueAtualController.text =
+            _formatarNumero(widget.saldoEstoqueAtual!);
+      }
+    } else {
+      _nomeController.text = item.nome;
+      _precoController.text = item.preco;
+      _precoCustoController.text = item.precoCusto;
+      _codigoBarrasController.text = item.codigoBarras;
+      _descricaoController.text = item.descricao;
+      _freteGratisAteController.text = item.freteGratisAte;
+      _valorPorKmController.text = item.valorPorKm;
+      _estoqueMinimoController.text = item.estoqueMinimo;
+      if (widget.saldoEstoqueAtual != null) {
+        _estoqueAtualController.text =
+            _formatarNumero(widget.saldoEstoqueAtual!);
+      }
+      _tipo = item.tipo;
+      _possuiDelivery = item.possuiDelivery;
+      _unidadeBase = item.unidadeBase;
+      _consumoController.text = _formatarNumero(item.consumoPorVenda);
+
+      for (final variante in item.variantes) {
+        _variantesControllers.add(
+          _VarianteFormControllers(
+            nome: variante.nome,
+            preco: variante.preco,
+          ),
+        );
+      }
     }
 
-    _nomeController.text = item.nome;
-    _precoController.text = item.preco;
-    _precoCustoController.text = item.precoCusto;
-    _codigoBarrasController.text = item.codigoBarras;
-    _descricaoController.text = item.descricao;
-    _freteGratisAteController.text = item.freteGratisAte;
-    _valorPorKmController.text = item.valorPorKm;
-    _estoqueMinimoController.text = item.estoqueMinimo;
-    _tipo = item.tipo;
-    _possuiDelivery = item.possuiDelivery;
-    _unidadeBase = item.unidadeBase;
-    _consumoController.text = _formatarNumero(item.consumoPorVenda);
-
-    for (final variante in item.variantes) {
-      _variantesControllers.add(
-        _VarianteFormControllers(
-          nome: variante.nome,
-          preco: variante.preco,
-        ),
+    if (widget.ultimoCustoTotalCompra != null &&
+        widget.ultimoCustoTotalCompra! > 0 &&
+        widget.ultimaQuantidadeCompra != null &&
+        widget.ultimaQuantidadeCompra! > 0) {
+      _custoTotalCompraController.text =
+          widget.ultimoCustoTotalCompra!.toStringAsFixed(2).replaceAll('.', ',');
+      _quantidadeCompraController.text =
+          _formatarNumero(widget.ultimaQuantidadeCompra!);
+    } else if (item != null && item.precoCusto.isNotEmpty) {
+      final custoVal = double.tryParse(
+        item.precoCusto.replaceAll('.', '').replaceAll(',', '.'),
       );
+      if (custoVal != null &&
+          custoVal > 0 &&
+          widget.saldoEstoqueAtual != null &&
+          widget.saldoEstoqueAtual! > 0) {
+        final totalEst = custoVal * widget.saldoEstoqueAtual!;
+        _quantidadeCompraController.text =
+            _formatarNumero(widget.saldoEstoqueAtual!);
+        _custoTotalCompraController.text =
+            totalEst.toStringAsFixed(2).replaceAll('.', ',');
+      }
+    }
+
+    _custoTotalCompraController.addListener(_onCustoTotalCompraMudou);
+    _quantidadeCompraController.addListener(_onQuantidadeCompraMudou);
+    _precoCustoController.addListener(_onPrecoCustoMudou);
+    _precoController.addListener(() {
+      if (mounted) setState(() {});
+    });
+  }
+
+  void _onCustoTotalCompraMudou() {
+    if (_calculandoCusto) return;
+    _calculandoCusto = true;
+    try {
+      final qtdTexto =
+          _quantidadeCompraController.text.trim().replaceAll(',', '.');
+      final qtd = double.tryParse(qtdTexto);
+      final totalTexto = _custoTotalCompraController.text
+          .trim()
+          .replaceAll('.', '')
+          .replaceAll(',', '.');
+      final total = double.tryParse(totalTexto);
+      if (qtd != null && qtd > 0 && total != null && total >= 0) {
+        final unitario = total / qtd;
+        _precoCustoController.text =
+            unitario.toStringAsFixed(2).replaceAll('.', ',');
+      }
+    } finally {
+      _calculandoCusto = false;
+      if (mounted) setState(() {});
+    }
+  }
+
+  void _onQuantidadeCompraMudou() {
+    if (_calculandoCusto) return;
+    final totalTexto = _custoTotalCompraController.text
+        .trim()
+        .replaceAll('.', '')
+        .replaceAll(',', '.');
+    final total = double.tryParse(totalTexto);
+    if (total != null && total > 0) {
+      _onCustoTotalCompraMudou();
+    } else {
+      _onPrecoCustoMudou();
+    }
+
+    if (widget.itemParaEditar == null &&
+        _estoqueAtualController.text.trim().isEmpty) {
+      _estoqueAtualController.text = _quantidadeCompraController.text.trim();
+    }
+    if (mounted) setState(() {});
+  }
+
+  void _onPrecoCustoMudou() {
+    if (_calculandoCusto) return;
+    _calculandoCusto = true;
+    try {
+      final qtdTexto =
+          _quantidadeCompraController.text.trim().replaceAll(',', '.');
+      final qtd = double.tryParse(qtdTexto);
+      final custoTexto = _precoCustoController.text
+          .trim()
+          .replaceAll('.', '')
+          .replaceAll(',', '.');
+      final custo = double.tryParse(custoTexto);
+      if (qtd != null && qtd > 0 && custo != null && custo >= 0) {
+        final total = qtd * custo;
+        _custoTotalCompraController.text =
+            total.toStringAsFixed(2).replaceAll('.', ',');
+      }
+    } finally {
+      _calculandoCusto = false;
+      if (mounted) setState(() {});
     }
   }
 
@@ -157,11 +286,14 @@ class _NovoItemDialogState extends State<NovoItemDialog> {
     _nomeController.dispose();
     _precoController.dispose();
     _precoCustoController.dispose();
+    _custoTotalCompraController.dispose();
+    _quantidadeCompraController.dispose();
     _codigoBarrasController.dispose();
     _descricaoController.dispose();
     _freteGratisAteController.dispose();
     _valorPorKmController.dispose();
     _estoqueMinimoController.dispose();
+    _estoqueAtualController.dispose();
     _consumoController.dispose();
     for (final controller in _variantesControllers) {
       controller.dispose();
@@ -233,10 +365,77 @@ class _NovoItemDialogState extends State<NovoItemDialog> {
     }
   }
 
-  void _removerFoto(int index) {
-    setState(() {
-      _imagens.removeAt(index);
-    });
+  Future<void> _confirmarRemoverFoto(int index) async {
+    final theme = widget.theme;
+    final confirmar = await showDialog<bool>(
+      context: context,
+      builder: (dialogCtx) => AlertDialog(
+        backgroundColor: theme.cardBackgroundColor,
+        surfaceTintColor: Colors.transparent,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+          side: BorderSide(color: theme.borderColor),
+        ),
+        title: Text(
+          'Remover Imagem',
+          textAlign: TextAlign.center,
+          style: theme.getTextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.bold,
+            color: theme.textColor,
+          ),
+        ),
+        content: Text(
+          'Tem certeza de que deseja retirar esta imagem do item?',
+          textAlign: TextAlign.center,
+          style: theme.getTextStyle(
+            fontSize: 13,
+            color: theme.secondaryTextColor,
+          ),
+        ),
+        actionsAlignment: MainAxisAlignment.center,
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogCtx).pop(false),
+            child: Text(
+              'Cancelar',
+              style: theme.getTextStyle(color: theme.secondaryTextColor),
+            ),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(dialogCtx).pop(true),
+            child: Text(
+              'Remover',
+              style: theme.getTextStyle(
+                color: Colors.redAccent,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmar == true && mounted) {
+      setState(() {
+        _imagens.removeAt(index);
+      });
+    }
+  }
+
+  Future<void> _ajustarFoto(int index) async {
+    final caminhoAtual = _imagens[index];
+    final novoCaminho = await AjustarImagemDialog.mostrar(
+      context,
+      theme: widget.theme,
+      caminhoImagem: caminhoAtual,
+    );
+
+    if (novoCaminho != null && mounted) {
+      setState(() {
+        _imagens[index] = novoCaminho;
+      });
+    }
   }
 
   void _abrirSeletorMultiplo({
@@ -470,6 +669,182 @@ class _NovoItemDialogState extends State<NovoItemDialog> {
     }
   }
 
+  String _formatarMoeda(double v) {
+    return v.toStringAsFixed(2).replaceAll('.', ',');
+  }
+
+  Widget _buildBlocoPrecoCustoECompra(AppTheme theme) {
+    final custoUnitarioTexto = _precoCustoController.text.trim();
+    final custoTotalTexto = _custoTotalCompraController.text.trim();
+    final qtdTexto = _quantidadeCompraController.text.trim();
+
+    final custoUnitarioVal = double.tryParse(
+      custoUnitarioTexto.replaceAll('.', '').replaceAll(',', '.'),
+    );
+    final precoVendaVal = double.tryParse(
+      _precoController.text.trim().replaceAll('.', '').replaceAll(',', '.'),
+    );
+
+    String? calculoTexto;
+    if (custoTotalTexto.isNotEmpty &&
+        qtdTexto.isNotEmpty &&
+        custoUnitarioVal != null &&
+        custoUnitarioVal > 0) {
+      calculoTexto =
+          'Cálculo: R\$ $custoTotalTexto ÷ $qtdTexto ${_rotuloUnidade()} = R\$ ${_formatarMoeda(custoUnitarioVal)} por ${_rotuloUnidade()}';
+    } else if (custoUnitarioVal != null && custoUnitarioVal > 0) {
+      calculoTexto =
+          'Custo unitário: R\$ ${_formatarMoeda(custoUnitarioVal)} por ${_rotuloUnidade()}';
+    }
+
+    String? margemTexto;
+    if (precoVendaVal != null &&
+        precoVendaVal > 0 &&
+        custoUnitarioVal != null &&
+        custoUnitarioVal > 0) {
+      final lucro = precoVendaVal - custoUnitarioVal;
+      final margem = (lucro / precoVendaVal) * 100;
+      final lucroFormatado = _formatarMoeda(lucro);
+      final sinal = lucro >= 0 ? '+' : '';
+      margemTexto =
+          'Margem bruta estimada: $sinal R\$ $lucroFormatado ($sinal${margem.toStringAsFixed(1)}%)';
+    }
+
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: theme.backgroundColor.withValues(alpha: 0.25),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: theme.borderColor.withValues(alpha: 0.4),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              Icon(
+                Icons.payments_outlined,
+                size: 16,
+                color: theme.textColor,
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'Preço de Custo e Compra',
+                  style: theme.getTextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.bold,
+                    color: theme.textColor,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'Calcule o custo unitário a partir da compra ou informe diretamente:',
+            style: theme.getTextStyle(
+              fontSize: 11,
+              color: theme.secondaryTextColor,
+            ),
+          ),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              Expanded(
+                child: ThemedTextField(
+                  theme: theme,
+                  controller: _custoTotalCompraController,
+                  label: 'Custo total (ex: 35,00)',
+                  tipoDeTeclado: TextInputType.number,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: ThemedTextField(
+                  theme: theme,
+                  controller: _quantidadeCompraController,
+                  label: 'Qtd comprada (${_rotuloUnidade()})',
+                  tipoDeTeclado: TextInputType.number,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          ThemedTextField(
+            theme: theme,
+            controller: _precoCustoController,
+            label: 'Preço de custo unitário (por ${_rotuloUnidade()})',
+            tipoDeTeclado: TextInputType.number,
+          ),
+          if (calculoTexto != null || margemTexto != null) ...[
+            const SizedBox(height: 10),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+              decoration: BoxDecoration(
+                color: theme.borderColor.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(
+                  color: theme.borderColor.withValues(alpha: 0.3),
+                ),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (calculoTexto != null)
+                    Row(
+                      children: [
+                        Icon(
+                          Icons.calculate_outlined,
+                          size: 14,
+                          color: theme.textColor,
+                        ),
+                        const SizedBox(width: 6),
+                        Expanded(
+                          child: Text(
+                            calculoTexto,
+                            style: theme.getTextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                              color: theme.textColor,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  if (margemTexto != null) ...[
+                    if (calculoTexto != null) const SizedBox(height: 4),
+                    Row(
+                      children: [
+                        Icon(
+                          Icons.trending_up_rounded,
+                          size: 14,
+                          color: theme.secondaryTextColor,
+                        ),
+                        const SizedBox(width: 6),
+                        Expanded(
+                          child: Text(
+                            margemTexto,
+                            style: theme.getTextStyle(
+                              fontSize: 11,
+                              color: theme.secondaryTextColor,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
   Widget _buildEspacoFotos(AppTheme theme) {
     return Container(
       width: double.infinity,
@@ -528,21 +903,47 @@ class _NovoItemDialogState extends State<NovoItemDialog> {
                   final caminho = _imagens[index];
                   return Stack(
                     children: [
-                      ClipRRect(
-                        borderRadius: BorderRadius.circular(10),
-                        child: Container(
-                          width: 110,
-                          height: double.infinity,
-                          color: theme.cardBackgroundColor,
-                          child: Image.file(
-                            File(caminho),
-                            fit: BoxFit.cover,
-                            errorBuilder: (context, error, stackTrace) =>
-                                Center(
+                      GestureDetector(
+                        onTap: () => _ajustarFoto(index),
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(10),
+                          child: Container(
+                            width: 110,
+                            height: double.infinity,
+                            color: theme.cardBackgroundColor,
+                            child: Image.file(
+                              File(caminho),
+                              fit: BoxFit.cover,
+                              errorBuilder: (context, error, stackTrace) =>
+                                  Center(
+                                child: Icon(
+                                  Icons.broken_image_outlined,
+                                  color: theme.secondaryTextColor,
+                                  size: 28,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                      Positioned(
+                        top: 4,
+                        left: 4,
+                        child: Tooltip(
+                          message: 'Ajustar / Recortar imagem',
+                          child: GestureDetector(
+                            onTap: () => _ajustarFoto(index),
+                            child: Container(
+                              decoration: BoxDecoration(
+                                color: theme.cardBackgroundColor
+                                    .withValues(alpha: 0.85),
+                                shape: BoxShape.circle,
+                              ),
+                              padding: const EdgeInsets.all(4),
                               child: Icon(
-                                Icons.broken_image_outlined,
-                                color: theme.secondaryTextColor,
-                                size: 28,
+                                Icons.crop,
+                                color: theme.textColor,
+                                size: 13,
                               ),
                             ),
                           ),
@@ -551,19 +952,22 @@ class _NovoItemDialogState extends State<NovoItemDialog> {
                       Positioned(
                         top: 4,
                         right: 4,
-                        child: GestureDetector(
-                          onTap: () => _removerFoto(index),
-                          child: Container(
-                            decoration: BoxDecoration(
-                              color: theme.cardBackgroundColor
-                                  .withValues(alpha: 0.85),
-                              shape: BoxShape.circle,
-                            ),
-                            padding: const EdgeInsets.all(3),
-                            child: Icon(
-                              Icons.close,
-                              color: theme.textColor,
-                              size: 14,
+                        child: Tooltip(
+                          message: 'Remover imagem',
+                          child: GestureDetector(
+                            onTap: () => _confirmarRemoverFoto(index),
+                            child: Container(
+                              decoration: BoxDecoration(
+                                color: theme.cardBackgroundColor
+                                    .withValues(alpha: 0.85),
+                                shape: BoxShape.circle,
+                              ),
+                              padding: const EdgeInsets.all(4),
+                              child: Icon(
+                                Icons.close,
+                                color: Colors.redAccent,
+                                size: 13,
+                              ),
                             ),
                           ),
                         ),
@@ -624,6 +1028,13 @@ class _NovoItemDialogState extends State<NovoItemDialog> {
             unidadeBase: _unidadeBase,
             consumoPorVenda: consumo,
           );
+
+    final textoEstoque =
+        _estoqueAtualController.text.trim().replaceAll(',', '.');
+    final novoEstoque = double.tryParse(textoEstoque);
+    if (novoEstoque != null) {
+      widget.onEstoqueAjustado?.call(novoEstoque);
+    }
 
     widget.onCriar(
       item,
@@ -695,29 +1106,6 @@ class _NovoItemDialogState extends State<NovoItemDialog> {
               ),
               const SizedBox(height: 16),
 
-              ThemedTextField(
-                theme: theme,
-                controller: _precoController,
-                label: 'Preço de venda (ex: 12,50)',
-                tipoDeTeclado: TextInputType.number,
-              ),
-              const SizedBox(height: 16),
-
-              ThemedTextField(
-                theme: theme,
-                controller: _precoCustoController,
-                label: 'Preço de custo (ex: 8,00) (opcional)',
-                tipoDeTeclado: TextInputType.number,
-              ),
-              const SizedBox(height: 16),
-
-              ThemedTextField(
-                theme: theme,
-                controller: _codigoBarrasController,
-                label: 'Código de barras / EAN (opcional)',
-              ),
-              const SizedBox(height: 16),
-
               Text(
                 'Unidade de medida',
                 textAlign: TextAlign.center,
@@ -740,6 +1128,17 @@ class _NovoItemDialogState extends State<NovoItemDialog> {
 
               ThemedTextField(
                 theme: theme,
+                controller: _precoController,
+                label: 'Preço de venda (ex: 12,50)',
+                tipoDeTeclado: TextInputType.number,
+              ),
+              const SizedBox(height: 16),
+
+              _buildBlocoPrecoCustoECompra(theme),
+              const SizedBox(height: 16),
+
+              ThemedTextField(
+                theme: theme,
                 controller: _consumoController,
                 label: 'Consumo por venda (${_rotuloUnidade()})',
                 tipoDeTeclado: TextInputType.number,
@@ -748,9 +1147,81 @@ class _NovoItemDialogState extends State<NovoItemDialog> {
 
               ThemedTextField(
                 theme: theme,
-                controller: _estoqueMinimoController,
-                label: 'Estoque mínimo em ${_rotuloUnidade()} (opcional)',
-                tipoDeTeclado: TextInputType.number,
+                controller: _codigoBarrasController,
+                label: 'Código de barras / EAN (opcional)',
+              ),
+              const SizedBox(height: 16),
+
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: theme.backgroundColor.withValues(alpha: 0.25),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: theme.borderColor.withValues(alpha: 0.4),
+                  ),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(
+                          Icons.inventory_2_outlined,
+                          size: 16,
+                          color: theme.textColor,
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          'Controle de Estoque',
+                          style: theme.getTextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.bold,
+                            color: theme.textColor,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+                    ThemedTextField(
+                      theme: theme,
+                      controller: _estoqueAtualController,
+                      label: editando
+                          ? 'Estoque atual em ${_rotuloUnidade()}'
+                          : 'Estoque inicial em ${_rotuloUnidade()} (opcional)',
+                      tipoDeTeclado: TextInputType.number,
+                    ),
+                    const SizedBox(height: 10),
+                    ThemedTextField(
+                      theme: theme,
+                      controller: _estoqueMinimoController,
+                      label: 'Estoque mínimo em ${_rotuloUnidade()} (opcional)',
+                      tipoDeTeclado: TextInputType.number,
+                    ),
+                    if (editando && widget.onAbrirMovimentoDetalhado != null) ...[
+                      const SizedBox(height: 10),
+                      OutlinedButton.icon(
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: theme.textColor,
+                          side: BorderSide(color: theme.borderColor),
+                          padding: const EdgeInsets.symmetric(vertical: 8),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                        ),
+                        onPressed: () {
+                          Navigator.of(context).pop();
+                          widget.onAbrirMovimentoDetalhado!(widget.itemParaEditar!);
+                        },
+                        icon: const Icon(Icons.sync_alt, size: 16),
+                        label: Text(
+                          'Lançar Movimento Detalhado',
+                          style: theme.getTextStyle(fontSize: 11),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
               ),
               const SizedBox(height: 16),
 

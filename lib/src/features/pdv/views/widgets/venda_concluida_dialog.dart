@@ -81,7 +81,7 @@ Future<bool> _confirmarRegistroVenda(
         ),
       ),
       content: Text(
-        'Deseja registrar e salvar esta venda no sistema ou descartá-la?',
+        'Deseja registrar e salvar esta venda no sistema ou voltar para continuar editando?',
         textAlign: TextAlign.center,
         style:
             theme.getTextStyle(fontSize: 13, color: theme.secondaryTextColor),
@@ -98,8 +98,8 @@ Future<bool> _confirmarRegistroVenda(
           ),
           onPressed: () => Navigator.of(ctx).pop(false),
           child: Text(
-            'Descartar venda',
-            style: theme.getTextStyle(fontSize: 12, color: Colors.redAccent),
+            'Voltar para edição',
+            style: theme.getTextStyle(fontSize: 12, color: theme.textColor),
           ),
         ),
         const SizedBox(width: 8),
@@ -326,14 +326,27 @@ class _VendaConcluidaConteudoState extends State<_VendaConcluidaConteudo> {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Text(
-            'Venda concluída',
-            textAlign: TextAlign.center,
-            style: theme.getTextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-              color: theme.textColor,
-            ),
+          Row(
+            children: [
+              IconButton(
+                icon: const Icon(Icons.arrow_back_rounded, size: 20),
+                color: theme.textColor,
+                tooltip: 'Voltar para continuar editando',
+                onPressed: () => Navigator.of(context).pop(false),
+              ),
+              Expanded(
+                child: Text(
+                  'Venda concluída',
+                  textAlign: TextAlign.center,
+                  style: theme.getTextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: theme.textColor,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 44),
+            ],
           ),
           const SizedBox(height: 12),
           Text(
@@ -373,6 +386,26 @@ class _VendaConcluidaConteudoState extends State<_VendaConcluidaConteudo> {
               Expanded(
                 child: OutlinedButton(
                   style: OutlinedButton.styleFrom(
+                    foregroundColor: theme.secondaryTextColor,
+                    side: BorderSide(
+                        color: theme.borderColor.withValues(alpha: 0.6)),
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                  ),
+                  onPressed: () => Navigator.of(context).pop(false),
+                  child: Text(
+                    'Voltar',
+                    style: theme.getTextStyle(
+                        fontSize: 13, color: theme.secondaryTextColor),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: OutlinedButton(
+                  style: OutlinedButton.styleFrom(
                     foregroundColor: theme.textColor,
                     side: BorderSide(color: theme.borderColor),
                     padding: const EdgeInsets.symmetric(vertical: 14),
@@ -396,7 +429,7 @@ class _VendaConcluidaConteudoState extends State<_VendaConcluidaConteudo> {
                         ),
                 ),
               ),
-              const SizedBox(width: 12),
+              const SizedBox(width: 10),
               Expanded(
                 child: OutlinedButton(
                   style: OutlinedButton.styleFrom(

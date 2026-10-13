@@ -193,23 +193,16 @@ class _FinanceiroViewState extends State<FinanceiroView> {
     final ehPrazo = forma.trim().toLowerCase() == 'à prazo' ||
         forma.trim().toLowerCase() == 'a prazo';
     for (final venda in _vendasConcluidas) {
-      if (ehPrazo) {
-        if (!venda.temAPrazo) continue;
-        final entradasNaoPrazo = venda.todosPagamentos
-            .where((p) {
-              final f = p.forma.trim().toLowerCase();
-              return f != 'à prazo' && f != 'a prazo';
-            })
-            .fold<double>(0.0, (s, p) => s + p.valor);
-        final recebidoDoPrazo = venda.valorPago - entradasNaoPrazo;
-        if (recebidoDoPrazo > 0) {
-          soma += recebidoDoPrazo;
-        }
-      } else {
-        for (final p in venda.todosPagamentos) {
-          if (p.forma.trim().toLowerCase() == forma.trim().toLowerCase()) {
-            soma += p.valor;
-          }
+      for (final p in venda.todosPagamentos) {
+        final pEhPrazo = p.forma.trim().toLowerCase() == 'à prazo' ||
+            p.forma.trim().toLowerCase() == 'a prazo' ||
+            p.forma.toLowerCase().contains('prazo');
+        if (ehPrazo && pEhPrazo) {
+          soma += p.valor;
+        } else if (!ehPrazo &&
+            !pEhPrazo &&
+            p.forma.trim().toLowerCase() == forma.trim().toLowerCase()) {
+          soma += p.valor;
         }
       }
     }

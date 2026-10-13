@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:nous/src/core/theme/theme_controller.dart';
+import 'package:nous/src/core/widgets/themed_switch.dart';
 import 'package:nous/src/features/pdv/models/fornecedor.dart';
 import 'package:nous/src/features/pdv/models/item_loja.dart';
 import 'package:nous/src/features/pdv/models/movimento_estoque.dart';
@@ -14,6 +15,8 @@ class MovimentoEstoqueDialog {
     required String nomeAutor,
     ItemLoja? itemInicial,
     TipoMovimentoEstoque? tipoInicial,
+    void Function(ItemLoja itemAtualizado)? onItemAtualizado,
+    void Function(ItemLoja item)? onEditarItemCompleto,
   }) {
     return showDialog<MovimentoEstoque>(
       context: context,
@@ -35,6 +38,8 @@ class MovimentoEstoqueDialog {
               nomeAutor: nomeAutor,
               itemInicial: itemInicial,
               tipoInicial: tipoInicial,
+              onItemAtualizado: onItemAtualizado,
+              onEditarItemCompleto: onEditarItemCompleto,
             ),
           ),
         );
@@ -51,6 +56,8 @@ class _MovimentoEstoqueConteudo extends StatefulWidget {
   final String nomeAutor;
   final ItemLoja? itemInicial;
   final TipoMovimentoEstoque? tipoInicial;
+  final void Function(ItemLoja itemAtualizado)? onItemAtualizado;
+  final void Function(ItemLoja item)? onEditarItemCompleto;
 
   const _MovimentoEstoqueConteudo({
     required this.theme,
@@ -60,6 +67,8 @@ class _MovimentoEstoqueConteudo extends StatefulWidget {
     required this.nomeAutor,
     this.itemInicial,
     this.tipoInicial,
+    this.onItemAtualizado,
+    this.onEditarItemCompleto,
   });
 
   @override
@@ -73,8 +82,13 @@ class _MovimentoEstoqueConteudoState
   final _custoTotalController = TextEditingController();
   final _custoController = TextEditingController();
   final _motivoController = TextEditingController();
+  final _precoVendaRapidoController = TextEditingController();
+  final _codigoBarrasRapidoController = TextEditingController();
 
   bool _calculandoCusto = false;
+  bool _atualizarCustoNoCadastro = true;
+  bool _mostrarAjustesRapidos = false;
+  UnidadeItemLoja _unidadeRapida = UnidadeItemLoja.un;
 
   ItemLoja? _item;
   Fornecedor? _fornecedor;
@@ -93,6 +107,11 @@ class _MovimentoEstoqueConteudoState
             orElse: () => widget.itemInicial!,
           )
         : null;
+    if (_item != null) {
+      _precoVendaRapidoController.text = _item!.preco;
+      _codigoBarrasRapidoController.text = _item!.codigoBarras;
+      _unidadeRapida = _item!.unidadeBase;
+    }
     if (widget.tipoInicial != null) {
       _tipo = widget.tipoInicial!;
       _categoria = _tipo == TipoMovimentoEstoque.entrada
@@ -107,6 +126,8 @@ class _MovimentoEstoqueConteudoState
     _custoTotalController.dispose();
     _custoController.dispose();
     _motivoController.dispose();
+    _precoVendaRapidoController.dispose();
+    _codigoBarrasRapidoController.dispose();
     super.dispose();
   }
 
@@ -164,14 +185,7 @@ class _MovimentoEstoqueConteudoState
   }
 
   String _rotuloUnidade(ItemLoja item) {
-    switch (item.unidadeBase) {
-      case UnidadeItemLoja.un:
-        return 'un';
-      case UnidadeItemLoja.g:
-        return 'g';
-      case UnidadeItemLoja.ml:
-        return 'ml';
-    }
+    return _unidadeRapida.name;
   }
 
   double? _quantidadeParseada() {
@@ -201,6 +215,31 @@ class _MovimentoEstoqueConteudoState
       return;
     }
 
+    var itemModificado = item;
+    if (_tipo == TipoMovimentoEstoque.entrada &&
+        _atualizarCustoNoCadastro &&
+        custo > 0) {
+      itemModificado = itemModificado.copyWith(
+        precoCusto: custo.toStringAsFixed(2).replaceAll('.', ','),
+      );
+    }
+    final novoPrecoVenda = _precoVendaRapidoController.text.trim();
+    if (novoPrecoVenda.isNotEmpty && novoPrecoVenda != item.preco) {
+      itemModificado = itemModificado.copyWith(preco: novoPrecoVenda);
+    }
+    final novoCodigo = _codigoBarrasRapidoController.text.trim();
+    if (novoCodigo != item.codigoBarras) {
+      itemModificado = itemModificado.copyWith(codigoBarras: novoCodigo);
+    }
+    final dadosCadastraisAlterados =
+        itemModificado.precoCusto != item.precoCusto ||
+        itemModificado.preco != item.preco ||
+        itemModificado.codigoBarras != item.codigoBarras ||
+        itemModificado.unidadeBase != item.unidadeBase;
+    if (dadosCadastraisAlterados) {
+      widget.onItemAtualizado?.call(itemModificado);
+    }
+
     final movimento = MovimentoEstoque.novo(
       itemId: item.id,
       tipo: _tipo,
@@ -219,6 +258,275 @@ class _MovimentoEstoqueConteudoState
     );
 
     Navigator.of(context).pop(movimento);
+  }
+
+  Widget _cardIntegracaoItem() {
+    final item = _item;
+    if (item == null) return const SizedBox.shrink();
+
+    final ehEntrada = _tipo == TipoMovimentoEstoque.entrada;
+
+    return Container(
+      margin: const EdgeInsets.only(top: 8, bottom: 4),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: theme.backgroundColor.withValues(alpha: 0.25),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: theme.borderColor.withValues(alpha: 0.4),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.inventory_2_outlined, size: 16, color: theme.textColor),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'Dados do Cadastro do Item',
+                  style: theme.getTextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                    color: theme.textColor,
+                  ),
+                ),
+              ),
+              if (widget.onEditarItemCompleto != null)
+                InkWell(
+                  onTap: () {
+                    Navigator.of(context).pop();
+                    widget.onEditarItemCompleto!(item);
+                  },
+                  borderRadius: BorderRadius.circular(6),
+                  child: Padding(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+                    child: Row(
+                      children: [
+                        Icon(Icons.edit_note_rounded,
+                            size: 15, color: theme.textColor),
+                        const SizedBox(width: 4),
+                        Text(
+                          'Editar completo',
+                          style: theme.getTextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.bold,
+                            color: theme.textColor,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  'Venda: R\$ ${item.preco.isEmpty ? "0,00" : item.preco}',
+                  style: theme.getTextStyle(
+                      fontSize: 11, color: theme.secondaryTextColor),
+                ),
+              ),
+              Expanded(
+                child: Text(
+                  'Custo atual: R\$ ${item.precoCusto.isEmpty ? "0,00" : item.precoCusto}',
+                  style: theme.getTextStyle(
+                      fontSize: 11, color: theme.secondaryTextColor),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  'Código: ${item.codigoBarras.isEmpty ? "Sem código" : item.codigoBarras}',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.getTextStyle(
+                      fontSize: 11, color: theme.secondaryTextColor),
+                ),
+              ),
+              Expanded(
+                child: Text(
+                  'Mínimo: ${item.estoqueMinimo.isEmpty ? "0" : item.estoqueMinimo} ${_rotuloUnidade(item)}',
+                  style: theme.getTextStyle(
+                      fontSize: 11, color: theme.secondaryTextColor),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          InkWell(
+            onTap: () => setState(
+                () => _mostrarAjustesRapidos = !_mostrarAjustesRapidos),
+            borderRadius: BorderRadius.circular(6),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  _mostrarAjustesRapidos
+                      ? Icons.keyboard_arrow_up
+                      : Icons.tune,
+                  size: 14,
+                  color: theme.textColor,
+                ),
+                const SizedBox(width: 4),
+                Text(
+                  _mostrarAjustesRapidos
+                      ? 'Ocultar ajustes rápidos'
+                      : 'Ajustar preço de venda, código de barras ou unidade',
+                  style: theme.getTextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    color: theme.textColor,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          if (_mostrarAjustesRapidos) ...[
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Novo Preço de Venda (R\$)',
+                        style: theme.getTextStyle(
+                            fontSize: 10, color: theme.secondaryTextColor),
+                      ),
+                      const SizedBox(height: 4),
+                      TextField(
+                        controller: _precoVendaRapidoController,
+                        keyboardType: const TextInputType.numberWithOptions(
+                            decimal: true),
+                        cursorColor: theme.textColor,
+                        style: theme.getTextStyle(fontSize: 11),
+                        decoration: _decoracaoCampo('Ex: 15,00'),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Código de Barras / EAN',
+                        style: theme.getTextStyle(
+                            fontSize: 10, color: theme.secondaryTextColor),
+                      ),
+                      const SizedBox(height: 4),
+                      TextField(
+                        controller: _codigoBarrasRapidoController,
+                        cursorColor: theme.textColor,
+                        style: theme.getTextStyle(fontSize: 11),
+                        decoration: _decoracaoCampo('Código'),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Unidade de Medida do Item',
+                  style: theme.getTextStyle(
+                      fontSize: 10, color: theme.secondaryTextColor),
+                ),
+                const SizedBox(height: 4),
+                Row(
+                  children: [
+                    for (final u in UnidadeItemLoja.values)
+                      Padding(
+                        padding: const EdgeInsets.only(right: 6),
+                        child: InkWell(
+                          onTap: () => setState(() => _unidadeRapida = u),
+                          borderRadius: BorderRadius.circular(8),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 10, vertical: 6),
+                            decoration: BoxDecoration(
+                              color: _unidadeRapida == u
+                                  ? (theme.buttonColor != Colors.transparent
+                                      ? theme.buttonColor
+                                          .withValues(alpha: 0.8)
+                                      : theme.borderColor
+                                          .withValues(alpha: 0.35))
+                                  : theme.backgroundColor
+                                      .withValues(alpha: 0.2),
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(
+                                color: _unidadeRapida == u
+                                    ? theme.textColor
+                                    : theme.borderColor
+                                        .withValues(alpha: 0.5),
+                                width: _unidadeRapida == u ? 1.4 : 1.0,
+                              ),
+                            ),
+                            child: Text(
+                              u == UnidadeItemLoja.un
+                                  ? 'Unidade (un)'
+                                  : u == UnidadeItemLoja.g
+                                      ? 'Gramas (g)'
+                                      : 'Mililitros (ml)',
+                              style: theme.getTextStyle(
+                                fontSize: 11,
+                                fontWeight: _unidadeRapida == u
+                                    ? FontWeight.bold
+                                    : FontWeight.normal,
+                                color: _unidadeRapida == u
+                                    ? theme.textColor
+                                    : theme.secondaryTextColor,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              ],
+            ),
+          ],
+          if (ehEntrada) ...[
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                ThemedSwitch(
+                  theme: theme,
+                  value: _atualizarCustoNoCadastro,
+                  onChanged: (v) =>
+                      setState(() => _atualizarCustoNoCadastro = v),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Atualizar preço de custo no cadastro do item com esta compra',
+                    style: theme.getTextStyle(
+                      fontSize: 11,
+                      color: theme.textColor,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ],
+      ),
+    );
   }
 
   Widget _tituloDoBloco(String texto) {
@@ -320,6 +628,11 @@ class _MovimentoEstoqueConteudoState
           onChanged: (valor) => setState(() {
             _item = valor;
             _aviso = null;
+            if (valor != null) {
+              _precoVendaRapidoController.text = valor.preco;
+              _codigoBarrasRapidoController.text = valor.codigoBarras;
+              _unidadeRapida = valor.unidadeBase;
+            }
           }),
         ),
       ),
@@ -477,6 +790,7 @@ class _MovimentoEstoqueConteudoState
               children: [
                 _tituloDoBloco('Item'),
                 _dropdownItem(),
+                _cardIntegracaoItem(),
                 const SizedBox(height: 16),
                 _tituloDoBloco('Tipo'),
                 Row(

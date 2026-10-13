@@ -85,6 +85,7 @@ class ItemVendido {
   final String foto;
   final String? categoriaId;
   final String? nomeCategoria;
+  final String varianteNome;
   final double precoItem;
   final double precoCategoria;
   final int quantidade;
@@ -97,6 +98,7 @@ class ItemVendido {
     this.foto = '',
     this.categoriaId,
     this.nomeCategoria,
+    this.varianteNome = '',
     required this.precoItem,
     this.precoCategoria = 0,
     required this.quantidade,
@@ -110,6 +112,7 @@ class ItemVendido {
     String? foto,
     String? categoriaId,
     String? nomeCategoria,
+    String? varianteNome,
     double? precoItem,
     double? precoCategoria,
     int? quantidade,
@@ -122,6 +125,7 @@ class ItemVendido {
       foto: foto ?? this.foto,
       categoriaId: categoriaId ?? this.categoriaId,
       nomeCategoria: nomeCategoria ?? this.nomeCategoria,
+      varianteNome: varianteNome ?? this.varianteNome,
       precoItem: precoItem ?? this.precoItem,
       precoCategoria: precoCategoria ?? this.precoCategoria,
       quantidade: quantidade ?? this.quantidade,
@@ -148,8 +152,13 @@ class ItemVendido {
       totalDosAcompanhamentosPorUnidade * quantidade;
 
   String get nomeExibicao {
-    if (nomeCategoria == null || nomeCategoria!.isEmpty) return nomeItem;
-    return '$nomeCategoria $nomeItem';
+    final base = (nomeCategoria != null && nomeCategoria!.isNotEmpty)
+        ? '$nomeCategoria $nomeItem'
+        : nomeItem;
+    if (varianteNome.isNotEmpty) {
+      return '$base ($varianteNome)';
+    }
+    return base;
   }
 
   Map<String, dynamic> toJson() {
@@ -159,6 +168,7 @@ class ItemVendido {
       'foto': foto,
       'categoriaId': categoriaId,
       'nomeCategoria': nomeCategoria,
+      'varianteNome': varianteNome,
       'precoItem': precoItem,
       'precoCategoria': precoCategoria,
       'quantidade': quantidade,
@@ -174,6 +184,7 @@ class ItemVendido {
       foto: json['foto'] as String? ?? '',
       categoriaId: json['categoriaId'] as String?,
       nomeCategoria: json['nomeCategoria'] as String?,
+      varianteNome: json['varianteNome'] as String? ?? '',
       precoItem: (json['precoItem'] as num).toDouble(),
       precoCategoria: (json['precoCategoria'] as num?)?.toDouble() ?? 0,
       quantidade: json['quantidade'] as int,

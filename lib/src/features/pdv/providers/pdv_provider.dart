@@ -556,6 +556,60 @@ class PdvProvider extends ChangeNotifier {
     _salvarLojaNoCofreCorreto(atualizada);
   }
 
+  void quitarPedidoLoja(
+    String lojaId,
+    String pedidoId, {
+    String formaRecebimento = 'Dinheiro',
+    String autorCpf = '',
+    String autorNome = '',
+    String autorEmail = '',
+  }) {
+    final indice = _lojas.indexWhere((l) => l.id == lojaId);
+    if (indice == -1) return;
+    final loja = _lojas[indice];
+    final pedidos = List<PedidoLoja>.from(loja.pedidosLoja);
+    final idxPed = pedidos.indexWhere((p) => p.id == pedidoId);
+    if (idxPed == -1) return;
+    final pedido = pedidos[idxPed];
+    final valorQuitado = pedido.valorRestante;
+
+    pedidos[idxPed] = pedido.copyWith(
+      quitado: true,
+      valorPago: pedido.valor,
+    );
+
+    final atualizada = _lojas[indice].copyWith(pedidosLoja: pedidos);
+    _lojas[indice] = atualizada;
+    notifyListeners();
+    _salvarLojaNoCofreCorreto(atualizada);
+
+    if (formaRecebimento.trim().toLowerCase() == 'dinheiro' &&
+        valorQuitado > 0) {
+      registrarMovimentoCaixa(
+        lojaId,
+        tipo: TipoMovimentoCaixa.suprimento,
+        valor: valorQuitado,
+        motivo: 'Recebimento de prazo - Pedido #${pedido.numero}',
+        cpf: autorCpf,
+        nome: autorNome,
+      );
+    }
+
+    registrarAcao(
+      lojaId,
+      RegistroAcao(
+        id: DateTime.now().millisecondsSinceEpoch.toString(),
+        dataHora: DateTime.now(),
+        tipo: TipoAcao.pagamentoPrazoRecebido,
+        descricao:
+            'Pedido #${pedido.numero} quitado ($formaRecebimento) - R\$ ${valorQuitado.toStringAsFixed(2).replaceAll('.', ',')}',
+        cpfAutor: autorCpf,
+        nomeAutor: autorNome,
+        emailAutor: autorEmail,
+      ),
+    );
+  }
+
   void atualizarMesasLoja(String id, List<MesaLoja> mesas) {
     final indice = _lojas.indexWhere((loja) => loja.id == id);
     if (indice == -1) return;
@@ -609,8 +663,23 @@ class PdvProvider extends ChangeNotifier {
     if (indice == -1) return;
 
     final atual = _lojas[indice].movimentosEstoque;
+    var itensLoja = _lojas[indice].itensLoja;
+    if (movimento.ehEntrada && movimento.custoUnitario > 0) {
+      final idxItem = itensLoja.indexWhere((i) => i.id == movimento.itemId);
+      if (idxItem != -1) {
+        final itemAtual = itensLoja[idxItem];
+        final novoCusto =
+            movimento.custoUnitario.toStringAsFixed(2).replaceAll('.', ',');
+        if (itemAtual.precoCusto != novoCusto) {
+          final novosItens = List<ItemLoja>.from(itensLoja);
+          novosItens[idxItem] = itemAtual.copyWith(precoCusto: novoCusto);
+          itensLoja = novosItens;
+        }
+      }
+    }
     final atualizada = _lojas[indice].copyWith(
       movimentosEstoque: [movimento, ...atual],
+      itensLoja: itensLoja,
     );
     _lojas[indice] = atualizada;
     notifyListeners();

@@ -16,6 +16,8 @@ class ItemLojaCard extends StatefulWidget {
   final ValueChanged<String> onNomeAlterado;
   final ValueChanged<String> onPrecoAlterado;
   final bool podeEditar;
+  final double? saldoEstoque;
+  final UnidadeItemLoja? unidade;
 
   const ItemLojaCard({
     super.key,
@@ -29,6 +31,8 @@ class ItemLojaCard extends StatefulWidget {
     required this.onNomeAlterado,
     required this.onPrecoAlterado,
     this.podeEditar = true,
+    this.saldoEstoque,
+    this.unidade,
   });
 
   @override
@@ -159,6 +163,31 @@ class _ItemLojaCardState extends State<ItemLojaCard> {
             Center(
               child: Icon(_iconeDoTipo(),
                   size: 30, color: theme.secondaryTextColor),
+            ),
+          if (widget.saldoEstoque != null)
+            Positioned(
+              top: 4,
+              left: 4,
+              child: Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                decoration: BoxDecoration(
+                  color: widget.saldoEstoque! <= 0
+                      ? Colors.redAccent.withValues(alpha: 0.85)
+                      : theme.cardBackgroundColor.withValues(alpha: 0.85),
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: Text(
+                  widget.saldoEstoque! <= 0
+                      ? 'Esgotado'
+                      : 'Est: ${formatarQuantidadeComUnidade(widget.saldoEstoque!, widget.unidade ?? UnidadeItemLoja.un)}',
+                  style: theme.getTextStyle(
+                    fontSize: 9,
+                    fontWeight: FontWeight.bold,
+                    color: theme.textColor,
+                  ),
+                ),
+              ),
             ),
           Positioned(
             top: 0,

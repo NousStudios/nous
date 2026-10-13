@@ -121,6 +121,24 @@ class RelatoriosDialog {
   }
 }
 
+class _PendenciaClienteAgrupada {
+  final String clienteNome;
+  final String? clienteId;
+  final double totalDevido;
+  final PedidoLoja ultimoPedido;
+  final int totalPedidos;
+  final List<PedidoLoja> pedidos;
+
+  const _PendenciaClienteAgrupada({
+    required this.clienteNome,
+    required this.clienteId,
+    required this.totalDevido,
+    required this.ultimoPedido,
+    required this.totalPedidos,
+    required this.pedidos,
+  });
+}
+
 class _RelatoriosConteudo extends StatefulWidget {
   final AppTheme theme;
   final String lojaId;
@@ -227,10 +245,33 @@ class _RelatoriosConteudoState extends State<_RelatoriosConteudo> {
     return lista;
   }
 
-  List<PedidoLoja> get _pendencias {
-    final lista =
-        _pedidos.where((p) => p.aPrazoEmAberto).toList();
-    lista.sort((a, b) => a.dataHora.compareTo(b.dataHora));
+  List<_PendenciaClienteAgrupada> get _pendenciasAgrupadas {
+    final abertos = _pedidos.where((p) => p.aPrazoEmAberto).toList();
+    final grupos = <String, List<PedidoLoja>>{};
+    for (final p in abertos) {
+      final chave = (p.clienteId != null && p.clienteId!.trim().isNotEmpty)
+          ? 'id:${p.clienteId!.trim()}'
+          : 'nome:${p.clienteNome.trim().toLowerCase()}';
+      grupos.putIfAbsent(chave, () => []).add(p);
+    }
+
+    final lista = <_PendenciaClienteAgrupada>[];
+    for (final grupo in grupos.values) {
+      grupo.sort((a, b) => b.dataHora.compareTo(a.dataHora));
+      final ultimo = grupo.first;
+      final totalDevido =
+          grupo.fold<double>(0.0, (s, p) => s + p.valorRestante);
+      lista.add(_PendenciaClienteAgrupada(
+        clienteNome: ultimo.clienteNome,
+        clienteId: ultimo.clienteId,
+        totalDevido: totalDevido,
+        ultimoPedido: ultimo,
+        totalPedidos: grupo.length,
+        pedidos: grupo,
+      ));
+    }
+    lista.sort((a, b) =>
+        b.ultimoPedido.dataHora.compareTo(a.ultimoPedido.dataHora));
     return lista;
   }
 
@@ -276,12 +317,51 @@ class _RelatoriosConteudoState extends State<_RelatoriosConteudo> {
     widget.onSalvarComentario?.call(id, dados);
   }
 
-  void _clicarPendencia(PedidoLoja pedido) {
-    final abrir = widget.aoAbrirClientes;
-    final clienteId = pedido.clienteId;
-    if (abrir == null || clienteId == null || clienteId.isEmpty) return;
-    Navigator.of(context).pop();
-    abrir(clienteId);
+  void _clicarPendenciaAgrupada(_PendenciaClienteAgrupada item) {
+    final abrirClientes = widget.aoAbrirClientes;
+    final pdv = context.read<PdvProvider>();
+    final loja = pdv.buscarPorId(widget.lojaId);
+
+    // 1. Se tem clienteId e o callback existe, abre a ficha do cliente
+    if (abrirClientes != null &&
+        item.clienteId != null &&
+        item.clienteId!.isNotEmpty) {
+      Navigator.of(context).pop();
+      abrirClientes(item.clienteId!);
+      return;
+    }
+
+    // 2. Se não tem clienteId, tenta encontrar o cliente cadastrado pelo nome
+    if (abrirClientes != null && loja != null) {
+      final clienteNomeLimpo = item.clienteNome.trim().toLowerCase();
+      final clienteEncontrado = loja.clientesLoja.where((c) =>
+          c.nome.trim().toLowerCase() == clienteNomeLimpo).firstOrNull;
+      if (clienteEncontrado != null) {
+        Navigator.of(context).pop();
+        abrirClientes(clienteEncontrado.id);
+        return;
+      }
+    }
+
+    // 3. Se for pedido avulso ou sem cliente cadastrado, abre diretamente a comanda
+    VendaRegistradaDialog.mostrar(
+      context,
+      theme: theme,
+      lojaId: widget.lojaId,
+      pedido: item.ultimoPedido,
+      autorCpf: widget.autorCpf,
+      autorNome: widget.autorNome,
+      autorEmail: widget.autorEmail,
+      onSalvarComentario: widget.onSalvarComentario != null
+          ? (dados) => widget.onSalvarComentario!(
+                item.ultimoPedido.id,
+                dados,
+              )
+          : null,
+      onExcluir: widget.onExcluirPedido != null
+          ? () => widget.onExcluirPedido!(item.ultimoPedido.id)
+          : null,
+    );
   }
 
   BoxDecoration get _decoracaoDoBloco => BoxDecoration(
@@ -461,19 +541,31 @@ class _RelatoriosConteudoState extends State<_RelatoriosConteudo> {
     );
   }
 
-  Widget _cardPendencia(PedidoLoja pedido) {
+  Widget _cardPendenciaCliente(_PendenciaClienteAgrupada item) {
     final pdv = context.read<PdvProvider>();
     final auth = context.read<AuthProvider>();
     final loja = pdv.buscarPorId(widget.lojaId);
     Cliente? cliente;
-    if (pedido.clienteId != null && loja != null) {
-      for (final c in loja.clientesLoja) {
-        if (c.id == pedido.clienteId) {
-          cliente = c;
-          break;
+    if (loja != null) {
+      if (item.clienteId != null && item.clienteId!.isNotEmpty) {
+        for (final c in loja.clientesLoja) {
+          if (c.id == item.clienteId) {
+            cliente = c;
+            break;
+          }
+        }
+      }
+      if (cliente == null) {
+        final nomeLimpo = item.clienteNome.trim().toLowerCase();
+        for (final c in loja.clientesLoja) {
+          if (c.nome.trim().toLowerCase() == nomeLimpo) {
+            cliente = c;
+            break;
+          }
         }
       }
     }
+
     String foto = '';
     if (cliente != null) {
       foto = cliente.foto.trim();
@@ -486,8 +578,12 @@ class _RelatoriosConteudoState extends State<_RelatoriosConteudo> {
     }
     final temFoto = foto.isNotEmpty && File(foto).existsSync();
 
+    final textoSubtitulo = item.totalPedidos > 1
+        ? 'Último pedido: ${_numeroCurto(item.ultimoPedido.numero)} • ${_dataHoraCurta(item.ultimoPedido.dataHora)}'
+        : 'Pedido ${_numeroCurto(item.ultimoPedido.numero)} • ${_dataHoraCurta(item.ultimoPedido.dataHora)}';
+
     return _LinhaComHover(
-      aoClicar: () => _clicarPendencia(pedido),
+      aoClicar: () => _clicarPendenciaAgrupada(item),
       builder: (hover) => Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
         decoration: BoxDecoration(
@@ -517,18 +613,44 @@ class _RelatoriosConteudoState extends State<_RelatoriosConteudo> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    pedido.clienteNome,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: theme.getTextStyle(
-                      fontSize: 12,
-                      color: theme.textColor,
-                    ),
+                  Row(
+                    children: [
+                      Flexible(
+                        child: Text(
+                          item.clienteNome,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: theme.getTextStyle(
+                            fontSize: 12,
+                            color: theme.textColor,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                      if (item.totalPedidos > 1) ...[
+                        const SizedBox(width: 6),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 5, vertical: 1),
+                          decoration: BoxDecoration(
+                            color: theme.borderColor.withValues(alpha: 0.25),
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: Text(
+                            '${item.totalPedidos} pedidos',
+                            style: theme.getTextStyle(
+                              fontSize: 9,
+                              color: theme.secondaryTextColor,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ],
                   ),
+                  const SizedBox(height: 2),
                   Text(
-                    'Pedido ${_numeroCurto(pedido.numero)} • '
-                    '${_dataHoraCurta(pedido.dataHora)}',
+                    textoSubtitulo,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: theme.getTextStyle(
@@ -540,13 +662,27 @@ class _RelatoriosConteudoState extends State<_RelatoriosConteudo> {
               ),
             ),
             const SizedBox(width: 8),
-            Text(
-              _valorCurto(pedido.valorRestante),
-              style: theme.getTextStyle(
-                fontSize: 12,
-                color: theme.textColor,
-                fontWeight: FontWeight.bold,
-              ),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  _valorCurto(item.totalDevido),
+                  style: theme.getTextStyle(
+                    fontSize: 12,
+                    color: theme.textColor,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                if (item.totalPedidos > 1)
+                  Text(
+                    'total devido',
+                    style: theme.getTextStyle(
+                      fontSize: 9,
+                      color: theme.secondaryTextColor,
+                    ),
+                  ),
+              ],
             ),
           ],
         ),
@@ -555,7 +691,7 @@ class _RelatoriosConteudoState extends State<_RelatoriosConteudo> {
   }
 
   Widget _blocoPendencias() {
-    final pendencias = _pendencias;
+    final pendencias = _pendenciasAgrupadas;
 
     return Container(
       width: double.infinity,
@@ -578,7 +714,7 @@ class _RelatoriosConteudoState extends State<_RelatoriosConteudo> {
                 separatorBuilder: (context, index) =>
                     const SizedBox(height: 8),
                 itemBuilder: (context, index) =>
-                    _cardPendencia(pendencias[index]),
+                    _cardPendenciaCliente(pendencias[index]),
               ),
             ),
         ],

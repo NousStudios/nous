@@ -51,6 +51,8 @@ class _ItemRascunho {
   final String chave;
   final String itemId;
   final String? categoriaId;
+  final String varianteNome;
+  final String precoVariante;
   final int quantidade;
   final Map<String, int> acompanhamentos;
   final String observacao;
@@ -59,6 +61,8 @@ class _ItemRascunho {
     required this.chave,
     required this.itemId,
     this.categoriaId,
+    this.varianteNome = '',
+    this.precoVariante = '',
     required this.quantidade,
     required this.acompanhamentos,
     required this.observacao,
@@ -110,7 +114,7 @@ class NovaVendaDialog {
       List<MovimentoEstoque> movimentosEstoque,
     ) onConcluir,
     required Future<void> Function(ItemLoja item, List<String> categoriaIds,
-        List<String> grupoIds) aoCriarItem,
+        List<String> grupoIds, [double? estoqueInicial]) aoCriarItem,
     required ConfiguracoesImpressora configuracoesImpressora,
     String? lojaId,
     List<MovimentoEstoque> movimentosEstoque = const [],
@@ -187,8 +191,8 @@ class _NovaVendaConteudo extends StatefulWidget {
     PedidoLoja pedido,
     List<MovimentoEstoque> movimentosEstoque,
   ) onConcluir;
-  final Future<void> Function(
-      ItemLoja item, List<String> categoriaIds, List<String> grupoIds) aoCriarItem;
+  final Future<void> Function(ItemLoja item, List<String> categoriaIds,
+      List<String> grupoIds, [double? estoqueInicial]) aoCriarItem;
   final ConfiguracoesImpressora configuracoesImpressora;
   final List<MovimentoEstoque> movimentosEstoque;
   final bool expandido;
@@ -221,6 +225,8 @@ class _LinhaCarrinho {
   final String chave;
   final String itemId;
   final String? categoriaId;
+  final String varianteNome;
+  final String precoVariante;
   int quantidade;
   final Map<String, int> acompanhamentosPorItemId;
   final TextEditingController observacaoController;
@@ -229,6 +235,8 @@ class _LinhaCarrinho {
     required this.chave,
     required this.itemId,
     this.categoriaId,
+    this.varianteNome = '',
+    this.precoVariante = '',
     Map<String, int>? acompanhamentos,
   })  : quantidade = 1,
         acompanhamentosPorItemId = acompanhamentos ?? {},
@@ -314,6 +322,8 @@ class _NovaVendaConteudoState extends State<_NovaVendaConteudo> {
         chave: item.chave,
         itemId: item.itemId,
         categoriaId: item.categoriaId,
+        varianteNome: item.varianteNome,
+        precoVariante: item.precoVariante,
         acompanhamentos: Map<String, int>.from(item.acompanhamentos),
       );
       linha.quantidade = item.quantidade;
@@ -346,6 +356,8 @@ class _NovaVendaConteudoState extends State<_NovaVendaConteudo> {
             chave: linha.chave,
             itemId: linha.itemId,
             categoriaId: linha.categoriaId,
+            varianteNome: linha.varianteNome,
+            precoVariante: linha.precoVariante,
             quantidade: linha.quantidade,
             acompanhamentos:
                 Map<String, int>.from(linha.acompanhamentosPorItemId),
@@ -450,9 +462,18 @@ class _NovaVendaConteudoState extends State<_NovaVendaConteudo> {
     return null;
   }
 
-  String _montarChave({required String itemId, String? categoriaId}) {
-    if (categoriaId == null) return '$_prefixoItem$itemId';
-    return '$_prefixoCategoria$categoriaId|$_prefixoItem$itemId';
+  String _montarChave({
+    required String itemId,
+    String? categoriaId,
+    String varianteNome = '',
+  }) {
+    var base = categoriaId == null
+        ? '$_prefixoItem$itemId'
+        : '$_prefixoCategoria$categoriaId|$_prefixoItem$itemId';
+    if (varianteNome.trim().isNotEmpty) {
+      base = '$base|var:${varianteNome.trim()}';
+    }
+    return base;
   }
 
   List<GrupoComponentesLoja> _gruposDaCategoria(_LinhaCarrinho linha) {
@@ -479,7 +500,10 @@ class _NovaVendaConteudoState extends State<_NovaVendaConteudo> {
   double _precoBaseUnitarioDaLinha(_LinhaCarrinho linha) {
     final item = _buscarItem(linha.itemId);
     if (item == null) return 0;
-    var soma = _precoComoNumero(item.preco);
+    final precoItem = linha.precoVariante.trim().isNotEmpty
+        ? _precoComoNumero(linha.precoVariante)
+        : _precoComoNumero(item.preco);
+    var soma = precoItem;
     if (linha.categoriaId != null) {
       final categoria = _buscarCategoria(linha.categoriaId!);
       if (categoria != null) soma += _precoComoNumero(categoria.preco);
@@ -569,10 +593,13 @@ class _NovaVendaConteudoState extends State<_NovaVendaConteudo> {
   String _nomeExibicaoDaLinha(_LinhaCarrinho linha) {
     final item = _buscarItem(linha.itemId);
     if (item == null) return 'Item removido';
-    if (linha.categoriaId == null) return item.nome;
-    final categoria = _buscarCategoria(linha.categoriaId!);
-    if (categoria == null) return item.nome;
-    return '${categoria.nome} ${item.nome}';
+    final base = linha.categoriaId == null
+        ? item.nome
+        : '${_buscarCategoria(linha.categoriaId!)?.nome ?? ''} ${item.nome}'.trim();
+    if (linha.varianteNome.trim().isNotEmpty) {
+      return '$base (${linha.varianteNome.trim()})';
+    }
+    return base;
   }
 
   _LinhaCarrinho? _linhaPorChave(String chave) {
@@ -624,14 +651,14 @@ class _NovaVendaConteudoState extends State<_NovaVendaConteudo> {
     }).firstOrNull;
 
     if (itemPorCodigo != null) {
-      _adicionarLinhaAoCarrinho(itemId: itemPorCodigo.id);
+      _processarAdicaoItemAoCarrinho(itemId: itemPorCodigo.id);
       _buscaController.clear();
       return;
     }
 
     final itens = _itensEncontrados;
     if (itens.length == 1) {
-      _adicionarLinhaAoCarrinho(itemId: itens.first.id);
+      _processarAdicaoItemAoCarrinho(itemId: itens.first.id);
       _buscaController.clear();
     }
   }
@@ -780,8 +807,17 @@ class _NovaVendaConteudoState extends State<_NovaVendaConteudo> {
     return buffer.toString();
   }
 
-  void _adicionarLinhaAoCarrinho({required String itemId, String? categoriaId}) {
-    final chave = _montarChave(itemId: itemId, categoriaId: categoriaId);
+  void _adicionarLinhaAoCarrinho({
+    required String itemId,
+    String? categoriaId,
+    String varianteNome = '',
+    String precoVariante = '',
+  }) {
+    final chave = _montarChave(
+      itemId: itemId,
+      categoriaId: categoriaId,
+      varianteNome: varianteNome,
+    );
     setState(() {
       final existente = _linhaPorChave(chave);
       if (existente != null) {
@@ -791,6 +827,8 @@ class _NovaVendaConteudoState extends State<_NovaVendaConteudo> {
           chave: chave,
           itemId: itemId,
           categoriaId: categoriaId,
+          varianteNome: varianteNome,
+          precoVariante: precoVariante,
         ));
       }
       _aviso = null;
@@ -801,6 +839,130 @@ class _NovaVendaConteudoState extends State<_NovaVendaConteudo> {
           : null;
       SomService.tocarEvento(SomService.eventoBipVenda, loja: loja);
     } catch (_) {}
+  }
+
+  Future<void> _processarAdicaoItemAoCarrinho({
+    required String itemId,
+    String? categoriaId,
+  }) async {
+    final item = _buscarItem(itemId);
+    if (item == null) return;
+    if (item.variantes.isNotEmpty) {
+      final varianteEscolhida = await _selecionarVarianteDialog(item);
+      if (varianteEscolhida == null) return;
+      _adicionarLinhaAoCarrinho(
+        itemId: itemId,
+        categoriaId: categoriaId,
+        varianteNome: varianteEscolhida.nome,
+        precoVariante: varianteEscolhida.preco,
+      );
+    } else {
+      _adicionarLinhaAoCarrinho(
+        itemId: itemId,
+        categoriaId: categoriaId,
+      );
+    }
+  }
+
+  Future<VarianteItem?> _selecionarVarianteDialog(ItemLoja item) {
+    return showDialog<VarianteItem>(
+      context: context,
+      builder: (dialogCtx) => AlertDialog(
+        backgroundColor: theme.cardBackgroundColor,
+        surfaceTintColor: Colors.transparent,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+          side: BorderSide(color: theme.borderColor),
+        ),
+        title: Text(
+          'Escolha a Variante\n${item.nome}',
+          textAlign: TextAlign.center,
+          style: theme.getTextStyle(
+            fontSize: 15,
+            fontWeight: FontWeight.bold,
+            color: theme.textColor,
+          ),
+        ),
+        content: SizedBox(
+          width: 320,
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                ListTile(
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 12),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10),
+                    side: BorderSide(
+                      color: theme.borderColor.withValues(alpha: 0.5),
+                    ),
+                  ),
+                  title: Text(
+                    'Padrão',
+                    style: theme.getTextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.bold,
+                      color: theme.textColor,
+                    ),
+                  ),
+                  trailing: Text(
+                    'R\$ ${item.preco}',
+                    style: theme.getTextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                      color: theme.textColor,
+                    ),
+                  ),
+                  onTap: () => Navigator.of(dialogCtx).pop(
+                    VarianteItem(nome: '', preco: item.preco),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                for (final v in item.variantes) ...[
+                  ListTile(
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 12),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      side: BorderSide(
+                        color: theme.borderColor.withValues(alpha: 0.5),
+                      ),
+                    ),
+                    title: Text(
+                      v.nome,
+                      style: theme.getTextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.bold,
+                        color: theme.textColor,
+                      ),
+                    ),
+                    trailing: Text(
+                      'R\$ ${v.preco.isNotEmpty ? v.preco : item.preco}',
+                      style: theme.getTextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                        color: theme.textColor,
+                      ),
+                    ),
+                    onTap: () => Navigator.of(dialogCtx).pop(v),
+                  ),
+                  const SizedBox(height: 8),
+                ],
+              ],
+            ),
+          ),
+        ),
+        actionsAlignment: MainAxisAlignment.center,
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogCtx).pop(null),
+            child: Text(
+              'Cancelar',
+              style: theme.getTextStyle(color: theme.secondaryTextColor),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   void _alterarQuantidade(String chave, int variacao) {
@@ -1132,11 +1294,11 @@ class _NovaVendaConteudoState extends State<_NovaVendaConteudo> {
                             ),
                             onTap: () {
                               _buscaController.clear();
-                              _adicionarLinhaAoCarrinho(
+                              Navigator.of(dialogContext).pop();
+                              _processarAdicaoItemAoCarrinho(
                                 itemId: item.id,
                                 categoriaId: categoria.id,
                               );
-                              Navigator.of(dialogContext).pop();
                             },
                           ),
                       ],
@@ -1149,13 +1311,22 @@ class _NovaVendaConteudoState extends State<_NovaVendaConteudo> {
   }
 
   Future<void> _abrirNovoProduto() async {
+    double? estoqueInicialInformado;
     await NovoItemDialog.mostrar(
       context,
       theme: theme,
       categorias: widget.categoriasDisponiveis,
       gruposComponentes: widget.gruposDisponiveis,
+      onEstoqueAjustado: (novoSaldo) {
+        estoqueInicialInformado = novoSaldo;
+      },
       onCriar: (item, categoriaIds, grupoIds) async {
-        await widget.aoCriarItem(item, categoriaIds, grupoIds);
+        await widget.aoCriarItem(
+          item,
+          categoriaIds,
+          grupoIds,
+          estoqueInicialInformado,
+        );
       },
     );
   }
@@ -1209,13 +1380,18 @@ class _NovaVendaConteudoState extends State<_NovaVendaConteudo> {
           quantidadePorUnidade: quantidade,
         ));
       });
+      final precoItem = linha.precoVariante.trim().isNotEmpty
+          ? _precoComoNumero(linha.precoVariante)
+          : _precoComoNumero(item.preco);
+
       itensVendidos.add(ItemVendido(
         itemId: item.id,
         nomeItem: item.nome,
         foto: item.imagens.isNotEmpty ? item.imagens.first : '',
         categoriaId: categoria?.id,
         nomeCategoria: categoria?.nome,
-        precoItem: _precoComoNumero(item.preco),
+        varianteNome: linha.varianteNome,
+        precoItem: precoItem,
         precoCategoria:
             categoria == null ? 0 : _precoComoNumero(categoria.preco),
         quantidade: linha.quantidade,
@@ -1511,7 +1687,7 @@ class _NovaVendaConteudoState extends State<_NovaVendaConteudo> {
     return InkWell(
       onTap: () {
         _buscaController.clear();
-        _adicionarLinhaAoCarrinho(itemId: item.id);
+        _processarAdicaoItemAoCarrinho(itemId: item.id);
       },
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
