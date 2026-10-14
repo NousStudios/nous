@@ -74,6 +74,7 @@ class _ModoBalcaoWidgetState extends State<ModoBalcaoWidget> {
   final _clienteFocusNode = FocusNode();
   final _descontoController = TextEditingController();
   final _acrescimoController = TextEditingController();
+  final _freteController = TextEditingController();
   final _valorRecebidoController = TextEditingController();
 
   final List<ItemVendido> _carrinho = [];
@@ -110,6 +111,7 @@ class _ModoBalcaoWidgetState extends State<ModoBalcaoWidget> {
     _clienteFocusNode.dispose();
     _descontoController.dispose();
     _acrescimoController.dispose();
+    _freteController.dispose();
     _valorRecebidoController.dispose();
     super.dispose();
   }
@@ -137,9 +139,7 @@ class _ModoBalcaoWidgetState extends State<ModoBalcaoWidget> {
         return cat;
       }
     }
-    return widget.categorias
-        .where((c) => c.itemIds.contains(item.id))
-        .firstOrNull;
+    return null;
   }
 
   void _garantirFocoBipador() {
@@ -175,6 +175,10 @@ class _ModoBalcaoWidgetState extends State<ModoBalcaoWidget> {
     return _carrinho.fold<double>(0.0, (soma, item) => soma + item.subtotal);
   }
 
+  double get _freteValor {
+    return _precoComoNumero(_freteController.text);
+  }
+
   double get _descontoValor {
     return _precoComoNumero(_descontoController.text);
   }
@@ -185,7 +189,7 @@ class _ModoBalcaoWidgetState extends State<ModoBalcaoWidget> {
 
   double get _totalGeral {
     final sub = _subtotalCarrinho;
-    final total = sub - _descontoValor + _acrescimoValor;
+    final total = sub + _freteValor - _descontoValor + _acrescimoValor;
     return total < 0 ? 0 : total;
   }
 
@@ -812,6 +816,7 @@ class _ModoBalcaoWidgetState extends State<ModoBalcaoWidget> {
       _clienteSelecionado = null;
       _mostrarSugestoesCliente = false;
       _clienteController.clear();
+      _freteController.clear();
       _descontoController.clear();
       _acrescimoController.clear();
       _valorRecebidoController.clear();
@@ -833,6 +838,15 @@ class _ModoBalcaoWidgetState extends State<ModoBalcaoWidget> {
       for (final a in it.acompanhamentos) {
         buffer.writeln('   + ${a.quantidadePorUnidade}x ${a.nomeItem}');
       }
+    }
+    if (_freteValor > 0) {
+      buffer.writeln('Frete: + R\$ ${_valorFormatado(_freteValor)}');
+    }
+    if (_acrescimoValor > 0) {
+      buffer.writeln('Acréscimo: + R\$ ${_valorFormatado(_acrescimoValor)}');
+    }
+    if (_descontoValor > 0) {
+      buffer.writeln('Desconto: - R\$ ${_valorFormatado(_descontoValor)}');
     }
     return buffer.toString().trim();
   }
@@ -882,6 +896,7 @@ class _ModoBalcaoWidgetState extends State<ModoBalcaoWidget> {
       quitado: !temPrazo,
       valorPago: !temPrazo ? total : 0.0,
       itens: List.of(_carrinho),
+      frete: _freteValor,
       desconto: _descontoValor,
       acrescimo: _acrescimoValor,
       nomeVendedor: widget.nomeAutor,
@@ -1755,20 +1770,48 @@ class _ModoBalcaoWidgetState extends State<ModoBalcaoWidget> {
           const SizedBox(width: 8),
           Expanded(
             flex: 2,
-            child: TextField(
-              controller: _acrescimoController,
-              keyboardType:
-                  const TextInputType.numberWithOptions(decimal: true),
-              cursorColor: theme.textColor,
-              style: theme.getTextStyle(fontSize: 11),
-              decoration: InputDecoration(
-                hintText: 'Acrésc: 0,00',
-                hintStyle: theme.getTextStyle(
-                    fontSize: 11, color: theme.secondaryTextColor),
-                border: InputBorder.none,
-                isDense: true,
-              ),
-              onChanged: (_) => setState(() {}),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                TextField(
+                  controller: _freteController,
+                  keyboardType:
+                      const TextInputType.numberWithOptions(decimal: true),
+                  cursorColor: theme.textColor,
+                  style: theme.getTextStyle(fontSize: 11),
+                  decoration: InputDecoration(
+                    hintText: 'Frete: 0,00',
+                    hintStyle: theme.getTextStyle(
+                        fontSize: 11, color: theme.secondaryTextColor),
+                    border: InputBorder.none,
+                    isDense: true,
+                    contentPadding: EdgeInsets.zero,
+                  ),
+                  onChanged: (_) => setState(() {}),
+                ),
+                Container(
+                  height: 1,
+                  color: theme.borderColor.withValues(alpha: 0.25),
+                  margin: const EdgeInsets.symmetric(vertical: 2),
+                ),
+                TextField(
+                  controller: _acrescimoController,
+                  keyboardType:
+                      const TextInputType.numberWithOptions(decimal: true),
+                  cursorColor: theme.textColor,
+                  style: theme.getTextStyle(fontSize: 11),
+                  decoration: InputDecoration(
+                    hintText: 'Acrésc: 0,00',
+                    hintStyle: theme.getTextStyle(
+                        fontSize: 11, color: theme.secondaryTextColor),
+                    border: InputBorder.none,
+                    isDense: true,
+                    contentPadding: EdgeInsets.zero,
+                  ),
+                  onChanged: (_) => setState(() {}),
+                ),
+              ],
             ),
           ),
         ],
@@ -2262,7 +2305,7 @@ class _ModoBalcaoWidgetState extends State<ModoBalcaoWidget> {
                       color: theme.secondaryTextColor,
                     ).copyWith(letterSpacing: 1.0),
                   ),
-                  if (_descontoValor > 0 || _acrescimoValor > 0)
+                  if (_descontoValor > 0 || _acrescimoValor > 0 || _freteValor > 0)
                     Text(
                       'Subtotal: R\$ ${_valorFormatado(subtotal)}',
                       style: theme.getTextStyle(

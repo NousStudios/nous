@@ -2,23 +2,31 @@ import 'package:flutter/material.dart';
 import 'package:nous/src/core/theme/theme_controller.dart';
 import 'package:nous/src/core/widgets/themed_switch.dart';
 import 'package:nous/src/features/pdv/models/cargo_loja.dart';
+import 'package:nous/src/features/pdv/models/loja.dart';
 
 class CargosEPermissoesContainer extends StatefulWidget {
   final AppTheme theme;
   final List<CargoLoja> cargosPersonalizados;
+  final Map<String, Map<String, bool>> permissoesCargosNativos;
   final bool podeGerenciar;
+  final bool ehDonoOuSocio;
   final ValueChanged<CargoLoja>? onAdicionarCargo;
   final ValueChanged<CargoLoja>? onAtualizarCargo;
   final ValueChanged<String>? onRemoverCargo;
+  final void Function(String papel, Map<String, bool> permissoes)?
+      onAtualizarPermissoesCargoNativo;
 
   const CargosEPermissoesContainer({
     super.key,
     required this.theme,
     required this.cargosPersonalizados,
+    this.permissoesCargosNativos = const {},
     required this.podeGerenciar,
+    this.ehDonoOuSocio = false,
     this.onAdicionarCargo,
     this.onAtualizarCargo,
     this.onRemoverCargo,
+    this.onAtualizarPermissoesCargoNativo,
   });
 
   @override
@@ -424,11 +432,59 @@ class _CargosEPermissoesContainerState
     required bool ehNativo,
     required CargoLoja? cargoPersonalizado,
   }) {
+    final ehSoberano =
+        _abaSelecionadaId == 'dono' || _abaSelecionadaId == 'socio';
+    final ehNativoInferior =
+        _abaSelecionadaId == 'admin' || _abaSelecionadaId == 'funcionario';
+
     final bool ativa;
-    if (ehNativo) {
-      ativa = _permissaoNativaAtiva(_abaSelecionadaId, perm.chave);
+    if (ehSoberano) {
+      ativa = true;
+    } else if (ehNativoInferior) {
+      final customizadas =
+          widget.permissoesCargosNativos[_abaSelecionadaId];
+      if (customizadas != null && customizadas.containsKey(perm.chave)) {
+        ativa = customizadas[perm.chave] ?? false;
+      } else {
+        ativa =
+            Loja.permissoesPadraoPorPapel(_abaSelecionadaId)[perm.chave] ??
+                false;
+      }
     } else {
       ativa = cargoPersonalizado?.temPermissao(perm.chave) ?? false;
+    }
+
+    final ValueChanged<bool>? onSwitchChanged;
+    if (ehSoberano) {
+      onSwitchChanged = null;
+    } else if (ehNativoInferior) {
+      // Sócios e Donos podem mudar todas as permissões de cargos inferiores nativos
+      onSwitchChanged = widget.ehDonoOuSocio
+          ? (novoValor) {
+              final mapaBase =
+                  widget.permissoesCargosNativos[_abaSelecionadaId] ??
+                      Loja.permissoesPadraoPorPapel(_abaSelecionadaId);
+              final novoMapa = Map<String, bool>.from(mapaBase);
+              novoMapa[perm.chave] = novoValor;
+              widget.onAtualizarPermissoesCargoNativo?.call(
+                _abaSelecionadaId,
+                novoMapa,
+              );
+            }
+          : null;
+    } else {
+      // Cargos personalizados criados
+      onSwitchChanged =
+          (widget.podeGerenciar && cargoPersonalizado != null)
+              ? (novoValor) {
+                  final novasPerms =
+                      Map<String, bool>.from(cargoPersonalizado.permissoes);
+                  novasPerms[perm.chave] = novoValor;
+                  final atualizado =
+                      cargoPersonalizado.copyWith(permissoes: novasPerms);
+                  widget.onAtualizarCargo?.call(atualizado);
+                }
+              : null;
     }
 
     return Container(
@@ -470,10 +526,22 @@ class _CargosEPermissoesContainerState
                     color: theme.secondaryTextColor,
                   ),
                 ),
-                if (ehNativo) ...[
+                if (ehSoberano) ...[
                   const SizedBox(height: 2),
                   Text(
                     'Regra fundamental do sistema (inalterável)',
+                    style: theme.getTextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w500,
+                      color: theme.secondaryTextColor.withValues(alpha: 0.8),
+                    ),
+                  ),
+                ] else if (ehNativoInferior) ...[
+                  const SizedBox(height: 2),
+                  Text(
+                    widget.ehDonoOuSocio
+                        ? 'Configurável por Sócios e Donos'
+                        : 'Definido pela gestão da loja',
                     style: theme.getTextStyle(
                       fontSize: 10,
                       fontWeight: FontWeight.w500,
@@ -488,35 +556,11 @@ class _CargosEPermissoesContainerState
           ThemedSwitch(
             theme: theme,
             value: ativa,
-            onChanged: (!ehNativo && widget.podeGerenciar && cargoPersonalizado != null)
-                ? (novoValor) {
-                    final novasPerms =
-                        Map<String, bool>.from(cargoPersonalizado.permissoes);
-                    novasPerms[perm.chave] = novoValor;
-                    final atualizado =
-                        cargoPersonalizado.copyWith(permissoes: novasPerms);
-                    widget.onAtualizarCargo?.call(atualizado);
-                  }
-                : null,
+            onChanged: onSwitchChanged,
           ),
         ],
       ),
     );
-  }
-
-  bool _permissaoNativaAtiva(String papelId, String chave) {
-    if (papelId == 'dono') return true;
-    if (papelId == 'socio') return true;
-    if (papelId == 'admin') {
-      return chave == PermissaoLojaConst.editarAbaLoja ||
-          chave == PermissaoLojaConst.usarImpressora ||
-          chave == PermissaoLojaConst.usarFinanceiro ||
-          chave == PermissaoLojaConst.registrarPagamento;
-    }
-    if (papelId == 'funcionario') {
-      return chave == PermissaoLojaConst.usarFinanceiro;
-    }
-    return false;
   }
 
   IconData _iconeDaPermissao(String chave) {

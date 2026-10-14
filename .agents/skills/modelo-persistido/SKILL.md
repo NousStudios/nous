@@ -15,7 +15,7 @@ Aplica-se a todos os modelos persistidos em disco (banco local SQLite via `Banco
 
 ### Modelos Principais
 - **`UsuarioNous`** (`lib/src/features/auth/models/usuario_nous.dart`): Identidade cidadã e dados civis.
-- **`Loja`** (`lib/src/features/pdv/models/loja.dart`): Dados da loja, cofre, cargos personalizados (`cargosPersonalizados`), configurações operacionais, preferências de som (`sonsAlertas`), atalhos de teclado (<kbd>F1</kbd> a <kbd>F12</kbd> em `atalhosTeclado`), modo de layout expandido (`layoutExpandido`) e tipo de layout ampliado (`tipoLayoutMaior`).
+- **`Loja`** (`lib/src/features/pdv/models/loja.dart`): Dados da loja, cofre, cargos personalizados (`cargosPersonalizados`), permissões customizadas de cargos inferiores (`permissoesCargosNativos`), configurações operacionais, preferências de som (`sonsAlertas`), atalhos de teclado (<kbd>F1</kbd> a <kbd>F12</kbd> em `atalhosTeclado`), modo de layout expandido (`layoutExpandido`) e tipo de layout ampliado (`tipoLayoutMaior`).
 - **`CargoLoja`** (`lib/src/features/pdv/models/cargo_loja.dart`): Cargos personalizados da loja e mapa de permissões operacionais do sistema (`permissoes`).
 - **`Cliente`** (`lib/src/features/pdv/models/cliente.dart`): Cadastro de clientes com CPF/CNPJ.
 - **`Fornecedor`** (`lib/src/features/pdv/models/fornecedor.dart`): Cadastro de fornecedores.

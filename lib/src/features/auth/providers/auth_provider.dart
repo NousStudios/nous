@@ -23,8 +23,17 @@ class AuthProvider extends ChangeNotifier {
 
   bool get isValid => CpfValidator.isValid(_cpf);
 
+  bool _disposed = false;
+
+  @override
+  void dispose() {
+    _disposed = true;
+    super.dispose();
+  }
+
   Future<void> carregarCacheContas() async {
     final todas = await ContasNousService.carregarTodas();
+    if (_disposed) return;
     _fotosPorCpf = {
       for (final c in todas)
         if (c.foto.trim().isNotEmpty) c.cpf: c.foto.trim(),

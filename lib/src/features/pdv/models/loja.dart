@@ -37,6 +37,7 @@ class Loja {
   final List<RegistroAcao> acoes;
   final List<MembroLoja> membros;
   final List<CargoLoja> cargosPersonalizados;
+  final Map<String, Map<String, bool>> permissoesCargosNativos;
   final List<MesaLoja> mesas;
   final List<MovimentoEstoque> movimentosEstoque;
   final List<PagamentoFuncionario> pagamentosFuncionarios;
@@ -78,6 +79,7 @@ class Loja {
     this.acoes = const [],
     this.membros = const [],
     this.cargosPersonalizados = const [],
+    this.permissoesCargosNativos = const {},
     this.mesas = const [],
     this.movimentosEstoque = const [],
     this.pagamentosFuncionarios = const [],
@@ -117,6 +119,7 @@ class Loja {
     List<RegistroAcao>? acoes,
     List<MembroLoja>? membros,
     List<CargoLoja>? cargosPersonalizados,
+    Map<String, Map<String, bool>>? permissoesCargosNativos,
     List<MesaLoja>? mesas,
     List<MovimentoEstoque>? movimentosEstoque,
     List<PagamentoFuncionario>? pagamentosFuncionarios,
@@ -157,6 +160,8 @@ class Loja {
       acoes: acoes ?? this.acoes,
       membros: membros ?? this.membros,
       cargosPersonalizados: cargosPersonalizados ?? this.cargosPersonalizados,
+      permissoesCargosNativos:
+          permissoesCargosNativos ?? this.permissoesCargosNativos,
       mesas: mesas ?? this.mesas,
       movimentosEstoque: movimentosEstoque ?? this.movimentosEstoque,
       pagamentosFuncionarios:
@@ -205,6 +210,9 @@ class Loja {
       'membros': membros.map((m) => m.toJson()).toList(),
       'cargosPersonalizados':
           cargosPersonalizados.map((c) => c.toJson()).toList(),
+      'permissoesCargosNativos': permissoesCargosNativos.map(
+        (cargo, perms) => MapEntry(cargo, perms),
+      ),
       'mesas': mesas.map((m) => m.toJson()).toList(),
       'movimentosEstoque':
           movimentosEstoque.map((m) => m.toJson()).toList(),
@@ -271,6 +279,17 @@ class Loja {
           (json['cargosPersonalizados'] as List<dynamic>? ?? const [])
               .map((item) => CargoLoja.fromJson(item as Map<String, dynamic>))
               .toList(),
+      permissoesCargosNativos:
+          (json['permissoesCargosNativos'] as Map<String, dynamic>?)?.map(
+                (cargo, perms) => MapEntry(
+                  cargo,
+                  (perms as Map<String, dynamic>?)?.map(
+                        (k, v) => MapEntry(k, v as bool? ?? false),
+                      ) ??
+                      const {},
+                ),
+              ) ??
+              const {},
       mesas: (json['mesas'] as List<dynamic>? ?? const [])
           .map((item) => MesaLoja.fromJson(item as Map<String, dynamic>))
           .toList(),
@@ -342,4 +361,46 @@ class Loja {
         'Esc': 'Voltar / Fechar Janela',
         ...atalhosTeclado,
       };
+
+  static Map<String, bool> permissoesPadraoPorPapel(String papel) {
+    if (papel == 'dono' || papel == 'socio') {
+      return {
+        for (final p in PermissaoLojaConst.todas) p.chave: true,
+      };
+    }
+    if (papel == 'admin') {
+      return {
+        PermissaoLojaConst.editarAbaLoja: true,
+        PermissaoLojaConst.usarImpressora: true,
+        PermissaoLojaConst.editarDadosLoja: false,
+        PermissaoLojaConst.usarFinanceiro: true,
+        PermissaoLojaConst.registrarPagamento: true,
+        PermissaoLojaConst.gerenciarMembros: false,
+        PermissaoLojaConst.excluirLoja: false,
+      };
+    }
+    if (papel == 'funcionario') {
+      return {
+        PermissaoLojaConst.editarAbaLoja: false,
+        PermissaoLojaConst.usarImpressora: false,
+        PermissaoLojaConst.editarDadosLoja: false,
+        PermissaoLojaConst.usarFinanceiro: true,
+        PermissaoLojaConst.registrarPagamento: false,
+        PermissaoLojaConst.gerenciarMembros: false,
+        PermissaoLojaConst.excluirLoja: false,
+      };
+    }
+    return {};
+  }
+
+  bool temPermissaoPapel(String papel, String chavePermissao) {
+    if (papel == 'dono') return true;
+    if (papel == 'socio') return true;
+    final customizadas = permissoesCargosNativos[papel];
+    if (customizadas != null && customizadas.containsKey(chavePermissao)) {
+      return customizadas[chavePermissao] ?? false;
+    }
+    final padrao = permissoesPadraoPorPapel(papel);
+    return padrao[chavePermissao] ?? false;
+  }
 }

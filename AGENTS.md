@@ -220,8 +220,15 @@ Este projeto apoia-se no **anarquismo plataformista brasileiro**: poder sem inte
   - Posicionado acima do container "Usuários Participantes" na aba "Dados do Perfil".
   - Minimizado por padrão com expansão/recolhimento sob clique para preservar a ergonomia visual.
   - Abas horizontais no estilo Discord para cargos nativos (`Dono`, `Sócio`, `Administrador`, `Funcionário`) e novos cargos customizados criados via `+ Novo Cargo`.
-  - Transparência radical: lista todas as permissões do sistema (`PermissaoLojaConst.todas`) com explicação didática e `ThemedSwitch`. Nos cargos nativos, os switches permanecem travados com badge explicativo de *"Regra fundamental do sistema (inalterável)"*. Nos cargos personalizados, quem tem permissão pode alternar livremente cada permissão, renomear ou excluir o cargo.
-  - Modelo `CargoLoja` com mapa de permissões flexível persistido no cofre da `Loja` (`cargosPersonalizados`) e suporte a `cargoPersonalizadoId` em `MembroLoja`.
+  - Transparência radical e Governança Democrática: lista todas as permissões do sistema (`PermissaoLojaConst.todas`) com explicação didática e `ThemedSwitch`.
+  - **Soberania dos Fundadores:** Nas abas `Dono` e `Sócio`, os switches permanecem travados com o badge *"Regra fundamental do sistema (inalterável)"*, garantindo a co-gestão plena.
+  - **Governança de Cargos Inferiores por Sócios e Donos:** Sócios e Donos têm poder irrestrito para alternar todas as permissões dos cargos inferiores: **Administrador**, **Funcionário** e cargos personalizados criados. As permissões personalizadas dos cargos nativos são persistidas no cofre da loja em `Loja.permissoesCargosNativos` com fallback transparente para os padrões do sistema (`Loja.permissoesPadraoPorPapel`).
+  - **Delegação a Administradores e Funcionários:** Se Sócios ou Donos ativarem a permissão *"Gerenciar Membros e Cargos"* (`PermissaoLojaConst.gerenciarMembros`) para Administradores ou Funcionários, estes passam a poder alterar cargos e papéis operacionais de outros membros da equipe (respeitando a proteção inegociável de Donos e Sócios).
+  - **Atribuição de Cargos Criados em Membros (`UsuariosParticipantesContainer`):** O diálogo de edição de membros permite selecionar o papel operacional e vincular diretamente qualquer cargo criado (`Loja.cargosPersonalizados` via `vincularCargoAoMembro`), com identificação clara no subtítulo do membro.
+- **Atalho Universal de Tela Cheia (<kbd>F11</kbd>):**
+  - Gerenciado no nível de hardware nativo em `main.dart` via `HardwareKeyboard.instance.addHandler`.
+  - Alterna instantaneamente o modo de tela cheia nativo do Windows em qualquer ponto da aplicação, seja no modo compacto (para celulares), no modo desktop expandido, na tela de login ou com qualquer diálogo/popup aberto.
+  - **Separação Clara de Responsabilidades:** O <kbd>F11</kbd> é estritamente para tela cheia. O único modo de alternar entre o modo compacto e o modo desktop é pelas configurações através do botão "Ajustes" da loja (aba Ajustes/Interface).
 
 ### 7.3 Fluxo de Venda, Comandas e Estoque
 - **Reordenação Fluida por Pressão sem Alça de Arraste (Loja do Perfil):**
@@ -235,6 +242,16 @@ Este projeto apoia-se no **anarquismo plataformista brasileiro**: poder sem inte
 - Suporte a pagamentos múltiplos (`List<PagamentoParcial>`) acessados prioritariamente via getter `pedido.todosPagamentos`.
 - Impressão térmica padrão de 58mm e 80mm gerada em PDF via `ImpressaoService`.
 - Controle de estoque com unidades (`un`, `g`, `ml`) e baixa automática sugerida (`BaixaEstoqueDialog`) com ajuste humano obrigatório.
+- **Modo Balcão / Frente de Caixa Profissional (`ModoBalcaoWidget`):**
+  - **Venda Avulsa vs. Categorizada:** Ao registrar ou selecionar um item na aba "Todos" (ou por busca/bipador avulso), o sistema cobra estritamente o preço base do produto (ex: copo avulso por R$ 2,00). O valor da categoria só é somado se o operador tiver selecionado previamente a categoria correspondente (ex: Categoria Açaí R$ 17,00 + Copo R$ 2,00 = R$ 19,00).
+  - **Campo "Frete" no Operador do Balcão:** Posicionado estrategicamente acima de "Acrésc:", permitindo lançar valor de entrega/frete que é somado ao total geral do pedido, registrado no cofre da loja (`PedidoLoja.frete`) e discriminado na comanda térmica.
+- **Caixa do Balcão e Detalhes de Turnos Fechados (`CaixaDialog` & `DetalhesTurnoCaixaDialog`):**
+  - **Barra de Turnos com Hover e Acesso Rápido:** Na listagem de "Últimos Turnos Fechados" em `CaixaDialog`, cada barra responde dinamicamente ao mouse em hover (borda contrastante e fundo `theme.borderColor.withValues(alpha: 0.18)`), exibindo tooltip explicativo e seta indicadora. O clique na barra abre a janela dedicada `DetalhesTurnoCaixaDialog`, enquanto o botão de impressão rápido permanece independente.
+  - **Operadores com Foto e Duração:** Identifica quem abriu e quem fechou o turno com foto real do perfil por CPF (via `AuthProvider` / `PdvProvider`), nome, CPF formatado, horários e duração total calculada do turno, além de observação de fechamento.
+  - **Resumo Financeiro e Conferência:** Apresenta fundo inicial, total de vendas por forma (Dinheiro, Eletrônico/Cartão, À Prazo), suprimentos, sangrias, saldo esperado em caixa vs. saldo informado e divergência (quebra/falta em `Colors.redAccent` ou sobra/exato).
+  - **Histórico de Movimentações (Retiradas e Entradas):** Aba dedicada listando detalhadamente quem retirou/inseriu dinheiro (foto, nome e CPF do autor), horário, motivo/justificativa e valor.
+  - **Histórico de Vendas do Turno:** Aba listando todos os pedidos realizados no período do turno com cliente, forma de pagamento e total.
+  - **Apagar Registro do Turno:** Botão destrutivo "Apagar Registro" com confirmação segura contra cliques acidentais. Ao confirmar, remove o turno do cofre da loja (`PdvProvider.excluirTurnoCaixa`), salva a alteração, registra ação de auditoria (`TipoAcao.turnoCaixaExcluido`) e atualiza reativamente a interface em tempo real.
 - **Leitor de Código de Barras e Bipador Rápido:**
   - O modelo `ItemLoja` armazena `codigoBarras` e `precoCusto`.
   - No diálogo `NovaVendaDialog`, a busca aceita leitores de código de barras USB (bipadores). Ao pressionar Enter ou bipar o código exato, o item é adicionado imediatamente ao carrinho e o campo é limpo para a próxima leitura.
@@ -252,7 +269,13 @@ Este projeto apoia-se no **anarquismo plataformista brasileiro**: poder sem inte
   - **Baixa de Estoque Proporcional no Fechamento de Mesas (`_fecharContaMesa`):** Ao fechar a conta da mesa, o sistema calcula a baixa considerando o consumo real da unidade de medida do produto (`item.quantidade * itemCadastrado.consumoPorVenda`) e a quantidade de cada adicional (`acomp.quantidadePorUnidade * item.quantidade * acompCadastrado.consumoPorVenda`), eliminando baixas truncadas em produtos fracionados (g/ml).
 - **Aba "Ajustes" e "Ajustes do Perfil" (`AbaLoja.interface`):**
   - Renomeada a aba e o botão inferior de "Interface" para **"Ajustes"** ("Ajustes do Perfil"), concentrando todas as configurações operacionais do lojista com títulos de containers centralizados:
-    - **Container "Modo de Visualização e Layout do PDV":** Card único e limpo (`SeletorLayoutsDesktopWidget`) permitindo alternar unicamente entre o **Layout Desktop PDV Expandido** (com barra lateral de navegação e comandos) e o **Layout Compacto Padrão**. A alternância de layout é controlada exclusivamente por este botão dentro de "Ajustes".
+    - **Container "Modo de Visualização e Layout do PDV":** Card único e limpo (`SeletorLayoutsDesktopWidget`) permitindo alternar unicamente entre o **Layout Desktop PDV Expandido** (com barra lateral de navegação e comandos) e o **Layout Compacto Padrão**. A alternância de layout é uma preferência da máquina local e permanece sempre acessível ao operador no desktop, sem depender de permissões de dono da loja.
+    - **Modo Somente Leitura e Normalização de CPF nos Ajustes:**
+      - **Normalização Soberana de CPF (`PdvProvider._mesmoCpf`):** Elimina falhas de reconhecimento de membros/donos decorrentes de divergências de máscara (com vs sem pontuação) entre máquinas ou backups, assegurando que `meuMembro`, `lojasQueAdministro`, `lojasQueParticipo` e `sairDaLoja` operem sem falsos negativos.
+      - **Feedback Visual Claro de Permissões:** Quando um usuário sem permissão de dono/sócio abre "Ajustes do Perfil", a tela exibe um banner explicativo com cadeado informando o modo somente leitura, e atenua a opacidade dos seletores (`0.65`) junto ao `AbsorbPointer`, eliminando a impressão de botões travados ou bugados.
+    - **Blindagem do Ecossistema de Áudio e Metadados:**
+      - **Escape Seguro no Windows (`SomService`):** Ao tocar arquivos pelo PowerShell, utiliza `file.uri.toString()` codificada em `[System.Uri]::new(...)`, prevenindo erros de execução com colchetes `[...]`, apóstrofos, acentos e caracteres especiais no nome dos arquivos.
+      - **Proteção Defensiva em `MetadadosAudioService`:** Parsing de tags ID3v2 com fechamento garantido de `RandomAccessFile` em `finally`, tratamento estrito de exceções em `_buscarCapaNaPasta` e normalização universal de separadores de caminho (`RegExp(r'[\\/]')`) em todo o sistema.
     - **Tela Cheia Real do Windows via FFI (`JanelaWindowsService` e Tecla <kbd>F11</kbd>):**
       - A tecla <kbd>F11</kbd> é a tecla padrão fixa do sistema e não pode ser reconfigurada: ela alterna exclusivamente o modo **Full Screen** (tela cheia sem bordas `WS_POPUP` cobrindo 100% da tela do Windows).
       - **Preservação de Janela Maximizada:** Ao ativar tela cheia, o sistema detecta se a janela do Windows já estava maximizada (`IsZoomed` da `user32.dll`). Ao desativar o <kbd>F11</kbd>, se a janela estava maximizada, o Windows a restaura fielmente no estado **maximizado** (`ShowWindow(SW_MAXIMIZE)`), sem reduzi-la para tamanho menor. Se não estava maximizada, restaura para as coordenadas e dimensões livres anteriores (`SW_RESTORE`).
@@ -479,8 +502,13 @@ Este projeto apoia-se no **anarquismo plataformista brasileiro**: poder sem inte
       - Recalcula o saldo imediatamente; com estoque $\ge 10$, a notificação é removida do sino e do diálogo.
       - `DadosPerfilView` mantém sincronização reativa com `PdvProvider.addListener`, atualizando `_movimentosEstoque`, `_pedidos` e `_membros` em tempo real para impedir qualquer sobrescrita por dados defasados.
       - `ItemLoja` implementa `operator ==` e `hashCode` por `id`, assegurando equivalência exata nos seletores e `DropdownButton`.
-- **Resumo Financeiro Diário com Exportação em PDF:**
-  - O botão "Financeiro" na aba Gestão da loja abre diretamente no período "Hoje", apresentando vendas, pagamentos, sugestão de divisão igualitária e botão "Exportar PDF" gerado em folha A4.
+- **Resumo Financeiro com Filtro por Dia Específico, Intervalo e Exportação em PDF (`FinanceiroView`):**
+  - O botão "Financeiro" na aba Gestão da loja abre inicialmente no período "Hoje", apresentando vendas, pagamentos, entradas por forma, sugestão de divisão igualitária e botão "Exportar PDF" gerado em folha A4.
+  - **Filtro de Data Flexível (Dia Específico ou Intervalo X a Y):** Logo abaixo dos botões "Hoje", "Semana", "Mês" e "Tudo", a tela disponibiliza inputs dedicados ("De: dd/mm/aaaa" e "Até: dd/mm/aaaa") com máscara automática `_DataInputFormatter`.
+    - Ao preencher apenas o primeiro campo, o sistema apura **apenas aquele dia único** (00:00:00 às 23:59:59).
+    - Ao preencher ambos, filtra com exatidão o intervalo de datas solicitado.
+    - Se o usuário clicar nos botões predefinidos, os campos são limpos; ao digitar uma data, o botão ativo é desmarcado (`PeriodoFinanceiro.personalizado`) e um botão de reset (`x`) permite limpar rapidamente.
+    - **Integração Integral com Apuração, DRE e Impressão:** Ao acionar "Imprimir" (cupom térmico), "DRE Simples" (modal contábil e PDF) ou "Exportar PDF", todos os dados apurados (vendas, entradas por forma, custos/CMV, despesas de pessoal e resultado líquido) e o cabeçalho de período estampado no documento refletem com exatidão o(s) dia(s) escolhido(s).
 
 ### 7.10 Gestão de Turno de Caixa e Controle de Gaveta (`features/pdv/views/widgets/caixa_dialog.dart`)
 - **Abertura de Caixa e Fundo de Troco:** O operador inicia o turno informando o valor inicial da gaveta (troco), associando o CPF e nome do responsável e data/hora de abertura.

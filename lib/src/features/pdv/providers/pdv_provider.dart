@@ -52,12 +52,20 @@ class PdvProvider extends ChangeNotifier {
 
   bool get temLojaSalva => _lojas.isNotEmpty;
 
+  static bool _mesmoCpf(String? a, String? b) {
+    if (a == null || b == null) return false;
+    final aDigitos = a.replaceAll(RegExp(r'\D'), '');
+    final bDigitos = b.replaceAll(RegExp(r'\D'), '');
+    if (aDigitos.isEmpty || bDigitos.isEmpty) return a.trim() == b.trim();
+    return aDigitos == bDigitos;
+  }
+
   List<Loja> get lojasQueAdministro {
     final cpf = _cpfAtual;
     if (cpf == null) return [];
     return _lojas.where((l) {
       return l.membros.any((m) =>
-          m.cpf == cpf &&
+          _mesmoCpf(m.cpf, cpf) &&
           (m.papel == PapelMembro.dono || m.papel == PapelMembro.socio));
     }).toList();
   }
@@ -67,7 +75,7 @@ class PdvProvider extends ChangeNotifier {
     if (cpf == null) return [];
     return _lojas.where((l) {
       return l.membros.any((m) =>
-          m.cpf == cpf &&
+          _mesmoCpf(m.cpf, cpf) &&
           (m.papel == PapelMembro.admin ||
               m.papel == PapelMembro.funcionario));
     }).toList();
@@ -175,9 +183,9 @@ class PdvProvider extends ChangeNotifier {
     final loja = buscarPorId(lojaId);
     if (loja == null) return null;
     for (final m in loja.membros) {
-      if (m.cpf == cpf) return m;
+      if (_mesmoCpf(m.cpf, cpf)) return m;
     }
-    if (loja.cpfDonoOriginal.isNotEmpty && loja.cpfDonoOriginal == cpf) {
+    if (loja.cpfDonoOriginal.isNotEmpty && _mesmoCpf(loja.cpfDonoOriginal, cpf)) {
       return MembroLoja(
         cpf: cpf,
         nome: 'Dono',
@@ -204,78 +212,88 @@ class PdvProvider extends ChangeNotifier {
   bool possoEditarAbaLoja(String lojaId) {
     final m = meuMembro(lojaId);
     if (m == null) return false;
-    if (m.papel == PapelMembro.dono) return true;
+    if (m.papel == PapelMembro.dono || m.papel == PapelMembro.socio) return true;
     final cargo = meuCargoPersonalizado(lojaId);
     if (cargo != null) {
       return cargo.temPermissao(PermissaoLojaConst.editarAbaLoja);
     }
-    return m.papel != PapelMembro.funcionario;
+    final loja = buscarPorId(lojaId);
+    return loja?.temPermissaoPapel(m.papel.name, PermissaoLojaConst.editarAbaLoja) ??
+        (m.papel != PapelMembro.funcionario);
   }
 
   bool possoUsarImpressora(String lojaId) {
     final m = meuMembro(lojaId);
     if (m == null) return false;
-    if (m.papel == PapelMembro.dono) return true;
+    if (m.papel == PapelMembro.dono || m.papel == PapelMembro.socio) return true;
     final cargo = meuCargoPersonalizado(lojaId);
     if (cargo != null) {
       return cargo.temPermissao(PermissaoLojaConst.usarImpressora);
     }
-    return m.papel != PapelMembro.funcionario;
+    final loja = buscarPorId(lojaId);
+    return loja?.temPermissaoPapel(m.papel.name, PermissaoLojaConst.usarImpressora) ??
+        (m.papel != PapelMembro.funcionario);
   }
 
   bool possoEditarDadosLoja(String lojaId) {
     final m = meuMembro(lojaId);
     if (m == null) return false;
-    if (m.papel == PapelMembro.dono) return true;
+    if (m.papel == PapelMembro.dono || m.papel == PapelMembro.socio) return true;
     final cargo = meuCargoPersonalizado(lojaId);
     if (cargo != null) {
       return cargo.temPermissao(PermissaoLojaConst.editarDadosLoja);
     }
-    return m.papel == PapelMembro.socio;
+    final loja = buscarPorId(lojaId);
+    return loja?.temPermissaoPapel(m.papel.name, PermissaoLojaConst.editarDadosLoja) ?? false;
   }
 
   bool possoUsarFinanceiro(String lojaId) {
     final m = meuMembro(lojaId);
     if (m == null) return false;
-    if (m.papel == PapelMembro.dono) return true;
+    if (m.papel == PapelMembro.dono || m.papel == PapelMembro.socio) return true;
     final cargo = meuCargoPersonalizado(lojaId);
     if (cargo != null) {
       return cargo.temPermissao(PermissaoLojaConst.usarFinanceiro);
     }
-    return true;
+    final loja = buscarPorId(lojaId);
+    return loja?.temPermissaoPapel(m.papel.name, PermissaoLojaConst.usarFinanceiro) ?? true;
   }
 
   bool possoRegistrarPagamento(String lojaId) {
     final m = meuMembro(lojaId);
     if (m == null) return false;
-    if (m.papel == PapelMembro.dono) return true;
+    if (m.papel == PapelMembro.dono || m.papel == PapelMembro.socio) return true;
     final cargo = meuCargoPersonalizado(lojaId);
     if (cargo != null) {
       return cargo.temPermissao(PermissaoLojaConst.registrarPagamento);
     }
-    return m.papel == PapelMembro.socio || m.papel == PapelMembro.admin;
+    final loja = buscarPorId(lojaId);
+    return loja?.temPermissaoPapel(m.papel.name, PermissaoLojaConst.registrarPagamento) ??
+        (m.papel == PapelMembro.admin);
   }
 
   bool possoGerenciarMembros(String lojaId) {
     final m = meuMembro(lojaId);
     if (m == null) return false;
-    if (m.papel == PapelMembro.dono) return true;
+    if (m.papel == PapelMembro.dono || m.papel == PapelMembro.socio) return true;
     final cargo = meuCargoPersonalizado(lojaId);
     if (cargo != null) {
       return cargo.temPermissao(PermissaoLojaConst.gerenciarMembros);
     }
-    return m.papel == PapelMembro.socio;
+    final loja = buscarPorId(lojaId);
+    return loja?.temPermissaoPapel(m.papel.name, PermissaoLojaConst.gerenciarMembros) ?? false;
   }
 
   bool possoExcluirLoja(String lojaId) {
     final m = meuMembro(lojaId);
     if (m == null) return false;
-    if (m.papel == PapelMembro.dono) return true;
+    if (m.papel == PapelMembro.dono || m.papel == PapelMembro.socio) return true;
     final cargo = meuCargoPersonalizado(lojaId);
     if (cargo != null) {
       return cargo.temPermissao(PermissaoLojaConst.excluirLoja);
     }
-    return m.papel == PapelMembro.socio;
+    final loja = buscarPorId(lojaId);
+    return loja?.temPermissaoPapel(m.papel.name, PermissaoLojaConst.excluirLoja) ?? false;
   }
 
   Future<void> entrarComCpf(String cpf) async {
@@ -307,7 +325,7 @@ class PdvProvider extends ChangeNotifier {
         }
       }
       if (encontrada == null ||
-          !encontrada.membros.any((m) => m.cpf == cpf)) {
+          !encontrada.membros.any((m) => _mesmoCpf(m.cpf, cpf))) {
         referenciasOrfas.add(ref);
         continue;
       }
@@ -939,6 +957,23 @@ class PdvProvider extends ChangeNotifier {
     await _salvarLojaNoCofreCorreto(atualizada);
   }
 
+  Future<void> atualizarPermissoesCargoNativo(
+    String lojaId,
+    String papel,
+    Map<String, bool> permissoes,
+  ) async {
+    final indice = _lojas.indexWhere((loja) => loja.id == lojaId);
+    if (indice == -1) return;
+    final loja = _lojas[indice];
+    final novoMapa =
+        Map<String, Map<String, bool>>.from(loja.permissoesCargosNativos);
+    novoMapa[papel] = permissoes;
+    final atualizada = loja.copyWith(permissoesCargosNativos: novoMapa);
+    _lojas[indice] = atualizada;
+    notifyListeners();
+    await _salvarLojaNoCofreCorreto(atualizada);
+  }
+
   Future<void> sairDaLoja(String lojaId) async {
     final cpf = _cpfAtual;
     if (cpf == null) return;
@@ -947,8 +982,8 @@ class PdvProvider extends ChangeNotifier {
     if (indice == -1) return;
     final loja = _lojas[indice];
 
-    final souDonoOriginal = loja.cpfDonoOriginal == cpf;
-    final outros = loja.membros.where((m) => m.cpf != cpf).toList();
+    final souDonoOriginal = _mesmoCpf(loja.cpfDonoOriginal, cpf);
+    final outros = loja.membros.where((m) => !_mesmoCpf(m.cpf, cpf)).toList();
 
     _lojas.removeAt(indice);
     notifyListeners();
@@ -1111,6 +1146,20 @@ class PdvProvider extends ChangeNotifier {
         .map((t) => t.id == turnoFechado.id ? turnoFechado : t)
         .toList();
 
+    final atualizada = loja.copyWith(turnosCaixa: novosTurnos);
+    final indice = _lojas.indexWhere((l) => l.id == lojaId);
+    if (indice != -1) {
+      _lojas[indice] = atualizada;
+      await _salvarLojaNoCofreCorreto(atualizada);
+      notifyListeners();
+    }
+  }
+
+  Future<void> excluirTurnoCaixa(String lojaId, String turnoId) async {
+    final loja = buscarPorId(lojaId);
+    if (loja == null) return;
+
+    final novosTurnos = loja.turnosCaixa.where((t) => t.id != turnoId).toList();
     final atualizada = loja.copyWith(turnosCaixa: novosTurnos);
     final indice = _lojas.indexWhere((l) => l.id == lojaId);
     if (indice != -1) {

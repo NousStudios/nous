@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:nous/src/core/services/player_audio_service.dart';
 import 'package:nous/src/core/services/metadados_audio_service.dart';
@@ -79,7 +78,7 @@ class _ReprodutorAudioWidgetState extends State<ReprodutorAudioWidget> {
 
   String _extrairNomeArquivo(String caminho) {
     try {
-      final nome = caminho.split(Platform.pathSeparator).last;
+      final nome = caminho.split(RegExp(r'[\\/]')).last;
       final partes = nome.split('.');
       if (partes.length > 1) partes.removeLast();
       return partes.join('.');

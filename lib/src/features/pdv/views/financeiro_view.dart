@@ -25,7 +25,28 @@ const List<String> _formasDePagamento = [
   'À Prazo',
 ];
 
-enum PeriodoFinanceiro { hoje, semana, mes, tudo }
+class _DataInputFormatter extends TextInputFormatter {
+  @override
+  TextEditingValue formatEditUpdate(
+    TextEditingValue oldValue,
+    TextEditingValue newValue,
+  ) {
+    final digitos = newValue.text.replaceAll(RegExp(r'[^0-9]'), '');
+    final limitado = digitos.length > 8 ? digitos.substring(0, 8) : digitos;
+    final buffer = StringBuffer();
+    for (var i = 0; i < limitado.length; i++) {
+      if (i == 2 || i == 4) buffer.write('/');
+      buffer.write(limitado[i]);
+    }
+    final texto = buffer.toString();
+    return TextEditingValue(
+      text: texto,
+      selection: TextSelection.collapsed(offset: texto.length),
+    );
+  }
+}
+
+enum PeriodoFinanceiro { hoje, semana, mes, tudo, personalizado }
 
 class FinanceiroView extends StatefulWidget {
   final String lojaId;
@@ -48,15 +69,58 @@ class _FinanceiroViewState extends State<FinanceiroView> {
   bool _exportando = false;
   final _pesquisaComprasController = TextEditingController();
   final _scrollComprasController = ScrollController();
+  final _dataInicioController = TextEditingController();
+  final _dataFimController = TextEditingController();
 
   @override
   void dispose() {
+    _dataInicioController.dispose();
+    _dataFimController.dispose();
     _pesquisaComprasController.dispose();
     _scrollComprasController.dispose();
     super.dispose();
   }
 
+  DateTime? _parseData(String texto) {
+    final limpo = texto.trim();
+    if (limpo.length != 10) return null;
+    final partes = limpo.split('/');
+    if (partes.length != 3) return null;
+    final dia = int.tryParse(partes[0]);
+    final mes = int.tryParse(partes[1]);
+    final ano = int.tryParse(partes[2]);
+    if (dia == null || mes == null || ano == null) return null;
+    if (ano < 1900 || ano > 2100 || mes < 1 || mes > 12 || dia < 1 || dia > 31) {
+      return null;
+    }
+    try {
+      final data = DateTime(ano, mes, dia);
+      if (data.day != dia || data.month != mes || data.year != ano) return null;
+      return data;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  String _formatarDataBR(DateTime d) {
+    String dois(int n) => n.toString().padLeft(2, '0');
+    return '${dois(d.day)}/${dois(d.month)}/${d.year}';
+  }
+
   DateTime? get _inicioDoPeriodo {
+    if (_periodo == PeriodoFinanceiro.personalizado) {
+      final dInicio = _parseData(_dataInicioController.text);
+      final dFim = _parseData(_dataFimController.text);
+      if (dInicio != null && dFim != null) {
+        final inicioReal = dInicio.isBefore(dFim) ? dInicio : dFim;
+        return DateTime(inicioReal.year, inicioReal.month, inicioReal.day, 0, 0, 0);
+      } else if (dInicio != null) {
+        return DateTime(dInicio.year, dInicio.month, dInicio.day, 0, 0, 0);
+      } else if (dFim != null) {
+        return DateTime(dFim.year, dFim.month, dFim.day, 0, 0, 0);
+      }
+      return null;
+    }
     final agora = DateTime.now();
     switch (_periodo) {
       case PeriodoFinanceiro.hoje:
@@ -67,11 +131,46 @@ class _FinanceiroViewState extends State<FinanceiroView> {
       case PeriodoFinanceiro.mes:
         return DateTime(agora.year, agora.month, 1);
       case PeriodoFinanceiro.tudo:
+      case PeriodoFinanceiro.personalizado:
         return null;
     }
   }
 
+  DateTime? get _fimDoPeriodo {
+    if (_periodo == PeriodoFinanceiro.personalizado) {
+      final dInicio = _parseData(_dataInicioController.text);
+      final dFim = _parseData(_dataFimController.text);
+      if (dInicio != null && dFim != null) {
+        final fimReal = dFim.isAfter(dInicio) ? dFim : dInicio;
+        return DateTime(fimReal.year, fimReal.month, fimReal.day, 23, 59, 59, 999);
+      } else if (dInicio != null) {
+        return DateTime(dInicio.year, dInicio.month, dInicio.day, 23, 59, 59, 999);
+      } else if (dFim != null) {
+        return DateTime(dFim.year, dFim.month, dFim.day, 23, 59, 59, 999);
+      }
+      return null;
+    }
+    return null;
+  }
+
   String get _rotuloPeriodoAtual {
+    if (_periodo == PeriodoFinanceiro.personalizado) {
+      final dInicio = _parseData(_dataInicioController.text);
+      final dFim = _parseData(_dataFimController.text);
+      if (dInicio != null && dFim != null) {
+        final d1 = dInicio.isBefore(dFim) ? dInicio : dFim;
+        final d2 = dFim.isAfter(dInicio) ? dFim : dInicio;
+        if (d1.year == d2.year && d1.month == d2.month && d1.day == d2.day) {
+          return _formatarDataBR(d1);
+        }
+        return '${_formatarDataBR(d1)} a ${_formatarDataBR(d2)}';
+      } else if (dInicio != null) {
+        return _formatarDataBR(dInicio);
+      } else if (dFim != null) {
+        return _formatarDataBR(dFim);
+      }
+      return 'Personalizado';
+    }
     switch (_periodo) {
       case PeriodoFinanceiro.hoje:
         return 'Hoje';
@@ -81,23 +180,29 @@ class _FinanceiroViewState extends State<FinanceiroView> {
         return 'Mês';
       case PeriodoFinanceiro.tudo:
         return 'Tudo';
+      case PeriodoFinanceiro.personalizado:
+        return 'Personalizado';
     }
   }
 
   List<PedidoLoja> get _vendasConcluidas {
     final desde = _inicioDoPeriodo;
+    final ate = _fimDoPeriodo;
     return widget.pedidos.where((p) {
       if (p.status != StatusPedido.concluido) return false;
       if (desde != null && p.dataHora.isBefore(desde)) return false;
+      if (ate != null && p.dataHora.isAfter(ate)) return false;
       return true;
     }).toList();
   }
 
   List<PedidoLoja> get _pedidosAceitos {
     final desde = _inicioDoPeriodo;
+    final ate = _fimDoPeriodo;
     return widget.pedidos.where((p) {
       if (p.status != StatusPedido.aceito) return false;
       if (desde != null && p.dataHora.isBefore(desde)) return false;
+      if (ate != null && p.dataHora.isAfter(ate)) return false;
       return true;
     }).toList();
   }
@@ -105,8 +210,10 @@ class _FinanceiroViewState extends State<FinanceiroView> {
   List<PagamentoFuncionario> _pagamentosDoPeriodo(Loja? loja) {
     if (loja == null) return [];
     final desde = _inicioDoPeriodo;
+    final ate = _fimDoPeriodo;
     final lista = loja.pagamentosFuncionarios.where((p) {
       if (desde != null && p.dataHora.isBefore(desde)) return false;
+      if (ate != null && p.dataHora.isAfter(ate)) return false;
       return true;
     }).toList();
     lista.sort((a, b) => b.dataHora.compareTo(a.dataHora));
@@ -116,8 +223,10 @@ class _FinanceiroViewState extends State<FinanceiroView> {
   List<MovimentoEstoque> _movimentosDoPeriodo(Loja? loja) {
     if (loja == null) return [];
     final desde = _inicioDoPeriodo;
+    final ate = _fimDoPeriodo;
     final lista = loja.movimentosEstoque.where((m) {
       if (desde != null && m.dataHora.isBefore(desde)) return false;
+      if (ate != null && m.dataHora.isAfter(ate)) return false;
       return true;
     }).toList();
     lista.sort((a, b) => b.dataHora.compareTo(a.dataHora));
@@ -125,11 +234,9 @@ class _FinanceiroViewState extends State<FinanceiroView> {
   }
 
   double _saidaEstoqueDoPeriodo(Loja? loja) {
-    final desde = _inicioDoPeriodo;
     var soma = 0.0;
     for (final m in _movimentosDoPeriodo(loja)) {
       if (!m.ehEntrada) continue;
-      if (desde != null && m.dataHora.isBefore(desde)) continue;
       soma += m.custoTotal;
     }
     return soma;
@@ -294,7 +401,13 @@ class _FinanceiroViewState extends State<FinanceiroView> {
         : theme.textColor;
 
     return _LinhaComHover(
-      aoClicar: () => setState(() => _periodo = p),
+      aoClicar: () {
+        setState(() {
+          _periodo = p;
+          _dataInicioController.clear();
+          _dataFimController.clear();
+        });
+      },
       builder: (hover) => Container(
         width: 80,
         padding: const EdgeInsets.symmetric(vertical: 10),
@@ -335,38 +448,180 @@ class _FinanceiroViewState extends State<FinanceiroView> {
     const double larguraBotao = 80;
     const double espaco = 8;
 
-    final botoes = PeriodoFinanceiro.values
-        .map((p) => _botaoPeriodo(theme, p))
-        .toList();
+    const opcoes = [
+      PeriodoFinanceiro.hoje,
+      PeriodoFinanceiro.semana,
+      PeriodoFinanceiro.mes,
+      PeriodoFinanceiro.tudo,
+    ];
+
+    final botoes = opcoes.map((p) => _botaoPeriodo(theme, p)).toList();
 
     final larguraTotal =
         larguraBotao * botoes.length + espaco * (botoes.length - 1);
 
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        if (larguraTotal <= constraints.maxWidth) {
-          return Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              for (var i = 0; i < botoes.length; i++) ...[
-                if (i > 0) const SizedBox(width: espaco),
-                botoes[i],
-              ],
-            ],
-          );
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        LayoutBuilder(
+          builder: (context, constraints) {
+            if (larguraTotal <= constraints.maxWidth) {
+              return Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  for (var i = 0; i < botoes.length; i++) ...[
+                    if (i > 0) const SizedBox(width: espaco),
+                    botoes[i],
+                  ],
+                ],
+              );
+            }
+            return SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                children: [
+                  for (var i = 0; i < botoes.length; i++) ...[
+                    if (i > 0) const SizedBox(width: espaco),
+                    botoes[i],
+                  ],
+                ],
+              ),
+            );
+          },
+        ),
+        const SizedBox(height: 10),
+        _inputsDataPersonalizada(theme),
+      ],
+    );
+  }
+
+  InputDecoration _decoracaoCampoData(AppTheme theme, String dica) {
+    return InputDecoration(
+      hintText: dica,
+      hintStyle: theme.getTextStyle(
+        fontSize: 11,
+        color: theme.secondaryTextColor,
+      ),
+      isDense: true,
+      contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      filled: true,
+      fillColor: theme.cardBackgroundColor,
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(8),
+        borderSide: BorderSide(
+          color: theme.borderColor.withValues(alpha: 0.6),
+        ),
+      ),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(8),
+        borderSide: BorderSide(
+          color: theme.borderColor.withValues(alpha: 0.6),
+        ),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(8),
+        borderSide: BorderSide(
+          color: theme.textColor,
+          width: 1.4,
+        ),
+      ),
+    );
+  }
+
+  Widget _inputsDataPersonalizada(AppTheme theme) {
+    final temFiltroData = _dataInicioController.text.trim().isNotEmpty ||
+        _dataFimController.text.trim().isNotEmpty;
+    final dataInicioInvalida = _dataInicioController.text.length == 10 &&
+        _parseData(_dataInicioController.text) == null;
+    final dataFimInvalida = _dataFimController.text.length == 10 &&
+        _parseData(_dataFimController.text) == null;
+
+    void atualizarFiltro() {
+      setState(() {
+        if (_dataInicioController.text.isNotEmpty ||
+            _dataFimController.text.isNotEmpty) {
+          _periodo = PeriodoFinanceiro.personalizado;
+        } else {
+          _periodo = PeriodoFinanceiro.hoje;
         }
-        return SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          child: Row(
-            children: [
-              for (var i = 0; i < botoes.length; i++) ...[
-                if (i > 0) const SizedBox(width: espaco),
-                botoes[i],
-              ],
+      });
+    }
+
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            SizedBox(
+              width: 140,
+              child: TextField(
+                controller: _dataInicioController,
+                keyboardType: TextInputType.number,
+                inputFormatters: [_DataInputFormatter()],
+                cursorColor: theme.textColor,
+                style: theme.getTextStyle(fontSize: 12),
+                decoration: _decoracaoCampoData(theme, 'De: dd/mm/aaaa'),
+                onChanged: (_) => atualizarFiltro(),
+              ),
+            ),
+            const SizedBox(width: 8),
+            SizedBox(
+              width: 140,
+              child: TextField(
+                controller: _dataFimController,
+                keyboardType: TextInputType.number,
+                inputFormatters: [_DataInputFormatter()],
+                cursorColor: theme.textColor,
+                style: theme.getTextStyle(fontSize: 12),
+                decoration: _decoracaoCampoData(theme, 'Até: dd/mm/aaaa'),
+                onChanged: (_) => atualizarFiltro(),
+              ),
+            ),
+            if (temFiltroData) ...[
+              const SizedBox(width: 6),
+              Tooltip(
+                message: 'Limpar filtro de data',
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(8),
+                  onTap: () {
+                    setState(() {
+                      _dataInicioController.clear();
+                      _dataFimController.clear();
+                      _periodo = PeriodoFinanceiro.hoje;
+                    });
+                  },
+                  child: Container(
+                    padding: const EdgeInsets.all(7),
+                    decoration: BoxDecoration(
+                      color: theme.borderColor.withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(
+                        color: theme.borderColor.withValues(alpha: 0.45),
+                      ),
+                    ),
+                    child: Icon(
+                      Icons.close,
+                      size: 14,
+                      color: theme.secondaryTextColor,
+                    ),
+                  ),
+                ),
+              ),
             ],
+          ],
+        ),
+        if (dataInicioInvalida || dataFimInvalida) ...[
+          const SizedBox(height: 4),
+          Text(
+            'Data inválida (use o formato dd/mm/aaaa)',
+            style: theme.getTextStyle(
+              fontSize: 11,
+              color: Colors.redAccent,
+            ),
           ),
-        );
-      },
+        ],
+      ],
     );
   }
 
@@ -380,6 +635,8 @@ class _FinanceiroViewState extends State<FinanceiroView> {
         return 'Mês';
       case PeriodoFinanceiro.tudo:
         return 'Tudo';
+      case PeriodoFinanceiro.personalizado:
+        return 'Personalizado';
     }
   }
 

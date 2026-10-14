@@ -1077,6 +1077,7 @@ class _DetalhesAcaoDialog extends StatelessWidget {
       TipoAcao.caixaFechado => 'Fechamento de Caixa',
       TipoAcao.sangriaRegistrada => 'Sangria de Caixa',
       TipoAcao.suprimentoRegistrado => 'Suprimento de Caixa',
+      TipoAcao.turnoCaixaExcluido => 'Turno de Caixa Excluído',
     };
   }
 
@@ -1098,7 +1099,8 @@ class _DetalhesAcaoDialog extends StatelessWidget {
       TipoAcao.caixaAberto ||
       TipoAcao.caixaFechado ||
       TipoAcao.sangriaRegistrada ||
-      TipoAcao.suprimentoRegistrado =>
+      TipoAcao.suprimentoRegistrado ||
+      TipoAcao.turnoCaixaExcluido =>
         Icons.point_of_sale_outlined,
       TipoAcao.itemCriado ||
       TipoAcao.itemAtualizado ||

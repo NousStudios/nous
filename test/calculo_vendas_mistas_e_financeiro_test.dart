@@ -139,5 +139,69 @@ void main() {
       expect(pedidoMesa.aPrazoEmAberto, isTrue);
       expect(pedidoMesa.valorRestante, 50.0);
     });
+    test('Filtro financeiro por dia específico e intervalo de datas', () {
+      final p1 = PedidoLoja(
+        id: 'p-1',
+        numero: 1,
+        clienteNome: 'Cliente A',
+        produtoNome: 'Item 1',
+        valor: 100.0,
+        dataHora: DateTime(2026, 10, 10, 14, 30),
+        status: StatusPedido.concluido,
+        formaPagamento: 'Dinheiro',
+      );
+
+      final p2 = PedidoLoja(
+        id: 'p-2',
+        numero: 2,
+        clienteNome: 'Cliente B',
+        produtoNome: 'Item 2',
+        valor: 150.0,
+        dataHora: DateTime(2026, 10, 12, 9, 15),
+        status: StatusPedido.concluido,
+        formaPagamento: 'Pix',
+      );
+
+      final p3 = PedidoLoja(
+        id: 'p-3',
+        numero: 3,
+        clienteNome: 'Cliente C',
+        produtoNome: 'Item 3',
+        valor: 200.0,
+        dataHora: DateTime(2026, 10, 14, 18, 00),
+        status: StatusPedido.concluido,
+        formaPagamento: 'Débito',
+      );
+
+      final todosPedidos = [p1, p2, p3];
+
+      // Caso 1: Apenas um dia (12/10/2026)
+      final inicioDia12 = DateTime(2026, 10, 12, 0, 0, 0);
+      final fimDia12 = DateTime(2026, 10, 12, 23, 59, 59, 999);
+      final vendasDia12 = todosPedidos.where((p) {
+        if (p.dataHora.isBefore(inicioDia12)) return false;
+        if (p.dataHora.isAfter(fimDia12)) return false;
+        return true;
+      }).toList();
+
+      expect(vendasDia12.length, 1);
+      expect(vendasDia12.first.id, 'p-2');
+      expect(vendasDia12.first.valor, 150.0);
+
+      // Caso 2: Intervalo de dias (10/10/2026 a 12/10/2026)
+      final inicioIntervalo = DateTime(2026, 10, 10, 0, 0, 0);
+      final fimIntervalo = DateTime(2026, 10, 12, 23, 59, 59, 999);
+      final vendasIntervalo = todosPedidos.where((p) {
+        if (p.dataHora.isBefore(inicioIntervalo)) return false;
+        if (p.dataHora.isAfter(fimIntervalo)) return false;
+        return true;
+      }).toList();
+
+      expect(vendasIntervalo.length, 2);
+      expect(vendasIntervalo.map((p) => p.id).toList(), ['p-1', 'p-2']);
+      final totalIntervalo =
+          vendasIntervalo.fold<double>(0.0, (s, p) => s + p.valor);
+      expect(totalIntervalo, 250.0);
+    });
   });
 }

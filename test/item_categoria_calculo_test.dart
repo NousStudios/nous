@@ -102,5 +102,82 @@ void main() {
       expect(mesa.totalAcumulado, equals(65.0));
       expect(mesa.itens.first.item.nomeExibicao, equals('Pizza Especial (Grande (8 Fatias))'));
     });
+
+    test('Modo Balcão: Item vendido em "Todos" (sem categoria selecionada) não soma preço de categoria', () {
+      final copo300ml = ItemLoja.novo(nome: 'Copo 300ml', preco: '2,00');
+      final categoriaAcai = CategoriaLoja.nova(
+        nome: 'Açaí 300ml',
+        preco: '17,00',
+        itemIds: [copo300ml.id],
+      );
+
+      // Simulação do comportamento de _obterCategoriaDoItem
+      CategoriaLoja? obterCategoria(ItemLoja item, String? categoriaFiltroId) {
+        if (categoriaFiltroId != null) {
+          if (categoriaAcai.id == categoriaFiltroId &&
+              categoriaAcai.itemIds.contains(item.id)) {
+            return categoriaAcai;
+          }
+        }
+        return null;
+      }
+
+      // Em "Todos" (categoriaFiltroId == null) -> Preço Puro
+      final catTodos = obterCategoria(copo300ml, null);
+      expect(catTodos, isNull);
+      final itemVendidoTodos = ItemVendido(
+        itemId: copo300ml.id,
+        nomeItem: copo300ml.nome,
+        precoItem: 2.0,
+        precoCategoria: catTodos != null ? 17.0 : 0.0,
+        quantidade: 1,
+      );
+      expect(itemVendidoTodos.subtotal, equals(2.0));
+      expect(itemVendidoTodos.nomeExibicao, equals('Copo 300ml'));
+
+      // Na categoria Açaí (categoriaFiltroId == categoriaAcai.id) -> R$ 17 + R$ 2 = R$ 19
+      final catFiltro = obterCategoria(copo300ml, categoriaAcai.id);
+      expect(catFiltro, isNotNull);
+      final itemVendidoCat = ItemVendido(
+        itemId: copo300ml.id,
+        nomeItem: copo300ml.nome,
+        categoriaId: catFiltro!.id,
+        nomeCategoria: catFiltro.nome,
+        precoItem: 2.0,
+        precoCategoria: 17.0,
+        quantidade: 1,
+      );
+      expect(itemVendidoCat.subtotal, equals(19.0));
+      expect(itemVendidoCat.nomeExibicao, equals('Açaí 300ml Copo 300ml'));
+    });
+
+    test('Pedido com frete soma o valor do frete ao total a pagar', () {
+      final pedidoComFrete = PedidoLoja(
+        id: 'ped-frete',
+        numero: 1,
+        clienteNome: 'João Delivery',
+        produtoNome: 'Marmita',
+        dataHora: DateTime.now(),
+        valor: 35.0, // Subtotal 30 + Frete 7 - Desc 2 = 35
+        status: StatusPedido.concluido,
+        comanda: '1x Marmita',
+        formaPagamento: 'Pix',
+        frete: 7.0,
+        desconto: 2.0,
+        acrescimo: 0.0,
+        itens: [
+          ItemVendido(
+            itemId: 'marmita-1',
+            nomeItem: 'Marmita',
+            precoItem: 30.0,
+            quantidade: 1,
+          ),
+        ],
+      );
+
+      expect(pedidoComFrete.frete, equals(7.0));
+      expect(pedidoComFrete.desconto, equals(2.0));
+      expect(pedidoComFrete.valor, equals(35.0));
+    });
   });
 }

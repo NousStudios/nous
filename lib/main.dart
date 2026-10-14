@@ -1,7 +1,9 @@
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:nous/src/core/services/banco_dados_service.dart';
+import 'package:nous/src/core/services/janela_windows_service.dart';
 import 'package:nous/src/core/theme/theme_controller.dart';
 import 'package:nous/src/core/theme/contrast_helper.dart';
 import 'package:nous/src/features/auth/providers/auth_provider.dart';
@@ -30,6 +32,17 @@ Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await BancoDadosService.inicializar();
   await ThemeController.init();
+
+  // Manipulador global de hardware para F11 (Tela Cheia nativa do Windows)
+  // Funciona universalmente: modo compacto, modo desktop, popups ou qualquer widget focado
+  HardwareKeyboard.instance.addHandler((KeyEvent event) {
+    if (event is KeyDownEvent && event.logicalKey == LogicalKeyboardKey.f11) {
+      JanelaWindowsService.alternarTelaCheia();
+      return true;
+    }
+    return false;
+  });
+
   // Dispara o snapshot de segurança diário em segundo plano sem travar a inicialização
   BackupService.realizarBackupAutomaticoSeNecessario();
   runApp(const MyApp());

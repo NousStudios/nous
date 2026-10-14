@@ -120,9 +120,9 @@ class SomService {
       }
 
       if (Platform.isWindows) {
-        final caminhoFormatado = caminho.replaceAll("'", "''");
         final ext = caminho.toLowerCase();
         if (ext.endsWith('.wav')) {
+          final caminhoFormatado = caminho.replaceAll("'", "''");
           Process.run(
             'powershell',
             [
@@ -134,6 +134,7 @@ class SomService {
             runInShell: true,
           );
         } else {
+          final uriFormatada = file.uri.toString().replaceAll("'", "''");
           Process.run(
             'powershell',
             [
@@ -142,7 +143,7 @@ class SomService {
               '-Command',
               "Add-Type -AssemblyName presentationCore; "
                   "\$player = New-Object System.Windows.Media.MediaPlayer; "
-                  "\$player.Open([System.Uri]'$caminhoFormatado'); "
+                  "\$player.Open([System.Uri]::new('$uriFormatada')); "
                   "\$player.Play(); "
                   "Start-Sleep -Milliseconds 1400;",
             ],

@@ -1410,6 +1410,17 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
         );
         setState(() {});
       },
+      aoExcluirTurno: (turnoId) async {
+        await context.read<PdvProvider>().excluirTurnoCaixa(
+              widget.lojaId,
+              turnoId,
+            );
+        _registrarAcao(
+          TipoAcao.turnoCaixaExcluido,
+          'Registro de turno de caixa excluído',
+        );
+        setState(() {});
+      },
     );
   }
 
@@ -3991,9 +4002,11 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
           ),
           const SizedBox(width: 8),
           Expanded(
-            child: AbsorbPointer(
-              absorbing: !podeEditar,
-              child: Container(
+            child: Opacity(
+              opacity: podeEditar ? 1.0 : 0.65,
+              child: AbsorbPointer(
+                absorbing: !podeEditar,
+                child: Container(
                 padding:
                     const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                 decoration: BoxDecoration(
@@ -4044,6 +4057,7 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
               ),
             ),
           ),
+          ),
         ],
       ),
     );
@@ -4056,7 +4070,7 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
 
     return SeletorLayoutsDesktopWidget(
       theme: theme,
-      podeEditar: podeEditar,
+      podeEditar: true,
       layoutExpandido: expandido,
       tipoLayoutSelecionado: tipoAtual,
       onAlternarLayout: _alternarLayout,
@@ -4274,9 +4288,11 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
             ),
           ),
           const SizedBox(height: 16),
-          AbsorbPointer(
-            absorbing: !podeEditar,
-            child: Container(
+          Opacity(
+            opacity: podeEditar ? 1.0 : 0.65,
+            child: AbsorbPointer(
+              absorbing: !podeEditar,
+              child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
               decoration: BoxDecoration(
                 color: theme.cardBackgroundColor,
@@ -4330,6 +4346,7 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
                 ),
               ),
             ),
+          ),
           ),
         ],
       ),
@@ -4447,9 +4464,11 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
                   Row(
                     children: [
                       Expanded(
-                        child: AbsorbPointer(
-                          absorbing: !podeEditar,
-                          child: Container(
+                        child: Opacity(
+                          opacity: podeEditar ? 1.0 : 0.65,
+                          child: AbsorbPointer(
+                            absorbing: !podeEditar,
+                            child: Container(
                             padding: const EdgeInsets.symmetric(
                                 horizontal: 12, vertical: 2),
                             decoration: BoxDecoration(
@@ -4560,7 +4579,8 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
                           ),
                         ),
                       ),
-                      const SizedBox(width: 8),
+                    ),
+                    const SizedBox(width: 8),
                       IconButton(
                         tooltip: 'Testar som',
                         icon: Icon(
@@ -4674,27 +4694,53 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
           ),
         );
 
+        final meuMembro =
+            lojaAtual?.membros.where((m) => m.cpf == cpfLogado).firstOrNull;
+        final ehDonoOuSocio = meuMembro?.papel == PapelMembro.dono ||
+            meuMembro?.papel == PapelMembro.socio;
+
         final blocoCargos = CargosEPermissoesContainer(
           theme: theme,
           cargosPersonalizados: lojaAtual?.cargosPersonalizados ?? const [],
+          permissoesCargosNativos:
+              lojaAtual?.permissoesCargosNativos ?? const {},
           podeGerenciar: possoGerenciarMembros,
+          ehDonoOuSocio: ehDonoOuSocio,
           onAdicionarCargo: (novoCargo) =>
               pdv.adicionarCargoLoja(widget.lojaId, novoCargo),
           onAtualizarCargo: (cargo) =>
               pdv.atualizarCargoLoja(widget.lojaId, cargo),
           onRemoverCargo: (cargoId) =>
               pdv.removerCargoLoja(widget.lojaId, cargoId),
+          onAtualizarPermissoesCargoNativo: (papel, permissoes) =>
+              pdv.atualizarPermissoesCargoNativo(
+            widget.lojaId,
+            papel,
+            permissoes,
+          ),
         );
 
         final blocoMembros = UsuariosParticipantesContainer(
           theme: theme,
           membros: _membros,
+          cargosPersonalizados: lojaAtual?.cargosPersonalizados ?? const [],
           cpfLogado: cpfLogado,
           podeGerenciar: possoGerenciarMembros,
           buscarConta: _buscarContaPorCpf,
           onEnviarConvite: _enviarConvite,
           onRemover: _removerMembro,
           onAtualizarPapel: _atualizarPapelMembro,
+          onVincularCargoPersonalizado: (cpf, cargoId) async {
+            await pdv.vincularCargoAoMembro(widget.lojaId, cpf, cargoId);
+            if (!mounted) return;
+            setState(() {
+              _membros = _membros
+                  .map((m) => m.cpf == cpf
+                      ? m.copyWith(cargoPersonalizadoId: cargoId)
+                      : m)
+                  .toList();
+            });
+          },
           onSair: _sairDaLoja,
         );
 
@@ -4845,28 +4891,67 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
         );
 
       case AbaLoja.interface:
+        final avisoSomenteLeitura = !possoEditarDados
+            ? Container(
+                margin: const EdgeInsets.only(bottom: 16),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                decoration: BoxDecoration(
+                  color: theme.cardBackgroundColor,
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(
+                    color: theme.borderColor.withValues(alpha: 0.6),
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.lock_outline_rounded,
+                      size: 20,
+                      color: theme.secondaryTextColor,
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        'Modo somente leitura: você pode visualizar as configurações da loja, mas apenas Donos e Sócios podem alterar comandos, tempo de conclusão e alertas.',
+                        style: theme.getTextStyle(
+                          fontSize: 12,
+                          color: theme.secondaryTextColor,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              )
+            : null;
+
         if (expandido && larguraDaTela > 850) {
-          return Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
+          return Column(
             children: [
-              Expanded(
-                child: Column(
-                  children: [
-                    _buildContainerModoLayout(theme, possoEditarDados),
-                    const SizedBox(height: 16),
-                    _buildContainerComandos(theme, possoEditarDados),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Column(
-                  children: [
-                    _buildContainerTempoConclusao(theme, possoEditarDados),
-                    const SizedBox(height: 16),
-                    _buildContainerSonsAlertas(theme, possoEditarDados),
-                  ],
-                ),
+              ?avisoSomenteLeitura,
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: Column(
+                      children: [
+                        _buildContainerModoLayout(theme, possoEditarDados),
+                        const SizedBox(height: 16),
+                        _buildContainerComandos(theme, possoEditarDados),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Column(
+                      children: [
+                        _buildContainerTempoConclusao(theme, possoEditarDados),
+                        const SizedBox(height: 16),
+                        _buildContainerSonsAlertas(theme, possoEditarDados),
+                      ],
+                    ),
+                  ),
+                ],
               ),
             ],
           );
@@ -4874,6 +4959,7 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
 
         return Column(
           children: [
+            ?avisoSomenteLeitura,
             _buildContainerModoLayout(theme, possoEditarDados),
             const SizedBox(height: 16),
             _buildContainerComandos(theme, possoEditarDados),

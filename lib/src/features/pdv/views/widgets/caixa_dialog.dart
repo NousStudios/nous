@@ -9,6 +9,7 @@ import 'package:nous/src/features/pdv/models/pedido_loja.dart';
 import 'package:nous/src/features/pdv/models/turno_caixa.dart';
 import 'package:nous/src/features/pdv/providers/pdv_provider.dart';
 import 'package:nous/src/features/pdv/services/impressao_service.dart';
+import 'package:nous/src/features/pdv/views/widgets/detalhes_turno_caixa_dialog.dart';
 
 class CaixaDialog {
   static Future<void> mostrar(
@@ -31,6 +32,7 @@ class CaixaDialog {
       double saldoInformado,
       String observacao,
     ) aoFecharCaixa,
+    Future<void> Function(String turnoId)? aoExcluirTurno,
   }) {
     return showDialog<void>(
       context: context,
@@ -61,6 +63,7 @@ class CaixaDialog {
                   child: _CaixaConteudo(
                     theme: theme,
                     expandido: expandido,
+                    lojaId: lojaId,
                     lojaNome: lojaNome,
                     lojaCnpj: lojaCnpj,
                     turnoAberto: turnoAberto,
@@ -70,6 +73,7 @@ class CaixaDialog {
                     aoAbrirCaixa: aoAbrirCaixa,
                     aoRegistrarMovimento: aoRegistrarMovimento,
                     aoFecharCaixa: aoFecharCaixa,
+                    aoExcluirTurno: aoExcluirTurno,
                   ),
                 ),
               );
@@ -84,6 +88,7 @@ class CaixaDialog {
 class _CaixaConteudo extends StatefulWidget {
   final AppTheme theme;
   final bool expandido;
+  final String? lojaId;
   final String lojaNome;
   final String lojaCnpj;
   final TurnoCaixa? turnoAberto;
@@ -100,10 +105,12 @@ class _CaixaConteudo extends StatefulWidget {
     double saldoInformado,
     String observacao,
   ) aoFecharCaixa;
+  final Future<void> Function(String turnoId)? aoExcluirTurno;
 
   const _CaixaConteudo({
     required this.theme,
     this.expandido = false,
+    this.lojaId,
     required this.lojaNome,
     required this.lojaCnpj,
     required this.turnoAberto,
@@ -113,6 +120,7 @@ class _CaixaConteudo extends StatefulWidget {
     required this.aoAbrirCaixa,
     required this.aoRegistrarMovimento,
     required this.aoFecharCaixa,
+    this.aoExcluirTurno,
   });
 
   @override
@@ -451,10 +459,35 @@ class _CaixaConteudoState extends State<_CaixaConteudo> {
     }
   }
 
-  Widget _blocoHistoricoTurnosFechados() {
-    final fechados = widget.turnosAnteriores.where((t) => !t.aberto).toList()
+  List<TurnoCaixa> get _turnosFechados {
+    final pdv = context.watch<PdvProvider>();
+    final lojaAtual =
+        widget.lojaId != null ? pdv.buscarPorId(widget.lojaId!) : null;
+    final listaBase = lojaAtual != null
+        ? lojaAtual.turnosCaixa.where((t) => !t.aberto).toList()
+        : widget.turnosAnteriores.where((t) => !t.aberto).toList();
+
+    return listaBase
       ..sort((a, b) => (b.dataFechamento ?? b.dataAbertura)
           .compareTo(a.dataFechamento ?? a.dataAbertura));
+  }
+
+  void _abrirDetalhesTurno(TurnoCaixa turno) {
+    DetalhesTurnoCaixaDialog.mostrar(
+      context,
+      theme: theme,
+      lojaId: widget.lojaId,
+      lojaNome: widget.lojaNome,
+      lojaCnpj: widget.lojaCnpj,
+      turno: turno,
+      pedidosLoja: widget.pedidosLoja,
+      configuracoesImpressora: widget.configuracoesImpressora,
+      aoExcluirTurno: widget.aoExcluirTurno,
+    );
+  }
+
+  Widget _blocoHistoricoTurnosFechados() {
+    final fechados = _turnosFechados;
 
     if (fechados.isEmpty) return const SizedBox.shrink();
 
@@ -489,60 +522,13 @@ class _CaixaConteudoState extends State<_CaixaConteudo> {
               separatorBuilder: (context, index) => const SizedBox(height: 6),
               itemBuilder: (context, index) {
                 final t = fechados[index];
-                return Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                  decoration: BoxDecoration(
-                    color: theme.borderColor.withValues(alpha: 0.08),
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(
-                      color: theme.borderColor.withValues(alpha: 0.4),
-                    ),
-                  ),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'Fechado em ${_formatarDataHora(t.dataFechamento ?? t.dataAbertura)}',
-                              style: theme.getTextStyle(
-                                fontSize: 11,
-                                fontWeight: FontWeight.bold,
-                                color: theme.textColor,
-                              ),
-                            ),
-                            const SizedBox(height: 2),
-                            Text(
-                              'Saldo Final: ${_formatarMoeda(t.saldoFinalInformado ?? 0.0)}'
-                              '${t.fechadoPorNome.isNotEmpty ? " • Operador: ${t.fechadoPorNome}" : ""}',
-                              style: theme.getTextStyle(
-                                fontSize: 10,
-                                color: theme.secondaryTextColor,
-                              ),
-                            ),
-                            if (t.observacao.trim().isNotEmpty)
-                              Text(
-                                'Obs: ${t.observacao.trim()}',
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: theme.getTextStyle(
-                                  fontSize: 10,
-                                  color: theme.secondaryTextColor,
-                                ),
-                              ),
-                          ],
-                        ),
-                      ),
-                      IconButton(
-                        tooltip: 'Reimprimir comprovante',
-                        icon: Icon(Icons.print_outlined,
-                            size: 16, color: theme.textColor),
-                        onPressed: () => _reimprimirFechamento(t),
-                      ),
-                    ],
-                  ),
+                return _BarraTurnoItem(
+                  theme: theme,
+                  turno: t,
+                  formatarDataHora: _formatarDataHora,
+                  formatarMoeda: _formatarMoeda,
+                  aoClicar: () => _abrirDetalhesTurno(t),
+                  aoReimprimir: () => _reimprimirFechamento(t),
                 );
               },
             ),
@@ -1204,7 +1190,10 @@ class _CaixaConteudoState extends State<_CaixaConteudo> {
 
   @override
   Widget build(BuildContext context) {
-    final turno = widget.turnoAberto;
+    final turno = widget.lojaId != null
+        ? context.watch<PdvProvider>().buscarPorId(widget.lojaId!)?.turnoCaixaAberto
+        : widget.turnoAberto;
+    final temTurnosFechados = _turnosFechados.isNotEmpty;
 
     return Column(
       mainAxisSize: MainAxisSize.min,
@@ -1260,7 +1249,7 @@ class _CaixaConteudoState extends State<_CaixaConteudo> {
                           ],
                         ),
                       ),
-                      if (widget.turnosAnteriores.isNotEmpty) ...[
+                      if (temTurnosFechados) ...[
                         const SizedBox(width: 16),
                         Expanded(
                           flex: 5,
@@ -1277,11 +1266,11 @@ class _CaixaConteudoState extends State<_CaixaConteudo> {
                     children: [
                       if (turno == null) ...[
                         _blocoAbertura(),
-                        if (widget.turnosAnteriores.isNotEmpty)
+                        if (temTurnosFechados)
                           _blocoHistoricoTurnosFechados(),
                       ] else ...[
                         _blocoTurnoAberto(turno),
-                        if (widget.turnosAnteriores.isNotEmpty)
+                        if (temTurnosFechados)
                           _blocoHistoricoTurnosFechados(),
                       ],
                       if (_aviso != null) ...[
@@ -1299,6 +1288,138 @@ class _CaixaConteudoState extends State<_CaixaConteudo> {
           ),
         ),
       ],
+    );
+  }
+}
+
+class _BarraTurnoItem extends StatefulWidget {
+  final AppTheme theme;
+  final TurnoCaixa turno;
+  final String Function(DateTime) formatarDataHora;
+  final String Function(double) formatarMoeda;
+  final VoidCallback aoClicar;
+  final VoidCallback aoReimprimir;
+
+  const _BarraTurnoItem({
+    required this.theme,
+    required this.turno,
+    required this.formatarDataHora,
+    required this.formatarMoeda,
+    required this.aoClicar,
+    required this.aoReimprimir,
+  });
+
+  @override
+  State<_BarraTurnoItem> createState() => _BarraTurnoItemState();
+}
+
+class _BarraTurnoItemState extends State<_BarraTurnoItem> {
+  bool _hover = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = widget.turno;
+    final theme = widget.theme;
+
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      onEnter: (_) => setState(() => _hover = true),
+      onExit: (_) => setState(() => _hover = false),
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: widget.aoClicar,
+        child: Tooltip(
+          message: 'Clique para ver detalhes do turno, retiradas e histórico',
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 140),
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+            decoration: BoxDecoration(
+              color: _hover
+                  ? theme.borderColor.withValues(alpha: 0.18)
+                  : theme.borderColor.withValues(alpha: 0.08),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(
+                color: _hover
+                    ? theme.textColor
+                    : theme.borderColor.withValues(alpha: 0.4),
+                width: _hover ? 1.4 : 1.0,
+              ),
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Text(
+                            'Fechado em ${widget.formatarDataHora(t.dataFechamento ?? t.dataAbertura)}',
+                            style: theme.getTextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.bold,
+                              color: theme.textColor,
+                            ),
+                          ),
+                          if (t.movimentacoes.isNotEmpty) ...[
+                            const SizedBox(width: 6),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 5, vertical: 1),
+                              decoration: BoxDecoration(
+                                color:
+                                    theme.borderColor.withValues(alpha: 0.15),
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                              child: Text(
+                                '${t.movimentacoes.length} mov.',
+                                style: theme.getTextStyle(
+                                  fontSize: 9,
+                                  color: theme.secondaryTextColor,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        'Saldo Final: ${widget.formatarMoeda(t.saldoFinalInformado ?? 0.0)}'
+                        '${t.fechadoPorNome.isNotEmpty ? " • Operador: ${t.fechadoPorNome}" : ""}',
+                        style: theme.getTextStyle(
+                          fontSize: 10,
+                          color: theme.secondaryTextColor,
+                        ),
+                      ),
+                      if (t.observacao.trim().isNotEmpty)
+                        Text(
+                          'Obs: ${t.observacao.trim()}',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: theme.getTextStyle(
+                            fontSize: 10,
+                            color: theme.secondaryTextColor,
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+                IconButton(
+                  tooltip: 'Reimprimir comprovante',
+                  icon: Icon(Icons.print_outlined,
+                      size: 16, color: theme.textColor),
+                  onPressed: widget.aoReimprimir,
+                ),
+                Icon(
+                  Icons.chevron_right,
+                  size: 16,
+                  color: _hover ? theme.textColor : theme.secondaryTextColor,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
     );
   }
 }

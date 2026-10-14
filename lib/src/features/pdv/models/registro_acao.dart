@@ -45,6 +45,7 @@ enum TipoAcao {
   caixaFechado,
   sangriaRegistrada,
   suprimentoRegistrado,
+  turnoCaixaExcluido,
 }
 
 class RegistroAcao {
