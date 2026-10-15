@@ -80,7 +80,7 @@ The currently operating core includes:
   - Customer & Supplier registry with adaptive CPF/CNPJ formatting, unified sovereign local auto-fill (`DadosLocaisService`), universal multi-field quick search (`correspondeABusca`) allowing instant filtering by customer/supplier name, street/address, house number, formatted/unformatted tax IDs and phone numbers, e-mail, social handles, or notes, safety confirmation modal with real-time balance previews for credit debt discharge ("Quitar valor" / "Quitar tudo"), and comprehensive A4 PDF customer account statements.
   - **Cooperative Financial Management & Daily Operations (`financeiro_view.dart`)**:
     - Real-time audit trail, algorithmic egalitarian surplus division suggestions among workers, Simple Income Statement (DRE) by period with gross/net profit margins, daily cash closing, and A4 PDF export.
-    - **Daily Operational Overview ("Resumo Operacional do Dia")**: Positioned in Column 2 above Sales of the Period, presenting Today's Revenue (R$), Total Sales Today, Average Ticket (R$), and Cash Drawer Status (Open/Closed badge with exact live physical cash balance).
+    - **Daily Operational Overview ("Resumo Operacional"):** Positioned as the **first container of the page** (immediately below the period filter menu in both single-column and dual-column layouts), dynamically accompanying the active context date/period (Today, specific day selected via `<`/`>` buttons, or general period) with live revenue, sales count, average ticket, cash drawer balance, and drawer status badge.
     - **Sales of the Period Container ("Vendas do Período")**: Positioned directly beneath Period Purchases, delivering live text search across sales (customer, product, ticket #), tender breakdown filters (Pix, Cash, Debit, Credit, Store Credit/À Prazo), and detailed `BarraVenda` list with ergonomic height constraints.
     - **Ergonomic Day-by-Day Date Filtering**: Quick single-click backward/forward day navigation buttons (<kbd>&lt;</kbd> and <kbd>&gt;</kbd>) alongside theme-integrated calendar pickers (`showDatePicker`) and smart cursor selection preservation across both `FinanceiroView` and `RelatoriosDialog`.
   - Dedicated Store Settings tab ("Ajustes do Perfil") consolidating:
@@ -132,13 +132,12 @@ that needs shared state exposes a `ChangeNotifier`-based provider
 (`AuthProvider`, `PdvProvider`, `NotificacoesProvider`, and more to come), registered once in
 `main.dart` via `MultiProvider` and made available to the whole widget tree.
 
-### Theming
+### Theming & User Customization
 
 The UI is fully theme-driven through an `AppTheme` class (background, card
-background, text colors, button colors, borders, font, and font scale) and a
-`ThemeController` that broadcasts theme changes app-wide. Users can create
-and save their own named themes. No screen hard-codes colors or fonts —
-everything reads from the current `AppTheme`.
+background, text colors, button colors, borders, danger/deletion action color `dangerColor`, font, and font scale) and a
+`ThemeController` that broadcasts theme changes app-wide. Users can create,
+customize, and save their own named themes with a Canva-style color picker. Appearance settings and saved themes are automatically persisted per citizen user (keyed by `cpf`), restoring individual visual preferences seamlessly on login. In addition, all destructive and deletion operations throughout the app strictly adhere to a unified pattern: buttons styled with `theme.dangerColor` and mandatory confirmation modals before deletion. No screen hard-codes colors or fonts — everything reads dynamically from the active `AppTheme`.
 
 ### An open question: scale to millions of users
 
@@ -315,7 +314,7 @@ O núcleo atualmente funcional reúne:
   - Cadastro de clientes e fornecedores com máscara adaptável CPF/CNPJ, autopreenchimento local soberano unificado (`DadosLocaisService`) e exportação de extrato completo de compras em PDF A4 com cálculo de dívida a prazo em tempo real.
   - **Módulo Financeiro Cooperativo e Operação do Dia (`financeiro_view.dart`)**:
     - Trilha de auditoria em tempo real, cálculo algorítmico de divisão igualitária dos excedentes, DRE por período com margens de lucro e exportação em PDF.
-    - **Resumo Operacional do Dia**: Posicionado na Coluna 2 acima de Vendas do Período, com Faturamento Hoje, Vendas Realizadas, Ticket Médio e Saldo em Dinheiro do Caixa (badge Aberto/Fechado).
+    - **Resumo Operacional do Dia / Contexto**: Posicionado como o **primeiro container da página** (logo abaixo do menu de filtro de período, tanto no layout de coluna única quanto no expandido), acompanhando dinamicamente o dia ou período de contexto selecionado (Hoje, dia específico ajustado via botões `<`/`>` ou período geral), consolidando Faturamento, Vendas, Ticket Médio, Saldo em Dinheiro e situação do caixa (Aberto/Fechado).
     - **Container "Vendas do Período"**: Posicionado abaixo de Compras do Período, com pesquisa multicampo de vendas (#pedido, cliente, produto), filtros rápidos por forma de pagamento e cards `BarraVenda` com limite ergonômico de rolagem.
     - **Filtros de Data Ágeis do Dia a Dia**: Botões rápidos `<` e `>` para avançar ou recuar dia a dia com 1 clique sem apagar o campo, seletor de calendário nativo temático (`showDatePicker`) e correção do cursor do teclado no `_DataInputFormatter` em `FinanceiroView` e `RelatoriosDialog`.
   - Impressão térmica padrão de 58mm e 80mm com seletor de largura de bobina, calibração bilateral universal de recuo (ajuste fino em milímetros à esquerda e à direita), seleção de modelo de fonte (Belleza, sem serifa, monoespaçada, serifada), prévia adaptativa de comanda resistente a fontes máximas (sem quebras verticais de preço ou estouros de margem), envio direto para impressora física e exportação em PDF.
@@ -364,14 +363,13 @@ que precisa de estado compartilhado expõe um provider baseado em
 registrado uma única vez no `main.dart` via `MultiProvider` e disponível
 para toda a árvore de widgets.
 
-### Sistema de tema
+### Sistema de tema e personalização soberana
 
 A interface é 100% controlada por tema, através de uma classe `AppTheme`
 (cor de fundo, cor de fundo dos cards, cores de texto, cor dos botões,
-bordas, fonte e escala de fonte) e de um `ThemeController` que avisa o app
-inteiro quando o tema muda. O usuário pode criar e salvar seus próprios
-temas com nome. Nenhuma tela fixa cores ou fontes "no braço" — tudo vem do
-`AppTheme` atual.
+bordas, cor de ações de perigo e exclusão `dangerColor`, fonte e escala de fonte) e de um `ThemeController` que avisa o app
+inteiro quando o tema muda. O usuário pode criar, personalizar e salvar seus próprios
+temas com nome via seletor estilo Canva. As configurações visuais e temas salvos são persistidos individualmente por cidadão (chaveados pelo `cpf`), restaurando as preferências visuais de cada perfil no momento do login. Além disso, todas as ações destrutivas e exclusões da aplicação seguem um padrão estrito: botões estilizados com `theme.dangerColor` e diálogo de confirmação prévia obrigatório. Nenhuma tela fixa cores ou fontes "no braço" — tudo vem dinamicamente do `AppTheme` ativo.
 
 ### Uma pergunta em aberto: escala para milhões de usuários
 

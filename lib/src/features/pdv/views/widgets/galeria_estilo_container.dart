@@ -680,7 +680,7 @@ class GaleriaEstiloContainer extends StatelessWidget {
             child: Text(
               'Remover',
               style: theme.getTextStyle(
-                color: Colors.redAccent,
+                color: theme.dangerColor,
                 fontWeight: FontWeight.bold,
               ),
             ),

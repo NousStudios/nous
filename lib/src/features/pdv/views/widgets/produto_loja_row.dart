@@ -128,7 +128,8 @@ class _ProdutoLojaRowState extends State<ProdutoLojaRow> {
         ),
         PopupMenuItem(
           value: 'excluir',
-          child: Text('Excluir Produto', style: theme.getTextStyle()),
+          child: Text('Excluir Produto',
+              style: theme.getTextStyle(color: theme.dangerColor)),
         ),
       ],
     );

@@ -45,6 +45,7 @@ class ThemeCustomizerDialog extends StatelessWidget {
           ),
           title: Text(
             'Salvar Tema',
+            textAlign: TextAlign.center,
             style: theme.getTextStyle(
               fontSize: 18,
               fontWeight: FontWeight.bold,
@@ -68,6 +69,7 @@ class ThemeCustomizerDialog extends StatelessWidget {
               ),
             ),
           ),
+          actionsAlignment: MainAxisAlignment.center,
           actions: [
             TextButton(
               onPressed: () => Navigator.of(dialogContext).pop(),
@@ -265,12 +267,13 @@ class ThemeCustomizerDialog extends StatelessWidget {
           ),
           titlePadding: const EdgeInsets.fromLTRB(24, 20, 24, 12),
           contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-          title: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          title: Stack(
+            alignment: Alignment.center,
             children: [
-              Expanded(
+              Center(
                 child: Text(
                   'Personalizar Aparência',
+                  textAlign: TextAlign.center,
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                   style: theme.getTextStyle(
@@ -280,12 +283,15 @@ class ThemeCustomizerDialog extends StatelessWidget {
                   ),
                 ),
               ),
-              const SizedBox(width: 8),
-              IconButton(
-                onPressed: () => Navigator.of(context).pop(),
-                icon: Icon(Icons.close, color: theme.secondaryTextColor, size: 20),
-                padding: EdgeInsets.zero,
-                constraints: const BoxConstraints(),
+              Positioned(
+                right: 0,
+                child: IconButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  icon: Icon(Icons.close, color: theme.secondaryTextColor, size: 20),
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(),
+                  tooltip: 'Fechar',
+                ),
               ),
             ],
           ),
@@ -377,6 +383,17 @@ class ThemeCustomizerDialog extends StatelessWidget {
                     allowGradient: false,
                     onSelect: (color, _) => ThemeController.updateBorderColor(color),
                   ),
+                  const SizedBox(height: 10),
+                  _buildColorSection(
+                    context: context,
+                    theme: theme,
+                    title: 'Cor dos Botões de Exclusão',
+                    currentColor: theme.dangerColor,
+                    currentGradient: null,
+                    recentColors: ThemeController.recentDangerColors,
+                    allowGradient: false,
+                    onSelect: (color, _) => ThemeController.updateDangerColor(color),
+                  ),
 
                   const SizedBox(height: 16),
                   Divider(color: theme.borderColor.withValues(alpha: 0.5), height: 1),
@@ -390,11 +407,14 @@ class ThemeCustomizerDialog extends StatelessWidget {
                       border: Border.all(color: theme.borderColor.withValues(alpha: 0.6)),
                     ),
                     child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        Text(
-                          'Fonte do Texto',
-                          style: theme.getTextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+                        Center(
+                          child: Text(
+                            'Fonte do Texto',
+                            textAlign: TextAlign.center,
+                            style: theme.getTextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+                          ),
                         ),
                         const SizedBox(height: 8),
                         Container(
@@ -433,9 +453,12 @@ class ThemeCustomizerDialog extends StatelessWidget {
                           ),
                         ),
                         const SizedBox(height: 14),
-                        Text(
-                          'Tamanho da Fonte',
-                          style: theme.getTextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+                        Center(
+                          child: Text(
+                            'Tamanho da Fonte',
+                            textAlign: TextAlign.center,
+                            style: theme.getTextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+                          ),
                         ),
                         const SizedBox(height: 8),
 
@@ -628,6 +651,7 @@ class _CanvaColorPickerModalState extends State<_CanvaColorPickerModal>
       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       title: Text(
         widget.title,
+        textAlign: TextAlign.center,
         maxLines: 2,
         overflow: TextOverflow.ellipsis,
         style: theme.getTextStyle(
@@ -738,6 +762,7 @@ class _CanvaColorPickerModalState extends State<_CanvaColorPickerModal>
           ],
         ),
       ),
+      actionsAlignment: MainAxisAlignment.center,
       actions: [
         TextButton(
           onPressed: () => Navigator.of(context).pop(),

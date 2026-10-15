@@ -164,18 +164,21 @@ class _CriarMesaDialogState extends State<CriarMesaDialog> {
                 Expanded(
                   child: OutlinedButton(
                     style: OutlinedButton.styleFrom(
-                      side: const BorderSide(color: Colors.redAccent),
+                      side: BorderSide(color: widget.theme.dangerColor),
                       padding: const EdgeInsets.symmetric(vertical: 14),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(10),
                       ),
                     ),
-                    onPressed: widget.aoExcluir,
+                    onPressed: () {
+                      Navigator.of(context).pop();
+                      widget.aoExcluir?.call();
+                    },
                     child: Text(
                       'Excluir',
                       style: widget.theme.getTextStyle(
                         fontSize: 14,
-                        color: Colors.redAccent,
+                        color: widget.theme.dangerColor,
                       ),
                     ),
                   ),

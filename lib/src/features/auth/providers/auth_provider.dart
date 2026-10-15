@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import 'package:nous/src/core/theme/theme_controller.dart';
 import 'package:nous/src/features/auth/models/usuario_nous.dart';
 import 'package:nous/src/features/auth/services/contas_nous_service.dart';
 import 'package:nous/src/features/auth/services/cpf_validator.dart';
@@ -76,6 +77,10 @@ class AuthProvider extends ChangeNotifier {
         ? conta.emails.first
         : null;
 
+    if (conta != null) {
+      await ThemeController.carregarTemaDoUsuario(conta.cpf);
+    }
+
     _carregando = false;
     notifyListeners();
 
@@ -96,6 +101,7 @@ class AuthProvider extends ChangeNotifier {
 
     _contaAtual = conta;
     _emailAtivo = null;
+    await ThemeController.carregarTemaDoUsuario(_cpf);
     notifyListeners();
   }
 
@@ -208,6 +214,7 @@ class AuthProvider extends ChangeNotifier {
     _errorMessage = null;
     _contaAtual = null;
     _emailAtivo = null;
+    ThemeController.desvincularUsuario();
     notifyListeners();
   }
 }

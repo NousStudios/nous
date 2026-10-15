@@ -152,7 +152,7 @@ class UsuariosParticipantesContainer extends StatelessWidget {
       titulo = 'Sair da loja';
       mensagem = 'Tem certeza que deseja sair da loja?';
       botaoTexto = 'Sair';
-      botaoCor = Colors.redAccent;
+      botaoCor = theme.dangerColor;
     } else if (ehOutroDono) {
       titulo = 'Solicitar saída de dono';
       mensagem =
@@ -164,7 +164,7 @@ class UsuariosParticipantesContainer extends StatelessWidget {
       mensagem =
           'Remover "${membro.nome}" da loja? Ele(a) receberá uma notificação informando sobre a remoção.';
       botaoTexto = 'Remover';
-      botaoCor = Colors.redAccent;
+      botaoCor = theme.dangerColor;
     }
 
     showDialog<void>(

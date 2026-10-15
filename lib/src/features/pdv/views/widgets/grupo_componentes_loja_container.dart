@@ -278,7 +278,8 @@ class _GrupoComponentesLojaContainerState
                   ),
                   PopupMenuItem(
                     value: 'excluir',
-                    child: Text('Excluir Grupo', style: theme.getTextStyle()),
+                    child: Text('Excluir Grupo',
+                        style: theme.getTextStyle(color: theme.dangerColor)),
                   ),
                 ],
               ),

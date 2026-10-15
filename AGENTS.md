@@ -128,12 +128,14 @@ Este projeto apoia-se no **anarquismo plataformista brasileiro**: poder sem inte
 
 ### 6.1 AppTheme e ThemeController
 - O tema é gerenciado por `AppTheme` e exposto globalmente via `ThemeController.currentTheme` (`ValueNotifier<AppTheme>`).
+- **Personalização Soberana e Isolamento por CPF:** O `ThemeController` persiste o tema ativo e a lista de temas salvos individualmente para cada CPF (`carregarTemaDoUsuario(cpf)`). Ao alternar de conta, as preferências de cores, fontes, tamanhos e cor de exclusão do usuário são instantaneamente carregadas. No logout, desvincula e retorna às configurações gerais da máquina.
+- **Cor de Exclusão e Alerta (`theme.dangerColor`):** Ações destrutivas e alertas críticos utilizam `theme.dangerColor` (padrão `Color(0xFFFF5252)` - `Colors.redAccent`), configurável pelo usuário na janela "Personalizar Aparência" através de seletor Canva e paleta de cores recentes.
 
 ### 6.2 Regras Estritas de Cores
 - **PROIBIDO:** Usar cores fixas genéricas (`Colors.white`, `Colors.black`, `Colors.blue`, etc.) diretamente nos layouts.
 - **EXCEÇÕES PERMITIDAS:**
   - `Colors.transparent`
-  - `Colors.redAccent` (exclusiva para ações destrutivas, exclusões, alertas de quebra e valores de saldo negativo).
+  - `theme.dangerColor` (exclusiva para ações destrutivas, exclusões, alertas de quebra e valores de saldo negativo; utilize sempre `theme.dangerColor` ao invés de `Colors.redAccent` fixo).
 - **Opacidade Moderna:** Use sempre `theme.backgroundColor.withValues(alpha: 0.4)` ou `theme.borderColor.withValues(alpha: 0.6)`. Nunca use o método legado `.withOpacity()`.
 - **Tipografia:**
   - `theme.textColor`: Títulos, cabeçalhos e valores de destaque.
@@ -144,7 +146,8 @@ Este projeto apoia-se no **anarquismo plataformista brasileiro**: poder sem inte
 | Elemento | Padrão Obrigatório |
 | :--- | :--- |
 | **Bloco / Card Padrão** | `BoxDecoration(color: theme.backgroundColor.withValues(alpha: 0.4), borderRadius: BorderRadius.circular(12), border: Border.all(color: theme.borderColor.withValues(alpha: 0.6)))` |
-| **Diálogos / Popups** | **Sempre centralizados** via `showDialog`. Fundo `theme.cardBackgroundColor`, `borderRadius: 16` e largura máxima de `500`. **Nunca use Bottom Sheets.** |
+| **Diálogos / Popups** | **Sempre centralizados** via `showDialog`. Fundo `theme.cardBackgroundColor`, `borderRadius: 16`, títulos centralizados em `theme.textColor`, mensagens explicativas centralizadas e largura máxima de `500`. **Nunca use Bottom Sheets.** |
+| **Botões e Ações de Exclusão** | **Padrão Universal:** Botões na tela (como "Excluir Loja", "Excluir Cliente", "Excluir Fornecedor", "Excluir Cadastro" e itens destrutivos de menus popup) exibem o rótulo/ícone em `theme.dangerColor`. Ao serem acionados, **SEMPRE abrem janela de confirmação** (`AlertDialog` centralizado) com botão "Cancelar" neutro (`theme.secondaryTextColor`) e botão de confirmação ("Excluir" / "Remover") destacado em `theme.dangerColor`. |
 | **Barras com Hover** | Todo item de lista (membros, fornecedores, clientes, trabalhadores) deve usar o widget de hover com borda contrastante e leve fundo translúcido `theme.borderColor.withValues(alpha: 0.18)` ao passar o cursor. |
 | **Listas Vazias** | Use sempre `EstadoVazioContainer(theme: theme, mensagem: '...')`. |
 | **Botões de Ação** | No repouso, respeitam o tema (`theme.buttonColor` ou transparente com borda fina `1.0`), **nunca nascendo com o visual de hover ativado**. Respondem dinamicamente ao mouse em hover: fundo translúcido `alpha: 0.18`, borda `1.4` em `textColor` e cursor pointer. |
@@ -284,8 +287,8 @@ Este projeto apoia-se no **anarquismo plataformista brasileiro**: poder sem inte
       - **Seletor de Calendário Nativo Temático:** Ícone de calendário (`showDatePicker`) em `financeiro_view.dart` e `relatorios_dialog.dart` integrado ao tema ativo.
       - **Correção de Cursor no `_DataInputFormatter`:** O cursor não é mais empurrado para o final da string ao editar caracteres no meio da data.
     - **Módulo Financeiro Ampliado (`financeiro_view.dart`):**
-      - **Container "Resumo Operacional do Dia":** Exibido na coluna 2 acima de "Vendas do Período", consolidando faturamento do dia, total de vendas, ticket médio, saldo em dinheiro do caixa e badge de status (aberto/fechado).
-      - **Container "Vendas do Período":** Exibido abaixo de "Compras do Período", contendo busca de vendas por texto, filtros de forma de pagamento e lista de `BarraVenda` com altura delimitada.
+      - **Container "Resumo Operacional do Dia / Contexto":** Posicionado como o **primeiro container da página** (logo abaixo da barra de ações e do menu de filtro de período), acompanhando dinamicamente o período ou data de contexto selecionada (Hoje, dia único selecionado com navegação `<` e `>`, ou período geral). Consolida Faturamento, Vendas, Ticket Médio, Saldo em Dinheiro do Caixa e badge de status (aberto/fechado com base no período).
+      - **Container "Vendas do Período":** Exibido na coluna 2 abaixo de "Compras do Período", contendo busca de vendas por texto, filtros de forma de pagamento e lista de `BarraVenda` com altura delimitada.
     - **Tela Cheia Real do Windows via FFI (`JanelaWindowsService` e Tecla <kbd>F11</kbd>):**
       - A tecla <kbd>F11</kbd> é a tecla padrão fixa do sistema e não pode ser reconfigurada: ela alterna exclusivamente o modo **Full Screen** (tela cheia sem bordas `WS_POPUP` cobrindo 100% da tela do Windows).
       - **Preservação de Janela Maximizada:** Ao ativar tela cheia, o sistema detecta se a janela do Windows já estava maximizada (`IsZoomed` da `user32.dll`). Ao desativar o <kbd>F11</kbd>, se a janela estava maximizada, o Windows a restaura fielmente no estado **maximizado** (`ShowWindow(SW_MAXIMIZE)`), sem reduzi-la para tamanho menor. Se não estava maximizada, restaura para as coordenadas e dimensões livres anteriores (`SW_RESTORE`).
@@ -658,8 +661,9 @@ Este projeto apoia-se no **anarquismo plataformista brasileiro**: poder sem inte
   - **Modelo Soberano (`PedidoProgramado`):** Armazena `id`, `lojaId`, `clienteId`, `clienteNome`, `clienteTelefone`, `clienteEndereco`, `itens` (`List<ItemVendido>`), `valorTotal`, `formaPagamento`, `horario`, `recorrente` (diário vs pontual), `dataProgramada`, `ativo`, `dataCriacao` e `ultimaDataGerado`.
   - **Ficha do Cliente (`ClientesDialog`):** Container "Pedidos Programados" posicionado acima do "Histórico de Compras", com botão "+ Programar Pedido" e lista de agendamentos ativos do cliente com opções de ver comanda, pausar/ativar e excluir.
   - **Diálogo Prático de Programação (`ProgramarPedidoDialog`):**
+    - **Padronização Visual Centralizada:** Todos os títulos dos blocos internos (`Frequência e Horário do Pedido`, `Adicionar Item ao Pedido`, `Comanda do Pedido` e `Forma de Pagamento e Detalhes`), o cabeçalho do diálogo e o container de `Pedidos Programados` em `ClientesDialog` seguem rigorosamente o alinhamento central da aplicação (`MainAxisAlignment.center` e `textAlign: TextAlign.center`).
     - **Calendário e Frequência:** Modos "Contrato / Dias da Semana" (com pré-seleção rápida e chips individuais de Segunda a Domingo) e "Calendário de Datas" interativo (mês a mês com marcação visual).
-    - **Seletor de Horário com Rolagem Isolada:** Permite digitação direta no formato `HH:MM`, botões delta minuto a minuto (`-1m`, `+1m`), atalhos rápidos e abertura de diálogo ampliado `_DigitarHorarioDialog` com botão "Salvar". Enquanto o cursor do mouse estiver sobre o input de horário ou com o campo focado, a janela inteira tem sua rolagem bloqueada (`NeverScrollableScrollPhysics`), permitindo que a rodinha do mouse ajuste suave e exclusivamente os minutos sem mover a janela. Ao clicar fora ou teclar Enter, o campo é desfocado e a rolagem da janela é restaurada.
+    - **Seletor de Horário Robusto e Ergonômico:** Formatador `_HorarioInputFormatter` imune a inversão de dígitos nos minutos através do mapeamento numérico anterior ao cursor, suporte nativo a backspace sobre o separador `:`, auto-seleção de texto com um toque (`onTap` e `autofocus`), rolagem isolada com a rodinha do mouse (`NeverScrollableScrollPhysics` durante foco/hover), botões delta minuto a minuto (`-1m`, `+1m`), atalhos rápidos e modal ampliado `_DigitarHorarioDialog` com título limpo `"Digite o Horário"`.
     - **Seleção Fiel de Itens e Variantes Opcionais:** Suporta seleção por categoria ou item avulso, lista completa de acompanhamentos com contadores de quantidade e variantes que nascem desativadas por padrão com a opção explícita "Desativado".
   - **Avisos ao Entrar na Aplicação (`DadosPerfilView`):** Após fechar as notificações (ou diretamente se não houver notificações), exibe a janela `PedidosProgramadosDialog` com os avisos dos pedidos agendados para o dia de hoje. Se não houver pedidos para hoje, não mostra nada.
   - **Injeção em "Novos" e Fila Automática de Novos Pedidos (`ComandaNovoPedidoDialog`):**

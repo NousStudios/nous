@@ -84,7 +84,8 @@ class _ComponenteLojaRowState extends State<ComponenteLojaRow> {
             itemBuilder: (context) => [
               PopupMenuItem(
                 value: 'excluir',
-                child: Text('Excluir Componente', style: theme.getTextStyle()),
+                child: Text('Excluir Componente',
+                    style: theme.getTextStyle(color: theme.dangerColor)),
               ),
             ],
           ),

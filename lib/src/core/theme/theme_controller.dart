@@ -48,6 +48,7 @@ class AppTheme {
   final Gradient? buttonGradient;
   final Color buttonTextColor;
   final Color borderColor;
+  final Color dangerColor;
   final String fontName;
   final double fontScale;
 
@@ -62,6 +63,7 @@ class AppTheme {
     this.buttonGradient,
     this.buttonTextColor = Colors.white,
     this.borderColor = const Color(0xFF333333),
+    this.dangerColor = const Color(0xFFFF5252),
     this.fontName = 'Belleza',
     this.fontScale = 1.0,
   });
@@ -75,6 +77,7 @@ class AppTheme {
         buttonColor: Colors.transparent,
         buttonTextColor: Colors.white,
         borderColor: Colors.white,
+        dangerColor: Color(0xFFFF5252),
         fontName: 'Belleza',
       );
 
@@ -88,6 +91,7 @@ class AppTheme {
         buttonColor: Colors.white,
         buttonTextColor: Colors.black,
         borderColor: Colors.black,
+        dangerColor: Color(0xFFFF5252),
         fontName: 'Belleza',
       );
 
@@ -106,6 +110,7 @@ class AppTheme {
     bool clearButtonGradient = false,
     Color? buttonTextColor,
     Color? borderColor,
+    Color? dangerColor,
     String? fontName,
     double? fontScale,
   }) {
@@ -124,6 +129,7 @@ class AppTheme {
           clearButtonGradient ? null : (buttonGradient ?? this.buttonGradient),
       buttonTextColor: buttonTextColor ?? this.buttonTextColor,
       borderColor: borderColor ?? this.borderColor,
+      dangerColor: dangerColor ?? this.dangerColor,
       fontName: fontName ?? this.fontName,
       fontScale: fontScale ?? this.fontScale,
     );
@@ -157,6 +163,7 @@ class AppTheme {
       'buttonGradient': _gradientToJson(buttonGradient),
       'buttonTextColor': buttonTextColor.toARGB32(),
       'borderColor': borderColor.toARGB32(),
+      'dangerColor': dangerColor.toARGB32(),
       'fontName': fontName,
       'fontScale': fontScale,
     };
@@ -176,6 +183,9 @@ class AppTheme {
       buttonGradient: _gradientFromJson(json['buttonGradient'] as Map<String, dynamic>?),
       buttonTextColor: Color(json['buttonTextColor'] as int),
       borderColor: Color(json['borderColor'] as int),
+      dangerColor: json['dangerColor'] != null
+          ? Color(json['dangerColor'] as int)
+          : const Color(0xFFFF5252),
       fontName: json['fontName'] as String,
       fontScale: (json['fontScale'] as num?)?.toDouble() ?? 1.0,
     );
@@ -214,6 +224,24 @@ class ThemeController {
       ValueNotifier<List<SavedTheme>>([]);
 
   static const String _savedThemesPrefsKey = 'nous_saved_themes';
+  static const String _currentThemePrefsKey = 'nous_current_theme';
+
+  static String? _cpfAtivo;
+  static String? get cpfAtivo => _cpfAtivo;
+
+  static String _keyTemaAtual([String? cpf]) {
+    final alvo = cpf ?? _cpfAtivo;
+    return (alvo != null && alvo.trim().isNotEmpty)
+        ? '${_currentThemePrefsKey}_${alvo.trim()}'
+        : _currentThemePrefsKey;
+  }
+
+  static String _keyTemasSalvos([String? cpf]) {
+    final alvo = cpf ?? _cpfAtivo;
+    return (alvo != null && alvo.trim().isNotEmpty)
+        ? '${_savedThemesPrefsKey}_${alvo.trim()}'
+        : _savedThemesPrefsKey;
+  }
 
   static const double minFontScale = 0.7;
   static const double maxFontScale = 1.5;
@@ -268,8 +296,16 @@ class ThemeController {
     const ColorOption(color: Colors.transparent),
   ];
 
+  static List<ColorOption> recentDangerColors = [
+    const ColorOption(color: Color(0xFFFF5252)),
+    const ColorOption(color: Color(0xFFE53935)),
+    const ColorOption(color: Color(0xFFF97316)),
+    const ColorOption(color: Color(0xFFE11D48)),
+  ];
+
   static void updateTheme(AppTheme newTheme) {
     currentTheme.value = newTheme;
+    _persistirTemaAtivo();
   }
 
   static void _addRecent(List<ColorOption> list, Color color, Gradient? gradient) {
@@ -288,6 +324,7 @@ class ThemeController {
       clearBackgroundGradient: gradient == null,
     );
     _addRecent(recentBackgroundColors, color, gradient);
+    _persistirTemaAtivo();
   }
 
   static void updateCardColor(Color color, {Gradient? gradient}) {
@@ -297,16 +334,19 @@ class ThemeController {
       clearCardGradient: gradient == null,
     );
     _addRecent(recentCardColors, color, gradient);
+    _persistirTemaAtivo();
   }
 
   static void updateTextColor(Color color) {
     currentTheme.value = currentTheme.value.copyWith(textColor: color);
     _addRecent(recentTextColors, color, null);
+    _persistirTemaAtivo();
   }
 
   static void updateSecondaryTextColor(Color color) {
     currentTheme.value = currentTheme.value.copyWith(secondaryTextColor: color);
     _addRecent(recentSecondaryTextColors, color, null);
+    _persistirTemaAtivo();
   }
 
   static void updateButtonColor(Color color, {Gradient? gradient}) {
@@ -316,20 +356,30 @@ class ThemeController {
       clearButtonGradient: gradient == null,
     );
     _addRecent(recentButtonColors, color, gradient);
+    _persistirTemaAtivo();
   }
 
   static void updateButtonTextColor(Color color) {
     currentTheme.value = currentTheme.value.copyWith(buttonTextColor: color);
     _addRecent(recentButtonTextColors, color, null);
+    _persistirTemaAtivo();
   }
 
   static void updateBorderColor(Color color) {
     currentTheme.value = currentTheme.value.copyWith(borderColor: color);
     _addRecent(recentBorderColors, color, null);
+    _persistirTemaAtivo();
+  }
+
+  static void updateDangerColor(Color color) {
+    currentTheme.value = currentTheme.value.copyWith(dangerColor: color);
+    _addRecent(recentDangerColors, color, null);
+    _persistirTemaAtivo();
   }
 
   static void updateFont(String fontName) {
     currentTheme.value = currentTheme.value.copyWith(fontName: fontName);
+    _persistirTemaAtivo();
   }
 
   static void increaseFontScale() {
@@ -337,6 +387,7 @@ class ThemeController {
     currentTheme.value = currentTheme.value.copyWith(
       fontScale: next > maxFontScale ? maxFontScale : next,
     );
+    _persistirTemaAtivo();
   }
 
   static void decreaseFontScale() {
@@ -344,12 +395,84 @@ class ThemeController {
     currentTheme.value = currentTheme.value.copyWith(
       fontScale: next < minFontScale ? minFontScale : next,
     );
+    _persistirTemaAtivo();
+  }
+
+  static Future<void> _persistirTemaAtivo() async {
+    final prefs = await SharedPreferences.getInstance();
+    final jsonText = jsonEncode(currentTheme.value.toJson());
+    await prefs.setString(_keyTemaAtual(), jsonText);
+    if (_cpfAtivo == null || _cpfAtivo!.isEmpty) {
+      await prefs.setString(_currentThemePrefsKey, jsonText);
+    }
+  }
+
+  static Future<void> carregarTemaDoUsuario(String cpf) async {
+    final cpfLimpo = cpf.trim();
+    if (cpfLimpo.isEmpty) return;
+    _cpfAtivo = cpfLimpo;
+
+    final prefs = await SharedPreferences.getInstance();
+    final chaveUsuario = _keyTemaAtual(cpfLimpo);
+    final rawThemeJson = prefs.getString(chaveUsuario);
+
+    if (rawThemeJson != null && rawThemeJson.isNotEmpty) {
+      try {
+        final map = jsonDecode(rawThemeJson) as Map<String, dynamic>;
+        currentTheme.value = AppTheme.fromJson(map);
+      } catch (_) {}
+    }
+
+    final chaveSalvos = _keyTemasSalvos(cpfLimpo);
+    final rawSavedList = prefs.getStringList(chaveSalvos) ??
+        prefs.getStringList(_savedThemesPrefsKey);
+
+    if (rawSavedList != null) {
+      savedThemes.value = rawSavedList
+          .map((jsonText) => SavedTheme.fromJson(
+              jsonDecode(jsonText) as Map<String, dynamic>))
+          .toList();
+    }
+  }
+
+  static Future<void> desvincularUsuario() async {
+    _cpfAtivo = null;
+    final prefs = await SharedPreferences.getInstance();
+    final rawThemeJson = prefs.getString(_currentThemePrefsKey);
+    if (rawThemeJson != null && rawThemeJson.isNotEmpty) {
+      try {
+        final map = jsonDecode(rawThemeJson) as Map<String, dynamic>;
+        currentTheme.value = AppTheme.fromJson(map);
+      } catch (_) {
+        currentTheme.value = AppTheme.dark;
+      }
+    } else {
+      currentTheme.value = AppTheme.dark;
+    }
+
+    final rawList = prefs.getStringList(_savedThemesPrefsKey);
+    if (rawList != null) {
+      savedThemes.value = rawList
+          .map((jsonText) => SavedTheme.fromJson(
+              jsonDecode(jsonText) as Map<String, dynamic>))
+          .toList();
+    } else {
+      savedThemes.value = [];
+    }
   }
 
   static Future<void> init() async {
     final prefs = await SharedPreferences.getInstance();
-    final rawList = prefs.getStringList(_savedThemesPrefsKey);
 
+    final rawTheme = prefs.getString(_currentThemePrefsKey);
+    if (rawTheme != null && rawTheme.isNotEmpty) {
+      try {
+        final map = jsonDecode(rawTheme) as Map<String, dynamic>;
+        currentTheme.value = AppTheme.fromJson(map);
+      } catch (_) {}
+    }
+
+    final rawList = prefs.getStringList(_savedThemesPrefsKey);
     if (rawList == null) return;
 
     savedThemes.value = rawList
@@ -379,6 +502,9 @@ class ThemeController {
     final prefs = await SharedPreferences.getInstance();
     final rawList =
         savedThemes.value.map((saved) => jsonEncode(saved.toJson())).toList();
-    await prefs.setStringList(_savedThemesPrefsKey, rawList);
+    await prefs.setStringList(_keyTemasSalvos(), rawList);
+    if (_cpfAtivo == null || _cpfAtivo!.isEmpty) {
+      await prefs.setStringList(_savedThemesPrefsKey, rawList);
+    }
   }
 }

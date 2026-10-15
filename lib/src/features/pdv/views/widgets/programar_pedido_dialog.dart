@@ -17,22 +17,55 @@ class _HorarioInputFormatter extends TextInputFormatter {
     TextEditingValue oldValue,
     TextEditingValue newValue,
   ) {
-    final digitos = newValue.text.replaceAll(RegExp(r'[^0-9]'), '');
+    if (newValue.text.isEmpty) {
+      return newValue;
+    }
+
+    String textoNovo = newValue.text;
+    // Se o usuário apagou o separador ':' com backspace, apaga também o dígito anterior
+    if (oldValue.text.endsWith(':') && textoNovo.length < oldValue.text.length) {
+      final digitosAntigos = oldValue.text.replaceAll(RegExp(r'[^0-9]'), '');
+      if (digitosAntigos.isNotEmpty) {
+        textoNovo = digitosAntigos.substring(0, digitosAntigos.length - 1);
+      }
+    }
+
+    final digitos = textoNovo.replaceAll(RegExp(r'[^0-9]'), '');
     final limitado = digitos.length > 4 ? digitos.substring(0, 4) : digitos;
+
     final buffer = StringBuffer();
     for (var i = 0; i < limitado.length; i++) {
       if (i == 2) buffer.write(':');
       buffer.write(limitado[i]);
     }
-    final texto = buffer.toString();
-    var offset = newValue.selection.end;
-    if (offset > texto.length) offset = texto.length;
-    if (texto.length > oldValue.text.length && offset == 2) {
-      offset++;
+
+    var formatado = buffer.toString();
+    // Ao digitar o 2º dígito inserindo, já adiciona os dois pontos para guiar a digitação
+    if (limitado.length == 2 && newValue.text.length > oldValue.text.length) {
+      formatado = '$formatado:';
     }
+
+    // Calcula a posição precisa do cursor contando os dígitos numéricos antes do cursor
+    var digitosAntesCursor = 0;
+    final fimSelecao = newValue.selection.end.clamp(0, newValue.text.length);
+    for (var i = 0; i < fimSelecao; i++) {
+      if (RegExp(r'[0-9]').hasMatch(newValue.text[i])) {
+        digitosAntesCursor++;
+      }
+    }
+    if (digitosAntesCursor > 4) digitosAntesCursor = 4;
+
+    var novoOffset = digitosAntesCursor;
+    if (digitosAntesCursor >= 2 && formatado.contains(':')) {
+      novoOffset = digitosAntesCursor + 1;
+    }
+    if (novoOffset > formatado.length) {
+      novoOffset = formatado.length;
+    }
+
     return TextEditingValue(
-      text: texto,
-      selection: TextSelection.collapsed(offset: offset),
+      text: formatado,
+      selection: TextSelection.collapsed(offset: novoOffset),
     );
   }
 }
@@ -421,22 +454,33 @@ class _ProgramarPedidoDialogState extends State<ProgramarPedidoDialog> {
                     // Cabeçalho
                     Row(
                       children: [
-                        Icon(Icons.calendar_month, color: theme.textColor, size: 22),
-                        const SizedBox(width: 8),
+                        const SizedBox(width: 28),
                         Expanded(
                           child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text(
-                                'Programar Pedido do Cliente',
-                                style: theme.getTextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.bold,
-                                  color: theme.textColor,
-                                ),
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(Icons.calendar_month, color: theme.textColor, size: 20),
+                                  const SizedBox(width: 8),
+                                  Flexible(
+                                    child: Text(
+                                      'Programar Pedido do Cliente',
+                                      textAlign: TextAlign.center,
+                                      style: theme.getTextStyle(
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.bold,
+                                        color: theme.textColor,
+                                      ),
+                                    ),
+                                  ),
+                                ],
                               ),
+                              const SizedBox(height: 2),
                               Text(
                                 'Cliente: ${widget.cliente.nome}',
+                                textAlign: TextAlign.center,
                                 style: theme.getTextStyle(
                                   fontSize: 11,
                                   color: theme.secondaryTextColor,
@@ -560,11 +604,13 @@ class _ProgramarPedidoDialogState extends State<ProgramarPedidoDialog> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
+            mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Icon(Icons.event_repeat, size: 16, color: theme.textColor),
               const SizedBox(width: 6),
               Text(
                 'Frequência e Horário do Pedido',
+                textAlign: TextAlign.center,
                 style: theme.getTextStyle(
                   fontSize: 13,
                   fontWeight: FontWeight.bold,
@@ -603,26 +649,36 @@ class _ProgramarPedidoDialogState extends State<ProgramarPedidoDialog> {
 
           if (_modoProgramacao == 'dias_semana') ...[
             // Seletor dos 7 dias da semana
-            Text(
-              'Selecione os dias em que o pedido deve ser produzido:',
-              style: theme.getTextStyle(fontSize: 11, color: theme.secondaryTextColor),
+            Center(
+              child: Text(
+                'Selecione os dias em que o pedido deve ser produzido:',
+                textAlign: TextAlign.center,
+                style: theme.getTextStyle(fontSize: 11, color: theme.secondaryTextColor),
+              ),
             ),
             const SizedBox(height: 8),
             Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 _chipDiaSemana(theme: theme, numero: 1, label: 'Seg'),
+                const SizedBox(width: 4),
                 _chipDiaSemana(theme: theme, numero: 2, label: 'Ter'),
+                const SizedBox(width: 4),
                 _chipDiaSemana(theme: theme, numero: 3, label: 'Qua'),
+                const SizedBox(width: 4),
                 _chipDiaSemana(theme: theme, numero: 4, label: 'Qui'),
+                const SizedBox(width: 4),
                 _chipDiaSemana(theme: theme, numero: 5, label: 'Sex'),
+                const SizedBox(width: 4),
                 _chipDiaSemana(theme: theme, numero: 6, label: 'Sáb'),
+                const SizedBox(width: 4),
                 _chipDiaSemana(theme: theme, numero: 7, label: 'Dom'),
               ],
             ),
             const SizedBox(height: 8),
             // Atalhos rápidos
             Wrap(
+              alignment: WrapAlignment.center,
               spacing: 6,
               runSpacing: 4,
               children: [
@@ -673,7 +729,7 @@ class _ProgramarPedidoDialogState extends State<ProgramarPedidoDialog> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          'Horário (digite ex: 12:07):',
+                          'Horário:',
                           style: theme.getTextStyle(
                             fontSize: 11,
                             color: theme.secondaryTextColor,
@@ -730,6 +786,12 @@ class _ProgramarPedidoDialogState extends State<ProgramarPedidoDialog> {
                                         contentPadding: EdgeInsets.symmetric(vertical: 6),
                                         border: InputBorder.none,
                                       ),
+                                      onTap: () {
+                                        _horarioController.selection = TextSelection(
+                                          baseOffset: 0,
+                                          extentOffset: _horarioController.text.length,
+                                        );
+                                      },
                                       onChanged: _aoDigitarHorario,
                                       onSubmitted: (_) => _horarioFocusNode.unfocus(),
                                     ),
@@ -1148,11 +1210,13 @@ class _ProgramarPedidoDialogState extends State<ProgramarPedidoDialog> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
+            mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Icon(Icons.restaurant_menu, size: 16, color: theme.textColor),
               const SizedBox(width: 6),
               Text(
                 'Adicionar Item ao Pedido',
+                textAlign: TextAlign.center,
                 style: theme.getTextStyle(
                   fontSize: 13,
                   fontWeight: FontWeight.bold,
@@ -1536,20 +1600,15 @@ class _ProgramarPedidoDialogState extends State<ProgramarPedidoDialog> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            mainAxisAlignment: MainAxisAlignment.center,
             children: [
+              Icon(Icons.receipt_long, size: 16, color: theme.textColor),
+              const SizedBox(width: 6),
               Text(
-                'Comanda do Pedido (${_itensAdicionados.length} itens)',
+                'Comanda do Pedido (${_itensAdicionados.length} itens) • ${_valorFormatado(_totalGeralPedido)}',
+                textAlign: TextAlign.center,
                 style: theme.getTextStyle(
                   fontSize: 13,
-                  fontWeight: FontWeight.bold,
-                  color: theme.textColor,
-                ),
-              ),
-              Text(
-                _valorFormatado(_totalGeralPedido),
-                style: theme.getTextStyle(
-                  fontSize: 14,
                   fontWeight: FontWeight.bold,
                   color: theme.textColor,
                 ),
@@ -1645,13 +1704,21 @@ class _ProgramarPedidoDialogState extends State<ProgramarPedidoDialog> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            'Forma de Pagamento e Detalhes',
-            style: theme.getTextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.bold,
-              color: theme.textColor,
-            ),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.payment, size: 16, color: theme.textColor),
+              const SizedBox(width: 6),
+              Text(
+                'Forma de Pagamento e Detalhes',
+                textAlign: TextAlign.center,
+                style: theme.getTextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.bold,
+                  color: theme.textColor,
+                ),
+              ),
+            ],
           ),
           const SizedBox(height: 10),
           DropdownButtonFormField<String>(
@@ -1725,6 +1792,10 @@ class _DigitarHorarioDialogState extends State<_DigitarHorarioDialog> {
     super.initState();
     _horario = widget.horarioInicial;
     _controller = TextEditingController(text: _formatarHora(_horario));
+    _controller.selection = TextSelection(
+      baseOffset: 0,
+      extentOffset: _controller.text.length,
+    );
   }
 
   @override
@@ -1819,16 +1890,23 @@ class _DigitarHorarioDialogState extends State<_DigitarHorarioDialog> {
                 // Cabeçalho da janela
                 Row(
                   children: [
-                    Icon(Icons.access_time_filled, color: theme.textColor, size: 22),
-                    const SizedBox(width: 8),
+                    const SizedBox(width: 20),
                     Expanded(
-                      child: Text(
-                        'Digite o Horário (HH:MM)',
-                        style: theme.getTextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                          color: theme.textColor,
-                        ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.access_time_filled, color: theme.textColor, size: 20),
+                          const SizedBox(width: 8),
+                          Text(
+                            'Digite o Horário',
+                            textAlign: TextAlign.center,
+                            style: theme.getTextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                              color: theme.textColor,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                     IconButton(
@@ -1842,6 +1920,7 @@ class _DigitarHorarioDialogState extends State<_DigitarHorarioDialog> {
                 const SizedBox(height: 12),
                 Text(
                   'Digite o horário ou role a rodinha do mouse neste painel para subir ou descer os números.',
+                  textAlign: TextAlign.center,
                   style: theme.getTextStyle(
                     fontSize: 11,
                     color: theme.secondaryTextColor,
@@ -1891,6 +1970,12 @@ class _DigitarHorarioDialogState extends State<_DigitarHorarioDialog> {
                                 contentPadding: EdgeInsets.symmetric(vertical: 4),
                                 border: InputBorder.none,
                               ),
+                              onTap: () {
+                                _controller.selection = TextSelection(
+                                  baseOffset: 0,
+                                  extentOffset: _controller.text.length,
+                                );
+                              },
                               onChanged: _aoDigitar,
                               onSubmitted: (_) => _salvar(),
                             ),

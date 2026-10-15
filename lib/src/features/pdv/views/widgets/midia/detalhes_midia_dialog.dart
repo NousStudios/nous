@@ -214,13 +214,58 @@ class _DetalhesMidiaDialogState extends State<DetalhesMidiaDialog> {
     );
   }
 
-  void _removerItemAtual() {
+  Future<void> _removerItemAtual() async {
+    final theme = widget.theme;
+    final confirmou = await showDialog<bool>(
+      context: context,
+      builder: (dialogCtx) => AlertDialog(
+        backgroundColor: theme.cardBackgroundColor,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+          side: BorderSide(color: theme.borderColor),
+        ),
+        title: Text(
+          'Remover Anexo',
+          textAlign: TextAlign.center,
+          style: theme.getTextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.bold,
+            color: theme.textColor,
+          ),
+        ),
+        content: Text(
+          'Tem certeza que deseja remover este anexo? Essa ação não pode ser desfeita.',
+          textAlign: TextAlign.center,
+          style: theme.getTextStyle(fontSize: 14),
+        ),
+        actionsAlignment: MainAxisAlignment.center,
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogCtx).pop(false),
+            child: Text(
+              'Cancelar',
+              style: theme.getTextStyle(color: theme.secondaryTextColor),
+            ),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(dialogCtx).pop(true),
+            child: Text(
+              'Remover',
+              style: theme.getTextStyle(color: theme.dangerColor),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmou != true) return;
+
     final indiceParaRemover = _indiceAtual;
     widget.onRemoverIndice?.call(indiceParaRemover);
     widget.onRemover?.call();
 
     if (_itens.length <= 1) {
-      Navigator.of(context).pop();
+      if (mounted) Navigator.of(context).pop();
       return;
     }
 
@@ -534,7 +579,7 @@ class _DetalhesMidiaDialogState extends State<DetalhesMidiaDialog> {
                         widget.onRemoverIndice != null) ...[
                       TextButton.icon(
                         style: TextButton.styleFrom(
-                          foregroundColor: Colors.redAccent,
+                          foregroundColor: theme.dangerColor,
                           padding: const EdgeInsets.symmetric(
                             horizontal: 12,
                             vertical: 10,
@@ -545,7 +590,7 @@ class _DetalhesMidiaDialogState extends State<DetalhesMidiaDialog> {
                           'Remover Anexo',
                           style: theme.getTextStyle(
                             fontSize: 12,
-                            color: Colors.redAccent,
+                            color: theme.dangerColor,
                           ),
                         ),
                         onPressed: _removerItemAtual,

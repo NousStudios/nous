@@ -268,9 +268,9 @@ class _VendaConteudoState extends State<_VendaConteudo> {
   }) {
     return OutlinedButton(
       style: OutlinedButton.styleFrom(
-        foregroundColor: destrutivo ? Colors.redAccent : theme.textColor,
+        foregroundColor: destrutivo ? theme.dangerColor : theme.textColor,
         side: BorderSide(
-          color: destrutivo ? Colors.redAccent : theme.borderColor,
+          color: destrutivo ? theme.dangerColor : theme.borderColor,
         ),
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
         shape: RoundedRectangleBorder(
@@ -329,7 +329,7 @@ class _VendaConteudoState extends State<_VendaConteudo> {
               onPressed: () => Navigator.of(dialogContext).pop(true),
               child: Text(
                 'Excluir',
-                style: theme.getTextStyle(color: Colors.redAccent),
+                style: theme.getTextStyle(color: theme.dangerColor),
               ),
             ),
           ],

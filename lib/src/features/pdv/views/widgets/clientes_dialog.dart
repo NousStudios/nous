@@ -673,7 +673,7 @@ class _ClientesConteudoState extends State<_ClientesConteudo> {
               onPressed: () => Navigator.of(dialogContext).pop(true),
               child: Text(
                 'Excluir',
-                style: theme.getTextStyle(color: Colors.redAccent),
+                style: theme.getTextStyle(color: theme.dangerColor),
               ),
             ),
           ],
@@ -963,7 +963,7 @@ class _ClientesConteudoState extends State<_ClientesConteudo> {
                 'Excluir Cliente',
                 style: theme.getTextStyle(
                   fontSize: 12,
-                  color: Colors.redAccent,
+                  color: theme.dangerColor,
                 ),
               ),
             ),
@@ -1085,61 +1085,49 @@ class _ClientesConteudoState extends State<_ClientesConteudo> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Pedidos Programados',
-                      style: theme.getTextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.bold,
-                        color: theme.textColor,
-                      ),
+          Center(
+            child: Column(
+              children: [
+                _tituloDoBloco('Pedidos Programados'),
+                if (programados.isNotEmpty) ...[
+                  Text(
+                    '${programados.length} ${programados.length == 1 ? "pedido agendado" : "pedidos agendados"}',
+                    textAlign: TextAlign.center,
+                    style: theme.getTextStyle(
+                      fontSize: 11,
+                      color: theme.secondaryTextColor,
                     ),
-                    if (programados.isNotEmpty) ...[
-                      const SizedBox(height: 2),
-                      Text(
-                        '${programados.length} ${programados.length == 1 ? "pedido agendado" : "pedidos agendados"}',
-                        style: theme.getTextStyle(
-                          fontSize: 11,
-                          color: theme.secondaryTextColor,
-                        ),
-                      ),
-                    ],
-                  ],
-                ),
-              ),
-              OutlinedButton.icon(
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: theme.textColor,
-                  side: BorderSide(color: theme.borderColor),
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
                   ),
-                ),
-                icon: const Icon(Icons.add_alarm, size: 16),
-                label: Text(
-                  'Programar Pedido',
-                  style: theme.getTextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
+                  const SizedBox(height: 8),
+                ],
+                OutlinedButton.icon(
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: theme.textColor,
+                    side: BorderSide(color: theme.borderColor),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
                   ),
+                  icon: const Icon(Icons.add_alarm, size: 16),
+                  label: Text(
+                    'Programar Pedido',
+                    style: theme.getTextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  onPressed: () {
+                    ProgramarPedidoDialog.mostrar(
+                      context,
+                      lojaId: widget.lojaId,
+                      cliente: cliente,
+                    );
+                  },
                 ),
-                onPressed: () {
-                  ProgramarPedidoDialog.mostrar(
-                    context,
-                    lojaId: widget.lojaId,
-                    cliente: cliente,
-                  );
-                },
-              ),
-            ],
+              ],
+            ),
           ),
           const SizedBox(height: 10),
           if (programados.isEmpty)

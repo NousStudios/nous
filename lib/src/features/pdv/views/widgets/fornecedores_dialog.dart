@@ -310,7 +310,7 @@ class _FornecedoresConteudoState extends State<_FornecedoresConteudo> {
               onPressed: () => Navigator.of(dialogContext).pop(true),
               child: Text(
                 'Excluir',
-                style: theme.getTextStyle(color: Colors.redAccent),
+                style: theme.getTextStyle(color: theme.dangerColor),
               ),
             ),
           ],
@@ -568,7 +568,7 @@ class _FornecedoresConteudoState extends State<_FornecedoresConteudo> {
                 'Excluir Fornecedor',
                 style: theme.getTextStyle(
                   fontSize: 12,
-                  color: Colors.redAccent,
+                  color: theme.dangerColor,
                 ),
               ),
             ),

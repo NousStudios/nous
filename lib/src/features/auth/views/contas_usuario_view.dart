@@ -167,7 +167,7 @@ class _ContasUsuarioViewState extends State<ContasUsuarioView> {
               onPressed: () => Navigator.of(dialogContext).pop(true),
               child: Text(
                 'Excluir',
-                style: theme.getTextStyle(color: Colors.redAccent),
+                style: theme.getTextStyle(color: theme.dangerColor),
               ),
             ),
           ],
@@ -273,7 +273,10 @@ class _ContasUsuarioViewState extends State<ContasUsuarioView> {
                         onPressed: () => _excluirConta(context),
                         child: Text(
                           'Excluir Cadastro',
-                          style: theme.getTextStyle(fontSize: 13),
+                          style: theme.getTextStyle(
+                            fontSize: 13,
+                            color: theme.dangerColor,
+                          ),
                         ),
                       ),
                     ],

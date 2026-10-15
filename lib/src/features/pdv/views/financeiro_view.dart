@@ -194,10 +194,27 @@ class _FinanceiroViewState extends State<FinanceiroView> {
     }
   }
 
+  bool get _ehDiaUnico {
+    if (_periodo == PeriodoFinanceiro.hoje) return true;
+    if (_periodo == PeriodoFinanceiro.personalizado) {
+      final dInicio = _parseData(_dataInicioController.text);
+      final dFim = _parseData(_dataFimController.text);
+      if (dInicio != null && dFim != null) {
+        return dInicio.year == dFim.year &&
+            dInicio.month == dFim.month &&
+            dInicio.day == dFim.day;
+      }
+      return dInicio != null || dFim != null;
+    }
+    return false;
+  }
+
   List<PedidoLoja> get _vendasConcluidas {
+    final loja = context.read<PdvProvider>().buscarPorId(widget.lojaId);
+    final todos = loja?.pedidosLoja ?? widget.pedidos;
     final desde = _inicioDoPeriodo;
     final ate = _fimDoPeriodo;
-    return widget.pedidos.where((p) {
+    return todos.where((p) {
       if (p.status != StatusPedido.concluido) return false;
       if (desde != null && p.dataHora.isBefore(desde)) return false;
       if (ate != null && p.dataHora.isAfter(ate)) return false;
@@ -206,9 +223,11 @@ class _FinanceiroViewState extends State<FinanceiroView> {
   }
 
   List<PedidoLoja> get _pedidosAceitos {
+    final loja = context.read<PdvProvider>().buscarPorId(widget.lojaId);
+    final todos = loja?.pedidosLoja ?? widget.pedidos;
     final desde = _inicioDoPeriodo;
     final ate = _fimDoPeriodo;
-    return widget.pedidos.where((p) {
+    return todos.where((p) {
       if (p.status != StatusPedido.aceito) return false;
       if (desde != null && p.dataHora.isBefore(desde)) return false;
       if (ate != null && p.dataHora.isAfter(ate)) return false;
@@ -1207,7 +1226,7 @@ class _FinanceiroViewState extends State<FinanceiroView> {
               onPressed: () => Navigator.of(dialogContext).pop(true),
               child: Text(
                 'Excluir',
-                style: theme.getTextStyle(color: Colors.redAccent),
+                style: theme.getTextStyle(color: theme.dangerColor),
               ),
             ),
           ],
@@ -1628,73 +1647,141 @@ class _FinanceiroViewState extends State<FinanceiroView> {
   Widget _blocoResumoOperacional(AppTheme theme, Loja? loja) {
     if (loja == null) return const SizedBox.shrink();
 
-    final agora = DateTime.now();
-    final hoje = DateTime(agora.year, agora.month, agora.day);
+    final desde = _inicioDoPeriodo;
+    final ate = _fimDoPeriodo;
+    final todosPedidos = loja.pedidosLoja;
 
-    final pedidosHojeConcluidos = loja.pedidosLoja.where((p) {
+    final pedidosPeriodoConcluidos = todosPedidos.where((p) {
       if (p.status != StatusPedido.concluido) return false;
-      final dataPedido =
-          DateTime(p.dataHora.year, p.dataHora.month, p.dataHora.day);
-      return dataPedido == hoje;
+      if (desde != null && p.dataHora.isBefore(desde)) return false;
+      if (ate != null && p.dataHora.isAfter(ate)) return false;
+      return true;
     }).toList();
 
-    final pedidosHojeEmAberto = loja.pedidosLoja.where((p) {
+    final pedidosPeriodoEmAberto = todosPedidos.where((p) {
       if (p.status != StatusPedido.aceito && p.status != StatusPedido.novo) {
         return false;
       }
-      final dataPedido =
-          DateTime(p.dataHora.year, p.dataHora.month, p.dataHora.day);
-      return dataPedido == hoje;
+      if (desde != null && p.dataHora.isBefore(desde)) return false;
+      if (ate != null && p.dataHora.isAfter(ate)) return false;
+      return true;
     }).toList();
 
-    final totalVendasHoje = pedidosHojeConcluidos.length;
-    final faturamentoHoje = pedidosHojeConcluidos.fold<double>(
+    final totalVendas = pedidosPeriodoConcluidos.length;
+    final faturamento = pedidosPeriodoConcluidos.fold<double>(
       0.0,
       (soma, p) => soma + p.valor,
     );
-    final totalEmAbertoHoje = pedidosHojeEmAberto.fold<double>(
+    final totalEmAberto = pedidosPeriodoEmAberto.fold<double>(
       0.0,
       (soma, p) => soma + p.valor,
     );
-    final ticketMedio =
-        totalVendasHoje == 0 ? 0.0 : faturamentoHoje / totalVendasHoje;
+    final ticketMedio = totalVendas == 0 ? 0.0 : faturamento / totalVendas;
 
-    final turnoAberto = loja.turnosCaixa.where((t) => t.aberto).firstOrNull;
-    final caixaAberto = turnoAberto != null;
+    final String tituloBloco;
+    final String rotuloVendas;
+    final String rotuloAReceber;
+
+    if (_periodo == PeriodoFinanceiro.hoje) {
+      tituloBloco = 'Resumo Operacional do Dia';
+      rotuloVendas = 'Vendas Hoje';
+      rotuloAReceber = 'A receber hoje';
+    } else if (_ehDiaUnico) {
+      tituloBloco = 'Resumo Operacional do Dia ($_rotuloPeriodoAtual)';
+      rotuloVendas = 'Vendas do Dia';
+      rotuloAReceber = 'A receber no dia';
+    } else {
+      tituloBloco = 'Resumo Operacional ($_rotuloPeriodoAtual)';
+      rotuloVendas = 'Vendas no Período';
+      rotuloAReceber = 'A receber no período';
+    }
 
     double saldoEmDinheiro = 0.0;
-    if (turnoAberto != null) {
-      double vendasDinheiroTurno = 0.0;
-      for (final p in loja.pedidosLoja) {
-        if (p.status == StatusPedido.cancelado) continue;
-        if (p.dataHora.isAfter(turnoAberto.dataAbertura) ||
-            p.dataHora.isAtSameMomentAs(turnoAberto.dataAbertura)) {
-          if (p.pagamentosExtras.isNotEmpty) {
-            for (final pag in p.todosPagamentos) {
-              if (pag.forma.toLowerCase() == 'dinheiro') {
-                vendasDinheiroTurno += pag.valor;
+    final bool caixaAberto;
+
+    if (_periodo == PeriodoFinanceiro.hoje) {
+      final turnoAberto = loja.turnosCaixa.where((t) => t.aberto).firstOrNull;
+      caixaAberto = turnoAberto != null;
+      if (turnoAberto != null) {
+        double vendasDinheiroTurno = 0.0;
+        for (final p in loja.pedidosLoja) {
+          if (p.status == StatusPedido.cancelado) continue;
+          if (p.dataHora.isAfter(turnoAberto.dataAbertura) ||
+              p.dataHora.isAtSameMomentAs(turnoAberto.dataAbertura)) {
+            if (p.pagamentosExtras.isNotEmpty) {
+              for (final pag in p.todosPagamentos) {
+                if (pag.forma.toLowerCase() == 'dinheiro') {
+                  vendasDinheiroTurno += pag.valor;
+                }
               }
-            }
-            vendasDinheiroTurno -= p.troco;
-          } else {
-            if (p.formaPagamento.toLowerCase() == 'dinheiro') {
-              vendasDinheiroTurno += p.valor;
+              vendasDinheiroTurno -= p.troco;
+            } else {
+              if (p.formaPagamento.toLowerCase() == 'dinheiro') {
+                vendasDinheiroTurno += p.valor;
+              }
             }
           }
         }
+        if (vendasDinheiroTurno < 0) vendasDinheiroTurno = 0.0;
+        saldoEmDinheiro = turnoAberto.saldoInicial +
+            turnoAberto.totalSuprimentos -
+            turnoAberto.totalSangrias +
+            vendasDinheiroTurno;
+        if (saldoEmDinheiro < 0) saldoEmDinheiro = 0.0;
+      } else {
+        final ultimoTurno =
+            loja.turnosCaixa.isNotEmpty ? loja.turnosCaixa.last : null;
+        if (ultimoTurno != null && ultimoTurno.saldoFinalInformado != null) {
+          saldoEmDinheiro = ultimoTurno.saldoFinalInformado!;
+        }
       }
-      if (vendasDinheiroTurno < 0) vendasDinheiroTurno = 0.0;
-      saldoEmDinheiro = turnoAberto.saldoInicial +
-          turnoAberto.totalSuprimentos -
-          turnoAberto.totalSangrias +
-          vendasDinheiroTurno;
-      if (saldoEmDinheiro < 0) saldoEmDinheiro = 0.0;
     } else {
-      final ultimoTurno =
-          loja.turnosCaixa.isNotEmpty ? loja.turnosCaixa.last : null;
-      if (ultimoTurno != null && ultimoTurno.saldoFinalInformado != null) {
-        saldoEmDinheiro = ultimoTurno.saldoFinalInformado!;
+      final turnosDoPeriodo = loja.turnosCaixa.where((t) {
+        if (desde != null && t.dataAbertura.isBefore(desde)) return false;
+        if (ate != null && t.dataAbertura.isAfter(ate)) return false;
+        return true;
+      }).toList();
+
+      final turnoAbertoPeriodo =
+          turnosDoPeriodo.where((t) => t.aberto).firstOrNull;
+      caixaAberto = turnoAbertoPeriodo != null;
+
+      if (turnosDoPeriodo.isNotEmpty) {
+        final turnoRef = turnosDoPeriodo.last;
+        if (turnoRef.aberto) {
+          double vendasDinheiroTurno = 0.0;
+          for (final p in loja.pedidosLoja) {
+            if (p.status == StatusPedido.cancelado) continue;
+            if (p.dataHora.isAfter(turnoRef.dataAbertura) ||
+                p.dataHora.isAtSameMomentAs(turnoRef.dataAbertura)) {
+              if (p.pagamentosExtras.isNotEmpty) {
+                for (final pag in p.todosPagamentos) {
+                  if (pag.forma.toLowerCase() == 'dinheiro') {
+                    vendasDinheiroTurno += pag.valor;
+                  }
+                }
+                vendasDinheiroTurno -= p.troco;
+              } else {
+                if (p.formaPagamento.toLowerCase() == 'dinheiro') {
+                  vendasDinheiroTurno += p.valor;
+                }
+              }
+            }
+          }
+          if (vendasDinheiroTurno < 0) vendasDinheiroTurno = 0.0;
+          saldoEmDinheiro = turnoRef.saldoInicial +
+              turnoRef.totalSuprimentos -
+              turnoRef.totalSangrias +
+              vendasDinheiroTurno;
+        } else if (turnoRef.saldoFinalInformado != null) {
+          saldoEmDinheiro = turnoRef.saldoFinalInformado!;
+        } else {
+          saldoEmDinheiro = _entradasPorForma('Dinheiro');
+        }
+      } else {
+        saldoEmDinheiro = _entradasPorForma('Dinheiro');
       }
+      if (saldoEmDinheiro < 0) saldoEmDinheiro = 0.0;
     }
 
     return Container(
@@ -1709,7 +1796,7 @@ class _FinanceiroViewState extends State<FinanceiroView> {
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
-                  'Resumo Operacional do Dia',
+                  tituloBloco,
                   style: theme.getTextStyle(
                     fontSize: 15,
                     fontWeight: FontWeight.w600,
@@ -1758,7 +1845,7 @@ class _FinanceiroViewState extends State<FinanceiroView> {
                   theme: theme,
                   icone: Icons.attach_money,
                   rotulo: 'Faturamento',
-                  valor: _valorFormatado(faturamentoHoje),
+                  valor: _valorFormatado(faturamento),
                   destaque: true,
                 ),
               ),
@@ -1767,8 +1854,8 @@ class _FinanceiroViewState extends State<FinanceiroView> {
                 child: _itemMetricaResumo(
                   theme: theme,
                   icone: Icons.receipt_long_outlined,
-                  rotulo: 'Vendas Hoje',
-                  valor: '$totalVendasHoje',
+                  rotulo: rotuloVendas,
+                  valor: '$totalVendas',
                 ),
               ),
             ],
@@ -1795,10 +1882,10 @@ class _FinanceiroViewState extends State<FinanceiroView> {
               ),
             ],
           ),
-          if (pedidosHojeEmAberto.isNotEmpty) ...[
+          if (pedidosPeriodoEmAberto.isNotEmpty) ...[
             const SizedBox(height: 10),
             Text(
-              'A receber hoje (${pedidosHojeEmAberto.length} ${pedidosHojeEmAberto.length == 1 ? 'pedido em aberto' : 'pedidos em aberto'}): ${_valorFormatado(totalEmAbertoHoje)}',
+              '$rotuloAReceber (${pedidosPeriodoEmAberto.length} ${pedidosPeriodoEmAberto.length == 1 ? 'pedido em aberto' : 'pedidos em aberto'}): ${_valorFormatado(totalEmAberto)}',
               textAlign: TextAlign.center,
               style: theme.getTextStyle(
                 fontSize: 11,
@@ -2010,6 +2097,8 @@ class _FinanceiroViewState extends State<FinanceiroView> {
               const SizedBox(height: 12),
               _filtroPeriodo(theme),
               const SizedBox(height: 16),
+              _blocoResumoOperacional(theme, loja),
+              const SizedBox(height: 16),
               _blocoEntradas(theme),
               const SizedBox(height: 16),
               _blocoBalanco(theme, loja),
@@ -2017,8 +2106,6 @@ class _FinanceiroViewState extends State<FinanceiroView> {
 
             final conteudoColuna2 = [
               _blocoCompras(theme, loja),
-              const SizedBox(height: 16),
-              _blocoResumoOperacional(theme, loja),
               const SizedBox(height: 16),
               _blocoVendasDoPeriodo(theme, loja),
               const SizedBox(height: 16),

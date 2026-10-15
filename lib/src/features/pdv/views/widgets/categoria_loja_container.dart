@@ -299,7 +299,7 @@ class _CategoriaLojaContainerState extends State<CategoriaLojaContainer> {
                   PopupMenuItem(
                     value: 'excluir',
                     child: Text('Excluir Categoria',
-                        style: theme.getTextStyle()),
+                        style: theme.getTextStyle(color: theme.dangerColor)),
                   ),
                 ],
               ),

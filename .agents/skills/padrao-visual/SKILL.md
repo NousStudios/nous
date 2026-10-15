@@ -22,7 +22,7 @@ Diretrizes obrigatórias para criação e edição de widgets, telas, diálogos 
 - **PROIBIDO:** Usar cores fixas genéricas (`Colors.white`, `Colors.black`, `Colors.blue`, etc.) diretamente nos layouts. Nenhuma cor deve ser definida "no braço".
 - **EXCEÇÕES PERMITIDAS:**
   - `Colors.transparent`
-  - `Colors.redAccent` (exclusiva para ações destrutivas, exclusões, alertas de quebra e valores de saldo negativo).
+  - `theme.dangerColor` (exclusiva para ações destrutivas, exclusões, cancelamentos irreversíveis, alertas de quebra e valores de saldo negativo). O usuário pode personalizar essa cor na janela "Personalizar Aparência". Evite usar `Colors.redAccent` fixo.
 - **Opacidade Moderna:** Use sempre `theme.backgroundColor.withValues(alpha: 0.4)` ou `theme.borderColor.withValues(alpha: 0.6)`. **Nunca use o método legado `.withOpacity()`**.
 - **Tipografia e Cores de Texto:**
   - `theme.textColor`: Títulos, cabeçalhos e valores de destaque.
@@ -38,7 +38,8 @@ Diretrizes obrigatórias para criação e edição de widgets, telas, diálogos 
 | :--- | :--- |
 | **Bloco / Card Padrão** | `BoxDecoration(color: theme.backgroundColor.withValues(alpha: 0.4), borderRadius: BorderRadius.circular(12), border: Border.all(color: theme.borderColor.withValues(alpha: 0.6)))` |
 | **Títulos de Containers** | **Sempre centralizados** com `Center(child: Text('...', textAlign: TextAlign.center))` ou `Center(child: Row(mainAxisSize: MainAxisSize.min, children: [Icon, Text]))`. |
-| **Diálogos / Popups** | **Sempre centralizados** via `showDialog`. Fundo `theme.cardBackgroundColor`, `borderRadius: 16` e largura máxima de `500`. **Nunca use Bottom Sheets.** |
+| **Diálogos / Popups** | **Sempre centralizados** via `showDialog`. Fundo `theme.cardBackgroundColor`, `borderRadius: 16`, títulos centralizados em `theme.textColor`, mensagens centralizadas e largura máxima de `500`. **Nunca use Bottom Sheets.** |
+| **Botões e Ações de Exclusão** | **Padrão Universal:** Botões na tela (como "Excluir Loja", "Excluir Cliente", "Excluir Fornecedor", "Excluir Cadastro" e itens destrutivos de menus popup) exibem o rótulo/ícone em `theme.dangerColor`. Ao serem acionados, **SEMPRE abrem janela de confirmação** (`AlertDialog` centralizado) com botão "Cancelar" neutro (`theme.secondaryTextColor`) e botão de confirmação ("Excluir" / "Remover") destacado em `theme.dangerColor`. |
 | **Barras com Hover** | Todo item de lista (membros, fornecedores, clientes, trabalhadores, ações de auditoria) deve usar hover com borda contrastante e leve fundo translúcido `theme.borderColor.withValues(alpha: 0.18)` ao passar o cursor e `SystemMouseCursors.click`. |
 | **Listas Vazias** | Use sempre `EstadoVazioContainer(theme: theme, mensagem: '...')`. |
 | **Botões de Ação** | Ativos com `theme.buttonColor` (com fallback `theme.borderColor.withValues(alpha: 0.25)` quando `buttonColor == Colors.transparent`) e texto em `theme.buttonTextColor`. Secundários com `OutlinedButton` arredondado com hover dinâmico via `WidgetStateProperty.resolveWith(...)`. |

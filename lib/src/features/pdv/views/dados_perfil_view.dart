@@ -1631,15 +1631,24 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
         _persistirListasLoja();
       },
       aoExcluir: _mesas[indice].status == StatusMesa.livre
-          ? () {
-              setState(() => _mesas.removeAt(indice));
-              _persistirListasLoja();
-              _registrarAcao(
-                TipoAcao.mesaExcluida,
-                'Mesa "${mesa.numero}" removida do restaurante',
-              );
-            }
+          ? () => _confirmarExclusaoMesa(mesa)
           : null,
+    );
+  }
+
+  Future<void> _confirmarExclusaoMesa(MesaLoja mesa) async {
+    final confirmou = await _dialogoConfirmarExclusao(
+      titulo: 'Excluir Mesa',
+      mensagem:
+          'Tem certeza que deseja excluir a Mesa "${mesa.numero}"? Essa ação não pode ser desfeita.',
+    );
+    if (!confirmou) return;
+
+    setState(() => _mesas.removeWhere((m) => m.id == mesa.id));
+    _persistirListasLoja();
+    _registrarAcao(
+      TipoAcao.mesaExcluida,
+      'Mesa "${mesa.numero}" removida do restaurante',
     );
   }
 
@@ -2358,7 +2367,56 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
     );
   }
 
-  void _removerCategoria(String id) {
+  Future<bool> _dialogoConfirmarExclusao({
+    required String titulo,
+    required String mensagem,
+  }) async {
+    final theme = ThemeController.currentTheme.value;
+    final res = await showDialog<bool>(
+      context: context,
+      builder: (dialogCtx) => AlertDialog(
+        backgroundColor: theme.cardBackgroundColor,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16.0),
+          side: BorderSide(color: theme.borderColor),
+        ),
+        title: Text(
+          titulo,
+          textAlign: TextAlign.center,
+          style: theme.getTextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.bold,
+            color: theme.textColor,
+          ),
+        ),
+        content: Text(
+          mensagem,
+          textAlign: TextAlign.center,
+          style: theme.getTextStyle(fontSize: 14),
+        ),
+        actionsAlignment: MainAxisAlignment.center,
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogCtx).pop(false),
+            child: Text(
+              'Cancelar',
+              style: theme.getTextStyle(color: theme.secondaryTextColor),
+            ),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(dialogCtx).pop(true),
+            child: Text(
+              'Excluir',
+              style: theme.getTextStyle(color: theme.dangerColor),
+            ),
+          ),
+        ],
+      ),
+    );
+    return res == true;
+  }
+
+  Future<void> _removerCategoria(String id) async {
     if (!_podeEditarAbaLoja()) {
       _avisarSemPermissao();
       return;
@@ -2366,6 +2424,13 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
 
     final indice = _categorias.indexWhere((c) => c.id == id);
     final nome = indice == -1 ? '' : _categorias[indice].nome;
+
+    final confirmou = await _dialogoConfirmarExclusao(
+      titulo: 'Excluir Categoria',
+      mensagem:
+          'Tem certeza que deseja excluir a categoria "$nome"? Essa ação não pode ser desfeita.',
+    );
+    if (!confirmou) return;
 
     setState(() {
       _categorias.removeWhere((categoria) => categoria.id == id);
@@ -2379,7 +2444,7 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
     );
   }
 
-  void _removerItem(String id) {
+  Future<void> _removerItem(String id) async {
     if (!_podeEditarAbaLoja()) {
       _avisarSemPermissao();
       return;
@@ -2387,6 +2452,13 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
 
     final indice = _itens.indexWhere((i) => i.id == id);
     final nome = indice == -1 ? '' : _itens[indice].nome;
+
+    final confirmou = await _dialogoConfirmarExclusao(
+      titulo: 'Excluir Item',
+      mensagem:
+          'Tem certeza que deseja excluir o item "$nome"? Essa ação não pode ser desfeita.',
+    );
+    if (!confirmou) return;
 
     setState(() {
       _itens.removeWhere((item) => item.id == id);
@@ -2419,7 +2491,7 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
     );
   }
 
-  void _removerGrupoComponentes(String id) {
+  Future<void> _removerGrupoComponentes(String id) async {
     if (!_podeEditarAbaLoja()) {
       _avisarSemPermissao();
       return;
@@ -2427,6 +2499,13 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
 
     final indice = _gruposComponentes.indexWhere((g) => g.id == id);
     final nome = indice == -1 ? '' : _gruposComponentes[indice].nome;
+
+    final confirmou = await _dialogoConfirmarExclusao(
+      titulo: 'Excluir Grupo',
+      mensagem:
+          'Tem certeza que deseja excluir o grupo de componentes "$nome"? Essa ação não pode ser desfeita.',
+    );
+    if (!confirmou) return;
 
     setState(() {
       _gruposComponentes.removeWhere((grupo) => grupo.id == id);
@@ -2972,7 +3051,7 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
                   onPressed: () => _executarExclusao(dialogContext),
                   child: Text(
                     'Excluir',
-                    style: theme.getTextStyle(color: Colors.redAccent),
+                    style: theme.getTextStyle(color: theme.dangerColor),
                   ),
                 ),
               ],
@@ -4962,7 +5041,10 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
                 onPressed: () => _confirmarExclusao(context),
                 child: Text(
                   'Excluir Loja',
-                  style: theme.getTextStyle(fontSize: 13),
+                  style: theme.getTextStyle(
+                    fontSize: 13,
+                    color: theme.dangerColor,
+                  ),
                 ),
               ),
             ],

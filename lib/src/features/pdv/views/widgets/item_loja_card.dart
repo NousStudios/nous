@@ -225,9 +225,10 @@ class _ItemLojaCardState extends State<ItemLojaCard> {
                     child: Row(
                       children: [
                         Icon(Icons.delete_outline,
-                            size: 16, color: theme.secondaryTextColor),
+                            size: 16, color: theme.dangerColor),
                         const SizedBox(width: 8),
-                        Text('Excluir Item', style: theme.getTextStyle()),
+                        Text('Excluir Item',
+                            style: theme.getTextStyle(color: theme.dangerColor)),
                       ],
                     ),
                   ),

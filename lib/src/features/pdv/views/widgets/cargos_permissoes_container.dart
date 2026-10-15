@@ -754,42 +754,43 @@ class _CargosEPermissoesContainerState
           backgroundColor: theme.cardBackgroundColor,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(16),
-            side: const BorderSide(color: Colors.redAccent),
+            side: BorderSide(color: theme.borderColor),
           ),
           title: Text(
             'Excluir Cargo',
+            textAlign: TextAlign.center,
             style: theme.getTextStyle(
-              fontSize: 16,
+              fontSize: 18,
               fontWeight: FontWeight.bold,
-              color: Colors.redAccent,
+              color: theme.textColor,
             ),
           ),
           content: Text(
             'Deseja excluir o cargo "${cargo.nome}"? Os membros que possuem esse cargo voltarão ao papel nativo padrão.',
-            style: theme.getTextStyle(fontSize: 13, color: theme.textColor),
+            textAlign: TextAlign.center,
+            style: theme.getTextStyle(fontSize: 14),
           ),
+          actionsAlignment: MainAxisAlignment.center,
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(dialogContext),
               child: Text(
                 'Cancelar',
                 style: theme.getTextStyle(
-                  fontSize: 12,
                   color: theme.secondaryTextColor,
                 ),
               ),
             ),
-            FilledButton(
-              style: FilledButton.styleFrom(
-                backgroundColor: Colors.redAccent,
-                foregroundColor: Colors.white,
-              ),
+            TextButton(
               onPressed: () {
                 widget.onRemoverCargo?.call(cargo.id);
                 setState(() => _abaSelecionadaId = 'dono');
                 Navigator.pop(dialogContext);
               },
-              child: Text('Excluir', style: theme.getTextStyle(fontSize: 12)),
+              child: Text(
+                'Excluir',
+                style: theme.getTextStyle(color: theme.dangerColor),
+              ),
             ),
           ],
         );
