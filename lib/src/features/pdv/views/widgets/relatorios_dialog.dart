@@ -12,6 +12,7 @@ import 'package:nous/src/features/pdv/models/registro_acao.dart';
 import 'package:nous/src/features/pdv/providers/pdv_provider.dart';
 import 'package:nous/src/features/pdv/views/widgets/estado_vazio_container.dart';
 import 'package:nous/src/features/pdv/views/widgets/venda_registrada_dialog.dart';
+import 'package:nous/src/features/pdv/views/widgets/comanda_pedido_dialog.dart';
 
 const List<String> _formasDePagamento = [
   'Pix',
@@ -52,9 +53,14 @@ class _DataInputFormatter extends TextInputFormatter {
       buffer.write(limitado[i]);
     }
     final texto = buffer.toString();
+    var offset = newValue.selection.end;
+    if (offset > texto.length) offset = texto.length;
+    if (texto.length > oldValue.text.length && (offset == 2 || offset == 5)) {
+      offset++;
+    }
     return TextEditingValue(
       text: texto,
-      selection: TextSelection.collapsed(offset: texto.length),
+      selection: TextSelection.collapsed(offset: offset),
     );
   }
 }
@@ -446,18 +452,149 @@ class _RelatoriosConteudoState extends State<_RelatoriosConteudo> {
     );
   }
 
+  void _ajustarDia(int delta) {
+    DateTime base;
+    final atual = _dataInicial;
+    if (atual != null) {
+      base = atual.add(Duration(days: delta));
+    } else {
+      base = DateTime.now();
+    }
+    _dataController.text =
+        '${_doisDigitos(base.day)}/${_doisDigitos(base.month)}/${base.year}';
+    setState(() {});
+  }
+
+  Future<void> _abrirDatePicker() async {
+    final atual = _dataInicial ?? DateTime.now();
+    final selecionada = await showDatePicker(
+      context: context,
+      initialDate: atual,
+      firstDate: DateTime(2000),
+      lastDate: DateTime(2100),
+      builder: (context, child) {
+        return Theme(
+          data: ThemeData.dark().copyWith(
+            colorScheme: ColorScheme.dark(
+              primary: theme.buttonColor != Colors.transparent
+                  ? theme.buttonColor
+                  : theme.textColor,
+              onPrimary: theme.buttonTextColor,
+              surface: theme.cardBackgroundColor,
+              onSurface: theme.textColor,
+            ),
+          ),
+          child: child!,
+        );
+      },
+    );
+    if (selecionada != null) {
+      _dataController.text =
+          '${_doisDigitos(selecionada.day)}/${_doisDigitos(selecionada.month)}/${selecionada.year}';
+      setState(() {});
+    }
+  }
+
   Widget _campoDeData() {
-    return SizedBox(
-      width: 180,
-      child: TextField(
-        controller: _dataController,
-        keyboardType: TextInputType.number,
-        inputFormatters: [_DataInputFormatter()],
-        cursorColor: theme.textColor,
-        style: theme.getTextStyle(fontSize: 12),
-        decoration: _decoracaoCampo('A partir de: dd/mm/aaaa'),
-        onChanged: (_) => setState(() {}),
-      ),
+    final temData = _dataController.text.trim().isNotEmpty;
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Tooltip(
+          message: 'Dia anterior',
+          child: _LinhaComHover(
+            aoClicar: () => _ajustarDia(-1),
+            builder: (hover) => Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: hover
+                    ? theme.borderColor.withValues(alpha: 0.25)
+                    : Colors.transparent,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(
+                  color: hover
+                      ? theme.textColor
+                      : theme.borderColor.withValues(alpha: 0.45),
+                ),
+              ),
+              child: Icon(
+                Icons.chevron_left_rounded,
+                size: 16,
+                color: hover ? theme.textColor : theme.secondaryTextColor,
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(width: 4),
+        SizedBox(
+          width: 175,
+          child: TextField(
+            controller: _dataController,
+            keyboardType: TextInputType.number,
+            inputFormatters: [_DataInputFormatter()],
+            cursorColor: theme.textColor,
+            style: theme.getTextStyle(fontSize: 12),
+            decoration: _decoracaoCampo('dd/mm/aaaa').copyWith(
+              contentPadding:
+                  const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+              prefixIcon: Tooltip(
+                message: 'Abrir calendário',
+                child: IconButton(
+                  icon: Icon(
+                    Icons.calendar_month_outlined,
+                    size: 16,
+                    color: theme.textColor,
+                  ),
+                  onPressed: _abrirDatePicker,
+                ),
+              ),
+              suffixIcon: temData
+                  ? Tooltip(
+                      message: 'Limpar data',
+                      child: IconButton(
+                        icon: Icon(
+                          Icons.close,
+                          size: 14,
+                          color: theme.secondaryTextColor,
+                        ),
+                        onPressed: () {
+                          _dataController.clear();
+                          setState(() {});
+                        },
+                      ),
+                    )
+                  : null,
+            ),
+            onChanged: (_) => setState(() {}),
+          ),
+        ),
+        const SizedBox(width: 4),
+        Tooltip(
+          message: 'Próximo dia',
+          child: _LinhaComHover(
+            aoClicar: () => _ajustarDia(1),
+            builder: (hover) => Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: hover
+                    ? theme.borderColor.withValues(alpha: 0.25)
+                    : Colors.transparent,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(
+                  color: hover
+                      ? theme.textColor
+                      : theme.borderColor.withValues(alpha: 0.45),
+                ),
+              ),
+              child: Icon(
+                Icons.chevron_right_rounded,
+                size: 16,
+                color: hover ? theme.textColor : theme.secondaryTextColor,
+              ),
+            ),
+          ),
+        ),
+      ],
     );
   }
 
@@ -690,6 +827,202 @@ class _RelatoriosConteudoState extends State<_RelatoriosConteudo> {
     );
   }
 
+  Widget _blocoPedidosProgramados() {
+    final pdv = context.watch<PdvProvider>();
+    final loja = pdv.buscarPorId(widget.lojaId);
+    final diaAlvo = _dataInicial ?? DateTime.now();
+
+    final programados = (loja?.pedidosProgramados ?? [])
+        .where((p) => p.coincideComData(diaAlvo))
+        .toList();
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: _decoracaoDoBloco,
+      child: Column(
+        children: [
+          _tituloDoBloco('Pedidos Programados'),
+          if (programados.isEmpty)
+            EstadoVazioContainer(
+              theme: theme,
+              mensagem: 'Nenhum pedido programado para este dia.',
+            )
+          else
+            ConstrainedBox(
+              constraints: const BoxConstraints(maxHeight: 260),
+              child: ListView.separated(
+                shrinkWrap: true,
+                itemCount: programados.length,
+                separatorBuilder: (context, index) =>
+                    const SizedBox(height: 8),
+                itemBuilder: (context, index) {
+                  final prog = programados[index];
+                  Cliente? cliente;
+                  if (loja != null) {
+                    cliente = loja.clientesLoja
+                        .where((c) =>
+                            c.id == prog.clienteId ||
+                            (c.nome.trim().toLowerCase() ==
+                                prog.clienteNome.trim().toLowerCase()))
+                        .firstOrNull;
+                  }
+
+                  final auth = context.read<AuthProvider>();
+                  String foto = cliente?.foto ?? '';
+                  if (foto.isEmpty &&
+                      cliente != null &&
+                      cliente.cnpj.isNotEmpty) {
+                    foto = auth.buscarFotoPorCpf(cliente.cnpj);
+                    if (foto.isEmpty) {
+                      foto = pdv.buscarFotoClientePorCpf(cliente.cnpj) ?? '';
+                    }
+                  }
+                  final temFoto = foto.isNotEmpty && File(foto).existsSync();
+
+                  return _LinhaComHover(
+                    aoClicar: () {
+                      final pedidoLoja = prog.toPedidoLoja(numero: 0);
+                      ComandaPedidoDialog.mostrar(
+                        context,
+                        lojaId: widget.lojaId,
+                        pedido: pedidoLoja,
+                        cliente: cliente,
+                      );
+                    },
+                    builder: (hover) => Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 10),
+                      decoration: BoxDecoration(
+                        color: hover
+                            ? theme.borderColor.withValues(alpha: 0.18)
+                            : Colors.transparent,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: hover ? theme.textColor : theme.borderColor,
+                        ),
+                      ),
+                      child: Row(
+                        children: [
+                          temFoto
+                              ? CircleAvatar(
+                                  radius: 12,
+                                  backgroundImage: FileImage(File(foto)),
+                                  backgroundColor:
+                                      theme.borderColor.withValues(alpha: 0.2),
+                                )
+                              : CircleAvatar(
+                                  radius: 12,
+                                  backgroundColor:
+                                      theme.borderColor.withValues(alpha: 0.2),
+                                  child: Icon(Icons.person,
+                                      size: 14, color: theme.textColor),
+                                ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  children: [
+                                    Flexible(
+                                      child: Text(
+                                        prog.clienteNome,
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: theme.getTextStyle(
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.bold,
+                                          color: theme.textColor,
+                                        ),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 6),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(
+                                          horizontal: 6, vertical: 1),
+                                      decoration: BoxDecoration(
+                                        color: theme.textColor
+                                            .withValues(alpha: 0.12),
+                                        borderRadius: BorderRadius.circular(6),
+                                        border: Border.all(
+                                          color: theme.borderColor
+                                              .withValues(alpha: 0.5),
+                                        ),
+                                      ),
+                                      child: Text(
+                                        prog.horario,
+                                        style: theme.getTextStyle(
+                                          fontSize: 10,
+                                          fontWeight: FontWeight.bold,
+                                          color: theme.textColor,
+                                        ),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 4),
+                                    Flexible(
+                                      child: Text(
+                                        '• ${prog.descricaoFrequencia}',
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: theme.getTextStyle(
+                                          fontSize: 10,
+                                          color: theme.secondaryTextColor,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  prog.itens
+                                      .map((i) =>
+                                          '${i.quantidade}x ${i.nomeExibicao}')
+                                      .join(', '),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: theme.getTextStyle(
+                                    fontSize: 10,
+                                    color: theme.secondaryTextColor,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.end,
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                _valorCurto(prog.valorTotal),
+                                style: theme.getTextStyle(
+                                  fontSize: 12,
+                                  color: theme.textColor,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              Text(
+                                prog.formaPagamento,
+                                style: theme.getTextStyle(
+                                  fontSize: 9,
+                                  color: theme.secondaryTextColor,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
   Widget _blocoPendencias() {
     final pendencias = _pendenciasAgrupadas;
 
@@ -883,6 +1216,8 @@ class _RelatoriosConteudoState extends State<_RelatoriosConteudo> {
                           children: [
                             _blocoRelatorios(),
                             const SizedBox(height: 12),
+                            _blocoPedidosProgramados(),
+                            const SizedBox(height: 12),
                             _blocoPendencias(),
                           ],
                         ),
@@ -901,6 +1236,8 @@ class _RelatoriosConteudoState extends State<_RelatoriosConteudo> {
                 : Column(
                     children: [
                       _blocoRelatorios(),
+                      const SizedBox(height: 12),
+                      _blocoPedidosProgramados(),
                       const SizedBox(height: 12),
                       _blocoPendencias(),
                       const SizedBox(height: 12),
@@ -1078,6 +1415,7 @@ class _DetalhesAcaoDialog extends StatelessWidget {
       TipoAcao.sangriaRegistrada => 'Sangria de Caixa',
       TipoAcao.suprimentoRegistrado => 'Suprimento de Caixa',
       TipoAcao.turnoCaixaExcluido => 'Turno de Caixa Excluído',
+      TipoAcao.transacoesResetadas => 'Transações da Loja Resetadas',
     };
   }
 

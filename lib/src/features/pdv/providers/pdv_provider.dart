@@ -14,10 +14,10 @@ import 'package:nous/src/features/pdv/models/mesa_loja.dart';
 import 'package:nous/src/features/pdv/models/movimento_estoque.dart';
 import 'package:nous/src/features/pdv/models/pagamento_funcionario.dart';
 import 'package:nous/src/features/pdv/models/pedido_loja.dart';
+import 'package:nous/src/features/pdv/models/pedido_programado.dart';
 import 'package:nous/src/features/pdv/models/referencia_loja.dart';
 import 'package:nous/src/features/pdv/models/registro_acao.dart';
 import 'package:nous/src/features/pdv/models/turno_caixa.dart';
-import 'package:nous/src/core/services/janela_windows_service.dart';
 import 'package:nous/src/features/pdv/services/backup_service.dart';
 import 'package:nous/src/features/pdv/services/lojas_service.dart';
 
@@ -282,6 +282,18 @@ class PdvProvider extends ChangeNotifier {
     }
     final loja = buscarPorId(lojaId);
     return loja?.temPermissaoPapel(m.papel.name, PermissaoLojaConst.gerenciarMembros) ?? false;
+  }
+
+  bool possoResetarTransacoes(String lojaId) {
+    final m = meuMembro(lojaId);
+    if (m == null) return false;
+    if (m.papel == PapelMembro.dono || m.papel == PapelMembro.socio) return true;
+    final cargo = meuCargoPersonalizado(lojaId);
+    if (cargo != null) {
+      return cargo.temPermissao(PermissaoLojaConst.resetarTransacoes);
+    }
+    final loja = buscarPorId(lojaId);
+    return loja?.temPermissaoPapel(m.papel.name, PermissaoLojaConst.resetarTransacoes) ?? false;
   }
 
   bool possoExcluirLoja(String lojaId) {
@@ -569,13 +581,11 @@ class PdvProvider extends ChangeNotifier {
         _lojas[indice] = atualizada;
         notifyListeners();
         _salvarLojaNoCofreCorreto(atualizada);
-        JanelaWindowsService.alternarTelaCheia(novoValor);
         return;
       }
     }
     _layoutDesktopGlobal = novoValor;
     notifyListeners();
-    JanelaWindowsService.alternarTelaCheia(novoValor);
   }
 
   void definirLayoutExpandido(bool ativo, [String? id]) {
@@ -589,7 +599,6 @@ class PdvProvider extends ChangeNotifier {
       }
     }
     notifyListeners();
-    JanelaWindowsService.alternarTelaCheia(ativo);
   }
 
   void definirTipoLayoutMaior(String tipo, [String? id]) {
@@ -635,6 +644,71 @@ class PdvProvider extends ChangeNotifier {
     _lojas[indice] = atualizada;
     notifyListeners();
     _salvarLojaNoCofreCorreto(atualizada);
+  }
+
+  Future<void> resetarTransacoesLoja(
+    String lojaId, {
+    String autorCpf = '',
+    String autorNome = '',
+    String autorEmail = '',
+  }) async {
+    final indice = _lojas.indexWhere((l) => l.id == lojaId);
+    if (indice == -1) return;
+    final loja = _lojas[indice];
+
+    final novaAcao = RegistroAcao(
+      id: DateTime.now().millisecondsSinceEpoch.toString(),
+      dataHora: DateTime.now(),
+      tipo: TipoAcao.transacoesResetadas,
+      descricao:
+          'Registros de transações da loja (vendas, caixas e pagamentos) resetados.',
+      cpfAutor: autorCpf,
+      nomeAutor: autorNome,
+      emailAutor: autorEmail,
+    );
+
+    // Consolidar saldo de estoque de cada item com custo financeiro zero,
+    // preservando rigorosamente a contagem física atual de produtos sem deixar resquícios de compras financeiras.
+    final saldosPorItem = <String, double>{};
+    for (final m in loja.movimentosEstoque) {
+      saldosPorItem[m.itemId] =
+          (saldosPorItem[m.itemId] ?? 0.0) + m.quantidadeComSinal;
+    }
+
+    final agora = DateTime.now();
+    final novosMovimentosEstoque = <MovimentoEstoque>[];
+    saldosPorItem.forEach((itemId, saldo) {
+      if (saldo != 0.0) {
+        novosMovimentosEstoque.add(
+          MovimentoEstoque(
+            id: '${agora.millisecondsSinceEpoch}_$itemId',
+            itemId: itemId,
+            tipo: saldo >= 0
+                ? TipoMovimentoEstoque.entrada
+                : TipoMovimentoEstoque.saida,
+            quantidade: saldo.abs(),
+            custoUnitario: 0.0,
+            dataHora: agora,
+            motivo: 'Saldo preservado pós-reset financeiro',
+            cpfAutor: autorCpf,
+            nomeAutor: autorNome,
+            categoria: CategoriaMovimentoEstoque.ajuste,
+          ),
+        );
+      }
+    });
+
+    final atualizada = loja.copyWith(
+      pedidosLoja: const [],
+      turnosCaixa: const [],
+      pagamentosFuncionarios: const [],
+      movimentosEstoque: novosMovimentosEstoque,
+      acoes: [novaAcao, ...loja.acoes],
+    );
+
+    _lojas[indice] = atualizada;
+    notifyListeners();
+    await _salvarLojaNoCofreCorreto(atualizada);
   }
 
   void quitarPedidoLoja(
@@ -1163,6 +1237,116 @@ class PdvProvider extends ChangeNotifier {
     final atualizada = loja.copyWith(turnosCaixa: novosTurnos);
     final indice = _lojas.indexWhere((l) => l.id == lojaId);
     if (indice != -1) {
+      _lojas[indice] = atualizada;
+      await _salvarLojaNoCofreCorreto(atualizada);
+      notifyListeners();
+    }
+  }
+
+  List<PedidoProgramado> pedidosProgramadosDoDia(String lojaId, [DateTime? data]) {
+    final loja = buscarPorId(lojaId);
+    if (loja == null) return const [];
+    final dia = data ?? DateTime.now();
+    return loja.pedidosProgramados.where((p) => p.coincideComData(dia)).toList();
+  }
+
+  Future<void> adicionarPedidoProgramado(
+    String lojaId,
+    PedidoProgramado pedido,
+  ) async {
+    final indice = _lojas.indexWhere((l) => l.id == lojaId);
+    if (indice == -1) return;
+    final loja = _lojas[indice];
+
+    final atualizada = loja.copyWith(
+      pedidosProgramados: [pedido, ...loja.pedidosProgramados],
+    );
+    _lojas[indice] = atualizada;
+    await _salvarLojaNoCofreCorreto(atualizada);
+    notifyListeners();
+
+    await verificarEGerarPedidosProgramados(lojaId);
+  }
+
+  Future<void> removerPedidoProgramado(String lojaId, String pedidoId) async {
+    final indice = _lojas.indexWhere((l) => l.id == lojaId);
+    if (indice == -1) return;
+    final loja = _lojas[indice];
+
+    final atualizada = loja.copyWith(
+      pedidosProgramados:
+          loja.pedidosProgramados.where((p) => p.id != pedidoId).toList(),
+    );
+    _lojas[indice] = atualizada;
+    await _salvarLojaNoCofreCorreto(atualizada);
+    notifyListeners();
+  }
+
+  Future<void> alternarAtivoPedidoProgramado(
+    String lojaId,
+    String pedidoId,
+  ) async {
+    final indice = _lojas.indexWhere((l) => l.id == lojaId);
+    if (indice == -1) return;
+    final loja = _lojas[indice];
+
+    final atualizada = loja.copyWith(
+      pedidosProgramados: loja.pedidosProgramados.map((p) {
+        if (p.id == pedidoId) {
+          return p.copyWith(ativo: !p.ativo);
+        }
+        return p;
+      }).toList(),
+    );
+    _lojas[indice] = atualizada;
+    await _salvarLojaNoCofreCorreto(atualizada);
+    notifyListeners();
+
+    await verificarEGerarPedidosProgramados(lojaId);
+  }
+
+  Future<void> verificarEGerarPedidosProgramados(String lojaId) async {
+    final indice = _lojas.indexWhere((l) => l.id == lojaId);
+    if (indice == -1) return;
+    final loja = _lojas[indice];
+
+    final agora = DateTime.now();
+
+    bool mesmoDia(DateTime? a, DateTime b) {
+      if (a == null) return false;
+      return a.year == b.year && a.month == b.month && a.day == b.day;
+    }
+
+    var alterou = false;
+    final novosPedidosLoja = List<PedidoLoja>.from(loja.pedidosLoja);
+    final novosProgramados = <PedidoProgramado>[];
+
+    var maiorNumero = 0;
+    for (final p in novosPedidosLoja) {
+      if (p.numero > maiorNumero) maiorNumero = p.numero;
+    }
+
+    for (final prog in loja.pedidosProgramados) {
+      if (prog.ativo && prog.coincideComData(agora)) {
+        if (prog.ultimaDataGerado == null ||
+            !mesmoDia(prog.ultimaDataGerado, agora)) {
+          maiorNumero++;
+          final novoPedido =
+              prog.toPedidoLoja(numero: maiorNumero, dataHora: agora);
+          novosPedidosLoja.insert(0, novoPedido);
+          novosProgramados.add(prog.copyWith(ultimaDataGerado: agora));
+          alterou = true;
+          continue;
+        }
+      }
+      novosProgramados.add(prog);
+    }
+
+    if (alterou) {
+      final atualizada = loja.copyWith(
+        pedidosLoja: novosPedidosLoja,
+        pedidosProgramados: novosProgramados,
+      );
       _lojas[indice] = atualizada;
       await _salvarLojaNoCofreCorreto(atualizada);
       notifyListeners();

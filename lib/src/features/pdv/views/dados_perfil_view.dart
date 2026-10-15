@@ -63,6 +63,9 @@ import 'package:nous/src/features/pdv/views/widgets/usuarios_participantes_conta
 import 'package:nous/src/features/pdv/views/widgets/desktop_sidebar_widget.dart';
 import 'package:nous/src/features/pdv/views/widgets/seletor_layouts_desktop_widget.dart';
 import 'package:nous/src/features/pdv/views/widgets/modo_balcao_widget.dart';
+import 'package:nous/src/features/notificacoes/views/widgets/notificacoes_dialog.dart';
+import 'package:nous/src/features/pdv/views/widgets/pedidos_programados_dialog.dart';
+import 'package:nous/src/features/pdv/views/widgets/comanda_novo_pedido_dialog.dart';
 
 class DadosPerfilView extends StatefulWidget {
   final String lojaId;
@@ -712,6 +715,11 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
     _timerVerificacaoPedidos =
         Timer.periodic(const Duration(seconds: 15), (_) {
       _verificarPedidosTempoConclusao();
+      if (mounted) {
+        context
+            .read<PdvProvider>()
+            .verificarEGerarPedidosProgramados(widget.lojaId);
+      }
     });
   }
 
@@ -2744,23 +2752,110 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
     _pdvProvider = context.read<PdvProvider>();
     _pdvProvider.addListener(_aoAtualizarPdv);
 
-    WidgetsBinding.instance.addPostFrameCallback((_) {
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
       if (!mounted) return;
-      if (_tentouGarantirDono) return;
-      _tentouGarantirDono = true;
-      final conta = context.read<AuthProvider>().contaAtual;
-      if (conta == null) return;
-      final atual = context.read<PdvProvider>().buscarPorId(widget.lojaId);
-      if (atual == null || atual.membros.isNotEmpty) return;
-      context.read<PdvProvider>().garantirDono(
-            widget.lojaId,
-            cpf: conta.cpf,
-            nome: conta.nome,
-          );
-      if (!mounted) return;
-      final depois = context.read<PdvProvider>().buscarPorId(widget.lojaId);
-      setState(() => _membros = List.of(depois?.membros ?? []));
+      if (!_tentouGarantirDono) {
+        _tentouGarantirDono = true;
+        final conta = context.read<AuthProvider>().contaAtual;
+        if (conta != null) {
+          final atual = context.read<PdvProvider>().buscarPorId(widget.lojaId);
+          if (atual != null && atual.membros.isEmpty) {
+            context.read<PdvProvider>().garantirDono(
+                  widget.lojaId,
+                  cpf: conta.cpf,
+                  nome: conta.nome,
+                );
+            if (mounted) {
+              final depois =
+                  context.read<PdvProvider>().buscarPorId(widget.lojaId);
+              setState(() => _membros = List.of(depois?.membros ?? []));
+            }
+          }
+        }
+      }
+
+      await _verificarAvisosIniciais();
     });
+  }
+
+  static final Set<String> _avisosMostradosNaSessao = {};
+
+  Future<void> _verificarAvisosIniciais() async {
+    if (!mounted) return;
+    if (_avisosMostradosNaSessao.contains(widget.lojaId)) return;
+    _avisosMostradosNaSessao.add(widget.lojaId);
+
+    final pdv = context.read<PdvProvider>();
+    await pdv.verificarEGerarPedidosProgramados(widget.lojaId);
+    if (!mounted) return;
+
+    final notificacoes = context.read<NotificacoesProvider>();
+    final quantidadeConvites = notificacoes.quantidadeConvitesAtivos;
+    final totalEstoqueBaixo = pdv.todosItensEstoqueBaixo
+        .where((a) => !notificacoes
+            .estaDispensadaNaSessao('alerta_estoque_${a.lojaId}_${a.item.id}'))
+        .length;
+    final temNotificacoes = (quantidadeConvites + totalEstoqueBaixo) > 0;
+
+    if (temNotificacoes) {
+      await NotificacoesDialog.mostrar(context);
+    }
+
+    if (!mounted) return;
+
+    final pedidosHoje = pdv.pedidosProgramadosDoDia(widget.lojaId);
+    if (pedidosHoje.isNotEmpty) {
+      await PedidosProgramadosDialog.mostrar(
+        context,
+        lojaId: widget.lojaId,
+        pedidos: pedidosHoje,
+      );
+    }
+
+    if (!mounted) return;
+
+    await _processarFilaNovosPedidos();
+  }
+
+  Future<void> _processarFilaNovosPedidos() async {
+    if (!mounted) return;
+    final pdv = context.read<PdvProvider>();
+
+    while (mounted) {
+      final lojaAtual = pdv.buscarPorId(widget.lojaId);
+      if (lojaAtual == null) break;
+
+      final novosPedidos = lojaAtual.pedidosLoja
+          .where((p) => p.status == StatusPedido.novo)
+          .toList();
+      if (novosPedidos.isEmpty) break;
+
+      SomService.tocarEvento(SomService.eventoNovoPedido, loja: lojaAtual);
+
+      final pedidoAtual = novosPedidos.first;
+      final cliente = lojaAtual.clientesLoja
+          .where((c) => c.id == pedidoAtual.clienteId)
+          .firstOrNull;
+
+      final acao = await ComandaNovoPedidoDialog.mostrar(
+        context,
+        lojaId: widget.lojaId,
+        pedido: pedidoAtual,
+        cliente: cliente,
+        totalRestantes: novosPedidos.length,
+      );
+
+      if (!mounted) break;
+
+      if (acao == AcaoComandaNovoPedido.aceitar) {
+        _alterarStatusPedido(pedidoAtual.id, StatusPedido.aceito);
+      } else if (acao == AcaoComandaNovoPedido.recusar) {
+        _recusarPedido(pedidoAtual.id);
+      } else {
+        // Usuário fechou ou dispensou
+        break;
+      }
+    }
   }
 
   void _aoAtualizarPdv() {
@@ -4617,6 +4712,186 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
     );
   }
 
+  Future<void> _confirmarResetTransacoes(
+      BuildContext context, AppTheme theme) async {
+    final confirmou = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          backgroundColor: theme.cardBackgroundColor,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16.0),
+            side: BorderSide(color: theme.borderColor),
+          ),
+          title: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(
+                Icons.warning_amber_rounded,
+                color: Colors.redAccent,
+                size: 24,
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'Resetar Transações',
+                  style: theme.getTextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: theme.textColor,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          content: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 440),
+            child: Text(
+              'Esta ação apagará permanentemente todos os registros de vendas, turnos de caixa e pagamentos a trabalhadores desta loja.\n\n'
+              'Produtos, categorias, clientes, fornecedores e membros da equipe NÃO serão afetados.\n\n'
+              'Tem certeza que deseja continuar?',
+              style: theme.getTextStyle(
+                fontSize: 13,
+                color: theme.textColor,
+              ),
+            ),
+          ),
+          actionsAlignment: MainAxisAlignment.end,
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: Text(
+                'Cancelar',
+                style: theme.getTextStyle(color: theme.secondaryTextColor),
+              ),
+            ),
+            FilledButton(
+              style: FilledButton.styleFrom(
+                backgroundColor: Colors.redAccent,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+              ),
+              onPressed: () => Navigator.of(dialogContext).pop(true),
+              child: const Text('Resetar Transações'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirmou != true) return;
+    if (!context.mounted) return;
+
+    final auth = context.read<AuthProvider>();
+    final conta = auth.contaAtual;
+    final pdv = context.read<PdvProvider>();
+
+    await pdv.resetarTransacoesLoja(
+      widget.lojaId,
+      autorCpf: conta?.cpf ?? '',
+      autorNome: conta?.nome ?? '',
+      autorEmail: auth.emailAtivo ?? '',
+    );
+
+    if (!context.mounted) return;
+    setState(() {
+      _pedidos.clear();
+    });
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        backgroundColor: theme.cardBackgroundColor,
+        content: Text(
+          'Registros de transações resetados com sucesso.',
+          style: theme.getTextStyle(color: theme.textColor),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildContainerFinanceiro(AppTheme theme, bool podeResetar) {
+    final decoracao = _decoracaoDoBloco(theme);
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: decoracao,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Center(
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  Icons.account_balance_wallet_outlined,
+                  color: theme.buttonColor,
+                  size: 20,
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  'Financeiro do Perfil',
+                  style: theme.getTextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.bold,
+                    color: theme.textColor,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 6),
+          Center(
+            child: Text(
+              'Gerencie ajustes financeiros, histórico contábil e operações do perfil profissional.',
+              textAlign: TextAlign.center,
+              style: theme.getTextStyle(
+                fontSize: 12,
+                color: theme.secondaryTextColor,
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+          Opacity(
+            opacity: podeResetar ? 1.0 : 0.5,
+            child: Tooltip(
+              message: podeResetar
+                  ? 'Limpa histórico de vendas, caixas e pagamentos da loja'
+                  : 'Apenas Dono, Sócios ou usuários com permissão podem resetar transações',
+              child: OutlinedButton.icon(
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: Colors.redAccent,
+                  side: BorderSide(
+                    color: Colors.redAccent.withValues(alpha: 0.6),
+                  ),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 12,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                ),
+                onPressed: podeResetar
+                    ? () => _confirmarResetTransacoes(context, theme)
+                    : null,
+                icon: const Icon(Icons.restart_alt_rounded, size: 18),
+                label: const Text(
+                  'Resetar registros de transações da loja',
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   double _obterLarguraMaxima(Loja? loja) {
     if (loja == null || !loja.layoutExpandido) {
       return _larguraMaximaConteudo;
@@ -4925,6 +5200,8 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
               )
             : null;
 
+        final possoResetar = pdv.possoResetarTransacoes(widget.lojaId);
+
         if (expandido && larguraDaTela > 850) {
           return Column(
             children: [
@@ -4948,6 +5225,8 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
                         _buildContainerTempoConclusao(theme, possoEditarDados),
                         const SizedBox(height: 16),
                         _buildContainerSonsAlertas(theme, possoEditarDados),
+                        const SizedBox(height: 16),
+                        _buildContainerFinanceiro(theme, possoResetar),
                       ],
                     ),
                   ),
@@ -4967,6 +5246,8 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
             _buildContainerTempoConclusao(theme, possoEditarDados),
             const SizedBox(height: 16),
             _buildContainerSonsAlertas(theme, possoEditarDados),
+            const SizedBox(height: 16),
+            _buildContainerFinanceiro(theme, possoResetar),
           ],
         );
     }

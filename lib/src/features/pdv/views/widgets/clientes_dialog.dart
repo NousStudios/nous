@@ -17,6 +17,8 @@ import 'package:nous/src/features/pdv/providers/pdv_provider.dart';
 import 'package:nous/src/features/pdv/views/widgets/estado_vazio_container.dart';
 import 'package:nous/src/features/pdv/views/widgets/opcoes_imagem_dialog.dart';
 import 'package:nous/src/features/pdv/views/widgets/venda_registrada_dialog.dart';
+import 'package:nous/src/features/pdv/views/widgets/programar_pedido_dialog.dart';
+import 'package:nous/src/features/pdv/views/widgets/comanda_pedido_dialog.dart';
 import 'package:provider/provider.dart';
 
 String _valor(double v) => 'R\$ ${v.toStringAsFixed(2).replaceAll('.', ',')}';
@@ -1066,6 +1068,221 @@ class _ClientesConteudoState extends State<_ClientesConteudo> {
     );
   }
 
+  Widget _blocoPedidosProgramados(Cliente cliente) {
+    final pdv = context.watch<PdvProvider>();
+    final loja = pdv.buscarPorId(widget.lojaId);
+    final programados = (loja?.pedidosProgramados ?? [])
+        .where((p) =>
+            p.clienteId == cliente.id ||
+            p.clienteNome.trim().toLowerCase() ==
+                cliente.nome.trim().toLowerCase())
+        .toList();
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: _decoracaoDoBloco,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Pedidos Programados',
+                      style: theme.getTextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold,
+                        color: theme.textColor,
+                      ),
+                    ),
+                    if (programados.isNotEmpty) ...[
+                      const SizedBox(height: 2),
+                      Text(
+                        '${programados.length} ${programados.length == 1 ? "pedido agendado" : "pedidos agendados"}',
+                        style: theme.getTextStyle(
+                          fontSize: 11,
+                          color: theme.secondaryTextColor,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              OutlinedButton.icon(
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: theme.textColor,
+                  side: BorderSide(color: theme.borderColor),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
+                icon: const Icon(Icons.add_alarm, size: 16),
+                label: Text(
+                  'Programar Pedido',
+                  style: theme.getTextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                onPressed: () {
+                  ProgramarPedidoDialog.mostrar(
+                    context,
+                    lojaId: widget.lojaId,
+                    cliente: cliente,
+                  );
+                },
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          if (programados.isEmpty)
+            EstadoVazioContainer(
+              theme: theme,
+              mensagem: 'Nenhum pedido programado para este cliente.',
+            )
+          else
+            ConstrainedBox(
+              constraints: const BoxConstraints(maxHeight: 240),
+              child: ListView.separated(
+                shrinkWrap: true,
+                itemCount: programados.length,
+                separatorBuilder: (context, index) => const SizedBox(height: 6),
+                itemBuilder: (context, index) {
+                  final p = programados[index];
+                  final dataTexto = p.descricaoFrequencia;
+
+                  return Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: theme.backgroundColor.withValues(alpha: 0.25),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(
+                        color: theme.borderColor.withValues(alpha: 0.5),
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(
+                          p.recorrente ? Icons.repeat : Icons.event,
+                          size: 18,
+                          color: theme.textColor,
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  Text(
+                                    dataTexto,
+                                    style: theme.getTextStyle(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.bold,
+                                      color: theme.textColor,
+                                    ),
+                                  ),
+                                  if (!p.ativo) ...[
+                                    const SizedBox(width: 6),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(
+                                          horizontal: 4, vertical: 1),
+                                      decoration: BoxDecoration(
+                                        color: Colors.redAccent
+                                            .withValues(alpha: 0.2),
+                                        borderRadius: BorderRadius.circular(4),
+                                      ),
+                                      child: Text(
+                                        'Pausado',
+                                        style: theme.getTextStyle(
+                                          fontSize: 9,
+                                          color: Colors.redAccent,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ],
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                p.itens
+                                    .map((i) =>
+                                        '${i.quantidade}x ${i.nomeExibicao}')
+                                    .join(', '),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: theme.getTextStyle(
+                                  fontSize: 11,
+                                  color: theme.secondaryTextColor,
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                '${_valor(p.valorTotal)} • ${p.formaPagamento}',
+                                style: theme.getTextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w600,
+                                  color: theme.textColor,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        IconButton(
+                          icon: Icon(Icons.receipt_long,
+                              size: 18, color: theme.textColor),
+                          tooltip: 'Ver Comanda',
+                          onPressed: () {
+                            final pedidoLoja = p.toPedidoLoja(numero: 0);
+                            ComandaPedidoDialog.mostrar(
+                              context,
+                              lojaId: widget.lojaId,
+                              pedido: pedidoLoja,
+                              cliente: cliente,
+                            );
+                          },
+                        ),
+                        IconButton(
+                          icon: Icon(
+                            p.ativo
+                                ? Icons.pause_circle_outline
+                                : Icons.play_circle_outline,
+                            size: 18,
+                            color: theme.textColor,
+                          ),
+                          tooltip: p.ativo ? 'Pausar' : 'Ativar',
+                          onPressed: () {
+                            pdv.alternarAtivoPedidoProgramado(
+                                widget.lojaId, p.id);
+                          },
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.delete_outline,
+                              size: 18, color: Colors.redAccent),
+                          tooltip: 'Excluir',
+                          onPressed: () {
+                            pdv.removerPedidoProgramado(widget.lojaId, p.id);
+                          },
+                        ),
+                      ],
+                    ),
+                  );
+                },
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
   Widget _blocoHistorico(Cliente cliente) {
     final historico = _historico(cliente.id, nome: cliente.nome);
     final totalGasto = historico
@@ -1406,6 +1623,8 @@ class _ClientesConteudoState extends State<_ClientesConteudo> {
                             flex: 5,
                             child: Column(
                               children: [
+                                _blocoPedidosProgramados(editando),
+                                const SizedBox(height: 12),
                                 _blocoHistorico(editando),
                               ],
                             ),
@@ -1440,6 +1659,8 @@ class _ClientesConteudoState extends State<_ClientesConteudo> {
                         _blocoFormulario(),
                         const SizedBox(height: 12),
                         _blocoDivida(editando),
+                        const SizedBox(height: 12),
+                        _blocoPedidosProgramados(editando),
                         const SizedBox(height: 12),
                         _blocoHistorico(editando),
                       ] else ...[

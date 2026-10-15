@@ -10,6 +10,7 @@ import 'package:nous/src/features/pdv/models/mesa_loja.dart';
 import 'package:nous/src/features/pdv/models/movimento_estoque.dart';
 import 'package:nous/src/features/pdv/models/pagamento_funcionario.dart';
 import 'package:nous/src/features/pdv/models/pedido_loja.dart';
+import 'package:nous/src/features/pdv/models/pedido_programado.dart';
 import 'package:nous/src/features/pdv/models/registro_acao.dart';
 import 'package:nous/src/features/pdv/models/turno_caixa.dart';
 
@@ -42,6 +43,7 @@ class Loja {
   final List<MovimentoEstoque> movimentosEstoque;
   final List<PagamentoFuncionario> pagamentosFuncionarios;
   final List<TurnoCaixa> turnosCaixa;
+  final List<PedidoProgramado> pedidosProgramados;
 
   final List<String> galeria;
   final List<String> arquivos;
@@ -84,6 +86,7 @@ class Loja {
     this.movimentosEstoque = const [],
     this.pagamentosFuncionarios = const [],
     this.turnosCaixa = const [],
+    this.pedidosProgramados = const [],
     this.galeria = const [],
     this.arquivos = const [],
     this.musicas = const [],
@@ -124,6 +127,7 @@ class Loja {
     List<MovimentoEstoque>? movimentosEstoque,
     List<PagamentoFuncionario>? pagamentosFuncionarios,
     List<TurnoCaixa>? turnosCaixa,
+    List<PedidoProgramado>? pedidosProgramados,
     List<String>? galeria,
     List<String>? arquivos,
     List<String>? musicas,
@@ -167,6 +171,7 @@ class Loja {
       pagamentosFuncionarios:
           pagamentosFuncionarios ?? this.pagamentosFuncionarios,
       turnosCaixa: turnosCaixa ?? this.turnosCaixa,
+      pedidosProgramados: pedidosProgramados ?? this.pedidosProgramados,
       galeria: galeria ?? this.galeria,
       arquivos: arquivos ?? this.arquivos,
       musicas: musicas ?? this.musicas,
@@ -219,6 +224,8 @@ class Loja {
       'pagamentosFuncionarios':
           pagamentosFuncionarios.map((p) => p.toJson()).toList(),
       'turnosCaixa': turnosCaixa.map((t) => t.toJson()).toList(),
+      'pedidosProgramados':
+          pedidosProgramados.map((p) => p.toJson()).toList(),
       'galeria': galeria,
       'arquivos': arquivos,
       'musicas': musicas,
@@ -306,6 +313,11 @@ class Loja {
       turnosCaixa: (json['turnosCaixa'] as List<dynamic>? ?? const [])
           .map((item) => TurnoCaixa.fromJson(item as Map<String, dynamic>))
           .toList(),
+      pedidosProgramados:
+          (json['pedidosProgramados'] as List<dynamic>? ?? const [])
+              .map((item) =>
+                  PedidoProgramado.fromJson(item as Map<String, dynamic>))
+              .toList(),
       galeria: (json['galeria'] as List<dynamic>? ?? const [])
           .map((item) => item.toString())
           .toList(),
@@ -376,6 +388,7 @@ class Loja {
         PermissaoLojaConst.usarFinanceiro: true,
         PermissaoLojaConst.registrarPagamento: true,
         PermissaoLojaConst.gerenciarMembros: false,
+        PermissaoLojaConst.resetarTransacoes: false,
         PermissaoLojaConst.excluirLoja: false,
       };
     }
@@ -387,6 +400,7 @@ class Loja {
         PermissaoLojaConst.usarFinanceiro: true,
         PermissaoLojaConst.registrarPagamento: false,
         PermissaoLojaConst.gerenciarMembros: false,
+        PermissaoLojaConst.resetarTransacoes: false,
         PermissaoLojaConst.excluirLoja: false,
       };
     }

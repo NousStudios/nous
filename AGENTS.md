@@ -268,14 +268,24 @@ Este projeto apoia-se no **anarquismo plataformista brasileiro**: poder sem inte
   - **Estorno Integral em Cancelamento de Pedidos (`_cancelarPedidoComDialog`):** Ao cancelar um pedido, o estorno de estoque devolve a quantidade real ponderada pela receita cadastrada (`quantidade * consumoPorVenda`) e estorna recursivamente todos os acompanhamentos/componentes selecionados na venda.
   - **Baixa de Estoque Proporcional no Fechamento de Mesas (`_fecharContaMesa`):** Ao fechar a conta da mesa, o sistema calcula a baixa considerando o consumo real da unidade de medida do produto (`item.quantidade * itemCadastrado.consumoPorVenda`) e a quantidade de cada adicional (`acomp.quantidadePorUnidade * item.quantidade * acompCadastrado.consumoPorVenda`), eliminando baixas truncadas em produtos fracionados (g/ml).
 - **Aba "Ajustes" e "Ajustes do Perfil" (`AbaLoja.interface`):**
-  - Renomeada a aba e o botão inferior de "Interface" para **"Ajustes"** ("Ajustes do Perfil"), concentrando todas as configurações operacionais do lojista com títulos de containers centralizados:
-    - **Container "Modo de Visualização e Layout do PDV":** Card único e limpo (`SeletorLayoutsDesktopWidget`) permitindo alternar unicamente entre o **Layout Desktop PDV Expandido** (com barra lateral de navegação e comandos) e o **Layout Compacto Padrão**. A alternância de layout é uma preferência da máquina local e permanece sempre acessível ao operador no desktop, sem depender de permissões de dono da loja.
+    - **Container "Modo de Visualização e Layout do PDV":** Card único e limpo (`SeletorLayoutsDesktopWidget`) permitindo alternar unicamente entre o **Layout Desktop PDV Expandido** (com barra lateral de navegação e comandos) e o **Layout Compacto Padrão**. A alternância de layout é uma preferência da máquina local e permanece sempre acessível ao operador no desktop, sem depender de permissões de dono da loja. A alternância altera estritamente a disposição visual dos painéis da aplicação, **sem alterar ou interferir no estado de tela cheia (Full Screen)**, que é gerenciado de forma independente pela tecla <kbd>F11</kbd>.
     - **Modo Somente Leitura e Normalização de CPF nos Ajustes:**
       - **Normalização Soberana de CPF (`PdvProvider._mesmoCpf`):** Elimina falhas de reconhecimento de membros/donos decorrentes de divergências de máscara (com vs sem pontuação) entre máquinas ou backups, assegurando que `meuMembro`, `lojasQueAdministro`, `lojasQueParticipo` e `sairDaLoja` operem sem falsos negativos.
       - **Feedback Visual Claro de Permissões:** Quando um usuário sem permissão de dono/sócio abre "Ajustes do Perfil", a tela exibe um banner explicativo com cadeado informando o modo somente leitura, e atenua a opacidade dos seletores (`0.65`) junto ao `AbsorbPointer`, eliminando a impressão de botões travados ou bugados.
     - **Blindagem do Ecossistema de Áudio e Metadados:**
       - **Escape Seguro no Windows (`SomService`):** Ao tocar arquivos pelo PowerShell, utiliza `file.uri.toString()` codificada em `[System.Uri]::new(...)`, prevenindo erros de execução com colchetes `[...]`, apóstrofos, acentos e caracteres especiais no nome dos arquivos.
       - **Proteção Defensiva em `MetadadosAudioService`:** Parsing de tags ID3v2 com fechamento garantido de `RandomAccessFile` em `finally`, tratamento estrito de exceções em `_buscarCapaNaPasta` e normalização universal de separadores de caminho (`RegExp(r'[\\/]')`) em todo o sistema.
+    - **Container "Financeiro do Perfil" (`dados_perfil_view.dart` - `AbaLoja.interface`):**
+      - Concentra operações e manutenções financeiras do perfil profissional.
+      - **Reset de Registros de Transações:** Botão com confirmação segura e alerta (`Colors.redAccent`) para limpar o histórico de vendas, caixas e pagamentos a trabalhadores mantendo catálogo de produtos, clientes e membros intactos.
+      - **Governança Estrita:** Liberado nativamente para Donos e Sócios, e acessível a outros papéis/cargos mediante a permissão `PermissaoLojaConst.resetarTransacoes`.
+    - **Filtros de Data Ergonômicos e Práticos do Dia a Dia:**
+      - **Navegação com 1 Clique (`<` e `>`):** Botões nas laterais de cada campo de data para avançar ou recuar dia a dia sem apagar o texto.
+      - **Seletor de Calendário Nativo Temático:** Ícone de calendário (`showDatePicker`) em `financeiro_view.dart` e `relatorios_dialog.dart` integrado ao tema ativo.
+      - **Correção de Cursor no `_DataInputFormatter`:** O cursor não é mais empurrado para o final da string ao editar caracteres no meio da data.
+    - **Módulo Financeiro Ampliado (`financeiro_view.dart`):**
+      - **Container "Resumo Operacional do Dia":** Exibido na coluna 2 acima de "Vendas do Período", consolidando faturamento do dia, total de vendas, ticket médio, saldo em dinheiro do caixa e badge de status (aberto/fechado).
+      - **Container "Vendas do Período":** Exibido abaixo de "Compras do Período", contendo busca de vendas por texto, filtros de forma de pagamento e lista de `BarraVenda` com altura delimitada.
     - **Tela Cheia Real do Windows via FFI (`JanelaWindowsService` e Tecla <kbd>F11</kbd>):**
       - A tecla <kbd>F11</kbd> é a tecla padrão fixa do sistema e não pode ser reconfigurada: ela alterna exclusivamente o modo **Full Screen** (tela cheia sem bordas `WS_POPUP` cobrindo 100% da tela do Windows).
       - **Preservação de Janela Maximizada:** Ao ativar tela cheia, o sistema detecta se a janela do Windows já estava maximizada (`IsZoomed` da `user32.dll`). Ao desativar o <kbd>F11</kbd>, se a janela estava maximizada, o Windows a restaura fielmente no estado **maximizado** (`ShowWindow(SW_MAXIMIZE)`), sem reduzi-la para tamanho menor. Se não estava maximizada, restaura para as coordenadas e dimensões livres anteriores (`SW_RESTORE`).
@@ -437,6 +447,34 @@ Este projeto apoia-se no **anarquismo plataformista brasileiro**: poder sem inte
 ### 7.5.1 Caixa do Balcão, Turnos e Alinhamento de Saldos (`features/pdv/views/widgets/caixa_dialog.dart`)
 - **Cálculo Preciso de Dinheiro:** Tanto no diálogo do Caixa quanto no painel "Status da Loja", o cálculo de vendas em dinheiro distingue vendas simples (onde o valor do pedido já é o líquido arrecadado) de vendas com pagamentos múltiplos (onde o troco é abatido do montante em dinheiro), eliminando qualquer divergência entre telas.
 - **Histórico e Reimpressão de Turnos Fechados:** Quando o caixa está fechado, além do formulário de abertura de novo turno, o diálogo lista os últimos turnos de caixa fechados, exibindo datas de abertura/fechamento, operadores, fundos iniciais, saldos informados e observações, com botão para reimpressão imediata do comprovante térmico de fechamento.
+
+### 7.5.2 Pedidos Programados, Contratos Semanais e Calendário Visual Interativo (`features/pdv/views/widgets/programar_pedido_dialog.dart`)
+- **Módulo de Agendamento e Contratos de Clientes:**
+  - Acessível no diálogo de clientes (`ClientesDialog`) via botão "Programar Pedido" e na visualização/edição de comandas.
+  - O modelo `PedidoProgramado` oferece flexibilidade completa para contratos recorrentes e agendamentos pontuais:
+    - **Frequência Dinâmica:** `diasSemana: List<int>` (1=Segunda a 7=Domingo), `datasEspecificas: List<DateTime>`, `modoProgramacao` ('dias_semana' ou 'datas_especificas'), `horario: String`, `ativo: bool`.
+    - **Cálculo Matemático de Ocorrência (`coincideComData`):** Avalia se o pedido deve ser executado na data alvo considerando o dia da semana ou as datas pontuais programadas.
+    - **Descrição Humanizada Inteligente (`descricaoFrequencia`):** Formata automaticamente textos como *"Qua, Qui, Sex às 12:00"*, *"Diário às 12:00"*, *"Seg a Sex às 08:30"* ou datas marcadas.
+- **Seleção de Itens e Categorias com Paridade Operacional Total:**
+  - **Modo Item Solto / Avulso:** O produto é adicionado cobrando estritamente seu preço de venda base cadastrado.
+  - **Modo Categoria:** Permite selecionar uma categoria da loja (`CategoriaLoja`), adicionando o valor da categoria ao preço do item e disponibilizando os grupos de componentes e acompanhamentos/adicionais associados com contadores `+`/`-`, idêntico à dinâmica de comandas e mesas do restante do sistema.
+  - **Variantes Desativadas por Padrão e Observações:** No seletor de produto com variantes, a opção "Desativado" permanece como padrão inicial e pode ser religada a qualquer momento caso o usuário deseje escolher uma variante específica. Campo para observações específicas de cada item ou gerais do contrato.
+- **Dois Modos Ergonômicos de Programação:**
+  - **Modo 1: Contrato / Dias da Semana:**
+    - Botões seletores para os 7 dias da semana (<kbd>Seg</kbd> a <kbd>Dom</kbd>) com destaque de seleção ativo e hover do tema.
+    - Atalhos com 1 clique para agendamentos rápidos: *"Dias Úteis (Seg a Sex)"*, *"Fim de Semana (Sáb e Dom)"*, *"Todos os Dias"*.
+  - **Modo 2: Calendário Visual Interativo:**
+    - Calendário mensal visual renderizado diretamente dentro do diálogo com navegação `< Mês/Ano >`, grade de dias da semana e seleção múltipla de datas.
+- **Digitação Direta, Rolagem do Mouse e Microajuste de Horário:**
+  - Campo de texto editável com formatador automático `_HorarioInputFormatter` (`HH:mm`), permitindo digitar instantaneamente qualquer horário quebrado no teclado (ex: `12:07`).
+  - **Rolagem da Bolinha do Mouse (Mouse Wheel):** Ao rolar a rodinha do mouse para cima sobre o campo, o horário avança minuto a minuto (+1m); ao rolar para baixo, o horário recua minuto a minuto (-1m).
+  - Botões dedicados de microajuste minuto a minuto (`[-1m]` e `[+1m]`) para afinar o horário rapidamente com cliques.
+  - **Diálogo Dedicado "Digite o Horário (HH:MM)":** Ao tocar no ícone de relógio, abre janela centralizada própria (`_DigitarHorarioDialog`) com visor de alto contraste, suporte contínuo à rolagem da rodinha do mouse em todo o painel (sobe/desce números), botões rápidos de delta (`[-10m]`, `[-5m]`, `[+5m]`, `[+10m]`), atalhos comerciais e botão **"Salvar"** no rodapé com confirmação direta ou tecla Enter.
+- **Integração Sistêmica e Avisos de Início:**
+  - **Avisos do Dia na Entrada (`PedidosProgramadosDialog`):** Ao iniciar o aplicativo, logo após o fechamento de notificações (ou diretamente se não houver notificações), se houver pedidos agendados para a data, exibe diálogo centralizado com resumo e acesso direto à comanda do pedido.
+  - **Aba "Novos" na Gestão do Perfil:** Injeta automaticamente no painel de novos pedidos os pedidos programados do dia para fácil aceite e despacho.
+  - **Relatórios Gerenciais (`RelatoriosDialog`):** Container dedicado acima de "Pendências" listando todos os agendamentos do dia selecionado com foto do cliente, horário, frequência e clique interativo para abrir a comanda.
+
 
 ### 7.6 Atualizações do Sistema e Instalador Windows
 - **Atualização Local-First Soberana:** Botão na `CustomAppBar` ao lado da engrenagem com `AtualizacaoDialog`, exibindo versão instalada, checagem via `AtualizacaoService` e garantia de preservação de dados locais. O botão na AppBar só é renderizado quando há atualização detectada.
@@ -614,6 +652,25 @@ Este projeto apoia-se no **anarquismo plataformista brasileiro**: poder sem inte
 - **Mesclagem Completa no Backup:** `BackupService.mesclarLojas` unifica `turnosCaixa`, `atalhosTeclado`, `tempoConclusaoMinutos` da loja, bem como `codigoBarras`, `precoCusto`, `unidadeBase` e `consumoPorVenda` de `ItemLoja`.
 - **Auditoria Transparente em Pagamentos aos Membros:** Pagamentos aos trabalhadores em `FinanceiroView` registram ações `RegistroAcao` com autor, valor e delta discriminado em relação à sugestão igualitária calculada pelo sistema.
 - **Sincronização de Fornecedores por Foto:** Ao atualizar foto de usuário por CPF, a foto é propagada para clientes e fornecedores originados.
+- **Reset de Transações com Preservação do Estoque Físico:**
+  - No botão "Resetar Transações", o `pdv_provider.dart` consolida os saldos de estoque físico de cada item através de movimentos de ajuste com `custoUnitario: 0.0` e `custoTotal: 0.0`. O saldo físico de produtos em unidades, gramas ou ml permanece rigorosamente intocado, enquanto o histórico de compras com custos anteriores desaparece do módulo Financeiro.
+- **Módulo de Pedidos Programados:**
+  - **Modelo Soberano (`PedidoProgramado`):** Armazena `id`, `lojaId`, `clienteId`, `clienteNome`, `clienteTelefone`, `clienteEndereco`, `itens` (`List<ItemVendido>`), `valorTotal`, `formaPagamento`, `horario`, `recorrente` (diário vs pontual), `dataProgramada`, `ativo`, `dataCriacao` e `ultimaDataGerado`.
+  - **Ficha do Cliente (`ClientesDialog`):** Container "Pedidos Programados" posicionado acima do "Histórico de Compras", com botão "+ Programar Pedido" e lista de agendamentos ativos do cliente com opções de ver comanda, pausar/ativar e excluir.
+  - **Diálogo Prático de Programação (`ProgramarPedidoDialog`):**
+    - **Calendário e Frequência:** Modos "Contrato / Dias da Semana" (com pré-seleção rápida e chips individuais de Segunda a Domingo) e "Calendário de Datas" interativo (mês a mês com marcação visual).
+    - **Seletor de Horário com Rolagem Isolada:** Permite digitação direta no formato `HH:MM`, botões delta minuto a minuto (`-1m`, `+1m`), atalhos rápidos e abertura de diálogo ampliado `_DigitarHorarioDialog` com botão "Salvar". Enquanto o cursor do mouse estiver sobre o input de horário ou com o campo focado, a janela inteira tem sua rolagem bloqueada (`NeverScrollableScrollPhysics`), permitindo que a rodinha do mouse ajuste suave e exclusivamente os minutos sem mover a janela. Ao clicar fora ou teclar Enter, o campo é desfocado e a rolagem da janela é restaurada.
+    - **Seleção Fiel de Itens e Variantes Opcionais:** Suporta seleção por categoria ou item avulso, lista completa de acompanhamentos com contadores de quantidade e variantes que nascem desativadas por padrão com a opção explícita "Desativado".
+  - **Avisos ao Entrar na Aplicação (`DadosPerfilView`):** Após fechar as notificações (ou diretamente se não houver notificações), exibe a janela `PedidosProgramadosDialog` com os avisos dos pedidos agendados para o dia de hoje. Se não houver pedidos para hoje, não mostra nada.
+  - **Injeção em "Novos" e Fila Automática de Novos Pedidos (`ComandaNovoPedidoDialog`):**
+    - Ao verificar os agendamentos do dia, pedidos programados ativos geram um `PedidoLoja` com status `novo` na Gestão do Perfil sem duplicações (`ultimaDataGerado`).
+    - **Fila Sequencial ao Entrar na Aplicação:** Logo após a checagem inicial, se houver pedidos com `StatusPedido.novo` na loja, o sistema emite alerta sonoro (`SomService.eventoNovoPedido`) e abre a janela com a comanda completa do primeiro pedido e botões de ação:
+      - **`Recusar`:** Recusa o pedido (`_recusarPedido`), remove da lista, registra ação de auditoria e avança imediatamente para o próximo pedido novo da fila.
+      - **`Imprimir`:** Envia a comanda para a impressora configurada sem fechar a janela, permitindo que o operador imprima e decida se aceita ou recusa.
+      - **`Aceitar`:** Aceita o pedido (`_alterarStatusPedido`), move para a aba "Aceitos", registra auditoria e abre o próximo pedido novo da fila até que todos os pedidos novos acabem.
+      - **Dispensar:** O botão "X" fecha a janela e interrompe o loop inicial sem perder os pedidos, que permanecem na aba "Novos" de `GestaoLojaContainer`.
+    - **Abertura na Aba "Novos":** Ao clicar em qualquer pedido na aba "Novos" da tela de gestão, abre essa mesma janela `ComandaNovoPedidoDialog`, mantendo coerência absoluta.
+  - **Janela de Relatórios (`RelatoriosDialog`):** Container "Pedidos Programados" posicionado acima de "Pendências", listando os clientes que agendaram pedidos para a data filtrada com resumo e clique abrindo a comanda do pedido (`ComandaPedidoDialog`).
 
 ---
 

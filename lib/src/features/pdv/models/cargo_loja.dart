@@ -5,6 +5,7 @@ class PermissaoLojaConst {
   static const String usarFinanceiro = 'usarFinanceiro';
   static const String registrarPagamento = 'registrarPagamento';
   static const String gerenciarMembros = 'gerenciarMembros';
+  static const String resetarTransacoes = 'resetarTransacoes';
   static const String excluirLoja = 'excluirLoja';
 
   static const List<PermissaoInfo> todas = [
@@ -43,6 +44,12 @@ class PermissaoLojaConst {
       titulo: 'Gerenciar Membros e Cargos',
       descricao:
           'Permite enviar convites, vincular cargos e gerenciar a equipe de trabalhadores da loja.',
+    ),
+    PermissaoInfo(
+      chave: resetarTransacoes,
+      titulo: 'Resetar Registros de Transações',
+      descricao:
+          'Permite apagar o histórico de vendas, caixas e pagamentos da loja mantendo produtos e membros.',
     ),
     PermissaoInfo(
       chave: excluirLoja,

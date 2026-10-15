@@ -10,6 +10,7 @@ import 'package:nous/src/features/pdv/views/widgets/estado_vazio_container.dart'
 import 'package:nous/src/features/pdv/views/widgets/mesas/mesas_container.dart';
 import 'package:nous/src/features/pdv/views/widgets/pedido_aceito_dialog.dart';
 import 'package:nous/src/features/pdv/views/widgets/cancelar_pedido_dialog.dart';
+import 'package:nous/src/features/pdv/views/widgets/comanda_novo_pedido_dialog.dart';
 import 'package:nous/src/features/pdv/views/widgets/venda_registrada_dialog.dart';
 
 enum AbaPedidos { novos, aceitos, concluidos, cancelados }
@@ -444,6 +445,23 @@ class _GestaoLojaContainerState extends State<GestaoLojaContainer> {
             ? null
             : () => aoExcluirPedido!(pedido.id),
       );
+      return;
+    }
+    if (pedido.status == StatusPedido.novo) {
+      final cliente =
+          clientes.where((c) => c.id == pedido.clienteId).firstOrNull;
+      ComandaNovoPedidoDialog.mostrar(
+        context,
+        lojaId: lojaId,
+        pedido: pedido,
+        cliente: cliente,
+      ).then((acao) {
+        if (acao == AcaoComandaNovoPedido.aceitar) {
+          aoAceitar(pedido.id);
+        } else if (acao == AcaoComandaNovoPedido.recusar) {
+          aoRecusar(pedido.id);
+        }
+      });
       return;
     }
     _abrirMenuDoPedido(context, pedido);

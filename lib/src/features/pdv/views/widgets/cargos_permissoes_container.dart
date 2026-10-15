@@ -577,6 +577,8 @@ class _CargosEPermissoesContainerState
         return Icons.payments_outlined;
       case PermissaoLojaConst.gerenciarMembros:
         return Icons.people_alt_outlined;
+      case PermissaoLojaConst.resetarTransacoes:
+        return Icons.restart_alt_rounded;
       case PermissaoLojaConst.excluirLoja:
         return Icons.delete_forever_outlined;
       default:
