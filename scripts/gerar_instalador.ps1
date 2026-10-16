@@ -2,6 +2,10 @@
 # NOUS — SCRIPT DE BUILD E GERAÇÃO DE INSTALADOR WINDOWS
 # ═════════════════════════════════════════════════════════════════
 
+param(
+    [switch]$IncluirAndroid
+)
+
 Write-Host "==========================================================" -ForegroundColor Cyan
 Write-Host "   NOUS - Compilacao e Geracao do Instalador Windows     " -ForegroundColor Cyan
 Write-Host "==========================================================" -ForegroundColor Cyan
@@ -72,3 +76,10 @@ if ($isccPath) {
     Write-Host "   winget install JRSoftware.InnoSetup" -ForegroundColor White
     Write-Host "2. Execute este script novamente: .\scripts\gerar_instalador.ps1" -ForegroundColor Cyan
 }
+
+if ($IncluirAndroid) {
+    Write-Host ""
+    Write-Host "Compilando versao Android solicitada..." -ForegroundColor Yellow
+    & "$PSScriptRoot\gerar_apk.ps1"
+}
+

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:nous/src/core/theme/theme_controller.dart';
 import 'package:nous/src/features/pdv/models/mesa_loja.dart';
 import 'package:nous/src/features/pdv/views/widgets/estado_vazio_container.dart';
+import 'package:nous/src/core/widgets/texto_rolante.dart';
 
 String _valorFormatado(double valor) =>
     'R\$ ${valor.toStringAsFixed(2).replaceAll('.', ',')}';
@@ -67,10 +68,9 @@ class _MesasContainerState extends State<MesasContainer> {
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Expanded(
-                    child: Text(
-                      mesa.numero,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
+                    child: TextoRolante(
+                      texto: mesa.numero,
+                      textAlign: TextAlign.start,
                       style: widget.theme.getTextStyle(
                         fontSize: 15,
                         fontWeight: FontWeight.bold,
@@ -78,6 +78,7 @@ class _MesasContainerState extends State<MesasContainer> {
                       ),
                     ),
                   ),
+                  const SizedBox(width: 6),
                   Container(
                     padding:
                         const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
@@ -108,10 +109,9 @@ class _MesasContainerState extends State<MesasContainer> {
               ),
               if (mesa.descricao.isNotEmpty) ...[
                 const SizedBox(height: 4),
-                Text(
-                  mesa.descricao,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
+                TextoRolante(
+                  texto: mesa.descricao,
+                  textAlign: TextAlign.start,
                   style: widget.theme.getTextStyle(
                     fontSize: 11,
                     color: widget.theme.secondaryTextColor,
@@ -138,10 +138,9 @@ class _MesasContainerState extends State<MesasContainer> {
                 ),
                 if (mesa.atendenteNome.isNotEmpty) ...[
                   const SizedBox(height: 2),
-                  Text(
-                    mesa.atendenteNome,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
+                  TextoRolante(
+                    texto: mesa.atendenteNome,
+                    textAlign: TextAlign.start,
                     style: widget.theme.getTextStyle(
                       fontSize: 10,
                       color: widget.theme.secondaryTextColor,
@@ -181,49 +180,36 @@ class _MesasContainerState extends State<MesasContainer> {
           // Cabeçalho colapsável
           Row(
             children: [
+              Icon(
+                Icons.table_restaurant_outlined,
+                size: 20,
+                color: widget.theme.textColor,
+              ),
+              const SizedBox(width: 8),
               Expanded(
-                child: Wrap(
-                  crossAxisAlignment: WrapCrossAlignment.center,
-                  spacing: 8,
-                  runSpacing: 4,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
                   children: [
-                    Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          Icons.table_restaurant_outlined,
-                          size: 20,
-                          color: widget.theme.textColor,
-                        ),
-                        const SizedBox(width: 8),
-                        Text(
-                          'Mesas e Comandas',
-                          style: widget.theme.getTextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.bold,
-                            color: widget.theme.textColor,
-                          ),
-                        ),
-                      ],
+                    TextoRolante(
+                      texto: 'Mesas e Comandas',
+                      textAlign: TextAlign.start,
+                      style: widget.theme.getTextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold,
+                        color: widget.theme.textColor,
+                      ),
                     ),
-                    if (totalMesas > 0)
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 8, vertical: 2),
-                        decoration: BoxDecoration(
-                          color: widget.theme.backgroundColor
-                              .withValues(alpha: 0.6),
-                          borderRadius: BorderRadius.circular(10),
-                          border: Border.all(color: widget.theme.borderColor),
-                        ),
-                        child: Text(
-                          '$totalMesas ($totalOcupadas ocupadas)',
-                          style: widget.theme.getTextStyle(
-                            fontSize: 11,
-                            color: widget.theme.secondaryTextColor,
-                          ),
+                    if (totalMesas > 0) ...[
+                      const SizedBox(height: 2),
+                      Text(
+                        '$totalMesas ($totalOcupadas ocupadas)',
+                        style: widget.theme.getTextStyle(
+                          fontSize: 10,
+                          color: widget.theme.secondaryTextColor,
                         ),
                       ),
+                    ],
                   ],
                 ),
               ),
@@ -232,7 +218,7 @@ class _MesasContainerState extends State<MesasContainer> {
                 style: OutlinedButton.styleFrom(
                   side: BorderSide(color: widget.theme.borderColor),
                   padding:
-                      const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(8),
                   ),
@@ -241,13 +227,13 @@ class _MesasContainerState extends State<MesasContainer> {
                 label: Text(
                   'Nova Mesa',
                   style: widget.theme.getTextStyle(
-                    fontSize: 12,
+                    fontSize: 11,
                     color: widget.theme.textColor,
                   ),
                 ),
                 onPressed: widget.aoCriarMesa,
               ),
-              const SizedBox(width: 6),
+              const SizedBox(width: 4),
               IconButton(
                 padding: EdgeInsets.zero,
                 visualDensity: VisualDensity.compact,

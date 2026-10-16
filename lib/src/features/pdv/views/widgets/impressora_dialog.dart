@@ -187,6 +187,7 @@ class ImpressoraDialog {
                   ? (larguraTela > 1150 ? 1050.0 : larguraTela * 0.92)
                   : 500.0;
 
+              final alturaTela = MediaQuery.sizeOf(ctx).height;
               return Dialog(
                 backgroundColor: theme.cardBackgroundColor,
                 insetPadding: const EdgeInsets.all(16),
@@ -195,7 +196,10 @@ class ImpressoraDialog {
                   side: BorderSide(color: theme.borderColor),
                 ),
                 child: ConstrainedBox(
-                  constraints: BoxConstraints(maxWidth: maxWidth),
+                  constraints: BoxConstraints(
+                    maxWidth: maxWidth,
+                    maxHeight: alturaTela * 0.90,
+                  ),
                   child: _ImpressoraConteudo(
                     theme: theme,
                     expandido: expandido,
@@ -672,27 +676,59 @@ class _ImpressoraConteudoState extends State<_ImpressoraConteudo> {
             ),
           ),
           const SizedBox(height: 12),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _colunaRecuo(
-                titulo: 'Recuo Esquerdo',
-                subtitulo: 'Início do texto',
-                valor: _margemEsquerdaMm,
-                aoMudar: (v) => setState(() => _margemEsquerdaMm = v),
-                atalhos: const [3.0, 5.0, 6.5, 8.0],
-                padrao: 5.0,
-              ),
-              const SizedBox(width: 10),
-              _colunaRecuo(
-                titulo: 'Recuo Direito',
-                subtitulo: 'Fim dos preços',
-                valor: _margemDireitaMm,
-                aoMudar: (v) => setState(() => _margemDireitaMm = v),
-                atalhos: const [1.5, 3.0, 4.5, 6.0],
-                padrao: 3.0,
-              ),
-            ],
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final estreito = constraints.maxWidth < 360;
+              if (estreito) {
+                return Column(
+                  children: [
+                    _colunaRecuo(
+                      titulo: 'Recuo Esquerdo',
+                      subtitulo: 'Início do texto',
+                      valor: _margemEsquerdaMm,
+                      aoMudar: (v) => setState(() => _margemEsquerdaMm = v),
+                      atalhos: const [3.0, 5.0, 6.5, 8.0],
+                      padrao: 5.0,
+                    ),
+                    const SizedBox(height: 10),
+                    _colunaRecuo(
+                      titulo: 'Recuo Direito',
+                      subtitulo: 'Fim dos preços',
+                      valor: _margemDireitaMm,
+                      aoMudar: (v) => setState(() => _margemDireitaMm = v),
+                      atalhos: const [1.5, 3.0, 4.5, 6.0],
+                      padrao: 3.0,
+                    ),
+                  ],
+                );
+              }
+              return Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: _colunaRecuo(
+                      titulo: 'Recuo Esquerdo',
+                      subtitulo: 'Início do texto',
+                      valor: _margemEsquerdaMm,
+                      aoMudar: (v) => setState(() => _margemEsquerdaMm = v),
+                      atalhos: const [3.0, 5.0, 6.5, 8.0],
+                      padrao: 5.0,
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: _colunaRecuo(
+                      titulo: 'Recuo Direito',
+                      subtitulo: 'Fim dos preços',
+                      valor: _margemDireitaMm,
+                      aoMudar: (v) => setState(() => _margemDireitaMm = v),
+                      atalhos: const [1.5, 3.0, 4.5, 6.0],
+                      padrao: 3.0,
+                    ),
+                  ),
+                ],
+              );
+            },
           ),
           const SizedBox(height: 14),
           _blocoPreviewComanda(),
@@ -709,9 +745,9 @@ class _ImpressoraConteudoState extends State<_ImpressoraConteudo> {
     required List<double> atalhos,
     required double padrao,
   }) {
-    return Expanded(
-      child: Container(
-        padding: const EdgeInsets.all(10),
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(10),
         decoration: BoxDecoration(
           color: theme.borderColor.withValues(alpha: 0.08),
           borderRadius: BorderRadius.circular(10),
@@ -826,8 +862,7 @@ class _ImpressoraConteudoState extends State<_ImpressoraConteudo> {
             ),
           ],
         ),
-      ),
-    );
+      );
   }
 
   Widget _botaoAtalhoMargemCustom(
@@ -1547,8 +1582,10 @@ class _ImpressoraConteudoState extends State<_ImpressoraConteudo> {
   }
 
   Widget _botoesAcao() {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
+    return Wrap(
+      alignment: WrapAlignment.center,
+      spacing: 10,
+      runSpacing: 10,
       children: [
         OutlinedButton.icon(
           style: ButtonStyle(
@@ -1598,7 +1635,6 @@ class _ImpressoraConteudoState extends State<_ImpressoraConteudo> {
             style: theme.getTextStyle(fontSize: 12),
           ),
         ),
-        const SizedBox(width: 10),
         OutlinedButton.icon(
           style: ButtonStyle(
             backgroundColor: WidgetStateProperty.resolveWith((states) {
@@ -1626,7 +1662,7 @@ class _ImpressoraConteudoState extends State<_ImpressoraConteudo> {
               return BorderSide(color: theme.borderColor, width: 1.0);
             }),
             padding: const WidgetStatePropertyAll(
-              EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+              EdgeInsets.symmetric(horizontal: 18, vertical: 12),
             ),
             shape: WidgetStatePropertyAll(
               RoundedRectangleBorder(

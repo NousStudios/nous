@@ -8,6 +8,7 @@ import 'package:nous/src/features/pdv/models/cliente.dart';
 import 'package:nous/src/features/pdv/models/pedido_programado.dart';
 import 'package:nous/src/features/pdv/providers/pdv_provider.dart';
 import 'package:nous/src/features/pdv/views/widgets/comanda_pedido_dialog.dart';
+import 'package:nous/src/core/widgets/texto_rolante.dart';
 
 class PedidosProgramadosDialog extends StatelessWidget {
   final String lojaId;
@@ -69,10 +70,11 @@ class PedidosProgramadosDialog extends StatelessWidget {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text(
-                              'Pedidos Programados de Hoje',
+                            TextoRolante(
+                              texto: 'Pedidos Programados de Hoje',
+                              textAlign: TextAlign.start,
                               style: theme.getTextStyle(
-                                fontSize: 16,
+                                fontSize: 15,
                                 fontWeight: FontWeight.bold,
                                 color: theme.textColor,
                               ),
@@ -152,12 +154,15 @@ class PedidosProgramadosDialog extends StatelessWidget {
                                   children: [
                                     Row(
                                       children: [
-                                        Text(
-                                          prog.clienteNome,
-                                          style: theme.getTextStyle(
-                                            fontSize: 13,
-                                            fontWeight: FontWeight.bold,
-                                            color: theme.textColor,
+                                        Expanded(
+                                          child: TextoRolante(
+                                            texto: prog.clienteNome,
+                                            textAlign: TextAlign.start,
+                                            style: theme.getTextStyle(
+                                              fontSize: 13,
+                                              fontWeight: FontWeight.bold,
+                                              color: theme.textColor,
+                                            ),
                                           ),
                                         ),
                                         const SizedBox(width: 6),
@@ -195,10 +200,9 @@ class PedidosProgramadosDialog extends StatelessWidget {
                                       ],
                                     ),
                                     const SizedBox(height: 2),
-                                    Text(
-                                      prog.itens.map((i) => '${i.quantidade}x ${i.nomeExibicao}').join(', '),
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
+                                    TextoRolante(
+                                      texto: prog.itens.map((i) => '${i.quantidade}x ${i.nomeExibicao}').join(', '),
+                                      textAlign: TextAlign.start,
                                       style: theme.getTextStyle(
                                         fontSize: 11,
                                         color: theme.secondaryTextColor,

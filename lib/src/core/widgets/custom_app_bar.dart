@@ -12,6 +12,7 @@ import 'package:nous/src/core/services/atualizacao_service.dart';
 import 'package:nous/src/core/widgets/atualizacao_dialog.dart';
 import 'package:nous/src/features/pdv/providers/pdv_provider.dart';
 import 'package:nous/src/features/pdv/views/widgets/backup_dialog.dart';
+import 'package:nous/src/core/widgets/texto_rolante.dart';
 
 String _formatarCpf(String cpf) {
   if (cpf.length != 11) return cpf;
@@ -485,8 +486,9 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
         return AppBar(
           backgroundColor: theme.backgroundColor,
           elevation: 0,
-          title: Text(
-            title,
+          title: TextoRolante(
+            texto: title,
+            textAlign: TextAlign.center,
             style: theme.getTextStyle(
               fontSize: 18,
               fontWeight: FontWeight.bold,

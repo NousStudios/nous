@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:nous/src/core/theme/theme_controller.dart';
 
@@ -21,6 +22,8 @@ class SeletorLayoutsDesktopWidget extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final bool ehMobile = defaultTargetPlatform == TargetPlatform.android ||
+        defaultTargetPlatform == TargetPlatform.iOS;
     final ativo = layoutExpandido;
 
     return Container(
@@ -48,7 +51,9 @@ class SeletorLayoutsDesktopWidget extends StatelessWidget {
           const SizedBox(height: 8),
           Center(
             child: Text(
-              'Alterne entre a versão compacta e a experiência desktop expandida com barra lateral e painéis amplos.',
+              ehMobile
+                  ? 'Configuração de interface otimizada para o seu dispositivo móvel.'
+                  : 'Alterne entre a versão compacta e a experiência desktop expandida com barra lateral e painéis amplos.',
               textAlign: TextAlign.center,
               style: theme.getTextStyle(
                 fontSize: 12,
@@ -58,117 +63,257 @@ class SeletorLayoutsDesktopWidget extends StatelessWidget {
           ),
           const SizedBox(height: 16),
 
-          // Card Único: Layout Desktop PDV Expandido
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: ativo
-                  ? theme.borderColor.withValues(alpha: 0.12)
-                  : theme.borderColor.withValues(alpha: 0.05),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(
-                color: ativo
-                    ? theme.textColor
-                    : theme.borderColor.withValues(alpha: 0.6),
-                width: ativo ? 1.6 : 1.0,
+          if (ehMobile)
+            // Card Exclusivo do Celular: Modo Compacto Fixo
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: theme.borderColor.withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: theme.borderColor.withValues(alpha: 0.6),
+                  width: 1.0,
+                ),
               ),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                        color: ativo
-                            ? (theme.buttonColor != Colors.transparent
-                                ? theme.buttonColor
-                                : theme.borderColor.withValues(alpha: 0.35))
-                            : theme.borderColor.withValues(alpha: 0.15),
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(
-                          color: ativo ? theme.textColor : theme.borderColor,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: theme.borderColor.withValues(alpha: 0.15),
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: theme.borderColor),
+                        ),
+                        child: Icon(
+                          Icons.smartphone_rounded,
+                          size: 22,
+                          color: theme.textColor,
                         ),
                       ),
-                      child: Icon(
-                        ativo
-                            ? Icons.view_sidebar_rounded
-                            : Icons.view_compact_outlined,
-                        size: 20,
-                        color:
-                            ativo ? theme.textColor : theme.secondaryTextColor,
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Modo Compacto Ativo',
+                              style: theme.getTextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.bold,
+                                color: theme.textColor,
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              'Padrão exclusivo e otimizado para celulares',
+                              style: theme.getTextStyle(
+                                fontSize: 11,
+                                color: theme.secondaryTextColor,
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 8, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: theme.textColor.withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(6),
+                          border: Border.all(
+                              color: theme.borderColor.withValues(alpha: 0.5)),
+                        ),
+                        child: Text(
+                          'Fixo',
+                          style: theme.getTextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold,
+                            color: theme.textColor,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 14),
+                  Divider(
+                    height: 1,
+                    color: theme.borderColor.withValues(alpha: 0.4),
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    'Características do modo compacto no celular:',
+                    style: theme.getTextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                      color: theme.textColor,
                     ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+                  ),
+                  const SizedBox(height: 6),
+                  _itemRecurso(
+                    theme,
+                    Icons.touch_app_outlined,
+                    'Navegação vertical com toque rápido e menus inferiores acessíveis.',
+                  ),
+                  const SizedBox(height: 4),
+                  _itemRecurso(
+                    theme,
+                    Icons.fit_screen_rounded,
+                    'Telas e formulários desenhados sob medida para o tamanho do seu smartphone.',
+                  ),
+                  const SizedBox(height: 4),
+                  _itemRecurso(
+                    theme,
+                    Icons.desktop_windows_outlined,
+                    'O layout desktop com barra lateral expandida e teclas de atalho F1–F12 está disponível no computador.',
+                  ),
+                ],
+              ),
+            )
+          else
+            // Card Computador: Layout Desktop PDV Expandido com Layout Responsivo
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: ativo
+                    ? theme.borderColor.withValues(alpha: 0.12)
+                    : theme.borderColor.withValues(alpha: 0.05),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: ativo
+                      ? theme.textColor
+                      : theme.borderColor.withValues(alpha: 0.6),
+                  width: ativo ? 1.6 : 1.0,
+                ),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  LayoutBuilder(
+                    builder: (context, boxConstraints) {
+                      final apertado = boxConstraints.maxWidth < 420;
+
+                      final infoBloco = Row(
                         children: [
-                          Text(
-                            'Layout Desktop PDV Expandido',
-                            style: theme.getTextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.bold,
-                              color: theme.textColor,
+                          Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: ativo
+                                  ? (theme.buttonColor != Colors.transparent
+                                      ? theme.buttonColor
+                                      : theme.borderColor
+                                          .withValues(alpha: 0.35))
+                                  : theme.borderColor.withValues(alpha: 0.15),
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(
+                                color:
+                                    ativo ? theme.textColor : theme.borderColor,
+                              ),
+                            ),
+                            child: Icon(
+                              ativo
+                                  ? Icons.view_sidebar_rounded
+                                  : Icons.view_compact_outlined,
+                              size: 20,
+                              color: ativo
+                                  ? theme.textColor
+                                  : theme.secondaryTextColor,
                             ),
                           ),
-                          const SizedBox(height: 2),
-                          Text(
-                            ativo
-                                ? 'Layout expandido ativo na aplicação'
-                                : 'Layout compacto padrão ativo na aplicação',
-                            style: theme.getTextStyle(
-                              fontSize: 11,
-                              color: theme.secondaryTextColor,
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Layout Desktop PDV Expandido',
+                                  style: theme.getTextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.bold,
+                                    color: theme.textColor,
+                                  ),
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  ativo
+                                      ? 'Layout expandido ativo na aplicação'
+                                      : 'Layout compacto padrão ativo na aplicação',
+                                  style: theme.getTextStyle(
+                                    fontSize: 11,
+                                    color: theme.secondaryTextColor,
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
                         ],
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    _BotaoAlternarDesktop(
-                      theme: theme,
-                      ativo: ativo,
-                      onPressed: onAlternarLayout,
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 14),
-                Divider(
-                  height: 1,
-                  color: theme.borderColor.withValues(alpha: 0.4),
-                ),
-                const SizedBox(height: 12),
-                Text(
-                  'Recursos incluídos neste modo:',
-                  style: theme.getTextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w600,
-                    color: theme.textColor,
+                      );
+
+                      if (apertado) {
+                        return Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            infoBloco,
+                            const SizedBox(height: 12),
+                            _BotaoAlternarDesktop(
+                              theme: theme,
+                              ativo: ativo,
+                              onPressed: onAlternarLayout,
+                            ),
+                          ],
+                        );
+                      }
+
+                      return Row(
+                        children: [
+                          Expanded(child: infoBloco),
+                          const SizedBox(width: 12),
+                          _BotaoAlternarDesktop(
+                            theme: theme,
+                            ativo: ativo,
+                            onPressed: onAlternarLayout,
+                          ),
+                        ],
+                      );
+                    },
                   ),
-                ),
-                const SizedBox(height: 6),
-                _itemRecurso(
-                  theme,
-                  Icons.view_sidebar_rounded,
-                  'Barra lateral com logo, status de caixa e atalhos rápidos.',
-                ),
-                const SizedBox(height: 4),
-                _itemRecurso(
-                  theme,
-                  Icons.dashboard_customize_rounded,
-                  'Janelas operacionais (Nova Venda, Clientes, Caixa, Relatórios, Impressora) em colunas duplas amplas.',
-                ),
-                const SizedBox(height: 4),
-                _itemRecurso(
-                  theme,
-                  Icons.fullscreen_rounded,
-                  'Pressione a tecla F11 no teclado a qualquer momento para alternar a tela cheia do Windows.',
-                ),
-              ],
+                  const SizedBox(height: 14),
+                  Divider(
+                    height: 1,
+                    color: theme.borderColor.withValues(alpha: 0.4),
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    'Recursos incluídos neste modo:',
+                    style: theme.getTextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                      color: theme.textColor,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  _itemRecurso(
+                    theme,
+                    Icons.view_sidebar_rounded,
+                    'Barra lateral com logo, status de caixa e atalhos rápidos.',
+                  ),
+                  const SizedBox(height: 4),
+                  _itemRecurso(
+                    theme,
+                    Icons.dashboard_customize_rounded,
+                    'Janelas operacionais (Nova Venda, Clientes, Caixa, Relatórios, Impressora) em colunas duplas amplas.',
+                  ),
+                  const SizedBox(height: 4),
+                  _itemRecurso(
+                    theme,
+                    Icons.fullscreen_rounded,
+                    'Pressione a tecla F11 no teclado a qualquer momento para alternar a tela cheia do Windows.',
+                  ),
+                ],
+              ),
             ),
-          ),
         ],
       ),
     );

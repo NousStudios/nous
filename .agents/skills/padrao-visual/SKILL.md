@@ -140,5 +140,27 @@ Para operações financeiras críticas (como quitação ou abate de dívidas a p
 - Apresente um container interno com borda e fundo translúcido `theme.backgroundColor.withValues(alpha: 0.4)` detalhando: Valor da Ação, Saldo Atual e Saldo Restante calculado em tempo real.
 - Botão "Cancelar" com `theme.secondaryTextColor` e botão afirmativo de confirmação destacado com `theme.buttonColor` e `theme.buttonTextColor`.
 
+### 4.9 Diálogos com Rolagem Vertical e Prevenção de Unbounded Constraints
+Ao criar diálogos contendo `Flexible` + `SingleChildScrollView`:
+- **`ConstrainedBox` com `maxHeight` Obrigatório:** O `Dialog` deve sempre receber `ConstrainedBox(constraints: BoxConstraints(maxWidth: maxWidth, maxHeight: MediaQuery.sizeOf(ctx).height * 0.90))` para evitar a exceção fatal `RenderFlex children have non-zero flex but incoming height constraints are unbounded`.
+- **Cuidado com `Expanded` em Adaptabilidade (`LayoutBuilder`):** Em widgets que alternam entre `Row` (desktop/telas largas) e `Column` (celular/telas estreitas), NUNCA insira `Expanded` dentro da ramificação `Column`, pois colunas dentro de scrollviews não possuem altura finita. Deixe o `Expanded` estritamente para o `Row`.
+
+### 4.10 TextoRolante (Efeito Marquee da Direita para a Esquerda)
+Sempre que um nome ou texto puder ultrapassar a largura disponível no container (nomes de produtos, categorias, grupos de componentes, clientes, fornecedores, mesas, comandas, itens programados e títulos de cabeçalhos/diálogos), utilize obrigatoriamente `TextoRolante(texto: ..., textAlign: ..., style: ...)`:
+- O widget mede a largura intrínseca do texto contra o espaço disponível (`LayoutBuilder`).
+- Se couber perfeitamente, exibe como texto estático alinhado.
+- Se for maior que a largura, aplica máscara de gradiente nas bordas e desliza suavemente da direita para a esquerda com pausa no início e no final, permitindo ler 100% da informação sem truncamentos secos com reticências e sem quebras verticais.
+
+### 4.11 Responsividade Mobile vs. Desktop e Modo Compacto
+- **Dispositivos Móveis (Android e iOS):**
+  - O modo padrão é SEMPRE **Compacto** (`layoutDesktopAtivo` retorna `false`).
+  - Na tela de ajustes ("Modo de Visualização e Layout do PDV"), o usuário **NÃO PODE** alterar para o modo desktop expandido. A interface apresenta um card explicativo indicando que o modo compacto é fixo e exclusivo para telas verticais com toque.
+  - As teclas de atalho (F1–F12) se adaptam para 1 coluna contínua quando a largura for inferior a 520px, com `TextoRolante` no F11, eliminando esmagamentos de texto.
+  - A barra de ações da loja (`_barraDeAcoesLoja`) utiliza `Wrap` inteligente com rótulos compactos ("Novo Grupo") em telas estreitas, mantendo todos os botões visíveis sem rolagem cortada.
+  - O cabeçalho de Mesas e Comandas (`MesasContainer`) isola o título em coluna flexível com `TextoRolante`, evitando qualquer sobreposição com o botão "+ Nova Mesa".
+- **Computador (Desktop):**
+  - O usuário possui total autonomia para alternar entre a versão compacta e a experiência desktop expandida com barra lateral e atalhos rápidos.
+  - O container de alternância é construído com `LayoutBuilder` responsivo, prevenindo esmagamentos de texto se a janela do sistema for redimensionada para tamanhos estreitos.
+
 
 

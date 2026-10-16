@@ -15,6 +15,7 @@ import 'package:nous/src/features/pdv/services/imagem_service.dart';
 import 'package:nous/src/features/pdv/services/telefone_input_formatter.dart';
 import 'package:nous/src/features/pdv/views/widgets/estado_vazio_container.dart';
 import 'package:nous/src/features/pdv/views/widgets/opcoes_imagem_dialog.dart';
+import 'package:nous/src/core/widgets/texto_rolante.dart';
 
 class FornecedoresDialog {
   static Future<void> mostrar(
@@ -674,12 +675,12 @@ class _FornecedoresConteudoState extends State<_FornecedoresConteudo> {
                           ),
                           const SizedBox(width: 8),
                           Expanded(
-                            child: Text(
-                              cliente.nome,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
+                            child: TextoRolante(
+                              texto: cliente.nome,
+                              textAlign: TextAlign.start,
                               style: theme.getTextStyle(
                                 fontSize: 12,
+                                fontWeight: FontWeight.w600,
                                 color: jaEh
                                     ? theme.secondaryTextColor
                                     : theme.textColor,

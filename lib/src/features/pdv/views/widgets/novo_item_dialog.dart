@@ -1602,28 +1602,32 @@ class _BotaoHoverUnidadeState extends State<_BotaoHoverUnidade> {
       onExit: (_) => setState(() => _hover = false),
       child: GestureDetector(
         onTap: widget.aoClicar,
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 140),
-          padding: const EdgeInsets.symmetric(vertical: 12),
-          decoration: BoxDecoration(
-            color: corFundo,
-            borderRadius: BorderRadius.circular(10),
-            border: Border.all(
-              color: corBorda,
-              width: ativo ? 1.6 : 1.0,
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 140),
+            padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 4),
+            decoration: BoxDecoration(
+              color: corFundo,
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(
+                color: corBorda,
+                width: ativo ? 1.6 : 1.0,
+              ),
             ),
-          ),
-          child: Center(
-            child: Text(
-              widget.rotulo,
-              style: theme.getTextStyle(
-                fontSize: 12,
-                fontWeight: ativo ? FontWeight.bold : FontWeight.normal,
-                color: corTexto,
+            child: Center(
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                child: Text(
+                  widget.rotulo,
+                  maxLines: 1,
+                  style: theme.getTextStyle(
+                    fontSize: 12,
+                    fontWeight: ativo ? FontWeight.bold : FontWeight.normal,
+                    color: corTexto,
+                  ),
+                ),
               ),
             ),
           ),
-        ),
       ),
     );
   }

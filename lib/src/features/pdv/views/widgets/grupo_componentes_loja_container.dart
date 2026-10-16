@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:nous/src/core/theme/theme_controller.dart';
+import 'package:nous/src/core/widgets/texto_rolante.dart';
 import 'package:nous/src/core/widgets/themed_switch.dart';
 import 'package:nous/src/features/pdv/models/item_loja.dart';
 import 'package:nous/src/features/pdv/views/widgets/produto_loja_row.dart';
@@ -59,9 +60,11 @@ class GrupoComponentesLojaContainer extends StatefulWidget {
 class _GrupoComponentesLojaContainerState
     extends State<GrupoComponentesLojaContainer> {
   bool _ativa = true;
+  bool _editandoNome = false;
 
   late final TextEditingController _nomeController =
       TextEditingController(text: widget.nome);
+  late final FocusNode _nomeFocusNode = FocusNode();
 
   void _avisarSemPermissao() {
     final theme = widget.theme;
@@ -87,6 +90,7 @@ class _GrupoComponentesLojaContainerState
   @override
   void dispose() {
     _nomeController.dispose();
+    _nomeFocusNode.dispose();
     super.dispose();
   }
 
@@ -206,20 +210,58 @@ class _GrupoComponentesLojaContainerState
               ),
               const SizedBox(width: 6),
               Expanded(
-                child: TextField(
-                  controller: _nomeController,
-                  readOnly: !podeEditar,
-                  onTap: podeEditar ? null : _avisarSemPermissao,
-                  textAlign: TextAlign.center,
-                  maxLines: 1,
-                  style: theme.getTextStyle(fontSize: 13),
-                  decoration: const InputDecoration(
-                    isDense: true,
-                    contentPadding: EdgeInsets.zero,
-                    border: InputBorder.none,
-                  ),
-                  onChanged: (valor) => widget.onNomeAlterado?.call(valor),
-                ),
+                child: _editandoNome
+                    ? TextField(
+                        focusNode: _nomeFocusNode,
+                        controller: _nomeController,
+                        textAlign: TextAlign.center,
+                        maxLines: 1,
+                        style: theme.getTextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: theme.textColor,
+                        ),
+                        decoration: const InputDecoration(
+                          isDense: true,
+                          contentPadding: EdgeInsets.zero,
+                          border: InputBorder.none,
+                        ),
+                        onSubmitted: (_) {
+                          if (mounted) setState(() => _editandoNome = false);
+                        },
+                        onEditingComplete: () {
+                          if (mounted) setState(() => _editandoNome = false);
+                        },
+                        onChanged: (valor) =>
+                            widget.onNomeAlterado?.call(valor),
+                      )
+                    : InkWell(
+                        onTap: podeEditar
+                            ? () {
+                                setState(() => _editandoNome = true);
+                                _nomeFocusNode.requestFocus();
+                              }
+                            : _avisarSemPermissao,
+                        borderRadius: BorderRadius.circular(4),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 4, vertical: 4),
+                          child: TextoRolante(
+                            texto: widget.nome.trim().isEmpty
+                                ? 'Sem nome'
+                                : widget.nome,
+                            textAlign: TextAlign.center,
+                            style: theme.getTextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                              color: widget.nome.trim().isEmpty
+                                  ? theme.secondaryTextColor
+                                      .withValues(alpha: 0.5)
+                                  : theme.textColor,
+                            ),
+                          ),
+                        ),
+                      ),
               ),
               SizedBox(
                 width: 32,
@@ -237,17 +279,16 @@ class _GrupoComponentesLojaContainerState
               ),
               IconButton(
                 padding: EdgeInsets.zero,
-                constraints: const BoxConstraints(),
+                constraints: const BoxConstraints(minWidth: 26, minHeight: 26),
                 iconSize: 18,
                 tooltip: 'Adicionar item',
                 icon: Icon(Icons.add_circle_outline,
                     color: theme.secondaryTextColor),
                 onPressed: _abrirSeletorDeItem,
               ),
-              const SizedBox(width: 2),
               IconButton(
                 padding: EdgeInsets.zero,
-                constraints: const BoxConstraints(),
+                constraints: const BoxConstraints(minWidth: 26, minHeight: 26),
                 iconSize: 18,
                 icon: Icon(
                   widget.expandida
@@ -257,9 +298,9 @@ class _GrupoComponentesLojaContainerState
                 ),
                 onPressed: widget.aoAlternarExpansao,
               ),
-              const SizedBox(width: 2),
               PopupMenuButton<String>(
                 padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(minWidth: 26, minHeight: 26),
                 iconSize: 18,
                 icon: Icon(Icons.more_vert, color: theme.secondaryTextColor),
                 color: theme.cardBackgroundColor,

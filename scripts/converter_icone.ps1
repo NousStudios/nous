@@ -77,4 +77,45 @@ $bw.Flush()
 $bw.Close()
 $fs.Close()
 
-Write-Host "Icone gerado com sucesso em: $destino" -ForegroundColor Green
+Write-Host "Icone Windows gerado com sucesso em: $destino" -ForegroundColor Green
+
+# ═════════════════════════════════════════════════════════════════
+# GERAÇÃO DE ÍCONES ANDROID (MIPMAPS)
+# ═════════════════════════════════════════════════════════════════
+$androidRes = "d:\Nous\nous\android\app\src\main\res"
+$androidDensidades = @{
+    "mipmap-mdpi"    = 48
+    "mipmap-hdpi"    = 72
+    "mipmap-xhdpi"   = 96
+    "mipmap-xxhdpi"  = 144
+    "mipmap-xxxhdpi" = 192
+}
+
+$bmpOriginal = [System.Drawing.Bitmap]::FromFile($origem)
+
+foreach ($item in $androidDensidades.GetEnumerator()) {
+    $pasta = Join-Path $androidRes $item.Key
+    if (-not (Test-Path $pasta)) {
+        New-Item -ItemType Directory -Path $pasta | Out-Null
+    }
+    $tam = $item.Value
+    $caminhoIcone = Join-Path $pasta "ic_launcher.png"
+
+    $bmpRedimensionado = New-Object System.Drawing.Bitmap($tam, $tam)
+    $g = [System.Drawing.Graphics]::FromImage($bmpRedimensionado)
+    $g.InterpolationMode = [System.Drawing.Drawing2D.InterpolationMode]::HighQualityBicubic
+    $g.SmoothingMode = [System.Drawing.Drawing2D.SmoothingMode]::HighQuality
+    $g.PixelOffsetMode = [System.Drawing.Drawing2D.PixelOffsetMode]::HighQuality
+    $g.CompositingQuality = [System.Drawing.Drawing2D.CompositingQuality]::HighQuality
+
+    $g.DrawImage($bmpOriginal, 0, 0, $tam, $tam)
+    $g.Dispose()
+
+    $bmpRedimensionado.Save($caminhoIcone, [System.Drawing.Imaging.ImageFormat]::Png)
+    $bmpRedimensionado.Dispose()
+
+    Write-Host "Icone Android gerado ($tam x $tam) em: $caminhoIcone" -ForegroundColor Green
+}
+
+$bmpOriginal.Dispose()
+Write-Host "Todos os icones Android gerados com sucesso!" -ForegroundColor Green

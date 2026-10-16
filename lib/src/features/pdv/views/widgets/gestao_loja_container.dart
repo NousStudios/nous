@@ -301,35 +301,33 @@ class _GestaoLojaContainerState extends State<GestaoLojaContainer> {
 
   Widget _abaDePedidos(String rotulo, AbaPedidos aba) {
     final selecionada = aba == abaPedidos;
-    return Expanded(
-      child: InkWell(
-        onTap: () {
-          if (aba != abaPedidos) {
-            _buscaPedidosController.clear();
-          }
-          aoTrocarAbaPedidos(aba);
-        },
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 6),
-          child: Center(
-            child: Container(
-              padding: const EdgeInsets.only(bottom: 2),
-              decoration: BoxDecoration(
-                border: Border(
-                  bottom: BorderSide(
-                    color: selecionada ? theme.textColor : Colors.transparent,
-                    width: 1.5,
-                  ),
-                ),
+    return InkWell(
+      borderRadius: BorderRadius.circular(8),
+      onTap: () {
+        if (aba != abaPedidos) {
+          _buscaPedidosController.clear();
+        }
+        aoTrocarAbaPedidos(aba);
+      },
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        child: Container(
+          padding: const EdgeInsets.only(bottom: 2),
+          decoration: BoxDecoration(
+            border: Border(
+              bottom: BorderSide(
+                color: selecionada ? theme.textColor : Colors.transparent,
+                width: 1.8,
               ),
-              child: Text(
-                rotulo,
-                style: theme.getTextStyle(
-                  fontSize: 13,
-                  color:
-                      selecionada ? theme.textColor : theme.secondaryTextColor,
-                ),
-              ),
+            ),
+          ),
+          child: Text(
+            rotulo,
+            style: theme.getTextStyle(
+              fontSize: 13,
+              fontWeight: selecionada ? FontWeight.w600 : FontWeight.normal,
+              color:
+                  selecionada ? theme.textColor : theme.secondaryTextColor,
             ),
           ),
         ),
@@ -690,13 +688,20 @@ class _GestaoLojaContainerState extends State<GestaoLojaContainer> {
       decoration: _decoracaoDoBloco,
       child: Column(
         children: [
-          Row(
-            children: [
-              _abaDePedidos('Novos', AbaPedidos.novos),
-              _abaDePedidos('Aceitos', AbaPedidos.aceitos),
-              _abaDePedidos('Concluídos', AbaPedidos.concluidos),
-              _abaDePedidos('Cancelados', AbaPedidos.cancelados),
-            ],
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                _abaDePedidos('Novos', AbaPedidos.novos),
+                const SizedBox(width: 8),
+                _abaDePedidos('Aceitos', AbaPedidos.aceitos),
+                const SizedBox(width: 8),
+                _abaDePedidos('Concluídos', AbaPedidos.concluidos),
+                const SizedBox(width: 8),
+                _abaDePedidos('Cancelados', AbaPedidos.cancelados),
+              ],
+            ),
           ),
           if (exibirBusca) ...[
             const SizedBox(height: 12),

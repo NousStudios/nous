@@ -62,20 +62,21 @@ class _TextoRolanteState extends State<TextoRolante> {
 
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       while (mounted && cicloAtual == _cicloId) {
-        // Pausa no início para o usuário ler o começo
+        // Pausa no início para leitura
         await Future.delayed(widget.pausaBordas);
         if (!mounted || cicloAtual != _cicloId || !_scrollController.hasClients) break;
 
         final currentMax = _scrollController.position.maxScrollExtent;
-        if (currentMax <= 0) break;
+        final targetScroll = currentMax > 0 ? currentMax : maxScroll;
+        if (targetScroll <= 0) break;
 
         final duracaoIda = Duration(
-          milliseconds: ((currentMax / widget.velocidadePxPorSegundo) * 1000).toInt(),
+          milliseconds: ((targetScroll / widget.velocidadePxPorSegundo) * 1000).toInt(),
         );
 
         // Desliza lentamente da direita para a esquerda
         await _scrollController.animateTo(
-          currentMax,
+          targetScroll,
           duration: duracaoIda,
           curve: Curves.linear,
         );
@@ -88,7 +89,7 @@ class _TextoRolanteState extends State<TextoRolante> {
 
         // Retorna suavemente para o início
         final duracaoVolta = Duration(
-          milliseconds: ((currentMax / (widget.velocidadePxPorSegundo * 1.5)) * 1000).toInt().clamp(400, 1500),
+          milliseconds: ((targetScroll / (widget.velocidadePxPorSegundo * 1.5)) * 1000).toInt().clamp(400, 1500),
         );
 
         await _scrollController.animateTo(
@@ -114,17 +115,13 @@ class _TextoRolanteState extends State<TextoRolante> {
         final textWidth = textPainter.size.width;
         final maxWidth = constraints.maxWidth;
 
-        // Se o texto couber completamente, exibe sem animação ou máscara
-        if (maxWidth.isFinite && textWidth <= maxWidth) {
-          return SizedBox(
-            width: double.infinity,
-            child: Text(
-              widget.texto,
-              style: widget.style,
-              textAlign: widget.textAlign,
-              maxLines: 1,
-              overflow: TextOverflow.clip,
-            ),
+        if (!maxWidth.isFinite || textWidth <= maxWidth) {
+          return Text(
+            widget.texto,
+            style: widget.style,
+            textAlign: widget.textAlign,
+            maxLines: 1,
+            overflow: TextOverflow.clip,
           );
         }
 

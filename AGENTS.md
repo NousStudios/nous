@@ -57,19 +57,36 @@ O Nous não é um aplicativo neutro. É uma ferramenta prática voltada a coloca
 
 ## 3. A VISÃO IDEOLÓGICA (A Política que Guia a Técnica)
 
-Este projeto apoia-se no **anarquismo plataformista brasileiro**: poder sem intermediários, autogestão real, transparência radical e ação direta econômica.
+Este projeto apoia-se no **Plataformismo Brasileiro**: uma síntese pioneira entre a tradição organizativa anarquista de 1926 (*Dielo Truda*, Nestor Makhno) e as possibilidades das plataformas computacionais contemporâneas no Sul Global, visando a autogestão real, soberania digital e a emancipação da classe trabalhadora rumo a uma sociedade sem classes e sem exploração.
 
-### 3.1 Identidade Real, Sem Anonimato Irresponsável
+### 3.1 A Ontologia do Nous (A Mente Operadora)
+- **Etimologia e Sentido Filosófico:** *Nous* (νοῦς) — atividade do intelecto puro, a razão divina ordenadora que em Anaxágoras organiza o cosmo a partir do caos original, o primeiro motor e intelecto ativo em Aristóteles que intui princípios indemonstráveis sem premissas intermediárias, e o "olho da mente" em Platão.
+- **Manifestação Computacional:** O software Nous atua como a **Mente Coletiva** e o **interpretador universal** dos dados sensíveis e das relações produtivas da sociedade. Ele traduz a microgestão deliberada pelos próprios trabalhadores em interfaces visuais diretas, sem a intermediação de burocracias parasitárias ou algoritmos de manipulação voltados ao consumo anestesiante.
+
+### 3.2 O Princípio Político Fundamental: Negação do *Arkhon*, Afirmação do *Arkhein*
+- **Etimologia de Anarquia:** Deriva de *an* (sem) + *arkhos* (chefe, líder, príncipe) + *arkhein* (governar, comandar, começar, planejar, ter *télos* ou finalidade).
+- **A Distinção Crucial do Projeto:**
+  - **Negação do *Arkhon*:** Rejeição absoluta do chefe, do tirano, do oligarca, do dono absolutista e da classe de políticos profissionais. Não há governantes nem castas privilegiadas.
+  - **Afirmação do *Arkhein*:** Planejamento, ordem, cálculo econômico, previsão de demandas e teleologia coletiva são indispensáveis à sobrevivência e emancipação da espécie humana. Governar é planejar. O que o Nous propõe é o **governo sem classe governante**: a diluição da administração nas mãos do povo trabalhador via democracia direta e ferramentas digitais.
+
+### 3.3 A Inserção Orgânica no Mercado (O "Cavalo de Troia" Emancipatório)
+- O Nous não se isola em um gueto utópico. Ele se insere organicamente no comércio real oferecendo a melhor ferramenta operacional possível (PDV rápido, local-first, offline, sem mensalidades, intuitivo e com impressão térmica precisa).
+- Uma vez adotado, o software infunde uma lógica cooperativa e despersonalizada: expõe a saúde financeira aos trabalhadores, sugere a divisão igualitária dos excedentes, distribui turnos sem sobrecarga e estimula a consciência de classe na prática cotidiana.
+
+### 3.4 Transparência Radical (Antídoto à Opacidade do Capital)
+- A degeneração do capital prolifera na escuridão e no segredo. A corrupção e a exploração são intrinsecamente privadas.
+- O antídoto técnico do Nous é a **exposição contínua e irrestrita à luz**:
+  - No módulo Financeiro, **o trabalhador acessa e vê exatamente os mesmos números que o dono ou administrador**. Saldo negativo ou sobras nunca são camuflados.
+  - Os pagamentos aos trabalhadores contam com **sugestão de divisão igualitária calculada pelo sistema**:
+    $$\text{Sugestão} = \frac{\text{Entradas} - \text{Saídas}}{\text{Número de Membros}}$$
+  - Ajustes manuais são permitidos caso a caso, mas **absolutamente tudo é registrado em histórico de auditoria** (`RegistroAcao`), contendo autor, data, horário e delta da alteração.
+
+### 3.5 Identidade Real Soberana, Sem Anonimato Irresponsável
+- A despersonalização do poder não se confunde com covardia ou anonimato destrutivo.
 - Tudo no sistema é vinculado ao **CPF do cidadão**. Uma pessoa pode cadastrar múltiplos e-mails, mas todos convergem para o mesmo CPF.
 - Isso elimina contas falsas, bots e a impunidade comum em plataformas centralizadas, sem depender de Big Techs ou solicitar permissão governamental. A responsabilidade é do indivíduo perante a comunidade.
 
-### 3.2 Transparência Radical
-- No módulo Financeiro, **o trabalhador acessa e vê exatamente os mesmos números que o dono ou administrador**. Saldo negativo não é camuflado.
-- Os pagamentos aos trabalhadores contam com **sugestão de divisão igualitária calculada pelo sistema**:
-  $$\text{Sugestão} = \frac{\text{Entradas} - \text{Saídas}}{\text{Número de Membros}}$$
-- Ajustes manuais são permitidos caso a caso, mas **absolutamente tudo é registrado em histórico de auditoria** (`RegistroAcao`), contendo autor, data, horário e delta da alteração.
-
-### 3.3 Autonomia Coletiva e Consentimento entre Donos e Sócios
+### 3.6 Autonomia Coletiva e Consentimento entre Donos e Sócios
 - A hierarquia de loja reflete papéis operacionais (`Dono`, `Sócio`, `Admin`, `Funcionário`), mas o poder não é despótico.
 - **Hierarquia e Regras de Exclusão de Membros:**
   - **Outros donos NÃO podem excluir outros donos diretamente:** Se um dono tentar excluir outro dono, o sistema envia uma solicitação de saída via notificação (`TipoNotificacao.solicitacaoExclusaoDono`). A saída só se efetiva se o dono alvo consentir (aceitar).
@@ -79,12 +96,16 @@ Este projeto apoia-se no **anarquismo plataformista brasileiro**: poder sem inte
   - **Autoexclusão:** Todo membro tem direito de sair voluntariamente da loja a qualquer momento.
 - **Princípio Inegociável entre Sócios:** **Um sócio não pode alterar o papel de outro sócio unilateralmente.** Qualquer alteração de papel de um sócio exige notificação (`TipoNotificacao.alteracaoPapel`) e o **consentimento explícito (aceite)** do sócio alvo.
 
-### 3.4 Sistema Fechado, Soberano e Local-First
+### 3.7 Sistema Fechado, Soberano e Local-First
 - O ecossistema opera de ponta a ponta sem dependência de APIs de Big Techs.
 - Backup completo serializado em um único arquivo JSON manipulado pelo próprio usuário com `file_selector`.
 
-### 3.5 A Vida Real Manda (O Humano no Comando)
+### 3.8 A Vida Real Manda (O Humano no Comando)
 - Onde a máquina calcula estimativas (ex.: baixa de estoque em gramas ou ml por venda), ela **propõe a baixa**, mas o ser humano **confirma, ajusta ou cancela** antes de efetivar.
+
+### 3.9 O Horizonte do SuperApp e Lema de Produção
+- O ecossistema prevê a evolução integrada para a IA assistente (**Hermes**), redes de mapa e entrega com negociação direta de fretes, banco comunitário com crédito mútuo, e autogestão deliberativa.
+- **Lema Síntese:** *"Trabalhar todos, trabalhar menos, produzir o necessário, distribuir tudo."* (Com metas de turnos de 4 horas diárias de trabalho em alta rotatividade, erradicação do lucro parasitário e soberania tecnológica cooperada).
 
 ---
 
@@ -122,6 +143,15 @@ Este projeto apoia-se no **anarquismo plataformista brasileiro**: poder sem inte
 - **Migração Transparente e Fallback:** Na primeira execução, o `BancoDadosService` migra automaticamente registros legados de `shared_preferences` para o SQLite sem perda de dados.
 - **Cofre Soberano e Backup Universal:** Cada loja reside no cofre do seu `cpfDonoOriginal`. Membros participantes acessam através de `ReferenciaLoja`. O `BackupService` exporta e importa a totalidade dos dados em um único arquivo `.json` manipulado diretamente pelo usuário com `file_selector`.
 
+### 5.4 Automação de Build e Distribuição (Pasta `dist/` e Scripts)
+- **Pasta `dist/`:** Destinada a armazenar os binários compilados de entrega do sistema para testes e produção:
+  - Windows: `dist/Nous_Instalador_v1.0.0_Versao_Teste.exe` (instalador executável com Inno Setup 6).
+  - Android: `dist/Nous_Android_v1.0.0_Versao_Teste.apk` e `dist/Nous_v1.0.0_Android.apk` (pacote APK gerado em modo Release).
+- **Scripts em `scripts/`:**
+  - `scripts/gerar_instalador.ps1`: Compila a aplicação Windows Desktop (`flutter build windows --release`), empacota via Inno Setup 6 (`windows/installer.iss`) e entrega o executável em `dist/`. Aceita a flag opcional `-IncluirAndroid` para disparar a build do APK na mesma esteira.
+  - `scripts/gerar_apk.ps1`: Compila o APK para Android (`flutter build apk --release`) e copia automaticamente o binário final gerado para a pasta `dist/`.
+  - `scripts/converter_icone.ps1`: Converte automaticamente `assets/images/logo.png` em ícone multirresolução Windows (`app_icon.ico`) e em ícones de aplicativo Android em alta definição para todas as densidades (`mipmap-mdpi`, `hdpi`, `xhdpi`, `xxhdpi`, `xxxhdpi`).
+
 ---
 
 ## 6. SISTEMA DE DESIGN E TEMAS (REGRAS MANDATÓRIAS)
@@ -146,7 +176,7 @@ Este projeto apoia-se no **anarquismo plataformista brasileiro**: poder sem inte
 | Elemento | Padrão Obrigatório |
 | :--- | :--- |
 | **Bloco / Card Padrão** | `BoxDecoration(color: theme.backgroundColor.withValues(alpha: 0.4), borderRadius: BorderRadius.circular(12), border: Border.all(color: theme.borderColor.withValues(alpha: 0.6)))` |
-| **Diálogos / Popups** | **Sempre centralizados** via `showDialog`. Fundo `theme.cardBackgroundColor`, `borderRadius: 16`, títulos centralizados em `theme.textColor`, mensagens explicativas centralizadas e largura máxima de `500`. **Nunca use Bottom Sheets.** |
+| **Diálogos / Popups** | **Sempre centralizados** via `showDialog`. Fundo `theme.cardBackgroundColor`, `borderRadius: 16`, títulos centralizados em `theme.textColor`, mensagens explicativas centralizadas e largura máxima de `500` (ou proporcional no desktop). Diálogos com `Flexible` + `SingleChildScrollView` **devem sempre definir** `maxHeight: MediaQuery.sizeOf(ctx).height * 0.90` no `ConstrainedBox` para evitar erro de *unbounded height* no mobile. **Nunca use Bottom Sheets.** |
 | **Botões e Ações de Exclusão** | **Padrão Universal:** Botões na tela (como "Excluir Loja", "Excluir Cliente", "Excluir Fornecedor", "Excluir Cadastro" e itens destrutivos de menus popup) exibem o rótulo/ícone em `theme.dangerColor`. Ao serem acionados, **SEMPRE abrem janela de confirmação** (`AlertDialog` centralizado) com botão "Cancelar" neutro (`theme.secondaryTextColor`) e botão de confirmação ("Excluir" / "Remover") destacado em `theme.dangerColor`. |
 | **Barras com Hover** | Todo item de lista (membros, fornecedores, clientes, trabalhadores) deve usar o widget de hover com borda contrastante e leve fundo translúcido `theme.borderColor.withValues(alpha: 0.18)` ao passar o cursor. |
 | **Listas Vazias** | Use sempre `EstadoVazioContainer(theme: theme, mensagem: '...')`. |
@@ -314,6 +344,14 @@ Este projeto apoia-se no **anarquismo plataformista brasileiro**: poder sem inte
           - O clique via mouse em qualquer botão da barra lateral aciona a ação correspondente imediatamente, independente de haver tecla associada.
       - Na tela "Gestão do Perfil" (`GestaoLojaContainer`), os botões de ação do topo ("Nova Venda", "Clientes", "Impressora", "Relatórios", "Caixa", "Financeiro", "Mensagens", "Status da Loja") são **automaticamente ocultados no modo expandido**, pois já estão acessíveis de forma permanente na barra lateral, eliminando redundância visual e aproveitando melhor o espaço de comandas e pedidos. No modo compacto, os botões permanecem visíveis.
       - O catálogo de produtos e itens (`ItemLojaCard`) conta com altura e largura delimitadas, eliminando o erro de *unbounded height* no motor do Flutter e garantindo rolagem fluida e estabilidade absoluta.
+    - **Adaptação Responsiva Mobile vs. Desktop e Modo Compacto Fixo no Celular:**
+      - **Modo Compacto Mandatório no Celular:** Em dispositivos móveis (Android e iOS), o Nous opera com modo compacto por padrão e exclusivo (`PdvProvider.layoutDesktopAtivo` retorna `false`). Na tela de "Ajustes do Perfil" -> "Modo de Visualização e Layout do PDV", o usuário do celular é apresentado a um card informativo indicando o modo compacto ativo, **sem a opção de mudar para o modo desktop expandido**.
+      - **Autonomia no Desktop:** Em computadores (Windows, Linux, macOS), o usuário mantém autonomia para alternar livremente entre layout compacto e layout expandido. O seletor de layout é construído com `LayoutBuilder` elástico, impedindo que textos quebrem na vertical caso a janela seja redimensionada.
+      - **TextoRolante Universal (Efeito Marquee da Direita para a Esquerda):** Qualquer nome ou texto que exceda a largura útil do seu container desliza suavemente da direita para a esquerda com pausas nas bordas e máscara de gradiente, abrangendo nomes de itens, categorias, grupos de componentes, clientes, fornecedores, mesas, comandas, pedidos programados e cabeçalhos.
+      - **Ergonomia e Prevenção de Quebras em Telas Pequenas (< 520px):**
+        - A barra de ações da loja (`_barraDeAcoesLoja`) organiza os botões em `Wrap` 2x2 com rótulos compactos ("Novo Grupo") em telas estreitas, prevenindo cortes textuais.
+        - As teclas de atalho de teclado F1–F12 organizam-se em 1 coluna confortável em telas móveis, com `TextoRolante` no rótulo da tecla F11.
+        - O cabeçalho de Mesas e Comandas (`MesasContainer`) aloca o título e o badge em coluna flexível com `TextoRolante`, eliminando sobreposições com o botão "+ Nova Mesa".
     - **Altura Dinâmica de Categorias e Grupos de Componentes no Desktop:**
       - No modo Desktop (`MediaQuery.sizeOf(context).width > 720` ou `layoutExpandido`), as listas verticais de "Categorias" e "Grupos de Componentes" em `dados_perfil_view.dart` comportam até 7 ou 8 barras completas (`maxHeight: 440.0`) antes de habilitar a rolagem interna suave, preenchendo harmonicamente a altura da tela sem acionar o scroll da página. No modo mobile/compacto, mantém limite ergonômico de 180.0.
     - **Reorganização, Container Unificado e Modo Expandido de `NovoItemDialog`:**

@@ -33,6 +33,10 @@ class PdvProvider extends ChangeNotifier {
   String get tipoLayoutDesktopGlobal => _tipoLayoutDesktopGlobal;
 
   bool layoutDesktopAtivo([String? lojaId]) {
+    if (defaultTargetPlatform == TargetPlatform.android ||
+        defaultTargetPlatform == TargetPlatform.iOS) {
+      return false;
+    }
     if (lojaId != null && lojaId.isNotEmpty) {
       final loja = buscarPorId(lojaId);
       if (loja != null) return loja.layoutExpandido;
@@ -571,6 +575,10 @@ class PdvProvider extends ChangeNotifier {
   }
 
   void alternarLayoutExpandido([String? id]) {
+    if (defaultTargetPlatform == TargetPlatform.android ||
+        defaultTargetPlatform == TargetPlatform.iOS) {
+      return;
+    }
     bool novoValor = !_layoutDesktopGlobal;
     if (id != null && id.isNotEmpty) {
       final indice = _lojas.indexWhere((loja) => loja.id == id);
@@ -589,6 +597,10 @@ class PdvProvider extends ChangeNotifier {
   }
 
   void definirLayoutExpandido(bool ativo, [String? id]) {
+    if (defaultTargetPlatform == TargetPlatform.android ||
+        defaultTargetPlatform == TargetPlatform.iOS) {
+      return;
+    }
     _layoutDesktopGlobal = ativo;
     if (id != null && id.isNotEmpty) {
       final indice = _lojas.indexWhere((loja) => loja.id == id);

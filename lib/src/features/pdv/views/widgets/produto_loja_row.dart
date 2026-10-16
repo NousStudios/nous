@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:nous/src/core/theme/theme_controller.dart';
+import 'package:nous/src/core/widgets/texto_rolante.dart';
 import 'package:nous/src/core/widgets/themed_switch.dart';
 import 'package:nous/src/features/pdv/models/item_loja.dart';
 import 'package:nous/src/features/pdv/views/widgets/grupo_componentes_container.dart';
@@ -31,6 +32,7 @@ class ProdutoLojaRow extends StatefulWidget {
 class _ProdutoLojaRowState extends State<ProdutoLojaRow> {
   bool _ativo = true;
   bool _expandido = false;
+  bool _editandoNome = false;
 
   final List<int> _grupoIds = [];
   int _proximoIdGrupo = 0;
@@ -39,6 +41,7 @@ class _ProdutoLojaRowState extends State<ProdutoLojaRow> {
 
   late final TextEditingController _nomeController =
       TextEditingController(text: widget.item.nome);
+  late final FocusNode _nomeFocusNode = FocusNode();
   late final TextEditingController _precoController =
       TextEditingController(text: widget.item.preco);
 
@@ -99,6 +102,7 @@ class _ProdutoLojaRowState extends State<ProdutoLojaRow> {
   @override
   void dispose() {
     _nomeController.dispose();
+    _nomeFocusNode.dispose();
     _precoController.dispose();
     super.dispose();
   }
@@ -176,19 +180,54 @@ class _ProdutoLojaRowState extends State<ProdutoLojaRow> {
               ),
               const SizedBox(width: 8),
               Expanded(
-                child: TextField(
-                  controller: _nomeController,
-                  readOnly: !podeEditar,
-                  onTap: podeEditar ? null : _avisarSemPermissao,
-                  maxLines: 1,
-                  style: theme.getTextStyle(fontSize: 12),
-                  decoration: const InputDecoration(
-                    isDense: true,
-                    contentPadding: EdgeInsets.zero,
-                    border: InputBorder.none,
-                  ),
-                  onChanged: widget.onNomeAlterado,
-                ),
+                child: _editandoNome
+                    ? TextField(
+                        focusNode: _nomeFocusNode,
+                        controller: _nomeController,
+                        maxLines: 1,
+                        style: theme.getTextStyle(
+                          fontSize: 12,
+                          color: theme.textColor,
+                        ),
+                        decoration: const InputDecoration(
+                          isDense: true,
+                          contentPadding: EdgeInsets.zero,
+                          border: InputBorder.none,
+                        ),
+                        onSubmitted: (_) {
+                          if (mounted) setState(() => _editandoNome = false);
+                        },
+                        onEditingComplete: () {
+                          if (mounted) setState(() => _editandoNome = false);
+                        },
+                        onChanged: widget.onNomeAlterado,
+                      )
+                    : InkWell(
+                        onTap: podeEditar
+                            ? () {
+                                setState(() => _editandoNome = true);
+                                _nomeFocusNode.requestFocus();
+                              }
+                            : _avisarSemPermissao,
+                        borderRadius: BorderRadius.circular(4),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 4, vertical: 4),
+                          child: TextoRolante(
+                            texto: widget.item.nome.trim().isEmpty
+                                ? 'Sem nome'
+                                : widget.item.nome,
+                            textAlign: TextAlign.start,
+                            style: theme.getTextStyle(
+                              fontSize: 12,
+                              color: widget.item.nome.trim().isEmpty
+                                  ? theme.secondaryTextColor
+                                      .withValues(alpha: 0.5)
+                                  : theme.textColor,
+                            ),
+                          ),
+                        ),
+                      ),
               ),
               Transform.scale(
                 scale: 0.85,

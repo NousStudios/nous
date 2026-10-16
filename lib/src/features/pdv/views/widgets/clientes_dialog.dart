@@ -19,6 +19,7 @@ import 'package:nous/src/features/pdv/views/widgets/opcoes_imagem_dialog.dart';
 import 'package:nous/src/features/pdv/views/widgets/venda_registrada_dialog.dart';
 import 'package:nous/src/features/pdv/views/widgets/programar_pedido_dialog.dart';
 import 'package:nous/src/features/pdv/views/widgets/comanda_pedido_dialog.dart';
+import 'package:nous/src/core/widgets/texto_rolante.dart';
 import 'package:provider/provider.dart';
 
 String _valor(double v) => 'R\$ ${v.toStringAsFixed(2).replaceAll('.', ',')}';
@@ -1520,20 +1521,19 @@ class _ClientesConteudoState extends State<_ClientesConteudo> {
                               crossAxisAlignment: CrossAxisAlignment.start,
                               mainAxisSize: MainAxisSize.min,
                               children: [
-                                Text(
-                                  cliente.nome,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
+                                TextoRolante(
+                                  texto: cliente.nome,
+                                  textAlign: TextAlign.start,
                                   style: theme.getTextStyle(
                                     fontSize: 12,
+                                    fontWeight: FontWeight.w600,
                                     color: theme.textColor,
                                   ),
                                 ),
                                 if (temEndereco)
-                                  Text(
-                                    enderecoTexto,
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
+                                  TextoRolante(
+                                    texto: enderecoTexto,
+                                    textAlign: TextAlign.start,
                                     style: theme.getTextStyle(
                                       fontSize: 10,
                                       color: theme.secondaryTextColor,
@@ -1542,11 +1542,17 @@ class _ClientesConteudoState extends State<_ClientesConteudo> {
                               ],
                             ),
                           ),
-                          if (cliente.telefone.isNotEmpty)
-                            Text(
-                              cliente.telefone,
-                              style: theme.getTextStyle(fontSize: 11),
+                          if (cliente.telefone.isNotEmpty) ...[
+                            const SizedBox(width: 6),
+                            ConstrainedBox(
+                              constraints: const BoxConstraints(maxWidth: 110),
+                              child: TextoRolante(
+                                texto: cliente.telefone,
+                                textAlign: TextAlign.end,
+                                style: theme.getTextStyle(fontSize: 11),
+                              ),
                             ),
+                          ],
                         ],
                       ),
                     ),

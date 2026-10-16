@@ -66,6 +66,7 @@ import 'package:nous/src/features/pdv/views/widgets/modo_balcao_widget.dart';
 import 'package:nous/src/features/notificacoes/views/widgets/notificacoes_dialog.dart';
 import 'package:nous/src/features/pdv/views/widgets/pedidos_programados_dialog.dart';
 import 'package:nous/src/features/pdv/views/widgets/comanda_novo_pedido_dialog.dart';
+import 'package:nous/src/core/widgets/texto_rolante.dart';
 
 class DadosPerfilView extends StatefulWidget {
   final String lojaId;
@@ -3196,7 +3197,7 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
                 const SizedBox(width: 8),
                 _botaoAcaoLoja(
                   theme,
-                  'Novo Grupo de Componentes',
+                  'Novo Grupo',
                   _abrirPopupNovoGrupoComponentes,
                 ),
                 const SizedBox(width: 8),
@@ -4109,8 +4110,9 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
                 child: Row(
                   children: [
                     Expanded(
-                      child: Text(
-                        'Tela Cheia (Padrão do Sistema)',
+                      child: TextoRolante(
+                        texto: 'Tela Cheia (Padrão do Sistema)',
+                        textAlign: TextAlign.start,
                         style: theme.getTextStyle(
                           fontSize: 12,
                           fontWeight: FontWeight.w600,
@@ -4380,27 +4382,38 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
               ],
             ),
           ),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                child: Column(
+          LayoutBuilder(
+            builder: (context, constraints) {
+              if (constraints.maxWidth < 520) {
+                return Column(
                   children: _teclasFuncao
-                      .take(6)
                       .map((t) => _buildItemTeclaAtalho(theme, t, podeEditar))
                       .toList(),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  children: _teclasFuncao
-                      .skip(6)
-                      .map((t) => _buildItemTeclaAtalho(theme, t, podeEditar))
-                      .toList(),
-                ),
-              ),
-            ],
+                );
+              }
+              return Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: Column(
+                      children: _teclasFuncao
+                          .take(6)
+                          .map((t) => _buildItemTeclaAtalho(theme, t, podeEditar))
+                          .toList(),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      children: _teclasFuncao
+                          .skip(6)
+                          .map((t) => _buildItemTeclaAtalho(theme, t, podeEditar))
+                          .toList(),
+                    ),
+                  ),
+                ],
+              );
+            },
           ),
         ],
       ),

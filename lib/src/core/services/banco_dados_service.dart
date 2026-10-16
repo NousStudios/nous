@@ -23,10 +23,8 @@ class BancoDadosService {
   }
 
   static Future<Database> _inicializar() async {
-    if (Platform.isWindows || Platform.isLinux || Platform.isMacOS) {
-      sqfliteFfiInit();
-      databaseFactory = databaseFactoryFfi;
-    }
+    sqfliteFfiInit();
+    databaseFactory = databaseFactoryFfi;
 
     final dir = await getApplicationSupportDirectory();
     final caminhoPasta = p.join(dir.path, 'Nous');
