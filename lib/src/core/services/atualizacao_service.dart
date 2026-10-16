@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 
 class InfoAtualizacao {
   final String versao;
@@ -130,6 +131,9 @@ class AtualizacaoService {
     try {
       if (Platform.isWindows) {
         Process.run('cmd', ['/c', 'start', '', url]);
+      } else if (Platform.isAndroid) {
+        const MethodChannel('com.nous.app/instalador')
+            .invokeMethod('abrirUrl', {'url': url});
       } else if (Platform.isLinux) {
         Process.run('xdg-open', [url]);
       } else if (Platform.isMacOS) {

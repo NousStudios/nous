@@ -27,11 +27,9 @@ if (-not (Test-Path "dist")) {
 }
 
 Copy-Item -Path "build\app\outputs\flutter-apk\app-release.apk" -Destination "dist\Nous_Android_v1.0.0_Versao_Teste.apk" -Force
-Copy-Item -Path "build\app\outputs\flutter-apk\app-release.apk" -Destination "dist\Nous_v1.0.0_Android.apk" -Force
 
 Write-Host ""
 Write-Host "==========================================================" -ForegroundColor Green
 Write-Host " SUCESSO! APK gerado e copiado para a pasta 'dist/':" -ForegroundColor Green
 Write-Host " dist\Nous_Android_v1.0.0_Versao_Teste.apk" -ForegroundColor White
-Write-Host " dist\Nous_v1.0.0_Android.apk" -ForegroundColor White
 Write-Host "==========================================================" -ForegroundColor Green

@@ -168,7 +168,7 @@ class PerfisPdvView extends StatelessWidget {
                   ? EstadoVazioContainer(
                       theme: theme,
                       mensagem:
-                          'Você não participa de nenhum perfil.',
+                          'Você não participa de nenhum perfil ainda.',
                     )
                   : _wrapDeLojas(
                       context: context,

@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:nous/src/core/services/atualizacao_service.dart';
 import 'package:nous/src/core/theme/theme_controller.dart';
@@ -169,7 +170,13 @@ class _AtualizacaoDialogState extends State<AtualizacaoDialog> {
                             ),
                           ),
                           child: Text(
-                            'Windows Desktop',
+                            Platform.isAndroid
+                                ? 'Android (Móvel)'
+                                : (Platform.isWindows
+                                    ? 'Windows Desktop'
+                                    : (Platform.isIOS
+                                        ? 'iOS (Móvel)'
+                                        : Platform.operatingSystem)),
                             style: theme.getTextStyle(
                               fontSize: 11,
                               fontWeight: FontWeight.w600,
@@ -342,7 +349,7 @@ class _AtualizacaoDialogState extends State<AtualizacaoDialog> {
                         const SizedBox(width: 8),
                         Expanded(
                           child: Text(
-                            'Soberania Local: Ao atualizar o Nous, seu banco de dados (nous.db), lojas, estoques e históricos permanecem 100% seguros e intactos no computador.',
+                            'Soberania Local: Ao atualizar o Nous, seu banco de dados (nous.db), lojas, estoques e históricos permanecem 100% seguros e intactos no seu aparelho.',
                             style: theme.getTextStyle(
                               fontSize: 11,
                               color: theme.secondaryTextColor,

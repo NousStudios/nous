@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'package:path_provider/path_provider.dart';
 import 'package:nous/src/core/services/gerador_id.dart';
 
 class ImagemService {
@@ -8,24 +9,33 @@ class ImagemService {
   static const Set<String> extensoesImagem = {'jpg', 'jpeg', 'png', 'webp', 'gif', 'bmp'};
 
   static Future<Directory> obterDiretorioBase() async {
-    String caminhoBase;
-    if (Platform.isWindows) {
-      final appData = Platform.environment['APPDATA'];
-      if (appData != null && appData.isNotEmpty) {
-        caminhoBase = '$appData/Nous';
-      } else {
-        caminhoBase = '${Directory.current.path}/.nous_data';
+    try {
+      final dirSuporte = await getApplicationSupportDirectory();
+      final pasta = Directory('${dirSuporte.path}/Nous');
+      if (!await pasta.exists()) {
+        await pasta.create(recursive: true);
       }
-    } else {
-      final home = Platform.environment['HOME'] ?? Directory.current.path;
-      caminhoBase = '$home/.nous';
-    }
+      return pasta;
+    } catch (_) {
+      String caminhoBase;
+      if (Platform.isWindows) {
+        final appData = Platform.environment['APPDATA'];
+        if (appData != null && appData.isNotEmpty) {
+          caminhoBase = '$appData/Nous';
+        } else {
+          caminhoBase = '${Directory.current.path}/.nous_data';
+        }
+      } else {
+        final home = Platform.environment['HOME'] ?? Directory.current.path;
+        caminhoBase = '$home/.nous';
+      }
 
-    final dir = Directory(caminhoBase);
-    if (!await dir.exists()) {
-      await dir.create(recursive: true);
+      final dir = Directory(caminhoBase);
+      if (!await dir.exists()) {
+        await dir.create(recursive: true);
+      }
+      return dir;
     }
-    return dir;
   }
 
   static bool extensaoImagemValida(String caminho) {

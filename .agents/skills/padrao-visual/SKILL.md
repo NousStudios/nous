@@ -118,10 +118,11 @@ ThemedTextField(
 ```
 
 ### 4.5 Linhas de Comprovantes, Comandas e Tickets Térmicos
-Em linhas que exibem itens e valores (como em `impressora_dialog.dart`, `comanda_pedido.dart`, `nova_venda_dialog.dart`):
-- **Valores Monetários à Direita (`R$ ...`):** NUNCA devem quebrar verticalmente letra por letra nem ser comprimidos. Devem manter largura intrínseca e `softWrap: false`.
+Em linhas que exibem itens e valores (tanto na interface `impressora_dialog.dart`, `comanda_pedido.dart`, `nova_venda_dialog.dart`, quanto na geração real de PDFs térmicos de 58mm/80mm em `ImpressaoService.linhaDupla`):
+- **Espaçamento de Respiro Obrigatório (`8px` / `pw.SizedBox(width: 8)`):** Entre a coluna esquerda e a direita deve haver SEMPRE um espaçador mínimo garantido para impedir que o final de nomes longos cole diretamente no valor monetário (ex.: prevenindo `deR$ 25,00`).
+- **Valores Monetários à Direita (`R$ ...`):** NUNCA devem quebrar verticalmente letra por letra nem ser comprimidos. Devem manter largura intrínseca e `softWrap: false` / `pw.Text(direita, textAlign: pw.TextAlign.right)`.
 - **Nomes de Produtos e Descrições à Esquerda:** Devem ser encapsulados em `Expanded(child: Text(..., softWrap: true))` para quebrar em 2 ou mais linhas caso o nome seja longo ou a fonte esteja no tamanho máximo.
-- **Rótulos Fixos com Textos Longos à Direita (ex.: Pagamento / Forma):** A esquerda mantém largura intrínseca (`Text(rotulo)`) e a direita recebe `Expanded(child: Text(valor, softWrap: true, textAlign: TextAlign.right))`.
+- **Rótulos Fixos com Textos Longos à Direita (ex.: Pagamento / Forma / Operador):** A esquerda mantém largura intrínseca (`Text('$rotulo:')`) para **nunca sofrer compressão lateral nem quebra vertical de sílabas** (como em `Pa / ga / m / en / to`), e a direita recebe `Expanded(child: Text(valor, softWrap: true, textAlign: TextAlign.right))`, fluindo com elegância.
 
 ### 4.6 Adaptabilidade à Escala de Fontes (`theme.fontScale`)
 O usuário pode alterar o tamanho da fonte para o máximo nas Configurações:
@@ -154,6 +155,7 @@ Sempre que um nome ou texto puder ultrapassar a largura disponível no container
 ### 4.11 Responsividade Mobile vs. Desktop e Modo Compacto
 - **Dispositivos Móveis (Android e iOS):**
   - O modo padrão é SEMPRE **Compacto** (`layoutDesktopAtivo` retorna `false`).
+  - **Blindagem contra Backups Desktop:** Ao restaurar backups criados no computador (onde `loja.layoutExpandido == true`), a aplicação NUNCA deve ler `loja.layoutExpandido` de forma crua. Deve-se SEMPRE utilizar `loja.layoutExpandidoEfetivo` ou `pdv.layoutDesktopAtivo(lojaId, larguraTela)`. Isso impede que os botões de gestão da loja no topo sumam achando que existe uma barra lateral desktop.
   - Na tela de ajustes ("Modo de Visualização e Layout do PDV"), o usuário **NÃO PODE** alterar para o modo desktop expandido. A interface apresenta um card explicativo indicando que o modo compacto é fixo e exclusivo para telas verticais com toque.
   - As teclas de atalho (F1–F12) se adaptam para 1 coluna contínua quando a largura for inferior a 520px, com `TextoRolante` no F11, eliminando esmagamentos de texto.
   - A barra de ações da loja (`_barraDeAcoesLoja`) utiliza `Wrap` inteligente com rótulos compactos ("Novo Grupo") em telas estreitas, mantendo todos os botões visíveis sem rolagem cortada.
@@ -161,6 +163,7 @@ Sempre que um nome ou texto puder ultrapassar a largura disponível no container
 - **Computador (Desktop):**
   - O usuário possui total autonomia para alternar entre a versão compacta e a experiência desktop expandida com barra lateral e atalhos rápidos.
   - O container de alternância é construído com `LayoutBuilder` responsivo, prevenindo esmagamentos de texto se a janela do sistema for redimensionada para tamanhos estreitos.
+
 
 
 

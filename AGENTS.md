@@ -146,11 +146,28 @@ Este projeto apoia-se no **Plataformismo Brasileiro**: uma síntese pioneira ent
 ### 5.4 Automação de Build e Distribuição (Pasta `dist/` e Scripts)
 - **Pasta `dist/`:** Destinada a armazenar os binários compilados de entrega do sistema para testes e produção:
   - Windows: `dist/Nous_Instalador_v1.0.0_Versao_Teste.exe` (instalador executável com Inno Setup 6).
-  - Android: `dist/Nous_Android_v1.0.0_Versao_Teste.apk` e `dist/Nous_v1.0.0_Android.apk` (pacote APK gerado em modo Release).
+  - Android: `dist/Nous_Android_v1.0.0_Versao_Teste.apk` (pacote APK único gerado em modo Release).
 - **Scripts em `scripts/`:**
   - `scripts/gerar_instalador.ps1`: Compila a aplicação Windows Desktop (`flutter build windows --release`), empacota via Inno Setup 6 (`windows/installer.iss`) e entrega o executável em `dist/`. Aceita a flag opcional `-IncluirAndroid` para disparar a build do APK na mesma esteira.
-  - `scripts/gerar_apk.ps1`: Compila o APK para Android (`flutter build apk --release`) e copia automaticamente o binário final gerado para a pasta `dist/`.
-  - `scripts/converter_icone.ps1`: Converte automaticamente `assets/images/logo.png` em ícone multirresolução Windows (`app_icon.ico`) e em ícones de aplicativo Android em alta definição para todas as densidades (`mipmap-mdpi`, `hdpi`, `xhdpi`, `xxhdpi`, `xxxhdpi`).
+  - `scripts/gerar_apk.ps1`: Compila o APK para Android (`flutter build apk --release`) e copia automaticamente o binário final gerado para a pasta `dist/` gerando exclusivamente `dist/Nous_Android_v1.0.0_Versao_Teste.apk`.
+  - `scripts/deploy_wifi.ps1`: Conecta automaticamente ao celular via ADB sobre Wi-Fi e instala a versão atualizada do APK diretamente no aparelho.
+  - `scripts/converter_icone.ps1`: Converte automaticamente `assets/images/logo.png` em ícone multirresolução Windows (`app_icon.ico`) e no Android gera tanto o `ic_launcher.png` com fundo 100% preto sólido (`#000000`) de ponta a ponta quanto o Adaptive Icon oficial (`res/mipmap-anydpi-v26/ic_launcher.xml` e `ic_launcher_foreground.png` centralizado na safe zone), eliminando halos ou recortes claros nos launchers de celulares.
+- **Reconhecimento Soberano de Dispositivo no PDV:** O `PdvProvider.layoutDesktopAtivo(lojaId, larguraTela)` e o getter `loja.layoutExpandidoEfetivo` desativam categoricamente o modo desktop expandido em Android e iOS. Ao importar backups criados no Windows onde a loja estava em modo expandido, o sistema ignora o flag de desktop na interface móvel, garantindo que os botões de ação e gestão da loja (`GestaoLojaContainer`) permaneçam 100% visíveis.
+
+### 5.5 Sincronização em Rede Wi-Fi Local-First (Balcão & Terminais Móveis)
+- **Operação Simultânea Offline:** Computadores e celulares na mesma rede Wi-Fi sincronizam pedidos, estoque e mesas em tempo real via WebSocket e REST local (`servidor_rede_local.dart` e `cliente_rede_local.dart`) sem dependência de internet.
+- **Sincronização Soberana de Imagens:** O servidor expõe `GET /api/imagem?caminho=...`. O terminal móvel no celular faz o download físico das fotos ausentes (produtos, categorias, clientes, fornecedores e logo da loja) diretamente para o armazenamento interno local (`ImagemService.obterDiretorioBase()`), reescrevendo os caminhos no SQLite local para garantir autonomia e visualização offline total.
+- **Sincronização da Identidade do Usuário por CPF:** Ao conectar no balcão Wi-Fi, o celular consulta `GET /api/usuario?cpf=...`, baixa a foto de perfil do computador via `/api/imagem` para a pasta local e atualiza o banco SQLite e o `AuthProvider` (`recarregarConta()`), mantendo a mesma foto e dados cadastrais no computador e no celular sob o mesmo CPF.
+- **Distribuição Local-First de Atualizações via Wi-Fi:** O computador balcão atua como servidor de distribuição na rede local (expondo `GET /api/versao` e `GET /api/download_apk` transmitindo o APK de `dist/Nous_Android_v1.0.0_Versao_Teste.apk`). O celular móvel ao se conectar detecta a disponibilidade do APK, acende dinamicamente o botão de atualização na `CustomAppBar` com indicador de novidade e permite baixar diretamente em alta velocidade via navegador nativo (usando `MethodChannel("com.nous.app/instalador")` em `MainActivity.kt`).
+- **Identificação Nominal e Handshake de CPF:** Cada terminal conectado envia ao servidor balcão seu `nomeDispositivo` (ex.: *"Celular da Mãe"*), o `cpf` ativo da sessão e o `nomeUsuario`.
+- **Autoassociação de Membro da Loja:** Quando um dispositivo entra e se conecta ao servidor balcão na rede local cujo CPF ainda não é membro da equipe, o servidor o cadastra automaticamente como membro (`PapelMembro.funcionario`) e sincroniza a loja para o aparelho, criando a `ReferenciaLoja` local no cofre do CPF participante.
+- **Reconhecimento Multi-Dispositivo por CPF:** O sistema detecta e agrupa quando o mesmo CPF está acessando a loja através de múltiplos dispositivos simultaneamente (ex.: computador balcão + smartphone pessoal).
+- **Rastreamento de Presenças em "Status da Loja":** A tela `StatusLojaView` (Lista de Trabalhadores) exibe em tempo real o status online/offline de cada membro e os dispositivos conectados (computador balcão, smartphones, IPs locais e nomes dos aparelhos).
+- **Acesso ao Menu de Sincronização Wi-Fi:**
+  - **Barra Superior Limpa (`CustomAppBar`):** Contém estritamente Notificações, Atualizações (somente quando houver novidade disponível) e Configurações (engrenagem). Não possui botões fixos de Wi-Fi.
+  - **Menu em Configurações:** Na janela "Configurações", acima da "Identidade do Usuário", há o botão em barra com hover `_BarraSincronizacaoWifiSettings` que exibe em tempo real o status de conexão (Servidor Ativo, Conectado ao Balcão ou Desconectado) e abre o `SincronizacaoRedeDialog`.
+  - **Ajustes do Perfil:** Permanece acessível também como primeiro item dentro da aba **"Ajustes do Perfil"** (`AbaLoja.interface`).
+
 
 ---
 
@@ -562,7 +579,9 @@ Este projeto apoia-se no **Plataformismo Brasileiro**: uma síntese pioneira ent
   - Responde em tempo real a todos os seletores de dados do cliente (CNPJ, telefone, endereço, e-mail, redes sociais e descrição), integrando os canais oficiais do Nous (`nousstudios72@gmail.com`, `@nous.studios72`).
   - **Formatação Resiliente contra Esmagamento e Overflows:**
     - Renderiza dados do cliente com `linhaDadoCliente` onde o rótulo é mantido intacto e o valor reside em `Expanded(softWrap: true)` alinhado à direita.
-    - **Renderização Adaptativa de Itens e Preços (`linhaComanda`):** Se a coluna direita for valor monetário (`R$ ...`), ela mantém largura natural e `softWrap: false` (nunca quebra na vertical letra por letra nem sofre compressão), enquanto a coluna esquerda (nome do produto) recebe `Expanded(softWrap: true)`, quebrando suavemente em múltiplas linhas sem estourar o container.
+    - **Renderização Adaptativa de Itens e Preços (`linhaComanda` e `ImpressaoService.linhaDupla`):** 
+      - Se a coluna direita for valor monetário (`R$ ...`): a coluna esquerda recebe `Expanded` com espaçamento mínimo garantido de respiro (`8px` / `pw.SizedBox(width: 8)`) para que descrições longas de itens nunca colidam ou grudem nos preços (ex: impedindo `deR$ 25,00`), enquanto o valor da direita preserva largura fixa alinhado à direita.
+      - Se a coluna direita NÃO for preço (como `Pagamento: Crédito Mútuo / Autogestão`, nomes de operadores ou observações): o rótulo à esquerda preserva sua largura natural fixa (`Text('$rotulo:')`), **eliminando categoricamente a compressão lateral e quebra vertical sílaba por sílaba** (como em `Pa / ga / m / en / to`), enquanto a coluna direita recebe `Expanded` com alinhamento à direita e quebra fluida.
     - **Container Elástico por Escala de Fonte:** O preview tem largura máxima adaptável calculada por `(320.0 * theme.fontScale).clamp(320.0, 440.0)`, comportando zoom máximo de acessibilidade sem esmagamento visual.
   - **Impressão Direta do Exemplo:** Botão de ícone compacto (`Icons.print_outlined`) posicionado logo abaixo da prévia que envia o exemplo sorteado diretamente para a impressora física via `ImpressaoService.imprimirExemploComanda`.
 
@@ -713,6 +732,26 @@ Este projeto apoia-se no **Plataformismo Brasileiro**: uma síntese pioneira ent
       - **Dispensar:** O botão "X" fecha a janela e interrompe o loop inicial sem perder os pedidos, que permanecem na aba "Novos" de `GestaoLojaContainer`.
     - **Abertura na Aba "Novos":** Ao clicar em qualquer pedido na aba "Novos" da tela de gestão, abre essa mesma janela `ComandaNovoPedidoDialog`, mantendo coerência absoluta.
   - **Janela de Relatórios (`RelatoriosDialog`):** Container "Pedidos Programados" posicionado acima de "Pendências", listando os clientes que agendaram pedidos para a data filtrada com resumo e clique abrindo a comanda do pedido (`ComandaPedidoDialog`).
+
+### 7.15 Sincronização em Rede Wi-Fi Local (Local-First Multi-Terminal)
+- **Operação Simultânea PC ↔ Celular sem Dependência de Internet Externa:**
+  - O subsistema de rede local (`features/pdv/services/rede_local/`) permite que a loja opere em múltiplos computadores e celulares conectados ao mesmo roteador Wi-Fi, com latência zero e 100% soberano utilizando o motor de rede nativo do Dart (`dart:io` - `HttpServer`, `WebSocket` e `RawDatagramSocket`).
+  - **Servidor do Balcão (`ServidorRedeLocal`):**
+    - O computador do caixa/balcão pode ser ativado como servidor mestre na porta padrão `8080`.
+    - Disponibiliza rotas REST (`GET /api/status`, `GET /api/loja`, `POST /api/pedido`, `POST /api/movimento_estoque`, `POST /api/mesa`) e canal contínuo `WebSocket` (`/api/ws`).
+    - Emite broadcast UDP a cada 3s na porta `45454` anunciando a presença do balcão na rede local para descoberta automática (`nous_loja_anuncio`).
+  - **Terminal Móvel / Cliente (`ClienteRedeLocal`):**
+    - Celulares escutam a porta UDP `45454` e listam automaticamente as lojas disponíveis no Wi-Fi com botão direto "Conectar" (além de permitir conexão manual por IP e porta).
+    - Ao conectar, o celular faz o download do cardápio completo, estoque e mesas, integrando-se reativamente ao `PdvProvider`.
+    - Mantém reconexão automática e heartbeat ping/pong.
+  - **Sincronização em Tempo Real Bidirecional:**
+    - Vendas e pedidos lançados no celular são enviados via HTTP/WebSocket diretamente ao servidor do balcão.
+    - O computador central recebe o pedido, adiciona à lista da loja, dá baixa no estoque físico, **emite o alerta sonoro de novo pedido** e, se a impressora térmica estiver ligada, pode imprimir imediatamente o comprovante.
+    - Alterações de itens, preços ou estoque realizadas no balcão são propagadas instantaneamente via WebSocket para todos os celulares conectados.
+  - **Interface Centralizada (`SincronizacaoRedeDialog` & `_barraDeAcoesLoja`):**
+    - Acesso direto via botão "Rede Wi-Fi" na barra de ações da loja e no container "Sincronização em Rede Wi-Fi" na aba Ajustes do Perfil.
+    - Indicador de status em tempo real com badge verde quando online, quantidade de terminais conectados e botão de cópia de IP.
+  - **Permissões Android:** `AndroidManifest.xml` configurado com `INTERNET`, `ACCESS_NETWORK_STATE`, `ACCESS_WIFI_STATE` e `usesCleartextTraffic="true"` para garantir tráfego HTTP/WebSocket sem restrições em redes Wi-Fi locais.
 
 ---
 

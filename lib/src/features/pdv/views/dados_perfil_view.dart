@@ -63,6 +63,9 @@ import 'package:nous/src/features/pdv/views/widgets/usuarios_participantes_conta
 import 'package:nous/src/features/pdv/views/widgets/desktop_sidebar_widget.dart';
 import 'package:nous/src/features/pdv/views/widgets/seletor_layouts_desktop_widget.dart';
 import 'package:nous/src/features/pdv/views/widgets/modo_balcao_widget.dart';
+import 'package:nous/src/features/pdv/services/rede_local/cliente_rede_local.dart';
+import 'package:nous/src/features/pdv/services/rede_local/servidor_rede_local.dart';
+import 'package:nous/src/features/pdv/views/widgets/sincronizacao_rede_dialog.dart';
 import 'package:nous/src/features/notificacoes/views/widgets/notificacoes_dialog.dart';
 import 'package:nous/src/features/pdv/views/widgets/pedidos_programados_dialog.dart';
 import 'package:nous/src/features/pdv/views/widgets/comanda_novo_pedido_dialog.dart';
@@ -484,6 +487,17 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
           mesas: _mesas,
           movimentosEstoque: _movimentosEstoque,
         );
+
+    // Se este terminal for o Servidor do Balcão, notifica todos os terminais móveis conectados
+    if (ServidorRedeLocal().ativo) {
+      final lojaAtual = context.read<PdvProvider>().buscarPorId(widget.lojaId);
+      if (lojaAtual != null) {
+        ServidorRedeLocal().notificarTodos({
+          'tipo': 'loja_atualizada',
+          'loja': lojaAtual.toJson(),
+        });
+      }
+    }
   }
 
   void _salvarDadosLoja() {
@@ -1876,6 +1890,26 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
     });
     _persistirListasLoja();
 
+    // Sincronização em Rede Wi-Fi
+    if (ClienteRedeLocal().conectado) {
+      ClienteRedeLocal().enviarPedido(pedido);
+      for (final m in movimentosEstoque) {
+        ClienteRedeLocal().enviarMovimentoEstoque(m);
+      }
+    }
+    if (ServidorRedeLocal().ativo) {
+      ServidorRedeLocal().notificarTodos({
+        'tipo': 'pedido_adicionado',
+        'pedido': pedido.toJson(),
+      });
+      for (final m in movimentosEstoque) {
+        ServidorRedeLocal().notificarTodos({
+          'tipo': 'estoque_atualizado',
+          'movimento': m.toJson(),
+        });
+      }
+    }
+
     _registrarAcao(
       TipoAcao.novaVenda,
       'Nova venda ${_numeroPedido(pedido.numero)} para '
@@ -3097,16 +3131,43 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
     );
   }
 
-  Widget _botaoAcaoLoja(AppTheme theme, String rotulo, VoidCallback onPressed) {
+  void _abrirSincronizacaoRede() {
+    final loja = context.read<PdvProvider>().buscarPorId(widget.lojaId);
+    if (loja == null) return;
+    SincronizacaoRedeDialog.mostrar(context, loja: loja);
+  }
+
+  Widget _botaoAcaoLoja(
+    AppTheme theme,
+    String rotulo,
+    VoidCallback onPressed, {
+    IconData? icone,
+    Color? corDestaque,
+  }) {
     return OutlinedButton(
       style: OutlinedButton.styleFrom(
-        foregroundColor: theme.textColor,
-        side: BorderSide(color: theme.borderColor),
+        foregroundColor: corDestaque ?? theme.textColor,
+        side: BorderSide(color: corDestaque ?? theme.borderColor),
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
       ),
       onPressed: onPressed,
-      child: Text(rotulo, style: theme.getTextStyle(fontSize: 12)),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (icone != null) ...[
+            Icon(icone, size: 14, color: corDestaque ?? theme.textColor),
+            const SizedBox(width: 6),
+          ],
+          Text(
+            rotulo,
+            style: theme.getTextStyle(
+              fontSize: 12,
+              color: corDestaque ?? theme.textColor,
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -3258,10 +3319,8 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
     if (_categoriaExpandidaId == null) {
       final podeReordenar =
           podeEditarLoja && _pesquisaCategorias.text.trim().isEmpty;
-      final loja = context.read<PdvProvider>().buscarPorId(widget.lojaId);
-      final expandido = loja?.layoutExpandido ?? false;
       final larguraDaTela = MediaQuery.sizeOf(context).width;
-      final ehDesktop = expandido && larguraDaTela > 850;
+      final ehDesktop = context.read<PdvProvider>().layoutDesktopAtivo(widget.lojaId, larguraDaTela);
       final alturaMaxima = ehDesktop ? 440.0 : 180.0;
 
       return ConstrainedBox(
@@ -3433,10 +3492,8 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
     if (_grupoExpandidoId == null) {
       final podeReordenar =
           podeEditarLoja && _pesquisaGrupos.text.trim().isEmpty;
-      final loja = context.read<PdvProvider>().buscarPorId(widget.lojaId);
-      final expandido = loja?.layoutExpandido ?? false;
       final larguraDaTela = MediaQuery.sizeOf(context).width;
-      final ehDesktop = expandido && larguraDaTela > 850;
+      final ehDesktop = context.read<PdvProvider>().layoutDesktopAtivo(widget.lojaId, larguraDaTela);
       final alturaMaxima = ehDesktop ? 440.0 : 180.0;
 
       return ConstrainedBox(
@@ -3585,11 +3642,10 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
             .where((g) => g.nome.toLowerCase().contains(termoGrupos))
             .toList();
 
-    final loja = context.watch<PdvProvider>().buscarPorId(widget.lojaId);
-    final expandido = loja?.layoutExpandido ?? false;
     final larguraDaTela = MediaQuery.sizeOf(context).width;
+    final expandido = context.watch<PdvProvider>().layoutDesktopAtivo(widget.lojaId, larguraDaTela);
 
-    if (expandido && larguraDaTela > 850) {
+    if (expandido) {
       return Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -3999,8 +4055,7 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
   void _alternarLayout() {
     final pdv = context.read<PdvProvider>();
     pdv.alternarLayoutExpandido(widget.lojaId);
-    final loja = pdv.buscarPorId(widget.lojaId);
-    final expandido = loja?.layoutExpandido ?? false;
+    final expandido = pdv.layoutDesktopAtivo(widget.lojaId);
     final theme = ThemeController.currentTheme.value;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -4240,8 +4295,9 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
   }
 
   Widget _buildContainerModoLayout(AppTheme theme, bool podeEditar) {
-    final loja = context.watch<PdvProvider>().buscarPorId(widget.lojaId);
-    final expandido = loja?.layoutExpandido ?? false;
+    final pdv = context.watch<PdvProvider>();
+    final loja = pdv.buscarPorId(widget.lojaId);
+    final expandido = pdv.layoutDesktopAtivo(widget.lojaId);
     final tipoAtual = loja?.tipoLayoutMaior ?? 'balcao_operacional';
 
     return SeletorLayoutsDesktopWidget(
@@ -4985,7 +5041,7 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
   }
 
   double _obterLarguraMaxima(Loja? loja) {
-    if (loja == null || !loja.layoutExpandido) {
+    if (loja == null || !loja.layoutExpandidoEfetivo) {
       return _larguraMaximaConteudo;
     }
     switch (loja.tipoLayoutMaior) {
@@ -4999,14 +5055,122 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
     }
   }
 
+  Widget _buildContainerSincronizacaoRede(AppTheme theme) {
+    final servidor = ServidorRedeLocal();
+    final cliente = ClienteRedeLocal();
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: _decoracaoDoBloco(theme),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Center(
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.wifi_rounded, size: 20, color: theme.buttonColor),
+                const SizedBox(width: 8),
+                Text(
+                  'Sincronização em Rede Wi-Fi',
+                  style: theme.getTextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.bold,
+                    color: theme.textColor,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 6),
+          Center(
+            child: Text(
+              'Conecte computadores e celulares no mesmo Wi-Fi para operar a mesma loja em tempo real sem internet.',
+              textAlign: TextAlign.center,
+              style: theme.getTextStyle(
+                fontSize: 12,
+                color: theme.secondaryTextColor,
+              ),
+            ),
+          ),
+          const SizedBox(height: 14),
+          ListenableBuilder(
+            listenable: Listenable.merge([servidor.estaAtivo, cliente.estaConectado]),
+            builder: (context, _) {
+              final statusTexto = servidor.ativo
+                  ? 'Servidor Ativo (${servidor.totalConectados.value} conectados) • ${servidor.ipServidor}:${servidor.porta}'
+                  : cliente.conectado
+                      ? 'Conectado ao Balcão (${cliente.enderecoServidor})'
+                      : 'Nenhuma sincronização ativa no momento';
+              final statusCor = servidor.ativo || cliente.conectado
+                  ? Colors.greenAccent
+                  : theme.secondaryTextColor;
+
+              return Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                decoration: BoxDecoration(
+                  color: theme.textColor.withValues(alpha: 0.06),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Container(
+                      width: 8,
+                      height: 8,
+                      decoration: BoxDecoration(
+                        color: statusCor,
+                        shape: BoxShape.circle,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Flexible(
+                      child: Text(
+                        statusTexto,
+                        textAlign: TextAlign.center,
+                        style: theme.getTextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                          color: statusCor,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            },
+          ),
+          const SizedBox(height: 14),
+          Center(
+            child: OutlinedButton.icon(
+              onPressed: _abrirSincronizacaoRede,
+              icon: Icon(Icons.settings_ethernet_rounded, size: 16, color: theme.textColor),
+              label: Text(
+                'Gerenciar Conexões Wi-Fi',
+                style: theme.getTextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+              ),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: theme.textColor,
+                side: BorderSide(color: theme.borderColor),
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _conteudoDaAba(AppTheme theme) {
     final cpfLogado = context.read<AuthProvider>().contaAtual?.cpf ?? '';
     final pdv = context.read<PdvProvider>();
     final possoEditarDados = pdv.possoEditarDadosLoja(widget.lojaId);
     final possoGerenciarMembros = pdv.possoGerenciarMembros(widget.lojaId);
     final lojaAtual = pdv.buscarPorId(widget.lojaId);
-    final expandido = lojaAtual?.layoutExpandido ?? false;
     final larguraDaTela = MediaQuery.sizeOf(context).width;
+    final expandido = pdv.layoutDesktopAtivo(widget.lojaId, larguraDaTela);
 
     switch (_abaSelecionada) {
       case AbaLoja.dados:
@@ -5307,6 +5471,8 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
                   Expanded(
                     child: Column(
                       children: [
+                        _buildContainerSincronizacaoRede(theme),
+                        const SizedBox(height: 16),
                         _buildContainerModoLayout(theme, possoEditarDados),
                         const SizedBox(height: 16),
                         _buildContainerComandos(theme, possoEditarDados),
@@ -5334,6 +5500,8 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
         return Column(
           children: [
             ?avisoSomenteLeitura,
+            _buildContainerSincronizacaoRede(theme),
+            const SizedBox(height: 16),
             _buildContainerModoLayout(theme, possoEditarDados),
             const SizedBox(height: 16),
             _buildContainerComandos(theme, possoEditarDados),
@@ -5350,7 +5518,8 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
 
   @override
   Widget build(BuildContext context) {
-    final lojaAtual = context.watch<PdvProvider>().buscarPorId(widget.lojaId);
+    final pdv = context.watch<PdvProvider>();
+    final lojaAtual = pdv.buscarPorId(widget.lojaId);
     final larguraDinamica = _obterLarguraMaxima(lojaAtual);
 
     return CallbackShortcuts(
@@ -5420,7 +5589,7 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
             }
 
             final larguraDaTela = MediaQuery.sizeOf(context).width;
-            final expandido = (lojaAtual?.layoutExpandido ?? false) && larguraDaTela > 850;
+            final expandido = pdv.layoutDesktopAtivo(widget.lojaId, larguraDaTela);
 
             if (expandido) {
               return Scaffold(

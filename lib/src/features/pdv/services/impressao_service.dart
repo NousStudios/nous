@@ -293,15 +293,39 @@ class ImpressaoService {
       String direita, {
       bool negrito = false,
     }) {
+      final ehPreco = direita.trim().startsWith('R\$') ||
+          direita.trim().startsWith('-R\$') ||
+          direita.trim().startsWith('+R\$');
+
       return pw.Padding(
         padding: const pw.EdgeInsets.symmetric(vertical: 1),
         child: pw.Row(
           crossAxisAlignment: pw.CrossAxisAlignment.start,
           children: [
-            pw.Expanded(
-              child: pw.Text(esquerda, style: estilo(negrito: negrito)),
-            ),
-            pw.Text(direita, style: estilo(negrito: negrito)),
+            if (ehPreco)
+              pw.Expanded(
+                child: pw.Text(esquerda, style: estilo(negrito: negrito)),
+              )
+            else
+              pw.Text(
+                esquerda.endsWith(':') ? esquerda : '$esquerda:',
+                style: estilo(negrito: negrito),
+              ),
+            pw.SizedBox(width: 8),
+            if (ehPreco)
+              pw.Text(
+                direita,
+                style: estilo(negrito: negrito),
+                textAlign: pw.TextAlign.right,
+              )
+            else
+              pw.Expanded(
+                child: pw.Text(
+                  direita,
+                  textAlign: pw.TextAlign.right,
+                  style: estilo(negrito: negrito),
+                ),
+              ),
           ],
         ),
       );
@@ -442,15 +466,39 @@ class ImpressaoService {
       String direita, {
       bool negrito = false,
     }) {
+      final ehPreco = direita.trim().startsWith('R\$') ||
+          direita.trim().startsWith('-R\$') ||
+          direita.trim().startsWith('+R\$');
+
       return pw.Padding(
         padding: const pw.EdgeInsets.symmetric(vertical: 1),
         child: pw.Row(
           crossAxisAlignment: pw.CrossAxisAlignment.start,
           children: [
-            pw.Expanded(
-              child: pw.Text(esquerda, style: estilo(negrito: negrito)),
-            ),
-            pw.Text(direita, style: estilo(negrito: negrito)),
+            if (ehPreco)
+              pw.Expanded(
+                child: pw.Text(esquerda, style: estilo(negrito: negrito)),
+              )
+            else
+              pw.Text(
+                esquerda.endsWith(':') ? esquerda : '$esquerda:',
+                style: estilo(negrito: negrito),
+              ),
+            pw.SizedBox(width: 8),
+            if (ehPreco)
+              pw.Text(
+                direita,
+                style: estilo(negrito: negrito),
+                textAlign: pw.TextAlign.right,
+              )
+            else
+              pw.Expanded(
+                child: pw.Text(
+                  direita,
+                  textAlign: pw.TextAlign.right,
+                  style: estilo(negrito: negrito),
+                ),
+              ),
           ],
         ),
       );
@@ -657,15 +705,39 @@ class ImpressaoService {
       String direita, {
       bool negrito = false,
     }) {
+      final ehPreco = direita.trim().startsWith('R\$') ||
+          direita.trim().startsWith('-R\$') ||
+          direita.trim().startsWith('+R\$');
+
       return pw.Padding(
         padding: const pw.EdgeInsets.symmetric(vertical: 1.5),
         child: pw.Row(
           crossAxisAlignment: pw.CrossAxisAlignment.start,
           children: [
-            pw.Expanded(
-              child: pw.Text(esquerda, style: estilo(negrito: negrito)),
-            ),
-            pw.Text(direita, style: estilo(negrito: negrito)),
+            if (ehPreco)
+              pw.Expanded(
+                child: pw.Text(esquerda, style: estilo(negrito: negrito)),
+              )
+            else
+              pw.Text(
+                esquerda.endsWith(':') ? esquerda : '$esquerda:',
+                style: estilo(negrito: negrito),
+              ),
+            pw.SizedBox(width: 8),
+            if (ehPreco)
+              pw.Text(
+                direita,
+                style: estilo(negrito: negrito),
+                textAlign: pw.TextAlign.right,
+              )
+            else
+              pw.Expanded(
+                child: pw.Text(
+                  direita,
+                  textAlign: pw.TextAlign.right,
+                  style: estilo(negrito: negrito),
+                ),
+              ),
           ],
         ),
       );
@@ -776,15 +848,39 @@ class ImpressaoService {
       String direita, {
       bool negrito = false,
     }) {
+      final ehPreco = direita.trim().startsWith('R\$') ||
+          direita.trim().startsWith('-R\$') ||
+          direita.trim().startsWith('+R\$');
+
       return pw.Padding(
         padding: const pw.EdgeInsets.symmetric(vertical: 1),
         child: pw.Row(
           crossAxisAlignment: pw.CrossAxisAlignment.start,
           children: [
-            pw.Expanded(
-              child: pw.Text(esquerda, style: estilo(negrito: negrito)),
-            ),
-            pw.Text(direita, style: estilo(negrito: negrito)),
+            if (ehPreco)
+              pw.Expanded(
+                child: pw.Text(esquerda, style: estilo(negrito: negrito)),
+              )
+            else
+              pw.Text(
+                esquerda.endsWith(':') ? esquerda : '$esquerda:',
+                style: estilo(negrito: negrito),
+              ),
+            pw.SizedBox(width: 8),
+            if (ehPreco)
+              pw.Text(
+                direita,
+                style: estilo(negrito: negrito),
+                textAlign: pw.TextAlign.right,
+              )
+            else
+              pw.Expanded(
+                child: pw.Text(
+                  direita,
+                  textAlign: pw.TextAlign.right,
+                  style: estilo(negrito: negrito),
+                ),
+              ),
           ],
         ),
       );
@@ -903,15 +999,39 @@ class ImpressaoService {
       String direita, {
       bool negrito = false,
     }) {
+      final ehPreco = direita.trim().startsWith('R\$') ||
+          direita.trim().startsWith('-R\$') ||
+          direita.trim().startsWith('+R\$');
+
       return pw.Padding(
         padding: const pw.EdgeInsets.symmetric(vertical: 1.5),
         child: pw.Row(
           crossAxisAlignment: pw.CrossAxisAlignment.start,
           children: [
-            pw.Expanded(
-              child: pw.Text(esquerda, style: estilo(negrito: negrito)),
-            ),
-            pw.Text(direita, style: estilo(negrito: negrito)),
+            if (ehPreco)
+              pw.Expanded(
+                child: pw.Text(esquerda, style: estilo(negrito: negrito)),
+              )
+            else
+              pw.Text(
+                esquerda.endsWith(':') ? esquerda : '$esquerda:',
+                style: estilo(negrito: negrito),
+              ),
+            pw.SizedBox(width: 8),
+            if (ehPreco)
+              pw.Text(
+                direita,
+                style: estilo(negrito: negrito),
+                textAlign: pw.TextAlign.right,
+              )
+            else
+              pw.Expanded(
+                child: pw.Text(
+                  direita,
+                  textAlign: pw.TextAlign.right,
+                  style: estilo(negrito: negrito),
+                ),
+              ),
           ],
         ),
       );
@@ -1047,15 +1167,39 @@ class ImpressaoService {
       String direita, {
       bool negrito = false,
     }) {
+      final ehPreco = direita.trim().startsWith('R\$') ||
+          direita.trim().startsWith('-R\$') ||
+          direita.trim().startsWith('+R\$');
+
       return pw.Padding(
         padding: const pw.EdgeInsets.symmetric(vertical: 1),
         child: pw.Row(
           crossAxisAlignment: pw.CrossAxisAlignment.start,
           children: [
-            pw.Expanded(
-              child: pw.Text(esquerda, style: estilo(negrito: negrito)),
-            ),
-            pw.Text(direita, style: estilo(negrito: negrito)),
+            if (ehPreco)
+              pw.Expanded(
+                child: pw.Text(esquerda, style: estilo(negrito: negrito)),
+              )
+            else
+              pw.Text(
+                esquerda.endsWith(':') ? esquerda : '$esquerda:',
+                style: estilo(negrito: negrito),
+              ),
+            pw.SizedBox(width: 8),
+            if (ehPreco)
+              pw.Text(
+                direita,
+                style: estilo(negrito: negrito),
+                textAlign: pw.TextAlign.right,
+              )
+            else
+              pw.Expanded(
+                child: pw.Text(
+                  direita,
+                  textAlign: pw.TextAlign.right,
+                  style: estilo(negrito: negrito),
+                ),
+              ),
           ],
         ),
       );

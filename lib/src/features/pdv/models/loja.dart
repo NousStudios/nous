@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:nous/src/features/pdv/models/cargo_loja.dart';
 import 'package:nous/src/features/pdv/models/categoria_loja.dart';
 import 'package:nous/src/features/pdv/models/cliente.dart';
@@ -58,6 +59,16 @@ class Loja {
   final Map<String, String> atalhosTeclado;
   final bool layoutExpandido;
   final String tipoLayoutMaior;
+
+  /// Retorna o estado real do layout expandido respeitando o dispositivo ativo.
+  /// Em celulares (Android e iOS), retorna sempre falso para prevenir desaparecimento de botões.
+  bool get layoutExpandidoEfetivo {
+    if (defaultTargetPlatform == TargetPlatform.android ||
+        defaultTargetPlatform == TargetPlatform.iOS) {
+      return false;
+    }
+    return layoutExpandido;
+  }
 
   const Loja({
     required this.id,

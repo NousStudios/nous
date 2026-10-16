@@ -32,14 +32,17 @@ class PdvProvider extends ChangeNotifier {
   bool get layoutDesktopGlobal => _layoutDesktopGlobal;
   String get tipoLayoutDesktopGlobal => _tipoLayoutDesktopGlobal;
 
-  bool layoutDesktopAtivo([String? lojaId]) {
+  bool layoutDesktopAtivo([String? lojaId, double? larguraTela]) {
     if (defaultTargetPlatform == TargetPlatform.android ||
         defaultTargetPlatform == TargetPlatform.iOS) {
       return false;
     }
+    if (larguraTela != null && larguraTela <= 850) {
+      return false;
+    }
     if (lojaId != null && lojaId.isNotEmpty) {
       final loja = buscarPorId(lojaId);
-      if (loja != null) return loja.layoutExpandido;
+      if (loja != null) return loja.layoutExpandidoEfetivo;
     }
     return _layoutDesktopGlobal;
   }
@@ -413,6 +416,17 @@ class PdvProvider extends ChangeNotifier {
     _lojas.add(novaLoja);
     notifyListeners();
     _salvarLojaNoCofreCorreto(novaLoja);
+  }
+
+  Future<void> adicionarOuAtualizarLoja(Loja loja) async {
+    final indice = _lojas.indexWhere((l) => l.id == loja.id);
+    if (indice != -1) {
+      _lojas[indice] = loja;
+    } else {
+      _lojas.add(loja);
+    }
+    notifyListeners();
+    await _salvarLojaNoCofreCorreto(loja);
   }
 
   Loja? buscarPorId(String id) {
