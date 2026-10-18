@@ -20,6 +20,8 @@ import 'package:nous/src/features/pdv/models/registro_acao.dart';
 import 'package:nous/src/features/pdv/models/turno_caixa.dart';
 import 'package:nous/src/features/pdv/services/backup_service.dart';
 import 'package:nous/src/features/pdv/services/lojas_service.dart';
+import 'package:nous/src/features/pdv/services/rede_local/cliente_rede_local.dart';
+import 'package:nous/src/features/pdv/services/rede_local/servidor_rede_local.dart';
 
 class PdvProvider extends ChangeNotifier {
   final List<Loja> _lojas = [];
@@ -335,6 +337,12 @@ class PdvProvider extends ChangeNotifier {
     final referenciasOrfas = <ReferenciaLoja>[];
 
     for (final ref in referencias) {
+      // Se a referência aponta para a própria loja do dono ou já existe em minhasLojas, remove a redundância
+      if (_mesmoCpf(ref.cpfDonoOriginal, cpf) ||
+          minhasLojas.any((l) => l.id == ref.lojaId)) {
+        referenciasOrfas.add(ref);
+        continue;
+      }
       final cofre = await LojasService.carregar(ref.cpfDonoOriginal);
       Loja? encontrada;
       for (final l in cofre) {
@@ -357,8 +365,12 @@ class PdvProvider extends ChangeNotifier {
 
     _lojas
       ..clear()
-      ..addAll(minhasLojas)
-      ..addAll(lojasReferenciadas);
+      ..addAll(minhasLojas);
+    for (final refLoja in lojasReferenciadas) {
+      if (!_lojas.any((l) => l.id == refLoja.id)) {
+        _lojas.add(refLoja);
+      }
+    }
 
     notifyListeners();
   }
@@ -383,6 +395,18 @@ class PdvProvider extends ChangeNotifier {
       cofre[indice] = loja;
     }
     await LojasService.salvar(dono, cofre);
+
+    // Se o Servidor de Rede Local estiver ativo para esta loja, notifica imediatamente os terminais conectados
+    if (ServidorRedeLocal().ativo) {
+      ServidorRedeLocal().notificarLojaAtualizada(loja);
+    }
+
+    // Se este terminal estiver conectado como cliente ao balcão e não estiver aplicando atualização da rede
+    if (ClienteRedeLocal().conectado && !ClienteRedeLocal().aplicandoAtualizacaoRemota) {
+      if (ClienteRedeLocal().lojaSincronizada?.id == loja.id) {
+        ClienteRedeLocal().enviarLojaAtualizada(loja);
+      }
+    }
   }
 
   void salvarLoja({

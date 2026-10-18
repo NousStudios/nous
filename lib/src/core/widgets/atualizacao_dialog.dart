@@ -2,6 +2,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:nous/src/core/services/atualizacao_service.dart';
 import 'package:nous/src/core/theme/theme_controller.dart';
+import 'package:nous/src/features/pdv/services/rede_local/cliente_rede_local.dart';
 
 class AtualizacaoDialog extends StatefulWidget {
   final AppTheme theme;
@@ -39,8 +40,11 @@ class _AtualizacaoDialogState extends State<AtualizacaoDialog> {
   @override
   void initState() {
     super.initState();
-    // Executa uma verificação ao abrir se ainda não tiver verificado
-    if (AtualizacaoService.ultimaVerificacao.value == null) {
+    // Se conectado ao balcão Wi-Fi, consulta prioritariamente a versão local
+    if (ClienteRedeLocal().conectado) {
+      ClienteRedeLocal().verificarAtualizacaoLocal();
+    } else if (AtualizacaoService.ultimaVerificacao.value == null &&
+        !AtualizacaoService.temAtualizacao.value) {
       AtualizacaoService.verificarAtualizacao();
     }
   }
@@ -278,6 +282,50 @@ class _AtualizacaoDialogState extends State<AtualizacaoDialog> {
                               ),
                             ),
                           ],
+                          ValueListenableBuilder<bool>(
+                            valueListenable: AtualizacaoService.baixando,
+                            builder: (context, estaBaixando, _) {
+                              if (!estaBaixando) return const SizedBox.shrink();
+                              return ValueListenableBuilder<double?>(
+                                valueListenable:
+                                    AtualizacaoService.progressoDownload,
+                                builder: (context, progresso, _) {
+                                  final pct = ((progresso ?? 0.0) * 100).toInt();
+                                  return Padding(
+                                    padding: const EdgeInsets.only(top: 10),
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        ClipRRect(
+                                          borderRadius:
+                                              BorderRadius.circular(6),
+                                          child: LinearProgressIndicator(
+                                            value: progresso,
+                                            backgroundColor: theme.borderColor
+                                                .withValues(alpha: 0.3),
+                                            color: theme.textColor,
+                                            minHeight: 6,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 6),
+                                        Text(
+                                          progresso != null && progresso < 1.0
+                                              ? 'Baixando atualização in-app: $pct%...'
+                                              : 'Download concluído! Iniciando instalador...',
+                                          style: theme.getTextStyle(
+                                            fontSize: 11,
+                                            fontWeight: FontWeight.w600,
+                                            color: theme.textColor,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  );
+                                },
+                              );
+                            },
+                          ),
                         ],
                       ),
                     )
@@ -390,7 +438,13 @@ class _AtualizacaoDialogState extends State<AtualizacaoDialog> {
                           ),
                           onPressed: estaVerificando
                               ? null
-                              : () => AtualizacaoService.verificarAtualizacao(),
+                              : () async {
+                                  if (ClienteRedeLocal().conectado) {
+                                    await ClienteRedeLocal().verificarAtualizacaoLocal();
+                                  } else {
+                                    await AtualizacaoService.verificarAtualizacao();
+                                  }
+                                },
                           child: Text(
                             'Verificar Agora',
                             style: theme.getTextStyle(
@@ -403,28 +457,60 @@ class _AtualizacaoDialogState extends State<AtualizacaoDialog> {
                       const SizedBox(width: 10),
                       if (temNovaVersao && info != null)
                         Expanded(
-                          child: ElevatedButton(
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: theme.buttonColor,
-                              foregroundColor: theme.buttonTextColor,
-                              padding: const EdgeInsets.symmetric(vertical: 12),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(10),
-                              ),
-                            ),
-                            onPressed: () {
-                              AtualizacaoService.abrirPaginaDownload(
-                                info.urlDownload,
+                          child: ValueListenableBuilder<bool>(
+                            valueListenable: AtualizacaoService.baixando,
+                            builder: (context, estaBaixando, _) {
+                              return ElevatedButton(
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: theme.buttonColor,
+                                  foregroundColor: theme.buttonTextColor,
+                                  padding:
+                                      const EdgeInsets.symmetric(vertical: 12),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(10),
+                                  ),
+                                ),
+                                onPressed: estaBaixando
+                                    ? null
+                                    : () {
+                                        AtualizacaoService.baixarEInstalarAtualizacao(
+                                          info.urlDownload,
+                                        );
+                                      },
+                                child: estaBaixando
+                                    ? Row(
+                                        mainAxisAlignment:
+                                            MainAxisAlignment.center,
+                                        children: [
+                                          SizedBox(
+                                            width: 14,
+                                            height: 14,
+                                            child: CircularProgressIndicator(
+                                              strokeWidth: 2,
+                                              color: theme.buttonTextColor,
+                                            ),
+                                          ),
+                                          const SizedBox(width: 8),
+                                          Text(
+                                            'Instalando...',
+                                            style: theme.getTextStyle(
+                                              fontSize: 13,
+                                              fontWeight: FontWeight.bold,
+                                              color: theme.buttonTextColor,
+                                            ),
+                                          ),
+                                        ],
+                                      )
+                                    : Text(
+                                        'Instalar v${info.versao}',
+                                        style: theme.getTextStyle(
+                                          fontSize: 13,
+                                          fontWeight: FontWeight.bold,
+                                          color: theme.buttonTextColor,
+                                        ),
+                                      ),
                               );
                             },
-                            child: Text(
-                              'Baixar v${info.versao}',
-                              style: theme.getTextStyle(
-                                fontSize: 13,
-                                fontWeight: FontWeight.bold,
-                                color: theme.buttonTextColor,
-                              ),
-                            ),
                           ),
                         )
                       else

@@ -5,6 +5,7 @@ import 'package:nous/src/core/theme/theme_controller.dart';
 import 'package:nous/src/features/auth/providers/auth_provider.dart';
 import 'package:nous/src/features/auth/services/cpf_validator.dart';
 import 'package:nous/src/features/auth/views/contas_usuario_view.dart';
+import 'package:nous/src/features/pdv/services/dados_locais_service.dart';
 
 class _DataNascimentoFormatter extends TextInputFormatter {
   @override
@@ -39,6 +40,31 @@ class _AssociarCpfViewState extends State<AssociarCpfView> {
   final _dataController = TextEditingController();
 
   bool _salvando = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _carregarDadosPrevios();
+  }
+
+  Future<void> _carregarDadosPrevios() async {
+    final cpf = context.read<AuthProvider>().cpf;
+    if (cpf.isEmpty) return;
+
+    try {
+      final dados = await DadosLocaisService.buscarPorDocumento(cpf);
+      if (!mounted) return;
+      if (dados != null) {
+        if (_nomeController.text.isEmpty && dados.nome.isNotEmpty) {
+          _nomeController.text = dados.nome;
+        }
+        if (_dataController.text.isEmpty && dados.dataNascimento.isNotEmpty) {
+          _dataController.text = dados.dataNascimento;
+        }
+        setState(() {});
+      }
+    } catch (_) {}
+  }
 
   @override
   void dispose() {

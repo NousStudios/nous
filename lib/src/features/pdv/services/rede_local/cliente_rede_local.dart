@@ -5,7 +5,6 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:nous/src/core/services/atualizacao_service.dart';
-import 'package:nous/src/core/services/gerador_id.dart';
 import 'package:nous/src/features/auth/models/usuario_nous.dart';
 import 'package:nous/src/features/auth/providers/auth_provider.dart';
 import 'package:nous/src/features/auth/services/contas_nous_service.dart';
@@ -75,10 +74,15 @@ class ClienteRedeLocal {
   bool _nomeCarregado = false;
 
   final ValueNotifier<bool> estaConectado = ValueNotifier<bool>(false);
+  final ValueNotifier<String?> ultimoErro = ValueNotifier<String?>(null);
   final ValueNotifier<List<DispositivoLojaInfo>> lojasEncontradas =
       ValueNotifier<List<DispositivoLojaInfo>>([]);
   final ValueNotifier<List<TerminalConectadoInfo>> presencasAtivas =
       ValueNotifier<List<TerminalConectadoInfo>>([]);
+
+  bool _aplicandoAtualizacaoRemota = false;
+  bool get aplicandoAtualizacaoRemota => _aplicandoAtualizacaoRemota;
+  Timer? _timerDebounceEnvioLoja;
 
   bool get conectado => _ws != null && estaConectado.value;
   String? get enderecoServidor =>
@@ -210,15 +214,43 @@ class ClienteRedeLocal {
     if (auth != null) _authProvider = auth;
 
     try {
+      ultimoErro.value = null;
       await obterNomeDispositivo();
 
-      // 1. Baixa o snapshot atualizado da Loja via REST
-      final client = HttpClient()..connectionTimeout = const Duration(seconds: 4);
-      final request = await client.getUrl(Uri.parse('http://$_ipServidor:$_portaServidor/api/loja'));
-      final response = await request.close();
+      final cpfLogado =
+          _pdvProvider?.cpfAtual ?? _authProvider?.contaAtual?.cpf ?? _authProvider?.cpf ?? '';
+      String? nomeUsuario;
+      if (cpfLogado.isNotEmpty) {
+        final conta = await ContasNousService.buscarPorCpf(cpfLogado);
+        nomeUsuario = conta?.nome ?? _authProvider?.contaAtual?.nome;
+      }
+
+      // 1. Baixa o snapshot atualizado da Loja via REST, passando os dados de identidade para auto-associação
+      // Timeout aumentado para 35 segundos para dar tempo ao operador balcão de autorizar a conexão
+      final client = HttpClient()..connectionTimeout = const Duration(seconds: 35);
+      final uriLoja = Uri(
+        scheme: 'http',
+        host: _ipServidor,
+        port: _portaServidor,
+        path: '/api/loja',
+        queryParameters: {
+          if (cpfLogado.isNotEmpty) 'cpf': cpfLogado,
+          if (nomeUsuario != null && nomeUsuario.isNotEmpty) 'nome': nomeUsuario,
+          'dispositivo': _nomeDispositivo,
+        },
+      );
+      final request = await client.getUrl(uriLoja).timeout(const Duration(seconds: 35));
+      final response = await request.close().timeout(const Duration(seconds: 35));
+
+      if (response.statusCode == HttpStatus.forbidden) {
+        debugPrint('[ClienteRedeLocal] Conexão recusada pelo Administrador do Balcão.');
+        ultimoErro.value = 'Conexão recusada pelo Administrador do Balcão.';
+        return false;
+      }
 
       if (response.statusCode != HttpStatus.ok) {
         debugPrint('[ClienteRedeLocal] Falha ao obter dados da loja HTTP ${response.statusCode}');
+        ultimoErro.value = 'Falha ao obter dados da loja (HTTP ${response.statusCode}).';
         return false;
       }
 
@@ -236,19 +268,12 @@ class ClienteRedeLocal {
 
       // 2. Conecta ao WebSocket para atualizações em tempo real
       final wsUrl = 'ws://$_ipServidor:$_portaServidor/api/ws';
-      _ws = await WebSocket.connect(wsUrl).timeout(const Duration(seconds: 4));
+      _ws = await WebSocket.connect(wsUrl).timeout(const Duration(seconds: 10));
 
       estaConectado.value = true;
       debugPrint('[ClienteRedeLocal] Conectado ao servidor via WebSocket em $wsUrl');
 
       // Envia identificação nominal do dispositivo e dados do usuário para o balcão
-      final cpfLogado = _pdvProvider?.cpfAtual;
-      String? nomeUsuario;
-      if (cpfLogado != null && cpfLogado.isNotEmpty) {
-        final conta = await ContasNousService.buscarPorCpf(cpfLogado);
-        nomeUsuario = conta?.nome;
-      }
-
       _ws!.add(
         jsonEncode({
           'tipo': 'identificacao',
@@ -284,6 +309,9 @@ class ClienteRedeLocal {
     } catch (e) {
       debugPrint('[ClienteRedeLocal] Erro ao conectar ao servidor: $e');
       estaConectado.value = false;
+      if (ultimoErro.value == null) {
+        ultimoErro.value = 'Não foi possível conectar ao balcão.';
+      }
       return false;
     }
   }
@@ -293,13 +321,22 @@ class ClienteRedeLocal {
       final dados = jsonDecode(msg as String) as Map<String, dynamic>;
       final tipo = dados['tipo'];
 
+      if (tipo == 'pong') {
+        return;
+      }
+
       if (tipo == 'dados_iniciais' || tipo == 'loja_atualizada') {
         if (dados['loja'] != null && _pdvProvider != null) {
-          final lojaBruta = Loja.fromJson(dados['loja'] as Map<String, dynamic>);
-          final lojaNova = await _sincronizarImagensRemotas(lojaBruta);
-          _lojaSincronizada = lojaNova;
-          await _pdvProvider!.adicionarOuAtualizarLoja(lojaNova);
-          await _vincularLojaSeNecessario(lojaNova);
+          _aplicandoAtualizacaoRemota = true;
+          try {
+            final lojaBruta = Loja.fromJson(dados['loja'] as Map<String, dynamic>);
+            final lojaNova = await _sincronizarImagensRemotas(lojaBruta);
+            _lojaSincronizada = lojaNova;
+            await _pdvProvider!.adicionarOuAtualizarLoja(lojaNova);
+            await _vincularLojaSeNecessario(lojaNova);
+          } finally {
+            _aplicandoAtualizacaoRemota = false;
+          }
         }
         if (dados['presencas'] != null) {
           final lista = dados['presencas'] as List<dynamic>? ?? [];
@@ -376,23 +413,47 @@ class ClienteRedeLocal {
 
   /// Vincula a loja sincronizada aos perfis locais do usuário se ele for membro ou dono
   Future<void> _vincularLojaSeNecessario(Loja loja) async {
-    final cpf = _pdvProvider?.cpfAtual;
+    final cpf = _pdvProvider?.cpfAtual ?? _authProvider?.contaAtual?.cpf ?? _authProvider?.cpf;
     if (cpf != null && cpf.isNotEmpty && _pdvProvider != null) {
       final cpfLimpo = cpf.replaceAll(RegExp(r'\D'), '');
-      final ehDono = loja.cpfDonoOriginal.replaceAll(RegExp(r'\D'), '') == cpfLimpo;
+      final ehDono =
+          loja.cpfDonoOriginal.replaceAll(RegExp(r'\D'), '') == cpfLimpo;
       final ehMembro = loja.membros.any(
         (m) => m.cpf.replaceAll(RegExp(r'\D'), '') == cpfLimpo,
       );
 
-      if (ehMembro || ehDono) {
-        await LojasService.adicionarReferencia(
-          cpf,
-          ReferenciaLoja(
-            lojaId: loja.id,
-            cpfDonoOriginal: loja.cpfDonoOriginal,
-          ),
-        );
-        await _pdvProvider!.entrarComCpf(cpf);
+      if (ehDono) {
+        // O dono nunca deve ter ReferenciaLoja para sua própria loja (já reside em minhasLojas).
+        await LojasService.removerReferencia(cpf, loja.id);
+        return;
+      }
+
+      if (ehMembro) {
+        // 1. Salva a loja completa no cofre do dono original no banco SQLite local deste aparelho
+        final cofreDono = await LojasService.carregar(loja.cpfDonoOriginal);
+        final idx = cofreDono.indexWhere((l) => l.id == loja.id);
+        if (idx != -1) {
+          cofreDono[idx] = loja;
+        } else {
+          cofreDono.add(loja);
+        }
+        await LojasService.salvar(loja.cpfDonoOriginal, cofreDono);
+
+        // 2. Garante a referência no cofre deste CPF participante
+        final refs = await LojasService.carregarReferencias(cpf);
+        final jaTem = refs.any((r) => r.lojaId == loja.id);
+        if (!jaTem) {
+          await LojasService.adicionarReferencia(
+            cpf,
+            ReferenciaLoja(
+              lojaId: loja.id,
+              cpfDonoOriginal: loja.cpfDonoOriginal,
+            ),
+          );
+
+          // 3. Recarrega as lojas no PdvProvider apenas na primeira vinculação para aparecer em lojasQueParticipo
+          await _pdvProvider!.entrarComCpf(cpf);
+        }
       }
     }
   }
@@ -451,6 +512,46 @@ class ClienteRedeLocal {
     }
   }
 
+  /// Envia a atualização completa da loja realizada neste terminal móvel para o servidor central (balcão)
+  Future<bool> enviarLojaAtualizada(Loja loja, {bool imediato = false}) async {
+    if (_ipServidor == null || _portaServidor == null || !conectado) return false;
+    if (_aplicandoAtualizacaoRemota) return false;
+
+    _timerDebounceEnvioLoja?.cancel();
+
+    Future<bool> executarEnvio() async {
+      try {
+        final client = HttpClient()..connectionTimeout = const Duration(seconds: 5);
+        final request = await client.postUrl(
+          Uri.parse('http://$_ipServidor:$_portaServidor/api/loja/atualizar'),
+        );
+        request.headers.contentType = ContentType.json;
+        request.write(jsonEncode(loja.toJson()));
+        final response = await request.close();
+        final ok = response.statusCode == HttpStatus.ok;
+        debugPrint(
+          '[ClienteRedeLocal] Sincronização da loja "${loja.nome}" enviada ao balcão: '
+          '${ok ? "Sucesso" : "Falha (${response.statusCode})"}',
+        );
+        return ok;
+      } catch (e) {
+        debugPrint('[ClienteRedeLocal] Erro ao enviar atualização da loja ao servidor: $e');
+        return false;
+      }
+    }
+
+    if (imediato) {
+      return await executarEnvio();
+    }
+
+    final completer = Completer<bool>();
+    _timerDebounceEnvioLoja = Timer(const Duration(milliseconds: 150), () async {
+      final res = await executarEnvio();
+      if (!completer.isCompleted) completer.complete(res);
+    });
+    return completer.future;
+  }
+
   /// Desconecta do servidor
   Future<void> desconectar() async {
     _timerReconexao?.cancel();
@@ -488,14 +589,25 @@ class ClienteRedeLocal {
         if (caminhoRemoto == null || caminhoRemoto.trim().isEmpty) return '';
         final caminhoLimpo = caminhoRemoto.trim();
 
-        // Se o arquivo já existe localmente neste celular, mantém
+        // Se o caminho já aponta para um arquivo existente localmente neste celular, mantém
         if (File(caminhoLimpo).existsSync()) {
           return caminhoLimpo;
         }
 
-        // Se já foi baixado nesta mesma execução
+        // Se já foi mapeado nesta execução em memória
         if (mapaCaminhos.containsKey(caminhoLimpo)) {
           return mapaCaminhos[caminhoLimpo]!;
+        }
+
+        final ext = caminhoLimpo.split('.').last.toLowerCase();
+        final extensaoFinal = ImagemService.extensoesImagem.contains(ext) ? ext : 'jpg';
+        final nomeArquivoLocal = 'remota_${caminhoLimpo.hashCode.abs()}.$extensaoFinal';
+        final arquivoLocal = File('${pastaImagens.path}/$nomeArquivoLocal');
+
+        // Se a imagem já foi baixada anteriormente e está íntegra no disco, reutiliza instantaneamente
+        if (arquivoLocal.existsSync() && arquivoLocal.lengthSync() > 0) {
+          mapaCaminhos[caminhoLimpo] = arquivoLocal.path;
+          return arquivoLocal.path;
         }
 
         try {
@@ -506,17 +618,12 @@ class ClienteRedeLocal {
           final resp = await req.close();
 
           if (resp.statusCode == HttpStatus.ok) {
-            final ext = caminhoLimpo.split('.').last.toLowerCase();
-            final extensaoFinal = ImagemService.extensoesImagem.contains(ext) ? ext : 'jpg';
-            final novoArquivo = File('${pastaImagens.path}/img_remota_${gerarIdUnico()}.$extensaoFinal');
+            final bytes = await resp.fold<List<int>>([], (acc, chunk) => acc..addAll(chunk));
+            await arquivoLocal.writeAsBytes(bytes);
 
-            final sink = novoArquivo.openWrite();
-            await resp.pipe(sink);
-            await sink.close();
-
-            if (await novoArquivo.exists()) {
-              mapaCaminhos[caminhoLimpo] = novoArquivo.path;
-              return novoArquivo.path;
+            if (await arquivoLocal.exists() && arquivoLocal.lengthSync() > 0) {
+              mapaCaminhos[caminhoLimpo] = arquivoLocal.path;
+              return arquivoLocal.path;
             }
           }
         } catch (e) {
@@ -634,6 +741,72 @@ class ClienteRedeLocal {
     }
   }
 
+  /// Consulta o servidor balcão na rede Wi-Fi local para obter a ficha unificada da conta pelo CPF
+  Future<UsuarioNous?> buscarUsuarioRemoto(String cpf) async {
+    final cpfLimpo = cpf.replaceAll(RegExp(r'\D'), '');
+    if (cpfLimpo.isEmpty) return null;
+
+    String? ip = _ipServidor;
+    int porta = _portaServidor ?? ServidorRedeLocal.portaPadraoHttp;
+
+    // Se ainda não temos IP do servidor, tenta usar as lojas encontradas via UDP
+    if (ip == null && lojasEncontradas.value.isNotEmpty) {
+      ip = lojasEncontradas.value.first.ip;
+      porta = lojasEncontradas.value.first.porta;
+    }
+
+    var iniciouDescobertaAqui = false;
+    // Se ainda não descobriu, inicia escuta UDP rápida de 1.5 segundos
+    if (ip == null) {
+      iniciouDescobertaAqui = true;
+      await iniciarDescoberta();
+      await Future<void>.delayed(const Duration(milliseconds: 1500));
+      if (lojasEncontradas.value.isNotEmpty) {
+        ip = lojasEncontradas.value.first.ip;
+        porta = lojasEncontradas.value.first.porta;
+      }
+    }
+
+    if (iniciouDescobertaAqui) {
+      pararDescoberta();
+    }
+
+    if (ip == null) return null;
+
+    try {
+      final client = HttpClient()
+        ..connectionTimeout = const Duration(seconds: 3);
+      final uri = Uri.parse(
+        'http://$ip:$porta/api/usuario?cpf=${Uri.encodeQueryComponent(cpf)}',
+      );
+      final req = await client.getUrl(uri);
+      final resp = await req.close();
+
+      if (resp.statusCode == HttpStatus.ok) {
+        final body = await utf8.decodeStream(resp);
+        final dados = jsonDecode(body) as Map<String, dynamic>;
+        if (dados['sucesso'] == true && dados['usuario'] != null) {
+          var usuarioRemoto =
+              UsuarioNous.fromJson(dados['usuario'] as Map<String, dynamic>);
+
+          if (usuarioRemoto.foto.isNotEmpty) {
+            final novaFotoLocal = await baixarImagemRemota(usuarioRemoto.foto);
+            usuarioRemoto = usuarioRemoto.copyWith(foto: novaFotoLocal);
+          }
+
+          await ContasNousService.salvar(usuarioRemoto);
+          debugPrint(
+            '[ClienteRedeLocal] Ficha unificada do CPF $cpf recuperada do balcão ($ip:$porta) com sucesso!',
+          );
+          return usuarioRemoto;
+        }
+      }
+    } catch (e) {
+      debugPrint('[ClienteRedeLocal] Falha ao consultar usuário remoto: $e');
+    }
+    return null;
+  }
+
   /// Verifica se o balcão possui atualizações do sistema ou APK disponível para download
   Future<void> verificarAtualizacaoLocal() async {
     if (_ipServidor == null || _portaServidor == null) return;
@@ -652,18 +825,32 @@ class ClienteRedeLocal {
           final versaoRemota = dados['versao'] as String? ?? AtualizacaoService.versaoAtual;
           final buildRemota = dados['build'] as int? ?? AtualizacaoService.buildAtual;
 
-          AtualizacaoService.infoAtualizacao.value = InfoAtualizacao(
-            versao: '$versaoRemota+$buildRemota',
-            nomeVersao: 'Atualização do Balcão Wi-Fi (v$versaoRemota)',
-            descricao:
-                'Instalação da versão estável mais recente transmitida diretamente pelo Computador Balcão.',
-            urlDownload: 'http://$_ipServidor:$_portaServidor/api/download_apk',
-            dataPublicacao: DateTime.now(),
-          );
-          AtualizacaoService.temAtualizacao.value = true;
-          AtualizacaoService.mensagemStatus.value =
-              'Nova versão disponível para download no balcão!';
-          debugPrint('[ClienteRedeLocal] Atualização disponível no balcão via Wi-Fi!');
+          final temNovaVersao = buildRemota > AtualizacaoService.buildAtual ||
+              (buildRemota == AtualizacaoService.buildAtual &&
+                  AtualizacaoService.versaoMaior(versaoRemota, AtualizacaoService.versaoAtual));
+
+          if (temNovaVersao) {
+            AtualizacaoService.infoAtualizacao.value = InfoAtualizacao(
+              versao: versaoRemota,
+              nomeVersao: 'Atualização do Balcão Wi-Fi (v$versaoRemota • Build $buildRemota)',
+              descricao:
+                  'Instalação da versão estável mais recente transmitida diretamente pelo Computador Balcão via Wi-Fi.',
+              urlDownload: 'http://$_ipServidor:$_portaServidor/api/download_apk',
+              dataPublicacao: DateTime.now(),
+            );
+            AtualizacaoService.temAtualizacao.value = true;
+            AtualizacaoService.ultimaVerificacao.value = DateTime.now();
+            AtualizacaoService.mensagemStatus.value =
+                'Nova versão v$versaoRemota disponível para download no balcão!';
+            debugPrint('[ClienteRedeLocal] Atualização disponível no balcão via Wi-Fi!');
+          } else {
+            AtualizacaoService.infoAtualizacao.value = null;
+            AtualizacaoService.temAtualizacao.value = false;
+            AtualizacaoService.ultimaVerificacao.value = DateTime.now();
+            AtualizacaoService.mensagemStatus.value =
+                'O Nous já está na versão mais recente (v${AtualizacaoService.versaoAtual}).';
+            debugPrint('[ClienteRedeLocal] O aplicativo já está na mesma versão ou mais recente que o balcão.');
+          }
         }
       }
     } catch (e) {
@@ -688,6 +875,15 @@ class ClienteRedeLocal {
         await pastaImagens.create(recursive: true);
       }
 
+      final ext = caminhoLimpo.split('.').last.toLowerCase();
+      final extensaoFinal = ImagemService.extensoesImagem.contains(ext) ? ext : 'jpg';
+      final nomeArquivoLocal = 'remota_${caminhoLimpo.hashCode.abs()}.$extensaoFinal';
+      final arquivoLocal = File('${pastaImagens.path}/$nomeArquivoLocal');
+
+      if (arquivoLocal.existsSync() && arquivoLocal.lengthSync() > 0) {
+        return arquivoLocal.path;
+      }
+
       final clienteHttp = HttpClient()..connectionTimeout = const Duration(seconds: 4);
       final uri = Uri.parse(
         'http://$_ipServidor:$_portaServidor/api/imagem?caminho=${Uri.encodeQueryComponent(caminhoLimpo)}',
@@ -696,17 +892,11 @@ class ClienteRedeLocal {
       final resp = await req.close();
 
       if (resp.statusCode == HttpStatus.ok) {
-        final ext = caminhoLimpo.split('.').last.toLowerCase();
-        final extensaoFinal = ImagemService.extensoesImagem.contains(ext) ? ext : 'jpg';
-        final novoArquivo =
-            File('${pastaImagens.path}/img_remota_${gerarIdUnico()}.$extensaoFinal');
+        final bytes = await resp.fold<List<int>>([], (acc, chunk) => acc..addAll(chunk));
+        await arquivoLocal.writeAsBytes(bytes);
 
-        final sink = novoArquivo.openWrite();
-        await resp.pipe(sink);
-        await sink.close();
-
-        if (await novoArquivo.exists()) {
-          return novoArquivo.path;
+        if (await arquivoLocal.exists() && arquivoLocal.lengthSync() > 0) {
+          return arquivoLocal.path;
         }
       }
     } catch (e) {

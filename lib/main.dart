@@ -6,6 +6,7 @@ import 'package:nous/src/core/services/banco_dados_service.dart';
 import 'package:nous/src/core/services/janela_windows_service.dart';
 import 'package:nous/src/core/theme/theme_controller.dart';
 import 'package:nous/src/core/theme/contrast_helper.dart';
+import 'package:nous/src/core/services/navigator_key_service.dart';
 import 'package:nous/src/features/auth/providers/auth_provider.dart';
 import 'package:nous/src/features/auth/views/login_view.dart';
 import 'package:nous/src/features/notificacoes/providers/notificacoes_provider.dart';
@@ -63,6 +64,7 @@ class MyApp extends StatelessWidget {
         valueListenable: ThemeController.currentTheme,
         builder: (context, theme, child) {
           return MaterialApp(
+            navigatorKey: NavigatorKeyService.navigatorKey,
             debugShowCheckedModeBanner: false,
             title: 'Nous',
             scrollBehavior: AppScrollBehavior(),

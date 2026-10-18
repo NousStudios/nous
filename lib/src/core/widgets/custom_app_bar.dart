@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import 'package:nous/src/core/theme/theme_controller.dart';
 import 'package:nous/src/core/theme/theme_customizer_dialog.dart';
 import 'package:nous/src/features/auth/providers/auth_provider.dart';
+import 'package:nous/src/features/auth/views/login_view.dart';
 import 'package:nous/src/features/auth/views/widgets/ficha_usuario_dialog.dart';
 import 'package:nous/src/features/notificacoes/providers/notificacoes_provider.dart';
 import 'package:nous/src/features/notificacoes/views/widgets/notificacoes_dialog.dart';
@@ -189,19 +190,25 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
                   color: currentTheme.textColor,
                 ),
               ),
-              content: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  ListTile(
-                    leading: Icon(Icons.palette_outlined,
-                        color: currentTheme.secondaryTextColor),
-                    title: Text('Tema',
-                        style: currentTheme.getTextStyle()),
-                    onTap: () {
-                      Navigator.pop(context);
-                      _showThemeSelector(context);
-                    },
-                  ),
+              content: ConstrainedBox(
+                constraints: BoxConstraints(
+                  maxWidth: 500,
+                  maxHeight: MediaQuery.sizeOf(context).height * 0.85,
+                ),
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      ListTile(
+                        leading: Icon(Icons.palette_outlined,
+                            color: currentTheme.secondaryTextColor),
+                        title: Text('Tema',
+                            style: currentTheme.getTextStyle()),
+                        onTap: () {
+                          Navigator.pop(context);
+                          _showThemeSelector(context);
+                        },
+                      ),
                   ListTile(
                     leading: Icon(Icons.language,
                         color: currentTheme.secondaryTextColor),
@@ -366,24 +373,31 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
                         );
                       }),
                     ],
-                    if (onLogout != null)
-                      ListTile(
-                        leading: const Icon(Icons.logout,
-                            color: Colors.redAccent),
-                        title: Text(
-                          'Sair',
-                          style: currentTheme.getTextStyle(
-                              color: Colors.redAccent),
-                        ),
-                        onTap: () {
-                          Navigator.pop(context);
-                          onLogout!();
-                        },
-                      ),
+                  ],
+                  if (conta != null || onLogout != null || authProvider.contaAtual != null) ...[
                     Divider(color: currentTheme.borderColor),
+                    ListTile(
+                      leading: Icon(Icons.logout,
+                          color: currentTheme.dangerColor),
+                      title: Text(
+                        'Sair',
+                        style: currentTheme.getTextStyle(
+                            color: currentTheme.dangerColor),
+                      ),
+                      onTap: () {
+                        Navigator.pop(context);
+                        if (onLogout != null) {
+                          onLogout!();
+                        } else {
+                          _efetuarLogoutPadrao(context);
+                        }
+                      },
+                    ),
                   ],
                 ],
               ),
+            ),
+          ),
               actions: [
                 TextButton(
                   onPressed: () => Navigator.of(context).pop(),
@@ -534,6 +548,23 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
           ],
         );
       },
+    );
+  }
+
+  void _efetuarLogoutPadrao(BuildContext context) {
+    try {
+      ClienteRedeLocal().desconectar();
+    } catch (_) {}
+    try {
+      ServidorRedeLocal().parar();
+    } catch (_) {}
+
+    context.read<AuthProvider>().sair();
+    context.read<PdvProvider>().entrarComoVisitante();
+
+    Navigator.of(context, rootNavigator: true).pushAndRemoveUntil(
+      MaterialPageRoute(builder: (_) => const LoginView()),
+      (route) => false,
     );
   }
 

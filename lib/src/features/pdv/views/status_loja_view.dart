@@ -477,8 +477,8 @@ class _StatusLojaViewState extends State<StatusLojaView> {
           ),
           const SizedBox(height: 12),
           Text(
-            '${widget.membros.length} '
-            '${widget.membros.length == 1 ? 'membro' : 'membros'}',
+            '${_obterMembrosAtuais(context).length} '
+            '${_obterMembrosAtuais(context).length == 1 ? 'membro' : 'membros'}',
             style: theme.getTextStyle(fontSize: 13),
           ),
           if (widget.podeSair) ...[
@@ -487,8 +487,8 @@ class _StatusLojaViewState extends State<StatusLojaView> {
               width: double.infinity,
               child: OutlinedButton(
                 style: OutlinedButton.styleFrom(
-                  foregroundColor: Colors.redAccent,
-                  side: const BorderSide(color: Colors.redAccent),
+                  foregroundColor: theme.dangerColor,
+                  side: BorderSide(color: theme.dangerColor),
                   padding: const EdgeInsets.symmetric(vertical: 12),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(10),
@@ -499,7 +499,7 @@ class _StatusLojaViewState extends State<StatusLojaView> {
                   'Sair da loja',
                   style: theme.getTextStyle(
                     fontSize: 13,
-                    color: Colors.redAccent,
+                    color: theme.dangerColor,
                   ),
                 ),
               ),
@@ -522,6 +522,17 @@ class _StatusLojaViewState extends State<StatusLojaView> {
     final temFoto = foto.isNotEmpty && File(foto).existsSync();
     final dispositivos = _obterDispositivosDoMembro(membro.cpf);
     final estaOnline = dispositivos.isNotEmpty;
+
+    final cargoPers = membro.cargoPersonalizadoId != null
+        ? pdv
+            .buscarPorId(widget.lojaId)
+            ?.cargosPersonalizados
+            .where((c) => c.id == membro.cargoPersonalizadoId)
+            .firstOrNull
+        : null;
+    final rotuloCargo = cargoPers != null
+        ? '${_rotuloPapel(membro.papel)} (${cargoPers.nome})'
+        : _rotuloPapel(membro.papel);
 
     return _MembroLinhaComHover(
       builder: (hover) => Container(
@@ -588,7 +599,7 @@ class _StatusLojaViewState extends State<StatusLojaView> {
                       ),
                       const SizedBox(height: 2),
                       Text(
-                        '${_rotuloPapel(membro.papel)} • ${_formatarCpf(membro.cpf)}',
+                        '$rotuloCargo • ${_formatarCpf(membro.cpf)}',
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: theme.getTextStyle(
@@ -718,7 +729,13 @@ class _StatusLojaViewState extends State<StatusLojaView> {
     );
   }
 
-  Widget _blocoTrabalhadores(AppTheme theme) {
+  List<MembroLoja> _obterMembrosAtuais(BuildContext context) {
+    final loja = context.watch<PdvProvider>().buscarPorId(widget.lojaId);
+    return loja?.membros ?? widget.membros;
+  }
+
+  Widget _blocoTrabalhadores(BuildContext context, AppTheme theme) {
+    final membros = _obterMembrosAtuais(context);
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(16),
@@ -727,13 +744,13 @@ class _StatusLojaViewState extends State<StatusLojaView> {
         children: [
           _tituloDoBloco(theme, 'Lista de Trabalhadores'),
           const SizedBox(height: 12),
-          if (widget.membros.isEmpty)
+          if (membros.isEmpty)
             EstadoVazioContainer(
               theme: theme,
               mensagem: 'Nenhum trabalhador cadastrado ainda.',
             )
           else
-            for (final membro in widget.membros) _linhaDeMembro(theme, membro),
+            for (final membro in membros) _linhaDeMembro(theme, membro),
         ],
       ),
     );
@@ -765,7 +782,7 @@ class _StatusLojaViewState extends State<StatusLojaView> {
             ];
 
             final conteudoColuna2 = [
-              _blocoTrabalhadores(theme),
+              _blocoTrabalhadores(context, theme),
             ];
 
             return Scaffold(

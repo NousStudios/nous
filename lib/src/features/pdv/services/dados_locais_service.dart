@@ -5,6 +5,7 @@ import 'package:nous/src/features/pdv/models/loja.dart';
 
 class DadosAutopreenchimento {
   final String nome;
+  final String dataNascimento;
   final String telefone;
   final String endereco;
   final String numero;
@@ -16,6 +17,7 @@ class DadosAutopreenchimento {
 
   const DadosAutopreenchimento({
     required this.nome,
+    this.dataNascimento = '',
     this.telefone = '',
     this.endereco = '',
     this.numero = '',
@@ -48,6 +50,7 @@ class DadosLocaisService {
     final nomeConta = conta?.nome.trim().toLowerCase() ?? '';
 
     String nome = conta?.nome ?? '';
+    String dataNascimento = conta?.dataNascimento ?? '';
     String email =
         (conta != null && conta.emails.isNotEmpty) ? conta.emails.first : '';
     String foto = conta?.foto ?? '';
@@ -136,6 +139,15 @@ class DadosLocaisService {
             }
           }
 
+          // 2.5. Vasculha membros cadastrados na equipe da loja
+          for (final m in loja.membros) {
+            final mDoc = m.cpf.replaceAll(RegExp(r'[^0-9]'), '');
+            if (mDoc.isNotEmpty && mDoc == digitos) {
+              if (nome.isEmpty && m.nome.isNotEmpty) nome = m.nome;
+              if (origem.isEmpty) origem = 'Equipe da loja "${loja.nome}"';
+            }
+          }
+
           // 3. Verifica dados da própria Loja (se for a loja criada por esse CPF ou coincidir o CNPJ)
           final cnpjLoja = loja.cnpj.replaceAll(RegExp(r'[^0-9]'), '');
           final lojaDoCpf = chave.endsWith('_$digitos') ||
@@ -191,6 +203,7 @@ class DadosLocaisService {
 
     return DadosAutopreenchimento(
       nome: nome,
+      dataNascimento: dataNascimento,
       telefone: telefone,
       endereco: endereco,
       numero: numero,

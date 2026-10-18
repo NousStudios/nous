@@ -8,6 +8,7 @@ import 'package:nous/src/features/pdv/providers/pdv_provider.dart';
 import 'package:nous/src/features/pdv/services/impressao_service.dart';
 import 'package:nous/src/features/pdv/views/widgets/comanda_pedido.dart';
 import 'package:nous/src/features/pdv/views/widgets/estado_vazio_container.dart';
+import 'package:nous/src/core/widgets/texto_rolante.dart';
 
 String _doisDigitos(int n) => n.toString().padLeft(2, '0');
 
@@ -1046,19 +1047,18 @@ class _BarraVendaState extends State<BarraVenda> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      '${_numero(pedido.numero)}  ${pedido.produtoNome}',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
+                    TextoRolante(
+                      texto: '${_numero(pedido.numero)}  ${pedido.produtoNome}',
+                      textAlign: TextAlign.start,
                       style: theme.getTextStyle(
                         fontSize: 12,
                         color: theme.textColor,
                       ),
                     ),
-                    Text(
-                      _detalhe,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
+                    const SizedBox(height: 2),
+                    TextoRolante(
+                      texto: _detalhe,
+                      textAlign: TextAlign.start,
                       style: theme.getTextStyle(fontSize: 10),
                     ),
                   ],

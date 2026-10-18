@@ -13,6 +13,7 @@ import 'package:nous/src/features/pdv/providers/pdv_provider.dart';
 import 'package:nous/src/features/pdv/views/widgets/estado_vazio_container.dart';
 import 'package:nous/src/features/pdv/views/widgets/venda_registrada_dialog.dart';
 import 'package:nous/src/features/pdv/views/widgets/comanda_pedido_dialog.dart';
+import 'package:nous/src/core/widgets/texto_rolante.dart';
 
 const List<String> _formasDePagamento = [
   'Pix',
@@ -753,10 +754,9 @@ class _RelatoriosConteudoState extends State<_RelatoriosConteudo> {
                   Row(
                     children: [
                       Flexible(
-                        child: Text(
-                          item.clienteNome,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
+                        child: TextoRolante(
+                          texto: item.clienteNome,
+                          textAlign: TextAlign.start,
                           style: theme.getTextStyle(
                             fontSize: 12,
                             color: theme.textColor,
@@ -786,10 +786,9 @@ class _RelatoriosConteudoState extends State<_RelatoriosConteudo> {
                     ],
                   ),
                   const SizedBox(height: 2),
-                  Text(
-                    textoSubtitulo,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
+                  TextoRolante(
+                    texto: textoSubtitulo,
+                    textAlign: TextAlign.start,
                     style: theme.getTextStyle(
                       fontSize: 10,
                       color: theme.secondaryTextColor,
@@ -926,10 +925,9 @@ class _RelatoriosConteudoState extends State<_RelatoriosConteudo> {
                                 Row(
                                   children: [
                                     Flexible(
-                                      child: Text(
-                                        prog.clienteNome,
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
+                                      child: TextoRolante(
+                                        texto: prog.clienteNome,
+                                        textAlign: TextAlign.start,
                                         style: theme.getTextStyle(
                                           fontSize: 12,
                                           fontWeight: FontWeight.bold,
@@ -961,10 +959,9 @@ class _RelatoriosConteudoState extends State<_RelatoriosConteudo> {
                                     ),
                                     const SizedBox(width: 4),
                                     Flexible(
-                                      child: Text(
-                                        '• ${prog.descricaoFrequencia}',
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
+                                      child: TextoRolante(
+                                        texto: '• ${prog.descricaoFrequencia}',
+                                        textAlign: TextAlign.start,
                                         style: theme.getTextStyle(
                                           fontSize: 10,
                                           color: theme.secondaryTextColor,
@@ -974,13 +971,12 @@ class _RelatoriosConteudoState extends State<_RelatoriosConteudo> {
                                   ],
                                 ),
                                 const SizedBox(height: 2),
-                                Text(
-                                  prog.itens
+                                TextoRolante(
+                                  texto: prog.itens
                                       .map((i) =>
                                           '${i.quantidade}x ${i.nomeExibicao}')
                                       .join(', '),
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
+                                  textAlign: TextAlign.start,
                                   style: theme.getTextStyle(
                                     fontSize: 10,
                                     color: theme.secondaryTextColor,
@@ -1305,8 +1301,9 @@ class _BarraAcaoState extends State<_BarraAcao> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      acao.descricao,
+                    TextoRolante(
+                      texto: acao.descricao,
+                      textAlign: TextAlign.start,
                       style: theme.getTextStyle(
                         fontSize: 12,
                         color: theme.textColor,
@@ -1322,10 +1319,9 @@ class _BarraAcaoState extends State<_BarraAcao> {
                     ),
                     if (autorPartes.isNotEmpty) ...[
                       const SizedBox(height: 2),
-                      Text(
-                        'por ${autorPartes.join(' • ')}',
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
+                      TextoRolante(
+                        texto: 'por ${autorPartes.join(' • ')}',
+                        textAlign: TextAlign.start,
                         style: theme.getTextStyle(
                           fontSize: 10,
                           color: theme.secondaryTextColor,

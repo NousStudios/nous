@@ -113,6 +113,13 @@ class _SincronizacaoRedeDialogState extends State<SincronizacaoRedeDialog> {
   }
 
   Future<void> _conectarAoServidor(String ip, int porta) async {
+    if (_servidor.ativo) {
+      setState(() {
+        _mensagemStatus = 'Este computador já é o Servidor Balcão ativo.';
+      });
+      return;
+    }
+
     setState(() {
       _conectando = true;
       _mensagemStatus = null;
@@ -128,7 +135,7 @@ class _SincronizacaoRedeDialogState extends State<SincronizacaoRedeDialog> {
       if (sucesso) {
         _mensagemStatus = 'Conectado com sucesso à loja no balcão!';
       } else {
-        _mensagemStatus = 'Não foi possível conectar a $ip:$porta.';
+        _mensagemStatus = _cliente.ultimoErro.value ?? 'Não foi possível conectar a $ip:$porta.';
       }
     });
   }
@@ -505,6 +512,7 @@ class _SincronizacaoRedeDialogState extends State<SincronizacaoRedeDialog> {
                                 children: terminais.map((term) {
                                   final hora =
                                       '${term.conectadoEm.hour.toString().padLeft(2, '0')}:${term.conectadoEm.minute.toString().padLeft(2, '0')}';
+                                  final ehBalcao = term.id == 'balcao_servidor_local';
                                   return Container(
                                     margin: const EdgeInsets.only(bottom: 6),
                                     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
@@ -517,8 +525,8 @@ class _SincronizacaoRedeDialogState extends State<SincronizacaoRedeDialog> {
                                     ),
                                     child: Row(
                                       children: [
-                                        const Icon(
-                                          Icons.smartphone_rounded,
+                                        Icon(
+                                          ehBalcao ? Icons.desktop_windows_rounded : Icons.smartphone_rounded,
                                           size: 20,
                                           color: Colors.greenAccent,
                                         ),
@@ -648,6 +656,41 @@ class _SincronizacaoRedeDialogState extends State<SincronizacaoRedeDialog> {
 
   Widget _conteudoCliente() {
     final theme = widget.theme;
+
+    if (_servidor.ativo) {
+      return Container(
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: theme.backgroundColor.withValues(alpha: 0.4),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: theme.borderColor.withValues(alpha: 0.6)),
+        ),
+        child: Column(
+          children: [
+            Icon(Icons.desktop_windows_rounded, size: 40, color: theme.textColor),
+            const SizedBox(height: 12),
+            Text(
+              'Este Computador é o Servidor Balcão',
+              textAlign: TextAlign.center,
+              style: theme.getTextStyle(
+                fontSize: 15,
+                fontWeight: FontWeight.bold,
+                color: theme.textColor,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'O servidor central da loja já está ativo e operando nesta máquina. Não é necessário conectar este computador como terminal móvel.',
+              textAlign: TextAlign.center,
+              style: theme.getTextStyle(
+                fontSize: 12,
+                color: theme.secondaryTextColor,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,

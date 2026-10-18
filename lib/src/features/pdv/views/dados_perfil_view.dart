@@ -322,12 +322,20 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
       return;
     }
 
-    // Remoção direta (Dono removendo Sócio/Admin/Funcionario OU Sócio removendo Admin/Funcionario)
     await pdv.removerMembro(widget.lojaId, cpf);
     if (!mounted) return;
     setState(() {
       _membros = _membros.where((m) => m.cpf != cpf).toList();
     });
+
+    // Se conectado como terminal móvel ao balcão, garante envio prioritário imediato da exclusão
+    if (ClienteRedeLocal().conectado &&
+        ClienteRedeLocal().lojaSincronizada?.id == widget.lojaId) {
+      final lojaAtual = pdv.buscarPorId(widget.lojaId);
+      if (lojaAtual != null) {
+        ClienteRedeLocal().enviarLojaAtualizada(lojaAtual, imediato: true);
+      }
+    }
 
     // Enviar notificação avisando o membro removido
     final notificacaoRemocao = ConviteLoja(
@@ -731,9 +739,13 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
         Timer.periodic(const Duration(seconds: 15), (_) {
       _verificarPedidosTempoConclusao();
       if (mounted) {
-        context
-            .read<PdvProvider>()
-            .verificarEGerarPedidosProgramados(widget.lojaId);
+        // Se este dispositivo estiver conectado ao balcão como cliente móvel,
+        // o balcão central é o único encarregado de gerar pedidos programados.
+        if (!ClienteRedeLocal().estaConectado.value) {
+          context
+              .read<PdvProvider>()
+              .verificarEGerarPedidosProgramados(widget.lojaId);
+        }
       }
     });
   }
@@ -1461,6 +1473,9 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
       aoSalvar: (novaMesa) {
         setState(() => _mesas.add(novaMesa));
         _persistirListasLoja();
+        if (ClienteRedeLocal().conectado) {
+          ClienteRedeLocal().enviarMesa(novaMesa);
+        }
         _registrarAcao(
           TipoAcao.mesaCriada,
           'Mesa "${novaMesa.numero}" cadastrada no salão',
@@ -1493,6 +1508,9 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
 
         setState(() => _mesas[indice] = mesaAtualizada);
         _persistirListasLoja();
+        if (ClienteRedeLocal().conectado) {
+          ClienteRedeLocal().enviarMesa(mesaAtualizada);
+        }
 
         if (statusMudou && mesaAtualizada.status == StatusMesa.ocupada) {
           _registrarAcao(
@@ -1615,6 +1633,10 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
         _mesas[idxOrigem] = origemLiberada;
       });
       _persistirListasLoja();
+      if (ClienteRedeLocal().conectado) {
+        ClienteRedeLocal().enviarMesa(destinoAtualizada);
+        ClienteRedeLocal().enviarMesa(origemLiberada);
+      }
 
       _registrarAcao(
         TipoAcao.mesaTransferida,
@@ -1644,6 +1666,9 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
       aoSalvar: (mesaEditada) {
         setState(() => _mesas[indice] = mesaEditada);
         _persistirListasLoja();
+        if (ClienteRedeLocal().conectado) {
+          ClienteRedeLocal().enviarMesa(mesaEditada);
+        }
       },
       aoExcluir: _mesas[indice].status == StatusMesa.livre
           ? () => _confirmarExclusaoMesa(mesa)
@@ -1821,6 +1846,31 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
     });
 
     _persistirListasLoja();
+
+    // Sincronização em Rede Wi-Fi
+    if (ClienteRedeLocal().conectado) {
+      ClienteRedeLocal().enviarMesa(_mesas[indice]);
+      ClienteRedeLocal().enviarPedido(pedido);
+      for (final m in novosMovimentos) {
+        ClienteRedeLocal().enviarMovimentoEstoque(m);
+      }
+    }
+    if (ServidorRedeLocal().ativo) {
+      ServidorRedeLocal().notificarTodos({
+        'tipo': 'mesa_atualizada',
+        'mesa': _mesas[indice].toJson(),
+      });
+      ServidorRedeLocal().notificarTodos({
+        'tipo': 'pedido_adicionado',
+        'pedido': pedido.toJson(),
+      });
+      for (final m in novosMovimentos) {
+        ServidorRedeLocal().notificarTodos({
+          'tipo': 'estoque_atualizado',
+          'movimento': m.toJson(),
+        });
+      }
+    }
 
     _registrarAcao(
       TipoAcao.mesaFechada,
@@ -2993,11 +3043,79 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
 
     final membrosMudaram = _membros.length != lojaAtual.membros.length ||
         !listEquals(
-          _membros.map((m) => '${m.cpf}_${m.papel.name}').toList(),
-          lojaAtual.membros.map((m) => '${m.cpf}_${m.papel.name}').toList(),
+          _membros
+              .map((m) => '${m.cpf}_${m.papel.name}_${m.cargoPersonalizadoId}')
+              .toList(),
+          lojaAtual.membros
+              .map((m) => '${m.cpf}_${m.papel.name}_${m.cargoPersonalizadoId}')
+              .toList(),
         );
 
-    if (movsMudaram || pedidosMudaram || membrosMudaram) {
+    final novasMesas = lojaAtual.mesas;
+    final mesasMudaram = _mesas.length != novasMesas.length ||
+        !listEquals(
+          _mesas
+              .map((m) =>
+                  '${m.id}_${m.status.name}_${m.itens.length}_${m.totalAcumulado}_${m.clienteNome}')
+              .toList(),
+          novasMesas
+              .map((m) =>
+                  '${m.id}_${m.status.name}_${m.itens.length}_${m.totalAcumulado}_${m.clienteNome}')
+              .toList(),
+        );
+
+    final novosItens = lojaAtual.itensLoja;
+    final itensMudaram = _itens.length != novosItens.length ||
+        !listEquals(
+          _itens
+              .map((i) => '${i.id}_${i.nome}_${i.preco}_${i.precoCusto}_${i.imagens.length}')
+              .toList(),
+          novosItens
+              .map((i) => '${i.id}_${i.nome}_${i.preco}_${i.precoCusto}_${i.imagens.length}')
+              .toList(),
+        );
+
+    final novasCategorias = lojaAtual.categoriasLoja;
+    final categoriasMudaram = _categorias.length != novasCategorias.length ||
+        !listEquals(
+          _categorias.map((c) => '${c.id}_${c.nome}').toList(),
+          novasCategorias.map((c) => '${c.id}_${c.nome}').toList(),
+        );
+
+    final novosGrupos = lojaAtual.gruposComponentesLoja;
+    final gruposMudaram = _gruposComponentes.length != novosGrupos.length ||
+        !listEquals(
+          _gruposComponentes
+              .map((g) => '${g.id}_${g.nome}_${g.itemIds.length}')
+              .toList(),
+          novosGrupos
+              .map((g) => '${g.id}_${g.nome}_${g.itemIds.length}')
+              .toList(),
+        );
+
+    final novosClientes = lojaAtual.clientesLoja;
+    final clientesMudaram = _clientes.length != novosClientes.length ||
+        !listEquals(
+          _clientes.map((c) => '${c.id}_${c.nome}_${c.cnpj}_${c.telefone}').toList(),
+          novosClientes.map((c) => '${c.id}_${c.nome}_${c.cnpj}_${c.telefone}').toList(),
+        );
+
+    final novosFornecedores = lojaAtual.fornecedoresLoja;
+    final fornecedoresMudaram = _fornecedores.length != novosFornecedores.length ||
+        !listEquals(
+          _fornecedores.map((f) => '${f.id}_${f.nome}_${f.cnpj}_${f.telefone}').toList(),
+          novosFornecedores.map((f) => '${f.id}_${f.nome}_${f.cnpj}_${f.telefone}').toList(),
+        );
+
+    if (movsMudaram ||
+        pedidosMudaram ||
+        membrosMudaram ||
+        mesasMudaram ||
+        itensMudaram ||
+        categoriasMudaram ||
+        gruposMudaram ||
+        clientesMudaram ||
+        fornecedoresMudaram) {
       setState(() {
         if (movsMudaram) {
           _movimentosEstoque
@@ -3011,6 +3129,36 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
         }
         if (membrosMudaram) {
           _membros = List.of(lojaAtual.membros);
+        }
+        if (mesasMudaram) {
+          _mesas
+            ..clear()
+            ..addAll(novasMesas);
+        }
+        if (itensMudaram) {
+          _itens
+            ..clear()
+            ..addAll(novosItens);
+        }
+        if (categoriasMudaram) {
+          _categorias
+            ..clear()
+            ..addAll(novasCategorias);
+        }
+        if (gruposMudaram) {
+          _gruposComponentes
+            ..clear()
+            ..addAll(novosGrupos);
+        }
+        if (clientesMudaram) {
+          _clientes
+            ..clear()
+            ..addAll(novosClientes);
+        }
+        if (fornecedoresMudaram) {
+          _fornecedores
+            ..clear()
+            ..addAll(novosFornecedores);
         }
       });
     }
@@ -5228,8 +5376,10 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
           ),
         );
 
-        final meuMembro =
-            lojaAtual?.membros.where((m) => m.cpf == cpfLogado).firstOrNull;
+        final meuCpfLimpo = cpfLogado.replaceAll(RegExp(r'\D'), '');
+        final meuMembro = lojaAtual?.membros
+            .where((m) => m.cpf.replaceAll(RegExp(r'\D'), '') == meuCpfLimpo)
+            .firstOrNull;
         final ehDonoOuSocio = meuMembro?.papel == PapelMembro.dono ||
             meuMembro?.papel == PapelMembro.socio;
 

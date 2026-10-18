@@ -14,7 +14,7 @@ class TextoRolante extends StatefulWidget {
     super.key,
     required this.texto,
     required this.style,
-    this.textAlign = TextAlign.center,
+    this.textAlign = TextAlign.start,
     this.velocidadePxPorSegundo = 28.0,
     this.pausaBordas = const Duration(milliseconds: 1400),
   });

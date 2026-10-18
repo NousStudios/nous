@@ -3,6 +3,8 @@ import 'package:nous/src/core/theme/theme_controller.dart';
 import 'package:nous/src/features/auth/models/usuario_nous.dart';
 import 'package:nous/src/features/auth/services/contas_nous_service.dart';
 import 'package:nous/src/features/auth/services/cpf_validator.dart';
+import 'package:nous/src/features/pdv/services/dados_locais_service.dart';
+import 'package:nous/src/features/pdv/services/rede_local/cliente_rede_local.dart';
 
 class AuthProvider extends ChangeNotifier {
   AuthProvider() {
@@ -71,7 +73,44 @@ class AuthProvider extends ChangeNotifier {
     _carregando = true;
     notifyListeners();
 
-    final conta = await ContasNousService.buscarPorCpf(_cpf);
+    var conta = await ContasNousService.buscarPorCpf(_cpf);
+
+    // 1. Se não encontrou no banco de contas local, tenta enriquecer e consolidar a partir de dados locais (clientes e membros)
+    if (conta == null) {
+      try {
+        final dadosAuto = await DadosLocaisService.buscarPorDocumento(_cpf);
+        if (dadosAuto != null && dadosAuto.nome.trim().isNotEmpty) {
+          conta = UsuarioNous(
+            cpf: _cpf,
+            nome: dadosAuto.nome.trim(),
+            dataNascimento: dadosAuto.dataNascimento,
+            foto: dadosAuto.foto,
+          );
+          await ContasNousService.salvar(conta);
+          debugPrint(
+            '[AuthProvider] Conta consolidada automaticamente de dados locais para CPF $_cpf (${conta.nome})',
+          );
+        }
+      } catch (e) {
+        debugPrint('[AuthProvider] Erro ao consolidar dados locais: $e');
+      }
+    }
+
+    // 2. Se ainda não encontrou, tenta buscar ficha no balcão via rede Wi-Fi local
+    if (conta == null) {
+      try {
+        final remoto = await ClienteRedeLocal().buscarUsuarioRemoto(_cpf);
+        if (remoto != null) {
+          conta = remoto;
+          debugPrint(
+            '[AuthProvider] Conta recuperada do balcão Wi-Fi para CPF $_cpf (${conta.nome})',
+          );
+        }
+      } catch (e) {
+        debugPrint('[AuthProvider] Erro ao buscar usuário remoto: $e');
+      }
+    }
+
     _contaAtual = conta;
     _emailAtivo = (conta != null && conta.emails.isNotEmpty)
         ? conta.emails.first

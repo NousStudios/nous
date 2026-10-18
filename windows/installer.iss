@@ -4,7 +4,7 @@
 ; ═════════════════════════════════════════════════════════════════
 
 #define MyAppName "Nous"
-#define MyAppVersion "1.0.0"
+#define MyAppVersion "1.0.3"
 #define MyAppPublisher "Nous Studios"
 #define MyAppURL "https://github.com/NousStudios/nous"
 #define MyAppExeName "nous.exe"
@@ -44,6 +44,9 @@ Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{
 [Files]
 ; Todos os binários, assets e bibliotecas gerados pelo flutter build windows --release
 Source: "..\build\windows\x64\runner\Release\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+; APK Android para distribuição soberana e local-first via Wi-Fi pelo Computador Balcão
+Source: "..\dist\Nous_Android_v{#MyAppVersion}_Versao_Teste.apk"; DestDir: "{app}\dist"; Flags: ignoreversion skipifsourcedoesntexist
+Source: "..\dist\Nous_Android_v1.0.0_Versao_Teste.apk"; DestDir: "{app}\dist"; Flags: ignoreversion skipifsourcedoesntexist
 
 [Icons]
 Name: "{autoprograms}\{#MyAppName}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"
