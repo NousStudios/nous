@@ -825,6 +825,16 @@ class PdvProvider extends ChangeNotifier {
     _salvarLojaNoCofreCorreto(atualizada);
   }
 
+  Future<void> alternarLojaAberta(String id, bool aberta) async {
+    final indice = _lojas.indexWhere((loja) => loja.id == id);
+    if (indice == -1) return;
+
+    final atualizada = _lojas[indice].copyWith(aberta: aberta);
+    _lojas[indice] = atualizada;
+    notifyListeners();
+    await _salvarLojaNoCofreCorreto(atualizada);
+  }
+
   void atualizarAcoes(String id, List<RegistroAcao> acoes) {
     final indice = _lojas.indexWhere((loja) => loja.id == id);
     if (indice == -1) return;

@@ -10,7 +10,7 @@ Write-Host ""
 $workspace = Split-Path -Parent $PSScriptRoot
 Set-Location $workspace
 
-$versao = "1.0.3"
+$versao = "1.0.4"
 if (Test-Path "pubspec.yaml") {
     $conteudo = Get-Content "pubspec.yaml"
     foreach ($linha in $conteudo) {

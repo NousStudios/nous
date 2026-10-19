@@ -220,9 +220,11 @@ class ClienteRedeLocal {
       final cpfLogado =
           _pdvProvider?.cpfAtual ?? _authProvider?.contaAtual?.cpf ?? _authProvider?.cpf ?? '';
       String? nomeUsuario;
+      String? apelidoUsuario;
       if (cpfLogado.isNotEmpty) {
         final conta = await ContasNousService.buscarPorCpf(cpfLogado);
         nomeUsuario = conta?.nome ?? _authProvider?.contaAtual?.nome;
+        apelidoUsuario = conta?.apelido ?? _authProvider?.contaAtual?.apelido;
       }
 
       // 1. Baixa o snapshot atualizado da Loja via REST, passando os dados de identidade para auto-associação
@@ -236,6 +238,7 @@ class ClienteRedeLocal {
         queryParameters: {
           if (cpfLogado.isNotEmpty) 'cpf': cpfLogado,
           if (nomeUsuario != null && nomeUsuario.isNotEmpty) 'nome': nomeUsuario,
+          if (apelidoUsuario != null && apelidoUsuario.isNotEmpty) 'apelido': apelidoUsuario,
           'dispositivo': _nomeDispositivo,
         },
       );
@@ -280,6 +283,7 @@ class ClienteRedeLocal {
           'nomeDispositivo': _nomeDispositivo,
           'cpf': cpfLogado,
           'nomeUsuario': nomeUsuario,
+          'apelido': apelidoUsuario,
         }),
       );
 
@@ -686,12 +690,33 @@ class ClienteRedeLocal {
         }
       }
 
+      // 6. Galeria da loja
+      final novaGaleria = <String>[];
+      for (final g in lojaRemota.galeria) {
+        novaGaleria.add(await resolverCaminhoImagem(g));
+      }
+
+      // 7. Músicas da loja
+      final novasMusicas = <String>[];
+      for (final m in lojaRemota.musicas) {
+        novasMusicas.add(await baixarAudioRemoto(m));
+      }
+
+      // 8. Arquivos de áudio da loja
+      final novosAudios = <String>[];
+      for (final a in lojaRemota.arquivosAudio) {
+        novosAudios.add(await baixarAudioRemoto(a));
+      }
+
       return lojaRemota.copyWith(
         logo: novaLogo,
         itensLoja: novosItens,
         categoriasLoja: novasCategorias,
         clientesLoja: novosClientes,
         fornecedoresLoja: novosFornecedores,
+        galeria: novaGaleria,
+        musicas: novasMusicas,
+        arquivosAudio: novosAudios,
       );
     } catch (e) {
       debugPrint('[ClienteRedeLocal] Erro ao sincronizar imagens: $e');
@@ -904,5 +929,71 @@ class ClienteRedeLocal {
     }
 
     return caminhoLimpo;
+  }
+
+  /// Baixa um arquivo de áudio/música remoto do balcão e salva no armazenamento local
+  Future<String> baixarAudioRemoto(String caminhoRemoto) async {
+    if (_ipServidor == null || _portaServidor == null) return caminhoRemoto;
+    final caminhoLimpo = caminhoRemoto.trim();
+    if (caminhoLimpo.isEmpty) return '';
+
+    if (File(caminhoLimpo).existsSync()) {
+      return caminhoLimpo;
+    }
+
+    try {
+      final dirBase = await ImagemService.obterDiretorioBase();
+      final pastaAudios = Directory('${dirBase.path}/audios');
+      if (!await pastaAudios.exists()) {
+        await pastaAudios.create(recursive: true);
+      }
+
+      final ext = caminhoLimpo.split('.').last.toLowerCase();
+      final extensaoFinal = (ext.isNotEmpty && ext.length <= 5) ? ext : 'mp3';
+      final nomeArquivoLocal = 'remoto_audio_${caminhoLimpo.hashCode.abs()}.$extensaoFinal';
+      final arquivoLocal = File('${pastaAudios.path}/$nomeArquivoLocal');
+
+      if (arquivoLocal.existsSync() && arquivoLocal.lengthSync() > 0) {
+        return arquivoLocal.path;
+      }
+
+      final clienteHttp = HttpClient()..connectionTimeout = const Duration(seconds: 8);
+      final uri = Uri.parse(
+        'http://$_ipServidor:$_portaServidor/api/audio?caminho=${Uri.encodeQueryComponent(caminhoLimpo)}',
+      );
+      final req = await clienteHttp.getUrl(uri);
+      final resp = await req.close();
+
+      if (resp.statusCode == HttpStatus.ok) {
+        final bytes = await resp.fold<List<int>>([], (acc, chunk) => acc..addAll(chunk));
+        await arquivoLocal.writeAsBytes(bytes);
+
+        if (await arquivoLocal.exists() && arquivoLocal.lengthSync() > 0) {
+          return arquivoLocal.path;
+        }
+      }
+    } catch (e) {
+      debugPrint('[ClienteRedeLocal] Erro ao baixar áudio remoto: $e');
+    }
+
+    return caminhoLimpo;
+  }
+
+  /// Envia a Identidade do Usuário (dados cadastrais, apelido e foto) atualizada para o servidor balcão
+  Future<bool> enviarUsuario(UsuarioNous usuario) async {
+    if (_ipServidor == null || _portaServidor == null) return false;
+    try {
+      final client = HttpClient()..connectionTimeout = const Duration(seconds: 4);
+      final request = await client.postUrl(
+        Uri.parse('http://$_ipServidor:$_portaServidor/api/usuario'),
+      );
+      request.headers.contentType = ContentType.json;
+      request.write(jsonEncode(usuario.toJson()));
+      final response = await request.close();
+      return response.statusCode == HttpStatus.ok;
+    } catch (e) {
+      debugPrint('[ClienteRedeLocal] Erro ao enviar usuário ao servidor: $e');
+      return false;
+    }
   }
 }

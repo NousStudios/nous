@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/foundation.dart';
 import 'package:nous/src/core/services/metadados_audio_service.dart';
+import 'package:nous/src/features/pdv/services/rede_local/cliente_rede_local.dart';
 
 enum EstadoPlayerAudio { parado, reproduzindo, pausado }
 
@@ -120,13 +121,20 @@ class PlayerAudioService {
   }
 
   Future<void> tocar(String caminho) async {
-    final arquivo = File(caminho);
+    var caminhoFinal = caminho;
+    var arquivo = File(caminhoFinal);
+    if (!arquivo.existsSync()) {
+      if (ClienteRedeLocal().conectado) {
+        caminhoFinal = await ClienteRedeLocal().baixarAudioRemoto(caminho);
+        arquivo = File(caminhoFinal);
+      }
+    }
     if (!arquivo.existsSync()) return;
 
-    final metadados = MetadadosAudioService.extrair(caminho);
+    final metadados = MetadadosAudioService.extrair(caminhoFinal);
 
     estadoNotifier.value = estadoAtual.copyWith(
-      caminho: caminho,
+      caminho: caminhoFinal,
       posicao: Duration.zero,
       duracaoEstimada: _estimarDuracao(arquivo),
       metadados: metadados,
@@ -139,7 +147,7 @@ class PlayerAudioService {
         estadoAtual.loop ? ReleaseMode.loop : ReleaseMode.release,
       );
       await _player.setVolume(estadoAtual.volume);
-      await _player.play(DeviceFileSource(caminho));
+      await _player.play(DeviceFileSource(caminhoFinal));
     } catch (_) {
       // Fallback seguro caso ocorra erro no driver nativo
     }

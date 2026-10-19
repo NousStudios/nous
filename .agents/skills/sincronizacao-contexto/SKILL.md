@@ -30,6 +30,9 @@ Sempre que você concluir:
 
 **Você deve atualizar os arquivos de documentação AUTOMATICAMENTE no mesmo ciclo de trabalho, sem esperar solicitação do usuário.**
 
+> [!NOTE]
+> **Instaladores e Builds são Sob Demanda:** A sincronização automática abrange **estritamente a documentação** (`README.md`, `AGENTS.md` e skills). **NUNCA** compile executáveis Windows nem gere novos APKs em `dist/` automaticamente a cada edição de código. A compilação de binários e instaladores só deve ser disparada se o desenvolvedor solicitar explicitamente.
+
 ---
 
 ## 3. Arquivos que Devem Ser Sincronizados

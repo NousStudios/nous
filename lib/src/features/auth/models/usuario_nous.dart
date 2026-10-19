@@ -1,6 +1,7 @@
 class UsuarioNous {
   final String cpf;
   final String nome;
+  final String apelido;
   final String dataNascimento;
   final List<String> emails;
   final String foto;
@@ -13,6 +14,7 @@ class UsuarioNous {
   const UsuarioNous({
     required this.cpf,
     required this.nome,
+    this.apelido = '',
     required this.dataNascimento,
     this.emails = const [],
     this.foto = '',
@@ -25,6 +27,7 @@ class UsuarioNous {
 
   UsuarioNous copyWith({
     String? nome,
+    String? apelido,
     String? dataNascimento,
     List<String>? emails,
     String? foto,
@@ -37,6 +40,7 @@ class UsuarioNous {
     return UsuarioNous(
       cpf: cpf,
       nome: nome ?? this.nome,
+      apelido: apelido ?? this.apelido,
       dataNascimento: dataNascimento ?? this.dataNascimento,
       emails: emails ?? this.emails,
       foto: foto ?? this.foto,
@@ -52,6 +56,7 @@ class UsuarioNous {
     return {
       'cpf': cpf,
       'nome': nome,
+      'apelido': apelido,
       'dataNascimento': dataNascimento,
       'emails': emails,
       'foto': foto,
@@ -67,6 +72,7 @@ class UsuarioNous {
     return UsuarioNous(
       cpf: json['cpf'] as String? ?? '',
       nome: json['nome'] as String? ?? '',
+      apelido: json['apelido'] as String? ?? '',
       dataNascimento: json['dataNascimento'] as String? ?? '',
       emails: (json['emails'] as List<dynamic>? ?? const [])
           .map((item) => item as String)

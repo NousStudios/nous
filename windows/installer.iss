@@ -4,7 +4,7 @@
 ; ═════════════════════════════════════════════════════════════════
 
 #define MyAppName "Nous"
-#define MyAppVersion "1.0.3"
+#define MyAppVersion "1.0.4"
 #define MyAppPublisher "Nous Studios"
 #define MyAppURL "https://github.com/NousStudios/nous"
 #define MyAppExeName "nous.exe"

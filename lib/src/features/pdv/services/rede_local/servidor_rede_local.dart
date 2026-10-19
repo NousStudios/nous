@@ -27,6 +27,7 @@ class TerminalConectadoInfo {
   final DateTime conectadoEm;
   String? cpf;
   String? nomeUsuario;
+  String? apelido;
 
   TerminalConectadoInfo({
     required this.id,
@@ -35,6 +36,7 @@ class TerminalConectadoInfo {
     required this.conectadoEm,
     this.cpf,
     this.nomeUsuario,
+    this.apelido,
   });
 
   Map<String, dynamic> toJson() => {
@@ -44,6 +46,7 @@ class TerminalConectadoInfo {
         'conectadoEm': conectadoEm.toIso8601String(),
         'cpf': cpf,
         'nomeUsuario': nomeUsuario,
+        'apelido': apelido,
       };
 
   factory TerminalConectadoInfo.fromJson(Map<String, dynamic> json) {
@@ -55,6 +58,7 @@ class TerminalConectadoInfo {
           DateTime.now(),
       cpf: json['cpf'] as String?,
       nomeUsuario: json['nomeUsuario'] as String?,
+      apelido: json['apelido'] as String?,
     );
   }
 }
@@ -350,6 +354,61 @@ class ServidorRedeLocal {
       }
     }
 
+    // 2.1 Servir arquivos de áudio/música pela rede local
+    if (path == '/api/audio' && request.method == 'GET') {
+      final caminho = request.uri.queryParameters['caminho'];
+      if (caminho == null || caminho.trim().isEmpty) {
+        request.response.statusCode = HttpStatus.badRequest;
+        await request.response.close();
+        return;
+      }
+
+      final arquivo = File(caminho.trim());
+      if (!await arquivo.exists()) {
+        request.response.statusCode = HttpStatus.notFound;
+        await request.response.close();
+        return;
+      }
+
+      try {
+        final ext = caminho.split('.').last.toLowerCase();
+        ContentType tipoConteudo;
+        switch (ext) {
+          case 'mp3':
+            tipoConteudo = ContentType('audio', 'mpeg');
+            break;
+          case 'wav':
+            tipoConteudo = ContentType('audio', 'wav');
+            break;
+          case 'ogg':
+            tipoConteudo = ContentType('audio', 'ogg');
+            break;
+          case 'aac':
+          case 'm4a':
+            tipoConteudo = ContentType('audio', 'aac');
+            break;
+          case 'flac':
+            tipoConteudo = ContentType('audio', 'flac');
+            break;
+          default:
+            tipoConteudo = ContentType('audio', 'mpeg');
+            break;
+        }
+
+        request.response.headers.contentType = tipoConteudo;
+        request.response.headers.set('Accept-Ranges', 'bytes');
+        request.response.headers.contentLength = await arquivo.length();
+        await request.response.addStream(arquivo.openRead());
+        await request.response.close();
+        return;
+      } catch (e) {
+        debugPrint('[ServidorRedeLocal] Erro ao servir áudio: $e');
+        request.response.statusCode = HttpStatus.internalServerError;
+        await request.response.close();
+        return;
+      }
+    }
+
     // 3. Status do servidor
     if (path == '/api/status' && request.method == 'GET') {
       _responderJson(request, {
@@ -368,6 +427,7 @@ class ServidorRedeLocal {
       final ipRemoto = request.connectionInfo?.remoteAddress.address ?? '127.0.0.1';
       final cpfParam = request.uri.queryParameters['cpf'];
       final nomeParam = request.uri.queryParameters['nome'];
+      final apelidoParam = request.uri.queryParameters['apelido'];
       final dispositivoParam = request.uri.queryParameters['dispositivo'];
 
       final ehLocal = request.connectionInfo?.remoteAddress.isLoopback ?? false;
@@ -381,7 +441,9 @@ class ServidorRedeLocal {
           nomeDispositivo: (dispositivoParam != null && dispositivoParam.trim().isNotEmpty)
               ? dispositivoParam.trim()
               : 'Terminal Móvel',
-          nomeUsuario: nomeParam,
+          nomeUsuario: (apelidoParam != null && apelidoParam.trim().isNotEmpty)
+              ? '$nomeParam ($apelidoParam)'
+              : nomeParam,
           cpf: cpfParam,
         );
 
@@ -410,6 +472,7 @@ class ServidorRedeLocal {
           conectadoEm: DateTime.now(),
           cpf: cpfParam.trim(),
           nomeUsuario: nomeParam?.trim(),
+          apelido: apelidoParam?.trim(),
         );
         _garantirMembroConectado(terminalTemp);
         _consolidarContaTerminal(terminalTemp);
@@ -488,6 +551,16 @@ class ServidorRedeLocal {
             tempoConclusaoMinutos: lojaRemota.tempoConclusaoMinutos,
             sonsAlertas: lojaRemota.sonsAlertas,
             atalhosTeclado: lojaRemota.atalhosTeclado,
+            aberta: lojaRemota.aberta,
+            turnosCaixa: lojaRemota.turnosCaixa,
+            pagamentosFuncionarios: lojaRemota.pagamentosFuncionarios,
+            pedidosProgramados: lojaRemota.pedidosProgramados,
+            galeria: lojaRemota.galeria,
+            arquivos: lojaRemota.arquivos,
+            musicas: lojaRemota.musicas,
+            videos: lojaRemota.videos,
+            arquivosAudio: lojaRemota.arquivosAudio,
+            descricoesAnexos: lojaRemota.descricoesAnexos,
           );
 
           _lojaAtiva = lojaConsolidada;
@@ -783,6 +856,7 @@ class ServidorRedeLocal {
         final nome = dados['nomeDispositivo'] as String?;
         final cpf = dados['cpf'] as String?;
         final nomeUsuario = dados['nomeUsuario'] as String?;
+        final apelido = dados['apelido'] as String?;
         final terminal = _terminaisWs[ws];
         if (terminal != null) {
           if (nome != null && nome.trim().isNotEmpty) {
@@ -794,9 +868,12 @@ class ServidorRedeLocal {
           if (nomeUsuario != null && nomeUsuario.trim().isNotEmpty) {
             terminal.nomeUsuario = nomeUsuario.trim();
           }
+          if (apelido != null && apelido.trim().isNotEmpty) {
+            terminal.apelido = apelido.trim();
+          }
           _atualizarListasTerminais();
           debugPrint(
-            '[ServidorRedeLocal] Terminal identificado: "${terminal.nome}" (CPF: ${terminal.cpf}, Nome: ${terminal.nomeUsuario}, IP: ${terminal.ip})',
+            '[ServidorRedeLocal] Terminal identificado: "${terminal.nome}" (CPF: ${terminal.cpf}, Nome: ${terminal.nomeUsuario}, Apelido: ${terminal.apelido}, IP: ${terminal.ip})',
           );
 
           // Verifica se o CPF ainda não é membro da loja e garante sua inclusão
@@ -861,13 +938,17 @@ class ServidorRedeLocal {
 
     if (!jaEhMembro) {
       debugPrint('[ServidorRedeLocal] Auto-associando membro na loja via Wi-Fi: CPF $cpfLimpo (${terminal.nome})');
-      String nomeFinal = (terminal.nomeUsuario != null && terminal.nomeUsuario!.trim().isNotEmpty)
-          ? terminal.nomeUsuario!.trim()
-          : '';
+      String nomeFinal = (terminal.apelido != null && terminal.apelido!.trim().isNotEmpty)
+          ? terminal.apelido!.trim()
+          : ((terminal.nomeUsuario != null && terminal.nomeUsuario!.trim().isNotEmpty)
+              ? terminal.nomeUsuario!.trim()
+              : '');
       if (nomeFinal.isEmpty) {
         final conta = await ContasNousService.buscarPorCpf(terminal.cpf!);
-        if (conta != null && conta.nome.trim().isNotEmpty) {
-          nomeFinal = conta.nome.trim();
+        if (conta != null) {
+          nomeFinal = conta.apelido.trim().isNotEmpty
+              ? conta.apelido.trim()
+              : conta.nome.trim();
         }
       }
       if (nomeFinal.isEmpty) {
@@ -912,6 +993,10 @@ class ServidorRedeLocal {
               terminal.nomeUsuario!.trim().isNotEmpty)
           ? terminal.nomeUsuario!.trim()
           : (terminal.nome.isNotEmpty ? terminal.nome : 'Usuário Nous');
+      final apelido = (terminal.apelido != null &&
+              terminal.apelido!.trim().isNotEmpty)
+          ? terminal.apelido!.trim()
+          : '';
 
       if (contaExistente == null) {
         final dadosAuto =
@@ -920,7 +1005,10 @@ class ServidorRedeLocal {
           cpf: terminal.cpf!,
           nome: (dadosAuto != null && dadosAuto.nome.isNotEmpty)
               ? dadosAuto.nome
-              : nome,
+              : (apelido.isNotEmpty ? apelido : nome),
+          apelido: apelido.isNotEmpty
+              ? apelido
+              : (dadosAuto?.apelido ?? (dadosAuto?.nome ?? nome)),
           dataNascimento: dadosAuto?.dataNascimento ?? '',
           foto: dadosAuto?.foto ?? '',
         );
@@ -928,9 +1016,17 @@ class ServidorRedeLocal {
         debugPrint(
           '[ServidorRedeLocal] Ficha de conta unificada no balcão para CPF $cpfLimpo (${novaConta.nome})',
         );
-      } else if (contaExistente.nome.isEmpty && nome.isNotEmpty) {
-        final atualizada = contaExistente.copyWith(nome: nome);
-        await ContasNousService.salvar(atualizada);
+      } else {
+        var atualizada = contaExistente;
+        if (contaExistente.nome.isEmpty && nome.isNotEmpty) {
+          atualizada = atualizada.copyWith(nome: nome);
+        }
+        if (apelido.isNotEmpty && contaExistente.apelido != apelido) {
+          atualizada = atualizada.copyWith(apelido: apelido);
+        }
+        if (atualizada != contaExistente) {
+          await ContasNousService.salvar(atualizada);
+        }
       }
     } catch (e) {
       debugPrint('[ServidorRedeLocal] Erro ao consolidar conta de terminal: $e');

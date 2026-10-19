@@ -2,8 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:nous/src/core/theme/theme_controller.dart';
 import 'package:nous/src/features/auth/providers/auth_provider.dart';
-import 'package:nous/src/features/auth/views/associar_cpf_view.dart';
-import 'package:nous/src/features/auth/views/contas_usuario_view.dart';
+import 'package:nous/src/features/auth/views/widgets/cadastrar_apelido_dialog.dart';
 import 'package:nous/src/features/notificacoes/providers/notificacoes_provider.dart';
 import 'package:nous/src/features/pdv/providers/pdv_provider.dart';
 import 'package:nous/src/features/pdv/views/perfis_pdv_view.dart';
@@ -14,24 +13,38 @@ class LoginButtonsWidget extends StatelessWidget {
   Future<void> _entrar(BuildContext context) async {
     final authProvider = context.read<AuthProvider>();
     final notificacoesProvider = context.read<NotificacoesProvider>();
+    final pdvProvider = context.read<PdvProvider>();
+    final theme = ThemeController.currentTheme.value;
+
     final contaEncontrada = await authProvider.buscarConta();
 
     if (!context.mounted) return;
 
-    if (contaEncontrada) {
-      await notificacoesProvider.carregarParaCpf(authProvider.cpf);
-      if (!context.mounted) return;
-      Navigator.pushAndRemoveUntil(
+    if (!contaEncontrada) {
+      final apelido = await CadastrarApelidoDialog.mostrar(
         context,
-        MaterialPageRoute(builder: (context) => const ContasUsuarioView()),
-        (route) => false,
+        cpf: authProvider.cpf,
+        theme: theme,
       );
-    } else {
-      Navigator.push(
-        context,
-        MaterialPageRoute(builder: (context) => const AssociarCpfView()),
-      );
+      if (apelido == null || apelido.trim().isEmpty || !context.mounted) {
+        return;
+      }
+      await authProvider.associarContaComApelido(apelido.trim());
     }
+
+    await authProvider.salvarUltimoCpf(authProvider.cpf);
+    await notificacoesProvider.carregarParaCpf(authProvider.cpf);
+    await pdvProvider.entrarComCpf(authProvider.cpf);
+
+    if (!context.mounted) return;
+
+    Navigator.pushAndRemoveUntil(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const PerfisPdvView(abrirSincronizacaoInicial: true),
+      ),
+      (route) => false,
+    );
   }
 
   void _entrarComoVisitante(BuildContext context) {

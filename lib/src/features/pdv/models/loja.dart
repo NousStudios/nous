@@ -59,6 +59,7 @@ class Loja {
   final Map<String, String> atalhosTeclado;
   final bool layoutExpandido;
   final String tipoLayoutMaior;
+  final bool aberta;
 
   /// Retorna o estado real do layout expandido respeitando o dispositivo ativo.
   /// Em celulares (Android e iOS), retorna sempre falso para prevenir desaparecimento de botões.
@@ -110,6 +111,7 @@ class Loja {
     this.atalhosTeclado = const {},
     this.layoutExpandido = false,
     this.tipoLayoutMaior = 'painel_duplo',
+    this.aberta = true,
   });
 
   Loja copyWith({
@@ -151,6 +153,7 @@ class Loja {
     Map<String, String>? atalhosTeclado,
     bool? layoutExpandido,
     String? tipoLayoutMaior,
+    bool? aberta,
   }) {
     return Loja(
       id: id,
@@ -197,6 +200,7 @@ class Loja {
       atalhosTeclado: atalhosTeclado ?? this.atalhosTeclado,
       layoutExpandido: layoutExpandido ?? this.layoutExpandido,
       tipoLayoutMaior: tipoLayoutMaior ?? this.tipoLayoutMaior,
+      aberta: aberta ?? this.aberta,
     );
   }
 
@@ -249,6 +253,7 @@ class Loja {
       'atalhosTeclado': atalhosTeclado,
       'layoutExpandido': layoutExpandido,
       'tipoLayoutMaior': tipoLayoutMaior,
+      'aberta': aberta,
     };
   }
 
@@ -362,6 +367,7 @@ class Loja {
               .map((k, v) => MapEntry(k.toString(), v.toString())),
       layoutExpandido: json['layoutExpandido'] as bool? ?? false,
       tipoLayoutMaior: json['tipoLayoutMaior'] as String? ?? 'painel_duplo',
+      aberta: json['aberta'] as bool? ?? true,
     );
   }
 

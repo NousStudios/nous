@@ -118,6 +118,7 @@ class _StatusLojaViewState extends State<StatusLojaView> {
   void _alternarOnline(bool valor) {
     setState(() => _online = valor);
     widget.aoAlterarOnline(valor);
+    context.read<PdvProvider>().alternarLojaAberta(widget.lojaId, valor);
   }
 
   BoxDecoration _decoracaoDoBloco(AppTheme theme) => BoxDecoration(
@@ -771,6 +772,9 @@ class _StatusLojaViewState extends State<StatusLojaView> {
           builder: (context, theme, child) {
             final loja =
                 context.watch<PdvProvider>().buscarPorId(widget.lojaId);
+            if (loja != null && loja.aberta != _online) {
+              _online = loja.aberta;
+            }
             final larguraDaTela = MediaQuery.sizeOf(context).width;
             final expandido =
                 (loja?.layoutExpandido ?? false) && larguraDaTela > 850;

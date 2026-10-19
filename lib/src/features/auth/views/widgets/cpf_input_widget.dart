@@ -43,6 +43,21 @@ class _CpfInputWidgetState extends State<CpfInputWidget> {
         _isFocused = _focusNode.hasFocus;
       });
     });
+
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (!mounted) return;
+      final auth = context.read<AuthProvider>();
+      if (auth.cpf.isEmpty) {
+        final ultimo = await auth.obterUltimoCpf();
+        if (ultimo != null && ultimo.isNotEmpty && mounted) {
+          final formatado = CpfValidator.applyMask(ultimo);
+          _controller.text = formatado;
+          auth.updateCpf(formatado);
+        }
+      } else if (_controller.text.isEmpty) {
+        _controller.text = CpfValidator.applyMask(auth.cpf);
+      }
+    });
   }
 
   @override

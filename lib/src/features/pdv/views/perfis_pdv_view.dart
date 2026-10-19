@@ -14,11 +14,37 @@ import 'package:nous/src/features/pdv/providers/pdv_provider.dart';
 import 'package:nous/src/features/pdv/views/dados_perfil_view.dart';
 import 'package:nous/src/features/pdv/views/widgets/criar_perfil_dialog.dart';
 import 'package:nous/src/features/pdv/views/widgets/estado_vazio_container.dart';
+import 'package:nous/src/features/pdv/views/widgets/sincronizacao_rede_dialog.dart';
 
-class PerfisPdvView extends StatelessWidget {
-  const PerfisPdvView({super.key});
+class PerfisPdvView extends StatefulWidget {
+  final bool abrirSincronizacaoInicial;
 
+  const PerfisPdvView({
+    super.key,
+    this.abrirSincronizacaoInicial = false,
+  });
+
+  @override
+  State<PerfisPdvView> createState() => _PerfisPdvViewState();
+}
+
+class _PerfisPdvViewState extends State<PerfisPdvView> {
   static const double _larguraMaximaConteudo = 600;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.abrirSincronizacaoInicial) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          SincronizacaoRedeDialog.mostrar(
+            context,
+            theme: ThemeController.currentTheme.value,
+          );
+        }
+      });
+    }
+  }
 
   void _handleLogout(BuildContext context) {
     Navigator.of(context).pushAndRemoveUntil(

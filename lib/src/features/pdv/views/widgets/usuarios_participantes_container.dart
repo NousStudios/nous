@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import 'package:nous/src/core/theme/theme_controller.dart';
 import 'package:nous/src/features/auth/models/usuario_nous.dart';
 import 'package:nous/src/features/auth/providers/auth_provider.dart';
+import 'package:nous/src/features/auth/views/widgets/ficha_usuario_dialog.dart';
 import 'package:nous/src/features/pdv/models/cargo_loja.dart';
 import 'package:nous/src/features/pdv/models/membro_loja.dart';
 import 'package:nous/src/features/pdv/providers/pdv_provider.dart';
@@ -391,6 +392,26 @@ class UsuariosParticipantesContainer extends StatelessWidget {
     );
   }
 
+  Future<void> _abrirIdentidadeDoUsuario(BuildContext context, MembroLoja membro) async {
+    final conta = await buscarConta(membro.cpf);
+    final usuario = conta ??
+        UsuarioNous(
+          cpf: membro.cpf,
+          nome: membro.nome,
+          apelido: membro.nome,
+          dataNascimento: '',
+        );
+    if (!context.mounted) return;
+    final ehVoce = membro.cpf.replaceAll(RegExp(r'\D'), '') ==
+        cpfLogado.replaceAll(RegExp(r'\D'), '');
+    FichaUsuarioDialog.mostrar(
+      context,
+      theme: theme,
+      usuario: usuario,
+      somenteLeitura: !ehVoce,
+    );
+  }
+
   Widget _linhaDeMembro(BuildContext context, MembroLoja membro) {
     final ehVoce = membro.cpf == cpfLogado;
     final podeEditarPapel = podeGerenciar && !ehVoce;
@@ -428,19 +449,22 @@ class UsuariosParticipantesContainer extends StatelessWidget {
     final temFoto = foto.isNotEmpty && File(foto).existsSync();
 
     return _MembroLinhaComHover(
-      builder: (hover) => Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        margin: const EdgeInsets.only(bottom: 8),
-        decoration: BoxDecoration(
-          color: hover
-              ? theme.borderColor.withValues(alpha: 0.18)
-              : Colors.transparent,
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(
-            color: hover ? theme.textColor : theme.borderColor,
+      builder: (hover) => InkWell(
+        onTap: () => _abrirIdentidadeDoUsuario(context, membro),
+        borderRadius: BorderRadius.circular(10),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          margin: const EdgeInsets.only(bottom: 8),
+          decoration: BoxDecoration(
+            color: hover
+                ? theme.borderColor.withValues(alpha: 0.18)
+                : Colors.transparent,
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(
+              color: hover ? theme.textColor : theme.borderColor,
+            ),
           ),
-        ),
-        child: Row(
+          child: Row(
           children: [
             Container(
               width: 32,
@@ -534,8 +558,9 @@ class UsuariosParticipantesContainer extends StatelessWidget {
           ],
         ),
       ),
-    );
-  }
+    ),
+  );
+}
 
   @override
   Widget build(BuildContext context) {

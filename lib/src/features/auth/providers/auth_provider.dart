@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:nous/src/core/theme/theme_controller.dart';
 import 'package:nous/src/features/auth/models/usuario_nous.dart';
 import 'package:nous/src/features/auth/services/contas_nous_service.dart';
@@ -7,6 +8,8 @@ import 'package:nous/src/features/pdv/services/dados_locais_service.dart';
 import 'package:nous/src/features/pdv/services/rede_local/cliente_rede_local.dart';
 
 class AuthProvider extends ChangeNotifier {
+  static const String _chaveUltimoCpf = 'ultimo_cpf_login';
+
   AuthProvider() {
     carregarCacheContas();
   }
@@ -25,6 +28,19 @@ class AuthProvider extends ChangeNotifier {
   String? get emailAtivo => _emailAtivo;
 
   bool get isValid => CpfValidator.isValid(_cpf);
+
+  Future<void> salvarUltimoCpf(String cpf) async {
+    final digitos = CpfValidator.onlyDigits(cpf);
+    if (digitos.length == 11) {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_chaveUltimoCpf, digitos);
+    }
+  }
+
+  Future<String?> obterUltimoCpf() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString(_chaveUltimoCpf);
+  }
 
   bool _disposed = false;
 
@@ -133,6 +149,7 @@ class AuthProvider extends ChangeNotifier {
     final conta = UsuarioNous(
       cpf: _cpf,
       nome: nome.trim(),
+      apelido: nome.trim(),
       dataNascimento: dataNascimento.trim(),
     );
 
@@ -141,6 +158,36 @@ class AuthProvider extends ChangeNotifier {
     _contaAtual = conta;
     _emailAtivo = null;
     await ThemeController.carregarTemaDoUsuario(_cpf);
+    notifyListeners();
+  }
+
+  Future<void> associarContaComApelido(String apelido) async {
+    final apelidoLimpo = apelido.trim();
+    final conta = UsuarioNous(
+      cpf: _cpf,
+      nome: apelidoLimpo,
+      apelido: apelidoLimpo,
+      dataNascimento: '',
+    );
+
+    await ContasNousService.salvar(conta);
+
+    _contaAtual = conta;
+    _emailAtivo = null;
+    await ThemeController.carregarTemaDoUsuario(_cpf);
+    notifyListeners();
+  }
+
+  Future<void> atualizarApelido(String novoApelido) async {
+    final conta = _contaAtual;
+    if (conta == null) return;
+
+    final atualizado = conta.copyWith(apelido: novoApelido.trim());
+    await ContasNousService.salvar(atualizado);
+    _contaAtual = atualizado;
+    if (ClienteRedeLocal().conectado) {
+      ClienteRedeLocal().enviarUsuario(atualizado);
+    }
     notifyListeners();
   }
 
@@ -170,6 +217,9 @@ class AuthProvider extends ChangeNotifier {
     await ContasNousService.salvar(atualizado);
     _contaAtual = atualizado;
     _emailAtivo ??= emailLimpo;
+    if (ClienteRedeLocal().conectado) {
+      ClienteRedeLocal().enviarUsuario(atualizado);
+    }
     notifyListeners();
     return null;
   }
@@ -185,6 +235,9 @@ class AuthProvider extends ChangeNotifier {
 
     if (_emailAtivo == email) {
       _emailAtivo = novosEmails.isEmpty ? null : novosEmails.first;
+    }
+    if (ClienteRedeLocal().conectado) {
+      ClienteRedeLocal().enviarUsuario(atualizado);
     }
     notifyListeners();
   }
@@ -204,6 +257,9 @@ class AuthProvider extends ChangeNotifier {
     await ContasNousService.salvar(atualizado);
     _contaAtual = atualizado;
     _fotosPorCpf[conta.cpf] = novaFoto;
+    if (ClienteRedeLocal().conectado) {
+      ClienteRedeLocal().enviarUsuario(atualizado);
+    }
     notifyListeners();
   }
 
@@ -238,6 +294,9 @@ class AuthProvider extends ChangeNotifier {
     );
     await ContasNousService.salvar(atualizado);
     _contaAtual = atualizado;
+    if (ClienteRedeLocal().conectado) {
+      ClienteRedeLocal().enviarUsuario(atualizado);
+    }
     notifyListeners();
   }
 

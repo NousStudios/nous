@@ -8,6 +8,7 @@ import 'package:nous/src/core/theme/theme_controller.dart';
 import 'package:nous/src/features/pdv/services/imagem_service.dart';
 import 'package:nous/src/core/widgets/custom_app_bar.dart';
 import 'package:nous/src/core/widgets/floating_bottom_nav_bar.dart';
+import 'package:nous/src/features/pdv/services/dados_locais_service.dart';
 import 'package:nous/src/features/auth/models/usuario_nous.dart';
 import 'package:nous/src/features/auth/providers/auth_provider.dart';
 import 'package:nous/src/features/auth/services/contas_nous_service.dart';
@@ -235,8 +236,40 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
     context.read<PdvProvider>().registrarAcao(widget.lojaId, acao);
   }
 
-  Future<UsuarioNous?> _buscarContaPorCpf(String cpf) {
-    return ContasNousService.buscarPorCpf(cpf);
+  Future<UsuarioNous?> _buscarContaPorCpf(String cpf) async {
+    var conta = await ContasNousService.buscarPorCpf(cpf);
+
+    // Se conectado como terminal móvel ao balcão, consulta a ficha cadastral unificada e completa
+    if (ClienteRedeLocal().conectado) {
+      try {
+        final remota = await ClienteRedeLocal().buscarUsuarioRemoto(cpf);
+        if (remota != null) {
+          conta = remota;
+        }
+      } catch (_) {}
+    }
+
+    if (conta == null) {
+      try {
+        final dadosAuto = await DadosLocaisService.buscarPorDocumento(cpf);
+        if (dadosAuto != null && dadosAuto.nome.isNotEmpty) {
+          conta = UsuarioNous(
+            cpf: cpf,
+            nome: dadosAuto.nome,
+            apelido: dadosAuto.apelido.isNotEmpty ? dadosAuto.apelido : dadosAuto.nome,
+            dataNascimento: dadosAuto.dataNascimento,
+            foto: dadosAuto.foto,
+          );
+        }
+      } catch (_) {}
+    }
+
+    if (conta == null) {
+      try {
+        conta = await ClienteRedeLocal().buscarUsuarioRemoto(cpf);
+      } catch (_) {}
+    }
+    return conta;
   }
 
   Future<void> _enviarConvite(UsuarioNous conta, PapelMembro papel) async {
@@ -1912,12 +1945,16 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
     final meuPapel = context.read<PdvProvider>().meuPapel(widget.lojaId);
     final podeSair = meuPapel != null;
 
+    final lojaAtual = context.read<PdvProvider>().buscarPorId(widget.lojaId);
     Navigator.of(context).push(
       MaterialPageRoute(
         builder: (context) => StatusLojaView(
           lojaId: widget.lojaId,
-          lojaOnlineInicial: _lojaOnline,
-          aoAlterarOnline: (valor) => setState(() => _lojaOnline = valor),
+          lojaOnlineInicial: lojaAtual?.aberta ?? _lojaOnline,
+          aoAlterarOnline: (valor) {
+            setState(() => _lojaOnline = valor);
+            context.read<PdvProvider>().alternarLojaAberta(widget.lojaId, valor);
+          },
           membros: List.of(_membros),
           cpfLogado: cpfLogado,
           podeSair: podeSair,

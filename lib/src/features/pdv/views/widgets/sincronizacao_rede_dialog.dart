@@ -1,8 +1,13 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:nous/src/core/theme/theme_controller.dart';
 import 'package:nous/src/core/widgets/themed_text_field.dart';
+import 'package:nous/src/features/auth/models/usuario_nous.dart';
 import 'package:nous/src/features/auth/providers/auth_provider.dart';
+import 'package:nous/src/features/auth/services/contas_nous_service.dart';
+import 'package:nous/src/features/auth/services/cpf_validator.dart';
+import 'package:nous/src/features/auth/views/widgets/ficha_usuario_dialog.dart';
 import 'package:nous/src/features/pdv/models/loja.dart';
 import 'package:nous/src/features/pdv/providers/pdv_provider.dart';
 import 'package:nous/src/features/pdv/services/rede_local/cliente_rede_local.dart';
@@ -194,7 +199,11 @@ class _SincronizacaoRedeDialogState extends State<SincronizacaoRedeDialog> {
                   color: theme.secondaryTextColor,
                 ),
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: 14),
+
+              // Identidade Ativa na Rede (Transparência Radical)
+              _buildCardIdentidadeAtiva(context, theme),
+              const SizedBox(height: 14),
 
               // Abas: Balcão (Servidor) vs. Celular/Terminal (Cliente)
               Row(
@@ -256,6 +265,110 @@ class _SincronizacaoRedeDialogState extends State<SincronizacaoRedeDialog> {
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _buildCardIdentidadeAtiva(BuildContext context, AppTheme theme) {
+    final auth = context.watch<AuthProvider>();
+    final conta = auth.contaAtual;
+    final cpf = auth.cpf;
+    final cpfFormatado = CpfValidator.format(cpf);
+    final nome = conta?.nome ?? 'Usuário Nous';
+    final apelido = conta?.apelido;
+    final temApelido = apelido != null && apelido.trim().isNotEmpty;
+    final temFoto = conta != null && conta.foto.isNotEmpty && File(conta.foto).existsSync();
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        color: theme.textColor.withValues(alpha: 0.05),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: theme.borderColor.withValues(alpha: 0.4),
+        ),
+      ),
+      child: Row(
+        children: [
+          ClipRRect(
+            borderRadius: BorderRadius.circular(21),
+            child: temFoto
+                ? Image.file(
+                    File(conta.foto),
+                    width: 42,
+                    height: 42,
+                    fit: BoxFit.cover,
+                  )
+                : Container(
+                    width: 42,
+                    height: 42,
+                    color: theme.textColor.withValues(alpha: 0.1),
+                    child: Icon(Icons.person_rounded, size: 24, color: theme.secondaryTextColor),
+                  ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Row(
+                  children: [
+                    Flexible(
+                      child: Text(
+                        nome,
+                        style: theme.getTextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold,
+                          color: theme.textColor,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    if (temApelido) ...[
+                      const SizedBox(width: 6),
+                      Text(
+                        '(@$apelido)',
+                        style: theme.getTextStyle(
+                          fontSize: 12,
+                          color: theme.secondaryTextColor,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  'CPF: $cpfFormatado',
+                  style: theme.getTextStyle(
+                    fontSize: 12,
+                    color: theme.secondaryTextColor,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          IconButton(
+            tooltip: 'Minha Identidade',
+            icon: Icon(Icons.badge_outlined, size: 20, color: theme.textColor),
+            onPressed: () {
+              final usuario = conta ??
+                  UsuarioNous(
+                    cpf: cpf,
+                    nome: nome,
+                    apelido: apelido ?? '',
+                    dataNascimento: '',
+                  );
+              FichaUsuarioDialog.mostrar(
+                context,
+                theme: theme,
+                usuario: usuario,
+                somenteLeitura: false,
+              );
+            },
+          ),
+        ],
       ),
     );
   }
@@ -513,6 +626,10 @@ class _SincronizacaoRedeDialogState extends State<SincronizacaoRedeDialog> {
                                   final hora =
                                       '${term.conectadoEm.hour.toString().padLeft(2, '0')}:${term.conectadoEm.minute.toString().padLeft(2, '0')}';
                                   final ehBalcao = term.id == 'balcao_servidor_local';
+                                  final temUsuario = term.nomeUsuario != null && term.nomeUsuario!.trim().isNotEmpty;
+                                  final temCpf = term.cpf != null && term.cpf!.trim().isNotEmpty;
+                                  final temApelido = term.apelido != null && term.apelido!.trim().isNotEmpty;
+
                                   return Container(
                                     margin: const EdgeInsets.only(bottom: 6),
                                     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
@@ -527,7 +644,7 @@ class _SincronizacaoRedeDialogState extends State<SincronizacaoRedeDialog> {
                                       children: [
                                         Icon(
                                           ehBalcao ? Icons.desktop_windows_rounded : Icons.smartphone_rounded,
-                                          size: 20,
+                                          size: 22,
                                           color: Colors.greenAccent,
                                         ),
                                         const SizedBox(width: 10),
@@ -535,24 +652,111 @@ class _SincronizacaoRedeDialogState extends State<SincronizacaoRedeDialog> {
                                           child: Column(
                                             crossAxisAlignment: CrossAxisAlignment.start,
                                             children: [
-                                              Text(
-                                                term.nome,
-                                                style: theme.getTextStyle(
-                                                  fontSize: 13,
-                                                  fontWeight: FontWeight.bold,
-                                                  color: theme.textColor,
-                                                ),
+                                              Row(
+                                                children: [
+                                                  Flexible(
+                                                    child: Text(
+                                                      term.nome,
+                                                      style: theme.getTextStyle(
+                                                        fontSize: 13,
+                                                        fontWeight: FontWeight.bold,
+                                                        color: theme.textColor,
+                                                      ),
+                                                      maxLines: 1,
+                                                      overflow: TextOverflow.ellipsis,
+                                                    ),
+                                                  ),
+                                                  const SizedBox(width: 6),
+                                                  Text(
+                                                    '• ${term.ip}',
+                                                    style: theme.getTextStyle(
+                                                      fontSize: 11,
+                                                      color: theme.secondaryTextColor,
+                                                    ),
+                                                  ),
+                                                ],
                                               ),
+                                              if (temUsuario || temCpf) ...[
+                                                const SizedBox(height: 2),
+                                                Row(
+                                                  children: [
+                                                    Icon(Icons.person_outline_rounded, size: 12, color: theme.secondaryTextColor),
+                                                    const SizedBox(width: 4),
+                                                    Flexible(
+                                                      child: Text.rich(
+                                                        TextSpan(
+                                                          children: [
+                                                            if (temUsuario)
+                                                              TextSpan(
+                                                                text: term.nomeUsuario!,
+                                                                style: theme.getTextStyle(
+                                                                  fontSize: 12,
+                                                                  fontWeight: FontWeight.bold,
+                                                                  color: theme.textColor,
+                                                                ),
+                                                              ),
+                                                            if (temApelido)
+                                                              TextSpan(
+                                                                text: ' (@${term.apelido})',
+                                                                style: theme.getTextStyle(
+                                                                  fontSize: 11,
+                                                                  color: theme.secondaryTextColor,
+                                                                ),
+                                                              ),
+                                                            if (temCpf)
+                                                              TextSpan(
+                                                                text: ' • CPF: ${CpfValidator.format(term.cpf!)}',
+                                                                style: theme.getTextStyle(
+                                                                  fontSize: 11,
+                                                                  color: theme.secondaryTextColor,
+                                                                ),
+                                                              ),
+                                                          ],
+                                                        ),
+                                                        maxLines: 1,
+                                                        overflow: TextOverflow.ellipsis,
+                                                      ),
+                                                    ),
+                                                  ],
+                                                ),
+                                              ],
+                                              const SizedBox(height: 2),
                                               Text(
-                                                'IP: ${term.ip} • Conectado às $hora',
+                                                'Conectado às $hora',
                                                 style: theme.getTextStyle(
-                                                  fontSize: 11,
-                                                  color: theme.secondaryTextColor,
+                                                  fontSize: 10,
+                                                  color: theme.secondaryTextColor.withValues(alpha: 0.8),
                                                 ),
                                               ),
                                             ],
                                           ),
                                         ),
+                                        if (temCpf)
+                                          IconButton(
+                                            tooltip: 'Ver Identidade do Membro',
+                                            icon: Icon(Icons.info_outline_rounded, size: 18, color: theme.secondaryTextColor),
+                                            padding: EdgeInsets.zero,
+                                            constraints: const BoxConstraints(),
+                                            onPressed: () async {
+                                              final auth = context.read<AuthProvider>();
+                                              final conta = await ContasNousService.buscarPorCpf(term.cpf!);
+                                              if (!context.mounted) return;
+                                              final usuarioParaAbrir = conta ??
+                                                  UsuarioNous(
+                                                    cpf: term.cpf!,
+                                                    nome: term.nomeUsuario ?? term.nome,
+                                                    apelido: term.apelido ?? '',
+                                                    dataNascimento: '',
+                                                  );
+                                              FichaUsuarioDialog.mostrar(
+                                                context,
+                                                usuario: usuarioParaAbrir,
+                                                theme: theme,
+                                                somenteLeitura: term.cpf != auth.cpf,
+                                              );
+                                            },
+                                          ),
+                                        const SizedBox(width: 6),
                                         Container(
                                           width: 8,
                                           height: 8,
@@ -726,6 +930,71 @@ class _SincronizacaoRedeDialogState extends State<SincronizacaoRedeDialog> {
                         fontSize: 12,
                         color: theme.secondaryTextColor,
                       ),
+                    ),
+                    const SizedBox(height: 10),
+                    Builder(
+                      builder: (context) {
+                        final auth = context.watch<AuthProvider>();
+                        final conta = auth.contaAtual;
+                        final nome = conta?.nome ?? 'Usuário Nous';
+                        final apelido = conta?.apelido;
+                        final temApelido = apelido != null && apelido.trim().isNotEmpty;
+                        final cpf = CpfValidator.format(auth.cpf);
+
+                        return Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                          decoration: BoxDecoration(
+                            color: theme.textColor.withValues(alpha: 0.05),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Row(
+                            children: [
+                              Icon(Icons.badge_outlined, size: 16, color: theme.secondaryTextColor),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text.rich(
+                                  TextSpan(
+                                    children: [
+                                      TextSpan(
+                                        text: 'Operador ativo: ',
+                                        style: theme.getTextStyle(
+                                          fontSize: 11,
+                                          color: theme.secondaryTextColor,
+                                        ),
+                                      ),
+                                      TextSpan(
+                                        text: nome,
+                                        style: theme.getTextStyle(
+                                          fontSize: 11,
+                                          fontWeight: FontWeight.bold,
+                                          color: theme.textColor,
+                                        ),
+                                      ),
+                                      if (temApelido)
+                                        TextSpan(
+                                          text: ' (@$apelido)',
+                                          style: theme.getTextStyle(
+                                            fontSize: 11,
+                                            color: theme.secondaryTextColor,
+                                          ),
+                                        ),
+                                      TextSpan(
+                                        text: ' • $cpf',
+                                        style: theme.getTextStyle(
+                                          fontSize: 11,
+                                          color: theme.secondaryTextColor,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                            ],
+                          ),
+                        );
+                      },
                     ),
                     const SizedBox(height: 16),
                     OutlinedButton.icon(

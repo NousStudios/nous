@@ -77,6 +77,9 @@ class CpfValidator {
 
     return buffer.toString();
   }
+
+  /// Formata um CPF para a exibição "000.000.000-00".
+  static String format(String rawInput) => applyMask(rawInput);
 }
 
 // ============================================================================

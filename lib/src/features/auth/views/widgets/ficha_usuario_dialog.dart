@@ -22,6 +22,7 @@ class FichaUsuarioDialog {
     BuildContext context, {
     required AppTheme theme,
     required UsuarioNous usuario,
+    bool? somenteLeitura,
   }) {
     return showDialog<void>(
       context: context,
@@ -38,6 +39,7 @@ class FichaUsuarioDialog {
             child: _FichaUsuarioConteudo(
               theme: theme,
               usuarioInicial: usuario,
+              somenteLeitura: somenteLeitura,
             ),
           ),
         );
@@ -49,10 +51,12 @@ class FichaUsuarioDialog {
 class _FichaUsuarioConteudo extends StatefulWidget {
   final AppTheme theme;
   final UsuarioNous usuarioInicial;
+  final bool? somenteLeitura;
 
   const _FichaUsuarioConteudo({
     required this.theme,
     required this.usuarioInicial,
+    this.somenteLeitura,
   });
 
   @override
@@ -63,6 +67,7 @@ class _FichaUsuarioConteudoState extends State<_FichaUsuarioConteudo> {
   late UsuarioNous _usuario;
   bool _editandoDados = false;
 
+  late final TextEditingController _apelidoController;
   late final TextEditingController _dataNascController;
   late final TextEditingController _nomeMaeController;
   late final TextEditingController _nomePaiController;
@@ -76,6 +81,8 @@ class _FichaUsuarioConteudoState extends State<_FichaUsuarioConteudo> {
   void initState() {
     super.initState();
     _usuario = widget.usuarioInicial;
+    _apelidoController =
+        TextEditingController(text: widget.usuarioInicial.apelido);
     _dataNascController =
         TextEditingController(text: widget.usuarioInicial.dataNascimento);
     _nomeMaeController =
@@ -92,6 +99,7 @@ class _FichaUsuarioConteudoState extends State<_FichaUsuarioConteudo> {
 
   @override
   void dispose() {
+    _apelidoController.dispose();
     _dataNascController.dispose();
     _nomeMaeController.dispose();
     _nomePaiController.dispose();
@@ -99,6 +107,14 @@ class _FichaUsuarioConteudoState extends State<_FichaUsuarioConteudo> {
     _tipoSanguineoController.dispose();
     _estadoCivilController.dispose();
     super.dispose();
+  }
+
+  Future<void> _salvarApelido(String novoApelido) async {
+    final auth = context.read<AuthProvider>();
+    await auth.atualizarApelido(novoApelido);
+    setState(() {
+      _usuario = _usuario.copyWith(apelido: novoApelido.trim());
+    });
   }
 
   void _iniciarEdicao(UsuarioNous atual) {
@@ -275,7 +291,13 @@ class _FichaUsuarioConteudoState extends State<_FichaUsuarioConteudo> {
   Widget build(BuildContext context) {
     final pdv = context.watch<PdvProvider>();
     final auth = context.watch<AuthProvider>();
-    final contaAtualizada = auth.contaAtual ?? _usuario;
+    final ehProprioUsuario = (widget.somenteLeitura == false) ||
+        (widget.somenteLeitura == null &&
+            auth.contaAtual != null &&
+            auth.contaAtual!.cpf.replaceAll(RegExp(r'\D'), '') ==
+                _usuario.cpf.replaceAll(RegExp(r'\D'), ''));
+    final contaAtualizada =
+        ehProprioUsuario ? (auth.contaAtual ?? _usuario) : _usuario;
     final temFoto = contaAtualizada.foto.isNotEmpty &&
         File(contaAtualizada.foto).existsSync();
 
@@ -309,10 +331,10 @@ class _FichaUsuarioConteudoState extends State<_FichaUsuarioConteudo> {
           ),
           const SizedBox(height: 16),
 
-          // Avatar Clicável
+          // Avatar Clicável (apenas se for o próprio usuário)
           InkWell(
             borderRadius: BorderRadius.circular(16),
-            onTap: _aoClicarFoto,
+            onTap: ehProprioUsuario ? _aoClicarFoto : null,
             child: Container(
               width: 84,
               height: 84,
@@ -343,6 +365,69 @@ class _FichaUsuarioConteudoState extends State<_FichaUsuarioConteudo> {
             ),
           ),
           const SizedBox(height: 10),
+
+          // Apelido (acima do nome real, na mesma grafia do CPF)
+          if (ehProprioUsuario)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: SizedBox(
+                width: 220,
+                child: TextField(
+                  controller: _apelidoController,
+                  textAlign: TextAlign.center,
+                  style: theme.getTextStyle(
+                    fontSize: 13,
+                    color: theme.secondaryTextColor,
+                  ),
+                  cursorColor: theme.textColor,
+                  decoration: InputDecoration(
+                    labelText: 'Apelido',
+                    labelStyle: theme.getTextStyle(
+                      fontSize: 12,
+                      color: theme.secondaryTextColor,
+                    ),
+                    hintText: 'Digite seu apelido',
+                    hintStyle: theme.getTextStyle(
+                      fontSize: 13,
+                      color: theme.secondaryTextColor.withValues(alpha: 0.6),
+                    ),
+                    isDense: true,
+                    contentPadding:
+                        const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      borderSide: BorderSide(
+                        color: theme.borderColor.withValues(alpha: 0.5),
+                      ),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      borderSide: BorderSide(
+                        color: theme.borderColor.withValues(alpha: 0.5),
+                      ),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      borderSide: BorderSide(color: theme.textColor),
+                    ),
+                  ),
+                  onChanged: (novo) => _salvarApelido(novo),
+                ),
+              ),
+            )
+          else if (contaAtualizada.apelido.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 6),
+              child: Text(
+                contaAtualizada.apelido,
+                textAlign: TextAlign.center,
+                style: theme.getTextStyle(
+                  fontSize: 13,
+                  color: theme.secondaryTextColor,
+                ),
+              ),
+            ),
+
           Text(
             contaAtualizada.nome.isEmpty
                 ? 'Nome do Usuário'
@@ -455,32 +540,34 @@ class _FichaUsuarioConteudoState extends State<_FichaUsuarioConteudo> {
                     if (clienteMesmoCpf.redesSociais.isNotEmpty)
                       _linhaInfo('Redes sociais', clienteMesmoCpf.redesSociais),
                   ],
-                  const SizedBox(height: 10),
-                  Center(
-                    child: OutlinedButton.icon(
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: theme.textColor,
-                        side: BorderSide(color: theme.borderColor),
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 18, vertical: 10),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(10),
+                  if (ehProprioUsuario) ...[
+                    const SizedBox(height: 10),
+                    Center(
+                      child: OutlinedButton.icon(
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: theme.textColor,
+                          side: BorderSide(color: theme.borderColor),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 18, vertical: 10),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10),
+                          ),
                         ),
-                      ),
-                      onPressed: () => _iniciarEdicao(contaAtualizada),
-                      icon: Icon(Icons.edit_outlined,
-                          size: 16, color: theme.textColor),
-                      label: Text(
-                        'Editar dados pessoais',
-                        style: theme.getTextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                          color: theme.textColor,
+                        onPressed: () => _iniciarEdicao(contaAtualizada),
+                        icon: Icon(Icons.edit_outlined,
+                            size: 16, color: theme.textColor),
+                        label: Text(
+                          'Editar dados pessoais',
+                          style: theme.getTextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: theme.textColor,
+                          ),
                         ),
                       ),
                     ),
-                  ),
-                  const SizedBox(height: 4),
+                    const SizedBox(height: 4),
+                  ],
                 ],
               ],
             ),

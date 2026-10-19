@@ -22,8 +22,8 @@ class InfoAtualizacao {
 }
 
 class AtualizacaoService {
-  static const String versaoAtual = '1.0.3';
-  static const int buildAtual = 4;
+  static const String versaoAtual = '1.0.4';
+  static const int buildAtual = 5;
 
   static final ValueNotifier<bool> temAtualizacao = ValueNotifier<bool>(false);
   static final ValueNotifier<bool> verificando = ValueNotifier<bool>(false);

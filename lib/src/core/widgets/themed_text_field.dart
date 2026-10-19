@@ -16,6 +16,7 @@ class ThemedTextField extends StatelessWidget {
   final TextInputType? tipoDeTeclado;
   final List<TextInputFormatter>? formatadores;
   final ValueChanged<String>? onChanged;
+  final ValueChanged<String>? onSubmitted;
 
   // NOVO: quando true, o campo usa uma linha simples embaixo do texto
   // (sem caixa/borda ao redor), no lugar da caixa com borda arredondada
@@ -35,6 +36,7 @@ class ThemedTextField extends StatelessWidget {
     this.tipoDeTeclado,
     this.formatadores,
     this.onChanged,
+    this.onSubmitted,
     this.sublinhado = false,
   });
 
@@ -82,6 +84,7 @@ class ThemedTextField extends StatelessWidget {
       keyboardType: tipoDeTeclado,
       inputFormatters: formatadores,
       onChanged: onChanged,
+      onFieldSubmitted: onSubmitted,
       style: theme.getTextStyle(fontSize: 14, color: theme.textColor),
       decoration: decoracao,
       // Só valida (exige preenchimento) quando o campo for marcado como

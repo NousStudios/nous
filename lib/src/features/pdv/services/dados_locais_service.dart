@@ -5,6 +5,7 @@ import 'package:nous/src/features/pdv/models/loja.dart';
 
 class DadosAutopreenchimento {
   final String nome;
+  final String apelido;
   final String dataNascimento;
   final String telefone;
   final String endereco;
@@ -17,6 +18,7 @@ class DadosAutopreenchimento {
 
   const DadosAutopreenchimento({
     required this.nome,
+    this.apelido = '',
     this.dataNascimento = '',
     this.telefone = '',
     this.endereco = '',
@@ -203,6 +205,7 @@ class DadosLocaisService {
 
     return DadosAutopreenchimento(
       nome: nome,
+      apelido: conta?.apelido ?? '',
       dataNascimento: dataNascimento,
       telefone: telefone,
       endereco: endereco,
