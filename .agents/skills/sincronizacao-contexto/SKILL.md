@@ -31,7 +31,7 @@ Sempre que você concluir:
 **Você deve atualizar os arquivos de documentação AUTOMATICAMENTE no mesmo ciclo de trabalho, sem esperar solicitação do usuário.**
 
 > [!NOTE]
-> **Instaladores e Builds são Sob Demanda:** A sincronização automática abrange **estritamente a documentação** (`README.md`, `AGENTS.md` e skills). **NUNCA** compile executáveis Windows nem gere novos APKs em `dist/` automaticamente a cada edição de código. A compilação de binários e instaladores só deve ser disparada se o desenvolvedor solicitar explicitamente.
+> **Compilação Automática de Instaladores e Limpeza de Versões Legadas:** A cada ciclo de edição concluído com sucesso e aprovado (após testes e análise estática), a IA **DEVE compilar automaticamente** o instalador Windows e o pacote APK Android via `scripts/gerar_instalador.ps1`. O pipeline de build exclui automaticamente da pasta `dist/` as versões antigas, mantendo apenas a versão mais recente gerada e a cópia de compatibilidade (`Nous_Android_v1.0.0_Versao_Teste.apk`).
 
 ---
 

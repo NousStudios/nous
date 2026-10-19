@@ -22,8 +22,34 @@ class InfoAtualizacao {
 }
 
 class AtualizacaoService {
-  static const String versaoAtual = '1.0.4';
-  static const int buildAtual = 5;
+  static String versaoAtual = '1.0.11';
+  static int buildAtual = 12;
+
+  /// Inicializa a identificação da versão do aplicativo.
+  /// No Android, consulta dinamicamente a versão real instalada no sistema operacional via MethodChannel.
+  static Future<void> inicializar() async {
+    if (Platform.isAndroid) {
+      try {
+        final dados = await const MethodChannel('com.nous.app/instalador')
+            .invokeMethod<Map<dynamic, dynamic>>('obterVersaoApp');
+        if (dados != null) {
+          final v = dados['versao'] as String?;
+          final b = dados['build'] as int?;
+          if (v != null && v.isNotEmpty) {
+            versaoAtual = v.replaceAll('v', '').trim();
+          }
+          if (b != null && b > 0) {
+            buildAtual = b;
+          }
+          debugPrint(
+            '[AtualizacaoService] Versão nativa Android identificada: v$versaoAtual (Build $buildAtual)',
+          );
+        }
+      } catch (e) {
+        debugPrint('[AtualizacaoService] Não foi possível obter versão nativa: $e');
+      }
+    }
+  }
 
   static final ValueNotifier<bool> temAtualizacao = ValueNotifier<bool>(false);
   static final ValueNotifier<bool> verificando = ValueNotifier<bool>(false);

@@ -9,6 +9,7 @@ import 'package:nous/src/features/auth/views/widgets/ficha_usuario_dialog.dart';
 import 'package:nous/src/features/pdv/models/cargo_loja.dart';
 import 'package:nous/src/features/pdv/models/membro_loja.dart';
 import 'package:nous/src/features/pdv/providers/pdv_provider.dart';
+import 'package:nous/src/features/pdv/services/imagem_service.dart';
 import 'package:nous/src/features/pdv/views/widgets/estado_vazio_container.dart';
 
 String _formatarCpf(String cpf) {
@@ -446,7 +447,8 @@ class UsuariosParticipantesContainer extends StatelessWidget {
       foto = pdv.buscarFotoClientePorCpf(membro.cpf) ?? '';
     }
 
-    final temFoto = foto.isNotEmpty && File(foto).existsSync();
+    final fotoResolvida = ImagemService.resolverCaminhoExistente(foto);
+    final temFoto = fotoResolvida != null;
 
     return _MembroLinhaComHover(
       builder: (hover) => InkWell(
@@ -479,7 +481,7 @@ class UsuariosParticipantesContainer extends StatelessWidget {
                 borderRadius: BorderRadius.circular(15),
                 child: temFoto
                     ? Image.file(
-                        File(foto),
+                        File(fotoResolvida),
                         width: 32,
                         height: 32,
                         fit: BoxFit.cover,
@@ -837,8 +839,9 @@ class _ConviteDialogState extends State<_ConviteDialog> {
               ),
               const SizedBox(height: 8),
               Builder(builder: (context) {
-                final temFotoEnc = _encontrado!.foto.isNotEmpty &&
-                    File(_encontrado!.foto).existsSync();
+                final fotoResolvida =
+                    ImagemService.resolverCaminhoExistente(_encontrado!.foto);
+                final temFotoEnc = fotoResolvida != null;
                 return Column(
                   children: [
                     Container(
@@ -854,7 +857,7 @@ class _ConviteDialogState extends State<_ConviteDialog> {
                         borderRadius: BorderRadius.circular(21),
                         child: temFotoEnc
                             ? Image.file(
-                                File(_encontrado!.foto),
+                                File(fotoResolvida),
                                 width: 44,
                                 height: 44,
                                 fit: BoxFit.cover,

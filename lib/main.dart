@@ -2,6 +2,7 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+import 'package:nous/src/core/services/atualizacao_service.dart';
 import 'package:nous/src/core/services/banco_dados_service.dart';
 import 'package:nous/src/core/services/janela_windows_service.dart';
 import 'package:nous/src/core/theme/theme_controller.dart';
@@ -12,6 +13,8 @@ import 'package:nous/src/features/auth/views/login_view.dart';
 import 'package:nous/src/features/notificacoes/providers/notificacoes_provider.dart';
 import 'package:nous/src/features/pdv/providers/pdv_provider.dart';
 import 'package:nous/src/features/pdv/services/backup_service.dart';
+import 'package:nous/src/features/pdv/services/imagem_service.dart';
+import 'package:nous/src/features/pdv/services/lojas_service.dart';
 
 class AppScrollBehavior extends MaterialScrollBehavior {
   @override
@@ -31,8 +34,13 @@ class AppScrollBehavior extends MaterialScrollBehavior {
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await AtualizacaoService.inicializar();
   await BancoDadosService.inicializar();
   await ThemeController.init();
+
+  // Consolida e unifica imagens de pastas legadas em segundo plano
+  ImagemService.unificarDiretoriosImagens();
+  LojasService.autocuraImagensDeLojas();
 
   // Manipulador global de hardware para F11 (Tela Cheia nativa do Windows)
   // Funciona universalmente: modo compacto, modo desktop, popups ou qualquer widget focado

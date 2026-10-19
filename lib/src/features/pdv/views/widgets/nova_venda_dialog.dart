@@ -14,6 +14,7 @@ import 'package:nous/src/features/pdv/models/grupo_componentes_loja.dart';
 import 'package:nous/src/features/pdv/models/item_loja.dart';
 import 'package:nous/src/features/pdv/models/movimento_estoque.dart';
 import 'package:nous/src/features/pdv/models/pedido_loja.dart';
+import 'package:nous/src/features/pdv/services/imagem_service.dart';
 import 'package:nous/src/features/pdv/views/widgets/baixa_estoque_dialog.dart';
 import 'package:nous/src/features/pdv/views/widgets/novo_item_dialog.dart';
 import 'package:nous/src/features/pdv/views/widgets/venda_concluida_dialog.dart';
@@ -1651,23 +1652,24 @@ class _NovaVendaConteudoState extends State<_NovaVendaConteudo> {
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
         child: Row(
           children: [
-            (categoria.foto.isNotEmpty && File(categoria.foto).existsSync())
-                ? ClipRRect(
-                    borderRadius: BorderRadius.circular(4),
-                    child: Image.file(
-                      File(categoria.foto),
-                      width: 18,
-                      height: 18,
-                      fit: BoxFit.cover,
-                      errorBuilder: (context, error, stackTrace) => Icon(
-                        Icons.category_outlined,
-                        size: 16,
-                        color: theme.secondaryTextColor,
-                      ),
-                    ),
-                  )
-                : Icon(Icons.category_outlined,
-                    size: 16, color: theme.secondaryTextColor),
+            if (ImagemService.resolverCaminhoExistente(categoria.foto) != null)
+              ClipRRect(
+                borderRadius: BorderRadius.circular(4),
+                child: Image.file(
+                  File(ImagemService.resolverCaminhoExistente(categoria.foto)!),
+                  width: 18,
+                  height: 18,
+                  fit: BoxFit.cover,
+                  errorBuilder: (context, error, stackTrace) => Icon(
+                    Icons.category_outlined,
+                    size: 16,
+                    color: theme.secondaryTextColor,
+                  ),
+                ),
+              )
+            else
+              Icon(Icons.category_outlined,
+                  size: 16, color: theme.secondaryTextColor),
             const SizedBox(width: 8),
             Expanded(
               child: Text(
@@ -1684,7 +1686,10 @@ class _NovaVendaConteudoState extends State<_NovaVendaConteudo> {
   }
 
   Widget _linhaDeResultado(ItemLoja item) {
-    final temFoto = item.imagens.isNotEmpty && File(item.imagens.first).existsSync();
+    final fotoResolvida = item.imagens.isNotEmpty
+        ? ImagemService.resolverCaminhoExistente(item.imagens.first)
+        : null;
+    final temFoto = fotoResolvida != null;
     return InkWell(
       onTap: () {
         _buscaController.clear();
@@ -1698,7 +1703,7 @@ class _NovaVendaConteudoState extends State<_NovaVendaConteudo> {
                 ? ClipRRect(
                     borderRadius: BorderRadius.circular(4),
                     child: Image.file(
-                      File(item.imagens.first),
+                      File(fotoResolvida),
                       width: 18,
                       height: 18,
                       fit: BoxFit.cover,
@@ -1797,9 +1802,10 @@ class _NovaVendaConteudoState extends State<_NovaVendaConteudo> {
     final precoBase = _precoBaseUnitarioDaLinha(linha);
 
     final itemOriginal = _buscarItem(linha.itemId);
-    final temFoto = itemOriginal != null &&
-        itemOriginal.imagens.isNotEmpty &&
-        File(itemOriginal.imagens.first).existsSync();
+    final fotoResolvida = (itemOriginal != null && itemOriginal.imagens.isNotEmpty)
+        ? ImagemService.resolverCaminhoExistente(itemOriginal.imagens.first)
+        : null;
+    final temFoto = fotoResolvida != null;
 
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 8),
@@ -1813,7 +1819,7 @@ class _NovaVendaConteudoState extends State<_NovaVendaConteudo> {
                 ClipRRect(
                   borderRadius: BorderRadius.circular(4),
                   child: Image.file(
-                    File(itemOriginal.imagens.first),
+                    File(fotoResolvida),
                     width: 20,
                     height: 20,
                     fit: BoxFit.cover,

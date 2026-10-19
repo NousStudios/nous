@@ -96,8 +96,10 @@ class _DetalhesMidiaDialogState extends State<DetalhesMidiaDialog> {
     }
   }
 
-  String get _caminhoAtual =>
-      _itens.isNotEmpty ? _itens[_indiceAtual] : widget.caminho;
+  String get _caminhoAtual {
+    final raw = _itens.isNotEmpty ? _itens[_indiceAtual] : widget.caminho;
+    return ImagemService.resolverCaminhoExistente(raw) ?? raw;
+  }
 
   String get _descricaoAtual => _descricoesLocais[_caminhoAtual] ?? '';
 
@@ -508,32 +510,6 @@ class _DetalhesMidiaDialogState extends State<DetalhesMidiaDialog> {
                         : null,
                     onAnterior: _indiceAtual > 0 ? _irParaAnterior : null,
                     onProximo: _indiceAtual < total - 1 ? _irParaProximo : null,
-                  ),
-                  const SizedBox(height: 10),
-                  OutlinedButton.icon(
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: theme.secondaryTextColor,
-                      side: BorderSide(
-                        color: theme.borderColor.withValues(alpha: 0.4),
-                      ),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      padding: const EdgeInsets.symmetric(vertical: 10),
-                    ),
-                    icon: Icon(
-                      Icons.open_in_new_rounded,
-                      size: 16,
-                      color: theme.secondaryTextColor,
-                    ),
-                    label: Text(
-                      'Abrir no Reprodutor do Windows',
-                      style: theme.getTextStyle(
-                        fontSize: 12,
-                        color: theme.secondaryTextColor,
-                      ),
-                    ),
-                    onPressed: _reproduzirNoSistema,
                   ),
                 ] else ...[
                   // Arquivo de vídeo ou documento comum

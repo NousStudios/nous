@@ -5,6 +5,7 @@ import 'package:nous/src/core/theme/theme_controller.dart';
 import 'package:nous/src/features/pdv/models/cliente.dart';
 import 'package:nous/src/features/pdv/models/configuracoes_impressora.dart';
 import 'package:nous/src/features/pdv/models/pedido_loja.dart';
+import 'package:nous/src/features/pdv/services/imagem_service.dart';
 
 String _doisDigitos(int n) => n.toString().padLeft(2, '0');
 
@@ -291,12 +292,11 @@ class ComandaPedido extends StatelessWidget {
                               Row(
                                 crossAxisAlignment: CrossAxisAlignment.center,
                                 children: [
-                                  if (item.foto.isNotEmpty &&
-                                      File(item.foto).existsSync()) ...[
+                                  if (ImagemService.resolverCaminhoExistente(item.foto) != null) ...[
                                     ClipRRect(
                                       borderRadius: BorderRadius.circular(4),
                                       child: Image.file(
-                                        File(item.foto),
+                                        File(ImagemService.resolverCaminhoExistente(item.foto)!),
                                         width: 18,
                                         height: 18,
                                         fit: BoxFit.cover,

@@ -5,6 +5,7 @@ import 'package:nous/src/core/theme/theme_controller.dart';
 import 'package:nous/src/features/auth/providers/auth_provider.dart';
 import 'package:nous/src/features/pdv/models/membro_loja.dart';
 import 'package:nous/src/features/pdv/providers/pdv_provider.dart';
+import 'package:nous/src/features/pdv/services/imagem_service.dart';
 
 class ResultadoPagamento {
   final String cpf;
@@ -327,8 +328,9 @@ class _RegistrarPagamentoConteudoState
                           if (foto.isEmpty) {
                             foto = pdv.buscarFotoClientePorCpf(m.cpf) ?? '';
                           }
-                          final temFoto =
-                              foto.isNotEmpty && File(foto).existsSync();
+                          final fotoResolvida =
+                              ImagemService.resolverCaminhoExistente(foto);
+                          final temFoto = fotoResolvida != null;
 
                           return DropdownMenuItem<MembroLoja>(
                             value: m,
@@ -348,7 +350,7 @@ class _RegistrarPagamentoConteudoState
                                     borderRadius: BorderRadius.circular(10),
                                     child: temFoto
                                         ? Image.file(
-                                            File(foto),
+                                            File(fotoResolvida),
                                             width: 22,
                                             height: 22,
                                             fit: BoxFit.cover,
@@ -391,8 +393,9 @@ class _RegistrarPagamentoConteudoState
                             if (foto.isEmpty) {
                               foto = pdv.buscarFotoClientePorCpf(m.cpf) ?? '';
                             }
-                            final temFoto =
-                                foto.isNotEmpty && File(foto).existsSync();
+                            final fotoResolvida =
+                                ImagemService.resolverCaminhoExistente(foto);
+                            final temFoto = fotoResolvida != null;
 
                             return Row(
                               children: [
@@ -410,7 +413,7 @@ class _RegistrarPagamentoConteudoState
                                     borderRadius: BorderRadius.circular(10),
                                     child: temFoto
                                         ? Image.file(
-                                            File(foto),
+                                            File(fotoResolvida),
                                             width: 22,
                                             height: 22,
                                             fit: BoxFit.cover,

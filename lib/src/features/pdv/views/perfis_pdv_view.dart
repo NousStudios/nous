@@ -15,6 +15,7 @@ import 'package:nous/src/features/pdv/views/dados_perfil_view.dart';
 import 'package:nous/src/features/pdv/views/widgets/criar_perfil_dialog.dart';
 import 'package:nous/src/features/pdv/views/widgets/estado_vazio_container.dart';
 import 'package:nous/src/features/pdv/views/widgets/sincronizacao_rede_dialog.dart';
+import 'package:nous/src/features/pdv/services/imagem_service.dart';
 
 class PerfisPdvView extends StatefulWidget {
   final bool abrirSincronizacaoInicial;
@@ -294,7 +295,8 @@ class _PerfilCardState extends State<_PerfilCard> {
   @override
   Widget build(BuildContext context) {
     final theme = widget.theme;
-    final temLogo = widget.logoUrl.isNotEmpty && File(widget.logoUrl).existsSync();
+    final caminhoResolvido = ImagemService.resolverCaminhoExistente(widget.logoUrl);
+    final temLogo = caminhoResolvido != null;
 
     return MouseRegion(
       onEnter: (_) => setState(() => _hovering = true),
@@ -319,7 +321,7 @@ class _PerfilCardState extends State<_PerfilCard> {
                 ClipRRect(
                   borderRadius: BorderRadius.circular(8),
                   child: Image.file(
-                    File(widget.logoUrl),
+                    File(caminhoResolvido),
                     width: 36,
                     height: 36,
                     fit: BoxFit.cover,

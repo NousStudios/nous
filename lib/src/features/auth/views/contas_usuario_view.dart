@@ -300,7 +300,7 @@ class _CardConta extends StatelessWidget {
   Future<void> _aoClicarFoto(BuildContext context) async {
     final c = conta;
     if (c == null) return;
-    final temFoto = c.foto.isNotEmpty && File(c.foto).existsSync();
+    final temFoto = c.foto.isNotEmpty && ImagemService.existe(c.foto);
 
     if (temFoto) {
       await OpcoesImagemDialog.mostrar(
@@ -352,7 +352,9 @@ class _CardConta extends StatelessWidget {
   Widget build(BuildContext context) {
     final c = conta;
     final nome = c?.nome ?? '';
-    final temFoto = c != null && c.foto.isNotEmpty && File(c.foto).existsSync();
+    final fotoResolvida =
+        c != null ? ImagemService.resolverCaminhoExistente(c.foto) : null;
+    final temFoto = fotoResolvida != null;
 
     return InkWell(
       borderRadius: BorderRadius.circular(12),
@@ -381,7 +383,7 @@ class _CardConta extends StatelessWidget {
                   borderRadius: BorderRadius.circular(11),
                   child: temFoto
                       ? Image.file(
-                          File(c.foto),
+                          File(fotoResolvida),
                           width: 72,
                           height: 72,
                           fit: BoxFit.cover,

@@ -7,6 +7,7 @@ import 'package:nous/src/features/auth/providers/auth_provider.dart';
 import 'package:nous/src/features/pdv/models/cliente.dart';
 import 'package:nous/src/features/pdv/models/pedido_programado.dart';
 import 'package:nous/src/features/pdv/providers/pdv_provider.dart';
+import 'package:nous/src/features/pdv/services/imagem_service.dart';
 import 'package:nous/src/features/pdv/views/widgets/comanda_pedido_dialog.dart';
 import 'package:nous/src/core/widgets/texto_rolante.dart';
 
@@ -120,7 +121,8 @@ class PedidosProgramadosDialog extends StatelessWidget {
                             foto = pdv.buscarFotoClientePorCpf(cliente.cnpj) ?? '';
                           }
                         }
-                        final temFoto = foto.isNotEmpty && File(foto).existsSync();
+                        final fotoResolvida = ImagemService.resolverCaminhoExistente(foto);
+                        final temFoto = fotoResolvida != null;
 
                         return Container(
                           padding: const EdgeInsets.all(10),
@@ -136,7 +138,7 @@ class PedidosProgramadosDialog extends StatelessWidget {
                               temFoto
                                   ? CircleAvatar(
                                       radius: 16,
-                                      backgroundImage: FileImage(File(foto)),
+                                      backgroundImage: FileImage(File(fotoResolvida)),
                                       backgroundColor:
                                           theme.borderColor.withValues(alpha: 0.2),
                                     )

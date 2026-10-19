@@ -8,15 +8,18 @@ import 'package:nous/src/core/services/navigator_key_service.dart';
 import 'package:nous/src/core/services/som_service.dart';
 import 'package:nous/src/core/theme/theme_controller.dart';
 import 'package:nous/src/features/auth/models/usuario_nous.dart';
+import 'package:nous/src/features/auth/providers/auth_provider.dart';
 import 'package:nous/src/features/auth/services/contas_nous_service.dart';
 import 'package:nous/src/features/pdv/models/loja.dart';
 import 'package:nous/src/features/pdv/models/membro_loja.dart';
 import 'package:nous/src/features/pdv/models/mesa_loja.dart';
 import 'package:nous/src/features/pdv/models/movimento_estoque.dart';
 import 'package:nous/src/features/pdv/models/pedido_loja.dart';
+import 'package:nous/src/features/pdv/models/referencia_loja.dart';
 import 'package:nous/src/features/pdv/models/registro_acao.dart';
 import 'package:nous/src/features/pdv/providers/pdv_provider.dart';
 import 'package:nous/src/features/pdv/services/dados_locais_service.dart';
+import 'package:nous/src/features/pdv/services/imagem_service.dart';
 import 'package:nous/src/features/pdv/services/lojas_service.dart';
 
 /// Informações de um terminal móvel conectado ao balcão
@@ -85,6 +88,11 @@ class ServidorRedeLocal {
   int _porta = portaPadraoHttp;
   Loja? _lojaAtiva;
   PdvProvider? _pdvProvider;
+  AuthProvider? _authProvider;
+
+  void vincularAuthProvider(AuthProvider auth) {
+    _authProvider = auth;
+  }
 
   final ValueNotifier<bool> estaAtivo = ValueNotifier<bool>(false);
   final ValueNotifier<int> totalConectados = ValueNotifier<int>(0);
@@ -145,12 +153,14 @@ class ServidorRedeLocal {
   Future<bool> iniciar({
     required Loja loja,
     required PdvProvider pdv,
+    AuthProvider? auth,
     int portaInicial = portaPadraoHttp,
   }) async {
     if (ativo) {
       if (_lojaAtiva?.id == loja.id) {
         _lojaAtiva = loja;
         _pdvProvider = pdv;
+        if (auth != null) _authProvider = auth;
         return true;
       }
       await parar();
@@ -158,6 +168,7 @@ class ServidorRedeLocal {
 
     _lojaAtiva = loja;
     _pdvProvider = pdv;
+    if (auth != null) _authProvider = auth;
     _ipServidor = await obterIpLocal() ?? '0.0.0.0';
 
     // Tenta alocar a porta inicial ou próximas caso ocupada
@@ -275,11 +286,29 @@ class ServidorRedeLocal {
 
           // Envia dados iniciais da loja e lista de presenças ativas
           if (_lojaAtiva != null) {
+            final fotosUsuariosAusentes = <String>[];
+            for (final m in _lojaAtiva!.membros) {
+              final cpfLimpo = m.cpf.replaceAll(RegExp(r'\D'), '');
+              if (cpfLimpo.isNotEmpty) {
+                final contaMembro =
+                    await ContasNousService.buscarPorCpf(cpfLimpo);
+                final temFotoFisica = contaMembro != null &&
+                    contaMembro.foto.trim().isNotEmpty &&
+                    ImagemService.resolverCaminhoExistente(contaMembro.foto) !=
+                        null;
+                if (!temFotoFisica) {
+                  fotosUsuariosAusentes.add(cpfLimpo);
+                }
+              }
+            }
+
             ws.add(
               jsonEncode({
                 'tipo': 'dados_iniciais',
                 'loja': _lojaAtiva!.toJson(),
-                'presencas': obterTodasPresencas().map((p) => p.toJson()).toList(),
+                'presencas':
+                    obterTodasPresencas().map((p) => p.toJson()).toList(),
+                'fotosUsuariosAusentes': fotosUsuariosAusentes,
               }),
             );
           }
@@ -315,15 +344,17 @@ class ServidorRedeLocal {
         return;
       }
 
-      final arquivo = File(caminho.trim());
-      if (!await arquivo.exists()) {
+      final caminhoResolvido = ImagemService.resolverCaminhoExistente(caminho.trim());
+      if (caminhoResolvido == null) {
         request.response.statusCode = HttpStatus.notFound;
         await request.response.close();
         return;
       }
 
+      final arquivo = File(caminhoResolvido);
+
       try {
-        final ext = caminho.split('.').last.toLowerCase();
+        final ext = caminhoResolvido.split('.').last.toLowerCase();
         ContentType tipoConteudo;
         switch (ext) {
           case 'png':
@@ -348,6 +379,43 @@ class ServidorRedeLocal {
         return;
       } catch (e) {
         debugPrint('[ServidorRedeLocal] Erro ao servir imagem: $e');
+        request.response.statusCode = HttpStatus.internalServerError;
+        await request.response.close();
+        return;
+      }
+    }
+
+    // 2.1 Receber upload de novas imagens enviadas por terminais móveis
+    if (path == '/api/upload_imagem' && request.method == 'POST') {
+      try {
+        final nomeOriginal = request.uri.queryParameters['nome'];
+        final bytes = await request.fold<List<int>>([], (acc, chunk) => acc..addAll(chunk));
+        if (bytes.isEmpty) {
+          request.response.statusCode = HttpStatus.badRequest;
+          await request.response.close();
+          return;
+        }
+
+        final ext = nomeOriginal?.split('.').last.toLowerCase() ?? 'jpg';
+        final salvo = await ImagemService.salvarBytesImagemLocal(
+          bytes,
+          extensaoOriginal: ext,
+          nomeSugerido: nomeOriginal,
+        );
+
+        if (salvo != null) {
+          request.response.statusCode = HttpStatus.ok;
+          request.response.headers.contentType = ContentType.json;
+          request.response.write(jsonEncode({'caminho': salvo}));
+          await request.response.close();
+          return;
+        } else {
+          request.response.statusCode = HttpStatus.internalServerError;
+          await request.response.close();
+          return;
+        }
+      } catch (e) {
+        debugPrint('[ServidorRedeLocal] Erro ao receber upload de imagem: $e');
         request.response.statusCode = HttpStatus.internalServerError;
         await request.response.close();
         return;
@@ -487,9 +555,64 @@ class ServidorRedeLocal {
         );
         return;
       }
+
+      // Inspeciona o disco local deste servidor e lista lacunas para autocura remota
+      final imagensAusentes = <String>[];
+      if (lojaRetorno.logo.trim().isEmpty || !ImagemService.existe(lojaRetorno.logo)) {
+        imagensAusentes.add('logo');
+      }
+      for (final cat in lojaRetorno.categoriasLoja) {
+        if (cat.foto.trim().isEmpty || !ImagemService.existe(cat.foto)) {
+          imagensAusentes.add('categoria_${cat.id}');
+        }
+      }
+      for (final item in lojaRetorno.itensLoja) {
+        if (item.imagens.isEmpty) {
+          imagensAusentes.add('item_${item.id}');
+        } else {
+          var temAlgumaValida = false;
+          for (final img in item.imagens) {
+            if (ImagemService.existe(img)) {
+              temAlgumaValida = true;
+              break;
+            }
+          }
+          if (!temAlgumaValida) {
+            imagensAusentes.add('item_${item.id}');
+          }
+        }
+      }
+      for (final cli in lojaRetorno.clientesLoja) {
+        if (cli.foto.trim().isEmpty || !ImagemService.existe(cli.foto)) {
+          imagensAusentes.add('cliente_${cli.id}');
+        }
+      }
+      for (final forn in lojaRetorno.fornecedoresLoja) {
+        if (forn.foto.trim().isEmpty || !ImagemService.existe(forn.foto)) {
+          imagensAusentes.add('fornecedor_${forn.id}');
+        }
+      }
+
+      // Inspeciona fotos ausentes de membros e usuários da loja no servidor
+      final fotosUsuariosAusentes = <String>[];
+      for (final m in lojaRetorno.membros) {
+        final cpfLimpo = m.cpf.replaceAll(RegExp(r'\D'), '');
+        if (cpfLimpo.isNotEmpty) {
+          final contaMembro = await ContasNousService.buscarPorCpf(cpfLimpo);
+          final temFotoFisica = contaMembro != null &&
+              contaMembro.foto.trim().isNotEmpty &&
+              ImagemService.resolverCaminhoExistente(contaMembro.foto) != null;
+          if (!temFotoFisica) {
+            fotosUsuariosAusentes.add(cpfLimpo);
+          }
+        }
+      }
+
       _responderJson(request, {
         'sucesso': true,
         'loja': lojaRetorno.toJson(),
+        'imagensAusentes': imagensAusentes,
+        'fotosUsuariosAusentes': fotosUsuariosAusentes,
       });
       return;
     }
@@ -523,44 +646,10 @@ class ServidorRedeLocal {
             }
           }
 
-          // 3. Consolidar dados da loja:
-          // Aceita modificações feitas no terminal móvel (membros, cargos, produtos, categorias, mesas, clientes, fornecedores, etc.)
-          // e preserva a autoridade de pedidos e estoque do balcão.
-          final lojaConsolidada = lojaAtual.copyWith(
-            nome: lojaRemota.nome,
-            cnpj: lojaRemota.cnpj,
-            telefone: lojaRemota.telefone,
-            endereco: lojaRemota.endereco,
-            numero: lojaRemota.numero,
-            email: lojaRemota.email,
-            redesSociais: lojaRemota.redesSociais,
-            categorias: lojaRemota.categorias,
-            tags: lojaRemota.tags,
-            logo: lojaRemota.logo.isNotEmpty ? lojaRemota.logo : lojaAtual.logo,
-            membros: lojaRemota.membros,
-            cargosPersonalizados: lojaRemota.cargosPersonalizados,
-            permissoesCargosNativos: lojaRemota.permissoesCargosNativos,
-            categoriasLoja: lojaRemota.categoriasLoja,
-            itensLoja: lojaRemota.itensLoja,
-            gruposComponentesLoja: lojaRemota.gruposComponentesLoja,
-            clientesLoja: lojaRemota.clientesLoja,
-            fornecedoresLoja: lojaRemota.fornecedoresLoja,
-            mesas: lojaRemota.mesas,
-            acoes: acoesMescladas,
-            configuracoesImpressora: lojaRemota.configuracoesImpressora,
-            tempoConclusaoMinutos: lojaRemota.tempoConclusaoMinutos,
-            sonsAlertas: lojaRemota.sonsAlertas,
-            atalhosTeclado: lojaRemota.atalhosTeclado,
-            aberta: lojaRemota.aberta,
-            turnosCaixa: lojaRemota.turnosCaixa,
-            pagamentosFuncionarios: lojaRemota.pagamentosFuncionarios,
-            pedidosProgramados: lojaRemota.pedidosProgramados,
-            galeria: lojaRemota.galeria,
-            arquivos: lojaRemota.arquivos,
-            musicas: lojaRemota.musicas,
-            videos: lojaRemota.videos,
-            arquivosAudio: lojaRemota.arquivosAudio,
-            descricoesAnexos: lojaRemota.descricoesAnexos,
+          // 3. Consolidar dados da loja com proteção absoluta de imagens e integridade
+          final lojaConsolidada = LojasService.consolidarLojaComImagensLocais(
+            lojaRemota.copyWith(acoes: acoesMescladas),
+            lojaAtual,
           );
 
           _lojaAtiva = lojaConsolidada;
@@ -762,6 +851,19 @@ class ServidorRedeLocal {
         return;
       }
 
+      // Validação física soberana: se a foto salva não existe no disco deste servidor,
+      // reporta foto vazia para que a rede saiba que esta foto precisa ser curada!
+      if (conta.foto.isNotEmpty) {
+        final resolvida = ImagemService.resolverCaminhoExistente(conta.foto);
+        if (resolvida == null) {
+          conta = conta.copyWith(foto: '');
+          await ContasNousService.salvar(conta);
+        } else if (resolvida != conta.foto) {
+          conta = conta.copyWith(foto: resolvida);
+          await ContasNousService.salvar(conta);
+        }
+      }
+
       _responderJson(request, {
         'sucesso': true,
         'usuario': conta.toJson(),
@@ -774,9 +876,50 @@ class ServidorRedeLocal {
       try {
         final body = await utf8.decodeStream(request);
         final dados = jsonDecode(body) as Map<String, dynamic>;
-        final usuario = UsuarioNous.fromJson(dados);
+        var usuario = UsuarioNous.fromJson(dados);
+
+        // Se veio com foto, resolve no disco local do servidor
+        if (usuario.foto.isNotEmpty) {
+          final fotoResolvida =
+              ImagemService.resolverCaminhoExistente(usuario.foto);
+          if (fotoResolvida != null) {
+            usuario = usuario.copyWith(foto: fotoResolvida);
+          }
+        }
+
+        // Se o usuário já existe no servidor com foto física válida, e o payload veio sem foto ou com foto inválida, preserva a foto existente!
+        final contaExistente =
+            await ContasNousService.buscarPorCpf(usuario.cpf);
+        if (contaExistente != null &&
+            contaExistente.foto.isNotEmpty &&
+            ImagemService.existe(contaExistente.foto) &&
+            (usuario.foto.isEmpty || !ImagemService.existe(usuario.foto))) {
+          usuario = usuario.copyWith(foto: contaExistente.foto);
+        }
+
         await ContasNousService.salvar(usuario);
-        _responderJson(request, {'sucesso': true});
+
+        // Sincroniza foto em clientes da loja com esse CPF
+        if (usuario.foto.isNotEmpty && ImagemService.existe(usuario.foto)) {
+          _pdvProvider?.sincronizarFotoUsuarioEmClientes(
+              usuario.cpf, usuario.foto);
+        }
+
+        // Se a conta ativa no servidor for esse CPF, recarrega o AuthProvider do servidor
+        if (_authProvider != null &&
+            (_authProvider!.contaAtual?.cpf == usuario.cpf ||
+                _authProvider!.cpf == usuario.cpf)) {
+          await _authProvider!.recarregarConta();
+        }
+
+        // Notifica todos os terminais conectados sobre a identidade atualizada do usuário
+        notificarTodos({
+          'tipo': 'usuario_atualizado',
+          'usuario': usuario.toJson(),
+        });
+
+        _responderJson(
+            request, {'sucesso': true, 'usuario': usuario.toJson()});
         return;
       } catch (e) {
         _responderJson(
@@ -784,6 +927,90 @@ class ServidorRedeLocal {
           {'sucesso': false, 'erro': e.toString()},
           statusCode: HttpStatus.badRequest,
         );
+        return;
+      }
+    }
+
+    // 8.1 Sincronização Pan-Dispositivo de Perfis e Lojas por CPF (Ontologia do Cidadão)
+    if (path == '/api/sincronizar_perfis_usuario' && request.method == 'POST') {
+      try {
+        final body = await utf8.decodeStream(request);
+        final dados = jsonDecode(body) as Map<String, dynamic>;
+        final cpf = (dados['cpf'] as String? ?? '').replaceAll(RegExp(r'\D'), '');
+
+        if (cpf.isNotEmpty) {
+          final referenciasRecebidas =
+              dados['referencias'] as List<dynamic>? ?? [];
+          final lojasRecebidas = dados['lojas'] as List<dynamic>? ?? [];
+
+          // 1. Salva ou atualiza os snapshots das lojas recebidas nos devidos cofres
+          for (final lJson in lojasRecebidas) {
+            try {
+              final loja = Loja.fromJson(lJson as Map<String, dynamic>);
+              await LojasService.salvarLojaIndividual(loja);
+            } catch (e) {
+              debugPrint('[ServidorRedeLocal] Erro ao salvar loja recebida: $e');
+            }
+          }
+
+          // 2. Salva as referências recebidas para esse CPF
+          for (final rJson in referenciasRecebidas) {
+            try {
+              final ref =
+                  ReferenciaLoja.fromJson(rJson as Map<String, dynamic>);
+              await LojasService.adicionarReferencia(cpf, ref);
+            } catch (e) {
+              debugPrint(
+                  '[ServidorRedeLocal] Erro ao salvar referência recebida: $e');
+            }
+          }
+
+          // 3. Se a conta ativa no servidor for esse CPF, recarrega o PdvProvider
+          final cpfServidor =
+              _authProvider?.cpf.replaceAll(RegExp(r'\D'), '') ?? '';
+          if (cpfServidor == cpf) {
+            await _pdvProvider?.entrarComCpf(cpf);
+          }
+
+          // 4. Coleta todas as referências e lojas do servidor associadas a esse CPF para devolver ao cliente
+          final referenciasLocais =
+              await LojasService.carregarReferencias(cpf);
+          final lojasDoServidor = <Map<String, dynamic>>[];
+          for (final r in referenciasLocais) {
+            final l = await LojasService.carregarLojaPorId(r.lojaId);
+            if (l != null) {
+              lojasDoServidor.add(LojasService.sanitizarCaminhosImagens(l).toJson());
+            }
+          }
+          final lojasProprias = await LojasService.carregar(cpf);
+          for (final lp in lojasProprias) {
+            if (!lojasDoServidor.any((m) => m['id'] == lp.id)) {
+              lojasDoServidor.add(LojasService.sanitizarCaminhosImagens(lp).toJson());
+            }
+          }
+
+          // 5. Notifica todos os terminais via WebSocket que os perfis do usuário foram atualizados
+          notificarTodos({
+            'tipo': 'perfis_usuario_atualizados',
+            'cpf': cpf,
+          });
+
+          _responderJson(request, {
+            'sucesso': true,
+            'referencias': referenciasLocais.map((r) => r.toJson()).toList(),
+            'lojas': lojasDoServidor,
+          });
+          return;
+        }
+
+        _responderJson(request, {'sucesso': false, 'erro': 'CPF vazio'},
+            statusCode: HttpStatus.badRequest);
+        return;
+      } catch (e) {
+        debugPrint(
+            '[ServidorRedeLocal] Erro em /api/sincronizar_perfis_usuario: $e');
+        _responderJson(request, {'sucesso': false, 'erro': e.toString()},
+            statusCode: HttpStatus.internalServerError);
         return;
       }
     }
@@ -998,9 +1225,10 @@ class ServidorRedeLocal {
           ? terminal.apelido!.trim()
           : '';
 
+      final dadosAuto =
+          await DadosLocaisService.buscarPorDocumento(terminal.cpf!);
+
       if (contaExistente == null) {
-        final dadosAuto =
-            await DadosLocaisService.buscarPorDocumento(terminal.cpf!);
         final novaConta = UsuarioNous(
           cpf: terminal.cpf!,
           nome: (dadosAuto != null && dadosAuto.nome.isNotEmpty)
@@ -1023,6 +1251,12 @@ class ServidorRedeLocal {
         }
         if (apelido.isNotEmpty && contaExistente.apelido != apelido) {
           atualizada = atualizada.copyWith(apelido: apelido);
+        }
+        if (contaExistente.foto.isEmpty &&
+            dadosAuto != null &&
+            dadosAuto.foto.isNotEmpty &&
+            ImagemService.existe(dadosAuto.foto)) {
+          atualizada = atualizada.copyWith(foto: dadosAuto.foto);
         }
         if (atualizada != contaExistente) {
           await ContasNousService.salvar(atualizada);
@@ -1088,7 +1322,7 @@ class ServidorRedeLocal {
     }
   }
 
-  /// Localiza o arquivo binário do APK Android no armazenamento local do computador balcão
+  /// Localiza o arquivo binário do APK Android correspondente à versão atual no armazenamento local do computador balcão
   File? _obterArquivoApk() {
     try {
       final pastaExe = File(Platform.resolvedExecutable).parent.path;
@@ -1099,11 +1333,6 @@ class ServidorRedeLocal {
         'dist/Nous_Android_v${versao}_Versao_Teste.apk',
         '${Directory.current.path}/dist/Nous_Android_v${versao}_Versao_Teste.apk',
         'D:/Nous/nous/dist/Nous_Android_v${versao}_Versao_Teste.apk',
-        '$pastaExe/dist/Nous_Android_v1.0.0_Versao_Teste.apk',
-        '$pastaExe/Nous_Android_v1.0.0_Versao_Teste.apk',
-        'dist/Nous_Android_v1.0.0_Versao_Teste.apk',
-        '${Directory.current.path}/dist/Nous_Android_v1.0.0_Versao_Teste.apk',
-        'D:/Nous/nous/dist/Nous_Android_v1.0.0_Versao_Teste.apk',
       ];
 
       for (final c in caminhos) {
@@ -1113,7 +1342,7 @@ class ServidorRedeLocal {
         }
       }
 
-      // Fallback dinâmico: busca qualquer arquivo .apk nas pastas dist
+      // Busca dinâmica nas pastas dist estritamente por arquivos com a versão atual
       final pastas = [
         Directory('$pastaExe/dist'),
         Directory(pastaExe),
@@ -1126,15 +1355,23 @@ class ServidorRedeLocal {
           final apks = pasta
               .listSync()
               .whereType<File>()
-              .where((f) => f.path.toLowerCase().endsWith('.apk') && f.lengthSync() > 0)
+              .where((f) =>
+                  f.path.toLowerCase().endsWith('.apk') &&
+                  f.lengthSync() > 0 &&
+                  f.path.contains('v$versao'))
               .toList();
           if (apks.isNotEmpty) {
-            final comVersao = apks.where((f) => f.path.contains(versao)).firstOrNull;
-            return comVersao ?? apks.first;
+            return apks.first;
           }
         }
       }
-    } catch (_) {}
+
+      debugPrint(
+        '[ServidorRedeLocal] Nenhum APK correspondente a v$versao encontrado para distribuição.',
+      );
+    } catch (e) {
+      debugPrint('[ServidorRedeLocal] Erro ao buscar APK: $e');
+    }
     return null;
   }
 

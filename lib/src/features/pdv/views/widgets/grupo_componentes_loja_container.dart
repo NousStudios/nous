@@ -5,6 +5,7 @@ import 'package:nous/src/core/theme/theme_controller.dart';
 import 'package:nous/src/core/widgets/texto_rolante.dart';
 import 'package:nous/src/core/widgets/themed_switch.dart';
 import 'package:nous/src/features/pdv/models/item_loja.dart';
+import 'package:nous/src/features/pdv/services/imagem_service.dart';
 import 'package:nous/src/features/pdv/views/widgets/produto_loja_row.dart';
 
 class GrupoComponentesLojaContainer extends StatefulWidget {
@@ -185,12 +186,11 @@ class _GrupoComponentesLojaContainerState
                     border: Border.all(
                         color: theme.borderColor.withValues(alpha: 0.6)),
                   ),
-                  child: (widget.foto.isNotEmpty &&
-                          File(widget.foto).existsSync())
+                  child: (ImagemService.resolverCaminhoExistente(widget.foto) != null)
                       ? ClipRRect(
                           borderRadius: BorderRadius.circular(7),
                           child: Image.file(
-                            File(widget.foto),
+                            File(ImagemService.resolverCaminhoExistente(widget.foto)!),
                             width: 32,
                             height: 32,
                             fit: BoxFit.cover,

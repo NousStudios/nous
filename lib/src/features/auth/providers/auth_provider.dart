@@ -5,7 +5,9 @@ import 'package:nous/src/features/auth/models/usuario_nous.dart';
 import 'package:nous/src/features/auth/services/contas_nous_service.dart';
 import 'package:nous/src/features/auth/services/cpf_validator.dart';
 import 'package:nous/src/features/pdv/services/dados_locais_service.dart';
+import 'package:nous/src/features/pdv/services/imagem_service.dart';
 import 'package:nous/src/features/pdv/services/rede_local/cliente_rede_local.dart';
+import 'package:nous/src/features/pdv/services/rede_local/servidor_rede_local.dart';
 
 class AuthProvider extends ChangeNotifier {
   static const String _chaveUltimoCpf = 'ultimo_cpf_login';
@@ -112,14 +114,25 @@ class AuthProvider extends ChangeNotifier {
       }
     }
 
-    // 2. Se ainda não encontrou, tenta buscar ficha no balcão via rede Wi-Fi local
-    if (conta == null) {
+    // 2. Se não encontrou ou se a conta encontrada localmente está sem foto física válida,
+    // consulta o balcão via rede Wi-Fi local para enriquecer os dados e trazer a foto da rede!
+    final precisaFotoRemota = conta == null ||
+        conta.foto.isEmpty ||
+        ImagemService.resolverCaminhoExistente(conta.foto) == null;
+
+    if (precisaFotoRemota) {
       try {
         final remoto = await ClienteRedeLocal().buscarUsuarioRemoto(_cpf);
         if (remoto != null) {
-          conta = remoto;
+          if (conta == null) {
+            conta = remoto;
+          } else if (remoto.foto.isNotEmpty &&
+              ImagemService.resolverCaminhoExistente(remoto.foto) != null) {
+            conta = conta.copyWith(foto: remoto.foto);
+            await ContasNousService.salvar(conta);
+          }
           debugPrint(
-            '[AuthProvider] Conta recuperada do balcão Wi-Fi para CPF $_cpf (${conta.nome})',
+            '[AuthProvider] Conta recuperada/enriquecida do balcão Wi-Fi para CPF $_cpf (${conta.nome})',
           );
         }
       } catch (e) {
@@ -185,10 +198,19 @@ class AuthProvider extends ChangeNotifier {
     final atualizado = conta.copyWith(apelido: novoApelido.trim());
     await ContasNousService.salvar(atualizado);
     _contaAtual = atualizado;
-    if (ClienteRedeLocal().conectado) {
-      ClienteRedeLocal().enviarUsuario(atualizado);
-    }
+    _propagarUsuarioAtualizado(atualizado);
     notifyListeners();
+  }
+
+  void _propagarUsuarioAtualizado(UsuarioNous usuario) {
+    if (ClienteRedeLocal().conectado) {
+      ClienteRedeLocal().enviarUsuario(usuario);
+    } else if (ServidorRedeLocal().ativo) {
+      ServidorRedeLocal().notificarTodos({
+        'tipo': 'usuario_atualizado',
+        'usuario': usuario.toJson(),
+      });
+    }
   }
 
   void definirEmailAtivo(String? email) {
@@ -217,9 +239,7 @@ class AuthProvider extends ChangeNotifier {
     await ContasNousService.salvar(atualizado);
     _contaAtual = atualizado;
     _emailAtivo ??= emailLimpo;
-    if (ClienteRedeLocal().conectado) {
-      ClienteRedeLocal().enviarUsuario(atualizado);
-    }
+    _propagarUsuarioAtualizado(atualizado);
     notifyListeners();
     return null;
   }
@@ -236,9 +256,7 @@ class AuthProvider extends ChangeNotifier {
     if (_emailAtivo == email) {
       _emailAtivo = novosEmails.isEmpty ? null : novosEmails.first;
     }
-    if (ClienteRedeLocal().conectado) {
-      ClienteRedeLocal().enviarUsuario(atualizado);
-    }
+    _propagarUsuarioAtualizado(atualizado);
     notifyListeners();
   }
 
@@ -257,9 +275,7 @@ class AuthProvider extends ChangeNotifier {
     await ContasNousService.salvar(atualizado);
     _contaAtual = atualizado;
     _fotosPorCpf[conta.cpf] = novaFoto;
-    if (ClienteRedeLocal().conectado) {
-      ClienteRedeLocal().enviarUsuario(atualizado);
-    }
+    _propagarUsuarioAtualizado(atualizado);
     notifyListeners();
   }
 
@@ -294,9 +310,7 @@ class AuthProvider extends ChangeNotifier {
     );
     await ContasNousService.salvar(atualizado);
     _contaAtual = atualizado;
-    if (ClienteRedeLocal().conectado) {
-      ClienteRedeLocal().enviarUsuario(atualizado);
-    }
+    _propagarUsuarioAtualizado(atualizado);
     notifyListeners();
   }
 
@@ -304,6 +318,9 @@ class AuthProvider extends ChangeNotifier {
     if (_cpf.isEmpty) return;
     final conta = await ContasNousService.buscarPorCpf(_cpf);
     _contaAtual = conta;
+    if (conta != null && conta.foto.isNotEmpty) {
+      _fotosPorCpf[conta.cpf] = conta.foto;
+    }
     notifyListeners();
   }
 

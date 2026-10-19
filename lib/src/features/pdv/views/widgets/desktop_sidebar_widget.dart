@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:nous/src/core/theme/theme_controller.dart';
+import 'package:nous/src/features/pdv/services/imagem_service.dart';
 import 'package:nous/src/features/pdv/views/dados_perfil_view.dart';
 
 class DesktopSidebarWidget extends StatelessWidget {
@@ -53,7 +54,8 @@ class DesktopSidebarWidget extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final temLogo = logoLoja.isNotEmpty && File(logoLoja).existsSync();
+    final logoResolvida = ImagemService.resolverCaminhoExistente(logoLoja);
+    final temLogo = logoResolvida != null;
 
     return Container(
       width: 250,
@@ -77,7 +79,7 @@ class DesktopSidebarWidget extends StatelessWidget {
                 CircleAvatar(
                   radius: 20,
                   backgroundColor: theme.borderColor.withValues(alpha: 0.3),
-                  backgroundImage: temLogo ? FileImage(File(logoLoja)) : null,
+                  backgroundImage: temLogo ? FileImage(File(logoResolvida)) : null,
                   child: !temLogo
                       ? Icon(
                           Icons.storefront_outlined,

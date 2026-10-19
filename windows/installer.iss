@@ -4,7 +4,9 @@
 ; ═════════════════════════════════════════════════════════════════
 
 #define MyAppName "Nous"
-#define MyAppVersion "1.0.4"
+#ifndef MyAppVersion
+#define MyAppVersion "1.0.11"
+#endif
 #define MyAppPublisher "Nous Studios"
 #define MyAppURL "https://github.com/NousStudios/nous"
 #define MyAppExeName "nous.exe"
@@ -31,6 +33,7 @@ SolidCompression=yes
 WizardStyle=modern
 ArchitecturesInstallIn64BitMode=x64compatible
 DisableProgramGroupPage=yes
+CloseApplications=yes
 
 ; Preservação de dados locais: o desinstalador NUNCA remove a pasta %APPDATA%\Nous
 UninstallDisplayIcon={app}\{#MyAppExeName}

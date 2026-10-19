@@ -1,4 +1,6 @@
 import 'dart:io';
+import 'package:flutter/widgets.dart';
+import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import 'package:nous/src/core/services/gerador_id.dart';
 
@@ -38,6 +40,123 @@ class ImagemService {
     }
   }
 
+  /// Retorna todas as pastas possíveis onde imagens do aplicativo podem estar salvas
+  /// (diretório atual oficial, diretórios legados do Windows e diretórios alternativos).
+  static List<Directory> obterDiretoriosPossiveisSync() {
+    final dirs = <Directory>[];
+
+    // 1. Tenta diretórios padrão do ambiente no Windows
+    if (Platform.isWindows) {
+      final appData = Platform.environment['APPDATA'];
+      if (appData != null && appData.isNotEmpty) {
+        dirs.add(Directory('$appData/com.example/nous/Nous/imagens'));
+        dirs.add(Directory('$appData/com.nous.app/Nous/imagens'));
+        dirs.add(Directory('$appData/Nous/imagens'));
+      }
+      final localAppData = Platform.environment['LOCALAPPDATA'];
+      if (localAppData != null && localAppData.isNotEmpty) {
+        dirs.add(Directory('$localAppData/com.example/nous/Nous/imagens'));
+        dirs.add(Directory('$localAppData/Nous/imagens'));
+      }
+    } else {
+      final home = Platform.environment['HOME'];
+      if (home != null && home.isNotEmpty) {
+        dirs.add(Directory('$home/.nous/imagens'));
+      }
+    }
+
+    dirs.add(Directory('${Directory.current.path}/.nous_data/imagens'));
+    return dirs;
+  }
+
+  /// Resolve o caminho físico real de uma imagem, mesmo que tenha sido salva
+  /// em diretório legado, em outra máquina com caminho diferente ou restaurada de backup.
+  static String? resolverCaminhoExistente(String? caminhoOriginal) {
+    if (caminhoOriginal == null || caminhoOriginal.trim().isEmpty) return null;
+    final limpo = caminhoOriginal.trim();
+
+    // 1. Verifica no caminho exato fornecido
+    try {
+      final arqExato = File(limpo);
+      if (arqExato.existsSync() && arqExato.lengthSync() > 0) {
+        return arqExato.path;
+      }
+    } catch (_) {}
+
+    // 2. Normaliza separadores e tenta novamente
+    try {
+      final normalizado = p.normalize(limpo);
+      final arqNorm = File(normalizado);
+      if (arqNorm.existsSync() && arqNorm.lengthSync() > 0) {
+        return arqNorm.path;
+      }
+    } catch (_) {}
+
+    // 3. Procura pelo nome do arquivo em todas as pastas possíveis de dados
+    final nomeArquivo = p.basename(limpo);
+    if (nomeArquivo.isEmpty) return null;
+
+    final possiveis = obterDiretoriosPossiveisSync();
+    for (final dir in possiveis) {
+      try {
+        if (!dir.existsSync()) continue;
+        final candidato = File(p.join(dir.path, nomeArquivo));
+        if (candidato.existsSync() && candidato.lengthSync() > 0) {
+          return candidato.path;
+        }
+      } catch (_) {}
+    }
+
+    return null;
+  }
+
+  /// Retorna true se a imagem existe fisicamente em disco (no caminho direto ou em pasta do Nous)
+  static bool existe(String? caminho) => resolverCaminhoExistente(caminho) != null;
+
+  /// Retorna o File real caso a imagem exista fisicamente em disco
+  static File? obterArquivo(String? caminho) {
+    final resolvido = resolverCaminhoExistente(caminho);
+    return resolvido != null ? File(resolvido) : null;
+  }
+
+  /// Retorna um ImageProvider (FileImage) pronto para uso, ou null se a foto não existir
+  static ImageProvider? obterImageProvider(String? caminho) {
+    final resolvido = resolverCaminhoExistente(caminho);
+    return resolvido != null ? FileImage(File(resolvido)) : null;
+  }
+
+  /// Consolida e unifica todas as imagens de pastas legadas para a pasta oficial atual.
+  static Future<void> unificarDiretoriosImagens() async {
+    try {
+      final base = await obterDiretorioBase();
+      final pastaOficial = Directory('${base.path}/imagens');
+      if (!await pastaOficial.exists()) {
+        await pastaOficial.create(recursive: true);
+      }
+
+      final caminhoOficialNorm = p.normalize(pastaOficial.path).toLowerCase();
+      final diretoriosLegados = obterDiretoriosPossiveisSync();
+
+      for (final dir in diretoriosLegados) {
+        try {
+          if (!await dir.exists()) continue;
+          final caminhoDirNorm = p.normalize(dir.path).toLowerCase();
+          if (caminhoDirNorm == caminhoOficialNorm) continue;
+
+          await for (final entidade in dir.list()) {
+            if (entidade is File) {
+              final nome = p.basename(entidade.path);
+              final destino = File(p.join(pastaOficial.path, nome));
+              if (!await destino.exists() || await destino.length() == 0) {
+                await entidade.copy(destino.path);
+              }
+            }
+          }
+        } catch (_) {}
+      }
+    } catch (_) {}
+  }
+
   static bool extensaoImagemValida(String caminho) {
     final partes = caminho.split('.');
     if (partes.length < 2) return false;
@@ -66,6 +185,35 @@ class ImagemService {
       final destino = File('${pasta.path}/$novoNome');
 
       await arquivoOriginal.copy(destino.path);
+      return destino.path;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  static Future<String?> salvarBytesImagemLocal(
+    List<int> bytes, {
+    String extensaoOriginal = 'jpg',
+    String? nomeSugerido,
+  }) async {
+    try {
+      if (bytes.isEmpty || bytes.length > limiteBytesMeioGiga) return null;
+      final ext = extensoesImagem.contains(extensaoOriginal.toLowerCase())
+          ? extensaoOriginal.toLowerCase()
+          : 'jpg';
+
+      final base = await obterDiretorioBase();
+      final pasta = Directory('${base.path}/imagens');
+      if (!await pasta.exists()) {
+        await pasta.create(recursive: true);
+      }
+
+      final nomeFinal = nomeSugerido != null && nomeSugerido.trim().isNotEmpty
+          ? nomeSugerido.trim()
+          : 'img_${gerarIdUnico()}.$ext';
+      final destino = File('${pasta.path}/$nomeFinal');
+
+      await destino.writeAsBytes(bytes);
       return destino.path;
     } catch (_) {
       return null;

@@ -12,6 +12,7 @@ import 'package:nous/src/features/notificacoes/views/widgets/notificacoes_dialog
 import 'package:nous/src/core/services/atualizacao_service.dart';
 import 'package:nous/src/core/widgets/atualizacao_dialog.dart';
 import 'package:nous/src/features/pdv/providers/pdv_provider.dart';
+import 'package:nous/src/features/pdv/services/imagem_service.dart';
 import 'package:nous/src/features/pdv/services/rede_local/cliente_rede_local.dart';
 import 'package:nous/src/features/pdv/services/rede_local/servidor_rede_local.dart';
 import 'package:nous/src/features/pdv/views/widgets/backup_dialog.dart';
@@ -29,6 +30,7 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
   final bool showBackButton;
   final VoidCallback? onLogout;
   final List<Widget>? actions;
+  final String? lojaId;
 
   const CustomAppBar({
     super.key,
@@ -36,6 +38,7 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
     this.showBackButton = true,
     this.onLogout,
     this.actions,
+    this.lojaId,
   });
 
   void _showThemeSelector(BuildContext context) {
@@ -254,8 +257,9 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
                           }
                         }
 
-                        final temFoto = conta.foto.isNotEmpty &&
-                            File(conta.foto).existsSync();
+                        final fotoResolvida =
+                            ImagemService.resolverCaminhoExistente(conta.foto);
+                        final temFoto = fotoResolvida != null;
 
                         return Padding(
                           padding: const EdgeInsets.symmetric(vertical: 4),
@@ -289,7 +293,7 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
                                               BorderRadius.circular(11),
                                           child: temFoto
                                               ? Image.file(
-                                                  File(conta.foto),
+                                                  File(fotoResolvida),
                                                   width: 56,
                                                   height: 56,
                                                   fit: BoxFit.cover,
@@ -419,10 +423,13 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
     final notificacoes = context.watch<NotificacoesProvider>();
     final pdv = context.watch<PdvProvider>();
     final quantidadeConvites = notificacoes.quantidadeConvitesAtivos;
-    final totalEstoqueBaixo = pdv.todosItensEstoqueBaixo
-        .where((a) => !notificacoes
-            .estaDispensadaNaSessao('alerta_estoque_${a.lojaId}_${a.item.id}'))
-        .length;
+    final totalEstoqueBaixo = (lojaId == null)
+        ? 0
+        : pdv
+            .itensEstoqueBaixoPorLoja(lojaId!)
+            .where((a) => !notificacoes
+                .estaDispensadaNaSessao('alerta_estoque_${a.lojaId}_${a.item.id}'))
+            .length;
     final quantidadeTotal = quantidadeConvites + totalEstoqueBaixo;
 
     return Stack(
@@ -441,7 +448,7 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
                 ? Colors.redAccent
                 : theme.secondaryTextColor,
           ),
-          onPressed: () => NotificacoesDialog.mostrar(context),
+          onPressed: () => NotificacoesDialog.mostrar(context, lojaId: lojaId),
         ),
         if (quantidadeTotal > 0)
           Positioned(

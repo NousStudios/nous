@@ -7,6 +7,7 @@ import 'package:nous/src/features/pdv/models/categoria_loja.dart';
 import 'package:nous/src/features/pdv/models/grupo_componentes_loja.dart';
 import 'package:nous/src/features/pdv/models/item_loja.dart';
 import 'package:nous/src/features/pdv/models/mesa_loja.dart';
+import 'package:nous/src/features/pdv/services/imagem_service.dart';
 import 'package:nous/src/features/pdv/views/widgets/estado_vazio_container.dart';
 import 'package:nous/src/features/pdv/views/widgets/mesas/adicionar_item_mesa_dialog.dart';
 import 'package:nous/src/features/pdv/views/widgets/mesas/transferir_mesa_dialog.dart';
@@ -441,12 +442,11 @@ class _ComandaMesaDialogState extends State<ComandaMesaDialog> {
                       child: Row(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          if (item.foto.isNotEmpty &&
-                              File(item.foto).existsSync())
+                          if (ImagemService.resolverCaminhoExistente(item.foto) != null)
                             ClipRRect(
                               borderRadius: BorderRadius.circular(6),
                               child: Image.file(
-                                File(item.foto),
+                                File(ImagemService.resolverCaminhoExistente(item.foto)!),
                                 width: 32,
                                 height: 32,
                                 fit: BoxFit.cover,

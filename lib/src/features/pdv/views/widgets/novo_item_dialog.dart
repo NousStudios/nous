@@ -144,8 +144,9 @@ class _NovoItemDialogState extends State<NovoItemDialog> {
   late final Set<String> _gruposSelecionados =
       widget.grupoIdsIniciais.toSet();
 
-  late final List<String> _imagens =
-      List.from(widget.itemParaEditar?.imagens ?? []);
+  late final List<String> _imagens = (widget.itemParaEditar?.imagens ?? [])
+      .map((img) => ImagemService.resolverCaminhoExistente(img) ?? img)
+      .toList();
 
   final List<_VarianteFormControllers> _variantesControllers = [];
 
@@ -525,15 +526,16 @@ class _NovoItemDialogState extends State<NovoItemDialog> {
                       else
                         ...opcoes.entries.map((entrada) {
                           final foto = fotos?[entrada.key] ?? '';
-                          final temFoto =
-                              foto.isNotEmpty && File(foto).existsSync();
+                          final fotoResolvida =
+                              ImagemService.resolverCaminhoExistente(foto);
+                          final temFoto = fotoResolvida != null;
                           return CheckboxListTile(
                             value: selecionados.contains(entrada.key),
                             secondary: temFoto
                                 ? ClipRRect(
                                     borderRadius: BorderRadius.circular(6),
                                     child: Image.file(
-                                      File(foto),
+                                      File(fotoResolvida),
                                       width: 28,
                                       height: 28,
                                       fit: BoxFit.cover,
@@ -1080,6 +1082,9 @@ class _NovoItemDialogState extends State<NovoItemDialog> {
                   }
 
                   final caminho = _imagens[index];
+                  final caminhoResolvido =
+                      ImagemService.resolverCaminhoExistente(caminho) ??
+                          caminho;
                   return Stack(
                     children: [
                       GestureDetector(
@@ -1091,7 +1096,7 @@ class _NovoItemDialogState extends State<NovoItemDialog> {
                             height: double.infinity,
                             color: theme.cardBackgroundColor,
                             child: Image.file(
-                              File(caminho),
+                              File(caminhoResolvido),
                               fit: BoxFit.cover,
                               errorBuilder: (context, error, stackTrace) =>
                                   Center(

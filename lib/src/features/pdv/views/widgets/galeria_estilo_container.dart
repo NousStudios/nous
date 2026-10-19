@@ -158,7 +158,9 @@ class GaleriaEstiloContainer extends StatelessWidget {
 
   String _obterTamanhoFormatado(String caminho) {
     try {
-      final arq = File(caminho);
+      final resolvido =
+          ImagemService.resolverCaminhoExistente(caminho) ?? caminho;
+      final arq = File(resolvido);
       if (arq.existsSync()) {
         return ImagemService.formatarTamanhoBytes(arq.lengthSync());
       }
@@ -265,8 +267,10 @@ class GaleriaEstiloContainer extends StatelessWidget {
     final ext = _extrairExtensao(caminho);
 
     if (ehImagem) {
+      final resolvido =
+          ImagemService.resolverCaminhoExistente(caminho) ?? caminho;
       return Image.file(
-        File(caminho),
+        File(resolvido),
         fit: BoxFit.cover,
         width: double.infinity,
         height: double.infinity,

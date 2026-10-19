@@ -245,7 +245,7 @@ class _FichaUsuarioConteudoState extends State<_FichaUsuarioConteudo> {
   }
 
   Future<void> _aoClicarFoto() async {
-    final temFoto = _usuario.foto.isNotEmpty && File(_usuario.foto).existsSync();
+    final temFoto = _usuario.foto.isNotEmpty && ImagemService.existe(_usuario.foto);
 
     if (temFoto) {
       await OpcoesImagemDialog.mostrar(
@@ -298,8 +298,9 @@ class _FichaUsuarioConteudoState extends State<_FichaUsuarioConteudo> {
                 _usuario.cpf.replaceAll(RegExp(r'\D'), ''));
     final contaAtualizada =
         ehProprioUsuario ? (auth.contaAtual ?? _usuario) : _usuario;
-    final temFoto = contaAtualizada.foto.isNotEmpty &&
-        File(contaAtualizada.foto).existsSync();
+    final fotoResolvida =
+        ImagemService.resolverCaminhoExistente(contaAtualizada.foto);
+    final temFoto = fotoResolvida != null;
 
     final clienteMesmoCpf = pdv.buscarClientePorCpf(contaAtualizada.cpf);
     final lojasAdmin = pdv.lojasQueAdministro;
@@ -346,7 +347,7 @@ class _FichaUsuarioConteudoState extends State<_FichaUsuarioConteudo> {
                 borderRadius: BorderRadius.circular(15),
                 child: temFoto
                     ? Image.file(
-                        File(contaAtualizada.foto),
+                        File(fotoResolvida),
                         width: 84,
                         height: 84,
                         fit: BoxFit.cover,

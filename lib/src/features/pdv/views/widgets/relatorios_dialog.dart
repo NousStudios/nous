@@ -10,6 +10,7 @@ import 'package:nous/src/features/pdv/models/cliente.dart';
 import 'package:nous/src/features/pdv/models/pedido_loja.dart';
 import 'package:nous/src/features/pdv/models/registro_acao.dart';
 import 'package:nous/src/features/pdv/providers/pdv_provider.dart';
+import 'package:nous/src/features/pdv/services/imagem_service.dart';
 import 'package:nous/src/features/pdv/views/widgets/estado_vazio_container.dart';
 import 'package:nous/src/features/pdv/views/widgets/venda_registrada_dialog.dart';
 import 'package:nous/src/features/pdv/views/widgets/comanda_pedido_dialog.dart';
@@ -714,7 +715,8 @@ class _RelatoriosConteudoState extends State<_RelatoriosConteudo> {
         }
       }
     }
-    final temFoto = foto.isNotEmpty && File(foto).existsSync();
+    final fotoResolvida = ImagemService.resolverCaminhoExistente(foto);
+    final temFoto = fotoResolvida != null;
 
     final textoSubtitulo = item.totalPedidos > 1
         ? 'Último pedido: ${_numeroCurto(item.ultimoPedido.numero)} • ${_dataHoraCurta(item.ultimoPedido.dataHora)}'
@@ -738,7 +740,7 @@ class _RelatoriosConteudoState extends State<_RelatoriosConteudo> {
             temFoto
                 ? CircleAvatar(
                     radius: 12,
-                    backgroundImage: FileImage(File(foto)),
+                    backgroundImage: FileImage(File(fotoResolvida)),
                     backgroundColor: theme.borderColor.withValues(alpha: 0.2),
                   )
                 : CircleAvatar(
@@ -877,7 +879,8 @@ class _RelatoriosConteudoState extends State<_RelatoriosConteudo> {
                       foto = pdv.buscarFotoClientePorCpf(cliente.cnpj) ?? '';
                     }
                   }
-                  final temFoto = foto.isNotEmpty && File(foto).existsSync();
+                  final fotoResolvida = ImagemService.resolverCaminhoExistente(foto);
+                  final temFoto = fotoResolvida != null;
 
                   return _LinhaComHover(
                     aoClicar: () {
@@ -906,7 +909,7 @@ class _RelatoriosConteudoState extends State<_RelatoriosConteudo> {
                           temFoto
                               ? CircleAvatar(
                                   radius: 12,
-                                  backgroundImage: FileImage(File(foto)),
+                                  backgroundImage: FileImage(File(fotoResolvida)),
                                   backgroundColor:
                                       theme.borderColor.withValues(alpha: 0.2),
                                 )

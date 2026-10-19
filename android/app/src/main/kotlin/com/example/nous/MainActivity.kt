@@ -60,6 +60,29 @@ class MainActivity : FlutterActivity() {
                         result.error("CAMINHO_NULO", "Caminho do arquivo nulo", null)
                     }
                 }
+                "obterVersaoApp" -> {
+                    try {
+                        val pInfo = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+                            context.packageManager.getPackageInfo(
+                                context.packageName,
+                                android.content.pm.PackageManager.PackageInfoFlags.of(0)
+                            )
+                        } else {
+                            @Suppress("DEPRECATION")
+                            context.packageManager.getPackageInfo(context.packageName, 0)
+                        }
+                        val versao = pInfo.versionName ?: "1.0.0"
+                        val build = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {
+                            pInfo.longVersionCode.toInt()
+                        } else {
+                            @Suppress("DEPRECATION")
+                            pInfo.versionCode
+                        }
+                        result.success(mapOf("versao" to versao, "build" to build))
+                    } catch (e: Exception) {
+                        result.error("ERRO_VERSAO", e.message, null)
+                    }
+                }
                 else -> result.notImplemented()
             }
         }

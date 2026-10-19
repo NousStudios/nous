@@ -10,6 +10,7 @@ import 'package:nous/src/features/auth/services/cpf_validator.dart';
 import 'package:nous/src/features/auth/views/widgets/ficha_usuario_dialog.dart';
 import 'package:nous/src/features/pdv/models/loja.dart';
 import 'package:nous/src/features/pdv/providers/pdv_provider.dart';
+import 'package:nous/src/features/pdv/services/imagem_service.dart';
 import 'package:nous/src/features/pdv/services/rede_local/cliente_rede_local.dart';
 import 'package:nous/src/features/pdv/services/rede_local/servidor_rede_local.dart';
 import 'package:provider/provider.dart';
@@ -97,7 +98,8 @@ class _SincronizacaoRedeDialogState extends State<SincronizacaoRedeDialog> {
         });
         return;
       }
-      final sucesso = await _servidor.iniciar(loja: widget.loja!, pdv: pdv);
+      final auth = context.read<AuthProvider>();
+      final sucesso = await _servidor.iniciar(loja: widget.loja!, pdv: pdv, auth: auth);
       if (!mounted) return;
       if (sucesso) {
         setState(() {
@@ -277,7 +279,8 @@ class _SincronizacaoRedeDialogState extends State<SincronizacaoRedeDialog> {
     final nome = conta?.nome ?? 'Usuário Nous';
     final apelido = conta?.apelido;
     final temApelido = apelido != null && apelido.trim().isNotEmpty;
-    final temFoto = conta != null && conta.foto.isNotEmpty && File(conta.foto).existsSync();
+    final fotoResolvida = ImagemService.resolverCaminhoExistente(conta?.foto);
+    final temFoto = fotoResolvida != null;
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
@@ -294,7 +297,7 @@ class _SincronizacaoRedeDialogState extends State<SincronizacaoRedeDialog> {
             borderRadius: BorderRadius.circular(21),
             child: temFoto
                 ? Image.file(
-                    File(conta.foto),
+                    File(fotoResolvida),
                     width: 42,
                     height: 42,
                     fit: BoxFit.cover,

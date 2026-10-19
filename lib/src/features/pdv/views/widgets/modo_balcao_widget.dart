@@ -12,6 +12,7 @@ import 'package:nous/src/features/pdv/models/grupo_componentes_loja.dart';
 import 'package:nous/src/features/pdv/models/item_loja.dart';
 import 'package:nous/src/features/pdv/models/movimento_estoque.dart';
 import 'package:nous/src/features/pdv/models/pedido_loja.dart';
+import 'package:nous/src/features/pdv/services/imagem_service.dart';
 import 'package:nous/src/features/pdv/views/widgets/venda_concluida_dialog.dart';
 
 const List<String> _formasBalcao = [
@@ -943,7 +944,8 @@ class _ModoBalcaoWidgetState extends State<ModoBalcaoWidget> {
 
   @override
   Widget build(BuildContext context) {
-    final temLogo = widget.logoLoja.isNotEmpty && File(widget.logoLoja).existsSync();
+    final logoResolvida = ImagemService.resolverCaminhoExistente(widget.logoLoja);
+    final temLogo = logoResolvida != null;
 
     return CallbackShortcuts(
       bindings: <ShortcutActivator, VoidCallback>{
@@ -996,7 +998,7 @@ class _ModoBalcaoWidgetState extends State<ModoBalcaoWidget> {
                       radius: 16,
                       backgroundColor: theme.borderColor.withValues(alpha: 0.3),
                       backgroundImage:
-                          temLogo ? FileImage(File(widget.logoLoja)) : null,
+                          temLogo ? FileImage(File(logoResolvida)) : null,
                       child: !temLogo
                           ? Icon(Icons.storefront,
                               size: 16, color: theme.textColor)
@@ -1235,7 +1237,8 @@ class _ModoBalcaoWidgetState extends State<ModoBalcaoWidget> {
     final itemVendido = _ultimoItemVendido;
     final item = _ultimoItemBipado;
     final foto = item?.imagens.firstOrNull ?? itemVendido?.foto ?? '';
-    final temFoto = foto.isNotEmpty && File(foto).existsSync();
+    final fotoResolvida = ImagemService.resolverCaminhoExistente(foto);
+    final temFoto = fotoResolvida != null;
     final nomeExibicao = itemVendido?.nomeExibicao ?? item?.nome ?? '';
     final precoUnitario =
         itemVendido?.precoUnitario ?? _precoComoNumero(item?.preco ?? '');
@@ -1261,7 +1264,7 @@ class _ModoBalcaoWidgetState extends State<ModoBalcaoWidget> {
               borderRadius: BorderRadius.circular(10),
               image: temFoto
                   ? DecorationImage(
-                      image: FileImage(File(foto)),
+                      image: FileImage(File(fotoResolvida)),
                       fit: BoxFit.cover,
                     )
                   : null,
@@ -1407,7 +1410,8 @@ class _ModoBalcaoWidgetState extends State<ModoBalcaoWidget> {
       itemBuilder: (context, index) {
         final item = itens[index];
         final foto = item.imagens.firstOrNull ?? '';
-        final temFoto = foto.isNotEmpty && File(foto).existsSync();
+        final fotoResolvida = ImagemService.resolverCaminhoExistente(foto);
+        final temFoto = fotoResolvida != null;
         final saldo = _saldoEstoque(item.id);
         final esgotado = saldo <= 0;
 
@@ -1437,7 +1441,7 @@ class _ModoBalcaoWidgetState extends State<ModoBalcaoWidget> {
                               top: Radius.circular(9)),
                           image: temFoto
                               ? DecorationImage(
-                                  image: FileImage(File(foto)),
+                                  image: FileImage(File(fotoResolvida)),
                                   fit: BoxFit.cover,
                                 )
                               : null,
@@ -1573,7 +1577,8 @@ class _ModoBalcaoWidgetState extends State<ModoBalcaoWidget> {
               ),
               itemBuilder: (context, index) {
                 final c = clientes[index];
-                final temFoto = c.foto.isNotEmpty && File(c.foto).existsSync();
+                final fotoResolvida = ImagemService.resolverCaminhoExistente(c.foto);
+                final temFoto = fotoResolvida != null;
                 final doc = c.cnpj.isNotEmpty ? c.cnpj : '';
                 final tel = c.telefone.isNotEmpty ? c.telefone : '';
                 final end = c.endereco.isNotEmpty
@@ -1599,7 +1604,7 @@ class _ModoBalcaoWidgetState extends State<ModoBalcaoWidget> {
                           backgroundColor:
                               theme.borderColor.withValues(alpha: 0.3),
                           backgroundImage:
-                              temFoto ? FileImage(File(c.foto)) : null,
+                              temFoto ? FileImage(File(fotoResolvida)) : null,
                           child: !temFoto
                               ? Icon(Icons.person,
                                   size: 18, color: theme.textColor)
@@ -1682,12 +1687,12 @@ class _ModoBalcaoWidgetState extends State<ModoBalcaoWidget> {
                           radius: 12,
                           backgroundColor:
                               theme.borderColor.withValues(alpha: 0.3),
-                          backgroundImage: (_clienteSelecionado!.foto.isNotEmpty &&
-                                  File(_clienteSelecionado!.foto).existsSync())
-                              ? FileImage(File(_clienteSelecionado!.foto))
-                              : null,
-                          child: (_clienteSelecionado!.foto.isEmpty ||
-                                  !File(_clienteSelecionado!.foto).existsSync())
+                          backgroundImage: () {
+                            final f = ImagemService.resolverCaminhoExistente(
+                                _clienteSelecionado!.foto);
+                            return f != null ? FileImage(File(f)) : null;
+                          }(),
+                          child: !ImagemService.existe(_clienteSelecionado!.foto)
                               ? Icon(Icons.person,
                                   size: 14, color: theme.textColor)
                               : null,
@@ -1905,8 +1910,8 @@ class _ModoBalcaoWidgetState extends State<ModoBalcaoWidget> {
                   itemBuilder: (context, index) {
                     final item = _carrinho[index];
                     final itemTotal = item.subtotal;
-                    final temFoto = item.foto.isNotEmpty &&
-                        File(item.foto).existsSync();
+                    final fotoResolvida = ImagemService.resolverCaminhoExistente(item.foto);
+                    final temFoto = fotoResolvida != null;
 
                     return Container(
                       padding: const EdgeInsets.all(8),
@@ -1924,7 +1929,7 @@ class _ModoBalcaoWidgetState extends State<ModoBalcaoWidget> {
                               borderRadius: BorderRadius.circular(8),
                               image: temFoto
                                   ? DecorationImage(
-                                      image: FileImage(File(item.foto)),
+                                      image: FileImage(File(fotoResolvida)),
                                       fit: BoxFit.cover,
                                     )
                                   : null,

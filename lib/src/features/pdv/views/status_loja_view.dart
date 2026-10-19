@@ -9,6 +9,7 @@ import 'package:nous/src/features/auth/providers/auth_provider.dart';
 import 'package:nous/src/features/pdv/models/membro_loja.dart';
 import 'package:nous/src/features/pdv/models/pedido_loja.dart';
 import 'package:nous/src/features/pdv/providers/pdv_provider.dart';
+import 'package:nous/src/features/pdv/services/imagem_service.dart';
 import 'package:nous/src/features/pdv/services/rede_local/cliente_rede_local.dart';
 import 'package:nous/src/features/pdv/services/rede_local/servidor_rede_local.dart';
 import 'package:nous/src/features/pdv/views/widgets/estado_vazio_container.dart';
@@ -119,6 +120,18 @@ class _StatusLojaViewState extends State<StatusLojaView> {
     setState(() => _online = valor);
     widget.aoAlterarOnline(valor);
     context.read<PdvProvider>().alternarLojaAberta(widget.lojaId, valor);
+    final lojaAtual = context.read<PdvProvider>().buscarPorId(widget.lojaId);
+    if (lojaAtual != null) {
+      if (ServidorRedeLocal().ativo) {
+        ServidorRedeLocal().notificarTodos({
+          'tipo': 'loja_atualizada',
+          'loja': lojaAtual.toJson(),
+        });
+      }
+      if (ClienteRedeLocal().conectado) {
+        ClienteRedeLocal().enviarLojaAtualizada(lojaAtual);
+      }
+    }
   }
 
   BoxDecoration _decoracaoDoBloco(AppTheme theme) => BoxDecoration(
@@ -520,7 +533,8 @@ class _StatusLojaViewState extends State<StatusLojaView> {
       foto = pdv.buscarFotoClientePorCpf(membro.cpf) ?? '';
     }
 
-    final temFoto = foto.isNotEmpty && File(foto).existsSync();
+    final fotoResolvida = ImagemService.resolverCaminhoExistente(foto);
+    final temFoto = fotoResolvida != null;
     final dispositivos = _obterDispositivosDoMembro(membro.cpf);
     final estaOnline = dispositivos.isNotEmpty;
 
@@ -566,7 +580,7 @@ class _StatusLojaViewState extends State<StatusLojaView> {
                     borderRadius: BorderRadius.circular(16),
                     child: temFoto
                         ? Image.file(
-                            File(foto),
+                            File(fotoResolvida),
                             width: 34,
                             height: 34,
                             fit: BoxFit.cover,
@@ -791,7 +805,10 @@ class _StatusLojaViewState extends State<StatusLojaView> {
 
             return Scaffold(
               backgroundColor: theme.backgroundColor,
-              appBar: const CustomAppBar(title: 'Status da Loja'),
+              appBar: CustomAppBar(
+                title: 'Status da Loja',
+                lojaId: widget.lojaId,
+              ),
               body: SafeArea(
                 child: Center(
                   child: ConstrainedBox(

@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:nous/src/core/theme/theme_controller.dart';
 import 'package:nous/src/features/pdv/models/cliente.dart';
+import 'package:nous/src/features/pdv/services/imagem_service.dart';
 import 'package:nous/src/features/pdv/models/item_loja.dart';
 import 'package:nous/src/features/pdv/models/mesa_loja.dart';
 import 'package:nous/src/features/pdv/models/pedido_loja.dart';
@@ -204,8 +205,8 @@ class _GestaoLojaContainerState extends State<GestaoLojaContainer> {
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Text('Status', style: theme.getTextStyle(fontSize: 12)),
-              const SizedBox(width: 12),
+              Text('Status da Loja', style: theme.getTextStyle(fontSize: 12)),
+              const SizedBox(width: 8),
               Container(
                 padding: const EdgeInsets.only(left: 12, right: 2),
                 decoration: BoxDecoration(
@@ -468,8 +469,9 @@ class _GestaoLojaContainerState extends State<GestaoLojaContainer> {
   Widget _miniaturaProduto(PedidoLoja pedido, AppTheme theme) {
     String? fotoEncontrada;
     for (final item in pedido.itens) {
-      if (item.foto.isNotEmpty && File(item.foto).existsSync()) {
-        fotoEncontrada = item.foto;
+      final resolvido = ImagemService.resolverCaminhoExistente(item.foto);
+      if (resolvido != null) {
+        fotoEncontrada = resolvido;
         break;
       }
     }
@@ -478,11 +480,13 @@ class _GestaoLojaContainerState extends State<GestaoLojaContainer> {
       for (final item in pedido.itens) {
         final itemLoja =
             itensDisponiveis.where((i) => i.id == item.itemId).firstOrNull;
-        if (itemLoja != null &&
-            itemLoja.imagens.isNotEmpty &&
-            File(itemLoja.imagens.first).existsSync()) {
-          fotoEncontrada = itemLoja.imagens.first;
-          break;
+        if (itemLoja != null && itemLoja.imagens.isNotEmpty) {
+          final resolvido =
+              ImagemService.resolverCaminhoExistente(itemLoja.imagens.first);
+          if (resolvido != null) {
+            fotoEncontrada = resolvido;
+            break;
+          }
         }
       }
     }
@@ -511,8 +515,9 @@ class _GestaoLojaContainerState extends State<GestaoLojaContainer> {
       PedidoLoja pedido, AppTheme theme, TextStyle fonteMiuda) {
     final cliente =
         clientes.where((c) => c.id == pedido.clienteId).firstOrNull;
-    final temFoto =
-        cliente != null && cliente.foto.isNotEmpty && File(cliente.foto).existsSync();
+    final fotoResolvida =
+        ImagemService.resolverCaminhoExistente(cliente?.foto);
+    final temFoto = fotoResolvida != null;
 
     return SizedBox(
       width: 48,
@@ -523,7 +528,7 @@ class _GestaoLojaContainerState extends State<GestaoLojaContainer> {
               ? ClipRRect(
                   borderRadius: BorderRadius.circular(13),
                   child: Image.file(
-                    File(cliente.foto),
+                    File(fotoResolvida),
                     width: 26,
                     height: 26,
                     fit: BoxFit.cover,

@@ -58,12 +58,12 @@ String _rotuloUnidadeCurto(UnidadeItemLoja u) {
 }
 
 class NotificacoesDialog {
-  static Future<void> mostrar(BuildContext context) async {
+  static Future<void> mostrar(BuildContext context, {String? lojaId}) async {
     final alertaEscolhido = await showDialog<
         ({ItemLoja item, double saldo, String lojaNome, String lojaId})?>(
       context: context,
       builder: (dialogContext) {
-        return const _NotificacoesConteudo();
+        return _NotificacoesConteudo(lojaId: lojaId);
       },
     );
 
@@ -164,7 +164,8 @@ class NotificacoesDialog {
 }
 
 class _NotificacoesConteudo extends StatelessWidget {
-  const _NotificacoesConteudo();
+  final String? lojaId;
+  const _NotificacoesConteudo({this.lojaId});
 
   void _avisar(BuildContext context, String mensagem) {
     final theme = ThemeController.currentTheme.value;
@@ -592,10 +593,13 @@ class _NotificacoesConteudo extends StatelessWidget {
     final convites = notificacoes.convites
         .where((c) => !notificacoes.estaDispensadaNaSessao('convite_${c.id}'))
         .toList();
-    final alertasEstoque = pdv.todosItensEstoqueBaixo
-        .where((a) => !notificacoes
-            .estaDispensadaNaSessao('alerta_estoque_${a.lojaId}_${a.item.id}'))
-        .toList();
+    final alertasEstoque = (lojaId == null)
+        ? const <({ItemLoja item, double saldo, String lojaNome, String lojaId})>[]
+        : pdv
+            .itensEstoqueBaixoPorLoja(lojaId!)
+            .where((a) => !notificacoes
+                .estaDispensadaNaSessao('alerta_estoque_${a.lojaId}_${a.item.id}'))
+            .toList();
     final vazio = convites.isEmpty && alertasEstoque.isEmpty;
 
     return ValueListenableBuilder<AppTheme>(
@@ -646,10 +650,75 @@ class _NotificacoesConteudo extends StatelessWidget {
                           ],
                         ),
                       ),
-                      const SizedBox(width: 48),
+                      if (!vazio)
+                        IconButton(
+                          tooltip: 'Limpar todas as notificações',
+                          icon: Icon(
+                            Icons.clear_all_rounded,
+                            color: theme.buttonColor,
+                          ),
+                          onPressed: () {
+                            final ids = <String>[];
+                            for (final c in convites) {
+                              ids.add('convite_${c.id}');
+                            }
+                            for (final a in alertasEstoque) {
+                              ids.add(
+                                  'alerta_estoque_${a.lojaId}_${a.item.id}');
+                            }
+                            notificacoes.dispensarTodasNaSessao(ids);
+                          },
+                        )
+                      else
+                        const SizedBox(width: 48),
                     ],
                   ),
                   const SizedBox(height: 12),
+                  if (!vazio)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 10),
+                      child: Center(
+                        child: OutlinedButton.icon(
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: theme.dangerColor,
+                            side: BorderSide(
+                              color: theme.dangerColor.withValues(alpha: 0.5),
+                            ),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 8,
+                            ),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                          ),
+                          icon: Icon(
+                            Icons.clear_all_rounded,
+                            size: 18,
+                            color: theme.dangerColor,
+                          ),
+                          label: Text(
+                            'Limpar todas as notificações',
+                            style: theme.getTextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                              color: theme.dangerColor,
+                            ),
+                          ),
+                          onPressed: () {
+                            final ids = <String>[];
+                            for (final c in convites) {
+                              ids.add('convite_${c.id}');
+                            }
+                            for (final a in alertasEstoque) {
+                              ids.add(
+                                  'alerta_estoque_${a.lojaId}_${a.item.id}');
+                            }
+                            notificacoes.dispensarTodasNaSessao(ids);
+                          },
+                        ),
+                      ),
+                    ),
                   if (vazio)
                     EstadoVazioContainer(
                       theme: theme,

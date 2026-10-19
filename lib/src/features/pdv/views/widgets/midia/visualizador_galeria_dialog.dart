@@ -266,7 +266,10 @@ class _VisualizadorGaleriaDialogState extends State<VisualizadorGaleriaDialog> {
                       },
                       itemBuilder: (context, index) {
                         final caminho = widget.imagens[index];
-                        final arquivo = File(caminho);
+                        final caminhoResolvido =
+                            ImagemService.resolverCaminhoExistente(caminho) ??
+                                caminho;
+                        final arquivo = File(caminhoResolvido);
 
                         if (!arquivo.existsSync()) {
                           return Center(

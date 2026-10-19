@@ -9,6 +9,7 @@ import 'package:nous/src/features/pdv/models/grupo_componentes_loja.dart';
 import 'package:nous/src/features/pdv/models/item_loja.dart';
 import 'package:nous/src/features/pdv/models/mesa_loja.dart';
 import 'package:nous/src/features/pdv/models/pedido_loja.dart';
+import 'package:nous/src/features/pdv/services/imagem_service.dart';
 import 'package:nous/src/features/pdv/views/widgets/estado_vazio_container.dart';
 
 double _precoComoNumero(String texto) {
@@ -209,11 +210,14 @@ class _AdicionarItemMesaDialogState extends State<AdicionarItemMesaDialog> {
   }
 
   Widget _miniaturaItem(ItemLoja item) {
-    if (item.imagens.isNotEmpty && File(item.imagens.first).existsSync()) {
+    final fotoResolvida = item.imagens.isNotEmpty
+        ? ImagemService.resolverCaminhoExistente(item.imagens.first)
+        : null;
+    if (fotoResolvida != null) {
       return ClipRRect(
         borderRadius: BorderRadius.circular(6),
         child: Image.file(
-          File(item.imagens.first),
+          File(fotoResolvida),
           width: 38,
           height: 38,
           fit: BoxFit.cover,
@@ -233,11 +237,12 @@ class _AdicionarItemMesaDialogState extends State<AdicionarItemMesaDialog> {
   }
 
   Widget _miniaturaCategoria(CategoriaLoja cat) {
-    if (cat.foto.isNotEmpty && File(cat.foto).existsSync()) {
+    final fotoResolvida = ImagemService.resolverCaminhoExistente(cat.foto);
+    if (fotoResolvida != null) {
       return ClipRRect(
         borderRadius: BorderRadius.circular(8),
         child: Image.file(
-          File(cat.foto),
+          File(fotoResolvida),
           width: 42,
           height: 42,
           fit: BoxFit.cover,

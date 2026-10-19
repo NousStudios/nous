@@ -9,6 +9,7 @@ import 'package:nous/src/features/pdv/models/configuracoes_impressora.dart';
 import 'package:nous/src/features/pdv/models/pedido_loja.dart';
 import 'package:nous/src/features/pdv/models/turno_caixa.dart';
 import 'package:nous/src/features/pdv/providers/pdv_provider.dart';
+import 'package:nous/src/features/pdv/services/imagem_service.dart';
 import 'package:nous/src/features/pdv/services/impressao_service.dart';
 import 'package:nous/src/features/pdv/views/widgets/estado_vazio_container.dart';
 
@@ -224,13 +225,13 @@ class _DetalhesTurnoConteudoState extends State<_DetalhesTurnoConteudo> {
       foto = pdv.buscarFotoClientePorCpf(cpf) ?? '';
     }
 
-    final arquivoExiste = foto.isNotEmpty && File(foto).existsSync();
+    final fotoResolvida = ImagemService.resolverCaminhoExistente(foto);
 
-    if (arquivoExiste) {
+    if (fotoResolvida != null) {
       return CircleAvatar(
         radius: raio,
         backgroundColor: theme.borderColor.withValues(alpha: 0.2),
-        backgroundImage: FileImage(File(foto)),
+        backgroundImage: FileImage(File(fotoResolvida)),
       );
     }
 

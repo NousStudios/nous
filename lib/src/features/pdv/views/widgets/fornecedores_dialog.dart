@@ -445,19 +445,23 @@ class _FornecedoresConteudoState extends State<_FornecedoresConteudo> {
           InkWell(
             onTap: _alterarFotoFornecedor,
             customBorder: const CircleBorder(),
-            child: CircleAvatar(
-              radius: 40,
-              backgroundColor: theme.cardBackgroundColor,
-              backgroundImage: (_foto.isNotEmpty && File(_foto).existsSync())
-                  ? FileImage(File(_foto))
-                  : null,
-              child: (_foto.isEmpty || !File(_foto).existsSync())
-                  ? Icon(
-                      Icons.storefront_outlined,
-                      size: 44,
-                      color: theme.secondaryTextColor,
-                    )
-                  : null,
+            child: Builder(
+              builder: (context) {
+                final fotoResolvida = ImagemService.resolverCaminhoExistente(_foto);
+                return CircleAvatar(
+                  radius: 40,
+                  backgroundColor: theme.cardBackgroundColor,
+                  backgroundImage:
+                      fotoResolvida != null ? FileImage(File(fotoResolvida)) : null,
+                  child: fotoResolvida == null
+                      ? Icon(
+                          Icons.storefront_outlined,
+                          size: 44,
+                          color: theme.secondaryTextColor,
+                        )
+                      : null,
+                );
+              },
             ),
           ),
           const SizedBox(height: 20),
@@ -655,23 +659,27 @@ class _FornecedoresConteudoState extends State<_FornecedoresConteudo> {
                       ),
                       child: Row(
                         children: [
-                          CircleAvatar(
-                            radius: 11,
-                            backgroundColor: Colors.transparent,
-                            backgroundImage: (cliente.foto.isNotEmpty &&
-                                    File(cliente.foto).existsSync())
-                                ? FileImage(File(cliente.foto))
-                                : null,
-                            child: (cliente.foto.isEmpty ||
-                                    !File(cliente.foto).existsSync())
-                                ? Icon(
-                                    Icons.account_circle,
-                                    size: 22,
-                                    color: jaEh
-                                        ? theme.secondaryTextColor
-                                        : theme.textColor,
-                                  )
-                                : null,
+                          Builder(
+                            builder: (context) {
+                              final fotoCliente =
+                                  ImagemService.resolverCaminhoExistente(cliente.foto);
+                              return CircleAvatar(
+                                radius: 11,
+                                backgroundColor: Colors.transparent,
+                                backgroundImage: fotoCliente != null
+                                    ? FileImage(File(fotoCliente))
+                                    : null,
+                                child: fotoCliente == null
+                                    ? Icon(
+                                        Icons.account_circle,
+                                        size: 22,
+                                        color: jaEh
+                                            ? theme.secondaryTextColor
+                                            : theme.textColor,
+                                      )
+                                    : null,
+                              );
+                            },
                           ),
                           const SizedBox(width: 8),
                           Expanded(
@@ -783,21 +791,25 @@ class _FornecedoresConteudoState extends State<_FornecedoresConteudo> {
                       ),
                       child: Row(
                         children: [
-                          CircleAvatar(
-                            radius: 11,
-                            backgroundColor: Colors.transparent,
-                            backgroundImage: (fornecedor.foto.isNotEmpty &&
-                                    File(fornecedor.foto).existsSync())
-                                ? FileImage(File(fornecedor.foto))
-                                : null,
-                            child: (fornecedor.foto.isEmpty ||
-                                    !File(fornecedor.foto).existsSync())
-                                ? Icon(
-                                    Icons.storefront_outlined,
-                                    size: 22,
-                                    color: theme.textColor,
-                                  )
-                                : null,
+                          Builder(
+                            builder: (context) {
+                              final fotoFornecedor =
+                                  ImagemService.resolverCaminhoExistente(fornecedor.foto);
+                              return CircleAvatar(
+                                radius: 11,
+                                backgroundColor: Colors.transparent,
+                                backgroundImage: fotoFornecedor != null
+                                    ? FileImage(File(fotoFornecedor))
+                                    : null,
+                                child: fotoFornecedor == null
+                                    ? Icon(
+                                        Icons.storefront_outlined,
+                                        size: 22,
+                                        color: theme.textColor,
+                                      )
+                                    : null,
+                              );
+                            },
                           ),
                           const SizedBox(width: 8),
                           Expanded(

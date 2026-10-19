@@ -15,12 +15,16 @@ import 'package:nous/src/features/pdv/models/item_loja.dart';
 import 'package:nous/src/features/pdv/models/loja.dart';
 import 'package:nous/src/features/pdv/models/mesa_loja.dart';
 import 'package:nous/src/features/pdv/models/movimento_estoque.dart';
+import 'package:nous/src/features/pdv/models/pagamento_funcionario.dart';
 import 'package:nous/src/features/pdv/models/pedido_loja.dart';
 import 'package:nous/src/features/pdv/models/referencia_loja.dart';
+import 'package:nous/src/features/pdv/models/registro_acao.dart';
 import 'package:nous/src/features/pdv/providers/pdv_provider.dart';
+import 'package:nous/src/features/pdv/services/dados_locais_service.dart';
 import 'package:nous/src/features/pdv/services/imagem_service.dart';
 import 'package:nous/src/features/pdv/services/lojas_service.dart';
 import 'package:nous/src/features/pdv/services/rede_local/servidor_rede_local.dart';
+import 'package:path/path.dart' as p;
 
 /// Informações de um servidor de loja anunciado na rede Wi-Fi local.
 class DispositivoLojaInfo {
@@ -83,6 +87,7 @@ class ClienteRedeLocal {
   bool _aplicandoAtualizacaoRemota = false;
   bool get aplicandoAtualizacaoRemota => _aplicandoAtualizacaoRemota;
   Timer? _timerDebounceEnvioLoja;
+  final Map<String, String> _mapaUploadsRealizados = {};
 
   bool get conectado => _ws != null && estaConectado.value;
   String? get enderecoServidor =>
@@ -262,11 +267,23 @@ class ClienteRedeLocal {
 
       if (dados['sucesso'] == true && dados['loja'] != null) {
         final lojaBruta = Loja.fromJson(dados['loja'] as Map<String, dynamic>);
-        _lojaSincronizada = await _sincronizarImagensRemotas(lojaBruta);
+        final imagensAusentes = (dados['imagensAusentes'] as List<dynamic>? ?? [])
+            .map((e) => e.toString())
+            .toList();
+
+        // Realiza reconciliação mútua: preenche lacunas do servidor e baixa novidades locais
+        _lojaSincronizada = await _reconciliarLojaMutua(lojaBruta, imagensAusentes);
 
         // Atualiza a loja no provedor local e no SQLite para visualização completa com imagens
         await _pdvProvider!.adicionarOuAtualizarLoja(_lojaSincronizada!);
         await _vincularLojaSeNecessario(_lojaSincronizada!);
+
+        if (dados['fotosUsuariosAusentes'] != null) {
+          final ausentes = (dados['fotosUsuariosAusentes'] as List<dynamic>)
+              .map((e) => e.toString())
+              .toList();
+          _curarFotosUsuariosAusentesNoServidor(ausentes);
+        }
       }
 
       // 2. Conecta ao WebSocket para atualizações em tempo real
@@ -305,6 +322,12 @@ class ClienteRedeLocal {
 
       // Sincroniza a identidade da conta ativa (foto e dados do usuário) a partir do balcão
       sincronizarIdentidadeUsuario();
+
+      // Reconcilia todas as contas conhecidas deste aparelho com o balcão (autocura mútua)
+      _reconciliarTodasContasLocaisComServidor();
+
+      // Sincroniza pan-dispositivo todas as lojas e referências associadas ao CPF deste cidadão
+      sincronizarPerfisLojasComServidor();
 
       // Checa se o balcão possui uma versão/APK disponível para este aparelho
       verificarAtualizacaoLocal();
@@ -347,6 +370,12 @@ class ClienteRedeLocal {
           presencasAtivas.value = lista
               .map((e) => TerminalConectadoInfo.fromJson(e as Map<String, dynamic>))
               .toList();
+        }
+        if (dados['fotosUsuariosAusentes'] != null) {
+          final ausentes = (dados['fotosUsuariosAusentes'] as List<dynamic>)
+              .map((e) => e.toString())
+              .toList();
+          _curarFotosUsuariosAusentesNoServidor(ausentes);
         }
       } else if (tipo == 'presencas_atualizadas') {
         final lista = dados['presencas'] as List<dynamic>? ?? [];
@@ -392,6 +421,62 @@ class ClienteRedeLocal {
             _pdvProvider!.atualizarListasLoja(lojaAtual.id, mesas: mesas);
           }
         }
+      } else if (tipo == 'usuario_atualizado') {
+        if (dados['usuario'] != null) {
+          try {
+            var usuarioRemoto = UsuarioNous.fromJson(
+                dados['usuario'] as Map<String, dynamic>);
+            if (usuarioRemoto.foto.isNotEmpty) {
+              final novaFotoLocal =
+                  await baixarImagemRemota(usuarioRemoto.foto);
+              usuarioRemoto = usuarioRemoto.copyWith(foto: novaFotoLocal);
+            }
+
+            // Preserva foto local se tínhamos foto válida e o remoto veio sem foto
+            final local =
+                await ContasNousService.buscarPorCpf(usuarioRemoto.cpf);
+            if (local != null &&
+                local.foto.isNotEmpty &&
+                ImagemService.existe(local.foto) &&
+                (usuarioRemoto.foto.isEmpty ||
+                    !ImagemService.existe(usuarioRemoto.foto))) {
+              usuarioRemoto = usuarioRemoto.copyWith(foto: local.foto);
+            }
+
+            await ContasNousService.salvar(usuarioRemoto);
+            _pdvProvider?.sincronizarFotoUsuarioEmClientes(
+                usuarioRemoto.cpf, usuarioRemoto.foto);
+
+            final cpfAtivo = _pdvProvider?.cpfAtual ??
+                _authProvider?.contaAtual?.cpf ??
+                _authProvider?.cpf;
+            if (cpfAtivo != null &&
+                cpfAtivo.replaceAll(RegExp(r'\D'), '') ==
+                    usuarioRemoto.cpf.replaceAll(RegExp(r'\D'), '')) {
+              await _authProvider?.recarregarConta();
+            }
+            debugPrint(
+              '[ClienteRedeLocal] Identidade do usuário ${usuarioRemoto.cpf} (${usuarioRemoto.nome}) atualizada via WebSocket (Foto: ${usuarioRemoto.foto})',
+            );
+          } catch (e) {
+            debugPrint(
+                '[ClienteRedeLocal] Erro ao processar usuario_atualizado via WebSocket: $e');
+          }
+        }
+      } else if (tipo == 'perfis_usuario_atualizados') {
+        final cpfAtualizado =
+            (dados['cpf'] as String? ?? '').replaceAll(RegExp(r'\D'), '');
+        final cpfAtivo = (_pdvProvider?.cpfAtual ??
+                _authProvider?.contaAtual?.cpf ??
+                _authProvider?.cpf ??
+                '')
+            .replaceAll(RegExp(r'\D'), '');
+        if (cpfAtualizado.isNotEmpty && cpfAtualizado == cpfAtivo) {
+          debugPrint(
+            '[ClienteRedeLocal] Perfis do usuário $cpfAtualizado atualizados via WebSocket. Sincronizando perfis...',
+          );
+          await sincronizarPerfisLojasComServidor();
+        }
       }
     } catch (e) {
       debugPrint('[ClienteRedeLocal] Erro ao processar mensagem WebSocket: $e');
@@ -433,15 +518,8 @@ class ClienteRedeLocal {
       }
 
       if (ehMembro) {
-        // 1. Salva a loja completa no cofre do dono original no banco SQLite local deste aparelho
-        final cofreDono = await LojasService.carregar(loja.cpfDonoOriginal);
-        final idx = cofreDono.indexWhere((l) => l.id == loja.id);
-        if (idx != -1) {
-          cofreDono[idx] = loja;
-        } else {
-          cofreDono.add(loja);
-        }
-        await LojasService.salvar(loja.cpfDonoOriginal, cofreDono);
+        // 1. Salva a loja completa no cofre do dono original no banco SQLite local deste aparelho com proteção de imagens
+        await LojasService.salvarLojaIndividual(loja);
 
         // 2. Garante a referência no cofre deste CPF participante
         final refs = await LojasService.carregarReferencias(cpf);
@@ -516,6 +594,76 @@ class ClienteRedeLocal {
     }
   }
 
+  Future<String> _enviarUploadImagemParaServidor(String caminhoLocal) async {
+    if (_ipServidor == null || _portaServidor == null) return caminhoLocal;
+    final limpo = caminhoLocal.trim();
+    if (limpo.isEmpty) return '';
+
+    for (final entry in _mapaUploadsRealizados.entries) {
+      if (entry.value == limpo) {
+        return entry.key;
+      }
+    }
+
+    final resolvido =
+        ImagemService.resolverCaminhoExistente(limpo) ?? limpo;
+    final arquivo = File(resolvido);
+    if (!arquivo.existsSync() || arquivo.lengthSync() == 0) return limpo;
+
+    try {
+      final nome = p.basename(limpo);
+      final client = HttpClient()..connectionTimeout = const Duration(seconds: 15);
+      final req = await client.postUrl(
+        Uri.parse(
+          'http://$_ipServidor:$_portaServidor/api/upload_imagem?nome=${Uri.encodeQueryComponent(nome)}',
+        ),
+      );
+      req.headers.contentType = ContentType.binary;
+      await req.addStream(arquivo.openRead());
+      final resp = await req.close();
+      if (resp.statusCode == HttpStatus.ok) {
+        final body = await utf8.decoder.bind(resp).join();
+        final json = jsonDecode(body) as Map<String, dynamic>;
+        final caminhoServidor = json['caminho'] as String?;
+        if (caminhoServidor != null && caminhoServidor.isNotEmpty) {
+          _mapaUploadsRealizados[caminhoServidor] = limpo;
+          debugPrint(
+            '[ClienteRedeLocal] Imagem enviada com sucesso ao servidor: $caminhoServidor',
+          );
+          return caminhoServidor;
+        }
+      }
+    } catch (e) {
+      debugPrint('[ClienteRedeLocal] Erro ao enviar imagem "$limpo" para o servidor: $e');
+    }
+    return limpo;
+  }
+
+  Future<String> _garantirUploadParaServidor(String caminhoLocal) async {
+    return await _enviarUploadImagemParaServidor(caminhoLocal);
+  }
+
+  Future<bool> _enviarLojaCuradaParaServidor(Loja lojaCurada) async {
+    if (_ipServidor == null || _portaServidor == null) return false;
+    try {
+      final client = HttpClient()..connectionTimeout = const Duration(seconds: 15);
+      final request = await client.postUrl(
+        Uri.parse('http://$_ipServidor:$_portaServidor/api/loja/atualizar'),
+      );
+      request.headers.contentType = ContentType.json;
+      request.write(jsonEncode(lojaCurada.toJson()));
+      final response = await request.close();
+      final ok = response.statusCode == HttpStatus.ok;
+      debugPrint(
+        '[ClienteRedeLocal] Cura da loja enviada com sucesso ao servidor: $ok (HTTP ${response.statusCode})',
+      );
+      return ok;
+    } catch (e) {
+      debugPrint('[ClienteRedeLocal] Erro ao enviar cura da loja ao servidor: $e');
+      return false;
+    }
+  }
+
   /// Envia a atualização completa da loja realizada neste terminal móvel para o servidor central (balcão)
   Future<bool> enviarLojaAtualizada(Loja loja, {bool imediato = false}) async {
     if (_ipServidor == null || _portaServidor == null || !conectado) return false;
@@ -525,12 +673,46 @@ class ClienteRedeLocal {
 
     Future<bool> executarEnvio() async {
       try {
+        Loja lojaParaEnvio = loja;
+
+        if (lojaParaEnvio.logo.isNotEmpty) {
+          final logoNoServidor = await _garantirUploadParaServidor(lojaParaEnvio.logo);
+          if (logoNoServidor != lojaParaEnvio.logo) {
+            lojaParaEnvio = lojaParaEnvio.copyWith(logo: logoNoServidor);
+          }
+        }
+
+        final categoriasAjustadas = <CategoriaLoja>[];
+        for (final cat in lojaParaEnvio.categoriasLoja) {
+          if (cat.foto.isNotEmpty) {
+            final fotoNoServidor = await _garantirUploadParaServidor(cat.foto);
+            categoriasAjustadas.add(cat.copyWith(foto: fotoNoServidor));
+          } else {
+            categoriasAjustadas.add(cat);
+          }
+        }
+        lojaParaEnvio = lojaParaEnvio.copyWith(categoriasLoja: categoriasAjustadas);
+
+        final itensAjustados = <ItemLoja>[];
+        for (final it in lojaParaEnvio.itensLoja) {
+          final imgsAjustadas = <String>[];
+          for (final img in it.imagens) {
+            if (img.isNotEmpty) {
+              imgsAjustadas.add(await _garantirUploadParaServidor(img));
+            } else {
+              imgsAjustadas.add(img);
+            }
+          }
+          itensAjustados.add(it.copyWith(imagens: imgsAjustadas));
+        }
+        lojaParaEnvio = lojaParaEnvio.copyWith(itensLoja: itensAjustados);
+
         final client = HttpClient()..connectionTimeout = const Duration(seconds: 5);
         final request = await client.postUrl(
           Uri.parse('http://$_ipServidor:$_portaServidor/api/loja/atualizar'),
         );
         request.headers.contentType = ContentType.json;
-        request.write(jsonEncode(loja.toJson()));
+        request.write(jsonEncode(lojaParaEnvio.toJson()));
         final response = await request.close();
         final ok = response.statusCode == HttpStatus.ok;
         debugPrint(
@@ -574,6 +756,281 @@ class ClienteRedeLocal {
     presencasAtivas.value = [];
   }
 
+  /// Realiza a reconciliação mútua e bidirecional de dados e imagens entre o Servidor e este Cliente
+  Future<Loja> _reconciliarLojaMutua(
+    Loja lojaRemota,
+    List<String> imagensAusentesNoServidor,
+  ) async {
+    // 1. Carrega o estado da loja gravado localmente neste dispositivo
+    Loja? lojaLocal = _pdvProvider?.buscarPorId(lojaRemota.id);
+    if (lojaLocal == null) {
+      try {
+        lojaLocal = await LojasService.carregarLojaPorId(lojaRemota.id);
+      } catch (e) {
+        debugPrint('[ClienteRedeLocal] Erro ao carregar loja local para reconciliação: $e');
+      }
+    }
+
+    // Se este dispositivo nunca teve dados prévios desta loja, apenas baixa do servidor normalmente
+    if (lojaLocal == null) {
+      return await _sincronizarImagensRemotas(lojaRemota);
+    }
+
+    debugPrint(
+      '[ClienteRedeLocal] Iniciando reconciliação mútua. Servidor reportou ${imagensAusentesNoServidor.length} lacunas de imagem.',
+    );
+
+    var houveCuraNoServidor = false;
+    Loja lojaParaServidor = lojaRemota;
+
+    // A. Logo da Loja
+    final precisaLogoNoServidor = imagensAusentesNoServidor.contains('logo') ||
+        lojaRemota.logo.trim().isEmpty;
+    if (precisaLogoNoServidor && lojaLocal.logo.trim().isNotEmpty) {
+      final logoLocalResolvida = ImagemService.resolverCaminhoExistente(lojaLocal.logo);
+      if (logoLocalResolvida != null && File(logoLocalResolvida).existsSync()) {
+        final logoNoServidor = await _enviarUploadImagemParaServidor(logoLocalResolvida);
+        if (logoNoServidor.isNotEmpty && logoNoServidor != logoLocalResolvida) {
+          lojaParaServidor = lojaParaServidor.copyWith(logo: logoNoServidor);
+          houveCuraNoServidor = true;
+          debugPrint('[ClienteRedeLocal] Logo restaurada no servidor: $logoNoServidor');
+        }
+      }
+    }
+
+    // B. Categorias da Loja
+    final novasCategoriasServidor = <CategoriaLoja>[];
+    for (final catRemota in lojaRemota.categoriasLoja) {
+      final precisaFoto = imagensAusentesNoServidor.contains('categoria_${catRemota.id}') ||
+          catRemota.foto.trim().isEmpty;
+      if (precisaFoto) {
+        CategoriaLoja? catLocal;
+        for (final cl in lojaLocal.categoriasLoja) {
+          if (cl.id == catRemota.id || cl.nome.trim().toLowerCase() == catRemota.nome.trim().toLowerCase()) {
+            catLocal = cl;
+            break;
+          }
+        }
+        if (catLocal != null && catLocal.foto.trim().isNotEmpty) {
+          final fotoLocalResolvida = ImagemService.resolverCaminhoExistente(catLocal.foto);
+          if (fotoLocalResolvida != null && File(fotoLocalResolvida).existsSync()) {
+            final fotoNoServidor = await _enviarUploadImagemParaServidor(fotoLocalResolvida);
+            if (fotoNoServidor.isNotEmpty && fotoNoServidor != fotoLocalResolvida) {
+              novasCategoriasServidor.add(catRemota.copyWith(foto: fotoNoServidor));
+              houveCuraNoServidor = true;
+              debugPrint('[ClienteRedeLocal] Foto da categoria "${catRemota.nome}" restaurada no servidor: $fotoNoServidor');
+              continue;
+            }
+          }
+        }
+      }
+      novasCategoriasServidor.add(catRemota);
+    }
+
+    for (final catLocal in lojaLocal.categoriasLoja) {
+      final jaExiste = novasCategoriasServidor.any(
+        (c) => c.id == catLocal.id || c.nome.trim().toLowerCase() == catLocal.nome.trim().toLowerCase(),
+      );
+      if (!jaExiste) {
+        String fotoServidor = '';
+        if (catLocal.foto.trim().isNotEmpty) {
+          final fotoResolvida = ImagemService.resolverCaminhoExistente(catLocal.foto);
+          if (fotoResolvida != null && File(fotoResolvida).existsSync()) {
+            fotoServidor = await _enviarUploadImagemParaServidor(fotoResolvida);
+          }
+        }
+        novasCategoriasServidor.add(catLocal.copyWith(foto: fotoServidor));
+        houveCuraNoServidor = true;
+        debugPrint('[ClienteRedeLocal] Categoria "${catLocal.nome}" restaurada no servidor');
+      }
+    }
+    lojaParaServidor = lojaParaServidor.copyWith(categoriasLoja: novasCategoriasServidor);
+
+    // C. Itens da Loja
+    final novosItensServidor = <ItemLoja>[];
+    for (final itemRemoto in lojaRemota.itensLoja) {
+      final precisaImagens = imagensAusentesNoServidor.contains('item_${itemRemoto.id}') ||
+          itemRemoto.imagens.isEmpty;
+      if (precisaImagens) {
+        ItemLoja? itemLocal;
+        for (final il in lojaLocal.itensLoja) {
+          if (il.id == itemRemoto.id || il.nome.trim().toLowerCase() == itemRemoto.nome.trim().toLowerCase()) {
+            itemLocal = il;
+            break;
+          }
+        }
+        if (itemLocal != null && itemLocal.imagens.isNotEmpty) {
+          final novasImagensNoServidor = <String>[];
+          for (final img in itemLocal.imagens) {
+            final imgResolvida = ImagemService.resolverCaminhoExistente(img);
+            if (imgResolvida != null && File(imgResolvida).existsSync()) {
+              final imgServidor = await _enviarUploadImagemParaServidor(imgResolvida);
+              if (imgServidor.isNotEmpty && imgServidor != imgResolvida) {
+                novasImagensNoServidor.add(imgServidor);
+              }
+            }
+          }
+          if (novasImagensNoServidor.isNotEmpty) {
+            novosItensServidor.add(itemRemoto.copyWith(imagens: novasImagensNoServidor));
+            houveCuraNoServidor = true;
+            debugPrint('[ClienteRedeLocal] Imagens do produto "${itemRemoto.nome}" restauradas no servidor (${novasImagensNoServidor.length})');
+            continue;
+          }
+        }
+      }
+      novosItensServidor.add(itemRemoto);
+    }
+
+    for (final itemLocal in lojaLocal.itensLoja) {
+      final jaExiste = novosItensServidor.any(
+        (i) => i.id == itemLocal.id || i.nome.trim().toLowerCase() == itemLocal.nome.trim().toLowerCase(),
+      );
+      if (!jaExiste) {
+        final novasImagensServidor = <String>[];
+        for (final img in itemLocal.imagens) {
+          final imgResolvida = ImagemService.resolverCaminhoExistente(img);
+          if (imgResolvida != null && File(imgResolvida).existsSync()) {
+            final imgServidor = await _enviarUploadImagemParaServidor(imgResolvida);
+            if (imgServidor.isNotEmpty && imgServidor != imgResolvida) {
+              novasImagensServidor.add(imgServidor);
+            }
+          }
+        }
+        novosItensServidor.add(itemLocal.copyWith(imagens: novasImagensServidor));
+        houveCuraNoServidor = true;
+        debugPrint('[ClienteRedeLocal] Produto "${itemLocal.nome}" restaurado no servidor');
+      }
+    }
+    lojaParaServidor = lojaParaServidor.copyWith(itensLoja: novosItensServidor);
+
+    // D. Clientes da Loja
+    final novosClientesServidor = <Cliente>[];
+    for (final cliRemoto in lojaRemota.clientesLoja) {
+      final precisaFoto = imagensAusentesNoServidor.contains('cliente_${cliRemoto.id}') ||
+          cliRemoto.foto.trim().isEmpty;
+      if (precisaFoto) {
+        Cliente? cliLocal;
+        for (final cl in lojaLocal.clientesLoja) {
+          if (cl.id == cliRemoto.id || (cl.cnpj.isNotEmpty && cl.cnpj == cliRemoto.cnpj)) {
+            cliLocal = cl;
+            break;
+          }
+        }
+        if (cliLocal != null && cliLocal.foto.trim().isNotEmpty) {
+          final fotoResolvida = ImagemService.resolverCaminhoExistente(cliLocal.foto);
+          if (fotoResolvida != null && File(fotoResolvida).existsSync()) {
+            final fotoServidor = await _enviarUploadImagemParaServidor(fotoResolvida);
+            if (fotoServidor.isNotEmpty && fotoServidor != fotoResolvida) {
+              novosClientesServidor.add(cliRemoto.copyWith(foto: fotoServidor));
+              houveCuraNoServidor = true;
+              continue;
+            }
+          }
+        }
+      }
+      novosClientesServidor.add(cliRemoto);
+    }
+    for (final cLocal in lojaLocal.clientesLoja) {
+      if (!novosClientesServidor.any((c) => c.id == cLocal.id)) {
+        novosClientesServidor.add(cLocal);
+        houveCuraNoServidor = true;
+      }
+    }
+    lojaParaServidor = lojaParaServidor.copyWith(clientesLoja: novosClientesServidor);
+
+    // E. Fornecedores da Loja
+    final novosFornecedoresServidor = <Fornecedor>[];
+    for (final fornRemoto in lojaRemota.fornecedoresLoja) {
+      final precisaFoto = imagensAusentesNoServidor.contains('fornecedor_${fornRemoto.id}') ||
+          fornRemoto.foto.trim().isEmpty;
+      if (precisaFoto) {
+        Fornecedor? fornLocal;
+        for (final fl in lojaLocal.fornecedoresLoja) {
+          if (fl.id == fornRemoto.id || (fl.cnpj.isNotEmpty && fl.cnpj == fornRemoto.cnpj)) {
+            fornLocal = fl;
+            break;
+          }
+        }
+        if (fornLocal != null && fornLocal.foto.trim().isNotEmpty) {
+          final fotoResolvida = ImagemService.resolverCaminhoExistente(fornLocal.foto);
+          if (fotoResolvida != null && File(fotoResolvida).existsSync()) {
+            final fotoServidor = await _enviarUploadImagemParaServidor(fotoResolvida);
+            if (fotoServidor.isNotEmpty && fotoServidor != fotoResolvida) {
+              novosFornecedoresServidor.add(fornRemoto.copyWith(foto: fotoServidor));
+              houveCuraNoServidor = true;
+              continue;
+            }
+          }
+        }
+      }
+      novosFornecedoresServidor.add(fornRemoto);
+    }
+    for (final fLocal in lojaLocal.fornecedoresLoja) {
+      if (!novosFornecedoresServidor.any((f) => f.id == fLocal.id)) {
+        novosFornecedoresServidor.add(fLocal);
+        houveCuraNoServidor = true;
+      }
+    }
+    lojaParaServidor = lojaParaServidor.copyWith(fornecedoresLoja: novosFornecedoresServidor);
+
+    // F. Mesas
+    final mesasMescladas = List<MesaLoja>.from(lojaParaServidor.mesas);
+    for (final mLocal in lojaLocal.mesas) {
+      if (!mesasMescladas.any((m) => m.id == mLocal.id)) {
+        mesasMescladas.add(mLocal);
+        houveCuraNoServidor = true;
+      }
+    }
+    lojaParaServidor = lojaParaServidor.copyWith(mesas: mesasMescladas);
+
+    // G. Histórico de Auditoria (Ações)
+    final acoesMescladas = List<RegistroAcao>.from(lojaParaServidor.acoes);
+    for (final aLocal in lojaLocal.acoes) {
+      if (!acoesMescladas.any((a) => a.id == aLocal.id)) {
+        acoesMescladas.add(aLocal);
+        houveCuraNoServidor = true;
+      }
+    }
+    lojaParaServidor = lojaParaServidor.copyWith(acoes: acoesMescladas);
+
+    // H. Pedidos, Movimentos de Estoque e Pagamentos
+    final pedidosMesclados = List<PedidoLoja>.from(lojaParaServidor.pedidosLoja);
+    for (final pLocal in lojaLocal.pedidosLoja) {
+      if (!pedidosMesclados.any((p) => p.id == pLocal.id)) {
+        pedidosMesclados.add(pLocal);
+        houveCuraNoServidor = true;
+      }
+    }
+    final movimentosMesclados = List<MovimentoEstoque>.from(lojaParaServidor.movimentosEstoque);
+    for (final mLocal in lojaLocal.movimentosEstoque) {
+      if (!movimentosMesclados.any((m) => m.id == mLocal.id)) {
+        movimentosMesclados.add(mLocal);
+        houveCuraNoServidor = true;
+      }
+    }
+    final pagamentosMesclados = List<PagamentoFuncionario>.from(lojaParaServidor.pagamentosFuncionarios);
+    for (final pgLocal in lojaLocal.pagamentosFuncionarios) {
+      if (!pagamentosMesclados.any((pg) => pg.id == pgLocal.id)) {
+        pagamentosMesclados.add(pgLocal);
+        houveCuraNoServidor = true;
+      }
+    }
+    lojaParaServidor = lojaParaServidor.copyWith(
+      pedidosLoja: pedidosMesclados,
+      movimentosEstoque: movimentosMesclados,
+      pagamentosFuncionarios: pagamentosMesclados,
+    );
+
+    // Se houve alguma cura ou restauração necessária no servidor, envia o estado curado ao balcão
+    if (houveCuraNoServidor) {
+      debugPrint('[ClienteRedeLocal] Enviando cura consolidada da loja ao servidor balcão...');
+      await _enviarLojaCuradaParaServidor(lojaParaServidor);
+    }
+
+    // Finalmente, este cliente sincroniza e baixa todas as imagens do servidor para si mesmo
+    return await _sincronizarImagensRemotas(lojaParaServidor);
+  }
+
   /// Baixa imagens remotas do servidor que não existem no armazenamento local
   /// e regrava os caminhos locais atualizados para que fiquem 100% visíveis no celular.
   Future<Loja> _sincronizarImagensRemotas(Loja lojaRemota) async {
@@ -593,14 +1050,28 @@ class ClienteRedeLocal {
         if (caminhoRemoto == null || caminhoRemoto.trim().isEmpty) return '';
         final caminhoLimpo = caminhoRemoto.trim();
 
-        // Se o caminho já aponta para um arquivo existente localmente neste celular, mantém
+        // Se o caminho já aponta para um arquivo existente localmente neste dispositivo, mantém
         if (File(caminhoLimpo).existsSync()) {
           return caminhoLimpo;
+        }
+
+        // Se esta imagem foi enviada deste dispositivo para o servidor, reaproveita o arquivo local original
+        if (_mapaUploadsRealizados.containsKey(caminhoLimpo)) {
+          final original = _mapaUploadsRealizados[caminhoLimpo]!;
+          if (File(original).existsSync()) {
+            return original;
+          }
         }
 
         // Se já foi mapeado nesta execução em memória
         if (mapaCaminhos.containsKey(caminhoLimpo)) {
           return mapaCaminhos[caminhoLimpo]!;
+        }
+
+        final localExistente = ImagemService.resolverCaminhoExistente(caminhoLimpo);
+        if (localExistente != null && File(localExistente).existsSync()) {
+          mapaCaminhos[caminhoLimpo] = localExistente;
+          return localExistente;
         }
 
         final ext = caminhoLimpo.split('.').last.toLowerCase();
@@ -632,6 +1103,10 @@ class ClienteRedeLocal {
           }
         } catch (e) {
           debugPrint('[ClienteRedeLocal] Erro ao baixar imagem "$caminhoLimpo": $e');
+        }
+
+        if (localExistente != null && File(localExistente).existsSync()) {
+          return localExistente;
         }
 
         return caminhoLimpo;
@@ -724,13 +1199,17 @@ class ClienteRedeLocal {
     }
   }
 
-  /// Sincroniza a Identidade do Usuário (dados cadastrais e foto) a partir do balcão
+  /// Sincroniza a Identidade do Usuário (dados cadastrais e foto) a partir do balcão (autocura mútua)
   Future<void> sincronizarIdentidadeUsuario({AuthProvider? auth}) async {
     final authInstancia = auth ?? _authProvider;
     final cpf = _pdvProvider?.cpfAtual ?? authInstancia?.contaAtual?.cpf ?? authInstancia?.cpf;
     if (cpf == null || cpf.isEmpty || _ipServidor == null || _portaServidor == null) return;
 
     try {
+      final contaLocal = await ContasNousService.buscarPorCpf(cpf);
+      final fotoLocalExiste = contaLocal != null &&
+          ImagemService.resolverCaminhoExistente(contaLocal.foto) != null;
+
       final client = HttpClient()..connectionTimeout = const Duration(seconds: 4);
       final uri = Uri.parse(
         'http://$_ipServidor:$_portaServidor/api/usuario?cpf=${Uri.encodeQueryComponent(cpf)}',
@@ -745,21 +1224,38 @@ class ClienteRedeLocal {
           var usuarioRemoto =
               UsuarioNous.fromJson(dados['usuario'] as Map<String, dynamic>);
 
+          final temFotoRemota = usuarioRemoto.foto.isNotEmpty;
+
           // Se a conta remota tem foto, baixa a foto e regrava o caminho local
-          if (usuarioRemoto.foto.isNotEmpty) {
+          if (temFotoRemota) {
             final novaFotoLocal = await baixarImagemRemota(usuarioRemoto.foto);
             usuarioRemoto = usuarioRemoto.copyWith(foto: novaFotoLocal);
+            await ContasNousService.salvar(usuarioRemoto);
+            if (authInstancia != null) {
+              await authInstancia.recarregarConta();
+            }
+            debugPrint(
+              '[ClienteRedeLocal] Identidade do usuário sincronizada com sucesso para o CPF: $cpf (Foto: ${usuarioRemoto.foto})',
+            );
+          } else if (fotoLocalExiste) {
+            // Servidor não tem foto, mas nós temos a foto física localmente!
+            // Envia a foto local para o servidor para autocura mútua
+            debugPrint(
+              '[ClienteRedeLocal] Servidor sem foto para $cpf, enviando foto local para completar no balcão...',
+            );
+            await enviarUsuario(contaLocal);
+          } else {
+            if (contaLocal == null) {
+              await ContasNousService.salvar(usuarioRemoto);
+              if (authInstancia != null) {
+                await authInstancia.recarregarConta();
+              }
+            }
           }
-
-          // Salva no banco SQLite local do aparelho
-          await ContasNousService.salvar(usuarioRemoto);
-          if (authInstancia != null) {
-            await authInstancia.recarregarConta();
-          }
-          debugPrint(
-            '[ClienteRedeLocal] Identidade do usuário sincronizada com sucesso para o CPF: $cpf (Foto: ${usuarioRemoto.foto})',
-          );
         }
+      } else if (resp.statusCode == HttpStatus.notFound && contaLocal != null) {
+        // Servidor não possui registro deste usuário: envia para o balcão
+        await enviarUsuario(contaLocal);
       }
     } catch (e) {
       debugPrint('[ClienteRedeLocal] Erro ao sincronizar identidade do usuário: $e');
@@ -817,6 +1313,14 @@ class ClienteRedeLocal {
           if (usuarioRemoto.foto.isNotEmpty) {
             final novaFotoLocal = await baixarImagemRemota(usuarioRemoto.foto);
             usuarioRemoto = usuarioRemoto.copyWith(foto: novaFotoLocal);
+          } else {
+            // Se o servidor retornou sem foto, mas nós já temos foto válida local, preserva!
+            final local = await ContasNousService.buscarPorCpf(cpfLimpo);
+            if (local != null &&
+                local.foto.isNotEmpty &&
+                ImagemService.existe(local.foto)) {
+              usuarioRemoto = usuarioRemoto.copyWith(foto: local.foto);
+            }
           }
 
           await ContasNousService.salvar(usuarioRemoto);
@@ -876,6 +1380,9 @@ class ClienteRedeLocal {
                 'O Nous já está na versão mais recente (v${AtualizacaoService.versaoAtual}).';
             debugPrint('[ClienteRedeLocal] O aplicativo já está na mesma versão ou mais recente que o balcão.');
           }
+        } else {
+          AtualizacaoService.infoAtualizacao.value = null;
+          AtualizacaoService.temAtualizacao.value = false;
         }
       }
     } catch (e) {
@@ -983,17 +1490,321 @@ class ClienteRedeLocal {
   Future<bool> enviarUsuario(UsuarioNous usuario) async {
     if (_ipServidor == null || _portaServidor == null) return false;
     try {
-      final client = HttpClient()..connectionTimeout = const Duration(seconds: 4);
+      var usuarioParaEnvio = usuario;
+
+      // Se possui foto local no dispositivo, envia o arquivo físico primeiro para o servidor
+      if (usuario.foto.isNotEmpty) {
+        final fotoResolvida =
+            ImagemService.resolverCaminhoExistente(usuario.foto);
+        if (fotoResolvida != null) {
+          final fotoNoServidor =
+              await _enviarUploadImagemParaServidor(fotoResolvida);
+          if (fotoNoServidor.isNotEmpty) {
+            usuarioParaEnvio = usuario.copyWith(foto: fotoNoServidor);
+          }
+        }
+      }
+
+      final client = HttpClient()..connectionTimeout = const Duration(seconds: 15);
       final request = await client.postUrl(
         Uri.parse('http://$_ipServidor:$_portaServidor/api/usuario'),
       );
       request.headers.contentType = ContentType.json;
-      request.write(jsonEncode(usuario.toJson()));
+      request.write(jsonEncode(usuarioParaEnvio.toJson()));
       final response = await request.close();
       return response.statusCode == HttpStatus.ok;
     } catch (e) {
       debugPrint('[ClienteRedeLocal] Erro ao enviar usuário ao servidor: $e');
       return false;
+    }
+  }
+
+  /// Obtém o caminho físico existente e válido de uma foto local para um CPF específico
+  /// pesquisando em ContasLocais, Clientes da Loja ou DadosLocaisService
+  Future<String?> _obterFotoLocalValidaPorCpf(String cpf) async {
+    final cpfLimpo = cpf.replaceAll(RegExp(r'\D'), '');
+    if (cpfLimpo.isEmpty) return null;
+
+    // 1. Tenta no banco de contas local
+    final conta = await ContasNousService.buscarPorCpf(cpfLimpo);
+    if (conta != null && conta.foto.isNotEmpty) {
+      final resolvida = ImagemService.resolverCaminhoExistente(conta.foto);
+      if (resolvida != null) return resolvida;
+    }
+
+    // 2. Tenta nos clientes da loja
+    final fotoCli = _pdvProvider?.buscarFotoClientePorCpf(cpfLimpo);
+    if (fotoCli != null && fotoCli.isNotEmpty) {
+      final resolvida = ImagemService.resolverCaminhoExistente(fotoCli);
+      if (resolvida != null) return resolvida;
+    }
+
+    // 3. Tenta em DadosLocaisService
+    try {
+      final dadosAuto = await DadosLocaisService.buscarPorDocumento(cpfLimpo);
+      if (dadosAuto != null && dadosAuto.foto.isNotEmpty) {
+        final resolvida = ImagemService.resolverCaminhoExistente(dadosAuto.foto);
+        if (resolvida != null) return resolvida;
+      }
+    } catch (_) {}
+
+    return null;
+  }
+
+  /// Cura ativamente lacunas de fotos de membros/usuários reportadas pelo servidor balcão
+  Future<void> _curarFotosUsuariosAusentesNoServidor(
+      List<String> cpfsAusentes) async {
+    if (_ipServidor == null || _portaServidor == null || cpfsAusentes.isEmpty) {
+      return;
+    }
+
+    for (final cpfBruto in cpfsAusentes) {
+      final cpfLimpo = cpfBruto.replaceAll(RegExp(r'\D'), '');
+      if (cpfLimpo.isEmpty) continue;
+
+      final fotoFisicaLocal = await _obterFotoLocalValidaPorCpf(cpfLimpo);
+      if (fotoFisicaLocal != null) {
+        debugPrint(
+          '[ClienteRedeLocal] Autocura mútua: servidor balcão reportou ausência de foto física para CPF $cpfLimpo. Enviando foto local...',
+        );
+        var conta = await ContasNousService.buscarPorCpf(cpfLimpo);
+        if (conta == null) {
+          final dadosAuto =
+              await DadosLocaisService.buscarPorDocumento(cpfLimpo);
+          conta = UsuarioNous(
+            cpf: cpfLimpo,
+            nome: dadosAuto?.nome ?? 'Usuário',
+            apelido: dadosAuto?.apelido ?? '',
+            dataNascimento: dadosAuto?.dataNascimento ?? '',
+            foto: fotoFisicaLocal,
+          );
+        } else {
+          conta = conta.copyWith(foto: fotoFisicaLocal);
+        }
+        await enviarUsuario(conta);
+      }
+    }
+  }
+
+  /// Reconcilia todas as contas cadastradas neste dispositivo com o servidor balcão,
+  /// garantindo que informações faltantes (especialmente fotos de perfil) sejam
+  /// transferidas mutuamente entre o celular e o servidor (autocura mútua orgânica).
+  Future<void> _reconciliarTodasContasLocaisComServidor() async {
+    if (_ipServidor == null || _portaServidor == null) return;
+    try {
+      final cpfsAExaminar = <String>{};
+
+      // 1. Todas as contas conhecidas no cofre local
+      final contasLocais = await ContasNousService.carregarTodas();
+      for (final c in contasLocais) {
+        cpfsAExaminar.add(c.cpf);
+      }
+
+      // 2. Membros e clientes da loja sincronizada
+      if (_lojaSincronizada != null) {
+        for (final m in _lojaSincronizada!.membros) {
+          if (m.cpf.isNotEmpty) cpfsAExaminar.add(m.cpf);
+        }
+        for (final cli in _lojaSincronizada!.clientesLoja) {
+          final doc = cli.cnpj.replaceAll(RegExp(r'\D'), '');
+          if (doc.length == 11) cpfsAExaminar.add(cli.cnpj);
+        }
+      }
+
+      for (final cpfBruto in cpfsAExaminar) {
+        final cpfLimpo = cpfBruto.replaceAll(RegExp(r'\D'), '');
+        if (cpfLimpo.isEmpty) continue;
+
+        final fotoFisicaLocal = await _obterFotoLocalValidaPorCpf(cpfLimpo);
+        final temFotoLocal = fotoFisicaLocal != null;
+
+        try {
+          final client = HttpClient()
+            ..connectionTimeout = const Duration(seconds: 3);
+          final uri = Uri.parse(
+            'http://$_ipServidor:$_portaServidor/api/usuario?cpf=${Uri.encodeQueryComponent(cpfLimpo)}',
+          );
+          final req = await client.getUrl(uri);
+          final resp = await req.close();
+
+          if (resp.statusCode == HttpStatus.ok) {
+            final body = await utf8.decodeStream(resp);
+            final dados = jsonDecode(body) as Map<String, dynamic>;
+            if (dados['sucesso'] == true && dados['usuario'] != null) {
+              var usuarioRemoto = UsuarioNous.fromJson(
+                  dados['usuario'] as Map<String, dynamic>);
+              final temFotoRemota = usuarioRemoto.foto.isNotEmpty;
+              final contaLocal = await ContasNousService.buscarPorCpf(cpfLimpo);
+
+              var contaMesclada = contaLocal != null
+                  ? _mesclarUsuarios(contaLocal, usuarioRemoto)
+                  : usuarioRemoto;
+
+              if (!temFotoRemota && temFotoLocal) {
+                debugPrint(
+                  '[ClienteRedeLocal] Autocura mútua: enviando foto e dados locais de $cpfLimpo (${contaMesclada.nome}) para o servidor balcão...',
+                );
+                contaMesclada = contaMesclada.copyWith(foto: fotoFisicaLocal);
+                await enviarUsuario(contaMesclada);
+              } else if (temFotoRemota && !temFotoLocal) {
+                debugPrint(
+                  '[ClienteRedeLocal] Autocura mútua: baixando foto remota de $cpfLimpo (${usuarioRemoto.nome}) do balcão...',
+                );
+                final novaFotoLocal =
+                    await baixarImagemRemota(usuarioRemoto.foto);
+                contaMesclada = contaMesclada.copyWith(foto: novaFotoLocal);
+                await ContasNousService.salvar(contaMesclada);
+                _pdvProvider?.sincronizarFotoUsuarioEmClientes(
+                    contaMesclada.cpf, contaMesclada.foto);
+                if (_authProvider?.contaAtual?.cpf.replaceAll(RegExp(r'\D'), '') == cpfLimpo ||
+                    _authProvider?.cpf.replaceAll(RegExp(r'\D'), '') == cpfLimpo) {
+                  await _authProvider?.recarregarConta();
+                }
+              } else {
+                await ContasNousService.salvar(contaMesclada);
+                if (_authProvider?.contaAtual?.cpf.replaceAll(RegExp(r'\D'), '') == cpfLimpo ||
+                    _authProvider?.cpf.replaceAll(RegExp(r'\D'), '') == cpfLimpo) {
+                  await _authProvider?.recarregarConta();
+                }
+              }
+            }
+          } else if (resp.statusCode == HttpStatus.notFound) {
+            final contaLocal = await ContasNousService.buscarPorCpf(cpfLimpo);
+            if (contaLocal != null) {
+              debugPrint(
+                '[ClienteRedeLocal] Autocura mútua: servidor não conhece conta ${contaLocal.cpf} (${contaLocal.nome}). Enviando ao balcão...',
+              );
+              await enviarUsuario(contaLocal);
+            }
+          }
+        } catch (e) {
+          debugPrint(
+            '[ClienteRedeLocal] Erro ao reconciliar conta $cpfLimpo com servidor: $e',
+          );
+        }
+      }
+    } catch (e) {
+      debugPrint(
+        '[ClienteRedeLocal] Erro na reconciliação universal de contas: $e',
+      );
+    }
+  }
+
+  /// Mescla duas fichas de usuário preservando dados preenchidos de ambas as pontas
+  UsuarioNous _mesclarUsuarios(UsuarioNous local, UsuarioNous remoto) {
+    return UsuarioNous(
+      cpf: local.cpf.isNotEmpty ? local.cpf : remoto.cpf,
+      nome: local.nome.isNotEmpty ? local.nome : remoto.nome,
+      apelido: local.apelido.isNotEmpty ? local.apelido : remoto.apelido,
+      dataNascimento: local.dataNascimento.isNotEmpty
+          ? local.dataNascimento
+          : remoto.dataNascimento,
+      emails: {...local.emails, ...remoto.emails}.toList(),
+      foto: local.foto.isNotEmpty && ImagemService.existe(local.foto)
+          ? local.foto
+          : remoto.foto,
+      nomePai: local.nomePai.isNotEmpty ? local.nomePai : remoto.nomePai,
+      nomeMae: local.nomeMae.isNotEmpty ? local.nomeMae : remoto.nomeMae,
+      localNascimento: local.localNascimento.isNotEmpty
+          ? local.localNascimento
+          : remoto.localNascimento,
+      tipoSanguineo: local.tipoSanguineo.isNotEmpty
+          ? local.tipoSanguineo
+          : remoto.tipoSanguineo,
+      estadoCivil: local.estadoCivil.isNotEmpty
+          ? local.estadoCivil
+          : remoto.estadoCivil,
+    );
+  }
+
+  /// Sincroniza pan-dispositivo todas as lojas e referências associadas ao CPF ativo
+  /// entre este terminal e o servidor balcão, garantindo que perfis profissionais
+  /// acessados no trabalho ou em outros dispositivos apareçam imediatamente neste aparelho.
+  Future<void> sincronizarPerfisLojasComServidor() async {
+    if (_ipServidor == null || _portaServidor == null) return;
+    final cpf = (_pdvProvider?.cpfAtual ?? _authProvider?.cpf ?? '')
+        .replaceAll(RegExp(r'\D'), '');
+    if (cpf.isEmpty) return;
+
+    try {
+      final referenciasLocais = await LojasService.carregarReferencias(cpf);
+      final lojasAEnviar = <Map<String, dynamic>>[];
+
+      // Coleta lojas referenciadas conhecidas
+      for (final ref in referenciasLocais) {
+        final loja = await LojasService.carregarLojaPorId(ref.lojaId);
+        if (loja != null) {
+          lojasAEnviar.add(LojasService.sanitizarCaminhosImagens(loja).toJson());
+        }
+      }
+
+      // Coleta lojas onde este CPF é dono
+      final lojasProprias = await LojasService.carregar(cpf);
+      for (final lp in lojasProprias) {
+        if (!lojasAEnviar.any((m) => m['id'] == lp.id)) {
+          lojasAEnviar.add(LojasService.sanitizarCaminhosImagens(lp).toJson());
+        }
+      }
+
+      final client = HttpClient()
+        ..connectionTimeout = const Duration(seconds: 5);
+      final uri = Uri.parse(
+        'http://$_ipServidor:$_portaServidor/api/sincronizar_perfis_usuario',
+      );
+      final req = await client.postUrl(uri);
+      req.headers.contentType = ContentType.json;
+
+      final payload = {
+        'cpf': cpf,
+        'referencias': referenciasLocais.map((r) => r.toJson()).toList(),
+        'lojas': lojasAEnviar,
+      };
+
+      req.write(jsonEncode(payload));
+      final resp = await req.close();
+
+      if (resp.statusCode == HttpStatus.ok) {
+        final body = await utf8.decodeStream(resp);
+        final dados = jsonDecode(body) as Map<String, dynamic>;
+
+        if (dados['sucesso'] == true) {
+          final referenciasRecebidas =
+              dados['referencias'] as List<dynamic>? ?? [];
+          final lojasRecebidas = dados['lojas'] as List<dynamic>? ?? [];
+          var houveAlteracao = false;
+
+          // Salva lojas recebidas
+          for (final lJson in lojasRecebidas) {
+            try {
+              final loja = Loja.fromJson(lJson as Map<String, dynamic>);
+              await LojasService.salvarLojaIndividual(loja);
+              houveAlteracao = true;
+            } catch (_) {}
+          }
+
+          // Salva referências recebidas
+          for (final rJson in referenciasRecebidas) {
+            try {
+              final ref =
+                  ReferenciaLoja.fromJson(rJson as Map<String, dynamic>);
+              final jaTem = referenciasLocais.any((r) => r.lojaId == ref.lojaId);
+              if (!jaTem) {
+                await LojasService.adicionarReferencia(cpf, ref);
+                houveAlteracao = true;
+              }
+            } catch (_) {}
+          }
+
+          if (houveAlteracao) {
+            debugPrint(
+              '[ClienteRedeLocal] Sincronização Pan-Dispositivo: novos perfis de lojas recebidos para o CPF $cpf. Recarregando PdvProvider...',
+            );
+            await _pdvProvider?.entrarComCpf(cpf);
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint('[ClienteRedeLocal] Erro ao sincronizar perfis de lojas com servidor: $e');
     }
   }
 }

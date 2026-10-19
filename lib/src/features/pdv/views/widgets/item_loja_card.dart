@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:nous/src/core/theme/theme_controller.dart';
 import 'package:nous/src/core/widgets/texto_rolante.dart';
 import 'package:nous/src/features/pdv/models/item_loja.dart';
+import 'package:nous/src/features/pdv/services/imagem_service.dart';
 
 class ItemLojaCard extends StatefulWidget {
   final AppTheme theme;
@@ -133,9 +134,8 @@ class _ItemLojaCardState extends State<ItemLojaCard> {
   }
 
   Widget _buildAreaImagem(AppTheme theme) {
-    final temImagem = widget.imagemUrl != null &&
-        widget.imagemUrl!.isNotEmpty &&
-        File(widget.imagemUrl!).existsSync();
+    final caminhoResolvido = ImagemService.resolverCaminhoExistente(widget.imagemUrl);
+    final temImagem = caminhoResolvido != null;
 
     return Container(
       decoration: BoxDecoration(
@@ -150,7 +150,7 @@ class _ItemLojaCardState extends State<ItemLojaCard> {
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(8),
                 child: Image.file(
-                  File(widget.imagemUrl!),
+                  File(caminhoResolvido),
                   fit: BoxFit.cover,
                   errorBuilder: (context, error, stackTrace) => Center(
                     child: Icon(_iconeDoTipo(),

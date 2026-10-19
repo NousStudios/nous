@@ -26,6 +26,11 @@ class NotificacoesProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  void dispensarTodasNaSessao(Iterable<String> ids) {
+    _notificacoesDispensadasSessao.addAll(ids);
+    notifyListeners();
+  }
+
   void restaurarDispensadasSessao() {
     _notificacoesDispensadasSessao.clear();
     notifyListeners();

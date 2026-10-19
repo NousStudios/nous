@@ -62,7 +62,8 @@ class _NovoGrupoComponentesDialogState
     final grupo = widget.grupoParaEditar;
     if (grupo != null) {
       _nomeController.text = grupo.nome;
-      _foto = grupo.foto;
+      final resolvida = ImagemService.resolverCaminhoExistente(grupo.foto);
+      _foto = resolvida ?? grupo.foto;
       _itemIdsSelecionados.addAll(grupo.itemIds);
     }
   }
@@ -219,7 +220,8 @@ class _NovoGrupoComponentesDialogState
     final larguraTela = MediaQuery.sizeOf(context).width;
     final larguraPopup = larguraTela < 380 ? larguraTela * 0.9 : 340.0;
 
-    final temFoto = _foto.isNotEmpty && File(_foto).existsSync();
+    final fotoResolvida = ImagemService.resolverCaminhoExistente(_foto);
+    final temFoto = fotoResolvida != null;
 
     return AlertDialog(
       backgroundColor: theme.cardBackgroundColor,
@@ -258,7 +260,7 @@ class _NovoGrupoComponentesDialogState
                       ? ClipRRect(
                           borderRadius: BorderRadius.circular(11),
                           child: Image.file(
-                            File(_foto),
+                            File(fotoResolvida),
                             fit: BoxFit.cover,
                             errorBuilder: (context, error, stackTrace) => Icon(
                               Icons.broken_image_outlined,

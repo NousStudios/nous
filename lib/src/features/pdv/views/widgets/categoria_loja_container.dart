@@ -5,6 +5,7 @@ import 'package:nous/src/core/theme/theme_controller.dart';
 import 'package:nous/src/core/widgets/texto_rolante.dart';
 import 'package:nous/src/core/widgets/themed_switch.dart';
 import 'package:nous/src/features/pdv/models/item_loja.dart';
+import 'package:nous/src/features/pdv/services/imagem_service.dart';
 import 'package:nous/src/features/pdv/views/widgets/produto_loja_row.dart';
 
 class CategoriaLojaContainer extends StatefulWidget {
@@ -186,27 +187,31 @@ class _CategoriaLojaContainerState extends State<CategoriaLojaContainer> {
                     border: Border.all(
                         color: theme.borderColor.withValues(alpha: 0.6)),
                   ),
-                  child: (widget.foto.isNotEmpty &&
-                          File(widget.foto).existsSync())
-                      ? ClipRRect(
-                          borderRadius: BorderRadius.circular(7),
-                          child: Image.file(
-                            File(widget.foto),
-                            width: 32,
-                            height: 32,
-                            fit: BoxFit.cover,
-                            errorBuilder: (context, error, stackTrace) => Icon(
-                              Icons.broken_image_outlined,
-                              size: 16,
-                              color: theme.secondaryTextColor,
+                  child: () {
+                    final fotoResolvida =
+                        ImagemService.resolverCaminhoExistente(widget.foto);
+                    return (fotoResolvida != null)
+                        ? ClipRRect(
+                            borderRadius: BorderRadius.circular(7),
+                            child: Image.file(
+                              File(fotoResolvida),
+                              width: 32,
+                              height: 32,
+                              fit: BoxFit.cover,
+                              errorBuilder: (context, error, stackTrace) =>
+                                  Icon(
+                                Icons.broken_image_outlined,
+                                size: 16,
+                                color: theme.secondaryTextColor,
+                              ),
                             ),
-                          ),
-                        )
-                      : Icon(
-                          Icons.image_outlined,
-                          size: 16,
-                          color: theme.secondaryTextColor,
-                        ),
+                          )
+                        : Icon(
+                            Icons.image_outlined,
+                            size: 16,
+                            color: theme.secondaryTextColor,
+                          );
+                  }(),
                 ),
               ),
               const SizedBox(width: 6),

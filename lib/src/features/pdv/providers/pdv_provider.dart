@@ -118,6 +118,36 @@ class PdvProvider extends ChangeNotifier {
     return alertas;
   }
 
+  /// Retorna os itens com estoque baixo ou esgotado restritos a uma loja específica
+  List<({ItemLoja item, double saldo, String lojaNome, String lojaId})>
+      itensEstoqueBaixoPorLoja(String lojaId) {
+    final alertas =
+        <({ItemLoja item, double saldo, String lojaNome, String lojaId})>[];
+    final loja = _lojas.where((l) => l.id == lojaId).firstOrNull;
+    if (loja == null) return alertas;
+
+    for (final item in loja.itensLoja) {
+      if (item.tipo == TipoItemLoja.servico) continue;
+      var saldo = 0.0;
+      var temMovimento = false;
+      for (final m in loja.movimentosEstoque) {
+        if (m.itemId == item.id) {
+          saldo += m.quantidadeComSinal;
+          temMovimento = true;
+        }
+      }
+      if (temMovimento && saldo < 10) {
+        alertas.add((
+          item: item,
+          saldo: saldo,
+          lojaNome: loja.nome,
+          lojaId: loja.id,
+        ));
+      }
+    }
+    return alertas;
+  }
+
   int get totalItensEstoqueBaixo => todosItensEstoqueBaixo.length;
 
   String? buscarFotoClientePorCpf(String cpf) {
@@ -387,14 +417,7 @@ class PdvProvider extends ChangeNotifier {
     final dono =
         loja.cpfDonoOriginal.isEmpty ? cpf : loja.cpfDonoOriginal;
 
-    final cofre = await LojasService.carregar(dono);
-    final indice = cofre.indexWhere((l) => l.id == loja.id);
-    if (indice == -1) {
-      cofre.add(loja);
-    } else {
-      cofre[indice] = loja;
-    }
-    await LojasService.salvar(dono, cofre);
+    await LojasService.salvarLojaIndividual(loja.copyWith(cpfDonoOriginal: dono));
 
     // Se o Servidor de Rede Local estiver ativo para esta loja, notifica imediatamente os terminais conectados
     if (ServidorRedeLocal().ativo) {
@@ -444,13 +467,17 @@ class PdvProvider extends ChangeNotifier {
 
   Future<void> adicionarOuAtualizarLoja(Loja loja) async {
     final indice = _lojas.indexWhere((l) => l.id == loja.id);
+    final lojaConsolidada = LojasService.consolidarLojaComImagensLocais(
+      loja,
+      indice != -1 ? _lojas[indice] : null,
+    );
     if (indice != -1) {
-      _lojas[indice] = loja;
+      _lojas[indice] = lojaConsolidada;
     } else {
-      _lojas.add(loja);
+      _lojas.add(lojaConsolidada);
     }
     notifyListeners();
-    await _salvarLojaNoCofreCorreto(loja);
+    await _salvarLojaNoCofreCorreto(lojaConsolidada);
   }
 
   Loja? buscarPorId(String id) {

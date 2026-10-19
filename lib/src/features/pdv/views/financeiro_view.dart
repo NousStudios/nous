@@ -2114,7 +2114,10 @@ class _FinanceiroViewState extends State<FinanceiroView> {
 
             return Scaffold(
               backgroundColor: theme.backgroundColor,
-              appBar: const CustomAppBar(title: 'Financeiro'),
+              appBar: CustomAppBar(
+                title: 'Financeiro',
+                lojaId: widget.lojaId,
+              ),
               body: SafeArea(
                 child: Center(
                   child: ConstrainedBox(

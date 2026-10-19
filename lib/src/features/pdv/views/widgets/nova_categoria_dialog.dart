@@ -67,7 +67,8 @@ class _NovaCategoriaDialogState extends State<NovaCategoriaDialog> {
     _nomeController.text = categoria.nome;
     _precoController.text = categoria.preco;
     _tipo = categoria.tipo;
-    _foto = categoria.foto;
+    final resolvida = ImagemService.resolverCaminhoExistente(categoria.foto);
+    _foto = resolvida ?? categoria.foto;
     _gruposSelecionados.addAll(categoria.grupoIds);
   }
 
@@ -246,7 +247,8 @@ class _NovaCategoriaDialogState extends State<NovaCategoriaDialog> {
 
     final resumoGrupos = _resumoGrupos;
 
-    final temFoto = _foto.isNotEmpty && File(_foto).existsSync();
+    final fotoResolvida = ImagemService.resolverCaminhoExistente(_foto);
+    final temFoto = fotoResolvida != null;
 
     return AlertDialog(
       backgroundColor: theme.cardBackgroundColor,
@@ -285,7 +287,7 @@ class _NovaCategoriaDialogState extends State<NovaCategoriaDialog> {
                       ? ClipRRect(
                           borderRadius: BorderRadius.circular(11),
                           child: Image.file(
-                            File(_foto),
+                            File(fotoResolvida),
                             fit: BoxFit.cover,
                             errorBuilder: (context, error, stackTrace) => Icon(
                               Icons.broken_image_outlined,

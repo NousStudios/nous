@@ -1,5 +1,6 @@
-import 'package:file_selector/file_selector.dart';
 import 'dart:async';
+import 'dart:io';
+import 'package:file_selector/file_selector.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -183,8 +184,13 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
   String? _grupoExpandidoId;
 
   bool _tentouGarantirDono = false;
+  bool _tecladoFisicoDetectado = false;
 
   bool _tratarTecladoGlobal(KeyEvent event) {
+    if (!_tecladoFisicoDetectado) {
+      _tecladoFisicoDetectado = true;
+      if (mounted) setState(() {});
+    }
     if (event is KeyDownEvent && event.logicalKey == LogicalKeyboardKey.f11) {
       JanelaWindowsService.alternarTelaCheia();
       return true;
@@ -1940,6 +1946,24 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
     );
   }
 
+  Future<void> _alternarStatusLojaOnline(bool valor) async {
+    setState(() => _lojaOnline = valor);
+    final pdv = context.read<PdvProvider>();
+    await pdv.alternarLojaAberta(widget.lojaId, valor);
+    final lojaAtual = pdv.buscarPorId(widget.lojaId);
+    if (lojaAtual != null) {
+      if (ServidorRedeLocal().ativo) {
+        ServidorRedeLocal().notificarTodos({
+          'tipo': 'loja_atualizada',
+          'loja': lojaAtual.toJson(),
+        });
+      }
+      if (ClienteRedeLocal().conectado) {
+        ClienteRedeLocal().enviarLojaAtualizada(lojaAtual);
+      }
+    }
+  }
+
   void _abrirStatusLoja() {
     final cpfLogado = context.read<AuthProvider>().contaAtual?.cpf ?? '';
     final meuPapel = context.read<PdvProvider>().meuPapel(widget.lojaId);
@@ -1951,10 +1975,7 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
         builder: (context) => StatusLojaView(
           lojaId: widget.lojaId,
           lojaOnlineInicial: lojaAtual?.aberta ?? _lojaOnline,
-          aoAlterarOnline: (valor) {
-            setState(() => _lojaOnline = valor);
-            context.read<PdvProvider>().alternarLojaAberta(widget.lojaId, valor);
-          },
+          aoAlterarOnline: _alternarStatusLojaOnline,
           membros: List.of(_membros),
           cpfLogado: cpfLogado,
           podeSair: podeSair,
@@ -2945,6 +2966,7 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
     _movimentosEstoque.addAll(loja?.movimentosEstoque ?? []);
     _mesas.addAll(loja?.mesas ?? []);
     _membros = List.of(loja?.membros ?? []);
+    _lojaOnline = loja?.aberta ?? true;
     _tempoConclusaoMinutos = loja?.tempoConclusaoMinutos ?? 0;
     _sonsAlertas.addAll(loja?.sonsAlertas ?? {});
     _atalhosTeclado.addAll(loja?.atalhosTeclado ?? {});
@@ -2992,14 +3014,14 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
 
     final notificacoes = context.read<NotificacoesProvider>();
     final quantidadeConvites = notificacoes.quantidadeConvitesAtivos;
-    final totalEstoqueBaixo = pdv.todosItensEstoqueBaixo
+    final totalEstoqueBaixo = pdv.itensEstoqueBaixoPorLoja(widget.lojaId)
         .where((a) => !notificacoes
             .estaDispensadaNaSessao('alerta_estoque_${a.lojaId}_${a.item.id}'))
         .length;
     final temNotificacoes = (quantidadeConvites + totalEstoqueBaixo) > 0;
 
     if (temNotificacoes) {
-      await NotificacoesDialog.mostrar(context);
+      await NotificacoesDialog.mostrar(context, lojaId: widget.lojaId);
     }
 
     if (!mounted) return;
@@ -3105,18 +3127,20 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
     final itensMudaram = _itens.length != novosItens.length ||
         !listEquals(
           _itens
-              .map((i) => '${i.id}_${i.nome}_${i.preco}_${i.precoCusto}_${i.imagens.length}')
+              .map((i) =>
+                  '${i.id}_${i.nome}_${i.preco}_${i.precoCusto}_${i.imagens.join(",")}')
               .toList(),
           novosItens
-              .map((i) => '${i.id}_${i.nome}_${i.preco}_${i.precoCusto}_${i.imagens.length}')
+              .map((i) =>
+                  '${i.id}_${i.nome}_${i.preco}_${i.precoCusto}_${i.imagens.join(",")}')
               .toList(),
         );
 
     final novasCategorias = lojaAtual.categoriasLoja;
     final categoriasMudaram = _categorias.length != novasCategorias.length ||
         !listEquals(
-          _categorias.map((c) => '${c.id}_${c.nome}').toList(),
-          novasCategorias.map((c) => '${c.id}_${c.nome}').toList(),
+          _categorias.map((c) => '${c.id}_${c.nome}_${c.foto}').toList(),
+          novasCategorias.map((c) => '${c.id}_${c.nome}_${c.foto}').toList(),
         );
 
     final novosGrupos = lojaAtual.gruposComponentesLoja;
@@ -3133,16 +3157,19 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
     final novosClientes = lojaAtual.clientesLoja;
     final clientesMudaram = _clientes.length != novosClientes.length ||
         !listEquals(
-          _clientes.map((c) => '${c.id}_${c.nome}_${c.cnpj}_${c.telefone}').toList(),
-          novosClientes.map((c) => '${c.id}_${c.nome}_${c.cnpj}_${c.telefone}').toList(),
+          _clientes.map((c) => '${c.id}_${c.nome}_${c.cnpj}_${c.telefone}_${c.foto}').toList(),
+          novosClientes.map((c) => '${c.id}_${c.nome}_${c.cnpj}_${c.telefone}_${c.foto}').toList(),
         );
 
     final novosFornecedores = lojaAtual.fornecedoresLoja;
     final fornecedoresMudaram = _fornecedores.length != novosFornecedores.length ||
         !listEquals(
-          _fornecedores.map((f) => '${f.id}_${f.nome}_${f.cnpj}_${f.telefone}').toList(),
-          novosFornecedores.map((f) => '${f.id}_${f.nome}_${f.cnpj}_${f.telefone}').toList(),
+          _fornecedores.map((f) => '${f.id}_${f.nome}_${f.cnpj}_${f.telefone}_${f.foto}').toList(),
+          novosFornecedores.map((f) => '${f.id}_${f.nome}_${f.cnpj}_${f.telefone}_${f.foto}').toList(),
         );
+
+    final logoMudou = lojaAtual.logo.isNotEmpty && _logo != lojaAtual.logo;
+    final onlineMudou = lojaAtual.aberta != _lojaOnline;
 
     if (movsMudaram ||
         pedidosMudaram ||
@@ -3152,8 +3179,16 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
         categoriasMudaram ||
         gruposMudaram ||
         clientesMudaram ||
-        fornecedoresMudaram) {
+        fornecedoresMudaram ||
+        logoMudou ||
+        onlineMudou) {
       setState(() {
+        if (onlineMudou) {
+          _lojaOnline = lojaAtual.aberta;
+        }
+        if (logoMudou) {
+          _logo = lojaAtual.logo;
+        }
         if (movsMudaram) {
           _movimentosEstoque
             ..clear()
@@ -5577,14 +5612,16 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
         return _abaLoja(theme);
 
       case AbaLoja.gestao:
+        final lojaAtual = context.watch<PdvProvider>().buscarPorId(widget.lojaId);
+        final onlineEfetivo = lojaAtual?.aberta ?? _lojaOnline;
         return GestaoLojaContainer(
           theme: theme,
           lojaId: widget.lojaId,
           autorCpf: _cpfLogado,
           autorNome: _nomeLogado,
           autorEmail: _emailLogado,
-          lojaOnline: _lojaOnline,
-          aoAlterarOnline: (valor) => setState(() => _lojaOnline = valor),
+          lojaOnline: onlineEfetivo,
+          aoAlterarOnline: _alternarStatusLojaOnline,
           abaPedidos: _abaPedidos,
           aoTrocarAbaPedidos: (aba) => setState(() => _abaPedidos = aba),
           pedidos: _pedidos,
@@ -5602,7 +5639,7 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
           aoImpressora: _abrirPopupImpressora,
           aoFinanceiro: _abrirFinanceiro,
           aoCaixa: _abrirPopupCaixa,
-          caixaAberto: context.watch<PdvProvider>().buscarPorId(widget.lojaId)?.turnoCaixaAberto != null,
+          caixaAberto: lojaAtual?.turnoCaixaAberto != null,
           aoStatus: _abrirStatusLoja,
           ehRestaurante: _ehRestaurante,
           mesas: _mesas,
@@ -5647,6 +5684,8 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
             : null;
 
         final possoResetar = pdv.possoResetarTransacoes(widget.lojaId);
+        final bool ehMobile = Platform.isAndroid || Platform.isIOS;
+        final bool podeMostrarComandos = (!ehMobile) || _tecladoFisicoDetectado;
 
         if (expandido && larguraDaTela > 850) {
           return Column(
@@ -5661,8 +5700,10 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
                         _buildContainerSincronizacaoRede(theme),
                         const SizedBox(height: 16),
                         _buildContainerModoLayout(theme, possoEditarDados),
-                        const SizedBox(height: 16),
-                        _buildContainerComandos(theme, possoEditarDados),
+                        if (podeMostrarComandos) ...[
+                          const SizedBox(height: 16),
+                          _buildContainerComandos(theme, possoEditarDados),
+                        ],
                       ],
                     ),
                   ),
@@ -5690,8 +5731,10 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
             _buildContainerSincronizacaoRede(theme),
             const SizedBox(height: 16),
             _buildContainerModoLayout(theme, possoEditarDados),
-            const SizedBox(height: 16),
-            _buildContainerComandos(theme, possoEditarDados),
+            if (podeMostrarComandos) ...[
+              const SizedBox(height: 16),
+              _buildContainerComandos(theme, possoEditarDados),
+            ],
             const SizedBox(height: 16),
             _buildContainerTempoConclusao(theme, possoEditarDados),
             const SizedBox(height: 16),
@@ -5783,6 +5826,7 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
                 backgroundColor: theme.backgroundColor,
                 appBar: CustomAppBar(
                   title: _tituloDaAba(),
+                  lojaId: widget.lojaId,
                   onLogout: () => _handleLogout(context),
                 ),
                 body: SafeArea(
@@ -5828,6 +5872,7 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
               backgroundColor: theme.backgroundColor,
               appBar: CustomAppBar(
                 title: _tituloDaAba(),
+                lojaId: widget.lojaId,
                 onLogout: () => _handleLogout(context),
               ),
               body: SafeArea(
