@@ -378,52 +378,7 @@ class _CategoriaLojaContainerState extends State<CategoriaLojaContainer> {
           if (widget.expandida) ...[
             const SizedBox(height: 8),
             if (widget.itemIds.isNotEmpty) ...[
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 4),
-                child: Row(
-                  children: [
-                    const SizedBox(width: 40),
-                    Expanded(
-                      child: FittedBox(
-                        fit: BoxFit.scaleDown,
-                        alignment: Alignment.centerLeft,
-                        child: Text(
-                          'Produtos',
-                          style: theme.getTextStyle(
-                              fontSize: 10,
-                              color: theme.secondaryTextColor),
-                        ),
-                      ),
-                    ),
-                    SizedBox(
-                      width: 56,
-                      child: FittedBox(
-                        fit: BoxFit.scaleDown,
-                        child: Text(
-                          'Ativo',
-                          style: theme.getTextStyle(
-                              fontSize: 10,
-                              color: theme.secondaryTextColor),
-                        ),
-                      ),
-                    ),
-                    SizedBox(
-                      width: 56,
-                      child: FittedBox(
-                        fit: BoxFit.scaleDown,
-                        child: Text(
-                          'Preços',
-                          style: theme.getTextStyle(
-                              fontSize: 10,
-                              color: theme.secondaryTextColor),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 60),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 6),
+
               for (final id in widget.itemIds) ...[
                 Builder(builder: (context) {
                   final item = widget.itensDisponiveis

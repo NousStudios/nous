@@ -49,7 +49,6 @@ Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{
 Source: "..\build\windows\x64\runner\Release\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 ; APK Android para distribuição soberana e local-first via Wi-Fi pelo Computador Balcão
 Source: "..\dist\Nous_Android_v{#MyAppVersion}_Versao_Teste.apk"; DestDir: "{app}\dist"; Flags: ignoreversion skipifsourcedoesntexist
-Source: "..\dist\Nous_Android_v1.0.0_Versao_Teste.apk"; DestDir: "{app}\dist"; Flags: ignoreversion skipifsourcedoesntexist
 
 [Icons]
 Name: "{autoprograms}\{#MyAppName}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"

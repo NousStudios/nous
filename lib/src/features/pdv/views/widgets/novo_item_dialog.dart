@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
 import 'package:nous/src/core/theme/theme_controller.dart';
+import 'package:nous/src/core/widgets/texto_rolante.dart';
 import 'package:nous/src/core/widgets/themed_switch.dart';
 import 'package:nous/src/core/widgets/themed_text_field.dart';
 import 'package:nous/src/features/pdv/models/categoria_loja.dart';
@@ -542,8 +543,9 @@ class _NovoItemDialogState extends State<NovoItemDialog> {
                                     ),
                                   )
                                 : null,
-                            title: Text(
-                              entrada.value,
+                            title: TextoRolante(
+                              texto: entrada.value,
+                              textAlign: TextAlign.start,
                               style: theme.getTextStyle(fontSize: 14),
                             ),
                             activeColor: theme.buttonColor,
@@ -632,12 +634,11 @@ class _NovoItemDialogState extends State<NovoItemDialog> {
         child: Row(
           children: [
             Expanded(
-              child: Text(
-                (valorExibido == null || valorExibido.isEmpty)
+              child: TextoRolante(
+                texto: (valorExibido == null || valorExibido.isEmpty)
                     ? label
                     : valorExibido,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
+                textAlign: TextAlign.start,
                 style: theme.getTextStyle(
                   fontSize: 14,
                   color: (valorExibido == null || valorExibido.isEmpty)
@@ -711,14 +712,13 @@ class _NovoItemDialogState extends State<NovoItemDialog> {
                   ),
                   const SizedBox(width: 8),
                   Expanded(
-                    child: Text(
-                      temDescricao
+                    child: TextoRolante(
+                      texto: temDescricao
                           ? (_descricaoExpandida
                               ? 'Descrição do item'
                               : 'Descrição: ${_descricaoController.text.trim().split('\n').first}')
                           : 'Descrição do item (opcional)',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
+                      textAlign: TextAlign.start,
                       style: theme.getTextStyle(
                         fontSize: 13,
                         color: temDescricao ? theme.textColor : theme.secondaryTextColor,
@@ -984,8 +984,8 @@ class _NovoItemDialogState extends State<NovoItemDialog> {
                         ),
                         const SizedBox(width: 6),
                         Expanded(
-                          child: Text(
-                            calculoTexto,
+                          child: TextoRolante(
+                            texto: calculoTexto,
                             style: theme.getTextStyle(
                               fontSize: 11,
                               fontWeight: FontWeight.w600,
@@ -1006,8 +1006,8 @@ class _NovoItemDialogState extends State<NovoItemDialog> {
                         ),
                         const SizedBox(width: 6),
                         Expanded(
-                          child: Text(
-                            margemTexto,
+                          child: TextoRolante(
+                            texto: margemTexto,
                             style: theme.getTextStyle(
                               fontSize: 11,
                               color: theme.secondaryTextColor,
@@ -1297,7 +1297,7 @@ class _NovoItemDialogState extends State<NovoItemDialog> {
               fotos: fotosCategorias,
               selecionados: _categoriasSelecionadas,
               onCriarNovo: _abrirCriarNovaCategoria,
-              textoCriarNovo: '+ Nova Categoria',
+              textoCriarNovo: 'Nova Categoria',
             ),
           ),
           const SizedBox(height: 12),
@@ -1310,7 +1310,7 @@ class _NovoItemDialogState extends State<NovoItemDialog> {
               fotos: fotosGrupos,
               selecionados: _gruposSelecionados,
               onCriarNovo: _abrirCriarNovoGrupo,
-              textoCriarNovo: '+ Novo Grupo de Componentes',
+              textoCriarNovo: 'Novo Grupo de Componentes',
             ),
           ),
           const SizedBox(height: 14),

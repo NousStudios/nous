@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
 import 'package:nous/src/core/theme/theme_controller.dart';
+import 'package:nous/src/core/widgets/texto_rolante.dart';
 import 'package:nous/src/core/widgets/themed_text_field.dart';
 import 'package:nous/src/features/pdv/models/categoria_loja.dart';
 import 'package:nous/src/features/pdv/models/grupo_componentes_loja.dart';
@@ -123,8 +124,11 @@ class _NovaCategoriaDialogState extends State<NovaCategoriaDialog> {
                             for (final grupo in widget.gruposComponentes)
                               CheckboxListTile(
                                 value: _gruposSelecionados.contains(grupo.id),
-                                title: Text(grupo.nome,
-                                    style: theme.getTextStyle()),
+                                title: TextoRolante(
+                                  texto: grupo.nome,
+                                  textAlign: TextAlign.start,
+                                  style: theme.getTextStyle(),
+                                ),
                                 activeColor: theme.buttonColor,
                                 checkColor: theme.buttonTextColor,
                                 controlAffinity:
@@ -334,12 +338,11 @@ class _NovaCategoriaDialogState extends State<NovaCategoriaDialog> {
                   child: Row(
                     children: [
                       Expanded(
-                        child: Text(
-                          resumoGrupos.isEmpty
+                        child: TextoRolante(
+                          texto: resumoGrupos.isEmpty
                               ? 'Grupos de componentes'
                               : resumoGrupos,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
+                          textAlign: TextAlign.start,
                           style: theme.getTextStyle(
                             fontSize: 14,
                             color: resumoGrupos.isEmpty

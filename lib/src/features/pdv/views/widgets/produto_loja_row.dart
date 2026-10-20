@@ -1,9 +1,11 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:nous/src/core/theme/theme_controller.dart';
 import 'package:nous/src/core/widgets/texto_rolante.dart';
 import 'package:nous/src/core/widgets/themed_switch.dart';
 import 'package:nous/src/features/pdv/models/item_loja.dart';
-import 'package:nous/src/features/pdv/views/widgets/grupo_componentes_container.dart';
+import 'package:nous/src/features/pdv/services/imagem_service.dart';
 
 class ProdutoLojaRow extends StatefulWidget {
   final AppTheme theme;
@@ -34,18 +36,11 @@ class _ProdutoLojaRowState extends State<ProdutoLojaRow> {
   bool _expandido = false;
   bool _editandoNome = false;
 
-  final List<int> _grupoIds = [];
-  int _proximoIdGrupo = 0;
-
-  final Map<int, String> _gruposTitulos = {};
-
   late final TextEditingController _nomeController =
       TextEditingController(text: widget.item.nome);
   late final FocusNode _nomeFocusNode = FocusNode();
   late final TextEditingController _precoController =
       TextEditingController(text: widget.item.preco);
-
-  String _letraDoGrupo(int indice) => String.fromCharCode(65 + indice);
 
   void _avisarSemPermissao() {
     final theme = widget.theme;
@@ -58,31 +53,6 @@ class _ProdutoLojaRowState extends State<ProdutoLojaRow> {
         ),
       ),
     );
-  }
-
-  void _adicionarGrupo() {
-    if (!widget.podeEditar) {
-      _avisarSemPermissao();
-      return;
-    }
-    setState(() {
-      final id = _proximoIdGrupo;
-      _gruposTitulos[id] =
-          'Grupo de componentes ${_letraDoGrupo(_grupoIds.length)}';
-      _grupoIds.add(id);
-      _proximoIdGrupo++;
-    });
-  }
-
-  void _removerGrupo(int id) {
-    setState(() {
-      _grupoIds.remove(id);
-      _gruposTitulos.remove(id);
-    });
-  }
-
-  void _renomearGrupo(int id, String novoTitulo) {
-    _gruposTitulos[id] = novoTitulo;
   }
 
   @override
@@ -107,86 +77,74 @@ class _ProdutoLojaRowState extends State<ProdutoLojaRow> {
     super.dispose();
   }
 
-  Future<void> _abrirMenuOpcoes(
-      BuildContext context, Offset posicaoToque) async {
-    final theme = widget.theme;
-
-    final selecionado = await showMenu<String>(
-      context: context,
-      color: theme.cardBackgroundColor,
-      position: RelativeRect.fromLTRB(
-        posicaoToque.dx,
-        posicaoToque.dy,
-        posicaoToque.dx,
-        posicaoToque.dy,
-      ),
-      items: [
-        PopupMenuItem(
-          value: 'editar',
-          child: Text('Editar Item', style: theme.getTextStyle()),
-        ),
-        PopupMenuItem(
-          value: 'grupo',
-          child: Text('Adicionar Grupo de Componentes',
-              style: theme.getTextStyle()),
-        ),
-        PopupMenuItem(
-          value: 'excluir',
-          child: Text('Excluir Produto',
-              style: theme.getTextStyle(color: theme.dangerColor)),
-        ),
-      ],
-    );
-
-    if (selecionado == null) return;
-
-    if (!widget.podeEditar) {
-      _avisarSemPermissao();
-      return;
-    }
-
-    if (selecionado == 'editar') widget.onEditar();
-    if (selecionado == 'grupo') _adicionarGrupo();
-    if (selecionado == 'excluir') widget.onExcluir();
-  }
-
   @override
   Widget build(BuildContext context) {
     final theme = widget.theme;
     final podeEditar = widget.podeEditar;
 
     return Container(
-      padding: const EdgeInsets.all(8),
+      padding: const EdgeInsets.only(left: 6, right: 2, top: 6, bottom: 6),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: theme.borderColor.withValues(alpha: 0.4)),
+        border: Border.all(color: theme.borderColor.withValues(alpha: 0.6)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Row(
             children: [
-              Container(
-                width: 36,
-                height: 36,
-                alignment: Alignment.center,
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(
-                      color: theme.borderColor.withValues(alpha: 0.6)),
+              InkWell(
+                onTap: podeEditar ? widget.onEditar : null,
+                borderRadius: BorderRadius.circular(8),
+                child: Container(
+                  width: 32,
+                  height: 32,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(
+                      color: theme.borderColor.withValues(alpha: 0.6),
+                    ),
+                  ),
+                  child: () {
+                    final fotoResolvida =
+                        ImagemService.resolverCaminhoExistente(
+                            widget.item.imagens.firstOrNull ?? '');
+                    return (fotoResolvida != null)
+                        ? ClipRRect(
+                            borderRadius: BorderRadius.circular(7),
+                            child: Image.file(
+                              File(fotoResolvida),
+                              width: 32,
+                              height: 32,
+                              fit: BoxFit.cover,
+                              errorBuilder: (context, error, stackTrace) =>
+                                  Icon(
+                                Icons.broken_image_outlined,
+                                size: 16,
+                                color: theme.secondaryTextColor,
+                              ),
+                            ),
+                          )
+                        : Icon(
+                            Icons.image_outlined,
+                            size: 16,
+                            color: theme.secondaryTextColor,
+                          );
+                  }(),
                 ),
-                child: Icon(Icons.image_outlined,
-                    size: 18, color: theme.secondaryTextColor),
               ),
-              const SizedBox(width: 8),
+              const SizedBox(width: 4),
               Expanded(
                 child: _editandoNome
                     ? TextField(
                         focusNode: _nomeFocusNode,
                         controller: _nomeController,
+                        textAlign: TextAlign.start,
                         maxLines: 1,
                         style: theme.getTextStyle(
-                          fontSize: 12,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
                           color: theme.textColor,
                         ),
                         decoration: const InputDecoration(
@@ -212,14 +170,15 @@ class _ProdutoLojaRowState extends State<ProdutoLojaRow> {
                         borderRadius: BorderRadius.circular(4),
                         child: Padding(
                           padding: const EdgeInsets.symmetric(
-                              horizontal: 4, vertical: 4),
+                              horizontal: 2, vertical: 4),
                           child: TextoRolante(
                             texto: widget.item.nome.trim().isEmpty
                                 ? 'Sem nome'
                                 : widget.item.nome,
                             textAlign: TextAlign.start,
                             style: theme.getTextStyle(
-                              fontSize: 12,
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
                               color: widget.item.nome.trim().isEmpty
                                   ? theme.secondaryTextColor
                                       .withValues(alpha: 0.5)
@@ -229,38 +188,41 @@ class _ProdutoLojaRowState extends State<ProdutoLojaRow> {
                         ),
                       ),
               ),
-              Transform.scale(
-                scale: 0.85,
-                child: ThemedSwitch(
-                  theme: theme,
-                  value: _ativo,
-                  onChanged: podeEditar
-                      ? (valor) => setState(() => _ativo = valor)
-                      : null,
+              const SizedBox(width: 3),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(
+                    color: theme.borderColor.withValues(alpha: 0.5),
+                  ),
                 ),
-              ),
-              SizedBox(
-                width: 66,
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Text(
-                      'R\$',
-                      style: theme.getTextStyle(fontSize: 11),
+                      'R\$ ',
+                      style: theme.getTextStyle(
+                        fontSize: 10,
+                        color: theme.secondaryTextColor,
+                      ),
                     ),
-                    Expanded(
+                    IntrinsicWidth(
                       child: TextField(
                         controller: _precoController,
                         readOnly: !podeEditar,
                         onTap: podeEditar ? null : _avisarSemPermissao,
-                        textAlign: TextAlign.center,
+                        textAlign: TextAlign.start,
                         keyboardType: TextInputType.number,
-                        style: theme.getTextStyle(fontSize: 11),
+                        style: theme.getTextStyle(
+                          fontSize: 10,
+                          color: theme.secondaryTextColor,
+                        ),
                         decoration: const InputDecoration(
                           isDense: true,
                           contentPadding: EdgeInsets.zero,
                           border: InputBorder.none,
-                          hintText: '00,00',
+                          hintText: '0,00',
                         ),
                         onChanged: widget.onPrecoAlterado,
                       ),
@@ -268,43 +230,137 @@ class _ProdutoLojaRowState extends State<ProdutoLojaRow> {
                   ],
                 ),
               ),
-              const SizedBox(width: 4),
-              GestureDetector(
-                onTap: () => setState(() => _expandido = !_expandido),
-                child: Icon(
-                  _expandido
-                      ? Icons.keyboard_arrow_up
-                      : Icons.keyboard_arrow_down,
-                  size: 20,
-                  color: theme.secondaryTextColor,
+              const SizedBox(width: 3),
+              SizedBox(
+                width: 28,
+                height: 16,
+                child: FittedBox(
+                  fit: BoxFit.fill,
+                  child: ThemedSwitch(
+                    theme: theme,
+                    value: _ativo,
+                    onChanged: podeEditar
+                        ? (valor) => setState(() => _ativo = valor)
+                        : null,
+                  ),
                 ),
               ),
-              const SizedBox(width: 8),
-              GestureDetector(
-                onTapDown: (details) =>
-                    _abrirMenuOpcoes(context, details.globalPosition),
-                child: Icon(
-                  Icons.more_vert,
-                  size: 18,
-                  color: theme.secondaryTextColor,
+              const SizedBox(width: 2),
+              Tooltip(
+                message: _expandido ? 'Recolher' : 'Expandir',
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(4),
+                  onTap: () => setState(() => _expandido = !_expandido),
+                  child: SizedBox(
+                    width: 22,
+                    height: 22,
+                    child: Icon(
+                      _expandido
+                          ? Icons.keyboard_arrow_up
+                          : Icons.keyboard_arrow_down,
+                      size: 20,
+                      color: theme.secondaryTextColor,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 2),
+              PopupMenuButton<String>(
+                tooltip: 'Mais opções',
+                padding: EdgeInsets.zero,
+                color: theme.cardBackgroundColor,
+                onSelected: (valor) {
+                  if (!podeEditar) {
+                    _avisarSemPermissao();
+                    return;
+                  }
+                  if (valor == 'editar') widget.onEditar();
+                  if (valor == 'excluir') widget.onExcluir();
+                },
+                itemBuilder: (context) => [
+                  PopupMenuItem(
+                    value: 'editar',
+                    child: Text('Editar Item', style: theme.getTextStyle()),
+                  ),
+                  PopupMenuItem(
+                    value: 'excluir',
+                    child: Text(
+                      'Excluir Produto',
+                      style: theme.getTextStyle(color: theme.dangerColor),
+                    ),
+                  ),
+                ],
+                child: SizedBox(
+                  width: 20,
+                  height: 22,
+                  child: Icon(
+                    Icons.more_vert,
+                    size: 18,
+                    color: theme.secondaryTextColor,
+                  ),
                 ),
               ),
             ],
           ),
-          if (_expandido && _grupoIds.isNotEmpty) ...[
-            const SizedBox(height: 8),
-            for (final id in _grupoIds) ...[
-              GrupoComponentesContainer(
-                key: ValueKey('grupo_$id'),
-                theme: theme,
-                podeEditar: podeEditar,
-                titulo: _gruposTitulos[id] ??
-                    'Grupo de componentes ${_letraDoGrupo(_grupoIds.indexOf(id))}',
-                onTituloAlterado: (novoTitulo) =>
-                    _renomearGrupo(id, novoTitulo),
-                onExcluir: () => _removerGrupo(id),
-              ),
+          if (_expandido) ...[
+            if (widget.item.descricao.isNotEmpty ||
+                widget.item.variantes.isNotEmpty) ...[
               const SizedBox(height: 6),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    if (widget.item.descricao.isNotEmpty)
+                      Text(
+                        widget.item.descricao,
+                        style: theme.getTextStyle(
+                          fontSize: 11,
+                          color: theme.secondaryTextColor,
+                        ),
+                      ),
+                    if (widget.item.variantes.isNotEmpty) ...[
+                      const SizedBox(height: 4),
+                      Wrap(
+                        spacing: 4,
+                        runSpacing: 4,
+                        children: widget.item.variantes.map((v) {
+                          return Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: theme.borderColor.withValues(alpha: 0.12),
+                              borderRadius: BorderRadius.circular(6),
+                              border: Border.all(
+                                color: theme.borderColor.withValues(alpha: 0.3),
+                              ),
+                            ),
+                            child: Text(
+                              '${v.nome}: R\$ ${v.preco}',
+                              style: theme.getTextStyle(
+                                fontSize: 10,
+                                color: theme.secondaryTextColor,
+                              ),
+                            ),
+                          );
+                        }).toList(),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ] else ...[
+              const SizedBox(height: 4),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                child: Text(
+                  'Nenhuma variante ou descrição para este item.',
+                  style: theme.getTextStyle(
+                    fontSize: 11,
+                    color: theme.secondaryTextColor,
+                  ),
+                ),
+              ),
             ],
           ],
         ],

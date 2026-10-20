@@ -202,7 +202,9 @@ Primeiro item: botão de **Sincronização em Rede Wi-Fi** (abre 4.1). Depois:
 
 ### 6.3 Aba "Loja / Catálogo"
 📄 partes: `categoria_loja_container.dart`, `grupo_componentes_loja_container.dart` (e `grupo_componentes_container.dart`, a confirmar qual está em uso), `produto_loja_row.dart`, `componente_loja_row.dart`, `item_loja_card.dart`, `estoque_container.dart`
-- **Categorias** e **Grupos de Componentes**: lista vertical com barras padronizadas (foto/ícone 32×32 à esquerda, nome com `TextoRolante` alinhado à esquerda com espaço priorizado, interruptor compacto 28×16 e botões de ação e expansão compactados e rentes à direita). **Produtos**: cards (compacto horizontal ou grade em `Wrap` no expandido).
+- **Categorias** e **Grupos de Componentes**: lista vertical com barras padronizadas (foto/ícone 32×32 à esquerda com resolução de imagem local, nome com `TextoRolante` alinhado à esquerda com espaço priorizado, pílula de preço `R$`, interruptor compacto 28×16, chevron e menu de 3 opções).
+- **Barras filhas (Itens/Produtos)** (`ProdutoLojaRow`): seguem a mesma identidade e proporção da barra pai (foto 32×32 do item, nome com `TextoRolante`, pílula arredondada de preço `R$`, switch de ativo/inativo, expansão e menu de 3 pontos com "Editar Item" e "Excluir Produto").
+- **Janela "Editar Item / Novo Item"** (`NovoItemDialog`): campos de seleção ("Categorias do item" e "Grupos de componentes"), resumo da descrição e cálculos de custo/margem usam `TextoRolante` para leitura integral; botões de criação rápida possuem apenas um sinal `+` e lista de seleção múltipla com `TextoRolante` impedindo quebra de linha.
 - **Reordenar**: segurar **1 segundo** em um card/barra e arrastar; ele flutua, abre espaço e encaixa ao soltar (ordem salva na hora). Só quem tem `possoEditarAbaLoja`.
 - **Altura das listas**: no desktop, até ~7–8 barras antes de rolar (altura máx. 440); no celular, 180.
 - **Card de produto** (`ItemLojaCard`): foto, badge de saldo (`Est: X`, com kg/L automáticos) ou **"Esgotado"** em vermelho.

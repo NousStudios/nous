@@ -53,11 +53,10 @@ if (-not (Test-Path "dist")) {
 
 $nomeApk = "Nous_Android_v${versao}_Versao_Teste.apk"
 Copy-Item -Path "build\app\outputs\flutter-apk\app-release.apk" -Destination "dist\$nomeApk" -Force
-Copy-Item -Path "build\app\outputs\flutter-apk\app-release.apk" -Destination "dist\Nous_Android_v1.0.0_Versao_Teste.apk" -Force
 
-# Exclui versões antigas de APK na pasta dist/, mantendo apenas a versão atual e a cópia de compatibilidade v1.0.0
+# Exclui versões antigas de APK na pasta dist/, mantendo apenas a versão atual
 Get-ChildItem -Path "dist" -Filter "Nous_Android_v*.apk" -ErrorAction SilentlyContinue | Where-Object {
-    $_.Name -ne $nomeApk -and $_.Name -ne "Nous_Android_v1.0.0_Versao_Teste.apk"
+    $_.Name -ne $nomeApk
 } | ForEach-Object {
     Write-Host "[*] Removendo versao antiga do APK: $($_.Name)" -ForegroundColor DarkGray
     Remove-Item $_.FullName -Force
@@ -67,5 +66,4 @@ Write-Host ""
 Write-Host "==========================================================" -ForegroundColor Green
 Write-Host " SUCESSO! APK gerado e copiado para a pasta 'dist/':" -ForegroundColor Green
 Write-Host " dist\$nomeApk" -ForegroundColor White
-Write-Host " dist\Nous_Android_v1.0.0_Versao_Teste.apk (compatibilidade)" -ForegroundColor Gray
 Write-Host "==========================================================" -ForegroundColor Green

@@ -272,11 +272,9 @@ class LojasService {
 
     // 7. Mesas da loja
     final mesasConsolidadas = List<MesaLoja>.from(lojaNova.mesas);
-    if (manterItensAusentes) {
-      for (final mLocal in lojaLocal.mesas) {
-        if (!mesasConsolidadas.any((m) => m.id == mLocal.id)) {
-          mesasConsolidadas.add(mLocal);
-        }
+    for (final mLocal in lojaLocal.mesas) {
+      if (!mesasConsolidadas.any((m) => m.id == mLocal.id)) {
+        mesasConsolidadas.add(mLocal);
       }
     }
 

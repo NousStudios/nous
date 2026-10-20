@@ -1453,8 +1453,25 @@ class ServidorRedeLocal {
         }
       }
 
+      // Fallback seguro: se não encontrou com a string exata 'v$versao', seleciona o APK mais recente da pasta dist
+      for (final pasta in pastas) {
+        if (pasta.existsSync()) {
+          final apks = pasta
+              .listSync()
+              .whereType<File>()
+              .where((f) =>
+                  f.path.toLowerCase().endsWith('.apk') &&
+                  f.lengthSync() > 0)
+              .toList();
+          if (apks.isNotEmpty) {
+            apks.sort((a, b) => b.lastModifiedSync().compareTo(a.lastModifiedSync()));
+            return apks.first;
+          }
+        }
+      }
+
       debugPrint(
-        '[ServidorRedeLocal] Nenhum APK correspondente a v$versao encontrado para distribuição.',
+        '[ServidorRedeLocal] Nenhum APK encontrado para distribuição.',
       );
     } catch (e) {
       debugPrint('[ServidorRedeLocal] Erro ao buscar APK: $e');
