@@ -165,7 +165,7 @@ class _CategoriaLojaContainerState extends State<CategoriaLojaContainer> {
     final podeEditar = widget.podeEditar;
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      padding: const EdgeInsets.only(left: 6, right: 2, top: 6, bottom: 6),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(10),
         border: Border.all(color: theme.borderColor.withValues(alpha: 0.6)),
@@ -214,13 +214,13 @@ class _CategoriaLojaContainerState extends State<CategoriaLojaContainer> {
                   }(),
                 ),
               ),
-              const SizedBox(width: 6),
+              const SizedBox(width: 4),
               Expanded(
                 child: _editandoNome
                     ? TextField(
                         focusNode: _nomeFocusNode,
                         controller: _nomeController,
-                        textAlign: TextAlign.center,
+                        textAlign: TextAlign.start,
                         maxLines: 1,
                         style: theme.getTextStyle(
                           fontSize: 13,
@@ -251,12 +251,12 @@ class _CategoriaLojaContainerState extends State<CategoriaLojaContainer> {
                         borderRadius: BorderRadius.circular(4),
                         child: Padding(
                           padding: const EdgeInsets.symmetric(
-                              horizontal: 4, vertical: 4),
+                              horizontal: 2, vertical: 4),
                           child: TextoRolante(
                             texto: widget.nome.trim().isEmpty
                                 ? 'Sem nome'
                                 : widget.nome,
-                            textAlign: TextAlign.center,
+                            textAlign: TextAlign.start,
                             style: theme.getTextStyle(
                               fontSize: 13,
                               fontWeight: FontWeight.w600,
@@ -270,10 +270,10 @@ class _CategoriaLojaContainerState extends State<CategoriaLojaContainer> {
                       ),
               ),
               if (widget.preco.isNotEmpty) ...[
-                const SizedBox(width: 4),
+                const SizedBox(width: 3),
                 Container(
                   padding:
-                      const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
+                      const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(20),
                     border: Border.all(
@@ -288,10 +288,10 @@ class _CategoriaLojaContainerState extends State<CategoriaLojaContainer> {
                   ),
                 ),
               ],
-              const SizedBox(width: 4),
+              const SizedBox(width: 3),
               SizedBox(
-                width: 30,
-                height: 18,
+                width: 28,
+                height: 16,
                 child: FittedBox(
                   fit: BoxFit.fill,
                   child: ThemedSwitch(
@@ -304,32 +304,45 @@ class _CategoriaLojaContainerState extends State<CategoriaLojaContainer> {
                 ),
               ),
               const SizedBox(width: 2),
-              IconButton(
-                padding: EdgeInsets.zero,
-                constraints: const BoxConstraints(minWidth: 26, minHeight: 26),
-                iconSize: 18,
-                tooltip: 'Adicionar item',
-                icon: Icon(Icons.add_circle_outline,
-                    color: theme.secondaryTextColor),
-                onPressed: _abrirSeletorDeItem,
-              ),
-              IconButton(
-                padding: EdgeInsets.zero,
-                constraints: const BoxConstraints(minWidth: 26, minHeight: 26),
-                iconSize: 18,
-                icon: Icon(
-                  widget.expandida
-                      ? Icons.keyboard_arrow_up
-                      : Icons.keyboard_arrow_down,
-                  color: theme.secondaryTextColor,
+              Tooltip(
+                message: 'Adicionar item',
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(4),
+                  onTap: _abrirSeletorDeItem,
+                  child: SizedBox(
+                    width: 22,
+                    height: 22,
+                    child: Icon(
+                      Icons.add_circle_outline,
+                      size: 17,
+                      color: theme.secondaryTextColor,
+                    ),
+                  ),
                 ),
-                onPressed: widget.aoAlternarExpansao,
               ),
+              const SizedBox(width: 2),
+              Tooltip(
+                message: widget.expandida ? 'Recolher' : 'Expandir',
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(4),
+                  onTap: widget.aoAlternarExpansao,
+                  child: SizedBox(
+                    width: 22,
+                    height: 22,
+                    child: Icon(
+                      widget.expandida
+                          ? Icons.keyboard_arrow_up
+                          : Icons.keyboard_arrow_down,
+                      size: 20,
+                      color: theme.secondaryTextColor,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 2),
               PopupMenuButton<String>(
+                tooltip: 'Mais opções',
                 padding: EdgeInsets.zero,
-                constraints: const BoxConstraints(minWidth: 26, minHeight: 26),
-                iconSize: 18,
-                icon: Icon(Icons.more_vert, color: theme.secondaryTextColor),
                 color: theme.cardBackgroundColor,
                 onSelected: (valor) {
                   if (!podeEditar) {
@@ -350,6 +363,15 @@ class _CategoriaLojaContainerState extends State<CategoriaLojaContainer> {
                         style: theme.getTextStyle(color: theme.dangerColor)),
                   ),
                 ],
+                child: SizedBox(
+                  width: 20,
+                  height: 22,
+                  child: Icon(
+                    Icons.more_vert,
+                    size: 18,
+                    color: theme.secondaryTextColor,
+                  ),
+                ),
               ),
             ],
           ),

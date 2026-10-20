@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:nous/src/core/services/player_audio_service.dart';
 import 'package:nous/src/core/widgets/reprodutor_audio_widget.dart';
+import 'package:nous/src/core/widgets/texto_rolante.dart';
 import 'package:nous/src/core/theme/theme_controller.dart';
 import 'package:nous/src/features/pdv/services/imagem_service.dart';
 import 'package:nous/src/features/pdv/views/widgets/galeria_estilo_container.dart';
@@ -393,10 +394,9 @@ class _DetalhesMidiaDialogState extends State<DetalhesMidiaDialog> {
                                     ],
                                   ),
                                   const SizedBox(height: 3),
-                                  Text(
-                                    nomeArquivo,
-                                    maxLines: 2,
-                                    overflow: TextOverflow.ellipsis,
+                                  TextoRolante(
+                                    texto: nomeArquivo,
+                                    textAlign: TextAlign.start,
                                     style: theme.getTextStyle(
                                       fontSize: 15,
                                       fontWeight: FontWeight.w600,

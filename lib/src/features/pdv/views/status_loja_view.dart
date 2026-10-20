@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import 'package:nous/src/core/theme/theme_controller.dart';
 import 'package:nous/src/core/services/janela_windows_service.dart';
 import 'package:nous/src/core/widgets/custom_app_bar.dart';
+import 'package:nous/src/core/widgets/texto_rolante.dart';
 import 'package:nous/src/features/auth/providers/auth_provider.dart';
 import 'package:nous/src/features/pdv/models/membro_loja.dart';
 import 'package:nous/src/features/pdv/models/pedido_loja.dart';
@@ -685,6 +686,7 @@ class _StatusLojaViewState extends State<StatusLojaView> {
                       : Icons.smartphone_rounded;
 
                   return Container(
+                    constraints: const BoxConstraints(maxWidth: 240),
                     padding: const EdgeInsets.symmetric(
                       horizontal: 8,
                       vertical: 3,
@@ -706,11 +708,14 @@ class _StatusLojaViewState extends State<StatusLojaView> {
                           color: theme.textColor,
                         ),
                         const SizedBox(width: 4),
-                        Text(
-                          '${disp.nome}${disp.ip.isNotEmpty && disp.ip != "Local" ? " (${disp.ip})" : ""}',
-                          style: theme.getTextStyle(
-                            fontSize: 10,
-                            color: theme.textColor,
+                        Flexible(
+                          child: TextoRolante(
+                            texto: '${disp.nome}${disp.ip.isNotEmpty && disp.ip != "Local" ? " (${disp.ip})" : ""}',
+                            textAlign: TextAlign.start,
+                            style: theme.getTextStyle(
+                              fontSize: 10,
+                              color: theme.textColor,
+                            ),
                           ),
                         ),
                       ],

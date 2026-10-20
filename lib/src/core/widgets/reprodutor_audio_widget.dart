@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:nous/src/core/services/player_audio_service.dart';
 import 'package:nous/src/core/services/metadados_audio_service.dart';
 import 'package:nous/src/core/theme/theme_controller.dart';
+import 'package:nous/src/core/widgets/texto_rolante.dart';
+import 'package:nous/src/features/pdv/services/imagem_service.dart';
 
 class ReprodutorAudioWidget extends StatefulWidget {
   final AppTheme theme;
@@ -59,7 +61,9 @@ class _ReprodutorAudioWidgetState extends State<ReprodutorAudioWidget> {
   }
 
   void _carregarMetadados() {
-    final meta = MetadadosAudioService.extrair(widget.caminho);
+    final resolvido =
+        ImagemService.resolverCaminhoExistente(widget.caminho) ?? widget.caminho;
+    final meta = MetadadosAudioService.extrair(resolvido);
     setState(() {
       _metadados = meta;
     });
@@ -95,7 +99,11 @@ class _ReprodutorAudioWidgetState extends State<ReprodutorAudioWidget> {
     return ValueListenableBuilder<DadosPlayerAudio>(
       valueListenable: playerService.estadoNotifier,
       builder: (context, estado, child) {
-        final ehEsteArquivo = estado.caminho == widget.caminho;
+        final ehEsteArquivo = playerService.ehMesmoAudio(widget.caminho, estado.caminho) ||
+            playerService.ehMesmoAudio(widget.caminho, estado.caminhoOriginal);
+        final metaExibicao = (ehEsteArquivo && estado.metadados != null)
+            ? estado.metadados!
+            : (_metadados ?? const MetadadosAudio());
         final tocando =
             ehEsteArquivo && estado.estado == EstadoPlayerAudio.reproduzindo;
         final pausado =
@@ -113,23 +121,23 @@ class _ReprodutorAudioWidgetState extends State<ReprodutorAudioWidget> {
             (posicaoAtual.inMilliseconds / duracaoTotal.inMilliseconds)
                 .clamp(0.0, 1.0);
 
-        final tituloExibicao = (_metadados?.titulo != null &&
-                _metadados!.titulo!.trim().isNotEmpty)
-            ? _metadados!.titulo!
+        final tituloExibicao = (metaExibicao.titulo != null &&
+                metaExibicao.titulo!.trim().isNotEmpty)
+            ? metaExibicao.titulo!
             : (widget.tituloPadrao?.isNotEmpty == true
                 ? widget.tituloPadrao!
                 : _extrairNomeArquivo(widget.caminho));
 
-        final subtituloExibicao = (_metadados?.artista != null &&
-                _metadados!.artista!.trim().isNotEmpty)
-            ? _metadados!.artista!
+        final subtituloExibicao = (metaExibicao.artista != null &&
+                metaExibicao.artista!.trim().isNotEmpty)
+            ? metaExibicao.artista!
             : (widget.subtituloPadrao?.isNotEmpty == true
                 ? widget.subtituloPadrao!
-                : (_metadados?.album?.isNotEmpty == true
-                    ? _metadados!.album!
+                : (metaExibicao.album?.isNotEmpty == true
+                    ? metaExibicao.album!
                     : 'Áudio Soberano'));
 
-        final temCapa = _metadados?.temCapa == true;
+        final temCapa = metaExibicao.temCapa;
 
         return ClipRRect(
           borderRadius: BorderRadius.circular(16),
@@ -159,7 +167,7 @@ class _ReprodutorAudioWidgetState extends State<ReprodutorAudioWidget> {
                     child: Opacity(
                       opacity: 0.14,
                       child: Image.memory(
-                        _metadados!.capaBytes!,
+                        metaExibicao.capaBytes!,
                         fit: BoxFit.cover,
                       ),
                     ),
@@ -197,7 +205,7 @@ class _ReprodutorAudioWidgetState extends State<ReprodutorAudioWidget> {
                             clipBehavior: Clip.antiAlias,
                             child: temCapa
                                 ? Image.memory(
-                                    _metadados!.capaBytes!,
+                                    metaExibicao.capaBytes!,
                                     fit: BoxFit.cover,
                                   )
                                 : Icon(
@@ -240,10 +248,9 @@ class _ReprodutorAudioWidgetState extends State<ReprodutorAudioWidget> {
                                       ),
                                     ],
                                     Expanded(
-                                      child: Text(
-                                        tituloExibicao,
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
+                                      child: TextoRolante(
+                                        texto: tituloExibicao,
+                                        textAlign: TextAlign.start,
                                         style: theme.getTextStyle(
                                           fontSize: 14,
                                           fontWeight: FontWeight.bold,
@@ -254,10 +261,9 @@ class _ReprodutorAudioWidgetState extends State<ReprodutorAudioWidget> {
                                   ],
                                 ),
                                 const SizedBox(height: 3),
-                                Text(
-                                  subtituloExibicao,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
+                                TextoRolante(
+                                  texto: subtituloExibicao,
+                                  textAlign: TextAlign.start,
                                   style: theme.getTextStyle(
                                     fontSize: 12,
                                     color: theme.secondaryTextColor,
@@ -340,12 +346,90 @@ class _ReprodutorAudioWidgetState extends State<ReprodutorAudioWidget> {
                       ),
                       const SizedBox(height: 10),
 
-                      // Controles Principais e Controle de Volume
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          // Controle de Volume Deslizante
-                          Row(
+                      // Controles Principais e Volume com adaptação responsiva para celular
+                      LayoutBuilder(
+                        builder: (context, constraints) {
+                          final bool compacto = constraints.maxWidth < 400;
+
+                          final controlesPrincipais = Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            mainAxisSize: compacto ? MainAxisSize.max : MainAxisSize.min,
+                            children: [
+                              if (widget.onAnterior != null)
+                                IconButton(
+                                  tooltip: 'Faixa anterior',
+                                  icon: Icon(
+                                    Icons.skip_previous_rounded,
+                                    size: 22,
+                                    color: theme.textColor,
+                                  ),
+                                  onPressed: widget.onAnterior,
+                                ),
+                              IconButton(
+                                tooltip: 'Voltar 10s',
+                                icon: Icon(
+                                  Icons.replay_10_rounded,
+                                  size: 19,
+                                  color: theme.textColor,
+                                ),
+                                onPressed: () =>
+                                    playerService.retrocederSegundos(10),
+                              ),
+                              const SizedBox(width: 4),
+                              ElevatedButton(
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: theme.buttonColor,
+                                  foregroundColor: theme.buttonTextColor,
+                                  shape: const CircleBorder(),
+                                  padding: const EdgeInsets.all(12),
+                                  elevation: 2,
+                                ),
+                                onPressed: () => playerService
+                                    .alternarPlayPause(widget.caminho),
+                                child: Icon(
+                                  tocando
+                                      ? Icons.pause_rounded
+                                      : Icons.play_arrow_rounded,
+                                  size: 26,
+                                  color: theme.buttonTextColor,
+                                ),
+                              ),
+                              const SizedBox(width: 4),
+                              IconButton(
+                                tooltip: 'Avançar 10s',
+                                icon: Icon(
+                                  Icons.forward_10_rounded,
+                                  size: 19,
+                                  color: theme.textColor,
+                                ),
+                                onPressed: () =>
+                                    playerService.avancarSegundos(10),
+                              ),
+                              if (widget.onProximo != null)
+                                IconButton(
+                                  tooltip: 'Próxima faixa',
+                                  icon: Icon(
+                                    Icons.skip_next_rounded,
+                                    size: 22,
+                                    color: theme.textColor,
+                                  ),
+                                  onPressed: widget.onProximo,
+                                ),
+                              if (tocando || pausado) ...[
+                                IconButton(
+                                  tooltip: 'Parar',
+                                  icon: Icon(
+                                    Icons.stop_rounded,
+                                    size: 20,
+                                    color: theme.secondaryTextColor,
+                                  ),
+                                  onPressed: () => playerService.parar(),
+                                ),
+                              ],
+                            ],
+                          );
+
+                          final widgetVolume = Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
                               IconButton(
@@ -366,23 +450,20 @@ class _ReprodutorAudioWidgetState extends State<ReprodutorAudioWidget> {
                                     _volumeAnterior = estado.volume;
                                     playerService.definirVolume(0.0);
                                   } else {
-                                    playerService.definirVolume(_volumeAnterior > 0
-                                        ? _volumeAnterior
-                                        : 1.0);
+                                    playerService.definirVolume(
+                                        _volumeAnterior > 0 ? _volumeAnterior : 1.0);
                                   }
                                 },
                               ),
                               SizedBox(
-                                width: 75,
+                                width: compacto ? 90 : 75,
                                 child: SliderTheme(
                                   data: SliderTheme.of(context).copyWith(
                                     trackHeight: 3,
-                                    thumbShape:
-                                        const RoundSliderThumbShape(
+                                    thumbShape: const RoundSliderThumbShape(
                                       enabledThumbRadius: 4,
                                     ),
-                                    overlayShape:
-                                        const RoundSliderOverlayShape(
+                                    overlayShape: const RoundSliderOverlayShape(
                                       overlayRadius: 8,
                                     ),
                                     activeTrackColor: theme.textColor,
@@ -398,91 +479,49 @@ class _ReprodutorAudioWidgetState extends State<ReprodutorAudioWidget> {
                                 ),
                               ),
                             ],
-                          ),
+                          );
 
-                          // Controles Centrais: Anterior, -10s, Play/Pause, +10s, Próxima, Stop
-                          Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              IconButton(
-                                tooltip: 'Faixa anterior',
-                                icon: Icon(
-                                  Icons.skip_previous_rounded,
-                                  size: 22,
-                                  color: widget.onAnterior != null
-                                      ? theme.textColor
-                                      : theme.secondaryTextColor
-                                          .withValues(alpha: 0.3),
-                                ),
-                                onPressed: widget.onAnterior,
-                              ),
-                              IconButton(
-                                tooltip: 'Voltar 10s',
-                                icon: Icon(
-                                  Icons.replay_10_rounded,
-                                  size: 19,
-                                  color: theme.textColor,
-                                ),
-                                onPressed: () =>
-                                    playerService.retrocederSegundos(10),
-                              ),
-                              const SizedBox(width: 2),
-                              ElevatedButton(
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: theme.buttonColor,
-                                  foregroundColor: theme.buttonTextColor,
-                                  shape: const CircleBorder(),
-                                  padding: const EdgeInsets.all(12),
-                                  elevation: 2,
-                                ),
-                                onPressed: () => playerService
-                                    .alternarPlayPause(widget.caminho),
-                                child: Icon(
-                                  tocando
-                                      ? Icons.pause_rounded
-                                      : Icons.play_arrow_rounded,
-                                  size: 26,
-                                  color: theme.buttonTextColor,
-                                ),
-                              ),
-                              const SizedBox(width: 2),
-                              IconButton(
-                                tooltip: 'Avançar 10s',
-                                icon: Icon(
-                                  Icons.forward_10_rounded,
-                                  size: 19,
-                                  color: theme.textColor,
-                                ),
-                                onPressed: () =>
-                                    playerService.avancarSegundos(10),
-                              ),
-                              IconButton(
-                                tooltip: 'Próxima faixa',
-                                icon: Icon(
-                                  Icons.skip_next_rounded,
-                                  size: 22,
-                                  color: widget.onProximo != null
-                                      ? theme.textColor
-                                      : theme.secondaryTextColor
-                                          .withValues(alpha: 0.3),
-                                ),
-                                onPressed: widget.onProximo,
-                              ),
-                              if (tocando || pausado) ...[
-                                const SizedBox(width: 2),
-                                IconButton(
-                                  tooltip: 'Parar',
-                                  icon: Icon(
-                                    Icons.stop_rounded,
-                                    size: 20,
-                                    color: theme.secondaryTextColor,
+                          if (compacto) {
+                            return Column(
+                              children: [
+                                controlesPrincipais,
+                                const SizedBox(height: 6),
+                                Padding(
+                                  padding: const EdgeInsets.symmetric(horizontal: 4),
+                                  child: Row(
+                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                    children: [
+                                      widgetVolume,
+                                      IconButton(
+                                        tooltip: estado.loop
+                                            ? 'Repetição Ativada'
+                                            : 'Repetir Música',
+                                        icon: Icon(
+                                          Icons.repeat_rounded,
+                                          size: 19,
+                                          color: estado.loop
+                                              ? theme.buttonColor
+                                              : theme.secondaryTextColor
+                                                  .withValues(alpha: 0.6),
+                                        ),
+                                        onPressed: () =>
+                                            playerService.alternarLoop(),
+                                      ),
+                                    ],
                                   ),
-                                  onPressed: () => playerService.parar(),
                                 ),
                               ],
+                            );
+                          }
+
+                          return Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              widgetVolume,
+                              controlesPrincipais,
                             ],
-                          ),
-                        ],
+                          );
+                        },
                       ),
                     ],
                   ),

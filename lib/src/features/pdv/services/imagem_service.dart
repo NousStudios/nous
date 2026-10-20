@@ -10,13 +10,19 @@ class ImagemService {
   static const int limiteBytesMeioGiga = 500 * 1024 * 1024; // 500 MB (Meio giga)
   static const Set<String> extensoesImagem = {'jpg', 'jpeg', 'png', 'webp', 'gif', 'bmp'};
 
+  static Directory? _diretorioBaseCache;
+
   static Future<Directory> obterDiretorioBase() async {
+    if (_diretorioBaseCache != null && await _diretorioBaseCache!.exists()) {
+      return _diretorioBaseCache!;
+    }
     try {
       final dirSuporte = await getApplicationSupportDirectory();
       final pasta = Directory('${dirSuporte.path}/Nous');
       if (!await pasta.exists()) {
         await pasta.create(recursive: true);
       }
+      _diretorioBaseCache = pasta;
       return pasta;
     } catch (_) {
       String caminhoBase;
@@ -36,41 +42,56 @@ class ImagemService {
       if (!await dir.exists()) {
         await dir.create(recursive: true);
       }
+      _diretorioBaseCache = dir;
       return dir;
     }
   }
 
-  /// Retorna todas as pastas possíveis onde imagens do aplicativo podem estar salvas
+  /// Retorna todas as pastas possíveis onde imagens e anexos do aplicativo podem estar salvos
   /// (diretório atual oficial, diretórios legados do Windows e diretórios alternativos).
   static List<Directory> obterDiretoriosPossiveisSync() {
     final dirs = <Directory>[];
+
+    void adicionarComSubpastas(String base) {
+      dirs.add(Directory('$base/imagens'));
+      dirs.add(Directory('$base/audios'));
+      dirs.add(Directory('$base/anexos/musicas'));
+      dirs.add(Directory('$base/anexos/arquivosAudio'));
+      dirs.add(Directory('$base/anexos/galeria'));
+      dirs.add(Directory('$base/anexos/videos'));
+      dirs.add(Directory('$base/anexos/arquivos'));
+    }
+
+    if (_diretorioBaseCache != null) {
+      adicionarComSubpastas(_diretorioBaseCache!.path);
+    }
 
     // 1. Tenta diretórios padrão do ambiente no Windows
     if (Platform.isWindows) {
       final appData = Platform.environment['APPDATA'];
       if (appData != null && appData.isNotEmpty) {
-        dirs.add(Directory('$appData/com.example/nous/Nous/imagens'));
-        dirs.add(Directory('$appData/com.nous.app/Nous/imagens'));
-        dirs.add(Directory('$appData/Nous/imagens'));
+        adicionarComSubpastas('$appData/com.example/nous/Nous');
+        adicionarComSubpastas('$appData/com.nous.app/Nous');
+        adicionarComSubpastas('$appData/Nous');
       }
       final localAppData = Platform.environment['LOCALAPPDATA'];
       if (localAppData != null && localAppData.isNotEmpty) {
-        dirs.add(Directory('$localAppData/com.example/nous/Nous/imagens'));
-        dirs.add(Directory('$localAppData/Nous/imagens'));
+        adicionarComSubpastas('$localAppData/com.example/nous/Nous');
+        adicionarComSubpastas('$localAppData/Nous');
       }
     } else {
       final home = Platform.environment['HOME'];
       if (home != null && home.isNotEmpty) {
-        dirs.add(Directory('$home/.nous/imagens'));
+        adicionarComSubpastas('$home/.nous');
       }
     }
 
-    dirs.add(Directory('${Directory.current.path}/.nous_data/imagens'));
+    adicionarComSubpastas('${Directory.current.path}/.nous_data');
     return dirs;
   }
 
-  /// Resolve o caminho físico real de uma imagem, mesmo que tenha sido salva
-  /// em diretório legado, em outra máquina com caminho diferente ou restaurada de backup.
+  /// Resolve o caminho físico real de uma imagem ou anexo, mesmo que tenha sido salvo
+  /// em diretório legado, em outra máquina com caminho diferente ou restaurado de backup.
   static String? resolverCaminhoExistente(String? caminhoOriginal) {
     if (caminhoOriginal == null || caminhoOriginal.trim().isEmpty) return null;
     final limpo = caminhoOriginal.trim();
@@ -110,7 +131,7 @@ class ImagemService {
     return null;
   }
 
-  /// Retorna true se a imagem existe fisicamente em disco (no caminho direto ou em pasta do Nous)
+  /// Retorna true se a imagem ou anexo existe fisicamente em disco (no caminho direto ou em pasta do Nous)
   static bool existe(String? caminho) => resolverCaminhoExistente(caminho) != null;
 
   /// Retorna o File real caso a imagem exista fisicamente em disco
@@ -241,6 +262,31 @@ class ImagemService {
       final destino = File('${pasta.path}/$novoNome');
 
       await arquivoOriginal.copy(destino.path);
+      return destino.path;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  static Future<String?> salvarBytesAnexoLocal(
+    List<int> bytes, {
+    required String categoria,
+    String? nomeSugerido,
+  }) async {
+    try {
+      if (bytes.isEmpty || bytes.length > limiteBytesMeioGiga) return null;
+      final base = await obterDiretorioBase();
+      final pasta = Directory('${base.path}/anexos/$categoria');
+      if (!await pasta.exists()) {
+        await pasta.create(recursive: true);
+      }
+
+      final nomeFinal = nomeSugerido != null && nomeSugerido.trim().isNotEmpty
+          ? nomeSugerido.trim()
+          : '${gerarIdUnico()}_anexo';
+      final destino = File('${pasta.path}/$nomeFinal');
+
+      await destino.writeAsBytes(bytes);
       return destino.path;
     } catch (_) {
       return null;

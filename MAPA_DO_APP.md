@@ -145,13 +145,13 @@ Quatro abas (`AbaLoja`): **Dados**, **Ajustes do Perfil**, **Loja / Catálogo** 
 **Layout compacto (celular, ou desktop em modo compacto)**: as abas ficam numa navegação inferior/superior, coluna única.
 **Layout desktop expandido**: aparece a **barra lateral fixa** à esquerda (6.0) e as janelas ficam mais largas, em duas colunas.
 
-Esta tela atualiza **em tempo real** quando muda algo no balcão ou em outro celular: pedidos, estoque, produtos, categorias, grupos, clientes, fornecedores, mesas, membros, papéis e status Aberta/Fechada.
+Esta tela atualiza **em tempo real** quando muda algo no balcão ou em outro celular: pedidos, estoque, produtos, categorias, grupos, clientes, fornecedores, mesas, membros, papéis, anexos (músicas, galeria, vídeos, arquivos), dados cadastrais e status Aberta/Fechada.
 
 ### 6.0 Barra lateral (só no desktop expandido)
 📄 `pdv/views/widgets/desktop_sidebar_widget.dart`
 - Topo: **logo da loja**, nome e indicador de caixa **aberto/fechado**.
 - Ordem dos módulos: **1. Dados da Loja → 2. Ajustes do Perfil → 3. Loja / Catálogo → 4. Gestão de Pedidos**.
-- **Comandos rápidos**: Nova Venda, Clientes, Impressora, Relatórios, Caixa, Financeiro, Mensagens, Status da Loja, **Modo Balcão** (abaixo de Status da Loja).
+- Comandos rápidos: Nova Venda, Clientes, Impressora, Relatórios, Caixa, Financeiro, Mensagens, Status da Loja, **Modo Balcão** (abaixo de Status da Loja).
   - Cada botão mostra um selo com a tecla configurada (ex.: `F1`). Se a função está **Desativada**, mostra só um quadradinho vazio (22×18 px), para manter o alinhamento.
   - Clicar com o mouse sempre executa a ação, tenha ou não tecla.
 - Quando esta barra está ativa, os botões de ação do topo da Gestão ficam **ocultos** (seriam repetidos). No layout compacto eles aparecem.
@@ -177,7 +177,7 @@ Containers, de cima para baixo:
 5. **Galeria / Anexos** 📄 `pdv/views/widgets/galeria_estilo_container.dart` · pasta `pdv/views/widgets/midia/`
    - Cards de 156×126 px com prévia por tipo: áudio com capa de álbum (ou gradiente com selo `.MP3`), imagem, vídeo, documento (selo `PDF`/`DOCX` e tamanho).
    - **Imagem**: abre `VisualizadorGaleriaDialog` em tela cheia, com zoom, setas (tela e teclado ← →), contador e legenda.
-   - **Áudio, vídeo, documento**: abre `DetalhesMidiaDialog` com contador `X / Total`, setas laterais, teclado ← → e **autoplay** da próxima faixa (se não estiver em loop).
+   - **Áudio, vídeo, documento**: abre `DetalhesMidiaDialog` com contador `X / Total`, setas laterais, teclado ← → e **autoplay** da próxima faixa (se não estiver em loop). No celular conectado ao balcão, áudios e músicas são baixados automaticamente via rede local e reproduzidos normalmente.
    - **Legendas**: editáveis a qualquer momento (`editar_descricao_dialog.dart`), salvas em `Loja.descricoesAnexos`.
    - Remover foto/anexo pelo "X" pede confirmação ("Tem certeza de que deseja retirar esta imagem?").
    - Recortar foto: `AjustarImagemDialog` (zoom, +/−/reset, salva PNG).
@@ -189,7 +189,7 @@ Containers, de cima para baixo:
 Primeiro item: botão de **Sincronização em Rede Wi-Fi** (abre 4.1). Depois:
 1. **Modo de Visualização e Layout do PDV** 📄 `pdv/views/widgets/seletor_layouts_desktop_widget.dart`
    - **Desktop**: alterna entre **Layout Desktop PDV Expandido** (barra lateral + colunas duplas) e **Layout Compacto Padrão**. É preferência da máquina, sempre disponível, sem exigir ser dono.
-   - **Celular**: mostra só um card informando que o modo compacto está ativo, sem opção de mudar.
+   - **Celular**: ocultado no celular em modo compacto sem teclado físico conectado; se houver teclado físico ou no desktop, o container fica visível.
    - Não mexe na tela cheia (F11).
 2. **Comandos** (atalhos de teclado)
    - Duas colunas lado a lado: **F1–F6** e **F7–F12**. No celular, 1 coluna.
@@ -202,7 +202,7 @@ Primeiro item: botão de **Sincronização em Rede Wi-Fi** (abre 4.1). Depois:
 
 ### 6.3 Aba "Loja / Catálogo"
 📄 partes: `categoria_loja_container.dart`, `grupo_componentes_loja_container.dart` (e `grupo_componentes_container.dart`, a confirmar qual está em uso), `produto_loja_row.dart`, `componente_loja_row.dart`, `item_loja_card.dart`, `estoque_container.dart`
-- **Categorias**: lista vertical. **Grupos de Componentes**: lista vertical. **Produtos**: cards (compacto horizontal ou grade em `Wrap` no expandido).
+- **Categorias** e **Grupos de Componentes**: lista vertical com barras padronizadas (foto/ícone 32×32 à esquerda, nome com `TextoRolante` alinhado à esquerda com espaço priorizado, interruptor compacto 28×16 e botões de ação e expansão compactados e rentes à direita). **Produtos**: cards (compacto horizontal ou grade em `Wrap` no expandido).
 - **Reordenar**: segurar **1 segundo** em um card/barra e arrastar; ele flutua, abre espaço e encaixa ao soltar (ordem salva na hora). Só quem tem `possoEditarAbaLoja`.
 - **Altura das listas**: no desktop, até ~7–8 barras antes de rolar (altura máx. 440); no celular, 180.
 - **Card de produto** (`ItemLojaCard`): foto, badge de saldo (`Est: X`, com kg/L automáticos) ou **"Esgotado"** em vermelho.

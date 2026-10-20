@@ -74,12 +74,13 @@ No primeiro `GET /api/loja` de um terminal novo, o servidor mostra janela modal 
 
 ## 7. Imagens e áudio
 
-- **Download soberano:** o celular baixa a mídia ausente (`GET /api/imagem`) para o armazenamento interno (`ImagemService.obterDiretorioBase()`) e reescreve os caminhos no SQLite local, funcionando offline depois.
+- **Download soberano:** o celular baixa a mídia ausente (`GET /api/imagem` e `GET /api/audio`) para o armazenamento interno (`ImagemService.obterDiretorioBase()`) e reescreve os caminhos no SQLite local, funcionando offline depois. O endpoint `/api/audio` resolve tanto arquivos de música quanto anexos de áudio via `ImagemService.resolverCaminhoExistente`.
+- **Upload de anexos (`POST /api/upload_anexo`):** o celular transmite binários de músicas, áudios e arquivos salvos localmente para as pastas equivalentes no servidor do balcão (`anexos/<subpasta>`).
 - **Cache determinístico:** arquivo nomeado `remota_${caminhoLimpo.hashCode.abs()}.$ext`; se já existe íntegro, resolve instantaneamente (sem requisições nem escritas repetidas). Áudio: `${dirBase}/audios/remoto_audio_${hash}.mp3`.
-- **Gravação atômica:** leitura do stream agregada com `writeAsBytes` (evita fechar sink duas vezes e quedas cíclicas do WebSocket).
-- **Blindagem contra sobrescrita (`LojasService.consolidarLojaComImagensLocais`):** toda atualização de loja (`salvarLojaIndividual`, `adicionarOuAtualizarLoja`, `/api/loja/atualizar`, `/api/sincronizar_perfis_usuario`, `loja_atualizada`) passa por ela. Se a loja remota traz caminhos inexistentes localmente (ex.: `/data/user/0/...` no Windows) mas o cofre local tem fotos válidas, as locais são preservadas.
+- **Gravação atômica:** leitura do stream agregada ou pipe protegido (evita arquivos corrompidos de 0 bytes).
+- **Blindagem contra sobrescrita (`LojasService.consolidarLojaComImagensLocais`):** toda atualização de loja passa por ela. Se a loja remota traz caminhos inexistentes localmente mas o cofre local tem fotos válidas, as locais são preservadas. Quando a atualização vem intencionalmente do usuário ou terminal móvel (`manterItensAusentes: false`), itens, categorias e registros excluídos não são ressuscitados indevidamente.
 - **Autocura na inicialização (`LojasService.autocuraImagensDeLojas`, em `main.dart`):** recupera caminhos inválidos a partir dos arquivos reais e de `Nous/backups/*.json`. Também `ImagemService.unificarDiretoriosImagens()` consolida pastas legadas.
-- **Áudio:** `PlayerAudioService` baixa sob demanda a música ausente (se a rede estiver ativa) antes de tocar.
+- **Áudio:** `PlayerAudioService` resolve o caminho localmente em cache de subpastas ou baixa sob demanda via `ClienteRedeLocal.baixarAudioRemoto` antes de iniciar a reprodução. O reprodutor compara nomes de arquivos (`ehMesmoAudio`) para parear o arquivo remoto ao cache local no Android.
 
 ## 8. Proteções
 

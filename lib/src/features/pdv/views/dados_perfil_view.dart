@@ -3170,6 +3170,13 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
 
     final logoMudou = lojaAtual.logo.isNotEmpty && _logo != lojaAtual.logo;
     final onlineMudou = lojaAtual.aberta != _lojaOnline;
+    final galeriaMudou = !listEquals(_galeria, lojaAtual.galeria);
+    final musicasMudaram = !listEquals(_musicas, lojaAtual.musicas);
+    final arquivosAudioMudaram = !listEquals(_arquivosAudio, lojaAtual.arquivosAudio);
+    final videosMudaram = !listEquals(_videos, lojaAtual.videos);
+    final arquivosMudaram = !listEquals(_arquivos, lojaAtual.arquivos);
+    final descricoesMudaram = !mapEquals(_descricoesAnexos, lojaAtual.descricoesAnexos);
+    final tempoConclusaoMudou = _tempoConclusaoMinutos != lojaAtual.tempoConclusaoMinutos;
 
     if (movsMudaram ||
         pedidosMudaram ||
@@ -3181,13 +3188,80 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
         clientesMudaram ||
         fornecedoresMudaram ||
         logoMudou ||
-        onlineMudou) {
+        onlineMudou ||
+        galeriaMudou ||
+        musicasMudaram ||
+        arquivosAudioMudaram ||
+        videosMudaram ||
+        arquivosMudaram ||
+        descricoesMudaram ||
+        tempoConclusaoMudou) {
       setState(() {
         if (onlineMudou) {
           _lojaOnline = lojaAtual.aberta;
         }
         if (logoMudou) {
           _logo = lojaAtual.logo;
+        }
+        if (galeriaMudou) {
+          _galeria
+            ..clear()
+            ..addAll(lojaAtual.galeria);
+        }
+        if (musicasMudaram) {
+          _musicas
+            ..clear()
+            ..addAll(lojaAtual.musicas);
+        }
+        if (arquivosAudioMudaram) {
+          _arquivosAudio
+            ..clear()
+            ..addAll(lojaAtual.arquivosAudio);
+        }
+        if (videosMudaram) {
+          _videos
+            ..clear()
+            ..addAll(lojaAtual.videos);
+        }
+        if (arquivosMudaram) {
+          _arquivos
+            ..clear()
+            ..addAll(lojaAtual.arquivos);
+        }
+        if (descricoesMudaram) {
+          _descricoesAnexos
+            ..clear()
+            ..addAll(lojaAtual.descricoesAnexos);
+        }
+        if (tempoConclusaoMudou) {
+          _tempoConclusaoMinutos = lojaAtual.tempoConclusaoMinutos;
+        }
+        if (_controllers.nome.text != lojaAtual.nome) {
+          _controllers.nome.text = lojaAtual.nome;
+        }
+        if (_controllers.cnpj.text != lojaAtual.cnpj) {
+          _controllers.cnpj.text = lojaAtual.cnpj;
+        }
+        if (_controllers.telefone.text != lojaAtual.telefone) {
+          _controllers.telefone.text = lojaAtual.telefone;
+        }
+        if (_controllers.endereco.text != lojaAtual.endereco) {
+          _controllers.endereco.text = lojaAtual.endereco;
+        }
+        if (_controllers.numero.text != lojaAtual.numero) {
+          _controllers.numero.text = lojaAtual.numero;
+        }
+        if (_controllers.email.text != lojaAtual.email) {
+          _controllers.email.text = lojaAtual.email;
+        }
+        if (_controllers.redesSociais.text != lojaAtual.redesSociais) {
+          _controllers.redesSociais.text = lojaAtual.redesSociais;
+        }
+        if (_controllers.categorias.text != lojaAtual.categorias) {
+          _controllers.categorias.text = lojaAtual.categorias;
+        }
+        if (_controllers.tags.text != lojaAtual.tags) {
+          _controllers.tags.text = lojaAtual.tags;
         }
         if (movsMudaram) {
           _movimentosEstoque
@@ -5686,6 +5760,7 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
         final possoResetar = pdv.possoResetarTransacoes(widget.lojaId);
         final bool ehMobile = Platform.isAndroid || Platform.isIOS;
         final bool podeMostrarComandos = (!ehMobile) || _tecladoFisicoDetectado;
+        final bool podeMostrarModoLayout = (!ehMobile) || _tecladoFisicoDetectado;
 
         if (expandido && larguraDaTela > 850) {
           return Column(
@@ -5698,8 +5773,10 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
                     child: Column(
                       children: [
                         _buildContainerSincronizacaoRede(theme),
-                        const SizedBox(height: 16),
-                        _buildContainerModoLayout(theme, possoEditarDados),
+                        if (podeMostrarModoLayout) ...[
+                          const SizedBox(height: 16),
+                          _buildContainerModoLayout(theme, possoEditarDados),
+                        ],
                         if (podeMostrarComandos) ...[
                           const SizedBox(height: 16),
                           _buildContainerComandos(theme, possoEditarDados),
@@ -5729,8 +5806,10 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
           children: [
             ?avisoSomenteLeitura,
             _buildContainerSincronizacaoRede(theme),
-            const SizedBox(height: 16),
-            _buildContainerModoLayout(theme, possoEditarDados),
+            if (podeMostrarModoLayout) ...[
+              const SizedBox(height: 16),
+              _buildContainerModoLayout(theme, possoEditarDados),
+            ],
             if (podeMostrarComandos) ...[
               const SizedBox(height: 16),
               _buildContainerComandos(theme, possoEditarDados),

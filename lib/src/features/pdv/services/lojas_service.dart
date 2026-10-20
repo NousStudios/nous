@@ -57,6 +57,22 @@ class LojasService {
       return ImagemService.resolverCaminhoExistente(g) ?? g;
     }).toList();
 
+    final novasMusicas = loja.musicas.map((m) {
+      return ImagemService.resolverCaminhoExistente(m) ?? m;
+    }).toList();
+
+    final novosAudios = loja.arquivosAudio.map((a) {
+      return ImagemService.resolverCaminhoExistente(a) ?? a;
+    }).toList();
+
+    final novosVideos = loja.videos.map((v) {
+      return ImagemService.resolverCaminhoExistente(v) ?? v;
+    }).toList();
+
+    final novosArquivos = loja.arquivos.map((arq) {
+      return ImagemService.resolverCaminhoExistente(arq) ?? arq;
+    }).toList();
+
     return loja.copyWith(
       logo: logoFinal,
       categoriasLoja: novasCategorias,
@@ -64,12 +80,20 @@ class LojasService {
       clientesLoja: novosClientes,
       fornecedoresLoja: novosFornecedores,
       galeria: novaGaleria,
+      musicas: novasMusicas,
+      arquivosAudio: novosAudios,
+      videos: novosVideos,
+      arquivos: novosArquivos,
     );
   }
 
   /// Consolida uma loja recebida (remota ou nova) com a loja local já existente,
   /// garantindo proteção absoluta contra perda de imagens físicas válidas locais.
-  static Loja consolidarLojaComImagensLocais(Loja lojaNova, Loja? lojaLocal) {
+  static Loja consolidarLojaComImagensLocais(
+    Loja lojaNova,
+    Loja? lojaLocal, {
+    bool manterItensAusentes = false,
+  }) {
     if (lojaLocal == null) {
       return sanitizarCaminhosImagens(lojaNova);
     }
@@ -107,9 +131,11 @@ class LojasService {
 
       categoriasConsolidadas.add(catNova.copyWith(foto: fotoFinal));
     }
-    for (final cLocal in lojaLocal.categoriasLoja) {
-      if (!categoriasConsolidadas.any((c) => c.id == cLocal.id)) {
-        categoriasConsolidadas.add(cLocal);
+    if (manterItensAusentes) {
+      for (final cLocal in lojaLocal.categoriasLoja) {
+        if (!categoriasConsolidadas.any((c) => c.id == cLocal.id)) {
+          categoriasConsolidadas.add(cLocal);
+        }
       }
     }
 
@@ -147,9 +173,11 @@ class LojasService {
         imagens: novasImagens.isNotEmpty ? novasImagens : itemNovo.imagens,
       ));
     }
-    for (final iLocal in lojaLocal.itensLoja) {
-      if (!itensConsolidados.any((i) => i.id == iLocal.id)) {
-        itensConsolidados.add(iLocal);
+    if (manterItensAusentes) {
+      for (final iLocal in lojaLocal.itensLoja) {
+        if (!itensConsolidados.any((i) => i.id == iLocal.id)) {
+          itensConsolidados.add(iLocal);
+        }
       }
     }
 
@@ -176,9 +204,11 @@ class LojasService {
 
       clientesConsolidados.add(cliNovo.copyWith(foto: fotoFinal));
     }
-    for (final cLocal in lojaLocal.clientesLoja) {
-      if (!clientesConsolidados.any((c) => c.id == cLocal.id)) {
-        clientesConsolidados.add(cLocal);
+    if (manterItensAusentes) {
+      for (final cLocal in lojaLocal.clientesLoja) {
+        if (!clientesConsolidados.any((c) => c.id == cLocal.id)) {
+          clientesConsolidados.add(cLocal);
+        }
       }
     }
 
@@ -205,9 +235,11 @@ class LojasService {
 
       fornecedoresConsolidados.add(fornNovo.copyWith(foto: fotoFinal));
     }
-    for (final fLocal in lojaLocal.fornecedoresLoja) {
-      if (!fornecedoresConsolidados.any((f) => f.id == fLocal.id)) {
-        fornecedoresConsolidados.add(fLocal);
+    if (manterItensAusentes) {
+      for (final fLocal in lojaLocal.fornecedoresLoja) {
+        if (!fornecedoresConsolidados.any((f) => f.id == fLocal.id)) {
+          fornecedoresConsolidados.add(fLocal);
+        }
       }
     }
 
@@ -217,9 +249,19 @@ class LojasService {
       final gResolvido = ImagemService.resolverCaminhoExistente(g);
       if (gResolvido != null) {
         galeriaConsolidada.add(gResolvido);
+      } else {
+        final baseNovo = p.basename(g);
+        String? localEncontrado;
+        for (final gLocal in lojaLocal.galeria) {
+          if (p.basename(gLocal) == baseNovo && ImagemService.existe(gLocal)) {
+            localEncontrado = ImagemService.resolverCaminhoExistente(gLocal);
+            break;
+          }
+        }
+        galeriaConsolidada.add(localEncontrado ?? g);
       }
     }
-    if (galeriaConsolidada.isEmpty && lojaLocal.galeria.isNotEmpty) {
+    if (manterItensAusentes && galeriaConsolidada.isEmpty && lojaLocal.galeria.isNotEmpty) {
       for (final g in lojaLocal.galeria) {
         final gResolvido = ImagemService.resolverCaminhoExistente(g);
         if (gResolvido != null) {
@@ -230,13 +272,42 @@ class LojasService {
 
     // 7. Mesas da loja
     final mesasConsolidadas = List<MesaLoja>.from(lojaNova.mesas);
-    for (final mLocal in lojaLocal.mesas) {
-      if (!mesasConsolidadas.any((m) => m.id == mLocal.id)) {
-        mesasConsolidadas.add(mLocal);
+    if (manterItensAusentes) {
+      for (final mLocal in lojaLocal.mesas) {
+        if (!mesasConsolidadas.any((m) => m.id == mLocal.id)) {
+          mesasConsolidadas.add(mLocal);
+        }
       }
     }
 
-    // 8. Histórico de Ações (Auditoria)
+    // 8. Anexos (Músicas, Áudios, Vídeos, Arquivos)
+    List<String> consolidarAnexos(List<String> novaLista, List<String> localLista) {
+      final resultado = <String>[];
+      for (final itemNovo in novaLista) {
+        final resolvido = ImagemService.resolverCaminhoExistente(itemNovo);
+        if (resolvido != null && File(resolvido).existsSync()) {
+          resultado.add(resolvido);
+        } else {
+          final baseNovo = p.basename(itemNovo);
+          String? localEncontrado;
+          for (final itemLocal in localLista) {
+            if (p.basename(itemLocal) == baseNovo && File(itemLocal).existsSync()) {
+              localEncontrado = itemLocal;
+              break;
+            }
+          }
+          resultado.add(localEncontrado ?? itemNovo);
+        }
+      }
+      return resultado;
+    }
+
+    final musicasConsolidadas = consolidarAnexos(lojaNova.musicas, lojaLocal.musicas);
+    final audiosConsolidados = consolidarAnexos(lojaNova.arquivosAudio, lojaLocal.arquivosAudio);
+    final videosConsolidados = consolidarAnexos(lojaNova.videos, lojaLocal.videos);
+    final arquivosConsolidados = consolidarAnexos(lojaNova.arquivos, lojaLocal.arquivos);
+
+    // 9. Histórico de Ações (Auditoria)
     final acoesMescladas = List<RegistroAcao>.from(lojaLocal.acoes);
     for (final a in lojaNova.acoes) {
       if (!acoesMescladas.any((ex) => ex.id == a.id)) {
@@ -251,6 +322,10 @@ class LojasService {
       clientesLoja: clientesConsolidados,
       fornecedoresLoja: fornecedoresConsolidados,
       galeria: galeriaConsolidada,
+      musicas: musicasConsolidadas,
+      arquivosAudio: audiosConsolidados,
+      videos: videosConsolidados,
+      arquivos: arquivosConsolidados,
       mesas: mesasConsolidadas,
       acoes: acoesMescladas,
       layoutExpandido: lojaLocal.layoutExpandido,

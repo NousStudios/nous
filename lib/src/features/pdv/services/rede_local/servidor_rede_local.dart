@@ -422,7 +422,44 @@ class ServidorRedeLocal {
       }
     }
 
-    // 2.1 Servir arquivos de áudio/música pela rede local
+    // 2.2 Receber upload de novos anexos/áudios enviados por terminais móveis
+    if (path == '/api/upload_anexo' && request.method == 'POST') {
+      try {
+        final nomeOriginal = request.uri.queryParameters['nome'];
+        final subpasta = request.uri.queryParameters['pasta'] ?? 'musicas';
+        final bytes = await request.fold<List<int>>([], (acc, chunk) => acc..addAll(chunk));
+        if (bytes.isEmpty) {
+          request.response.statusCode = HttpStatus.badRequest;
+          await request.response.close();
+          return;
+        }
+
+        final salvo = await ImagemService.salvarBytesAnexoLocal(
+          bytes,
+          categoria: subpasta,
+          nomeSugerido: nomeOriginal,
+        );
+
+        if (salvo != null) {
+          request.response.statusCode = HttpStatus.ok;
+          request.response.headers.contentType = ContentType.json;
+          request.response.write(jsonEncode({'caminho': salvo}));
+          await request.response.close();
+          return;
+        } else {
+          request.response.statusCode = HttpStatus.internalServerError;
+          await request.response.close();
+          return;
+        }
+      } catch (e) {
+        debugPrint('[ServidorRedeLocal] Erro ao receber upload de anexo: $e');
+        request.response.statusCode = HttpStatus.internalServerError;
+        await request.response.close();
+        return;
+      }
+    }
+
+    // 2.3 Servir arquivos de áudio/música pela rede local
     if (path == '/api/audio' && request.method == 'GET') {
       final caminho = request.uri.queryParameters['caminho'];
       if (caminho == null || caminho.trim().isEmpty) {
@@ -431,15 +468,17 @@ class ServidorRedeLocal {
         return;
       }
 
-      final arquivo = File(caminho.trim());
-      if (!await arquivo.exists()) {
+      final caminhoResolvido = ImagemService.resolverCaminhoExistente(caminho.trim());
+      if (caminhoResolvido == null) {
         request.response.statusCode = HttpStatus.notFound;
         await request.response.close();
         return;
       }
 
+      final arquivo = File(caminhoResolvido);
+
       try {
-        final ext = caminho.split('.').last.toLowerCase();
+        final ext = caminhoResolvido.split('.').last.toLowerCase();
         ContentType tipoConteudo;
         switch (ext) {
           case 'mp3':
@@ -650,6 +689,7 @@ class ServidorRedeLocal {
           final lojaConsolidada = LojasService.consolidarLojaComImagensLocais(
             lojaRemota.copyWith(acoes: acoesMescladas),
             lojaAtual,
+            manterItensAusentes: false,
           );
 
           _lojaAtiva = lojaConsolidada;

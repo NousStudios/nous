@@ -5,7 +5,7 @@
 
 #define MyAppName "Nous"
 #ifndef MyAppVersion
-#define MyAppVersion "1.0.12"
+#define MyAppVersion "1.0.15"
 #endif
 #define MyAppPublisher "Nous Studios"
 #define MyAppURL "https://github.com/NousStudios/nous"

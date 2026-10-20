@@ -2,7 +2,9 @@ import 'dart:async';
 import 'dart:io';
 import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/foundation.dart';
+import 'package:path/path.dart' as p;
 import 'package:nous/src/core/services/metadados_audio_service.dart';
+import 'package:nous/src/features/pdv/services/imagem_service.dart';
 import 'package:nous/src/features/pdv/services/rede_local/cliente_rede_local.dart';
 
 enum EstadoPlayerAudio { parado, reproduzindo, pausado }
@@ -10,6 +12,7 @@ enum EstadoPlayerAudio { parado, reproduzindo, pausado }
 class DadosPlayerAudio {
   final EstadoPlayerAudio estado;
   final String? caminho;
+  final String? caminhoOriginal;
   final Duration posicao;
   final Duration duracaoEstimada;
   final double volume;
@@ -19,6 +22,7 @@ class DadosPlayerAudio {
   const DadosPlayerAudio({
     this.estado = EstadoPlayerAudio.parado,
     this.caminho,
+    this.caminhoOriginal,
     this.posicao = Duration.zero,
     this.duracaoEstimada = Duration.zero,
     this.volume = 1.0,
@@ -29,6 +33,7 @@ class DadosPlayerAudio {
   DadosPlayerAudio copyWith({
     EstadoPlayerAudio? estado,
     String? caminho,
+    String? caminhoOriginal,
     Duration? posicao,
     Duration? duracaoEstimada,
     double? volume,
@@ -38,6 +43,7 @@ class DadosPlayerAudio {
     return DadosPlayerAudio(
       estado: estado ?? this.estado,
       caminho: caminho ?? this.caminho,
+      caminhoOriginal: caminhoOriginal ?? this.caminhoOriginal,
       posicao: posicao ?? this.posicao,
       duracaoEstimada: duracaoEstimada ?? this.duracaoEstimada,
       volume: volume ?? this.volume,
@@ -62,6 +68,17 @@ class PlayerAudioService {
   DadosPlayerAudio get estadoAtual => estadoNotifier.value;
 
   Stream<void> get onPlayerComplete => _player.onPlayerComplete;
+
+  bool ehMesmoAudio(String caminhoA, String? caminhoB) {
+    if (caminhoB == null || caminhoA.trim().isEmpty || caminhoB.trim().isEmpty) {
+      return false;
+    }
+    if (caminhoA.trim() == caminhoB.trim()) return true;
+    final baseA = p.basename(caminhoA.trim());
+    final baseB = p.basename(caminhoB.trim());
+    if (baseA.isNotEmpty && baseA == baseB) return true;
+    return false;
+  }
 
   void _inicializarListeners() {
     _player.onPositionChanged.listen((pos) {
@@ -124,7 +141,11 @@ class PlayerAudioService {
     var caminhoFinal = caminho;
     var arquivo = File(caminhoFinal);
     if (!arquivo.existsSync()) {
-      if (ClienteRedeLocal().conectado) {
+      final resolvido = ImagemService.resolverCaminhoExistente(caminhoFinal);
+      if (resolvido != null && File(resolvido).existsSync()) {
+        caminhoFinal = resolvido;
+        arquivo = File(caminhoFinal);
+      } else if (ClienteRedeLocal().conectado) {
         caminhoFinal = await ClienteRedeLocal().baixarAudioRemoto(caminho);
         arquivo = File(caminhoFinal);
       }
@@ -135,6 +156,7 @@ class PlayerAudioService {
 
     estadoNotifier.value = estadoAtual.copyWith(
       caminho: caminhoFinal,
+      caminhoOriginal: caminho,
       posicao: Duration.zero,
       duracaoEstimada: _estimarDuracao(arquivo),
       metadados: metadados,
@@ -148,8 +170,8 @@ class PlayerAudioService {
       );
       await _player.setVolume(estadoAtual.volume);
       await _player.play(DeviceFileSource(caminhoFinal));
-    } catch (_) {
-      // Fallback seguro caso ocorra erro no driver nativo
+    } catch (e) {
+      debugPrint('[PlayerAudioService] Erro ao reproduzir áudio: $e');
     }
   }
 
@@ -175,11 +197,11 @@ class PlayerAudioService {
   }
 
   Future<void> alternarPlayPause(String caminho) async {
-    if (estadoAtual.caminho == caminho &&
-        estadoAtual.estado == EstadoPlayerAudio.reproduzindo) {
+    final mesmo = ehMesmoAudio(caminho, estadoAtual.caminho) ||
+        ehMesmoAudio(caminho, estadoAtual.caminhoOriginal);
+    if (mesmo && estadoAtual.estado == EstadoPlayerAudio.reproduzindo) {
       await pausar();
-    } else if (estadoAtual.caminho == caminho &&
-        estadoAtual.estado == EstadoPlayerAudio.pausado) {
+    } else if (mesmo && estadoAtual.estado == EstadoPlayerAudio.pausado) {
       await retomar();
     } else {
       await tocar(caminho);

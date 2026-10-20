@@ -640,6 +640,53 @@ class ClienteRedeLocal {
     return limpo;
   }
 
+  Future<String> _enviarUploadAnexoParaServidor(
+    String caminhoLocal, {
+    String subpasta = 'musicas',
+  }) async {
+    if (_ipServidor == null || _portaServidor == null) return caminhoLocal;
+    final limpo = caminhoLocal.trim();
+    if (limpo.isEmpty) return '';
+
+    for (final entry in _mapaUploadsRealizados.entries) {
+      if (entry.value == limpo) {
+        return entry.key;
+      }
+    }
+
+    final resolvido = ImagemService.resolverCaminhoExistente(limpo) ?? limpo;
+    final arquivo = File(resolvido);
+    if (!arquivo.existsSync() || arquivo.lengthSync() == 0) return limpo;
+
+    try {
+      final nome = p.basename(limpo);
+      final client = HttpClient()..connectionTimeout = const Duration(seconds: 30);
+      final req = await client.postUrl(
+        Uri.parse(
+          'http://$_ipServidor:$_portaServidor/api/upload_anexo?nome=${Uri.encodeQueryComponent(nome)}&pasta=${Uri.encodeQueryComponent(subpasta)}',
+        ),
+      );
+      req.headers.contentType = ContentType.binary;
+      await req.addStream(arquivo.openRead());
+      final resp = await req.close();
+      if (resp.statusCode == HttpStatus.ok) {
+        final body = await utf8.decoder.bind(resp).join();
+        final json = jsonDecode(body) as Map<String, dynamic>;
+        final caminhoServidor = json['caminho'] as String?;
+        if (caminhoServidor != null && caminhoServidor.isNotEmpty) {
+          _mapaUploadsRealizados[caminhoServidor] = limpo;
+          debugPrint(
+            '[ClienteRedeLocal] Anexo ($subpasta) enviado com sucesso ao servidor: $caminhoServidor',
+          );
+          return caminhoServidor;
+        }
+      }
+    } catch (e) {
+      debugPrint('[ClienteRedeLocal] Erro ao enviar anexo "$limpo" para o servidor: $e');
+    }
+    return limpo;
+  }
+
   Future<String> _garantirUploadParaServidor(String caminhoLocal) async {
     return await _enviarUploadImagemParaServidor(caminhoLocal);
   }
@@ -708,7 +755,87 @@ class ClienteRedeLocal {
         }
         lojaParaEnvio = lojaParaEnvio.copyWith(itensLoja: itensAjustados);
 
-        final client = HttpClient()..connectionTimeout = const Duration(seconds: 5);
+        final clientesAjustados = <Cliente>[];
+        for (final c in lojaParaEnvio.clientesLoja) {
+          if (c.foto.isNotEmpty) {
+            final fotoServidor = await _garantirUploadParaServidor(c.foto);
+            clientesAjustados.add(c.copyWith(foto: fotoServidor));
+          } else {
+            clientesAjustados.add(c);
+          }
+        }
+        lojaParaEnvio = lojaParaEnvio.copyWith(clientesLoja: clientesAjustados);
+
+        final fornecedoresAjustados = <Fornecedor>[];
+        for (final f in lojaParaEnvio.fornecedoresLoja) {
+          if (f.foto.isNotEmpty) {
+            final fotoServidor = await _garantirUploadParaServidor(f.foto);
+            fornecedoresAjustados.add(f.copyWith(foto: fotoServidor));
+          } else {
+            fornecedoresAjustados.add(f);
+          }
+        }
+        lojaParaEnvio = lojaParaEnvio.copyWith(fornecedoresLoja: fornecedoresAjustados);
+
+        final galeriaAjustada = <String>[];
+        for (final g in lojaParaEnvio.galeria) {
+          if (g.isNotEmpty) {
+            galeriaAjustada.add(await _garantirUploadParaServidor(g));
+          } else {
+            galeriaAjustada.add(g);
+          }
+        }
+        lojaParaEnvio = lojaParaEnvio.copyWith(galeria: galeriaAjustada);
+
+        final musicasAjustadas = <String>[];
+        for (final m in lojaParaEnvio.musicas) {
+          if (m.isNotEmpty) {
+            musicasAjustadas.add(
+              await _enviarUploadAnexoParaServidor(m, subpasta: 'musicas'),
+            );
+          } else {
+            musicasAjustadas.add(m);
+          }
+        }
+        lojaParaEnvio = lojaParaEnvio.copyWith(musicas: musicasAjustadas);
+
+        final audiosAjustados = <String>[];
+        for (final a in lojaParaEnvio.arquivosAudio) {
+          if (a.isNotEmpty) {
+            audiosAjustados.add(
+              await _enviarUploadAnexoParaServidor(a, subpasta: 'arquivosAudio'),
+            );
+          } else {
+            audiosAjustados.add(a);
+          }
+        }
+        lojaParaEnvio = lojaParaEnvio.copyWith(arquivosAudio: audiosAjustados);
+
+        final videosAjustados = <String>[];
+        for (final v in lojaParaEnvio.videos) {
+          if (v.isNotEmpty) {
+            videosAjustados.add(
+              await _enviarUploadAnexoParaServidor(v, subpasta: 'videos'),
+            );
+          } else {
+            videosAjustados.add(v);
+          }
+        }
+        lojaParaEnvio = lojaParaEnvio.copyWith(videos: videosAjustados);
+
+        final arquivosAjustados = <String>[];
+        for (final arq in lojaParaEnvio.arquivos) {
+          if (arq.isNotEmpty) {
+            arquivosAjustados.add(
+              await _enviarUploadAnexoParaServidor(arq, subpasta: 'arquivos'),
+            );
+          } else {
+            arquivosAjustados.add(arq);
+          }
+        }
+        lojaParaEnvio = lojaParaEnvio.copyWith(arquivos: arquivosAjustados);
+
+        final client = HttpClient()..connectionTimeout = const Duration(seconds: 15);
         final request = await client.postUrl(
           Uri.parse('http://$_ipServidor:$_portaServidor/api/loja/atualizar'),
         );
@@ -1445,8 +1572,9 @@ class ClienteRedeLocal {
     final caminhoLimpo = caminhoRemoto.trim();
     if (caminhoLimpo.isEmpty) return '';
 
-    if (File(caminhoLimpo).existsSync()) {
-      return caminhoLimpo;
+    final caminhoExistente = ImagemService.resolverCaminhoExistente(caminhoLimpo);
+    if (caminhoExistente != null) {
+      return caminhoExistente;
     }
 
     try {
@@ -1465,7 +1593,7 @@ class ClienteRedeLocal {
         return arquivoLocal.path;
       }
 
-      final clienteHttp = HttpClient()..connectionTimeout = const Duration(seconds: 8);
+      final clienteHttp = HttpClient()..connectionTimeout = const Duration(seconds: 15);
       final uri = Uri.parse(
         'http://$_ipServidor:$_portaServidor/api/audio?caminho=${Uri.encodeQueryComponent(caminhoLimpo)}',
       );
@@ -1473,11 +1601,15 @@ class ClienteRedeLocal {
       final resp = await req.close();
 
       if (resp.statusCode == HttpStatus.ok) {
-        final bytes = await resp.fold<List<int>>([], (acc, chunk) => acc..addAll(chunk));
-        await arquivoLocal.writeAsBytes(bytes);
+        final sink = arquivoLocal.openWrite();
+        await resp.pipe(sink);
 
         if (await arquivoLocal.exists() && arquivoLocal.lengthSync() > 0) {
           return arquivoLocal.path;
+        } else {
+          try {
+            if (await arquivoLocal.exists()) await arquivoLocal.delete();
+          } catch (_) {}
         }
       }
     } catch (e) {
