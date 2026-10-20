@@ -972,14 +972,26 @@ class ServidorRedeLocal {
             await _pdvProvider?.entrarComCpf(cpf);
           }
 
-          // 4. Coleta todas as referências e lojas do servidor associadas a esse CPF para devolver ao cliente
+          // 4. Coleta apenas as referências válidas e lojas do servidor associadas a esse CPF para devolver ao cliente
           final referenciasLocais =
               await LojasService.carregarReferencias(cpf);
+          final referenciasValidas = <ReferenciaLoja>[];
           final lojasDoServidor = <Map<String, dynamic>>[];
           for (final r in referenciasLocais) {
             final l = await LojasService.carregarLojaPorId(r.lojaId);
             if (l != null) {
-              lojasDoServidor.add(LojasService.sanitizarCaminhosImagens(l).toJson());
+              final cpfDonoDigitos = l.cpfDonoOriginal.replaceAll(RegExp(r'\D'), '');
+              final ehMembro = l.membros.any((m) =>
+                  m.cpf.replaceAll(RegExp(r'\D'), '') == cpf);
+              if (ehMembro || cpfDonoDigitos == cpf) {
+                referenciasValidas.add(r);
+                lojasDoServidor.add(LojasService.sanitizarCaminhosImagens(l).toJson());
+              } else {
+                // O usuário não é mais membro nem dono desta loja: remove referência órfã
+                await LojasService.removerReferencia(cpf, r.lojaId);
+              }
+            } else {
+              await LojasService.removerReferencia(cpf, r.lojaId);
             }
           }
           final lojasProprias = await LojasService.carregar(cpf);
@@ -989,15 +1001,9 @@ class ServidorRedeLocal {
             }
           }
 
-          // 5. Notifica todos os terminais via WebSocket que os perfis do usuário foram atualizados
-          notificarTodos({
-            'tipo': 'perfis_usuario_atualizados',
-            'cpf': cpf,
-          });
-
           _responderJson(request, {
             'sucesso': true,
-            'referencias': referenciasLocais.map((r) => r.toJson()).toList(),
+            'referencias': referenciasValidas.map((r) => r.toJson()).toList(),
             'lojas': lojasDoServidor,
           });
           return;
@@ -1009,6 +1015,47 @@ class ServidorRedeLocal {
       } catch (e) {
         debugPrint(
             '[ServidorRedeLocal] Erro em /api/sincronizar_perfis_usuario: $e');
+        _responderJson(request, {'sucesso': false, 'erro': e.toString()},
+            statusCode: HttpStatus.internalServerError);
+        return;
+      }
+    }
+
+    // 8.1 Sair de uma loja via rede local
+    if (path == '/api/loja/sair' && request.method == 'POST') {
+      try {
+        final body = await utf8.decodeStream(request);
+        final dados = jsonDecode(body) as Map<String, dynamic>;
+        final cpf = (dados['cpf'] as String? ?? '').replaceAll(RegExp(r'\D'), '');
+        final lojaId = dados['lojaId'] as String? ?? '';
+
+        if (cpf.isNotEmpty && lojaId.isNotEmpty) {
+          final loja = await LojasService.carregarLojaPorId(lojaId);
+          if (loja != null) {
+            final novosMembros = loja.membros.where(
+              (m) => m.cpf.replaceAll(RegExp(r'\D'), '') != cpf,
+            ).toList();
+            final lojaAtualizada = loja.copyWith(membros: novosMembros);
+            await LojasService.salvarLojaIndividual(lojaAtualizada);
+            await LojasService.removerReferencia(cpf, lojaId);
+
+            if (_lojaAtiva?.id == lojaId) {
+              _lojaAtiva = lojaAtualizada;
+            }
+            if (_pdvProvider != null) {
+              await _pdvProvider!.adicionarOuAtualizarLoja(lojaAtualizada);
+            }
+
+            notificarLojaAtualizada(lojaAtualizada);
+          }
+          _responderJson(request, {'sucesso': true});
+          return;
+        }
+
+        _responderJson(request, {'sucesso': false, 'erro': 'Dados incompletos'},
+            statusCode: HttpStatus.badRequest);
+        return;
+      } catch (e) {
         _responderJson(request, {'sucesso': false, 'erro': e.toString()},
             statusCode: HttpStatus.internalServerError);
         return;

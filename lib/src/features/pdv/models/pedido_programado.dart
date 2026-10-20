@@ -149,6 +149,8 @@ class PedidoProgramado {
   PedidoLoja toPedidoLoja({
     required int numero,
     DateTime? dataHora,
+    String nomeVendedor = '',
+    String cnpjVendedor = '',
   }) {
     final momento = dataHora ?? DateTime.now();
     return PedidoLoja(
@@ -167,6 +169,8 @@ class PedidoProgramado {
       valorPago: 0,
       valorRecebido: 0,
       troco: 0,
+      nomeVendedor: nomeVendedor,
+      cnpjVendedor: cnpjVendedor,
     );
   }
 

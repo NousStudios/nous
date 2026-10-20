@@ -5,121 +5,62 @@ description: Use whenever adding or modifying a field on a persisted model in th
 
 # Modelos Persistidos e Serialização JSON no Nous
 
-Diretrizes obrigatórias para criação, alteração ou extensão de campos em qualquer modelo de dados serializado e persistido localmente no Nous.
+Guia rápido e cirúrgico para criação e alteração de campos em modelos serializados e persistidos (SQLite local e backups JSON).
 
 ---
 
-## 1. Modelos do Projeto
+## 1. Modelos Principais do Projeto
 
-Aplica-se a todos os modelos persistidos em disco (banco local SQLite via `BancoDadosService` e arquivos de backup JSON):
-
-### Modelos Principais
-- **`UsuarioNous`** (`lib/src/features/auth/models/usuario_nous.dart`): Identidade cidadã e dados civis.
-- **`Loja`** (`lib/src/features/pdv/models/loja.dart`): Dados da loja, cofre, cargos personalizados (`cargosPersonalizados`), permissões customizadas de cargos inferiores (`permissoesCargosNativos`), configurações operacionais, preferências de som (`sonsAlertas`), atalhos de teclado (<kbd>F1</kbd> a <kbd>F12</kbd> em `atalhosTeclado`), status operacional aberto/fechado (`aberta`), modo de layout expandido (`layoutExpandido`) e tipo de layout ampliado (`tipoLayoutMaior`).
-- **`CargoLoja`** (`lib/src/features/pdv/models/cargo_loja.dart`): Cargos personalizados da loja e mapa de permissões operacionais do sistema (`permissoes`).
-- **`Cliente`** (`lib/src/features/pdv/models/cliente.dart`): Cadastro de clientes com CPF/CNPJ.
-- **`Fornecedor`** (`lib/src/features/pdv/models/fornecedor.dart`): Cadastro de fornecedores.
-- **`PedidoLoja`** (`lib/src/features/pdv/models/pedido_loja.dart`): Pedidos, comandas e pagamentos.
-- **`ItemLoja`** (`lib/src/features/pdv/models/item_loja.dart`): Produtos, ficha técnica e controle de estoque.
-- **`CategoriaLoja`** (`lib/src/features/pdv/models/categoria_loja.dart`): Categorias de itens.
-- **`GrupoComponentesLoja`** (`lib/src/features/pdv/models/grupo_componentes_loja.dart`): Grupos de acompanhamentos e adicionais.
-- **`MembroLoja`** (`lib/src/features/pdv/models/membro_loja.dart`): Papéis operacionais nativos (`PapelMembro`), cargos personalizados vinculados (`cargoPersonalizadoId`) e permissões na loja.
-- **`MesaLoja`** (`lib/src/features/pdv/models/mesa_loja.dart`): Mesas, comandas ativas e consumo no salão de restaurantes.
-- **`ReferenciaLoja`** (`lib/src/features/pdv/models/referencia_loja.dart`): Ponte de acesso ao cofre do titular.
-- **`MovimentoEstoque`** (`lib/src/features/pdv/models/movimento_estoque.dart`): Histórico de entradas/saídas de estoque.
-- **`PagamentoFuncionario`** (`lib/src/features/pdv/models/pagamento_funcionario.dart`): Registro de rateio e retiradas financeiras.
-- **`RegistroAcao`** (`lib/src/features/pdv/models/registro_acao.dart`): Trilha de auditoria transparente.
-- **`ConviteLoja`** (`lib/src/features/notificacoes/models/convite_loja.dart`): Convites, governança e deliberações.
-- **`TurnoCaixa`**, **`MovimentoCaixa`** (`lib/src/features/pdv/models/turno_caixa.dart`): Abertura, fechamento cego, sangrias e suprimentos de caixa.
-- **`ConfiguracoesImpressora`** (`lib/src/features/pdv/models/configuracoes_impressora.dart`): Parâmetros de impressão térmica 58mm e 80mm.
-- **`AppTheme`** (`lib/src/core/theme/theme_controller.dart`): Esquema de temas e customizações visuais.
-
-### Submodelos Serializados
-- **`ItemVendido`**, **`PagamentoParcial`**, **`AcompanhamentoEscolhido`** (em `pedido_loja.dart`).
-- **`ItemConsumoMesa`** (em `mesa_loja.dart`).
-- **`ComponenteItem`** (em `item_loja.dart`).
+- **`Loja`** (`pdv/models/loja.dart`)
+- **`UsuarioNous`** (`auth/models/usuario_nous.dart`)
+- **`Cliente`** (`pdv/models/cliente.dart`)
+- **`Fornecedor`** (`pdv/models/fornecedor.dart`)
+- **`PedidoLoja`** (`pdv/models/pedido_loja.dart`)
+- **`PedidoProgramado`** (`pdv/models/pedido_programado.dart`)
+- **`ItemLoja`** (`pdv/models/item_loja.dart`)
+- **`CategoriaLoja`** (`pdv/models/categoria_loja.dart`)
+- **`GrupoComponentesLoja`** (`pdv/models/grupo_componentes_loja.dart`)
+- **`MembroLoja`** (`pdv/models/membro_loja.dart`)
+- **`CargoLoja`** (`pdv/models/cargo_loja.dart`)
+- **`MesaLoja`** (`pdv/models/mesa_loja.dart`)
+- **`ReferenciaLoja`** (`pdv/models/referencia_loja.dart`)
+- **`MovimentoEstoque`** (`pdv/models/movimento_estoque.dart`)
+- **`PagamentoFuncionario`** (`pdv/models/pagamento_funcionario.dart`)
+- **`TurnoCaixa`**, **`MovimentoCaixa`** (`pdv/models/turno_caixa.dart`)
+- **`ConfiguracoesImpressora`** (`pdv/models/configuracoes_impressora.dart`)
+- **`RegistroAcao`** (`pdv/models/registro_acao.dart`)
+- **`ConviteLoja`** (`notificacoes/models/convite_loja.dart`)
+- **Submodelos:** `ItemVendido`, `PagamentoParcial`, `AcompanhamentoEscolhido`, `ItemConsumoMesa`, `ComponenteItem`.
 
 ---
 
-## 2. As Quatro Regras Fundamentais de Engenharia
+## 2. Checklist Obrigatório dos 4 Passos
 
-### 1. Atualização Quádrupla Obrigatória
-Sempre que adicionar ou modificar qualquer campo, atualize os 4 pontos sem exceção:
-1. **Construtor da classe** (com parâmetro nomeado).
-2. **Método `copyWith`** (preservando o valor caso receba nulo).
-3. **Método `toJson`** (chave correspondente no mapa).
-4. **Factory `fromJson`** (com leitura segura e valor padrão).
+Ao adicionar ou modificar qualquer campo, altere **sempre os quatro pontos**:
 
-### 2. Valores Padrão Obrigatórios no `fromJson`
-**Nunca confie em nulos vindos do disco.** Versões anteriores ou backups antigos podem não conter campos novos. Sempre use fallbacks:
-- `json['campo'] as String? ?? ''`
-- `(json['valor'] as num?)?.toDouble() ?? 0.0`
-- `json['ativo'] as bool? ?? false`
-- `(json['itens'] as List<dynamic>?)?.map(...).toList() ?? []`
+1. **Construtor:** declare o parâmetro nomeado (com padrão se não for `required`).
+2. **`copyWith`:** adicione o parâmetro e resolva `campo ?? this.campo`.
+3. **`toJson`:** mapeie `'campo': campo`.
+4. **`fromJson`:** leitura segura com fallback contra nulos:
+   ```dart
+   campoString: json['campoString'] as String? ?? '',
+   campoDouble: (json['campoDouble'] as num?)?.toDouble() ?? 0.0,
+   campoInt: (json['campoInt'] as num?)?.toInt() ?? 0,
+   campoBool: json['campoBool'] as bool? ?? false,
+   campoEnum: StatusEnum.values.firstWhere(
+     (e) => e.name == json['status'],
+     orElse: () => StatusEnum.padrao,
+   ),
+   listaItens: (json['listaItens'] as List<dynamic>?)
+       ?.map((e) => SubModelo.fromJson(e as Map<String, dynamic>))
+       .toList() ?? const [],
+   ```
 
-### 3. Enums Defensivos com `firstWhere` e `orElse`
-Nunca acesse enums por índice ou `byName` sem fallback defensivo. Se o valor for desconhecido ou renomeado, o sistema deve assumir o enum padrão sem quebrar:
-```dart
-tipo: TipoMovimentoEstoque.values.firstWhere(
-  (e) => e.name == (json['tipo'] as String?),
-  orElse: () => TipoMovimentoEstoque.ajusteManual,
-)
-```
+---
 
-### 4. Aviso Proativo de Limpeza de Cache
-Ao finalizar a edição de qualquer modelo persistido, avise obrigatoriamente o desenvolvedor para rodar no terminal:
+## 3. Aviso de Cache e Migração
+
+Sempre que alterar campos em modelos persistidos, avise o desenvolvedor para rodar no terminal:
 ```bash
 flutter clean && flutter pub get
-```
-
----
-
-## 3. Exemplo Canônico de Implementação
-
-```dart
-class ExemploModelo {
-  final String id;
-  final String nome;
-  final double preco;
-  final bool ativo;
-
-  const ExemploModelo({
-    required this.id,
-    required this.nome,
-    this.preco = 0.0,
-    this.ativo = true,
-  });
-
-  ExemploModelo copyWith({
-    String? id,
-    String? nome,
-    double? preco,
-    bool? ativo,
-  }) {
-    return ExemploModelo(
-      id: id ?? this.id,
-      nome: nome ?? this.nome,
-      preco: preco ?? this.preco,
-      ativo: ativo ?? this.ativo,
-    );
-  }
-
-  Map<String, dynamic> toJson() {
-    return {
-      'id': id,
-      'nome': nome,
-      'preco': preco,
-      'ativo': ativo,
-    };
-  }
-
-  factory ExemploModelo.fromJson(Map<String, dynamic> json) {
-    return ExemploModelo(
-      id: json['id'] as String? ?? '',
-      nome: json['nome'] as String? ?? '',
-      preco: (json['preco'] as num?)?.toDouble() ?? 0.0,
-      ativo: json['ativo'] as bool? ?? true,
-    );
-  }
-}
 ```

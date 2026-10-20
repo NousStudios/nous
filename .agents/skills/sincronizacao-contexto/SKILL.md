@@ -1,61 +1,38 @@
 ---
 name: sincronizacao-contexto
-description: Use at the completion of ANY implementation, refactoring, bugfix, or architectural decision to automatically update README.md, AGENTS.md, and relevant skill files without waiting for user requests.
+description: Use at the completion of ANY implementation, refactoring, bugfix, or architectural decision to automatically update MAPA_DO_APP.md, CHANGELOG.md, and docs without touching AGENTS.md.
 ---
 
 # Sincronização Contínua de Contexto e Documentação
 
-Esta regra é **MANDATÓRIA E INEGOCIÁVEL** para todo agente de código atuando no ecossistema Nous.
+Regra **MANDATÓRIA E AUTOMÁTICA** para todo agente atuando no ecossistema Nous. Execute sempre ao finalizar qualquer ciclo de trabalho, sem esperar solicitação do desenvolvedor.
 
 ---
 
-## 1. Objetivo Fundamental
+## 1. Roteiro de Atualização (Onde Atualizar)
 
-O desenvolvedor é iniciante, autodidata e não deve gastar tempo nem mensagens solicitando que a IA atualize a documentação do projeto.
-A cada prompt, o contexto repassado para a IA deve ser **sinteticamente superior, preciso e atualizado**, evitando que o agente:
-1. Cometa os mesmos erros que já foram solucionados anteriormente.
-2. Esqueça funcionalidades, modelos, atalhos e padrões já implementados.
-3. Proponha soluções redundantes ou que conflitem com regras prévias.
-
----
-
-## 2. Quando Executar a Sincronização
-
-Sempre que você concluir:
-- Criação ou modificação de modelos persistidos (`models/`).
-- Adição ou refatoração de regras de negócio, fluxos de PDV, caixa ou estoque.
-- Criação de novos diálogos, telas ou padrões visuais.
-- Solução de bugs de interface, responsividade, escala de fontes ou concorrência.
-- Implementação de novos comandos, atalhos de teclado ou integrações de hardware.
-
-**Você deve atualizar os arquivos de documentação AUTOMATICAMENTE no mesmo ciclo de trabalho, sem esperar solicitação do usuário.**
-
-> [!NOTE]
-> **Compilação Automática de Instaladores e Limpeza de Versões Legadas:** A cada ciclo de edição concluído com sucesso e aprovado (após testes e análise estática), a IA **DEVE compilar automaticamente** o instalador Windows e o pacote APK Android via `scripts/gerar_instalador.ps1`. O pipeline de build exclui automaticamente da pasta `dist/` as versões antigas, mantendo apenas a versão mais recente gerada e a cópia de compatibilidade (`Nous_Android_v1.0.0_Versao_Teste.apk`).
+1. **Mudou tela, container, botão, aba, atalho ou comportamento visível?**
+   - Atualize `MAPA_DO_APP.md` na tela correspondente (uma vez só; nunca repita a informação).
+2. **Mudou regra de negócio, rede, design ou pipeline de build?**
+   - Atualize o arquivo específico em `docs/`:
+     - `docs/rede-local.md`: Wi-Fi, autocura, endpoints e WebSockets.
+     - `docs/regras-de-negocio-pdv.md`: Vendas, estoque, caixa, mesas e financeiro.
+     - `docs/design-system.md`: Cores, componentes visuais e mídias.
+     - `docs/build-e-distribuicao.md`: Scripts, instaladores, APK e compilação.
+     - `docs/filosofia.md`: Ontologia e política.
+3. **Novo ciclo de versão ou entrega finalizada?**
+   - Adicione **1 linha por mudança** no topo de `CHANGELOG.md` com a versão e data.
+4. **`AGENTS.md` NUNCA deve ser inflado:**
+   - Só altere o `AGENTS.md` se surgir uma regra nova inegociável de trabalho ou se uma invariante de sistema mudar. Meta: manter sempre menos de 200 linhas.
 
 ---
 
-## 3. Arquivos que Devem Ser Sincronizados
+## 2. Pipeline Automático de Build
 
-1. **`AGENTS.md` (Manifesto e Contexto de Transferência):**
-   - Seção 5 (Arquitetura) / Seção 6 (Sistema de Design) / Seção 7 (Mapa do que já funciona):
-     - Registre novas regras, comportamentos consolidados e decisões técnicas.
-   - Seção 8 (Regras Críticas de Engenharia):
-     - Registre pegadinhas (*gotchas*) e soluções comprovadas para prevenir regressões.
-
-2. **`README.md` (Documento Público Bilíngue):**
-   - Atualize a lista de recursos funcionais em **Current Status** (Inglês) e **Estado Atual** (Português do Brasil).
-   - Mantenha o tom profissional, ideológico e alinhado com o propósito do Nous.
-
-3. **Skills em `.agents/skills/`:**
-   - `padrao-visual/SKILL.md`: se houver novidade visual, de acessibilidade ou layout.
-   - `modelo-persistido/SKILL.md`: se houver novo modelo ou convenção de persistência.
-   - `imagem-e-fotos/SKILL.md`: se houver novas regras para avatares, mídias ou anexos.
-
----
-
-## 4. Diretrizes de Qualidade da Documentação
-
-- **Sintético e Cirúrgico:** Não infle arquivos com textos longos ou redundantes. Documente de forma concisa o **quê**, o **porquê** e o **como**.
-- **Português do Brasil (pt-BR):** Exceto a seção em inglês do `README.md`, todos os documentos devem ser escritos em pt-BR claro e pedagógico.
-- **Validação de Sintaxe:** Antes de encerrar, confirme que o código compila perfeitamente com `dart analyze lib`.
+Após validar o ciclo com `flutter test` e `flutter analyze`:
+1. Incremente a versão no `pubspec.yaml` (ex.: `1.0.12+13`).
+2. Execute o compilador com PowerShell:
+   ```powershell
+   powershell -ExecutionPolicy Bypass -File "scripts/gerar_instalador.ps1"
+   ```
+3. O script apaga automaticamente instaladores e APKs antigos da pasta `dist/` e mantém apenas os mais recentes.

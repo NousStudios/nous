@@ -227,7 +227,11 @@ class PedidosProgramadosDialog extends StatelessWidget {
                                     color: theme.textColor, size: 20),
                                 tooltip: 'Ver Comanda',
                                 onPressed: () {
-                                  final pedidoLoja = prog.toPedidoLoja(numero: 0);
+                                  final pedidoLoja = prog.toPedidoLoja(
+                                    numero: 0,
+                                    nomeVendedor: loja?.nome ?? '',
+                                    cnpjVendedor: loja?.cnpj ?? '',
+                                  );
                                   ComandaPedidoDialog.mostrar(
                                     context,
                                     lojaId: lojaId,

@@ -253,6 +253,10 @@ class LojasService {
       galeria: galeriaConsolidada,
       mesas: mesasConsolidadas,
       acoes: acoesMescladas,
+      layoutExpandido: lojaLocal.layoutExpandido,
+      tipoLayoutMaior: lojaLocal.tipoLayoutMaior.isNotEmpty
+          ? lojaLocal.tipoLayoutMaior
+          : lojaNova.tipoLayoutMaior,
     );
   }
 

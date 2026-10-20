@@ -884,7 +884,11 @@ class _RelatoriosConteudoState extends State<_RelatoriosConteudo> {
 
                   return _LinhaComHover(
                     aoClicar: () {
-                      final pedidoLoja = prog.toPedidoLoja(numero: 0);
+                      final pedidoLoja = prog.toPedidoLoja(
+                        numero: 0,
+                        nomeVendedor: loja?.nome ?? '',
+                        cnpjVendedor: loja?.cnpj ?? '',
+                      );
                       ComandaPedidoDialog.mostrar(
                         context,
                         lojaId: widget.lojaId,

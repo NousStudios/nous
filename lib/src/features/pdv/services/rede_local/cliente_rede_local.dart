@@ -86,6 +86,7 @@ class ClienteRedeLocal {
 
   bool _aplicandoAtualizacaoRemota = false;
   bool get aplicandoAtualizacaoRemota => _aplicandoAtualizacaoRemota;
+  bool _sincronizandoPerfisLojas = false;
   Timer? _timerDebounceEnvioLoja;
   final Map<String, String> _mapaUploadsRealizados = {};
 
@@ -1722,10 +1723,12 @@ class ClienteRedeLocal {
   /// acessados no trabalho ou em outros dispositivos apareçam imediatamente neste aparelho.
   Future<void> sincronizarPerfisLojasComServidor() async {
     if (_ipServidor == null || _portaServidor == null) return;
+    if (_sincronizandoPerfisLojas) return;
     final cpf = (_pdvProvider?.cpfAtual ?? _authProvider?.cpf ?? '')
         .replaceAll(RegExp(r'\D'), '');
     if (cpf.isEmpty) return;
 
+    _sincronizandoPerfisLojas = true;
     try {
       final referenciasLocais = await LojasService.carregarReferencias(cpf);
       final lojasAEnviar = <Map<String, dynamic>>[];
@@ -1773,16 +1776,17 @@ class ClienteRedeLocal {
           final lojasRecebidas = dados['lojas'] as List<dynamic>? ?? [];
           var houveAlteracao = false;
 
-          // Salva lojas recebidas
+          // Salva lojas recebidas após baixar suas fotos (logo, itens, categorias)
           for (final lJson in lojasRecebidas) {
             try {
               final loja = Loja.fromJson(lJson as Map<String, dynamic>);
-              await LojasService.salvarLojaIndividual(loja);
+              final lojaComImagens = await _sincronizarImagensRemotas(loja);
+              await LojasService.salvarLojaIndividual(lojaComImagens);
               houveAlteracao = true;
             } catch (_) {}
           }
 
-          // Salva referências recebidas
+          // Salva referências válidas recebidas
           for (final rJson in referenciasRecebidas) {
             try {
               final ref =
@@ -1795,9 +1799,21 @@ class ClienteRedeLocal {
             } catch (_) {}
           }
 
+          // Limpa referências locais que o servidor balcão não possui mais (ex.: usuário saiu da loja)
+          final idsValidosServidor = referenciasRecebidas
+              .map((r) => (r as Map<String, dynamic>)['lojaId'] as String? ?? '')
+              .where((id) => id.isNotEmpty)
+              .toSet();
+          for (final rLocal in referenciasLocais) {
+            if (!idsValidosServidor.contains(rLocal.lojaId)) {
+              await LojasService.removerReferencia(cpf, rLocal.lojaId);
+              houveAlteracao = true;
+            }
+          }
+
           if (houveAlteracao) {
             debugPrint(
-              '[ClienteRedeLocal] Sincronização Pan-Dispositivo: novos perfis de lojas recebidos para o CPF $cpf. Recarregando PdvProvider...',
+              '[ClienteRedeLocal] Sincronização Pan-Dispositivo: perfis de lojas sincronizados para o CPF $cpf. Recarregando PdvProvider...',
             );
             await _pdvProvider?.entrarComCpf(cpf);
           }
@@ -1805,6 +1821,25 @@ class ClienteRedeLocal {
       }
     } catch (e) {
       debugPrint('[ClienteRedeLocal] Erro ao sincronizar perfis de lojas com servidor: $e');
+    } finally {
+      _sincronizandoPerfisLojas = false;
+    }
+  }
+
+  /// Notifica o servidor balcão que o membro saiu da loja para desvinculação imediata
+  Future<void> notificarSaidaLoja(String lojaId, String cpf) async {
+    if (_ipServidor == null || _portaServidor == null) return;
+    try {
+      final client = HttpClient()..connectionTimeout = const Duration(seconds: 4);
+      final uri = Uri.parse('http://$_ipServidor:$_portaServidor/api/loja/sair');
+      final req = await client.postUrl(uri);
+      req.headers.contentType = ContentType.json;
+      req.write(jsonEncode({'cpf': cpf, 'lojaId': lojaId}));
+      final resp = await req.close();
+      await resp.drain();
+      debugPrint('[ClienteRedeLocal] Saída da loja $lojaId notificada ao balcão com sucesso.');
+    } catch (e) {
+      debugPrint('[ClienteRedeLocal] Erro ao notificar saída da loja ao balcão: $e');
     }
   }
 }

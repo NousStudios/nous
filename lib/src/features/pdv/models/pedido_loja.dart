@@ -302,6 +302,8 @@ class PedidoLoja {
     String? canceladoPorCpf,
     String? canceladoPorNome,
     bool? estoqueEstornado,
+    String? nomeVendedor,
+    String? cnpjVendedor,
   }) {
     return PedidoLoja(
       id: id,
@@ -324,8 +326,8 @@ class PedidoLoja {
       frete: frete,
       desconto: desconto,
       acrescimo: acrescimo,
-      nomeVendedor: nomeVendedor,
-      cnpjVendedor: cnpjVendedor,
+      nomeVendedor: nomeVendedor ?? this.nomeVendedor,
+      cnpjVendedor: cnpjVendedor ?? this.cnpjVendedor,
       comentario: comentario ?? this.comentario,
       comentarioAutorCpf: comentarioAutorCpf ?? this.comentarioAutorCpf,
       comentarioAutorNome: comentarioAutorNome ?? this.comentarioAutorNome,

@@ -18,6 +18,7 @@ import 'package:nous/src/features/pdv/models/pedido_programado.dart';
 import 'package:nous/src/features/pdv/models/referencia_loja.dart';
 import 'package:nous/src/features/pdv/models/registro_acao.dart';
 import 'package:nous/src/features/pdv/models/turno_caixa.dart';
+import 'package:nous/src/core/services/banco_dados_service.dart';
 import 'package:nous/src/features/pdv/services/backup_service.dart';
 import 'package:nous/src/features/pdv/services/lojas_service.dart';
 import 'package:nous/src/features/pdv/services/rede_local/cliente_rede_local.dart';
@@ -357,6 +358,9 @@ class PdvProvider extends ChangeNotifier {
         .map((l) => l.cpfDonoOriginal.isEmpty
             ? l.copyWith(cpfDonoOriginal: cpf)
             : l)
+        .where((l) =>
+            _mesmoCpf(l.cpfDonoOriginal, cpf) ||
+            l.membros.any((m) => _mesmoCpf(m.cpf, cpf)))
         .toList();
     if (minhasLojas.length != minhasLojasBrutas.length) {
       await LojasService.salvar(cpf, minhasLojas);
@@ -381,8 +385,11 @@ class PdvProvider extends ChangeNotifier {
           break;
         }
       }
+      encontrada ??= await LojasService.carregarLojaPorId(ref.lojaId);
+
       if (encontrada == null ||
-          !encontrada.membros.any((m) => _mesmoCpf(m.cpf, cpf))) {
+          (!_mesmoCpf(encontrada.cpfDonoOriginal, cpf) &&
+           !encontrada.membros.any((m) => _mesmoCpf(m.cpf, cpf)))) {
         referenciasOrfas.add(ref);
         continue;
       }
@@ -1158,6 +1165,11 @@ class PdvProvider extends ChangeNotifier {
         );
       } else {
         await LojasService.removerReferencia(cpf, lojaId);
+        final db = await BancoDadosService.db;
+        await db.delete('lojas', where: 'id = ?', whereArgs: [lojaId]);
+        if (ClienteRedeLocal().conectado) {
+          await ClienteRedeLocal().notificarSaidaLoja(lojaId, cpf);
+        }
       }
       return;
     }
@@ -1210,6 +1222,11 @@ class PdvProvider extends ChangeNotifier {
       final lojaAtualizada = loja.copyWith(membros: outros);
       await _salvarLojaNoCofreCorreto(lojaAtualizada);
       await LojasService.removerReferencia(cpf, lojaId);
+      final db = await BancoDadosService.db;
+      await db.delete('lojas', where: 'id = ?', whereArgs: [lojaId]);
+      if (ClienteRedeLocal().conectado) {
+        await ClienteRedeLocal().notificarSaidaLoja(lojaId, cpf);
+      }
     }
   }
 
@@ -1418,8 +1435,12 @@ class PdvProvider extends ChangeNotifier {
         if (prog.ultimaDataGerado == null ||
             !mesmoDia(prog.ultimaDataGerado, agora)) {
           maiorNumero++;
-          final novoPedido =
-              prog.toPedidoLoja(numero: maiorNumero, dataHora: agora);
+          final novoPedido = prog.toPedidoLoja(
+            numero: maiorNumero,
+            dataHora: agora,
+            nomeVendedor: loja.nome,
+            cnpjVendedor: loja.cnpj,
+          );
           novosPedidosLoja.insert(0, novoPedido);
           novosProgramados.add(prog.copyWith(ultimaDataGerado: agora));
           alterou = true;

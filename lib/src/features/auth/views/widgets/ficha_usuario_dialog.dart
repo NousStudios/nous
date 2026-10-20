@@ -6,6 +6,8 @@ import 'package:provider/provider.dart';
 import 'package:nous/src/core/theme/theme_controller.dart';
 import 'package:nous/src/features/auth/models/usuario_nous.dart';
 import 'package:nous/src/features/auth/providers/auth_provider.dart';
+import 'package:nous/src/features/pdv/models/loja.dart';
+import 'package:nous/src/features/pdv/models/membro_loja.dart';
 import 'package:nous/src/features/pdv/providers/pdv_provider.dart';
 import 'package:nous/src/features/pdv/services/imagem_service.dart';
 import 'package:nous/src/features/pdv/views/widgets/opcoes_imagem_dialog.dart';
@@ -708,7 +710,7 @@ class _FichaUsuarioConteudoState extends State<_FichaUsuarioConteudo> {
                       ),
                     ),
                     for (final l in lojasAdmin)
-                      _linhaInfo(l.nome, 'Dono / Sócio'),
+                      _linhaInfo(l.nome, _obterCargoUsuarioNaLoja(l, contaAtualizada.cpf)),
                   ],
                   if (lojasParticipa.isNotEmpty) ...[
                     const SizedBox(height: 6),
@@ -727,7 +729,7 @@ class _FichaUsuarioConteudoState extends State<_FichaUsuarioConteudo> {
                       ),
                     ),
                     for (final l in lojasParticipa)
-                      _linhaInfo(l.nome, 'Membro'),
+                      _linhaInfo(l.nome, _obterCargoUsuarioNaLoja(l, contaAtualizada.cpf)),
                   ],
                 ],
               ],
@@ -746,5 +748,36 @@ class _FichaUsuarioConteudoState extends State<_FichaUsuarioConteudo> {
         ],
       ),
     );
+  }
+
+  String _obterCargoUsuarioNaLoja(Loja loja, String cpfUsuario) {
+    final cpfDigitos = cpfUsuario.replaceAll(RegExp(r'\D'), '');
+    for (final m in loja.membros) {
+      if (m.cpf.replaceAll(RegExp(r'\D'), '') == cpfDigitos) {
+        if (m.cargoPersonalizadoId != null &&
+            m.cargoPersonalizadoId!.trim().isNotEmpty) {
+          final cargoPers = loja.cargosPersonalizados
+              .where((c) => c.id == m.cargoPersonalizadoId)
+              .firstOrNull;
+          if (cargoPers != null && cargoPers.nome.trim().isNotEmpty) {
+            return cargoPers.nome.trim();
+          }
+        }
+        switch (m.papel) {
+          case PapelMembro.dono:
+            return 'Dono';
+          case PapelMembro.socio:
+            return 'Sócio';
+          case PapelMembro.admin:
+            return 'Administrador';
+          case PapelMembro.funcionario:
+            return 'Funcionário';
+        }
+      }
+    }
+    if (loja.cpfDonoOriginal.replaceAll(RegExp(r'\D'), '') == cpfDigitos) {
+      return 'Dono';
+    }
+    return 'Membro';
   }
 }

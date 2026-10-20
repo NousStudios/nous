@@ -46,6 +46,20 @@ class ComandaPedidoDialog extends StatelessWidget {
         final loja = pdv.buscarPorId(lojaId);
         final configImpressora = loja?.configuracoesImpressora;
 
+        var pedidoEfetivo = pedido;
+        if (loja != null &&
+            (pedidoEfetivo.nomeVendedor.isEmpty ||
+                pedidoEfetivo.cnpjVendedor.isEmpty)) {
+          pedidoEfetivo = pedidoEfetivo.copyWith(
+            nomeVendedor: pedidoEfetivo.nomeVendedor.isNotEmpty
+                ? pedidoEfetivo.nomeVendedor
+                : loja.nome,
+            cnpjVendedor: pedidoEfetivo.cnpjVendedor.isNotEmpty
+                ? pedidoEfetivo.cnpjVendedor
+                : loja.cnpj,
+          );
+        }
+
         return Dialog(
           backgroundColor: theme.cardBackgroundColor,
           shape: RoundedRectangleBorder(
@@ -87,7 +101,7 @@ class ComandaPedidoDialog extends StatelessWidget {
                     child: SingleChildScrollView(
                       child: ComandaPedido(
                         theme: theme,
-                        pedido: pedido,
+                        pedido: pedidoEfetivo,
                         cliente: cliente,
                         largura: 360,
                         mostrarTitulo: false,
@@ -115,7 +129,7 @@ class ComandaPedidoDialog extends StatelessWidget {
                             onPressed: () async {
                               await ImpressaoService.imprimirComanda(
                                 config: configImpressora,
-                                pedido: pedido,
+                                pedido: pedidoEfetivo,
                                 cliente: cliente,
                               );
                               if (context.mounted) {
