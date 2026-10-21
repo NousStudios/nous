@@ -93,19 +93,19 @@ class _StatusLojaViewState extends State<StatusLojaView> {
       todas = servidor.obterTodasPresencas();
     } else if (cliente.conectado) {
       todas = cliente.presencasAtivas.value;
-      if (todas.isEmpty) {
-        final meuCpf = widget.cpfLogado.replaceAll(RegExp(r'\D'), '');
-        if (meuCpf == digitosMembro) {
-          todas = [
-            TerminalConectadoInfo(
-              id: 'este_terminal',
-              nome: cliente.nomeDispositivo,
-              ip: cliente.enderecoServidor ?? 'Wi-Fi Local',
-              conectadoEm: DateTime.now(),
-              cpf: widget.cpfLogado,
-            ),
-          ];
-        }
+      final meuCpf = widget.cpfLogado.replaceAll(RegExp(r'\D'), '');
+      final jaTemEu = todas.any((t) => t.cpf?.replaceAll(RegExp(r'\D'), '') == meuCpf);
+      if (!jaTemEu && meuCpf == digitosMembro) {
+        todas = [
+          ...todas,
+          TerminalConectadoInfo(
+            id: 'este_terminal',
+            nome: cliente.nomeDispositivo,
+            ip: cliente.enderecoServidor ?? 'Wi-Fi Local',
+            conectadoEm: DateTime.now(),
+            cpf: widget.cpfLogado,
+          ),
+        ];
       }
     } else {
       todas = [];

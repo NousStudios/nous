@@ -46,6 +46,16 @@ Dois estados mudam o comportamento de várias telas:
 - A foto e os dados são os mesmos em qualquer aparelho do mesmo CPF (sincronização pela rede).
 - Só se chega nesta janela pelo card da conta em **Configurações** (2.2), por **Contas do usuário** (1.2) ou ao tocar num membro em **Usuários Participantes** (6.1).
 
+### 1.4 Tela "Perfil Social do Usuário"
+📄 `auth/views/perfil_social_view.dart` · acessada pelo segundo ícone (pessoinha) da barra inferior flutuante (`FloatingBottomNavBar`).
+- Topo com seta de voltar e engrenagem de **Configurações**.
+- Cabeçalho vertical centralizado: foto grande de avatar centralizada, `@apelido` centralizado, **Nome Completo em negrito** centralizado e métricas (Posts, Seguidores, Seguindo) centralizadas em linha.
+- Bloco **Biografia** com título e descrição.
+- Três botões em linha: **"Editar Perfil"** (abre a Identidade do Usuário 1.3), **"Compartilhar"** (copia identificador Nous) e **"Mensagens"** (abre a Mensageria do Usuário).
+- Carrossel horizontal de destaques circulares.
+- Barra de abas com 4 ícones (Grade, Reels/Vídeo, Documento, Música) e grade de 3 colunas de publicações.
+- Barra flutuante universal no rodapé com o segundo ícone ativo.
+
 ---
 
 ## 2. Barra superior e Configurações
@@ -151,7 +161,7 @@ Esta tela atualiza **em tempo real** quando muda algo no balcão ou em outro cel
 📄 `pdv/views/widgets/desktop_sidebar_widget.dart`
 - Topo: **logo da loja**, nome e indicador de caixa **aberto/fechado**.
 - Ordem dos módulos: **1. Dados da Loja → 2. Ajustes do Perfil → 3. Loja / Catálogo → 4. Gestão de Pedidos**.
-- Comandos rápidos: Nova Venda, Clientes, Impressora, Relatórios, Caixa, Financeiro, Mensagens, Status da Loja, **Modo Balcão** (abaixo de Status da Loja).
+- Comandos rápidos: Nova Venda, Clientes, Mensagens (com ponto de atenção vermelho se houver nova mensagem), Caixa, Relatórios, Impressora, Financeiro, Status da Loja, **Modo Balcão** (abaixo de Status da Loja).
   - Cada botão mostra um selo com a tecla configurada (ex.: `F1`). Se a função está **Desativada**, mostra só um quadradinho vazio (22×18 px), para manter o alinhamento.
   - Clicar com o mouse sempre executa a ação, tenha ou não tecla.
 - Quando esta barra está ativa, os botões de ação do topo da Gestão ficam **ocultos** (seriam repetidos). No layout compacto eles aparecem.
@@ -213,7 +223,7 @@ Primeiro item: botão de **Sincronização em Rede Wi-Fi** (abre 4.1). Depois:
 
 ### 6.4 Aba "Gestão de Pedidos"
 📄 `pdv/views/widgets/gestao_loja_container.dart`
-- Botões de ação no topo (somem no desktop expandido): **Nova Venda, Clientes, Impressora, Relatórios, Caixa, Financeiro, Mensagens, Status da Loja**. Em tela < 520 px ficam em 2×2.
+- Botões de ação no topo (somem no desktop expandido): **Nova Venda, Clientes, Mensagens, Impressora, Relatórios, Caixa, Financeiro, Status da Loja**. O botão "Mensagens" exibe um ponto de atenção vermelho quando há mensagens não lidas para a loja. Tocar em "Mensagens" abre a interface de mensageria da loja. Em tela < 520 px ficam em 2×2.
 - **Abas de pedidos**: **Novos, Aceitos, Concluídos, Cancelados**. Lista com ~380 px de altura no desktop. Concluídos e Cancelados: **mais recentes primeiro** e com **campo de busca** (por #0001, cliente, produto).
 - **Novos**: tocar num pedido abre a comanda com **Recusar / Imprimir / Aceitar**. Pedidos programados do dia entram aqui sozinhos.
 - **Ao entrar no app**: se houver pedidos Novos, toca o alerta sonoro e abre a comanda do primeiro; **Aceitar/Recusar** passa para o próximo; o **X** interrompe a fila sem perder nada.
@@ -322,14 +332,35 @@ Todas abrem centralizadas, aceitam **F11** e, no desktop expandido, ficam em **d
 - **Cancelar Pedido** 📄 `cancelar_pedido_dialog.dart` — motivo obrigatório e opção de devolver ao estoque.
 - Outras janelas de apoio: `nova_categoria_dialog.dart`, `novo_grupo_componentes_dialog.dart`, `opcoes_imagem_dialog.dart` ("Procurar nova imagem", "Retirar imagem", "Cancelar"; se o campo está vazio, abre direto o seletor de arquivos), `venda_registrada_dialog.dart` (comanda de venda já feita, com **Quitar Pagamento à Prazo**), `comanda_pedido.dart`, `comanda_pedido_dialog.dart`.
 
+### 7.13 Mensageria e Chat
+📄 `chat/views/mensageria_view.dart` · serviço `chat/services/chat_service.dart` · modelos em `chat/models/` (`mensagem_chat.dart`, `conversa_chat.dart`)
+- Interface estilo WhatsApp adaptável: lista de conversas à esquerda e conversa ativa à direita no desktop (≥ 720 px); lista ou conversa em tela cheia com botão voltar no celular.
+- **Painel limpo por padrão**: ao abrir a tela de Mensagens, nenhuma conversa é auto-selecionada; o painel direito exibe o espaço limpo e receptivo convidando o usuário a escolher ou iniciar um chat.
+- **Destaque de conversa ativa e Hover fixo**: o chat selecionado recebe destaque visual imediato com fundo contrastante aceso fixo e borda lateral esquerda na cor do tema, além de efeito de hover suave ao passar o mouse pelos contatos.
+- **Contatos sob demanda ("+ Nova Conversa")**: a lista lateral só exibe chats que já têm mensagens trocadas ou grupos; para conversar com um novo membro, cliente ou loja, clica-se no botão `+` ao lado de "+ Novo Grupo", que abre modal filtrável para selecionar o destinatário.
+- **Detalhes do Contato estilo WhatsApp**: clique no cabeçalho ativo da conversa abre janela modal com foto ampliada, dados, seção de mídias compartilhadas e o botão **"Ver Perfil Público"**.
+- **Desduplicação soberana por CPF**: reconhecimento de identidade única por CPF normalizado — membros da equipe que também estejam cadastrados como clientes (ou o próprio operador logado cadastrado como cliente) não duplicam perfis, unificando fotos, papéis e histórico em um único chat.
+- **Persistência no SQLite** (`nous.db`): as conversas entre Loja e Usuário utilizam chaves canônicas compartilhadas (`loja_{id}_usuario_{cpf}`), permitindo que mensagens enviadas pela loja apareçam imediatamente no perfil social do usuário, e vice-versa.
+- **Ponto de atenção vermelho**: indica novas mensagens não lidas nos botões da Loja (barra lateral e gestão) e badges numéricos em cada conversa.
+- **Modo Loja**: remetente é a Loja atual; bolhas de mensagem exibem o atendente responsável (ex.: "Léo"); carrega membros da equipe e clientes cadastrados de forma desduplicada.
+- **Modo Usuário Nous**: remetente é o cidadão/CPF logado; acessado pelo botão "Mensagens" do Perfil Social; conversa com lojas que participa e outros contatos da rede.
+
+### 7.14 Perfil Social e Identidade do Usuário
+📄 `auth/views/perfil_social_view.dart` · `auth/views/widgets/editar_perfil_dialog.dart` · `auth/views/widgets/ficha_usuario_dialog.dart`
+- **Acesso principal**: segundo ícone da barra flutuante universal inferior (ícone pessoinha); ao abrir por essa barra, a tela **não exibe botão de voltar** no topo esquerdo.
+- **Visual centralizado**: foto do perfil em círculo (raio 50), `@apelido`, nome de exibição em negrito, métricas ("Posts", "Seguidores", "Seguindo") e biografia do usuário, todos alinhados ao centro.
+- **Edição Soberana do Perfil** (`EditarPerfilDialog`): acionado pelo botão "Editar Perfil", permite alterar Biografia (campo livre multilinha), Apelido (@), Nome de exibição e Foto de Perfil, salvando na conta e propagando via rede local.
+- **Janela de Identidade do Usuário** (`FichaUsuarioDialog`): exibe ficha cadastral com botão de olho aberto/fechado no topo (por padrão fechado), aplicando blur visual (`ImageFilter.blur`) sobre CPF, dados pessoais e e-mails para proteção em capturas de tela e prints.
+- **Visualização de Perfil de Terceiros**: quando aberto a partir de uma conversa da Mensageria ("Ver Perfil Público"), a tela exibe o perfil do contato alvo com botão de voltar no topo para retornar ao chat.
+
 ---
 
 ## 8. Atalhos de teclado (resumo)
 - **F11** tela cheia (fixa, global). **Esc** fecha janelas / sai do Modo Balcão (fixa).
-- **F1 a F10 e F12**: configuráveis em "Ajustes do Perfil → Comandos", todas começam desativadas.
+- **F1 a F10 e F12**: configuráveis em "Ajustes do Perfil → Comandos" (inclui Mensagens), todas começam desativadas.
 - **Enter** no Modo Balcão finaliza venda; no bipador, adiciona item.
 - **← →** nos visualizadores de mídia.
 - Leitores USB de código de barras funcionam como teclado.
 
 ## 9. O que ainda não existe (pastas reservadas)
-`features/chat`, `features/timeline`, `features/delivery`, `features/banco`, `features/autogestao`. Mensagens: o botão "Mensagens" existe na Gestão, mas o módulo de chat ainda é futuro. (a confirmar o comportamento atual do botão)
+`features/timeline`, `features/delivery`, `features/banco`, `features/autogestao`. (Módulo `chat` e Perfil Social agora implementados).

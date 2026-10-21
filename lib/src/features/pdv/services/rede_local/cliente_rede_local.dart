@@ -8,6 +8,8 @@ import 'package:nous/src/core/services/atualizacao_service.dart';
 import 'package:nous/src/features/auth/models/usuario_nous.dart';
 import 'package:nous/src/features/auth/providers/auth_provider.dart';
 import 'package:nous/src/features/auth/services/contas_nous_service.dart';
+import 'package:nous/src/features/chat/models/mensagem_chat.dart';
+import 'package:nous/src/features/chat/services/chat_service.dart';
 import 'package:nous/src/features/pdv/models/categoria_loja.dart';
 import 'package:nous/src/features/pdv/models/cliente.dart';
 import 'package:nous/src/features/pdv/models/fornecedor.dart';
@@ -330,6 +332,14 @@ class ClienteRedeLocal {
       // Sincroniza pan-dispositivo todas as lojas e referências associadas ao CPF deste cidadão
       sincronizarPerfisLojasComServidor();
 
+      // Sincroniza histórico de mensagens do chat com o balcão
+      ChatService.sincronizarMensagensComBalcao(
+        ipServidor: _ipServidor!,
+        portaServidor: _portaServidor!,
+        cpfUsuario: cpfLogado,
+        lojaId: _lojaSincronizada?.id,
+      );
+
       // Checa se o balcão possui uma versão/APK disponível para este aparelho
       verificarAtualizacaoLocal();
 
@@ -478,6 +488,11 @@ class ClienteRedeLocal {
           );
           await sincronizarPerfisLojasComServidor();
         }
+      } else if (tipo == 'mensagem_chat') {
+        if (dados['mensagem'] != null) {
+          final msgJson = dados['mensagem'] as Map<String, dynamic>;
+          await ChatService.processarMensagemRecebidaDaRede(msgJson);
+        }
       }
     } catch (e) {
       debugPrint('[ClienteRedeLocal] Erro ao processar mensagem WebSocket: $e');
@@ -508,9 +523,6 @@ class ClienteRedeLocal {
       final cpfLimpo = cpf.replaceAll(RegExp(r'\D'), '');
       final ehDono =
           loja.cpfDonoOriginal.replaceAll(RegExp(r'\D'), '') == cpfLimpo;
-      final ehMembro = loja.membros.any(
-        (m) => m.cpf.replaceAll(RegExp(r'\D'), '') == cpfLimpo,
-      );
 
       if (ehDono) {
         // O dono nunca deve ter ReferenciaLoja para sua própria loja (já reside em minhasLojas).
@@ -518,27 +530,57 @@ class ClienteRedeLocal {
         return;
       }
 
-      if (ehMembro) {
-        // 1. Salva a loja completa no cofre do dono original no banco SQLite local deste aparelho com proteção de imagens
-        await LojasService.salvarLojaIndividual(loja);
+      // Salva a loja completa no banco SQLite local deste aparelho com proteção de imagens
+      await LojasService.salvarLojaIndividual(loja);
 
-        // 2. Garante a referência no cofre deste CPF participante
-        final refs = await LojasService.carregarReferencias(cpf);
-        final jaTem = refs.any((r) => r.lojaId == loja.id);
-        if (!jaTem) {
-          await LojasService.adicionarReferencia(
-            cpf,
-            ReferenciaLoja(
-              lojaId: loja.id,
-              cpfDonoOriginal: loja.cpfDonoOriginal,
-            ),
-          );
+      // Garante a referência no cofre deste CPF participante para que a loja apareça em lojasQueParticipo
+      final refs = await LojasService.carregarReferencias(cpf);
+      final jaTem = refs.any((r) => r.lojaId == loja.id);
+      if (!jaTem) {
+        await LojasService.adicionarReferencia(
+          cpf,
+          ReferenciaLoja(
+            lojaId: loja.id,
+            cpfDonoOriginal: loja.cpfDonoOriginal,
+          ),
+        );
 
-          // 3. Recarrega as lojas no PdvProvider apenas na primeira vinculação para aparecer em lojasQueParticipo
-          await _pdvProvider!.entrarComCpf(cpf);
-        }
+        // Recarrega as lojas no PdvProvider apenas na primeira vinculação para aparecer em lojasQueParticipo
+        await _pdvProvider!.entrarComCpf(cpf);
       }
     }
+  }
+
+  /// Envia mensagem de chat em tempo real via WebSocket para o servidor (com fallback REST)
+  Future<bool> enviarMensagemChat(MensagemChat msg) async {
+    if (_ws != null && estaConectado.value) {
+      try {
+        _ws!.add(
+          jsonEncode({
+            'tipo': 'mensagem_chat',
+            'mensagem': msg.toJson(),
+          }),
+        );
+        return true;
+      } catch (e) {
+        debugPrint('[ClienteRedeLocal] Erro ao enviar mensagem via WS, tentando REST: $e');
+      }
+    }
+
+    if (_ipServidor != null && _portaServidor != null) {
+      try {
+        final client = HttpClient()..connectionTimeout = const Duration(seconds: 5);
+        final uri = Uri.parse('http://$_ipServidor:$_portaServidor/api/chat/mensagem');
+        final req = await client.postUrl(uri);
+        req.headers.contentType = ContentType.json;
+        req.write(jsonEncode(msg.toJson()));
+        final resp = await req.close();
+        return resp.statusCode == HttpStatus.ok;
+      } catch (e) {
+        debugPrint('[ClienteRedeLocal] Erro ao enviar mensagem de chat via REST: $e');
+      }
+    }
+    return false;
   }
 
   /// Envia um novo pedido realizado no celular para o servidor central da loja
@@ -1299,16 +1341,50 @@ class ClienteRedeLocal {
         novaGaleria.add(await resolverCaminhoImagem(g));
       }
 
-      // 7. Músicas da loja
+      // 7. Músicas da loja (mantém caminhos e agenda download em background sem bloquear o handshake)
       final novasMusicas = <String>[];
       for (final m in lojaRemota.musicas) {
-        novasMusicas.add(await baixarAudioRemoto(m));
+        final local = ImagemService.resolverCaminhoExistente(m);
+        if (local != null) {
+          novasMusicas.add(local);
+        } else {
+          novasMusicas.add(m);
+          baixarAudioRemoto(m).then((baixado) {
+            if (baixado != m && _pdvProvider != null && _lojaSincronizada != null) {
+              final lojaAtual = _pdvProvider!.buscarPorId(_lojaSincronizada!.id);
+              if (lojaAtual != null) {
+                final musicasAtualizadas =
+                    lojaAtual.musicas.map((x) => x == m ? baixado : x).toList();
+                _pdvProvider!.adicionarOuAtualizarLoja(
+                  lojaAtual.copyWith(musicas: musicasAtualizadas),
+                );
+              }
+            }
+          });
+        }
       }
 
       // 8. Arquivos de áudio da loja
       final novosAudios = <String>[];
       for (final a in lojaRemota.arquivosAudio) {
-        novosAudios.add(await baixarAudioRemoto(a));
+        final local = ImagemService.resolverCaminhoExistente(a);
+        if (local != null) {
+          novosAudios.add(local);
+        } else {
+          novosAudios.add(a);
+          baixarAudioRemoto(a).then((baixado) {
+            if (baixado != a && _pdvProvider != null && _lojaSincronizada != null) {
+              final lojaAtual = _pdvProvider!.buscarPorId(_lojaSincronizada!.id);
+              if (lojaAtual != null) {
+                final audiosAtualizados =
+                    lojaAtual.arquivosAudio.map((x) => x == a ? baixado : x).toList();
+                _pdvProvider!.adicionarOuAtualizarLoja(
+                  lojaAtual.copyWith(arquivosAudio: audiosAtualizados),
+                );
+              }
+            }
+          });
+        }
       }
 
       return lojaRemota.copyWith(

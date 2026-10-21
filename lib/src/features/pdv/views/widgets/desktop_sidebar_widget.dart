@@ -30,7 +30,10 @@ class DesktopSidebarWidget extends StatelessWidget {
     required this.onAlternarLayout,
     required this.tipoLayoutNome,
     this.caixaAberto = false,
+    this.temNovasMensagens = false,
   });
+
+  final bool temNovasMensagens;
 
   String _obterTeclaParaAcao(String acao) {
     for (final entry in atalhosTeclado.entries) {
@@ -221,6 +224,14 @@ class DesktopSidebarWidget extends StatelessWidget {
                     rotulo: 'Clientes',
                     icone: Icons.people_outline,
                     onTap: () => _executar('Clientes'),
+                  ),
+                  _BotaoAtalhoSidebar(
+                    theme: theme,
+                    tecla: _obterTeclaParaAcao('Mensagens'),
+                    rotulo: 'Mensagens',
+                    icone: Icons.chat_bubble_outline,
+                    badgeAtencao: temNovasMensagens,
+                    onTap: () => _executar('Mensagens'),
                   ),
                   _BotaoAtalhoSidebar(
                     theme: theme,
@@ -421,12 +432,15 @@ class _BotaoAtalhoSidebar extends StatefulWidget {
   final IconData icone;
   final VoidCallback onTap;
 
+  final bool badgeAtencao;
+
   const _BotaoAtalhoSidebar({
     required this.theme,
     required this.tecla,
     required this.rotulo,
     required this.icone,
     required this.onTap,
+    this.badgeAtencao = false,
   });
 
   @override
@@ -500,12 +514,31 @@ class _BotaoAtalhoSidebarState extends State<_BotaoAtalhoSidebar> {
                 Icon(widget.icone, size: 16, color: theme.secondaryTextColor),
                 const SizedBox(width: 8),
                 Expanded(
-                  child: Text(
-                    widget.rotulo,
-                    style: theme.getTextStyle(
-                      fontSize: 11,
-                      color: theme.textColor,
-                    ),
+                  child: Row(
+                    children: [
+                      Flexible(
+                        child: Text(
+                          widget.rotulo,
+                          style: theme.getTextStyle(
+                            fontSize: 11,
+                            color: theme.textColor,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      if (widget.badgeAtencao) ...[
+                        const SizedBox(width: 6),
+                        Container(
+                          width: 8,
+                          height: 8,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: theme.dangerColor,
+                          ),
+                        ),
+                      ],
+                    ],
                   ),
                 ),
               ],

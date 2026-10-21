@@ -10,6 +10,7 @@ class UsuarioNous {
   final String localNascimento;
   final String tipoSanguineo;
   final String estadoCivil;
+  final String biografia;
 
   const UsuarioNous({
     required this.cpf,
@@ -23,6 +24,7 @@ class UsuarioNous {
     this.localNascimento = '',
     this.tipoSanguineo = '',
     this.estadoCivil = '',
+    this.biografia = '',
   });
 
   UsuarioNous copyWith({
@@ -36,6 +38,7 @@ class UsuarioNous {
     String? localNascimento,
     String? tipoSanguineo,
     String? estadoCivil,
+    String? biografia,
   }) {
     return UsuarioNous(
       cpf: cpf,
@@ -49,6 +52,7 @@ class UsuarioNous {
       localNascimento: localNascimento ?? this.localNascimento,
       tipoSanguineo: tipoSanguineo ?? this.tipoSanguineo,
       estadoCivil: estadoCivil ?? this.estadoCivil,
+      biografia: biografia ?? this.biografia,
     );
   }
 
@@ -65,6 +69,7 @@ class UsuarioNous {
       'localNascimento': localNascimento,
       'tipoSanguineo': tipoSanguineo,
       'estadoCivil': estadoCivil,
+      'biografia': biografia,
     };
   }
 
@@ -83,6 +88,7 @@ class UsuarioNous {
       localNascimento: json['localNascimento'] as String? ?? '',
       tipoSanguineo: json['tipoSanguineo'] as String? ?? '',
       estadoCivil: json['estadoCivil'] as String? ?? '',
+      biografia: json['biografia'] as String? ?? '',
     );
   }
 }

@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:ui';
 
 import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
@@ -68,6 +69,7 @@ class _FichaUsuarioConteudo extends StatefulWidget {
 class _FichaUsuarioConteudoState extends State<_FichaUsuarioConteudo> {
   late UsuarioNous _usuario;
   bool _editandoDados = false;
+  bool _ocultarDados = true;
 
   late final TextEditingController _apelidoController;
   late final TextEditingController _dataNascController;
@@ -316,7 +318,23 @@ class _FichaUsuarioConteudoState extends State<_FichaUsuarioConteudo> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const SizedBox(width: 40),
+              IconButton(
+                visualDensity: VisualDensity.compact,
+                tooltip: _ocultarDados
+                    ? 'Mostrar dados sensíveis'
+                    : 'Ocultar dados sensíveis',
+                icon: Icon(
+                  _ocultarDados
+                      ? Icons.visibility_off_outlined
+                      : Icons.visibility_outlined,
+                  color: theme.secondaryTextColor,
+                ),
+                onPressed: () {
+                  setState(() {
+                    _ocultarDados = !_ocultarDados;
+                  });
+                },
+              ),
               Text(
                 'Identidade do Usuário',
                 style: theme.getTextStyle(
@@ -443,18 +461,21 @@ class _FichaUsuarioConteudoState extends State<_FichaUsuarioConteudo> {
             ),
           ),
           const SizedBox(height: 4),
-          Text(
-            _formatarCpf(contaAtualizada.cpf),
-            style: theme.getTextStyle(
-              fontSize: 13,
-              color: theme.secondaryTextColor,
+          _borrarSeNecessario(
+            Text(
+              _formatarCpf(contaAtualizada.cpf),
+              style: theme.getTextStyle(
+                fontSize: 13,
+                color: theme.secondaryTextColor,
+              ),
             ),
           ),
 
           const SizedBox(height: 16),
 
           // Bloco Dados Pessoais
-          Container(
+          _borrarSeNecessario(
+            Container(
             width: double.infinity,
             padding: const EdgeInsets.symmetric(vertical: 12),
             decoration: _decoracaoDoBloco,
@@ -575,11 +596,13 @@ class _FichaUsuarioConteudoState extends State<_FichaUsuarioConteudo> {
               ],
             ),
           ),
+          ),
 
           const SizedBox(height: 12),
 
           // Bloco E-mails Associados
-          Container(
+          _borrarSeNecessario(
+            Container(
             width: double.infinity,
             padding: const EdgeInsets.symmetric(vertical: 12),
             decoration: _decoracaoDoBloco,
@@ -657,6 +680,7 @@ class _FichaUsuarioConteudoState extends State<_FichaUsuarioConteudo> {
                     ),
               ],
             ),
+          ),
           ),
 
           const SizedBox(height: 12),
@@ -779,5 +803,13 @@ class _FichaUsuarioConteudoState extends State<_FichaUsuarioConteudo> {
       return 'Dono';
     }
     return 'Membro';
+  }
+
+  Widget _borrarSeNecessario(Widget child) {
+    if (!_ocultarDados) return child;
+    return ImageFiltered(
+      imageFilter: ImageFilter.blur(sigmaX: 5.5, sigmaY: 5.5),
+      child: child,
+    );
   }
 }

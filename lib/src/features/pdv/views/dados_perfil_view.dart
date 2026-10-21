@@ -39,6 +39,8 @@ import 'package:nous/src/features/pdv/views/widgets/mesas/criar_mesa_dialog.dart
 import 'package:nous/src/features/pdv/views/widgets/mesas/fechar_conta_mesa_dialog.dart';
 import 'package:nous/src/features/pdv/views/financeiro_view.dart';
 import 'package:nous/src/features/pdv/views/perfis_pdv_view.dart';
+import 'package:nous/src/features/chat/views/mensageria_view.dart';
+import 'package:nous/src/features/chat/services/chat_service.dart';
 import 'package:nous/src/features/pdv/views/status_loja_view.dart';
 import 'package:nous/src/features/pdv/models/turno_caixa.dart';
 import 'package:nous/src/features/pdv/views/widgets/caixa_dialog.dart';
@@ -152,6 +154,7 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
   static const List<String> _acoesAtalhosDisponiveis = [
     'Nova Venda',
     'Clientes',
+    'Mensagens',
     'Caixa',
     'Relatórios',
     'Impressora',
@@ -162,6 +165,7 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
   ];
 
   bool _modoBalcaoAtivo = false;
+  bool _temNovasMensagensLoja = false;
 
   static const List<String> _teclasFuncao = [
     'F1',
@@ -2934,6 +2938,8 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
   void initState() {
     super.initState();
     HardwareKeyboard.instance.addHandler(_tratarTecladoGlobal);
+    ChatService.alteracoesChatNotifier.addListener(_verificarMensagensNaoLidasLoja);
+    _verificarMensagensNaoLidasLoja();
 
     _abaSelecionada = widget.abaInicial;
 
@@ -3313,6 +3319,7 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
   @override
   void dispose() {
     HardwareKeyboard.instance.removeHandler(_tratarTecladoGlobal);
+    ChatService.alteracoesChatNotifier.removeListener(_verificarMensagensNaoLidasLoja);
     _pdvProvider.removeListener(_aoAtualizarPdv);
     _timerVerificacaoPedidos?.cancel();
     _controllers.dispose();
@@ -4373,6 +4380,9 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
       case 'Clientes':
         _abrirPopupClientes();
         break;
+      case 'Mensagens':
+        _abrirMensagensLoja();
+        break;
       case 'Caixa':
         _abrirPopupCaixa();
         break;
@@ -4394,6 +4404,30 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
       case 'Tela Cheia':
         JanelaWindowsService.alternarTelaCheia();
         break;
+    }
+  }
+
+  void _abrirMensagensLoja() {
+    final pdv = context.read<PdvProvider>();
+    final lojaAtual = pdv.buscarPorId(widget.lojaId);
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) => MensageriaView(
+          modoLoja: true,
+          lojaId: widget.lojaId,
+          nomeLoja: lojaAtual?.nome ?? '',
+          logoLoja: lojaAtual?.logo ?? '',
+          operadorNome: _nomeLogado,
+          operadorCpf: _cpfLogado,
+        ),
+      ),
+    );
+  }
+
+  Future<void> _verificarMensagensNaoLidasLoja() async {
+    final tem = await ChatService.temMensagensNaoLidasNaLoja(widget.lojaId);
+    if (mounted && tem != _temNovasMensagensLoja) {
+      setState(() => _temNovasMensagensLoja = tem);
     }
   }
 
@@ -5709,6 +5743,8 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
           aoExcluirPedido: _excluirPedido,
           aoNovaVenda: _abrirPopupNovaVenda,
           aoClientes: _abrirPopupClientes,
+          aoMensagens: _abrirMensagensLoja,
+          temNovasMensagens: _temNovasMensagensLoja,
           aoRelatorios: _abrirPopupRelatorios,
           aoImpressora: _abrirPopupImpressora,
           aoFinanceiro: _abrirFinanceiro,
@@ -5926,6 +5962,7 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
                         onAlternarLayout: _alternarLayout,
                         tipoLayoutNome: 'Layout Desktop Expandido',
                         caixaAberto: lojaAtual?.turnoCaixaAberto != null,
+                        temNovasMensagens: _temNovasMensagensLoja,
                       ),
                       Expanded(
                         child: Column(

@@ -10,6 +10,8 @@ import 'package:nous/src/core/theme/theme_controller.dart';
 import 'package:nous/src/features/auth/models/usuario_nous.dart';
 import 'package:nous/src/features/auth/providers/auth_provider.dart';
 import 'package:nous/src/features/auth/services/contas_nous_service.dart';
+import 'package:nous/src/features/chat/models/mensagem_chat.dart';
+import 'package:nous/src/features/chat/services/chat_service.dart';
 import 'package:nous/src/features/pdv/models/loja.dart';
 import 'package:nous/src/features/pdv/models/membro_loja.dart';
 import 'package:nous/src/features/pdv/models/mesa_loja.dart';
@@ -538,11 +540,21 @@ class ServidorRedeLocal {
       final dispositivoParam = request.uri.queryParameters['dispositivo'];
 
       final ehLocal = request.connectionInfo?.remoteAddress.isLoopback ?? false;
-      final chaveTerminal = (cpfParam != null && cpfParam.trim().isNotEmpty)
-          ? '${ipRemoto}_${cpfParam.replaceAll(RegExp(r'\D'), '')}'
+      final cpfParamLimpo =
+          (cpfParam != null) ? ChatService.normalizarCpf(cpfParam) : '';
+      final ehMembroOuDono = _lojaAtiva != null &&
+          cpfParamLimpo.isNotEmpty &&
+          (_lojaAtiva!.membros.any((m) =>
+                  ChatService.normalizarCpf(m.cpf) == cpfParamLimpo) ||
+              ChatService.normalizarCpf(_lojaAtiva!.cpfDonoOriginal) ==
+                  cpfParamLimpo);
+
+      final ehIdentificado = cpfParamLimpo.isNotEmpty;
+      final chaveTerminal = (cpfParamLimpo.isNotEmpty)
+          ? '${ipRemoto}_$cpfParamLimpo'
           : '${ipRemoto}_${dispositivoParam?.trim() ?? ''}';
 
-      if (!ehLocal && !_terminaisAutorizados.contains(chaveTerminal)) {
+      if (!ehLocal && !ehIdentificado && !ehMembroOuDono && !_terminaisAutorizados.contains(chaveTerminal)) {
         final autorizou = await _solicitarAutorizacaoTerminal(
           ip: ipRemoto,
           nomeDispositivo: (dispositivoParam != null && dispositivoParam.trim().isNotEmpty)
@@ -565,9 +577,9 @@ class ServidorRedeLocal {
           );
           return;
         }
-
-        _terminaisAutorizados.add(chaveTerminal);
       }
+
+      _terminaisAutorizados.add(chaveTerminal);
 
       if (cpfParam != null && cpfParam.trim().isNotEmpty && _lojaAtiva != null && _pdvProvider != null) {
         final terminalTemp = TerminalConectadoInfo(
@@ -581,7 +593,7 @@ class ServidorRedeLocal {
           nomeUsuario: nomeParam?.trim(),
           apelido: apelidoParam?.trim(),
         );
-        _garantirMembroConectado(terminalTemp);
+        await _garantirMembroConectado(terminalTemp);
         _consolidarContaTerminal(terminalTemp);
       }
 
@@ -1151,6 +1163,42 @@ class ServidorRedeLocal {
       }
     }
 
+    // 11. Envio de mensagem de chat via REST (fallback e redundância)
+    if (path == '/api/chat/mensagem' && request.method == 'POST') {
+      try {
+        final body = await utf8.decodeStream(request);
+        final dados = jsonDecode(body) as Map<String, dynamic>;
+        final msgJson = dados['mensagem'] as Map<String, dynamic>? ?? dados;
+        final msg = MensagemChat.fromJson(msgJson);
+        await ChatService.salvarMensagem(msg, originadaDaRede: true);
+        notificarTodos({'tipo': 'mensagem_chat', 'mensagem': msg.toJson()});
+        _responderJson(request, {'sucesso': true});
+        return;
+      } catch (e) {
+        _responderJson(request, {'sucesso': false, 'erro': e.toString()},
+            statusCode: HttpStatus.internalServerError);
+        return;
+      }
+    }
+
+    // 12. Sincronização de mensagens de chat pela rede Wi-Fi
+    if (path == '/api/chat/mensagens' && request.method == 'GET') {
+      try {
+        final cpf = request.uri.queryParameters['cpf'];
+        final lojaId = request.uri.queryParameters['lojaId'];
+        final mensagens = await ChatService.obterMensagensParaSincronizacao(
+          cpf: cpf,
+          lojaId: lojaId,
+        );
+        _responderJson(request, {'sucesso': true, 'mensagens': mensagens});
+        return;
+      } catch (e) {
+        _responderJson(request, {'sucesso': false, 'erro': e.toString()},
+            statusCode: HttpStatus.internalServerError);
+        return;
+      }
+    }
+
     // Rota não encontrada
     _responderJson(
       request,
@@ -1159,7 +1207,7 @@ class ServidorRedeLocal {
     );
   }
 
-  void _tratarMensagemWs(WebSocket ws, dynamic msg) {
+  Future<void> _tratarMensagemWs(WebSocket ws, dynamic msg) async {
     try {
       final dados = jsonDecode(msg as String) as Map<String, dynamic>;
       final tipo = dados['tipo'];
@@ -1191,13 +1239,29 @@ class ServidorRedeLocal {
           );
 
           // Verifica se o CPF ainda não é membro da loja e garante sua inclusão
-          _garantirMembroConectado(terminal);
+          await _garantirMembroConectado(terminal);
 
           // Unifica e consolida a Identidade do Usuário no banco de contas local do balcão
           _consolidarContaTerminal(terminal);
 
           // Notifica todos com a lista de presenças atualizada
           notificarPresencas();
+        }
+      } else if (tipo == 'mensagem_chat') {
+        if (dados['mensagem'] != null) {
+          final msgJson = dados['mensagem'] as Map<String, dynamic>;
+          final msg = MensagemChat.fromJson(msgJson);
+          ChatService.salvarMensagem(msg, originadaDaRede: true);
+
+          // Retransmite para todos os outros terminais conectados via WebSocket
+          final payload = jsonEncode({'tipo': 'mensagem_chat', 'mensagem': msg.toJson()});
+          for (final cliente in List<WebSocket>.from(_clientesWs)) {
+            if (cliente != ws) {
+              try {
+                cliente.add(payload);
+              } catch (_) {}
+            }
+          }
         }
       }
     } catch (_) {}
@@ -1233,17 +1297,17 @@ class ServidorRedeLocal {
   }
 
   /// Adiciona automaticamente um novo usuário como membro da loja ao conectar pela primeira vez no Wi-Fi
-  void _garantirMembroConectado(TerminalConectadoInfo terminal) async {
+  Future<Loja?> _garantirMembroConectado(TerminalConectadoInfo terminal) async {
     final cpfLimpo = terminal.cpf?.replaceAll(RegExp(r'\D'), '');
     if (cpfLimpo == null || cpfLimpo.isEmpty || _lojaAtiva == null || _pdvProvider == null) {
-      return;
+      return _lojaAtiva;
     }
 
     final lojaAtual = _pdvProvider!.buscarPorId(_lojaAtiva!.id) ?? _lojaAtiva!;
     final cpfDonoLimpo = lojaAtual.cpfDonoOriginal.replaceAll(RegExp(r'\D'), '');
     if (cpfLimpo == cpfDonoLimpo) {
       // É o dono acessando por outro dispositivo (ex.: celular do dono)
-      return;
+      return lojaAtual;
     }
 
     final jaEhMembro = lojaAtual.membros.any(
@@ -1292,7 +1356,9 @@ class ServidorRedeLocal {
         'tipo': 'loja_atualizada',
         'loja': lojaAtualizada.toJson(),
       });
+      return lojaAtualizada;
     }
+    return lojaAtual;
   }
 
   /// Consolida e unifica a ficha de Identidade do Usuário no banco de contas local do balcão

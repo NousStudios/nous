@@ -202,6 +202,30 @@ class AuthProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  Future<void> atualizarPerfilSocial({
+    required String nome,
+    required String apelido,
+    required String biografia,
+    String? foto,
+  }) async {
+    final conta = _contaAtual;
+    if (conta == null) return;
+
+    final atualizado = conta.copyWith(
+      nome: nome.trim(),
+      apelido: apelido.trim(),
+      biografia: biografia.trim(),
+      foto: foto != null ? foto.trim() : conta.foto,
+    );
+    await ContasNousService.salvar(atualizado);
+    _contaAtual = atualizado;
+    if (foto != null && foto.trim().isNotEmpty) {
+      _fotosPorCpf[conta.cpf] = foto.trim();
+    }
+    _propagarUsuarioAtualizado(atualizado);
+    notifyListeners();
+  }
+
   void _propagarUsuarioAtualizado(UsuarioNous usuario) {
     if (ClienteRedeLocal().conectado) {
       ClienteRedeLocal().enviarUsuario(usuario);

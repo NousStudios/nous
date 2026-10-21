@@ -51,6 +51,7 @@ class GestaoLojaContainer extends StatefulWidget {
   final List<ItemLoja> itensDisponiveis;
   final VoidCallback aoNovaVenda;
   final VoidCallback aoClientes;
+  final VoidCallback? aoMensagens;
   final VoidCallback aoRelatorios;
   final VoidCallback? aoImpressora;
   final VoidCallback? aoFinanceiro;
@@ -62,6 +63,7 @@ class GestaoLojaContainer extends StatefulWidget {
   final VoidCallback? aoCriarMesa;
   final ValueChanged<MesaLoja>? aoClicarMesa;
   final bool ocultarBotoesTopo;
+  final bool temNovasMensagens;
 
   const GestaoLojaContainer({
     super.key,
@@ -85,6 +87,7 @@ class GestaoLojaContainer extends StatefulWidget {
     this.aoExcluirPedido,
     required this.aoNovaVenda,
     required this.aoClientes,
+    this.aoMensagens,
     required this.aoRelatorios,
     this.aoImpressora,
     this.aoFinanceiro,
@@ -96,6 +99,7 @@ class GestaoLojaContainer extends StatefulWidget {
     this.aoCriarMesa,
     this.aoClicarMesa,
     this.ocultarBotoesTopo = false,
+    this.temNovasMensagens = false,
   });
 
   @override
@@ -132,11 +136,13 @@ class _GestaoLojaContainerState extends State<GestaoLojaContainer> {
   List<ItemLoja> get itensDisponiveis => widget.itensDisponiveis;
   VoidCallback get aoNovaVenda => widget.aoNovaVenda;
   VoidCallback get aoClientes => widget.aoClientes;
+  VoidCallback? get aoMensagens => widget.aoMensagens;
   VoidCallback get aoRelatorios => widget.aoRelatorios;
   VoidCallback? get aoImpressora => widget.aoImpressora;
   VoidCallback? get aoFinanceiro => widget.aoFinanceiro;
   VoidCallback? get aoCaixa => widget.aoCaixa;
   bool get caixaAberto => widget.caixaAberto;
+  bool get temNovasMensagens => widget.temNovasMensagens;
   VoidCallback? get aoStatus => widget.aoStatus;
   bool get ehRestaurante => widget.ehRestaurante;
   List<MesaLoja> get mesas => widget.mesas;
@@ -159,24 +165,44 @@ class _GestaoLojaContainerState extends State<GestaoLojaContainer> {
     BuildContext context,
     String rotulo, {
     VoidCallback? aoPressionar,
+    bool temPontoVermelho = false,
   }) {
     return Expanded(
       child: SizedBox(
         height: 56,
-        child: OutlinedButton(
-          style: OutlinedButton.styleFrom(
-            foregroundColor: theme.textColor,
-            side: BorderSide(color: theme.borderColor),
-            padding: const EdgeInsets.symmetric(horizontal: 4),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(10),
+        child: Stack(
+          children: [
+            Positioned.fill(
+              child: OutlinedButton(
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: theme.textColor,
+                  side: BorderSide(color: theme.borderColor),
+                  padding: const EdgeInsets.symmetric(horizontal: 4),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                ),
+                onPressed: aoPressionar ?? () => _emConstrucao(context, rotulo),
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Text(rotulo, style: theme.getTextStyle(fontSize: 12)),
+                ),
+              ),
             ),
-          ),
-          onPressed: aoPressionar ?? () => _emConstrucao(context, rotulo),
-          child: FittedBox(
-            fit: BoxFit.scaleDown,
-            child: Text(rotulo, style: theme.getTextStyle(fontSize: 12)),
-          ),
+            if (temPontoVermelho)
+              Positioned(
+                top: 6,
+                right: 6,
+                child: Container(
+                  width: 8,
+                  height: 8,
+                  decoration: BoxDecoration(
+                    color: theme.dangerColor,
+                    shape: BoxShape.circle,
+                  ),
+                ),
+              ),
+          ],
         ),
       ),
     );
@@ -290,7 +316,12 @@ class _GestaoLojaContainerState extends State<GestaoLojaContainer> {
           const SizedBox(height: 8),
           Row(
             children: [
-              _botaoDeGestao(context, 'Mensagens'),
+              _botaoDeGestao(
+                context,
+                'Mensagens',
+                aoPressionar: aoMensagens,
+                temPontoVermelho: temNovasMensagens,
+              ),
               espaco,
               _blocoStatus(context),
             ],
