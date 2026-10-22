@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
+import 'package:path/path.dart' as p;
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import 'package:nous/src/core/services/banco_dados_service.dart';
 import 'package:nous/src/core/services/som_service.dart';
@@ -8,6 +9,8 @@ import 'package:nous/src/features/chat/models/conversa_chat.dart';
 import 'package:nous/src/features/chat/models/mensagem_chat.dart';
 import 'package:nous/src/features/pdv/services/rede_local/cliente_rede_local.dart';
 import 'package:nous/src/features/pdv/services/rede_local/servidor_rede_local.dart';
+import 'package:nous/src/features/chat/services/notificacao_android_service.dart';
+import 'package:nous/src/features/pdv/services/imagem_service.dart';
 
 class ChatService {
   ChatService._();
@@ -50,9 +53,31 @@ class ChatService {
           data_hora TEXT NOT NULL,
           nome_atendente TEXT,
           cpf_atendente TEXT,
-          lida INTEGER NOT NULL DEFAULT 0
+          lida INTEGER NOT NULL DEFAULT 0,
+          tipo TEXT NOT NULL DEFAULT 'texto',
+          caminho_anexo TEXT,
+          nome_anexo TEXT,
+          tamanho_anexo INTEGER DEFAULT 0,
+          pedido_id TEXT,
+          dados_pedido_json TEXT
         );
       ''');
+
+      // Migração dinâmica segura para bases já existentes
+      final alteracoes = [
+        'ALTER TABLE mensagens_chat ADD COLUMN tipo TEXT DEFAULT "texto";',
+        'ALTER TABLE mensagens_chat ADD COLUMN caminho_anexo TEXT;',
+        'ALTER TABLE mensagens_chat ADD COLUMN nome_anexo TEXT;',
+        'ALTER TABLE mensagens_chat ADD COLUMN tamanho_anexo INTEGER DEFAULT 0;',
+        'ALTER TABLE mensagens_chat ADD COLUMN pedido_id TEXT;',
+        'ALTER TABLE mensagens_chat ADD COLUMN dados_pedido_json TEXT;',
+      ];
+      for (final sql in alteracoes) {
+        try {
+          await db.execute(sql);
+        } catch (_) {}
+      }
+
       await db.execute(
         'CREATE INDEX IF NOT EXISTS idx_chat_conversa ON mensagens_chat (conversa_id);',
       );
@@ -79,6 +104,27 @@ class ChatService {
     return db;
   }
 
+  /// Salva uma cópia permanente do arquivo anexo no diretório seguro de dados do aplicativo
+  static Future<String?> salvarArquivoAnexo(String caminhoOriginal) async {
+    try {
+      final arquivoOriginal = File(caminhoOriginal);
+      if (!await arquivoOriginal.exists()) return null;
+      final base = await ImagemService.obterDiretorioBase();
+      final pasta = Directory('${base.path}/anexos_chat');
+      if (!await pasta.exists()) {
+        await pasta.create(recursive: true);
+      }
+      final nome = p.basename(caminhoOriginal);
+      final idUnico = DateTime.now().millisecondsSinceEpoch;
+      final destino = File('${pasta.path}/${idUnico}_$nome');
+      await arquivoOriginal.copy(destino.path);
+      return destino.path;
+    } catch (e) {
+      debugPrint('[ChatService] Erro ao salvar anexo de arquivo: $e');
+      return null;
+    }
+  }
+
   static Future<void> salvarMensagem(
     MensagemChat mensagem, {
     bool originadaDaRede = false,
@@ -98,6 +144,12 @@ class ChatService {
         'nome_atendente': mensagem.nomeAtendente,
         'cpf_atendente': mensagem.cpfAtendente,
         'lida': mensagem.lida ? 1 : 0,
+        'tipo': mensagem.tipo,
+        'caminho_anexo': mensagem.caminhoAnexo,
+        'nome_anexo': mensagem.nomeAnexo,
+        'tamanho_anexo': mensagem.tamanhoAnexo,
+        'pedido_id': mensagem.pedidoId,
+        'dados_pedido_json': mensagem.dadosPedidoJson,
       },
       conflictAlgorithm: ConflictAlgorithm.replace,
     );
@@ -111,18 +163,36 @@ class ChatService {
   /// Despacha a mensagem para a malha da rede local (seja via servidor balcão ou cliente móvel)
   static Future<void> despacharMensagemParaRede(MensagemChat mensagem) async {
     try {
+      final dadosEnvio = mensagem.toJson();
+
+      // Se a mensagem contiver anexo (imagem ou arquivo), embute os bytes em Base64 para sincronização física imediata
+      if (mensagem.caminhoAnexo.isNotEmpty) {
+        final caminhoResolvido =
+            ImagemService.resolverCaminhoExistente(mensagem.caminhoAnexo);
+        if (caminhoResolvido != null && File(caminhoResolvido).existsSync()) {
+          try {
+            final bytes = await File(caminhoResolvido).readAsBytes();
+            if (bytes.isNotEmpty && bytes.length <= 25 * 1024 * 1024) {
+              dadosEnvio['anexoBytesBase64'] = base64Encode(bytes);
+            }
+          } catch (e) {
+            debugPrint('[ChatService] Erro ao ler bytes do anexo para envio: $e');
+          }
+        }
+      }
+
       final servidor = ServidorRedeLocal();
       if (servidor.ativo) {
         servidor.notificarTodos({
           'tipo': 'mensagem_chat',
-          'mensagem': mensagem.toJson(),
+          'mensagem': dadosEnvio,
         });
         return;
       }
 
       final cliente = ClienteRedeLocal();
       if (cliente.conectado) {
-        await cliente.enviarMensagemChat(mensagem);
+        await cliente.enviarMensagemChat(mensagem, payloadCustomizado: dadosEnvio);
       }
     } catch (e) {
       debugPrint('[ChatService] Erro ao despachar mensagem pela rede local: $e');
@@ -135,11 +205,57 @@ class ChatService {
     bool emitirAlertaSonoro = true,
   }) async {
     try {
-      final mensagem = MensagemChat.fromJson(dadosMensagem);
+      var mensagem = MensagemChat.fromJson(dadosMensagem);
+
+      // Se a mensagem vier com bytes do anexo em Base64, salva o arquivo físico localmente
+      final anexoBase64 = dadosMensagem['anexoBytesBase64'] as String?;
+      if (anexoBase64 != null && anexoBase64.isNotEmpty) {
+        try {
+          final bytes = base64Decode(anexoBase64);
+          if (mensagem.tipo == 'imagem') {
+            final ext = mensagem.nomeAnexo.split('.').last.toLowerCase();
+            final salvo = await ImagemService.salvarBytesImagemLocal(
+              bytes,
+              extensaoOriginal: ext,
+              nomeSugerido: mensagem.nomeAnexo,
+            );
+            if (salvo != null) {
+              mensagem = mensagem.copyWith(caminhoAnexo: salvo);
+            }
+          } else {
+            final salvo = await ImagemService.salvarBytesAnexoLocal(
+              bytes,
+              categoria: 'arquivos',
+              nomeSugerido: mensagem.nomeAnexo,
+            );
+            if (salvo != null) {
+              mensagem = mensagem.copyWith(caminhoAnexo: salvo);
+            }
+          }
+        } catch (e) {
+          debugPrint('[ChatService] Erro ao gravar anexo recebido via rede: $e');
+        }
+      } else if (mensagem.tipo == 'imagem' && mensagem.caminhoAnexo.isNotEmpty) {
+        // Fallback: se não veio Base64 e o arquivo não existe localmente, tenta baixar do balcão caso conectado
+        final existeLocal =
+            ImagemService.resolverCaminhoExistente(mensagem.caminhoAnexo) != null;
+        if (!existeLocal && ClienteRedeLocal().conectado) {
+          try {
+            final baixado = await ClienteRedeLocal()
+                .baixarImagemRemota(mensagem.caminhoAnexo);
+            if (baixado.isNotEmpty && baixado != mensagem.caminhoAnexo) {
+              mensagem = mensagem.copyWith(caminhoAnexo: baixado);
+            }
+          } catch (_) {}
+        }
+      }
+
       await salvarMensagem(mensagem, originadaDaRede: true);
       if (emitirAlertaSonoro) {
         SomService.tocarBipPadrao();
       }
+      // Notificação nativa no sistema operacional Android estilo WhatsApp
+      await NotificacaoAndroidService.exibirNotificacaoMensagem(mensagem);
     } catch (e) {
       debugPrint('[ChatService] Erro ao processar mensagem recebida da rede: $e');
     }
@@ -173,7 +289,20 @@ class ChatService {
           final lista = dados['mensagens'] as List<dynamic>;
           for (final item in lista) {
             if (item is Map<String, dynamic>) {
-              final msg = MensagemChat.fromJson(item);
+              var msg = MensagemChat.fromJson(item);
+              if (msg.tipo == 'imagem' && msg.caminhoAnexo.isNotEmpty) {
+                final existeLocal =
+                    ImagemService.resolverCaminhoExistente(msg.caminhoAnexo) != null;
+                if (!existeLocal && ClienteRedeLocal().conectado) {
+                  try {
+                    final baixado = await ClienteRedeLocal()
+                        .baixarImagemRemota(msg.caminhoAnexo);
+                    if (baixado.isNotEmpty && baixado != msg.caminhoAnexo) {
+                      msg = msg.copyWith(caminhoAnexo: baixado);
+                    }
+                  } catch (_) {}
+                }
+              }
               await salvarMensagem(msg, originadaDaRede: true);
             }
           }
@@ -243,6 +372,12 @@ class ChatService {
         nomeAtendente: r['nome_atendente'] as String? ?? '',
         cpfAtendente: r['cpf_atendente'] as String? ?? '',
         lida: (r['lida'] as int? ?? 1) == 1,
+        tipo: r['tipo'] as String? ?? 'texto',
+        caminhoAnexo: r['caminho_anexo'] as String? ?? '',
+        nomeAnexo: r['nome_anexo'] as String? ?? '',
+        tamanhoAnexo: r['tamanho_anexo'] as int? ?? 0,
+        pedidoId: r['pedido_id'] as String? ?? '',
+        dadosPedidoJson: r['dados_pedido_json'] as String? ?? '',
       );
     }).toList();
   }
@@ -290,6 +425,45 @@ class ChatService {
       limit: 1,
     );
     return rows.isNotEmpty;
+  }
+
+  static Future<bool> temMensagensNaoLidasNoUsuario(String cpf) async {
+    final db = await _obterDb();
+    final cpfNorm = normalizarCpf(cpf);
+    if (cpfNorm.isEmpty) return false;
+    final rows = await db.query(
+      'mensagens_chat',
+      where: '(destinatario_id = ? OR conversa_id LIKE ?) AND remetente_id != ? AND lida = 0',
+      whereArgs: [cpfNorm, '%$cpfNorm%', cpfNorm],
+      limit: 1,
+    );
+    return rows.isNotEmpty;
+  }
+
+  static Future<List<MensagemChat>> obterMensagensNaoLidasDoUsuario(String cpf) async {
+    final db = await _obterDb();
+    final cpfNorm = normalizarCpf(cpf);
+    if (cpfNorm.isEmpty) return [];
+    final rows = await db.query(
+      'mensagens_chat',
+      where: '(destinatario_id = ? OR conversa_id LIKE ?) AND remetente_id != ? AND lida = 0',
+      whereArgs: [cpfNorm, '%$cpfNorm%', cpfNorm],
+      orderBy: 'data_hora DESC',
+    );
+    return rows.map((r) => MensagemChat(
+      id: r['id'] as String? ?? '',
+      conversaId: r['conversa_id'] as String? ?? '',
+      remetenteId: r['remetente_id'] as String? ?? '',
+      remetenteNome: r['remetente_nome'] as String? ?? '',
+      remetenteFoto: r['remetente_foto'] as String? ?? '',
+      destinatarioId: r['destinatario_id'] as String? ?? '',
+      texto: r['texto'] as String? ?? '',
+      dataHora: DateTime.tryParse(r['data_hora'] as String? ?? '') ?? DateTime.now(),
+      enviadaPorMim: false,
+      nomeAtendente: r['nome_atendente'] as String? ?? '',
+      cpfAtendente: r['cpf_atendente'] as String? ?? '',
+      lida: false,
+    )).toList();
   }
 
   static Future<int> contarNaoLidasNaConversa(

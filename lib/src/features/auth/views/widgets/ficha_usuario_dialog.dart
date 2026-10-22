@@ -71,6 +71,7 @@ class _FichaUsuarioConteudoState extends State<_FichaUsuarioConteudo> {
   bool _editandoDados = false;
   bool _ocultarDados = true;
 
+  late final TextEditingController _nomeController;
   late final TextEditingController _apelidoController;
   late final TextEditingController _dataNascController;
   late final TextEditingController _nomeMaeController;
@@ -85,6 +86,8 @@ class _FichaUsuarioConteudoState extends State<_FichaUsuarioConteudo> {
   void initState() {
     super.initState();
     _usuario = widget.usuarioInicial;
+    _nomeController =
+        TextEditingController(text: widget.usuarioInicial.nome);
     _apelidoController =
         TextEditingController(text: widget.usuarioInicial.apelido);
     _dataNascController =
@@ -103,6 +106,7 @@ class _FichaUsuarioConteudoState extends State<_FichaUsuarioConteudo> {
 
   @override
   void dispose() {
+    _nomeController.dispose();
     _apelidoController.dispose();
     _dataNascController.dispose();
     _nomeMaeController.dispose();
@@ -111,6 +115,14 @@ class _FichaUsuarioConteudoState extends State<_FichaUsuarioConteudo> {
     _tipoSanguineoController.dispose();
     _estadoCivilController.dispose();
     super.dispose();
+  }
+
+  Future<void> _salvarNome(String novoNome) async {
+    final auth = context.read<AuthProvider>();
+    await auth.atualizarNome(novoNome);
+    setState(() {
+      _usuario = _usuario.copyWith(nome: novoNome.trim());
+    });
   }
 
   Future<void> _salvarApelido(String novoApelido) async {
@@ -449,17 +461,69 @@ class _FichaUsuarioConteudoState extends State<_FichaUsuarioConteudo> {
               ),
             ),
 
-          Text(
-            contaAtualizada.nome.isEmpty
-                ? 'Nome do Usuário'
-                : contaAtualizada.nome,
-            textAlign: TextAlign.center,
-            style: theme.getTextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.bold,
-              color: theme.textColor,
+          if (ehProprioUsuario)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 6),
+              child: SizedBox(
+                width: 260,
+                child: TextField(
+                  controller: _nomeController,
+                  textAlign: TextAlign.center,
+                  style: theme.getTextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: theme.textColor,
+                  ),
+                  cursorColor: theme.textColor,
+                  decoration: InputDecoration(
+                    labelText: 'Nome Próprio',
+                    labelStyle: theme.getTextStyle(
+                      fontSize: 12,
+                      color: theme.secondaryTextColor,
+                    ),
+                    hintText: 'Digite seu nome completo',
+                    hintStyle: theme.getTextStyle(
+                      fontSize: 13,
+                      color: theme.secondaryTextColor.withValues(alpha: 0.6),
+                    ),
+                    isDense: true,
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 8,
+                    ),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      borderSide: BorderSide(
+                        color: theme.borderColor.withValues(alpha: 0.5),
+                      ),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      borderSide: BorderSide(
+                        color: theme.borderColor.withValues(alpha: 0.5),
+                      ),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      borderSide: BorderSide(color: theme.textColor),
+                    ),
+                  ),
+                  onChanged: (novo) => _salvarNome(novo),
+                ),
+              ),
+            )
+          else
+            Text(
+              contaAtualizada.nome.isEmpty
+                  ? 'Nome do Usuário'
+                  : contaAtualizada.nome,
+              textAlign: TextAlign.center,
+              style: theme.getTextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+                color: theme.textColor,
+              ),
             ),
-          ),
           const SizedBox(height: 4),
           _borrarSeNecessario(
             Text(

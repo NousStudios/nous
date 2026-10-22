@@ -1,7 +1,12 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:nous/src/core/theme/theme_controller.dart';
+import 'package:nous/src/core/widgets/texto_rolante.dart';
 import 'package:nous/src/features/auth/providers/auth_provider.dart';
+import 'package:nous/src/features/chat/models/mensagem_chat.dart';
+import 'package:nous/src/features/chat/services/chat_service.dart';
+import 'package:nous/src/features/chat/views/mensageria_view.dart';
 import 'package:nous/src/features/notificacoes/models/convite_loja.dart';
 import 'package:nous/src/features/notificacoes/providers/notificacoes_provider.dart';
 import 'package:nous/src/features/pdv/models/item_loja.dart';
@@ -11,6 +16,7 @@ import 'package:nous/src/features/pdv/models/movimento_estoque.dart';
 import 'package:nous/src/features/pdv/models/referencia_loja.dart';
 import 'package:nous/src/features/pdv/models/registro_acao.dart';
 import 'package:nous/src/features/pdv/providers/pdv_provider.dart';
+import 'package:nous/src/features/pdv/services/imagem_service.dart';
 import 'package:nous/src/features/pdv/services/lojas_service.dart';
 import 'package:nous/src/features/pdv/views/widgets/estado_vazio_container.dart';
 import 'package:nous/src/features/pdv/views/widgets/movimento_estoque_dialog.dart';
@@ -586,10 +592,120 @@ class _NotificacoesConteudo extends StatelessWidget {
     );
   }
 
+  Widget _linhaMensagemChat(
+    BuildContext context,
+    AppTheme theme,
+    MensagemChat msg,
+  ) {
+    final fotoResolvida =
+        ImagemService.resolverCaminhoExistente(msg.remetenteFoto);
+    final temFoto = fotoResolvida != null;
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(10),
+          onTap: () {
+            Navigator.of(context).pop();
+            Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (_) => MensageriaView(
+                  modoLoja: false,
+                  conversaInicialId: msg.conversaId,
+                  mostrarBotaoVoltar: true,
+                ),
+              ),
+            );
+          },
+          child: Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: theme.backgroundColor.withValues(alpha: 0.6),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(
+                color: theme.buttonColor.withValues(alpha: 0.4),
+              ),
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                CircleAvatar(
+                  radius: 20,
+                  backgroundColor: theme.borderColor.withValues(alpha: 0.3),
+                  backgroundImage:
+                      temFoto ? FileImage(File(fotoResolvida)) : null,
+                  child: !temFoto
+                      ? Icon(
+                          Icons.person,
+                          size: 20,
+                          color: theme.textColor,
+                        )
+                      : null,
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
+                            child: TextoRolante(
+                              texto: msg.remetenteNome.isNotEmpty
+                                  ? msg.remetenteNome
+                                  : 'Mensagem',
+                              style: theme.getTextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.bold,
+                                color: theme.textColor,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            _dataHoraCurta(msg.dataHora),
+                            style: theme.getTextStyle(
+                              fontSize: 10,
+                              color: theme.secondaryTextColor,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 3),
+                      TextoRolante(
+                        texto: msg.texto,
+                        style: theme.getTextStyle(
+                          fontSize: 12,
+                          color: theme.secondaryTextColor,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Icon(
+                  Icons.chat_bubble_outline_rounded,
+                  size: 18,
+                  color: theme.buttonColor,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final notificacoes = context.watch<NotificacoesProvider>();
     final pdv = context.watch<PdvProvider>();
+    final auth = context.watch<AuthProvider>();
+    final cpfUsuario = auth.contaAtual?.cpf ?? '';
+
     final convites = notificacoes.convites
         .where((c) => !notificacoes.estaDispensadaNaSessao('convite_${c.id}'))
         .toList();
@@ -600,11 +716,21 @@ class _NotificacoesConteudo extends StatelessWidget {
             .where((a) => !notificacoes
                 .estaDispensadaNaSessao('alerta_estoque_${a.lojaId}_${a.item.id}'))
             .toList();
-    final vazio = convites.isEmpty && alertasEstoque.isEmpty;
 
-    return ValueListenableBuilder<AppTheme>(
-      valueListenable: ThemeController.currentTheme,
-      builder: (context, theme, child) {
+    return FutureBuilder<List<MensagemChat>>(
+      future: (lojaId == null && cpfUsuario.isNotEmpty)
+          ? ChatService.obterMensagensNaoLidasDoUsuario(cpfUsuario)
+          : Future.value(const <MensagemChat>[]),
+      builder: (context, snapshotMsgs) {
+        final todasMensagens = snapshotMsgs.data ?? const <MensagemChat>[];
+        final mensagens = todasMensagens
+            .where((m) => !notificacoes.estaDispensadaNaSessao('msg_${m.id}'))
+            .toList();
+        final vazio = convites.isEmpty && alertasEstoque.isEmpty && mensagens.isEmpty;
+
+        return ValueListenableBuilder<AppTheme>(
+          valueListenable: ThemeController.currentTheme,
+          builder: (context, theme, child) {
         return Dialog(
           backgroundColor: theme.cardBackgroundColor,
           insetPadding: const EdgeInsets.all(16),
@@ -666,6 +792,9 @@ class _NotificacoesConteudo extends StatelessWidget {
                               ids.add(
                                   'alerta_estoque_${a.lojaId}_${a.item.id}');
                             }
+                            for (final m in mensagens) {
+                              ids.add('msg_${m.id}');
+                            }
                             notificacoes.dispensarTodasNaSessao(ids);
                           },
                         )
@@ -714,6 +843,9 @@ class _NotificacoesConteudo extends StatelessWidget {
                               ids.add(
                                   'alerta_estoque_${a.lojaId}_${a.item.id}');
                             }
+                            for (final m in mensagens) {
+                              ids.add('msg_${m.id}');
+                            }
                             notificacoes.dispensarTodasNaSessao(ids);
                           },
                         ),
@@ -731,6 +863,73 @@ class _NotificacoesConteudo extends StatelessWidget {
                         child: ListView(
                           shrinkWrap: true,
                           children: [
+                            if (mensagens.isNotEmpty) ...[
+                              Padding(
+                                padding:
+                                    const EdgeInsets.only(bottom: 8, top: 4),
+                                child: Row(
+                                  children: [
+                                    Icon(
+                                      Icons.chat_bubble_outline_rounded,
+                                      size: 16,
+                                      color: theme.buttonColor,
+                                    ),
+                                    const SizedBox(width: 6),
+                                    Text(
+                                      'Mensagens (${mensagens.length})',
+                                      style: theme.getTextStyle(
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.bold,
+                                        color: theme.textColor,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              for (final msg in mensagens)
+                                Dismissible(
+                                  key: ValueKey('msg_${msg.id}'),
+                                  direction: DismissDirection.horizontal,
+                                  background: Container(
+                                    alignment: Alignment.centerLeft,
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 16),
+                                    margin: const EdgeInsets.only(bottom: 8),
+                                    decoration: BoxDecoration(
+                                      color: Colors.redAccent
+                                          .withValues(alpha: 0.2),
+                                      borderRadius: BorderRadius.circular(10),
+                                    ),
+                                    child: const Icon(
+                                      Icons.visibility_off_outlined,
+                                      color: Colors.redAccent,
+                                      size: 20,
+                                    ),
+                                  ),
+                                  secondaryBackground: Container(
+                                    alignment: Alignment.centerRight,
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 16),
+                                    margin: const EdgeInsets.only(bottom: 8),
+                                    decoration: BoxDecoration(
+                                      color: Colors.redAccent
+                                          .withValues(alpha: 0.2),
+                                      borderRadius: BorderRadius.circular(10),
+                                    ),
+                                    child: const Icon(
+                                      Icons.visibility_off_outlined,
+                                      color: Colors.redAccent,
+                                      size: 20,
+                                    ),
+                                  ),
+                                  onDismissed: (_) {
+                                    notificacoes.dispensarNaSessao('msg_${msg.id}');
+                                  },
+                                  child: _linhaMensagemChat(context, theme, msg),
+                                ),
+                              if (convites.isNotEmpty || alertasEstoque.isNotEmpty)
+                                const SizedBox(height: 8),
+                            ],
                             if (alertasEstoque.isNotEmpty) ...[
                               Padding(
                                 padding:
@@ -804,7 +1003,7 @@ class _NotificacoesConteudo extends StatelessWidget {
                                 const SizedBox(height: 8),
                             ],
                             if (convites.isNotEmpty) ...[
-                              if (alertasEstoque.isNotEmpty)
+                              if (alertasEstoque.isNotEmpty || mensagens.isNotEmpty)
                                 Padding(
                                   padding: const EdgeInsets.only(bottom: 8),
                                   child: Text(
@@ -871,5 +1070,7 @@ class _NotificacoesConteudo extends StatelessWidget {
         );
       },
     );
+  },
+);
   }
 }

@@ -393,16 +393,19 @@ class ClienteRedeLocal {
         presencasAtivas.value = lista
             .map((e) => TerminalConectadoInfo.fromJson(e as Map<String, dynamic>))
             .toList();
-      } else if (tipo == 'pedido_adicionado') {
+      } else if (tipo == 'pedido_adicionado' || tipo == 'pedido_atualizado') {
         if (dados['pedido'] != null && _pdvProvider != null && _lojaSincronizada != null) {
           final pedido = PedidoLoja.fromJson(dados['pedido'] as Map<String, dynamic>);
           final lojaAtual = _pdvProvider!.buscarPorId(_lojaSincronizada!.id);
           if (lojaAtual != null) {
             final pedidos = List<PedidoLoja>.from(lojaAtual.pedidosLoja);
-            if (!pedidos.any((p) => p.id == pedido.id)) {
+            final idx = pedidos.indexWhere((p) => p.id == pedido.id);
+            if (idx != -1) {
+              pedidos[idx] = pedido;
+            } else {
               pedidos.insert(0, pedido);
-              _pdvProvider!.atualizarListasLoja(lojaAtual.id, pedidos: pedidos);
             }
+            _pdvProvider!.atualizarListasLoja(lojaAtual.id, pedidos: pedidos);
           }
         }
       } else if (tipo == 'estoque_atualizado') {
@@ -552,13 +555,47 @@ class ClienteRedeLocal {
   }
 
   /// Envia mensagem de chat em tempo real via WebSocket para o servidor (com fallback REST)
-  Future<bool> enviarMensagemChat(MensagemChat msg) async {
+  Future<bool> enviarMensagemChat(
+    MensagemChat msg, {
+    Map<String, dynamic>? payloadCustomizado,
+  }) async {
+    MensagemChat msgParaEnvio = msg;
+    if (msg.remetenteFoto.isNotEmpty) {
+      final resolvida = ImagemService.resolverCaminhoExistente(msg.remetenteFoto);
+      if (resolvida != null) {
+        final fotoNoServidor = await _enviarUploadImagemParaServidor(resolvida);
+        if (fotoNoServidor.isNotEmpty) {
+          msgParaEnvio = msgParaEnvio.copyWith(remetenteFoto: fotoNoServidor);
+        }
+      }
+    }
+
+    if (msg.tipo == 'imagem' && msg.caminhoAnexo.isNotEmpty) {
+      final resolvida = ImagemService.resolverCaminhoExistente(msg.caminhoAnexo);
+      if (resolvida != null) {
+        final anexoNoServidor = await _enviarUploadImagemParaServidor(resolvida);
+        if (anexoNoServidor.isNotEmpty) {
+          msgParaEnvio = msgParaEnvio.copyWith(caminhoAnexo: anexoNoServidor);
+        }
+      }
+    }
+
+    final dadosEnvio = payloadCustomizado != null
+        ? Map<String, dynamic>.from(payloadCustomizado)
+        : msgParaEnvio.toJson();
+    if (msgParaEnvio.caminhoAnexo != msg.caminhoAnexo) {
+      dadosEnvio['caminhoAnexo'] = msgParaEnvio.caminhoAnexo;
+    }
+    if (msgParaEnvio.remetenteFoto != msg.remetenteFoto) {
+      dadosEnvio['remetenteFoto'] = msgParaEnvio.remetenteFoto;
+    }
+
     if (_ws != null && estaConectado.value) {
       try {
         _ws!.add(
           jsonEncode({
             'tipo': 'mensagem_chat',
-            'mensagem': msg.toJson(),
+            'mensagem': dadosEnvio,
           }),
         );
         return true;
@@ -573,7 +610,7 @@ class ClienteRedeLocal {
         final uri = Uri.parse('http://$_ipServidor:$_portaServidor/api/chat/mensagem');
         final req = await client.postUrl(uri);
         req.headers.contentType = ContentType.json;
-        req.write(jsonEncode(msg.toJson()));
+        req.write(jsonEncode(dadosEnvio));
         final resp = await req.close();
         return resp.statusCode == HttpStatus.ok;
       } catch (e) {
@@ -583,8 +620,20 @@ class ClienteRedeLocal {
     return false;
   }
 
-  /// Envia um novo pedido realizado no celular para o servidor central da loja
+  /// Envia um pedido (novo ou atualizado) realizado no celular para o servidor central da loja
   Future<bool> enviarPedido(PedidoLoja pedido) async {
+    // 1. Tenta WebSocket primeiro para reflexo instantâneo em tempo real
+    if (_ws != null && estaConectado.value) {
+      try {
+        _ws!.add(
+          jsonEncode({
+            'tipo': 'pedido_atualizado',
+            'pedido': pedido.toJson(),
+          }),
+        );
+      } catch (_) {}
+    }
+
     if (_ipServidor == null || _portaServidor == null) return false;
     try {
       final client = HttpClient()..connectionTimeout = const Duration(seconds: 4);

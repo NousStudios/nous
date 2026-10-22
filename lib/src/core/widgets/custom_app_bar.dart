@@ -5,8 +5,8 @@ import 'package:provider/provider.dart';
 import 'package:nous/src/core/theme/theme_controller.dart';
 import 'package:nous/src/core/theme/theme_customizer_dialog.dart';
 import 'package:nous/src/features/auth/providers/auth_provider.dart';
+import 'package:nous/src/features/auth/views/conta_nous_view.dart';
 import 'package:nous/src/features/auth/views/login_view.dart';
-import 'package:nous/src/features/auth/views/widgets/ficha_usuario_dialog.dart';
 import 'package:nous/src/features/notificacoes/providers/notificacoes_provider.dart';
 import 'package:nous/src/features/notificacoes/views/widgets/notificacoes_dialog.dart';
 import 'package:nous/src/core/services/atualizacao_service.dart';
@@ -15,9 +15,9 @@ import 'package:nous/src/features/pdv/providers/pdv_provider.dart';
 import 'package:nous/src/features/pdv/services/imagem_service.dart';
 import 'package:nous/src/features/pdv/services/rede_local/cliente_rede_local.dart';
 import 'package:nous/src/features/pdv/services/rede_local/servidor_rede_local.dart';
-import 'package:nous/src/features/pdv/views/widgets/backup_dialog.dart';
 import 'package:nous/src/features/pdv/views/widgets/sincronizacao_rede_dialog.dart';
 import 'package:nous/src/core/widgets/texto_rolante.dart';
+import 'package:nous/src/features/chat/services/chat_service.dart';
 
 String _formatarCpf(String cpf) {
   if (cpf.length != 11) return cpf;
@@ -29,6 +29,7 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
   final String title;
   final bool showBackButton;
   final VoidCallback? onLogout;
+  final VoidCallback? onBackPressed;
   final List<Widget>? actions;
   final String? lojaId;
 
@@ -37,6 +38,7 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
     required this.title,
     this.showBackButton = true,
     this.onLogout,
+    this.onBackPressed,
     this.actions,
     this.lojaId,
   });
@@ -261,114 +263,130 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
                             ImagemService.resolverCaminhoExistente(conta.foto);
                         final temFoto = fotoResolvida != null;
 
-                        return Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 4),
+                        return Container(
+                          margin: const EdgeInsets.symmetric(vertical: 6),
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: currentTheme.backgroundColor
+                                .withValues(alpha: 0.35),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: currentTheme.borderColor
+                                  .withValues(alpha: 0.6),
+                            ),
+                          ),
                           child: Column(
                             children: [
-                              InkWell(
-                                borderRadius: BorderRadius.circular(12),
-                                onTap: () {
-                                  Navigator.pop(dialogCtx);
-                                  FichaUsuarioDialog.mostrar(
-                                    dialogCtx,
-                                    theme: currentTheme,
-                                    usuario: conta,
-                                  );
-                                },
-                                child: Padding(
-                                  padding: const EdgeInsets.all(6),
-                                  child: Column(
-                                    children: [
-                                      Container(
-                                        width: 56,
-                                        height: 56,
-                                        decoration: BoxDecoration(
-                                          borderRadius:
-                                              BorderRadius.circular(12),
-                                          border: Border.all(
-                                              color: currentTheme.borderColor),
-                                        ),
-                                        child: ClipRRect(
-                                          borderRadius:
-                                              BorderRadius.circular(11),
-                                          child: temFoto
-                                              ? Image.file(
-                                                  File(fotoResolvida),
-                                                  width: 56,
-                                                  height: 56,
-                                                  fit: BoxFit.cover,
-                                                  errorBuilder:
-                                                      (context, error,
-                                                              stackTrace) =>
-                                                          Icon(
-                                                    Icons.person,
-                                                    size: 32,
-                                                    color:
-                                                        currentTheme.textColor,
-                                                  ),
-                                                )
-                                              : Icon(
-                                                  Icons.person,
-                                                  size: 32,
-                                                  color:
-                                                      currentTheme.textColor,
-                                                ),
-                                        ),
+                              Row(
+                                children: [
+                                  Container(
+                                    width: 48,
+                                    height: 48,
+                                    decoration: BoxDecoration(
+                                      borderRadius: BorderRadius.circular(12),
+                                      border: Border.all(
+                                        color: currentTheme.borderColor
+                                            .withValues(alpha: 0.8),
                                       ),
-                                      const SizedBox(height: 8),
-                                      Text(
-                                        conta.nome,
-                                        textAlign: TextAlign.center,
-                                        style: currentTheme.getTextStyle(
-                                          fontSize: 14,
-                                          fontWeight: FontWeight.w600,
-                                          color: currentTheme.textColor,
-                                        ),
-                                      ),
-                                      const SizedBox(height: 2),
-                                      Text(
-                                        _formatarCpf(conta.cpf),
-                                        textAlign: TextAlign.center,
-                                        style: currentTheme.getTextStyle(
-                                            fontSize: 12),
-                                      ),
-                                      if (authProvider.emailAtivo != null &&
-                                          authProvider.emailAtivo!.isNotEmpty) ...[
-                                        const SizedBox(height: 2),
+                                    ),
+                                    child: ClipRRect(
+                                      borderRadius: BorderRadius.circular(11),
+                                      child: temFoto
+                                          ? Image.file(
+                                              File(fotoResolvida),
+                                              width: 48,
+                                              height: 48,
+                                              fit: BoxFit.cover,
+                                              errorBuilder: (context, error, stackTrace) =>
+                                                  Icon(
+                                                Icons.person,
+                                                size: 28,
+                                                color: currentTheme.textColor,
+                                              ),
+                                            )
+                                          : Icon(
+                                              Icons.person,
+                                              size: 28,
+                                              color: currentTheme.textColor,
+                                            ),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
                                         Text(
-                                          authProvider.emailAtivo!,
-                                          textAlign: TextAlign.center,
+                                          conta.nome,
                                           style: currentTheme.getTextStyle(
-                                            fontSize: 12,
-                                            color: currentTheme.secondaryTextColor,
+                                            fontSize: 14,
+                                            fontWeight: FontWeight.bold,
+                                            color: currentTheme.textColor,
                                           ),
                                         ),
+                                        const SizedBox(height: 1),
+                                        Text(
+                                          _formatarCpf(conta.cpf),
+                                          style: currentTheme.getTextStyle(
+                                            fontSize: 12,
+                                            color: currentTheme
+                                                .secondaryTextColor,
+                                          ),
+                                        ),
+                                        if (authProvider.emailAtivo != null &&
+                                            authProvider
+                                                .emailAtivo!.isNotEmpty) ...[
+                                          const SizedBox(height: 1),
+                                          Text(
+                                            authProvider.emailAtivo!,
+                                            style: currentTheme.getTextStyle(
+                                              fontSize: 11,
+                                              color: currentTheme
+                                                  .secondaryTextColor,
+                                            ),
+                                          ),
+                                        ],
                                       ],
-                                    ],
+                                    ),
                                   ),
-                                ),
+                                ],
                               ),
-                              const SizedBox(height: 4),
-                              TextButton.icon(
-                                onPressed: () {
-                                  Navigator.pop(context);
-                                  BackupDialog.mostrar(
-                                    context,
-                                    theme: currentTheme,
-                                  );
-                                },
-                                icon: Icon(
-                                  Icons.cloud_sync_outlined,
-                                  size: 18,
-                                  color: currentTheme.secondaryTextColor,
-                                ),
-                                label: Text(
-                                  'Backup dos dados',
-                                  style: currentTheme.getTextStyle(
-                                    fontSize: 13,
-                                    color: currentTheme.secondaryTextColor,
-                                  ).copyWith(
-                                    decoration: TextDecoration.underline,
+                              const SizedBox(height: 10),
+                              SizedBox(
+                                width: double.infinity,
+                                child: OutlinedButton.icon(
+                                  style: OutlinedButton.styleFrom(
+                                    side: BorderSide(
+                                      color: currentTheme.borderColor
+                                          .withValues(alpha: 0.6),
+                                    ),
+                                    padding:
+                                        const EdgeInsets.symmetric(vertical: 10),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(10),
+                                    ),
+                                  ),
+                                  onPressed: () {
+                                    Navigator.pop(dialogCtx);
+                                    Navigator.of(context).push(
+                                      MaterialPageRoute(
+                                        builder: (_) => const ContaNousView(),
+                                      ),
+                                    );
+                                  },
+                                  icon: Icon(
+                                    Icons.manage_accounts_outlined,
+                                    size: 18,
+                                    color: currentTheme.textColor,
+                                  ),
+                                  label: Text(
+                                    'Conta Nous',
+                                    style: currentTheme.getTextStyle(
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w600,
+                                      color: currentTheme.textColor,
+                                    ),
                                   ),
                                 ),
                               ),
@@ -422,57 +440,95 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
   Widget _botaoNotificacoes(BuildContext context, AppTheme theme) {
     final notificacoes = context.watch<NotificacoesProvider>();
     final pdv = context.watch<PdvProvider>();
-    final quantidadeConvites = notificacoes.quantidadeConvitesAtivos;
-    final totalEstoqueBaixo = (lojaId == null)
-        ? 0
-        : pdv
-            .itensEstoqueBaixoPorLoja(lojaId!)
-            .where((a) => !notificacoes
-                .estaDispensadaNaSessao('alerta_estoque_${a.lojaId}_${a.item.id}'))
-            .length;
-    final quantidadeTotal = quantidadeConvites + totalEstoqueBaixo;
+    final auth = context.watch<AuthProvider>();
+    final cpfUsuario = auth.contaAtual?.cpf ?? '';
 
-    return Stack(
-      clipBehavior: Clip.none,
-      alignment: Alignment.center,
-      children: [
-        IconButton(
-          tooltip: totalEstoqueBaixo > 0
-              ? 'Notificações ($totalEstoqueBaixo item(ns) com estoque baixo/esgotado)'
-              : 'Notificações',
-          icon: Icon(
-            quantidadeTotal > 0
-                ? Icons.notifications_active_outlined
-                : Icons.notifications_none,
-            color: totalEstoqueBaixo > 0
-                ? Colors.redAccent
-                : theme.secondaryTextColor,
-          ),
-          onPressed: () => NotificacoesDialog.mostrar(context, lojaId: lojaId),
-        ),
-        if (quantidadeTotal > 0)
-          Positioned(
-            top: 6,
-            right: 6,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
-              constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
-              decoration: BoxDecoration(
-                color: Colors.redAccent,
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Text(
-                quantidadeTotal > 9 ? '9+' : '$quantidadeTotal',
-                textAlign: TextAlign.center,
-                style: theme.getTextStyle(
-                  fontSize: 10,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.white,
+    return ValueListenableBuilder<int>(
+      valueListenable: ChatService.alteracoesChatNotifier,
+      builder: (context, _, child) {
+        return FutureBuilder<bool>(
+          future: (lojaId != null)
+              ? ChatService.temMensagensNaoLidasNaLoja(lojaId!)
+              : ChatService.temMensagensNaoLidasNoUsuario(cpfUsuario),
+          builder: (context, snapshotMsg) {
+            final temMensagens = snapshotMsg.data ?? false;
+            final quantidadeConvites = (lojaId == null)
+                ? notificacoes.quantidadeConvitesAtivos
+                : 0;
+            final totalEstoqueBaixo = (lojaId == null)
+                ? 0
+                : pdv
+                    .itensEstoqueBaixoPorLoja(lojaId!)
+                    .where((a) => !notificacoes
+                        .estaDispensadaNaSessao('alerta_estoque_${a.lojaId}_${a.item.id}'))
+                    .length;
+            final temNotificacaoAtiva =
+                quantidadeConvites > 0 || totalEstoqueBaixo > 0 || temMensagens;
+            final quantidadeBadge = quantidadeConvites + totalEstoqueBaixo;
+
+            return Stack(
+              clipBehavior: Clip.none,
+              alignment: Alignment.center,
+              children: [
+                IconButton(
+                  tooltip: totalEstoqueBaixo > 0
+                      ? 'Notificações ($totalEstoqueBaixo item(ns) com estoque baixo/esgotado)'
+                      : 'Notificações',
+                  icon: Icon(
+                    temNotificacaoAtiva
+                        ? Icons.notifications_active_outlined
+                        : Icons.notifications_none,
+                    color: (totalEstoqueBaixo > 0 ||
+                            temMensagens ||
+                            quantidadeConvites > 0)
+                        ? theme.dangerColor
+                        : theme.secondaryTextColor,
+                  ),
+                  onPressed: () =>
+                      NotificacoesDialog.mostrar(context, lojaId: lojaId),
                 ),
-              ),
-            ),
-          ),
-      ],
+                if (quantidadeBadge > 0)
+                  Positioned(
+                    top: 6,
+                    right: 6,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 5, vertical: 1),
+                      constraints:
+                          const BoxConstraints(minWidth: 16, minHeight: 16),
+                      decoration: BoxDecoration(
+                        color: theme.dangerColor,
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Text(
+                        quantidadeBadge > 9 ? '9+' : '$quantidadeBadge',
+                        textAlign: TextAlign.center,
+                        style: theme.getTextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ),
+                  )
+                else if (temMensagens)
+                  Positioned(
+                    top: 8,
+                    right: 8,
+                    child: Container(
+                      width: 8,
+                      height: 8,
+                      decoration: BoxDecoration(
+                        color: theme.dangerColor,
+                        shape: BoxShape.circle,
+                      ),
+                    ),
+                  ),
+              ],
+            );
+          },
+        );
+      },
     );
   }
 
@@ -521,6 +577,7 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
         return AppBar(
           backgroundColor: theme.backgroundColor,
           elevation: 0,
+          automaticallyImplyLeading: false,
           title: TextoRolante(
             texto: title,
             textAlign: TextAlign.center,
@@ -535,7 +592,13 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
               ? IconButton(
                   icon: Icon(Icons.arrow_back,
                       color: theme.secondaryTextColor),
-                  onPressed: () => Navigator.of(context).pop(),
+                  onPressed: () {
+                    if (onBackPressed != null) {
+                      onBackPressed!();
+                    } else {
+                      Navigator.of(context).pop();
+                    }
+                  },
                 )
               : null,
           actions: [

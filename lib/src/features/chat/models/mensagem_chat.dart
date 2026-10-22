@@ -11,6 +11,12 @@ class MensagemChat {
   final String nomeAtendente;
   final String cpfAtendente;
   final bool lida;
+  final String tipo; // 'texto', 'imagem', 'arquivo', 'comanda'
+  final String caminhoAnexo;
+  final String nomeAnexo;
+  final int tamanhoAnexo;
+  final String pedidoId;
+  final String dadosPedidoJson;
 
   const MensagemChat({
     required this.id,
@@ -25,6 +31,12 @@ class MensagemChat {
     this.nomeAtendente = '',
     this.cpfAtendente = '',
     this.lida = true,
+    this.tipo = 'texto',
+    this.caminhoAnexo = '',
+    this.nomeAnexo = '',
+    this.tamanhoAnexo = 0,
+    this.pedidoId = '',
+    this.dadosPedidoJson = '',
   });
 
   MensagemChat copyWith({
@@ -40,6 +52,12 @@ class MensagemChat {
     String? nomeAtendente,
     String? cpfAtendente,
     bool? lida,
+    String? tipo,
+    String? caminhoAnexo,
+    String? nomeAnexo,
+    int? tamanhoAnexo,
+    String? pedidoId,
+    String? dadosPedidoJson,
   }) {
     return MensagemChat(
       id: id ?? this.id,
@@ -54,6 +72,12 @@ class MensagemChat {
       nomeAtendente: nomeAtendente ?? this.nomeAtendente,
       cpfAtendente: cpfAtendente ?? this.cpfAtendente,
       lida: lida ?? this.lida,
+      tipo: tipo ?? this.tipo,
+      caminhoAnexo: caminhoAnexo ?? this.caminhoAnexo,
+      nomeAnexo: nomeAnexo ?? this.nomeAnexo,
+      tamanhoAnexo: tamanhoAnexo ?? this.tamanhoAnexo,
+      pedidoId: pedidoId ?? this.pedidoId,
+      dadosPedidoJson: dadosPedidoJson ?? this.dadosPedidoJson,
     );
   }
 
@@ -71,6 +95,12 @@ class MensagemChat {
       'nomeAtendente': nomeAtendente,
       'cpfAtendente': cpfAtendente,
       'lida': lida,
+      'tipo': tipo,
+      'caminhoAnexo': caminhoAnexo,
+      'nomeAnexo': nomeAnexo,
+      'tamanhoAnexo': tamanhoAnexo,
+      'pedidoId': pedidoId,
+      'dadosPedidoJson': dadosPedidoJson,
     };
   }
 
@@ -90,6 +120,12 @@ class MensagemChat {
       nomeAtendente: json['nomeAtendente'] as String? ?? '',
       cpfAtendente: json['cpfAtendente'] as String? ?? '',
       lida: json['lida'] as bool? ?? true,
+      tipo: json['tipo'] as String? ?? 'texto',
+      caminhoAnexo: json['caminhoAnexo'] as String? ?? '',
+      nomeAnexo: json['nomeAnexo'] as String? ?? '',
+      tamanhoAnexo: json['tamanhoAnexo'] as int? ?? 0,
+      pedidoId: json['pedidoId'] as String? ?? '',
+      dadosPedidoJson: json['dadosPedidoJson'] as String? ?? '',
     );
   }
 }

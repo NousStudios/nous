@@ -32,10 +32,13 @@ class _EditarPerfilDialogState extends State<EditarPerfilDialog> {
   @override
   void initState() {
     super.initState();
-    _apelidoController = TextEditingController(text: widget.usuario.apelido);
-    _nomeController = TextEditingController(text: widget.usuario.nome);
-    _biografiaController = TextEditingController(text: widget.usuario.biografia);
-    _fotoAtual = widget.usuario.foto;
+    _apelidoController =
+        TextEditingController(text: widget.usuario.apelidoExibicao);
+    _nomeController =
+        TextEditingController(text: widget.usuario.nomeExibicao);
+    _biografiaController =
+        TextEditingController(text: widget.usuario.biografia);
+    _fotoAtual = widget.usuario.fotoExibicao;
   }
 
   @override

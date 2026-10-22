@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:nous/src/core/services/atualizacao_service.dart';
+import 'package:nous/src/core/services/changelog_service.dart';
 import 'package:nous/src/core/theme/theme_controller.dart';
 import 'package:nous/src/features/pdv/services/rede_local/cliente_rede_local.dart';
 
@@ -37,6 +38,8 @@ class AtualizacaoDialog extends StatefulWidget {
 }
 
 class _AtualizacaoDialogState extends State<AtualizacaoDialog> {
+  bool _novidadesExpandidas = false;
+
   @override
   void initState() {
     super.initState();
@@ -55,6 +58,146 @@ class _AtualizacaoDialogState extends State<AtualizacaoDialog> {
     final hora = data.hour.toString().padLeft(2, '0');
     final min = data.minute.toString().padLeft(2, '0');
     return '$dia/$mes às $hora:$min';
+  }
+
+  Widget _blocoNovidades({
+    required AppTheme theme,
+    required String versao,
+    String? descricao,
+  }) {
+    final novidade = ChangelogService.obterUltimaVersao(versao);
+    final itens = (novidade != null && novidade.alteracoes.isNotEmpty)
+        ? novidade.alteracoes
+        : (descricao != null && descricao.trim().isNotEmpty
+            ? [descricao.trim()]
+            : <String>[]);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Row(
+              children: [
+                Icon(
+                  Icons.receipt_long_outlined,
+                  size: 15,
+                  color: theme.secondaryTextColor,
+                ),
+                const SizedBox(width: 6),
+                Text(
+                  'Alterações (CHANGELOG.MD)',
+                  style: theme.getTextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                    color: theme.textColor,
+                  ),
+                ),
+              ],
+            ),
+            IconButton(
+              visualDensity: VisualDensity.compact,
+              padding: EdgeInsets.zero,
+              icon: Icon(
+                _novidadesExpandidas
+                    ? Icons.keyboard_arrow_up_rounded
+                    : Icons.keyboard_arrow_down_rounded,
+                color: theme.textColor,
+                size: 22,
+              ),
+              tooltip: _novidadesExpandidas
+                  ? 'Minimizar alterações'
+                  : 'Maximizar alterações',
+              onPressed: () {
+                setState(() => _novidadesExpandidas = !_novidadesExpandidas);
+              },
+            ),
+          ],
+        ),
+        if (_novidadesExpandidas) ...[
+          const SizedBox(height: 6),
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: theme.backgroundColor.withValues(alpha: 0.35),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(
+                color: theme.borderColor.withValues(alpha: 0.4),
+              ),
+            ),
+            constraints: const BoxConstraints(maxHeight: 180),
+            child: SingleChildScrollView(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (itens.isEmpty)
+                    Text(
+                      descricao ?? 'Melhorias de desempenho e correções gerais.',
+                      style: theme.getTextStyle(
+                        fontSize: 11,
+                        color: theme.secondaryTextColor,
+                      ),
+                    )
+                  else
+                    for (final item in itens)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 6),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              '• ',
+                              style: theme.getTextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.bold,
+                                color: theme.textColor,
+                              ),
+                            ),
+                            Expanded(
+                              child: Text(
+                                item,
+                                style: theme.getTextStyle(
+                                  fontSize: 11,
+                                  color: theme.textColor,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                ],
+              ),
+            ),
+          ),
+        ] else ...[
+          InkWell(
+            borderRadius: BorderRadius.circular(6),
+            onTap: () => setState(() => _novidadesExpandidas = true),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 4),
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.visibility_outlined,
+                    size: 13,
+                    color: theme.secondaryTextColor,
+                  ),
+                  const SizedBox(width: 6),
+                  Text(
+                    'Toque para ver o resumo das novas mudanças',
+                    style: theme.getTextStyle(
+                      fontSize: 11,
+                      color: theme.secondaryTextColor,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ],
+    );
   }
 
   @override
@@ -270,18 +413,12 @@ class _AtualizacaoDialogState extends State<AtualizacaoDialog> {
                               fontWeight: FontWeight.w500,
                             ),
                           ),
-                          if (info.descricao.isNotEmpty) ...[
-                            const SizedBox(height: 4),
-                            Text(
-                              info.descricao,
-                              maxLines: 4,
-                              overflow: TextOverflow.ellipsis,
-                              style: theme.getTextStyle(
-                                fontSize: 11,
-                                color: theme.secondaryTextColor,
-                              ),
-                            ),
-                          ],
+                          const SizedBox(height: 8),
+                          _blocoNovidades(
+                            theme: theme,
+                            versao: info.versao,
+                            descricao: info.descricao,
+                          ),
                           ValueListenableBuilder<bool>(
                             valueListenable: AtualizacaoService.baixando,
                             builder: (context, estaBaixando, _) {
@@ -339,36 +476,46 @@ class _AtualizacaoDialogState extends State<AtualizacaoDialog> {
                           color: theme.borderColor.withValues(alpha: 0.5),
                         ),
                       ),
-                      child: Row(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Icon(
-                            Icons.check_circle_outline,
-                            size: 20,
-                            color: theme.textColor,
-                          ),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  'Sistema Atualizado',
-                                  style: theme.getTextStyle(
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.bold,
-                                    color: theme.textColor,
-                                  ),
-                                ),
-                                if (statusMsg != null)
-                                  Text(
-                                    statusMsg,
-                                    style: theme.getTextStyle(
-                                      fontSize: 11,
-                                      color: theme.secondaryTextColor,
+                          Row(
+                            children: [
+                              Icon(
+                                Icons.check_circle_outline,
+                                size: 20,
+                                color: theme.textColor,
+                              ),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      'Sistema Atualizado (v${AtualizacaoService.versaoAtual})',
+                                      style: theme.getTextStyle(
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.bold,
+                                        color: theme.textColor,
+                                      ),
                                     ),
-                                  ),
-                              ],
-                            ),
+                                    if (statusMsg != null)
+                                      Text(
+                                        statusMsg,
+                                        style: theme.getTextStyle(
+                                          fontSize: 11,
+                                          color: theme.secondaryTextColor,
+                                        ),
+                                      ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 8),
+                          _blocoNovidades(
+                            theme: theme,
+                            versao: AtualizacaoService.versaoAtual,
                           ),
                         ],
                       ),

@@ -22,7 +22,14 @@ import 'package:nous/src/features/pdv/models/registro_acao.dart';
 import 'package:nous/src/features/pdv/providers/pdv_provider.dart';
 import 'package:nous/src/features/pdv/services/dados_locais_service.dart';
 import 'package:nous/src/features/pdv/services/imagem_service.dart';
+import 'package:nous/src/features/pdv/models/cliente.dart';
 import 'package:nous/src/features/pdv/services/lojas_service.dart';
+
+enum ResultadoAutorizacaoConexao {
+  recusado,
+  autorizadoMembro,
+  autorizadoCliente,
+}
 
 /// Informações de um terminal móvel conectado ao balcão
 class TerminalConectadoInfo {
@@ -33,6 +40,7 @@ class TerminalConectadoInfo {
   String? cpf;
   String? nomeUsuario;
   String? apelido;
+  String? tipoConexao;
 
   TerminalConectadoInfo({
     required this.id,
@@ -42,6 +50,7 @@ class TerminalConectadoInfo {
     this.cpf,
     this.nomeUsuario,
     this.apelido,
+    this.tipoConexao = 'membro',
   });
 
   Map<String, dynamic> toJson() => {
@@ -52,6 +61,7 @@ class TerminalConectadoInfo {
         'cpf': cpf,
         'nomeUsuario': nomeUsuario,
         'apelido': apelido,
+        'tipoConexao': tipoConexao,
       };
 
   factory TerminalConectadoInfo.fromJson(Map<String, dynamic> json) {
@@ -64,6 +74,7 @@ class TerminalConectadoInfo {
       cpf: json['cpf'] as String?,
       nomeUsuario: json['nomeUsuario'] as String?,
       apelido: json['apelido'] as String?,
+      tipoConexao: json['tipoConexao'] as String? ?? 'membro',
     );
   }
 }
@@ -84,6 +95,7 @@ class ServidorRedeLocal {
   final List<WebSocket> _clientesWs = [];
   final Map<WebSocket, TerminalConectadoInfo> _terminaisWs = {};
   final Set<String> _terminaisAutorizados = {};
+  final Map<String, ResultadoAutorizacaoConexao> _decisoesTerminais = {};
   DateTime? _dataHoraInicio;
 
   String? _ipServidor;
@@ -542,20 +554,23 @@ class ServidorRedeLocal {
       final ehLocal = request.connectionInfo?.remoteAddress.isLoopback ?? false;
       final cpfParamLimpo =
           (cpfParam != null) ? ChatService.normalizarCpf(cpfParam) : '';
-      final ehMembroOuDono = _lojaAtiva != null &&
+      final ehDono = _lojaAtiva != null &&
           cpfParamLimpo.isNotEmpty &&
-          (_lojaAtiva!.membros.any((m) =>
-                  ChatService.normalizarCpf(m.cpf) == cpfParamLimpo) ||
-              ChatService.normalizarCpf(_lojaAtiva!.cpfDonoOriginal) ==
-                  cpfParamLimpo);
+          ChatService.normalizarCpf(_lojaAtiva!.cpfDonoOriginal) == cpfParamLimpo;
+      final jaEhMembro = _lojaAtiva != null &&
+          cpfParamLimpo.isNotEmpty &&
+          _lojaAtiva!.membros.any((m) =>
+              ChatService.normalizarCpf(m.cpf) == cpfParamLimpo);
 
-      final ehIdentificado = cpfParamLimpo.isNotEmpty;
       final chaveTerminal = (cpfParamLimpo.isNotEmpty)
           ? '${ipRemoto}_$cpfParamLimpo'
           : '${ipRemoto}_${dispositivoParam?.trim() ?? ''}';
 
-      if (!ehLocal && !ehIdentificado && !ehMembroOuDono && !_terminaisAutorizados.contains(chaveTerminal)) {
-        final autorizou = await _solicitarAutorizacaoTerminal(
+      ResultadoAutorizacaoConexao? decisao = _decisoesTerminais[chaveTerminal];
+
+      // Sempre exige aprovação no balcão caso o terminal ainda não esteja autorizado nesta sessão
+      if (!ehLocal && !_terminaisAutorizados.contains(chaveTerminal)) {
+        final resultado = await _solicitarAutorizacaoTerminal(
           ip: ipRemoto,
           nomeDispositivo: (dispositivoParam != null && dispositivoParam.trim().isNotEmpty)
               ? dispositivoParam.trim()
@@ -564,9 +579,10 @@ class ServidorRedeLocal {
               ? '$nomeParam ($apelidoParam)'
               : nomeParam,
           cpf: cpfParam,
+          jaEhMembro: jaEhMembro || ehDono,
         );
 
-        if (!autorizou) {
+        if (resultado == ResultadoAutorizacaoConexao.recusado) {
           debugPrint(
             '[ServidorRedeLocal] Conexão recusada pelo administrador para terminal $chaveTerminal ($ipRemoto)',
           );
@@ -577,9 +593,13 @@ class ServidorRedeLocal {
           );
           return;
         }
+
+        decisao = resultado;
+        _decisoesTerminais[chaveTerminal] = resultado;
+        _terminaisAutorizados.add(chaveTerminal);
       }
 
-      _terminaisAutorizados.add(chaveTerminal);
+      final ehCliente = decisao == ResultadoAutorizacaoConexao.autorizadoCliente;
 
       if (cpfParam != null && cpfParam.trim().isNotEmpty && _lojaAtiva != null && _pdvProvider != null) {
         final terminalTemp = TerminalConectadoInfo(
@@ -592,8 +612,14 @@ class ServidorRedeLocal {
           cpf: cpfParam.trim(),
           nomeUsuario: nomeParam?.trim(),
           apelido: apelidoParam?.trim(),
+          tipoConexao: ehCliente ? 'cliente' : 'membro',
         );
-        await _garantirMembroConectado(terminalTemp);
+
+        if (ehCliente) {
+          await _garantirClienteConectado(terminalTemp);
+        } else {
+          await _garantirMembroConectado(terminalTemp);
+        }
         _consolidarContaTerminal(terminalTemp);
       }
 
@@ -662,6 +688,7 @@ class ServidorRedeLocal {
       _responderJson(request, {
         'sucesso': true,
         'loja': lojaRetorno.toJson(),
+        'papelConexao': ehCliente ? 'cliente' : 'membro',
         'imagensAusentes': imagensAusentes,
         'fotosUsuariosAusentes': fotosUsuariosAusentes,
       });
@@ -737,8 +764,20 @@ class ServidorRedeLocal {
           final lojaAtual = _pdvProvider!.buscarPorId(_lojaAtiva!.id);
           if (lojaAtual != null) {
             final pedidos = List<PedidoLoja>.from(lojaAtual.pedidosLoja);
-            final existe = pedidos.any((p) => p.id == pedido.id);
-            if (!existe) {
+            final idx = pedidos.indexWhere((p) => p.id == pedido.id);
+            if (idx != -1) {
+              pedidos[idx] = pedido;
+              _pdvProvider!.atualizarListasLoja(
+                lojaAtual.id,
+                pedidos: pedidos,
+              );
+
+              // Notifica todos os terminais conectados sobre a atualização do pedido
+              notificarTodos({
+                'tipo': 'pedido_atualizado',
+                'pedido': pedido.toJson(),
+              });
+            } else {
               pedidos.insert(0, pedido);
               _pdvProvider!.atualizarListasLoja(
                 lojaAtual.id,
@@ -1169,9 +1208,9 @@ class ServidorRedeLocal {
         final body = await utf8.decodeStream(request);
         final dados = jsonDecode(body) as Map<String, dynamic>;
         final msgJson = dados['mensagem'] as Map<String, dynamic>? ?? dados;
-        final msg = MensagemChat.fromJson(msgJson);
-        await ChatService.salvarMensagem(msg, originadaDaRede: true);
-        notificarTodos({'tipo': 'mensagem_chat', 'mensagem': msg.toJson()});
+        await ChatService.processarMensagemRecebidaDaRede(msgJson,
+            emitirAlertaSonoro: false);
+        notificarTodos({'tipo': 'mensagem_chat', 'mensagem': msgJson});
         _responderJson(request, {'sucesso': true});
         return;
       } catch (e) {
@@ -1219,6 +1258,7 @@ class ServidorRedeLocal {
         final cpf = dados['cpf'] as String?;
         final nomeUsuario = dados['nomeUsuario'] as String?;
         final apelido = dados['apelido'] as String?;
+        final foto = dados['foto'] as String?;
         final terminal = _terminaisWs[ws];
         if (terminal != null) {
           if (nome != null && nome.trim().isNotEmpty) {
@@ -1244,6 +1284,16 @@ class ServidorRedeLocal {
           // Unifica e consolida a Identidade do Usuário no banco de contas local do balcão
           _consolidarContaTerminal(terminal);
 
+          if (cpf != null && cpf.trim().isNotEmpty && foto != null && foto.trim().isNotEmpty) {
+            final fotoResolvida = ImagemService.resolverCaminhoExistente(foto);
+            if (fotoResolvida != null) {
+              final c = await ContasNousService.buscarPorCpf(cpf.trim());
+              if (c != null && (c.foto.isEmpty || !ImagemService.existe(c.foto))) {
+                await ContasNousService.salvar(c.copyWith(foto: fotoResolvida));
+              }
+            }
+          }
+
           // Notifica todos com a lista de presenças atualizada
           notificarPresencas();
         }
@@ -1251,15 +1301,53 @@ class ServidorRedeLocal {
         if (dados['mensagem'] != null) {
           final msgJson = dados['mensagem'] as Map<String, dynamic>;
           final msg = MensagemChat.fromJson(msgJson);
-          ChatService.salvarMensagem(msg, originadaDaRede: true);
+          await ChatService.processarMensagemRecebidaDaRede(msgJson,
+              emitirAlertaSonoro: false);
+
+          // Se a mensagem vier com foto do remetente e a conta no servidor estiver sem foto, cura a foto
+          final cpfRemetente = ChatService.normalizarCpf(msg.remetenteId);
+          if (cpfRemetente.length == 11 && msg.remetenteFoto.isNotEmpty) {
+            final fotoResolvida = ImagemService.resolverCaminhoExistente(msg.remetenteFoto);
+            if (fotoResolvida != null) {
+              final c = await ContasNousService.buscarPorCpf(cpfRemetente);
+              if (c != null && (c.foto.isEmpty || !ImagemService.existe(c.foto))) {
+                await ContasNousService.salvar(c.copyWith(foto: fotoResolvida));
+              }
+            }
+          }
 
           // Retransmite para todos os outros terminais conectados via WebSocket
-          final payload = jsonEncode({'tipo': 'mensagem_chat', 'mensagem': msg.toJson()});
+          final payload = jsonEncode({'tipo': 'mensagem_chat', 'mensagem': msgJson});
           for (final cliente in List<WebSocket>.from(_clientesWs)) {
             if (cliente != ws) {
               try {
                 cliente.add(payload);
               } catch (_) {}
+            }
+          }
+        }
+      } else if (tipo == 'pedido_atualizado') {
+        if (dados['pedido'] != null && _pdvProvider != null && _lojaAtiva != null) {
+          final pedido = PedidoLoja.fromJson(dados['pedido'] as Map<String, dynamic>);
+          final lojaAtual = _pdvProvider!.buscarPorId(_lojaAtiva!.id);
+          if (lojaAtual != null) {
+            final pedidos = List<PedidoLoja>.from(lojaAtual.pedidosLoja);
+            final idx = pedidos.indexWhere((p) => p.id == pedido.id);
+            if (idx != -1) {
+              pedidos[idx] = pedido;
+            } else {
+              pedidos.insert(0, pedido);
+            }
+            _pdvProvider!.atualizarListasLoja(lojaAtual.id, pedidos: pedidos);
+
+            // Retransmite para todos os outros clientes
+            final payload = jsonEncode({'tipo': 'pedido_atualizado', 'pedido': pedido.toJson()});
+            for (final cliente in List<WebSocket>.from(_clientesWs)) {
+              if (cliente != ws) {
+                try {
+                  cliente.add(payload);
+                } catch (_) {}
+              }
             }
           }
         }
@@ -1272,14 +1360,26 @@ class ServidorRedeLocal {
     final lista = <TerminalConectadoInfo>[];
     if (ativo && _lojaAtiva != null) {
       final hostNome = Platform.localHostname;
+      final usuarioLogado = _authProvider?.contaAtual;
+      final cpfPdv = _pdvProvider?.cpfAtual ?? '';
+      final cpfBalcao = (usuarioLogado != null && usuarioLogado.cpf.trim().isNotEmpty)
+          ? usuarioLogado.cpf.trim()
+          : (cpfPdv.trim().isNotEmpty
+              ? cpfPdv.trim()
+              : _lojaAtiva!.cpfDonoOriginal);
+      final nomeBalcao = (usuarioLogado != null && usuarioLogado.nome.trim().isNotEmpty)
+          ? usuarioLogado.nome.trim()
+          : 'Operador Balcão';
+
       lista.add(
         TerminalConectadoInfo(
           id: 'balcao_servidor_local',
           nome: hostNome.isNotEmpty ? 'Computador Balcão ($hostNome)' : 'Computador Balcão (Local)',
           ip: _ipServidor ?? '127.0.0.1',
           conectadoEm: _dataHoraInicio ?? DateTime.now(),
-          cpf: _lojaAtiva!.cpfDonoOriginal,
-          nomeUsuario: 'Dono Balcão',
+          cpf: cpfBalcao,
+          nomeUsuario: nomeBalcao,
+          tipoConexao: 'membro',
         ),
       );
     }
@@ -1352,6 +1452,53 @@ class ServidorRedeLocal {
       await _pdvProvider!.adicionarOuAtualizarLoja(lojaAtualizada);
 
       // Notifica todos os terminais com os dados completos da loja atualizada
+      notificarTodos({
+        'tipo': 'loja_atualizada',
+        'loja': lojaAtualizada.toJson(),
+      });
+      return lojaAtualizada;
+    }
+    return lojaAtual;
+  }
+
+  /// Registra ou atualiza um usuário como cliente da loja ao conectar via Wi-Fi como Cliente
+  Future<Loja?> _garantirClienteConectado(TerminalConectadoInfo terminal) async {
+    final cpfLimpo = terminal.cpf?.replaceAll(RegExp(r'\D'), '');
+    if (cpfLimpo == null || cpfLimpo.isEmpty || _lojaAtiva == null || _pdvProvider == null) {
+      return _lojaAtiva;
+    }
+
+    final lojaAtual = _pdvProvider!.buscarPorId(_lojaAtiva!.id) ?? _lojaAtiva!;
+    final jaEhCliente = lojaAtual.clientesLoja.any(
+      (c) => c.cnpj.replaceAll(RegExp(r'\D'), '') == cpfLimpo,
+    );
+
+    if (!jaEhCliente) {
+      String nomeFinal = (terminal.nomeUsuario != null && terminal.nomeUsuario!.trim().isNotEmpty)
+          ? terminal.nomeUsuario!.trim()
+          : ((terminal.apelido != null && terminal.apelido!.trim().isNotEmpty)
+              ? terminal.apelido!.trim()
+              : 'Cliente');
+
+      String fotoCliente = '';
+      final conta = await ContasNousService.buscarPorCpf(terminal.cpf!);
+      if (conta != null) {
+        if (conta.nome.trim().isNotEmpty) nomeFinal = conta.nome.trim();
+        fotoCliente = conta.foto;
+      }
+
+      final novoCliente = Cliente(
+        id: 'cli_${DateTime.now().millisecondsSinceEpoch}',
+        nome: nomeFinal,
+        cnpj: terminal.cpf!,
+        foto: fotoCliente,
+      );
+
+      final novosClientes = List<Cliente>.from(lojaAtual.clientesLoja)..add(novoCliente);
+      final lojaAtualizada = lojaAtual.copyWith(clientesLoja: novosClientes);
+      _lojaAtiva = lojaAtualizada;
+      await _pdvProvider!.adicionarOuAtualizarLoja(lojaAtualizada);
+
       notificarTodos({
         'tipo': 'loja_atualizada',
         'loja': lojaAtualizada.toJson(),
@@ -1558,155 +1705,295 @@ class ServidorRedeLocal {
   }
 
   /// Exibe um diálogo na tela do computador balcão solicitando permissão para novo terminal conectar.
-  Future<bool> _solicitarAutorizacaoTerminal({
+  Future<ResultadoAutorizacaoConexao> _solicitarAutorizacaoTerminal({
     required String ip,
     required String nomeDispositivo,
     String? nomeUsuario,
     String? cpf,
+    required bool jaEhMembro,
   }) async {
     final context = NavigatorKeyService.currentContext;
     if (context == null || !context.mounted) {
-      return true;
+      return jaEhMembro
+          ? ResultadoAutorizacaoConexao.autorizadoMembro
+          : ResultadoAutorizacaoConexao.autorizadoCliente;
     }
 
     SomService.tocarBipPadrao();
 
-    final completer = Completer<bool>();
+    final completer = Completer<ResultadoAutorizacaoConexao>();
     var respondido = false;
+    String tipoAcesso = 'cliente';
 
-    showDialog<bool>(
+    showDialog<ResultadoAutorizacaoConexao>(
       context: context,
       barrierDismissible: false,
       builder: (dialogCtx) {
         final theme = ThemeController.currentTheme.value;
-        return AlertDialog(
-          backgroundColor: theme.cardBackgroundColor,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16.0),
-            side: BorderSide(color: theme.borderColor),
-          ),
-          title: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(Icons.security_rounded, color: theme.textColor, size: 24),
-              const SizedBox(width: 8),
-              Text(
-                'Solicitação de Acesso',
-                style: theme.getTextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                  color: theme.textColor,
-                ),
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              backgroundColor: theme.cardBackgroundColor,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16.0),
+                side: BorderSide(color: theme.borderColor),
               ),
-            ],
-          ),
-          content: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 420),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Text(
-                  'Um novo terminal móvel está solicitando sincronização com esta loja na rede Wi-Fi:',
-                  textAlign: TextAlign.center,
-                  style: theme.getTextStyle(fontSize: 13, color: theme.textColor),
-                ),
-                const SizedBox(height: 14),
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: theme.backgroundColor.withValues(alpha: 0.5),
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: theme.borderColor.withValues(alpha: 0.5)),
+              title: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.security_rounded, color: theme.textColor, size: 24),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Solicitação de Acesso',
+                    style: theme.getTextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: theme.textColor,
+                    ),
                   ),
+                ],
+              ),
+              content: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 440),
+                child: SingleChildScrollView(
                   child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      _itemInfoDialog(theme, 'Aparelho:', nomeDispositivo, Icons.smartphone_rounded),
-                      if (nomeUsuario != null && nomeUsuario.trim().isNotEmpty) ...[
-                        const SizedBox(height: 6),
-                        _itemInfoDialog(theme, 'Usuário:', nomeUsuario.trim(), Icons.person_rounded),
+                      Text(
+                        'Um terminal móvel está solicitando sincronização com esta loja na rede Wi-Fi:',
+                        textAlign: TextAlign.center,
+                        style: theme.getTextStyle(fontSize: 13, color: theme.textColor),
+                      ),
+                      const SizedBox(height: 14),
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: theme.backgroundColor.withValues(alpha: 0.5),
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(color: theme.borderColor.withValues(alpha: 0.5)),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            _itemInfoDialog(theme, 'Aparelho:', nomeDispositivo, Icons.smartphone_rounded),
+                            if (nomeUsuario != null && nomeUsuario.trim().isNotEmpty) ...[
+                              const SizedBox(height: 6),
+                              _itemInfoDialog(theme, 'Usuário:', nomeUsuario.trim(), Icons.person_rounded),
+                            ],
+                            if (cpf != null && cpf.trim().isNotEmpty) ...[
+                              const SizedBox(height: 6),
+                              _itemInfoDialog(theme, 'CPF:', cpf.trim(), Icons.badge_outlined),
+                            ],
+                            const SizedBox(height: 6),
+                            _itemInfoDialog(theme, 'Endereço IP:', ip, Icons.wifi_rounded),
+                            if (jaEhMembro) ...[
+                              const SizedBox(height: 6),
+                              _itemInfoDialog(theme, 'Vínculo:', 'Já cadastrado na equipe da loja', Icons.verified_user_outlined),
+                            ],
+                          ],
+                        ),
+                      ),
+                      if (!jaEhMembro) ...[
+                        const SizedBox(height: 14),
+                        Text(
+                          'Como este usuário entrará na loja?',
+                          style: theme.getTextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                            color: theme.textColor,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        // Opção Cliente
+                        InkWell(
+                          borderRadius: BorderRadius.circular(8),
+                          onTap: () => setDialogState(() => tipoAcesso = 'cliente'),
+                          child: Container(
+                            padding: const EdgeInsets.all(10),
+                            decoration: BoxDecoration(
+                              color: tipoAcesso == 'cliente'
+                                  ? theme.borderColor.withValues(alpha: 0.25)
+                                  : Colors.transparent,
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(
+                                color: tipoAcesso == 'cliente'
+                                    ? theme.textColor
+                                    : theme.borderColor.withValues(alpha: 0.4),
+                                width: tipoAcesso == 'cliente' ? 1.5 : 1.0,
+                              ),
+                            ),
+                            child: Row(
+                              children: [
+                                Icon(
+                                  tipoAcesso == 'cliente'
+                                      ? Icons.radio_button_checked
+                                      : Icons.radio_button_off,
+                                  size: 18,
+                                  color: theme.textColor,
+                                ),
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        'Cliente da Loja',
+                                        style: theme.getTextStyle(
+                                          fontSize: 13,
+                                          fontWeight: FontWeight.bold,
+                                          color: theme.textColor,
+                                        ),
+                                      ),
+                                      Text(
+                                        'Poderá consultar cardápio e fazer pedidos futuros. Sem gerência.',
+                                        style: theme.getTextStyle(
+                                          fontSize: 11,
+                                          color: theme.secondaryTextColor,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        // Opção Membro da Loja
+                        InkWell(
+                          borderRadius: BorderRadius.circular(8),
+                          onTap: () => setDialogState(() => tipoAcesso = 'membro'),
+                          child: Container(
+                            padding: const EdgeInsets.all(10),
+                            decoration: BoxDecoration(
+                              color: tipoAcesso == 'membro'
+                                  ? theme.borderColor.withValues(alpha: 0.25)
+                                  : Colors.transparent,
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(
+                                color: tipoAcesso == 'membro'
+                                    ? theme.textColor
+                                    : theme.borderColor.withValues(alpha: 0.4),
+                                width: tipoAcesso == 'membro' ? 1.5 : 1.0,
+                              ),
+                            ),
+                            child: Row(
+                              children: [
+                                Icon(
+                                  tipoAcesso == 'membro'
+                                      ? Icons.radio_button_checked
+                                      : Icons.radio_button_off,
+                                  size: 18,
+                                  color: theme.textColor,
+                                ),
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        'Novo Membro da Loja',
+                                        style: theme.getTextStyle(
+                                          fontSize: 13,
+                                          fontWeight: FontWeight.bold,
+                                          color: theme.textColor,
+                                        ),
+                                      ),
+                                      Text(
+                                        'Adiciona à equipe de trabalhadores com acesso operacional.',
+                                        style: theme.getTextStyle(
+                                          fontSize: 11,
+                                          color: theme.secondaryTextColor,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
                       ],
-                      if (cpf != null && cpf.trim().isNotEmpty) ...[
-                        const SizedBox(height: 6),
-                        _itemInfoDialog(theme, 'CPF:', cpf.trim(), Icons.badge_outlined),
-                      ],
-                      const SizedBox(height: 6),
-                      _itemInfoDialog(theme, 'Endereço IP:', ip, Icons.wifi_rounded),
+                      const SizedBox(height: 14),
+                      Text(
+                        'Você autoriza que este aparelho se conecte e sincronize com a loja?',
+                        textAlign: TextAlign.center,
+                        style: theme.getTextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: theme.secondaryTextColor,
+                        ),
+                      ),
                     ],
                   ),
                 ),
-                const SizedBox(height: 14),
-                Text(
-                  'Você autoriza que este aparelho se conecte e sincronize com a loja?',
-                  textAlign: TextAlign.center,
-                  style: theme.getTextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    color: theme.secondaryTextColor,
+              ),
+              actionsAlignment: MainAxisAlignment.center,
+              actions: [
+                TextButton(
+                  onPressed: () {
+                    if (!respondido) {
+                      respondido = true;
+                      Navigator.of(dialogCtx).pop(ResultadoAutorizacaoConexao.recusado);
+                      if (!completer.isCompleted) {
+                        completer.complete(ResultadoAutorizacaoConexao.recusado);
+                      }
+                    }
+                  },
+                  child: Text(
+                    'Recusar',
+                    style: theme.getTextStyle(
+                      color: theme.dangerColor,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: theme.buttonColor,
+                    foregroundColor: theme.buttonTextColor,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                  ),
+                  onPressed: () {
+                    if (!respondido) {
+                      respondido = true;
+                      final resultado = jaEhMembro || tipoAcesso == 'membro'
+                          ? ResultadoAutorizacaoConexao.autorizadoMembro
+                          : ResultadoAutorizacaoConexao.autorizadoCliente;
+                      Navigator.of(dialogCtx).pop(resultado);
+                      if (!completer.isCompleted) completer.complete(resultado);
+                    }
+                  },
+                  child: Text(
+                    'Autorizar',
+                    style: theme.getTextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: theme.buttonTextColor,
+                    ),
                   ),
                 ),
               ],
-            ),
-          ),
-          actionsAlignment: MainAxisAlignment.center,
-          actions: [
-            TextButton(
-              onPressed: () {
-                if (!respondido) {
-                  respondido = true;
-                  Navigator.of(dialogCtx).pop(false);
-                  if (!completer.isCompleted) completer.complete(false);
-                }
-              },
-              child: Text(
-                'Recusar',
-                style: theme.getTextStyle(
-                  color: theme.dangerColor,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ),
-            const SizedBox(width: 8),
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: theme.buttonColor,
-                foregroundColor: theme.buttonTextColor,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
-                ),
-              ),
-              onPressed: () {
-                if (!respondido) {
-                  respondido = true;
-                  Navigator.of(dialogCtx).pop(true);
-                  if (!completer.isCompleted) completer.complete(true);
-                }
-              },
-              child: Text(
-                'Autorizar',
-                style: theme.getTextStyle(
-                  fontWeight: FontWeight.bold,
-                  color: theme.buttonTextColor,
-                ),
-              ),
-            ),
-          ],
+            );
+          },
         );
       },
     );
 
-    // Timeout de segurança de 30 segundos para não prender a conexão caso o operador esteja ausente
-    Future.delayed(const Duration(seconds: 30), () {
+    // Timeout de segurança de 45 segundos para não prender a conexão caso o operador esteja ausente
+    Future.delayed(const Duration(seconds: 45), () {
       if (!respondido) {
         respondido = true;
         if (context.mounted) {
           try {
-            Navigator.of(context, rootNavigator: true).pop(false);
+            Navigator.of(context, rootNavigator: true).pop(ResultadoAutorizacaoConexao.recusado);
           } catch (_) {}
         }
         if (!completer.isCompleted) {
-          completer.complete(false);
+          completer.complete(ResultadoAutorizacaoConexao.recusado);
         }
       }
     });

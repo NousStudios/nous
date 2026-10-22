@@ -22,7 +22,7 @@ Arquivos principais: `pdv/services/rede_local/servidor_rede_local.dart`, `pdv/se
 | `GET /api/loja?cpf=...` | Snapshot da loja; autoriza e auto-associa o membro |
 | `POST /api/loja/atualizar` | Envio de qualquer alteração da loja feita no terminal |
 | `POST /api/loja/sair` | Notificação imediata de saída voluntária de membro da loja |
-| `POST /api/pedido` | Pedido lançado no celular |
+| `POST /api/pedido` | Criação ou atualização de pedidos (se o pedido já existe, atualiza status, valores e notas) |
 | `POST /api/movimento_estoque` | Movimento de estoque |
 | `POST /api/mesa` | Mesas e comandas |
 | `GET /api/imagem?caminho=...` | Baixar foto/mídia |
@@ -35,7 +35,12 @@ Arquivos principais: `pdv/services/rede_local/servidor_rede_local.dart`, `pdv/se
 | `GET /api/download_apk` | APK da versão atual |
 | `WS /api/ws` | Canal em tempo real |
 
-Mensagens WebSocket: `dados_iniciais`, `loja_atualizada`, `usuario_atualizado`.
+Mensagens WebSocket:
+- `dados_iniciais`: snapshot de handshake contendo loja, pedidos, contatos e lacunas de imagens ausentes.
+- `loja_atualizada`: catálogo, membros, turnos, configurações.
+- `usuario_atualizado`: ficha do usuário sincronizada.
+- `pedido_adicionado` e `pedido_atualizado`: propagação imediata de novos pedidos e mudanças de status (Novo → Aceito → Concluído/Cancelado), quitado, valores ou cancelamento.
+- `mensagem_chat`: troca de mensagens em tempo real entre atendentes e clientes com foto resolvida do remetente e autocura mútua.
 
 ## 3. Autorização de terminais
 
@@ -43,6 +48,9 @@ No primeiro `GET /api/loja` de um terminal novo, o servidor mostra janela modal 
 
 ## 4. O que sincroniza em tempo real (bidirecional)
 
+- **Pedidos e comutação de status:** qualquer alteração em `DadosPerfilView` (aceitar pedido, cancelar, alterar status, observação) emite imediatamente `pedido_atualizado` via WebSocket e REST (`/api/pedido`). O servidor atualiza SQLite e retransmite aos demais nós. A UI compara profundamente id, status, quitado, valor pago e notas (`_sincronizarComLojaAtual`), garantindo atualização visual instantânea das abas (Novos, Aceitos, etc.) sem recarregar a tela.
+- **Pedidos programados sem duplicação:** a geração de pedidos programados do dia usa IDs determinísticos (`prog_${id}_${ano}_${mes}_${dia}`) e só ocorre no nó servidor balcão (`!ClienteRedeLocal().estaConectado.value`). Pedidos já aceitos/gerados não são duplicados nem reabertos em novos terminais que se conectem à rede.
+- **Mensageria com fotos e contatos unificados:** remetentes transmitem mensagens com foto de perfil anexada e autocura prévia de upload de imagem. A lista de conversas unifica o histórico existente e todos os membros e clientes cadastrados na loja, pesquisáveis por nome, cargo ou CPF.
 - Pedidos, estoque, mesas e comandas (abertura, itens, transferências, fechamento).
 - Toda a loja via `POST /api/loja/atualizar`: status Aberta/Fechada, membros (inclusive exclusão), papéis, cargos, permissões, produtos, categorias, grupos, clientes, fornecedores, turnos de caixa, pagamentos de funcionários, músicas, galeria, anexos e dados cadastrais. O servidor consolida **sem descartar campos**, atualiza SQLite e interface, e retransmite `loja_atualizada` aos demais.
 - Papéis e cargos: qualquer alteração no balcão chega a todos os terminais na hora; `StatusLojaView` e `DadosPerfilView` re-renderizam sem reiniciar.
@@ -57,7 +65,7 @@ No primeiro `GET /api/loja` de um terminal novo, o servidor mostra janela modal 
 - Login/cadastro recupera dados prévios (`AuthProvider.buscarConta()`, `AssociarCpfView`). Aparelho reinstalado consulta o balcão (`GET /api/usuario?cpf=...`) e faz auto-login.
 - **Fusão de perfis** (`POST /api/sincronizar_perfis_usuario`, `_mesclarUsuarios`): quando dois aparelhos do mesmo CPF se conectam, harmonizam lojas, `referencias_loja`, snapshots `Loja` (`LojasService.salvarLojaIndividual`) e toda a ficha (filiação, tipo sanguíneo, local de nascimento, e-mails), sem perda. Na sincronização de perfis (`sincronizarPerfisLojasComServidor`), o cliente móvel executa `_sincronizarImagensRemotas` para baixar fisicamente a logo e mídias de cada loja recebida. A tela "Meus Perfis" e a janela "Identidade do Usuário" mantêm **100% de paridade** entre aparelhos.
 - **Saída de loja e expurgo de órfãs:** ao sair voluntariamente de uma loja participada, o cliente apaga o snapshot local do SQLite, notifica o balcão via `POST /api/loja/sair` e o balcão remove o vínculo do cofre da loja e expurga referências órfãs, garantindo que a loja não retorne à lista de perfis.
-- **Autoassociação de membro:** o celular manda o CPF já no `GET /api/loja?cpf=...`; o balcão o associa como `PapelMembro.funcionario` e devolve o snapshot com ele na equipe. No celular (`_vincularLojaSeNecessario`), a loja é salva no cofre do dono original (`cpfDonoOriginal`) **antes** de registrar a `ReferenciaLoja` (evita purga como órfã).
+- **Aprovação mandatória com seletor Cliente vs Membro:** ao receber nova solicitação remota em `GET /api/loja`, o balcão dispara som de alerta e exibe diálogo interativo com as opções: (1) **Cliente** (cadastra o usuário em `loja.clientesLoja`, sem adicioná-lo à equipe de membros, preparando a base para auto-atendimento de pedidos sem garçom) ou (2) **Novo Membro da Loja** (associa o usuário como membro `PapelMembro.funcionario` em `loja.membros`). Se recusado ou atingido timeout de 30s, a requisição é rejeitada com 403.
 - **Desduplicação:** o mesmo CPF em vários aparelhos é reconhecido; referências redundantes à loja do próprio dono são purgadas.
 - Alterações da ficha (apelido, foto, dados pessoais, e-mails) propagam por `ClienteRedeLocal.enviarUsuario` / `POST /api/usuario`. Na inspeção de membros (`_buscarContaPorCpf` em `DadosPerfilView`), a ficha do balcão tem prioridade e enriquece os dados.
 
@@ -80,6 +88,7 @@ No primeiro `GET /api/loja` de um terminal novo, o servidor mostra janela modal 
 - **Gravação atômica:** leitura do stream agregada ou pipe protegido (evita arquivos corrompidos de 0 bytes).
 - **Blindagem contra sobrescrita (`LojasService.consolidarLojaComImagensLocais`):** toda atualização de loja passa por ela. Se a loja remota traz caminhos inexistentes localmente mas o cofre local tem fotos válidas, as locais são preservadas. Quando a atualização vem intencionalmente do usuário ou terminal móvel (`manterItensAusentes: false`), itens, categorias e registros excluídos não são ressuscitados indevidamente.
 - **Autocura na inicialização (`LojasService.autocuraImagensDeLojas`, em `main.dart`):** recupera caminhos inválidos a partir dos arquivos reais e de `Nous/backups/*.json`. Também `ImagemService.unificarDiretoriosImagens()` consolida pastas legadas.
+- **Fotos e Mídias no Chat (`ChatService` & `ClienteRedeLocal`):** ao enviar uma imagem em uma conversa, os bytes binários são codificados em Base64 no despacho do WebSocket/REST para gravação física imediata (`salvarBytesImagemLocal`) na pasta de imagens do destinatário. Se uma mensagem recebida ou recuperada no histórico apontar para uma foto não encontrada localmente, a interface aciona `ClienteRedeLocal.baixarImagemRemota` sob demanda via `/api/imagem`, atualizando o caminho da mensagem para a cópia física em cache e exibindo a miniatura real sem depender do disco do servidor.
 - **Áudio:** `PlayerAudioService` resolve o caminho localmente em cache de subpastas ou baixa sob demanda via `ClienteRedeLocal.baixarAudioRemoto` antes de iniciar a reprodução. O reprodutor compara nomes de arquivos (`ehMesmoAudio`) para parear o arquivo remoto ao cache local no Android.
 
 ## 8. Proteções

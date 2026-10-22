@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import 'package:nous/src/core/theme/theme_controller.dart';
 import 'package:nous/src/features/auth/providers/auth_provider.dart';
 import 'package:nous/src/features/auth/views/widgets/cadastrar_apelido_dialog.dart';
+import 'package:nous/src/features/auth/views/contas_usuario_view.dart';
 import 'package:nous/src/features/notificacoes/providers/notificacoes_provider.dart';
 import 'package:nous/src/features/pdv/providers/pdv_provider.dart';
 import 'package:nous/src/features/pdv/views/perfis_pdv_view.dart';
@@ -41,7 +42,7 @@ class LoginButtonsWidget extends StatelessWidget {
     Navigator.pushAndRemoveUntil(
       context,
       MaterialPageRoute(
-        builder: (context) => const PerfisPdvView(abrirSincronizacaoInicial: true),
+        builder: (context) => const ContasUsuarioView(),
       ),
       (route) => false,
     );

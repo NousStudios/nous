@@ -15,6 +15,7 @@ import 'package:nous/src/features/pdv/providers/pdv_provider.dart';
 import 'package:nous/src/features/pdv/services/backup_service.dart';
 import 'package:nous/src/features/pdv/services/imagem_service.dart';
 import 'package:nous/src/features/pdv/services/lojas_service.dart';
+import 'package:nous/src/features/chat/services/notificacao_android_service.dart';
 
 class AppScrollBehavior extends MaterialScrollBehavior {
   @override
@@ -41,6 +42,9 @@ Future<void> main() async {
   // Consolida e unifica imagens de pastas legadas em segundo plano
   ImagemService.unificarDiretoriosImagens();
   LojasService.autocuraImagensDeLojas();
+
+  // Inicializa o serviço de notificações nativas no Android
+  NotificacaoAndroidService.inicializar();
 
   // Manipulador global de hardware para F11 (Tela Cheia nativa do Windows)
   // Funciona universalmente: modo compacto, modo desktop, popups ou qualquer widget focado

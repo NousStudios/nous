@@ -261,6 +261,8 @@ class _PerfisPdvViewState extends State<PerfisPdvView> {
               ),
               bottomNavigationBar: FloatingBottomNavBar(
                 maxWidth: expandido ? 1200 : _larguraMaximaConteudo,
+                slotSelecionado: 0,
+                subIndiceSelecionado: 1,
               ),
             );
           },

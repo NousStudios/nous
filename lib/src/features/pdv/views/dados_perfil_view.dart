@@ -539,14 +539,20 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
           movimentosEstoque: _movimentosEstoque,
         );
 
-    // Se este terminal for o Servidor do Balcão, notifica todos os terminais móveis conectados
-    if (ServidorRedeLocal().ativo) {
-      final lojaAtual = context.read<PdvProvider>().buscarPorId(widget.lojaId);
-      if (lojaAtual != null) {
+    final lojaAtual = context.read<PdvProvider>().buscarPorId(widget.lojaId);
+    if (lojaAtual != null) {
+      // Se este terminal for o Servidor do Balcão, notifica todos os terminais móveis conectados
+      if (ServidorRedeLocal().ativo) {
         ServidorRedeLocal().notificarTodos({
           'tipo': 'loja_atualizada',
           'loja': lojaAtual.toJson(),
         });
+      }
+
+      // Se este terminal for o Cliente Móvel, despacha atualização imediata para o balcão
+      if (ClienteRedeLocal().conectado &&
+          !ClienteRedeLocal().aplicandoAtualizacaoRemota) {
+        ClienteRedeLocal().enviarLojaAtualizada(lojaAtual, imediato: true);
       }
     }
   }
@@ -755,11 +761,23 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
     final indice = _pedidos.indexWhere((p) => p.id == id);
     if (indice == -1) return;
     final pedido = _pedidos[indice];
+    final pedidoAtualizado = pedido.copyWith(status: novoStatus);
 
     setState(() {
-      _pedidos[indice] = pedido.copyWith(status: novoStatus);
+      _pedidos[indice] = pedidoAtualizado;
     });
     _persistirListasLoja();
+
+    // Sincronização direta e instantânea do pedido na rede local
+    if (ClienteRedeLocal().conectado) {
+      ClienteRedeLocal().enviarPedido(pedidoAtualizado);
+    }
+    if (ServidorRedeLocal().ativo) {
+      ServidorRedeLocal().notificarTodos({
+        'tipo': 'pedido_atualizado',
+        'pedido': pedidoAtualizado.toJson(),
+      });
+    }
 
     if (novoStatus == StatusPedido.aceito) {
       _registrarAcao(
@@ -979,17 +997,28 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
     final indice = _pedidos.indexWhere((p) => p.id == id);
     if (indice == -1) return;
     final pedido = _pedidos[indice];
+    final pedidoAtualizado = pedido.copyWith(
+      comentario: dados.texto,
+      comentarioAutorCpf: dados.cpfAutor,
+      comentarioAutorNome: dados.nomeAutor,
+      comentarioAutorEmail: dados.emailAutor,
+      comentarioDataHora: dados.dataHora,
+    );
 
     setState(() {
-      _pedidos[indice] = pedido.copyWith(
-        comentario: dados.texto,
-        comentarioAutorCpf: dados.cpfAutor,
-        comentarioAutorNome: dados.nomeAutor,
-        comentarioAutorEmail: dados.emailAutor,
-        comentarioDataHora: dados.dataHora,
-      );
+      _pedidos[indice] = pedidoAtualizado;
     });
     _persistirListasLoja();
+
+    if (ClienteRedeLocal().conectado) {
+      ClienteRedeLocal().enviarPedido(pedidoAtualizado);
+    }
+    if (ServidorRedeLocal().ativo) {
+      ServidorRedeLocal().notificarTodos({
+        'tipo': 'pedido_atualizado',
+        'pedido': pedidoAtualizado.toJson(),
+      });
+    }
 
     _registrarAcao(
       TipoAcao.comentarioSalvo,
@@ -1010,15 +1039,17 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
 
     if (resultado == null || !mounted) return;
 
+    final pedidoCancelado = pedido.copyWith(
+      status: StatusPedido.cancelado,
+      motivoCancelamento: resultado.motivo,
+      dataHoraCancelamento: DateTime.now(),
+      canceladoPorCpf: _cpfLogado,
+      canceladoPorNome: _nomeLogado,
+      estoqueEstornado: resultado.devolverEstoque,
+    );
+
     setState(() {
-      _pedidos[indice] = pedido.copyWith(
-        status: StatusPedido.cancelado,
-        motivoCancelamento: resultado.motivo,
-        dataHoraCancelamento: DateTime.now(),
-        canceladoPorCpf: _cpfLogado,
-        canceladoPorNome: _nomeLogado,
-        estoqueEstornado: resultado.devolverEstoque,
-      );
+      _pedidos[indice] = pedidoCancelado;
 
       if (resultado.devolverEstoque) {
         for (final item in pedido.itens) {
@@ -1030,18 +1061,26 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
               : 1.0;
           final qtdEstornar = item.quantidade * consumo;
 
-          _movimentosEstoque.add(
-            MovimentoEstoque.novo(
-              itemId: item.itemId,
-              tipo: TipoMovimentoEstoque.entrada,
-              quantidade: qtdEstornar,
-              motivo:
-                  'Estorno - Pedido ${_numeroPedido(pedido.numero)} cancelado: ${resultado.motivo}',
-              cpfAutor: _cpfLogado,
-              nomeAutor: _nomeLogado,
-              categoria: CategoriaMovimentoEstoque.ajuste,
-            ),
+          final mov = MovimentoEstoque.novo(
+            itemId: item.itemId,
+            tipo: TipoMovimentoEstoque.entrada,
+            quantidade: qtdEstornar,
+            motivo:
+                'Estorno - Pedido ${_numeroPedido(pedido.numero)} cancelado: ${resultado.motivo}',
+            cpfAutor: _cpfLogado,
+            nomeAutor: _nomeLogado,
+            categoria: CategoriaMovimentoEstoque.ajuste,
           );
+          _movimentosEstoque.add(mov);
+          if (ClienteRedeLocal().conectado) {
+            ClienteRedeLocal().enviarMovimentoEstoque(mov);
+          }
+          if (ServidorRedeLocal().ativo) {
+            ServidorRedeLocal().notificarTodos({
+              'tipo': 'estoque_atualizado',
+              'movimento': mov.toJson(),
+            });
+          }
 
           for (final acomp in item.acompanhamentos) {
             final acompCadastrado =
@@ -1053,24 +1092,42 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
             final qtdAcompEstornar =
                 acomp.quantidadePorUnidade * item.quantidade * consumoAcomp;
 
-            _movimentosEstoque.add(
-              MovimentoEstoque.novo(
-                itemId: acomp.itemId,
-                tipo: TipoMovimentoEstoque.entrada,
-                quantidade: qtdAcompEstornar,
-                motivo:
-                    'Estorno Acompanhamento - Pedido ${_numeroPedido(pedido.numero)} cancelado: ${resultado.motivo}',
-                cpfAutor: _cpfLogado,
-                nomeAutor: _nomeLogado,
-                categoria: CategoriaMovimentoEstoque.ajuste,
-              ),
+            final movAcomp = MovimentoEstoque.novo(
+              itemId: acomp.itemId,
+              tipo: TipoMovimentoEstoque.entrada,
+              quantidade: qtdAcompEstornar,
+              motivo:
+                  'Estorno Acompanhamento - Pedido ${_numeroPedido(pedido.numero)} cancelado: ${resultado.motivo}',
+              cpfAutor: _cpfLogado,
+              nomeAutor: _nomeLogado,
+              categoria: CategoriaMovimentoEstoque.ajuste,
             );
+            _movimentosEstoque.add(movAcomp);
+            if (ClienteRedeLocal().conectado) {
+              ClienteRedeLocal().enviarMovimentoEstoque(movAcomp);
+            }
+            if (ServidorRedeLocal().ativo) {
+              ServidorRedeLocal().notificarTodos({
+                'tipo': 'estoque_atualizado',
+                'movimento': movAcomp.toJson(),
+              });
+            }
           }
         }
       }
     });
 
     _persistirListasLoja();
+
+    if (ClienteRedeLocal().conectado) {
+      ClienteRedeLocal().enviarPedido(pedidoCancelado);
+    }
+    if (ServidorRedeLocal().ativo) {
+      ServidorRedeLocal().notificarTodos({
+        'tipo': 'pedido_atualizado',
+        'pedido': pedidoCancelado.toJson(),
+      });
+    }
 
     _registrarAcao(
       TipoAcao.pedidoCancelado,
@@ -3015,7 +3072,9 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
     _avisosMostradosNaSessao.add(widget.lojaId);
 
     final pdv = context.read<PdvProvider>();
-    await pdv.verificarEGerarPedidosProgramados(widget.lojaId);
+    if (!ClienteRedeLocal().estaConectado.value) {
+      await pdv.verificarEGerarPedidosProgramados(widget.lojaId);
+    }
     if (!mounted) return;
 
     final notificacoes = context.read<NotificacoesProvider>();
@@ -3032,7 +3091,32 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
 
     if (!mounted) return;
 
-    final pedidosHoje = pdv.pedidosProgramadosDoDia(widget.lojaId);
+    final lojaAtualAvisos = pdv.buscarPorId(widget.lojaId);
+    final agora = DateTime.now();
+    final diaStr = agora.day.toString().padLeft(2, '0');
+    final mesStr = agora.month.toString().padLeft(2, '0');
+
+    final pedidosHoje = pdv.pedidosProgramadosDoDia(widget.lojaId).where((prog) {
+      if (lojaAtualAvisos == null) return true;
+      final idEsperadoHoje = 'prog_${prog.id}_${agora.year}_${mesStr}_$diaStr';
+      // Se já existe um pedido correspondente gerado para hoje que já não está como novo (ou seja, já foi aceito, concluído ou cancelado), não reabre no popup
+      final pedidoExistente = lojaAtualAvisos.pedidosLoja.where((p) {
+        if (p.id == idEsperadoHoje) return true;
+        if (p.id.startsWith('prog_${prog.id}_') &&
+            p.dataHora.year == agora.year &&
+            p.dataHora.month == agora.month &&
+            p.dataHora.day == agora.day) {
+          return true;
+        }
+        return false;
+      }).firstOrNull;
+
+      if (pedidoExistente != null && pedidoExistente.status != StatusPedido.novo) {
+        return false;
+      }
+      return true;
+    }).toList();
+
     if (pedidosHoje.isNotEmpty) {
       await PedidosProgramadosDialog.mostrar(
         context,
@@ -3102,8 +3186,14 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
     final novosPedidos = lojaAtual.pedidosLoja;
     final pedidosMudaram = _pedidos.length != novosPedidos.length ||
         !listEquals(
-          _pedidos.map((p) => p.id).toList(),
-          novosPedidos.map((p) => p.id).toList(),
+          _pedidos
+              .map((p) =>
+                  '${p.id}_${p.status.name}_${p.quitado}_${p.valorPago}_${p.motivoCancelamento}_${p.comentario}')
+              .toList(),
+          novosPedidos
+              .map((p) =>
+                  '${p.id}_${p.status.name}_${p.quitado}_${p.valorPago}_${p.motivoCancelamento}_${p.comentario}')
+              .toList(),
         );
 
     final membrosMudaram = _membros.length != lojaAtual.membros.length ||

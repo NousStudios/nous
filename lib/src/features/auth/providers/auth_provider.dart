@@ -57,7 +57,7 @@ class AuthProvider extends ChangeNotifier {
     if (_disposed) return;
     _fotosPorCpf = {
       for (final c in todas)
-        if (c.foto.trim().isNotEmpty) c.cpf: c.foto.trim(),
+        if (c.fotoExibicao.trim().isNotEmpty) c.cpf: c.fotoExibicao.trim(),
     };
     notifyListeners();
   }
@@ -65,8 +65,8 @@ class AuthProvider extends ChangeNotifier {
   String buscarFotoPorCpf(String cpf) {
     if (_contaAtual != null &&
         _contaAtual!.cpf == cpf &&
-        _contaAtual!.foto.trim().isNotEmpty) {
-      return _contaAtual!.foto.trim();
+        _contaAtual!.fotoExibicao.trim().isNotEmpty) {
+      return _contaAtual!.fotoExibicao.trim();
     }
     return _fotosPorCpf[cpf] ?? '';
   }
@@ -191,6 +191,17 @@ class AuthProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  Future<void> atualizarNome(String novoNome) async {
+    final conta = _contaAtual;
+    if (conta == null) return;
+
+    final atualizado = conta.copyWith(nome: novoNome.trim());
+    await ContasNousService.salvar(atualizado);
+    _contaAtual = atualizado;
+    _propagarUsuarioAtualizado(atualizado);
+    notifyListeners();
+  }
+
   Future<void> atualizarApelido(String novoApelido) async {
     final conta = _contaAtual;
     if (conta == null) return;
@@ -212,10 +223,10 @@ class AuthProvider extends ChangeNotifier {
     if (conta == null) return;
 
     final atualizado = conta.copyWith(
-      nome: nome.trim(),
-      apelido: apelido.trim(),
+      nomePublico: nome.trim(),
+      apelidoPublico: apelido.trim(),
       biografia: biografia.trim(),
-      foto: foto != null ? foto.trim() : conta.foto,
+      fotoPublica: foto != null ? foto.trim() : conta.fotoPublica,
     );
     await ContasNousService.salvar(atualizado);
     _contaAtual = atualizado;

@@ -7,7 +7,7 @@
 ## 1. Quem é o desenvolvedor e como trabalhar com ele
 
 - Iniciante, autodidata, brasileiro. Pede mudanças no formato "na tela X, no container Y, o botão Z: mude tal coisa".
-- **Responda SEMPRE em português do Brasil.** Explique de forma curta, direta e didática, sem jargão. Se ele não entendeu, a falha é da explicação.
+- **Responda e pense SEMPRE em português do Brasil.** Explique de forma curta, direta e didática, sem jargão. Se ele não entendeu, a falha é da explicação.
 - **Raciocínio antes do código.** Antes de propor ou aplicar uma mudança, escreva: (1) o que entendeu do pedido, (2) os caminhos considerados, (3) o que descartou e por quê. Assim ele aprova a rota antes de você gastar código.
 - **Decisões estruturais exigem alinhamento antes de codar:** novo modelo, nova feature, mudança de paradigma, remoção de código existente.
 - **Mostre o que vai mudar** (trecho/diff) antes de grandes reescritas. Nunca sobrescreva arquivos sem transparência.
@@ -47,7 +47,7 @@ SuperApp brasileiro, livre e de código aberto, de **Autogestão Comercial e Soc
 ## 3. Invariantes do domínio (nunca quebrar)
 
 1. **Identidade é o CPF do cidadão, nunca o hardware.** Perfis, lojas e ficha cadastral pertencem ao CPF e devem aparecer iguais em qualquer aparelho dele. Proibido prender perfis ao dispositivo onde foram criados. CPF sempre normalizado (`PdvProvider._mesmoCpf`), sem depender de máscara.
-2. **Aplicação como organismo único na rede local.** Qualquer dado ou foto que falte em um aparelho e exista em outro da mesma rede deve ser curado automaticamente, em qualquer direção, independente de quem é servidor ou cliente (malha de autocura). Detalhes: `docs/rede-local.md`.
+2. **Aplicação como organismo único na rede local.** Sincronização absoluta e imediata: qualquer alteração de estado (status de pedido, estoque, mesas, mensagens, pagamentos) feita em qualquer nó online deve ser transmitida imediatamente (WebSocket + REST) e refletir em todos os aparelhos sem reiniciar telas. Qualquer dado ou foto ausente é curado automaticamente em qualquer direção (malha de autocura). Detalhes: `docs/rede-local.md`.
 3. **Transparência radical.** O trabalhador vê os mesmos números financeiros que o dono. Toda alteração relevante gera `RegistroAcao` (autor, data, hora, delta). Nada é apagado silenciosamente (ex.: pedido cancelado vai para "Cancelados").
 4. **Consentimento entre donos e sócios.** Dono não exclui dono sem aceite do alvo (`solicitacaoExclusaoDono`). Sócio não exclui sócio nem dono. Ninguém altera o papel de um sócio sem aceite dele (`alteracaoPapel`). Todo membro pode sair por conta própria.
 5. **Humano no comando.** Onde a máquina estima (ex.: baixa de estoque por g/ml), ela **propõe**; o humano **confirma, ajusta ou cancela**.
@@ -69,10 +69,14 @@ SuperApp brasileiro, livre e de código aberto, de **Autogestão Comercial e Soc
    - Atualizar sempre os quatro: construtor, `copyWith`, `toJson`, `fromJson`.
    - Enums com `firstWhere(..., orElse: () => Padrao)`.
    - Lembrar do aviso de `flutter clean && flutter pub get`.
-2. **Ciclo de vida:** `Scrollbar` exige `ScrollController` explícito. Nunca `setState` durante o build (use `addPostFrameCallback`). Diálogo com estado interno: `StatefulBuilder` ou `StatefulWidget`.
+2. **Ciclo de vida e Reatividade:** `Scrollbar` exige `ScrollController` explícito. Nunca `setState` durante o build (use `addPostFrameCallback`). Diálogo com estado interno: `StatefulBuilder` ou `StatefulWidget`. Comparação de coleções em `didUpdateWidget` ou listeners **NUNCA deve checar apenas IDs**: deve comparar status e campos mutáveis para não bloquear atualizações visuais vindas da rede.
 3. **Itens reordenáveis** (`LongPressDraggable`): usar `ValueKey`, **nunca `GlobalKey`** (trava com "Duplicate GlobalKey").
 4. **Diálogos com `Flexible` + `SingleChildScrollView`:** sempre `ConstrainedBox(maxHeight: MediaQuery.sizeOf(ctx).height * 0.90)`.
-5. **Rede:** nunca retransmitir mensagem recebida do balcão (`aplicandoAtualizacaoRemota`); atualização de loja não pode disparar `entrarComCpf`. Todo salvamento de loja passa por `consolidarLojaComImagensLocais`.
+5. **Rede e Sincronização Absoluta:**
+   - Mutações locais (pedidos, status, chat, estoque): despachar imediatamente evento na rede local (WebSocket + REST) além de persistir no banco.
+   - Nunca retransmitir mensagem recebida do balcão (`aplicandoAtualizacaoRemota`); atualização de loja não pode disparar `entrarComCpf`. Todo salvamento de loja passa por `consolidarLojaComImagensLocais`.
+   - Geração de entidades temporais/agendadas: IDs devem ser **determinísticos por ciclo** (`prog_${id}_${ano}_${mes}_${dia}`) e a geração automática pertence ao nó balcão (servidor), evitando duplicação na conexão de nós secundários.
+   - Em chat e mensagens: remetente envia metadados completos (inclusive foto física resolvida com autocura prévia) e buscas consultam todos os contatos cadastrados (equipe + clientes).
 
 ## 6. Design (resumo; completo em `docs/design-system.md`)
 

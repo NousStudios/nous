@@ -79,5 +79,48 @@ void main() {
       final idUser2 = ChatService.conversaIdEntreUsuarios('111.222.333-44', '999.888.777-66');
       expect(idUser1, equals(idUser2));
     });
+
+    test('MensagemChat suporta e serializa anexos de fotos, arquivos e comandas', () {
+      final data = DateTime.now();
+      final msgComanda = MensagemChat(
+        id: 'msg_comanda_1',
+        conversaId: 'conv_1',
+        remetenteId: 'loja_1',
+        remetenteNome: 'Loja Exemplo',
+        texto: 'Pedido #0001 • R\$ 45.00',
+        dataHora: data,
+        tipo: 'comanda',
+        pedidoId: 'ped_123',
+        dadosPedidoJson: '{"id":"ped_123","numero":1,"total":45.0}',
+      );
+
+      final jsonComanda = msgComanda.toJson();
+      final recComanda = MensagemChat.fromJson(jsonComanda);
+
+      expect(recComanda.tipo, equals('comanda'));
+      expect(recComanda.pedidoId, equals('ped_123'));
+      expect(recComanda.dadosPedidoJson, contains('ped_123'));
+
+      final msgArquivo = MensagemChat(
+        id: 'msg_arq_1',
+        conversaId: 'conv_1',
+        remetenteId: 'user_1',
+        remetenteNome: 'João',
+        texto: 'Segue cardápio em PDF',
+        dataHora: data,
+        tipo: 'arquivo',
+        caminhoAnexo: 'C:/docs/cardapio.pdf',
+        nomeAnexo: 'cardapio.pdf',
+        tamanhoAnexo: 1048576,
+      );
+
+      final jsonArquivo = msgArquivo.toJson();
+      final recArquivo = MensagemChat.fromJson(jsonArquivo);
+
+      expect(recArquivo.tipo, equals('arquivo'));
+      expect(recArquivo.caminhoAnexo, equals('C:/docs/cardapio.pdf'));
+      expect(recArquivo.nomeAnexo, equals('cardapio.pdf'));
+      expect(recArquivo.tamanhoAnexo, equals(1048576));
+    });
   });
 }

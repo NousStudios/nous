@@ -153,8 +153,10 @@ class PedidoProgramado {
     String cnpjVendedor = '',
   }) {
     final momento = dataHora ?? DateTime.now();
+    final diaStr = momento.day.toString().padLeft(2, '0');
+    final mesStr = momento.month.toString().padLeft(2, '0');
     return PedidoLoja(
-      id: 'prog_${id}_${momento.millisecondsSinceEpoch}',
+      id: 'prog_${id}_${momento.year}_${mesStr}_$diaStr',
       numero: numero,
       clienteId: clienteId.isEmpty ? null : clienteId,
       clienteNome: clienteNome,

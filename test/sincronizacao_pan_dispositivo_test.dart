@@ -227,5 +227,50 @@ void main() {
       expect(consolidada.acoes.length, equals(2));
       expect(consolidada.acoes.map((a) => a.id), containsAll(['a1', 'a2']));
     });
+
+    test('UsuarioNous separa Identidade civil de Perfil Social público', () {
+      const usuario = UsuarioNous(
+        cpf: '12345678900',
+        nome: 'Carlos Eduardo Souza',
+        apelido: 'cadu',
+        dataNascimento: '15/05/1992',
+        foto: 'caminho/identidade.jpg',
+        biografia: 'Bio padrão',
+        nomePublico: 'Dudu Souza',
+        apelidoPublico: 'duduzin',
+        fotoPublica: 'caminho/publico.jpg',
+      );
+
+      // Getters retornam dados customizados do perfil público
+      expect(usuario.nomeExibicao, equals('Dudu Souza'));
+      expect(usuario.apelidoExibicao, equals('duduzin'));
+      expect(usuario.fotoExibicao, equals('caminho/publico.jpg'));
+
+      // Dados de Identidade do Usuário permanecem intactos
+      expect(usuario.nome, equals('Carlos Eduardo Souza'));
+      expect(usuario.apelido, equals('cadu'));
+      expect(usuario.foto, equals('caminho/identidade.jpg'));
+
+      // Serialização JSON preserva ambos
+      final json = usuario.toJson();
+      final reconstruido = UsuarioNous.fromJson(json);
+
+      expect(reconstruido.nome, equals('Carlos Eduardo Souza'));
+      expect(reconstruido.nomePublico, equals('Dudu Souza'));
+      expect(reconstruido.apelido, equals('cadu'));
+      expect(reconstruido.apelidoPublico, equals('duduzin'));
+      expect(reconstruido.foto, equals('caminho/identidade.jpg'));
+      expect(reconstruido.fotoPublica, equals('caminho/publico.jpg'));
+
+      // Fallback quando campos públicos estão vazios
+      final usuarioSemPublico = usuario.copyWith(
+        nomePublico: '',
+        apelidoPublico: '',
+        fotoPublica: '',
+      );
+      expect(usuarioSemPublico.nomeExibicao, equals('Carlos Eduardo Souza'));
+      expect(usuarioSemPublico.apelidoExibicao, equals('cadu'));
+      expect(usuarioSemPublico.fotoExibicao, equals('caminho/identidade.jpg'));
+    });
   });
 }

@@ -1,5 +1,8 @@
+import 'dart:convert';
 import 'dart:io';
+import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
+import 'package:path/path.dart' as p;
 import 'package:provider/provider.dart';
 import 'package:nous/src/core/theme/theme_controller.dart';
 import 'package:nous/src/core/widgets/custom_app_bar.dart';
@@ -11,8 +14,12 @@ import 'package:nous/src/features/chat/services/chat_service.dart';
 import 'package:nous/src/features/auth/models/usuario_nous.dart';
 import 'package:nous/src/features/auth/services/contas_nous_service.dart';
 import 'package:nous/src/features/auth/views/perfil_social_view.dart';
+import 'package:nous/src/core/widgets/floating_bottom_nav_bar.dart';
+import 'package:nous/src/features/pdv/models/pedido_loja.dart';
 import 'package:nous/src/features/pdv/providers/pdv_provider.dart';
 import 'package:nous/src/features/pdv/services/imagem_service.dart';
+import 'package:nous/src/features/pdv/views/widgets/comanda_pedido_dialog.dart';
+import 'package:nous/src/features/pdv/services/rede_local/cliente_rede_local.dart';
 
 class MensageriaView extends StatefulWidget {
   final bool modoLoja;
@@ -25,6 +32,8 @@ class MensageriaView extends StatefulWidget {
   final String? usuarioCpf;
   final String? usuarioFoto;
   final String? usuarioApelido;
+  final bool mostrarBotaoVoltar;
+  final String? conversaInicialId;
 
   const MensageriaView({
     super.key,
@@ -38,6 +47,8 @@ class MensageriaView extends StatefulWidget {
     this.usuarioCpf,
     this.usuarioFoto,
     this.usuarioApelido,
+    this.mostrarBotaoVoltar = true,
+    this.conversaInicialId,
   });
 
   @override
@@ -50,9 +61,11 @@ class _MensageriaViewState extends State<MensageriaView> {
   final ScrollController _mensagensScrollController = ScrollController();
 
   List<ConversaChat> _conversas = [];
+  List<ConversaChat> _todosContatosDisponiveis = [];
   ConversaChat? _conversaSelecionada;
   String _termoBusca = '';
   bool _inicializado = false;
+  final Set<String> _tentativasDownloadImagens = {};
 
   String get _idVisualizador {
     if (widget.modoLoja) {
@@ -92,6 +105,19 @@ class _MensageriaViewState extends State<MensageriaView> {
     super.dispose();
   }
 
+  String _resumoMensagem(MensagemChat msg) {
+    if (msg.tipo == 'imagem') {
+      return msg.texto.isNotEmpty ? '📷 ${msg.texto}' : '📷 Foto';
+    } else if (msg.tipo == 'arquivo') {
+      return msg.texto.isNotEmpty
+          ? '📎 ${msg.texto}'
+          : '📎 ${msg.nomeAnexo.isNotEmpty ? msg.nomeAnexo : "Arquivo"}';
+    } else if (msg.tipo == 'comanda') {
+      return msg.texto.isNotEmpty ? '🧾 ${msg.texto}' : '🧾 Comanda de Pedido';
+    }
+    return msg.texto;
+  }
+
   void _aoAtualizarChat() {
     if (!mounted) return;
     _recarregarConversas(manterSelecionada: true);
@@ -106,6 +132,7 @@ class _MensageriaViewState extends State<MensageriaView> {
     final auth = context.read<AuthProvider>();
     final contaLogada = auth.contaAtual;
     final List<ConversaChat> lista = [];
+    final List<ConversaChat> todosDisponiveis = [];
 
     if (widget.modoLoja && widget.lojaId != null) {
       // MODO LOJA
@@ -116,19 +143,29 @@ class _MensageriaViewState extends State<MensageriaView> {
           widget.operadorCpf ?? contaLogada?.cpf ?? '',
         );
 
-        // 1. Membros da equipe da loja (identidade soberana por CPF)
+        // 1. Membros da equipe da loja (identidade soberana por CPF com busca de foto)
         for (final membro in loja.membros) {
           final cpfMembro = ChatService.normalizarCpf(membro.cpf);
           if (cpfMembro.isEmpty) continue;
 
           final ehProprioOperador = cpfMembro == cpfLogadoNorm;
+          String fotoMembro = auth.buscarFotoPorCpf(membro.cpf);
+          if (fotoMembro.isEmpty) {
+            fotoMembro = pdv.buscarFotoClientePorCpf(membro.cpf) ?? '';
+          }
+          if (fotoMembro.isEmpty) {
+            final contaMembro = await ContasNousService.buscarPorCpf(cpfMembro);
+            if (contaMembro != null && contaMembro.foto.isNotEmpty) {
+              fotoMembro = contaMembro.foto;
+            }
+          }
 
           contatosUnificados[cpfMembro] = _InfoContatoUnificado(
             identificador: membro.cpf,
             cpfNormalizado: cpfMembro,
             titulo: ehProprioOperador ? '${membro.nome} (Você)' : membro.nome,
             subtitulo: 'Equipe • ${membro.papel.name.toUpperCase()}',
-            foto: '',
+            foto: fotoMembro,
             ehMembro: true,
             ehCliente: false,
           );
@@ -144,9 +181,10 @@ class _MensageriaViewState extends State<MensageriaView> {
             if (contatosUnificados.containsKey(cpfCliente)) {
               // Já existe como membro ou operador! Mescla sem duplicar!
               final existente = contatosUnificados[cpfCliente]!;
-              final fotoResolvida = existente.foto.isNotEmpty
+              final fotoResolvida = (existente.foto.isNotEmpty &&
+                      ImagemService.existe(existente.foto))
                   ? existente.foto
-                  : cliente.foto;
+                  : (cliente.foto.isNotEmpty ? cliente.foto : existente.foto);
               contatosUnificados[cpfCliente] = existente.copyWith(
                 foto: fotoResolvida,
                 subtitulo: '${existente.subtitulo} | Cliente',
@@ -154,6 +192,20 @@ class _MensageriaViewState extends State<MensageriaView> {
               );
             } else {
               // Cliente novo com CPF
+              String fotoCliente = cliente.foto;
+              if (fotoCliente.isEmpty) {
+                fotoCliente = auth.buscarFotoPorCpf(cliente.cnpj);
+              }
+              if (fotoCliente.isEmpty) {
+                fotoCliente = pdv.buscarFotoClientePorCpf(cliente.cnpj) ?? '';
+              }
+              if (fotoCliente.isEmpty) {
+                final contaCli = await ContasNousService.buscarPorCpf(cpfCliente);
+                if (contaCli != null && contaCli.foto.isNotEmpty) {
+                  fotoCliente = contaCli.foto;
+                }
+              }
+
               contatosUnificados[cpfCliente] = _InfoContatoUnificado(
                 identificador: cliente.cnpj,
                 cpfNormalizado: cpfCliente,
@@ -165,7 +217,7 @@ class _MensageriaViewState extends State<MensageriaView> {
                     : (cliente.telefone.isNotEmpty
                         ? cliente.telefone
                         : 'Cliente cadastrado'),
-                foto: cliente.foto,
+                foto: fotoCliente,
                 ehMembro: false,
                 ehCliente: true,
               );
@@ -203,7 +255,7 @@ class _MensageriaViewState extends State<MensageriaView> {
           );
 
           final ultimaMsg = msgs.isNotEmpty
-              ? msgs.last.texto
+              ? _resumoMensagem(msgs.last)
               : (c.ehMembro
                   ? 'Canal direto da equipe com a loja.'
                   : 'Comandas e mensagens da loja.');
@@ -211,24 +263,26 @@ class _MensageriaViewState extends State<MensageriaView> {
           final dataHoraUltima =
               msgs.isNotEmpty ? msgs.last.dataHora : DateTime.now();
 
-          // Só exibe se já houver mensagens trocadas ou se for a conversa atualmente aberta
+          final conversaItem = ConversaChat(
+            id: convId,
+            titulo: c.titulo,
+            subtitulo: c.subtitulo,
+            identificador: c.identificador,
+            foto: c.foto,
+            ehLoja: false,
+            ultimaMensagem: ultimaMsg,
+            dataHoraUltimaMensagem: dataHoraUltima,
+            naoLidasCount: naoLidas,
+            mensagens: msgs,
+          );
+
+          todosDisponiveis.add(conversaItem);
+
+          // Só exibe na lista inicial se já houver mensagens trocadas ou se for a conversa atualmente aberta
           if (msgs.isNotEmpty ||
               (_conversaSelecionada != null &&
                   _conversaSelecionada!.id == convId)) {
-            lista.add(
-              ConversaChat(
-                id: convId,
-                titulo: c.titulo,
-                subtitulo: c.subtitulo,
-                identificador: c.identificador,
-                foto: c.foto,
-                ehLoja: false,
-                ultimaMensagem: ultimaMsg,
-                dataHoraUltimaMensagem: dataHoraUltima,
-                naoLidasCount: naoLidas,
-                mensagens: msgs,
-              ),
-            );
+            lista.add(conversaItem);
           }
         }
       }
@@ -253,26 +307,28 @@ class _MensageriaViewState extends State<MensageriaView> {
           _idVisualizador,
         );
 
+        final conversaLoja = ConversaChat(
+          id: convId,
+          titulo: loja.nome,
+          subtitulo: 'Loja Nous',
+          foto: loja.logo,
+          identificador: loja.id,
+          ehLoja: true,
+          ultimaMensagem: msgs.isNotEmpty
+              ? _resumoMensagem(msgs.last)
+              : 'Canal de atendimento da loja.',
+          dataHoraUltimaMensagem:
+              msgs.isNotEmpty ? msgs.last.dataHora : DateTime.now(),
+          naoLidasCount: naoLidas,
+          mensagens: msgs,
+        );
+
+        todosDisponiveis.add(conversaLoja);
+
         if (msgs.isNotEmpty ||
             (_conversaSelecionada != null &&
                 _conversaSelecionada!.id == convId)) {
-          lista.add(
-            ConversaChat(
-              id: convId,
-              titulo: loja.nome,
-              subtitulo: 'Loja Nous',
-              foto: loja.logo,
-              identificador: loja.id,
-              ehLoja: true,
-              ultimaMensagem: msgs.isNotEmpty
-                  ? msgs.last.texto
-                  : 'Canal de atendimento da loja.',
-              dataHoraUltimaMensagem:
-                  msgs.isNotEmpty ? msgs.last.dataHora : DateTime.now(),
-              naoLidasCount: naoLidas,
-              mensagens: msgs,
-            ),
-          );
+          lista.add(conversaLoja);
         }
       }
 
@@ -284,7 +340,17 @@ class _MensageriaViewState extends State<MensageriaView> {
         for (final m in loja.membros) {
           final cMembro = ChatService.normalizarCpf(m.cpf);
           if (cMembro.isNotEmpty && cMembro != cLogadoNorm) {
-            contatosUnicos.putIfAbsent(cMembro, () => (nome: m.nome, foto: ''));
+            String fotoM = auth.buscarFotoPorCpf(m.cpf);
+            if (fotoM.isEmpty) {
+              fotoM = pdv.buscarFotoClientePorCpf(m.cpf) ?? '';
+            }
+            if (fotoM.isEmpty) {
+              final contaM = await ContasNousService.buscarPorCpf(cMembro);
+              if (contaM != null && contaM.foto.isNotEmpty) {
+                fotoM = contaM.foto;
+              }
+            }
+            contatosUnicos.putIfAbsent(cMembro, () => (nome: m.nome, foto: fotoM));
           }
         }
         for (final c in loja.clientesLoja) {
@@ -296,7 +362,14 @@ class _MensageriaViewState extends State<MensageriaView> {
                 contatosUnicos[cCli] = (nome: anterior.nome, foto: c.foto);
               }
             } else {
-              contatosUnicos[cCli] = (nome: c.nome, foto: c.foto);
+              String fotoCli = c.foto;
+              if (fotoCli.isEmpty) {
+                fotoCli = auth.buscarFotoPorCpf(c.cnpj);
+              }
+              if (fotoCli.isEmpty) {
+                fotoCli = pdv.buscarFotoClientePorCpf(c.cnpj) ?? '';
+              }
+              contatosUnicos[cCli] = (nome: c.nome, foto: fotoCli);
             }
           }
         }
@@ -314,25 +387,27 @@ class _MensageriaViewState extends State<MensageriaView> {
           _idVisualizador,
         );
 
+        final conversaUsuario = ConversaChat(
+          id: convId,
+          titulo: entry.value.nome,
+          subtitulo: 'Contato Nous',
+          foto: entry.value.foto,
+          identificador: entry.key,
+          ehLoja: false,
+          ultimaMensagem:
+              msgs.isNotEmpty ? _resumoMensagem(msgs.last) : 'Toque para conversar.',
+          dataHoraUltimaMensagem:
+              msgs.isNotEmpty ? msgs.last.dataHora : DateTime.now(),
+          naoLidasCount: naoLidas,
+          mensagens: msgs,
+        );
+
+        todosDisponiveis.add(conversaUsuario);
+
         if (msgs.isNotEmpty ||
             (_conversaSelecionada != null &&
                 _conversaSelecionada!.id == convId)) {
-          lista.add(
-            ConversaChat(
-              id: convId,
-              titulo: entry.value.nome,
-              subtitulo: 'Contato Nous',
-              foto: entry.value.foto,
-              identificador: entry.key,
-              ehLoja: false,
-              ultimaMensagem:
-                  msgs.isNotEmpty ? msgs.last.texto : 'Toque para conversar.',
-              dataHoraUltimaMensagem:
-                  msgs.isNotEmpty ? msgs.last.dataHora : DateTime.now(),
-              naoLidasCount: naoLidas,
-              mensagens: msgs,
-            ),
-          );
+          lista.add(conversaUsuario);
         }
       }
     }
@@ -342,6 +417,7 @@ class _MensageriaViewState extends State<MensageriaView> {
       cpfParticipante: widget.modoLoja ? null : contaLogada?.cpf,
     );
     lista.addAll(grupos);
+    todosDisponiveis.addAll(grupos);
 
     // Ordenar conversas pela mais recente
     lista.sort(
@@ -352,11 +428,41 @@ class _MensageriaViewState extends State<MensageriaView> {
 
     setState(() {
       _conversas = lista;
+      _todosContatosDisponiveis = todosDisponiveis;
       if (manterSelecionada && _conversaSelecionada != null) {
         final index =
             _conversas.indexWhere((c) => c.id == _conversaSelecionada!.id);
         if (index != -1) {
           _conversaSelecionada = _conversas[index];
+        } else {
+          ChatService.carregarMensagens(
+            _conversaSelecionada!.id,
+            idVisualizador: _idVisualizador,
+          ).then((msgs) {
+            if (mounted && _conversaSelecionada != null) {
+              setState(() {
+                _conversaSelecionada = _conversaSelecionada!.copyWith(
+                  mensagens: msgs,
+                  ultimaMensagem:
+                      msgs.isNotEmpty ? _resumoMensagem(msgs.last) : '',
+                  dataHoraUltimaMensagem:
+                      msgs.isNotEmpty ? msgs.last.dataHora : DateTime.now(),
+                );
+              });
+            }
+          });
+        }
+      } else if (_conversaSelecionada == null && widget.conversaInicialId != null) {
+        final encontrada = _conversas.cast<ConversaChat?>().firstWhere(
+              (c) => c?.id == widget.conversaInicialId || c?.identificador == widget.conversaInicialId,
+              orElse: () => _todosContatosDisponiveis.cast<ConversaChat?>().firstWhere(
+                    (c) => c?.id == widget.conversaInicialId || c?.identificador == widget.conversaInicialId,
+                    orElse: () => null,
+                  ),
+            );
+        if (encontrada != null) {
+          _conversaSelecionada = encontrada;
+          _marcarConversaComoLida(encontrada);
         }
       }
     });
@@ -370,9 +476,18 @@ class _MensageriaViewState extends State<MensageriaView> {
     await ChatService.marcarComoLidas(conversa.id, _idVisualizador);
   }
 
-  Future<void> _enviarMensagem() async {
-    final texto = _mensagemController.text.trim();
-    if (texto.isEmpty || _conversaSelecionada == null) return;
+  Future<void> _enviarMensagem({
+    String? textoCustomizado,
+    String tipo = 'texto',
+    String caminhoAnexo = '',
+    String nomeAnexo = '',
+    int tamanhoAnexo = 0,
+    String pedidoId = '',
+    String dadosPedidoJson = '',
+  }) async {
+    final texto = (textoCustomizado ?? _mensagemController.text).trim();
+    if (texto.isEmpty && tipo == 'texto') return;
+    if (_conversaSelecionada == null) return;
 
     final agora = DateTime.now();
     final auth = context.read<AuthProvider>();
@@ -384,11 +499,17 @@ class _MensageriaViewState extends State<MensageriaView> {
 
     final remetenteNome = widget.modoLoja
         ? (widget.nomeLoja ?? 'Loja')
-        : (widget.usuarioNome ?? conta?.nome ?? 'Usuário');
+        : (widget.usuarioNome ?? conta?.nomeExibicao ?? 'Usuário');
 
     final atendenteNome = widget.modoLoja
-        ? (widget.operadorNome ?? conta?.nome ?? 'Atendente')
+        ? (widget.operadorNome ?? conta?.nomeExibicao ?? 'Atendente')
         : '';
+
+    final remetenteFoto = widget.modoLoja
+        ? (widget.logoLoja ?? '')
+        : (widget.usuarioFoto ??
+            conta?.fotoExibicao ??
+            auth.buscarFotoPorCpf(conta?.cpf ?? ''));
 
     final destinatarioId = _conversaSelecionada!.identificador;
 
@@ -397,6 +518,7 @@ class _MensageriaViewState extends State<MensageriaView> {
       conversaId: _conversaSelecionada!.id,
       remetenteId: remetenteId,
       remetenteNome: remetenteNome,
+      remetenteFoto: remetenteFoto,
       destinatarioId: destinatarioId,
       texto: texto,
       dataHora: agora,
@@ -404,20 +526,477 @@ class _MensageriaViewState extends State<MensageriaView> {
       nomeAtendente: atendenteNome,
       cpfAtendente: widget.operadorCpf ?? conta?.cpf ?? '',
       lida: false,
+      tipo: tipo,
+      caminhoAnexo: caminhoAnexo,
+      nomeAnexo: nomeAnexo,
+      tamanhoAnexo: tamanhoAnexo,
+      pedidoId: pedidoId,
+      dadosPedidoJson: dadosPedidoJson,
     );
 
-    _mensagemController.clear();
+    if (textoCustomizado == null) {
+      _mensagemController.clear();
+    }
     await ChatService.salvarMensagem(novaMensagem);
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (_mensagensScrollController.hasClients) {
         _mensagensScrollController.animateTo(
-          _mensagensScrollController.position.maxScrollExtent,
-          duration: const Duration(milliseconds: 250),
+          0.0,
+          duration: const Duration(milliseconds: 200),
           curve: Curves.easeOut,
         );
       }
     });
+  }
+
+  Future<void> _anexarFoto() async {
+    try {
+      const grupo = XTypeGroup(
+        label: 'Imagens',
+        extensions: ['jpg', 'jpeg', 'png', 'webp', 'gif', 'bmp'],
+      );
+      final arquivo = await openFile(acceptedTypeGroups: const [grupo]);
+      if (arquivo == null) return;
+
+      final salvo = await ImagemService.salvarImagemLocal(arquivo.path);
+      if (salvo == null) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Não foi possível anexar esta imagem.')),
+          );
+        }
+        return;
+      }
+
+      final tamanho = await File(salvo).length();
+      await _enviarMensagem(
+        textoCustomizado: '',
+        tipo: 'imagem',
+        caminhoAnexo: salvo,
+        nomeAnexo: p.basename(arquivo.path),
+        tamanhoAnexo: tamanho,
+      );
+    } catch (e) {
+      debugPrint('[Mensageria] Erro ao anexar foto: $e');
+    }
+  }
+
+  Future<void> _anexarArquivo() async {
+    try {
+      const grupo = XTypeGroup(
+        label: 'Documentos e Arquivos',
+        extensions: ['pdf', 'doc', 'docx', 'xls', 'xlsx', 'txt', 'zip', 'csv'],
+      );
+      final arquivo = await openFile(acceptedTypeGroups: const [grupo]);
+      if (arquivo == null) return;
+
+      final salvo = await ChatService.salvarArquivoAnexo(arquivo.path);
+      if (salvo == null) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Não foi possível anexar este arquivo.')),
+          );
+        }
+        return;
+      }
+
+      final tamanho = await File(salvo).length();
+      await _enviarMensagem(
+        textoCustomizado: '',
+        tipo: 'arquivo',
+        caminhoAnexo: salvo,
+        nomeAnexo: p.basename(arquivo.path),
+        tamanhoAnexo: tamanho,
+      );
+    } catch (e) {
+      debugPrint('[Mensageria] Erro ao anexar arquivo: $e');
+    }
+  }
+
+  Future<void> _abrirArquivo(String caminho) async {
+    try {
+      final resolvido = ImagemService.resolverCaminhoExistente(caminho) ?? caminho;
+      final f = File(resolvido);
+      if (!f.existsSync()) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Arquivo não encontrado no disco local.')),
+          );
+        }
+        return;
+      }
+      if (Platform.isWindows) {
+        await Process.run('explorer', [f.path]);
+      } else if (Platform.isLinux) {
+        await Process.run('xdg-open', [f.path]);
+      } else if (Platform.isMacOS) {
+        await Process.run('open', [f.path]);
+      }
+    } catch (e) {
+      debugPrint('[Mensageria] Erro ao abrir arquivo: $e');
+    }
+  }
+
+  void _visualizarFotoAmpliada(AppTheme theme, String caminho) {
+    final resolvido = ImagemService.resolverCaminhoExistente(caminho) ?? caminho;
+    final f = File(resolvido);
+    if (!f.existsSync()) return;
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: theme.cardBackgroundColor,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+          side: BorderSide(color: theme.borderColor),
+        ),
+        contentPadding: const EdgeInsets.all(12),
+        content: ConstrainedBox(
+          constraints: BoxConstraints(
+            maxWidth: MediaQuery.sizeOf(ctx).width * 0.85,
+            maxHeight: MediaQuery.sizeOf(ctx).height * 0.80,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Align(
+                alignment: Alignment.topRight,
+                child: IconButton(
+                  icon: Icon(Icons.close, color: theme.secondaryTextColor, size: 20),
+                  onPressed: () => Navigator.pop(ctx),
+                ),
+              ),
+              Flexible(
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(12),
+                  child: Image.file(f, fit: BoxFit.contain),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _abrirDialogCompartilharComanda(AppTheme theme) {
+    final pdv = context.read<PdvProvider>();
+    List<PedidoLoja> pedidos = [];
+
+    if (widget.modoLoja && widget.lojaId != null) {
+      final loja = pdv.buscarPorId(widget.lojaId!);
+      if (loja != null) {
+        pedidos = List<PedidoLoja>.from(loja.pedidosLoja);
+      }
+    } else {
+      final todasLojas = [...pdv.lojasQueAdministro, ...pdv.lojasQueParticipo];
+      for (final l in todasLojas) {
+        pedidos.addAll(l.pedidosLoja);
+      }
+    }
+
+    pedidos.sort((a, b) => b.dataHora.compareTo(a.dataHora));
+
+    showDialog(
+      context: context,
+      builder: (ctx) {
+        return AlertDialog(
+          backgroundColor: theme.cardBackgroundColor,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+            side: BorderSide(color: theme.borderColor),
+          ),
+          title: Row(
+            children: [
+              Icon(Icons.receipt_long_rounded, color: theme.textColor, size: 20),
+              const SizedBox(width: 8),
+              Text(
+                'Selecionar Comanda',
+                style: theme.getTextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: theme.textColor,
+                ),
+              ),
+            ],
+          ),
+          content: ConstrainedBox(
+            constraints: BoxConstraints(
+              maxWidth: 380,
+              maxHeight: MediaQuery.sizeOf(ctx).height * 0.70,
+            ),
+            child: pedidos.isEmpty
+                ? Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 24),
+                    child: Center(
+                      child: Text(
+                        'Nenhum pedido encontrado para compartilhar.',
+                        textAlign: TextAlign.center,
+                        style: theme.getTextStyle(
+                          fontSize: 13,
+                          color: theme.secondaryTextColor,
+                        ),
+                      ),
+                    ),
+                  )
+                : ListView.separated(
+                    shrinkWrap: true,
+                    itemCount: pedidos.length,
+                    separatorBuilder: (dialogCtx, index) => Divider(
+                      height: 1,
+                      color: theme.borderColor.withValues(alpha: 0.3),
+                    ),
+                    itemBuilder: (dialogCtx, index) {
+                      final p = pedidos[index];
+                      final numStr = p.numero.toString().padLeft(4, '0');
+                      return ListTile(
+                        dense: true,
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 4,
+                          vertical: 2,
+                        ),
+                        leading: CircleAvatar(
+                          backgroundColor:
+                              theme.buttonColor.withValues(alpha: 0.15),
+                          child: Icon(
+                            Icons.receipt_rounded,
+                            color: theme.buttonColor,
+                            size: 18,
+                          ),
+                        ),
+                        title: Row(
+                          children: [
+                            Text(
+                              'Pedido #$numStr',
+                              style: theme.getTextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.bold,
+                                color: theme.textColor,
+                              ),
+                            ),
+                            const Spacer(),
+                            Text(
+                              'R\$ ${p.valor.toStringAsFixed(2)}',
+                              style: theme.getTextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.bold,
+                                color: theme.textColor,
+                              ),
+                            ),
+                          ],
+                        ),
+                        subtitle: Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                p.clienteNome.isNotEmpty
+                                    ? p.clienteNome
+                                    : 'Balcão',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: theme.getTextStyle(
+                                  fontSize: 11,
+                                  color: theme.secondaryTextColor,
+                                ),
+                              ),
+                            ),
+                            Text(
+                              p.status.name.toUpperCase(),
+                              style: theme.getTextStyle(
+                                fontSize: 10,
+                                fontWeight: FontWeight.bold,
+                                color: theme.secondaryTextColor,
+                              ),
+                            ),
+                          ],
+                        ),
+                        onTap: () {
+                          Navigator.pop(ctx);
+                          _enviarMensagem(
+                            textoCustomizado:
+                                'Pedido #$numStr • R\$ ${p.valor.toStringAsFixed(2)}',
+                            tipo: 'comanda',
+                            pedidoId: p.id,
+                            dadosPedidoJson: jsonEncode(p.toJson()),
+                          );
+                        },
+                      );
+                    },
+                  ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: Text(
+                'Cancelar',
+                style: theme.getTextStyle(color: theme.secondaryTextColor),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  void _abrirComandaDoChat(MensagemChat msg, PedidoLoja? pedido) {
+    final pdv = context.read<PdvProvider>();
+    PedidoLoja? pedidoEfetivo = pedido;
+    String lojaIdEfetiva = widget.lojaId ?? '';
+
+    if (pedidoEfetivo == null && msg.dadosPedidoJson.isNotEmpty) {
+      try {
+        final mapa = jsonDecode(msg.dadosPedidoJson) as Map<String, dynamic>;
+        pedidoEfetivo = PedidoLoja.fromJson(mapa);
+      } catch (_) {}
+    }
+
+    if (pedidoEfetivo == null && msg.pedidoId.isNotEmpty) {
+      final todasLojas = [...pdv.lojasQueAdministro, ...pdv.lojasQueParticipo];
+      for (final l in todasLojas) {
+        final achado = l.pedidosLoja.cast<PedidoLoja?>().firstWhere(
+              (p) => p?.id == msg.pedidoId,
+              orElse: () => null,
+            );
+        if (achado != null) {
+          pedidoEfetivo = achado;
+          lojaIdEfetiva = l.id;
+          break;
+        }
+      }
+    }
+
+    if (pedidoEfetivo != null) {
+      ComandaPedidoDialog.mostrar(
+        context,
+        lojaId: lojaIdEfetiva,
+        pedido: pedidoEfetivo,
+      );
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Dados da comanda não disponíveis.')),
+      );
+    }
+  }
+
+  void _abrirMenuAnexo(AppTheme theme) {
+    showDialog(
+      context: context,
+      builder: (ctx) {
+        return AlertDialog(
+          backgroundColor: theme.cardBackgroundColor,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+            side: BorderSide(color: theme.borderColor),
+          ),
+          title: Row(
+            children: [
+              Icon(Icons.attachment_rounded, color: theme.textColor, size: 20),
+              const SizedBox(width: 8),
+              Text(
+                'Anexar ao Chat',
+                style: theme.getTextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: theme.textColor,
+                ),
+              ),
+            ],
+          ),
+          content: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 340),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                ListTile(
+                  leading: CircleAvatar(
+                    backgroundColor: theme.buttonColor.withValues(alpha: 0.15),
+                    child: Icon(Icons.image_rounded, color: theme.buttonColor, size: 20),
+                  ),
+                  title: Text(
+                    'Foto / Imagem',
+                    style: theme.getTextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.bold,
+                      color: theme.textColor,
+                    ),
+                  ),
+                  subtitle: Text(
+                    'Fotos de produtos, comprovantes ou galeria',
+                    style: theme.getTextStyle(
+                      fontSize: 11,
+                      color: theme.secondaryTextColor,
+                    ),
+                  ),
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    _anexarFoto();
+                  },
+                ),
+                Divider(color: theme.borderColor.withValues(alpha: 0.3)),
+                ListTile(
+                  leading: CircleAvatar(
+                    backgroundColor: theme.buttonColor.withValues(alpha: 0.15),
+                    child: Icon(Icons.insert_drive_file_rounded, color: theme.buttonColor, size: 20),
+                  ),
+                  title: Text(
+                    'Documento / Arquivo',
+                    style: theme.getTextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.bold,
+                      color: theme.textColor,
+                    ),
+                  ),
+                  subtitle: Text(
+                    'PDFs, relatórios e arquivos em geral',
+                    style: theme.getTextStyle(
+                      fontSize: 11,
+                      color: theme.secondaryTextColor,
+                    ),
+                  ),
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    _anexarArquivo();
+                  },
+                ),
+                Divider(color: theme.borderColor.withValues(alpha: 0.3)),
+                ListTile(
+                  leading: CircleAvatar(
+                    backgroundColor: theme.buttonColor.withValues(alpha: 0.15),
+                    child: Icon(Icons.receipt_long_rounded, color: theme.buttonColor, size: 20),
+                  ),
+                  title: Text(
+                    'Comanda de Pedido',
+                    style: theme.getTextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.bold,
+                      color: theme.textColor,
+                    ),
+                  ),
+                  subtitle: Text(
+                    'Compartilhar comanda com itens e total',
+                    style: theme.getTextStyle(
+                      fontSize: 11,
+                      color: theme.secondaryTextColor,
+                    ),
+                  ),
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    _abrirDialogCompartilharComanda(theme);
+                  },
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  String _formatarTamanho(int bytes) {
+    if (bytes < 1024) return '$bytes B';
+    if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(1)} KB';
+    return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
   }
 
   void _abrirDialogCriarGrupo(AppTheme theme) {
@@ -899,7 +1478,7 @@ class _MensageriaViewState extends State<MensageriaView> {
       foto: foto,
       identificador: identificador,
       ehLoja: ehLoja,
-      ultimaMensagem: msgs.isNotEmpty ? msgs.last.texto : '',
+      ultimaMensagem: msgs.isNotEmpty ? _resumoMensagem(msgs.last) : '',
       dataHoraUltimaMensagem: msgs.isNotEmpty ? msgs.last.dataHora : DateTime.now(),
       naoLidasCount: 0,
       mensagens: msgs,
@@ -968,44 +1547,277 @@ class _MensageriaViewState extends State<MensageriaView> {
                   Divider(color: theme.borderColor.withValues(alpha: 0.4)),
                   const SizedBox(height: 12),
 
-                  // Mídias trocadas
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: theme.backgroundColor,
-                      borderRadius: BorderRadius.circular(10),
-                      border: Border.all(
-                        color: theme.borderColor.withValues(alpha: 0.5),
-                      ),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            Icon(Icons.photo_library_outlined, size: 18, color: theme.textColor),
-                            const SizedBox(width: 8),
-                            Text(
-                              'Mídias, Links e Docs',
-                              style: theme.getTextStyle(
-                                fontSize: 13,
-                                fontWeight: FontWeight.bold,
-                                color: theme.textColor,
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          'Nenhuma mídia ou documento compartilhado nesta conversa.',
-                          style: theme.getTextStyle(
-                            fontSize: 11,
-                            color: theme.secondaryTextColor,
+                  // Mídias, Links e Docs compartilhados na conversa
+                  Builder(
+                    builder: (context) {
+                      final midias = conversa.mensagens
+                          .where((m) =>
+                              m.tipo == 'imagem' &&
+                              m.caminhoAnexo.trim().isNotEmpty)
+                          .toList();
+                      final docs = conversa.mensagens
+                          .where((m) =>
+                              m.tipo == 'arquivo' &&
+                              m.caminhoAnexo.trim().isNotEmpty)
+                          .toList();
+                      final links = conversa.mensagens
+                          .where((m) =>
+                              m.tipo == 'texto' &&
+                              (m.texto.contains('http://') ||
+                                  m.texto.contains('https://') ||
+                                  m.texto.contains('www.')))
+                          .toList();
+                      final totalItens =
+                          midias.length + docs.length + links.length;
+
+                      return Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: theme.backgroundColor,
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(
+                            color: theme.borderColor.withValues(alpha: 0.5),
                           ),
                         ),
-                      ],
-                    ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Icon(Icons.photo_library_outlined,
+                                    size: 18, color: theme.textColor),
+                                const SizedBox(width: 8),
+                                Text(
+                                  'Mídias, Links e Docs',
+                                  style: theme.getTextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.bold,
+                                    color: theme.textColor,
+                                  ),
+                                ),
+                                if (totalItens > 0) ...[
+                                  const Spacer(),
+                                  Text(
+                                    '$totalItens',
+                                    style: theme.getTextStyle(
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.bold,
+                                      color: theme.secondaryTextColor,
+                                    ),
+                                  ),
+                                ],
+                              ],
+                            ),
+                            const SizedBox(height: 10),
+                            if (totalItens == 0)
+                              Text(
+                                'Nenhuma mídia ou documento compartilhado nesta conversa.',
+                                style: theme.getTextStyle(
+                                  fontSize: 11,
+                                  color: theme.secondaryTextColor,
+                                ),
+                              )
+                            else ...[
+                              // 1. Fotos e Imagens
+                              if (midias.isNotEmpty) ...[
+                                Text(
+                                  'Fotos (${midias.length})',
+                                  style: theme.getTextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w600,
+                                    color: theme.secondaryTextColor,
+                                  ),
+                                ),
+                                const SizedBox(height: 6),
+                                Wrap(
+                                  spacing: 8,
+                                  runSpacing: 8,
+                                  children: midias.map((m) {
+                                    final resolvido =
+                                        ImagemService.resolverCaminhoExistente(
+                                            m.caminhoAnexo);
+                                    final existe = resolvido != null &&
+                                        File(resolvido).existsSync();
+
+                                    return InkWell(
+                                      onTap: existe
+                                          ? () => _visualizarFotoAmpliada(
+                                              theme, resolvido)
+                                          : null,
+                                      borderRadius: BorderRadius.circular(8),
+                                      child: Container(
+                                        width: 64,
+                                        height: 64,
+                                        decoration: BoxDecoration(
+                                          color: theme.cardBackgroundColor,
+                                          borderRadius:
+                                              BorderRadius.circular(8),
+                                          border: Border.all(
+                                            color: theme.borderColor
+                                                .withValues(alpha: 0.6),
+                                          ),
+                                        ),
+                                        child: ClipRRect(
+                                          borderRadius:
+                                              BorderRadius.circular(7),
+                                          child: existe
+                                              ? Image.file(
+                                                  File(resolvido),
+                                                  fit: BoxFit.cover,
+                                                  errorBuilder: (context, error, stackTrace) =>
+                                                      Icon(
+                                                    Icons.broken_image_outlined,
+                                                    size: 24,
+                                                    color: theme
+                                                        .secondaryTextColor,
+                                                  ),
+                                                )
+                                              : Icon(
+                                                  Icons.image_outlined,
+                                                  size: 24,
+                                                  color: theme
+                                                      .secondaryTextColor,
+                                                ),
+                                        ),
+                                      ),
+                                    );
+                                  }).toList(),
+                                ),
+                                const SizedBox(height: 10),
+                              ],
+
+                              // 2. Documentos e Arquivos
+                              if (docs.isNotEmpty) ...[
+                                Text(
+                                  'Documentos (${docs.length})',
+                                  style: theme.getTextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w600,
+                                    color: theme.secondaryTextColor,
+                                  ),
+                                ),
+                                const SizedBox(height: 6),
+                                Column(
+                                  children: docs.map((d) {
+                                    return Container(
+                                      margin: const EdgeInsets.only(bottom: 6),
+                                      padding: const EdgeInsets.symmetric(
+                                          horizontal: 8, vertical: 6),
+                                      decoration: BoxDecoration(
+                                        color: theme.cardBackgroundColor,
+                                        borderRadius: BorderRadius.circular(8),
+                                        border: Border.all(
+                                          color: theme.borderColor
+                                              .withValues(alpha: 0.5),
+                                        ),
+                                      ),
+                                      child: Row(
+                                        children: [
+                                          Icon(Icons.insert_drive_file_outlined,
+                                              size: 20, color: theme.textColor),
+                                          const SizedBox(width: 8),
+                                          Expanded(
+                                            child: Column(
+                                              crossAxisAlignment:
+                                                  CrossAxisAlignment.start,
+                                              children: [
+                                                Text(
+                                                  d.nomeAnexo.isNotEmpty
+                                                      ? d.nomeAnexo
+                                                      : 'Arquivo',
+                                                  maxLines: 1,
+                                                  overflow:
+                                                      TextOverflow.ellipsis,
+                                                  style: theme.getTextStyle(
+                                                    fontSize: 11,
+                                                    fontWeight: FontWeight.w600,
+                                                    color: theme.textColor,
+                                                  ),
+                                                ),
+                                                if (d.tamanhoAnexo > 0)
+                                                  Text(
+                                                    _formatarTamanho(
+                                                        d.tamanhoAnexo),
+                                                    style: theme.getTextStyle(
+                                                      fontSize: 10,
+                                                      color: theme
+                                                          .secondaryTextColor,
+                                                    ),
+                                                  ),
+                                              ],
+                                            ),
+                                          ),
+                                          IconButton(
+                                            icon: Icon(
+                                                Icons.open_in_new_rounded,
+                                                size: 16,
+                                                color: theme.textColor),
+                                            tooltip: 'Abrir',
+                                            visualDensity:
+                                                VisualDensity.compact,
+                                            onPressed: () =>
+                                                _abrirArquivo(d.caminhoAnexo),
+                                          ),
+                                        ],
+                                      ),
+                                    );
+                                  }).toList(),
+                                ),
+                                const SizedBox(height: 6),
+                              ],
+
+                              // 3. Links
+                              if (links.isNotEmpty) ...[
+                                Text(
+                                  'Links (${links.length})',
+                                  style: theme.getTextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w600,
+                                    color: theme.secondaryTextColor,
+                                  ),
+                                ),
+                                const SizedBox(height: 6),
+                                Column(
+                                  children: links.map((l) {
+                                    return Container(
+                                      margin: const EdgeInsets.only(bottom: 6),
+                                      padding: const EdgeInsets.symmetric(
+                                          horizontal: 8, vertical: 6),
+                                      decoration: BoxDecoration(
+                                        color: theme.cardBackgroundColor,
+                                        borderRadius: BorderRadius.circular(8),
+                                        border: Border.all(
+                                          color: theme.borderColor
+                                              .withValues(alpha: 0.5),
+                                        ),
+                                      ),
+                                      child: Row(
+                                        children: [
+                                          Icon(Icons.link,
+                                              size: 18,
+                                              color: theme.buttonColor),
+                                          const SizedBox(width: 8),
+                                          Expanded(
+                                            child: SelectableText(
+                                              l.texto,
+                                              style: theme.getTextStyle(
+                                                fontSize: 11,
+                                                color: theme.textColor,
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    );
+                                  }).toList(),
+                                ),
+                              ],
+                            ],
+                          ],
+                        ),
+                      );
+                    },
                   ),
 
                   const SizedBox(height: 16),
@@ -1087,7 +1899,18 @@ class _MensageriaViewState extends State<MensageriaView> {
       );
     }
 
-    final caminhoFoto = ImagemService.resolverCaminhoExistente(conversa.foto);
+    var caminhoFoto = ImagemService.resolverCaminhoExistente(conversa.foto);
+    if (caminhoFoto == null && conversa.identificador.isNotEmpty) {
+      final auth = context.read<AuthProvider>();
+      final pdv = context.read<PdvProvider>();
+      var fotoRecuperada = auth.buscarFotoPorCpf(conversa.identificador);
+      if (fotoRecuperada.isEmpty) {
+        fotoRecuperada = pdv.buscarFotoClientePorCpf(conversa.identificador) ?? '';
+      }
+      if (fotoRecuperada.isNotEmpty) {
+        caminhoFoto = ImagemService.resolverCaminhoExistente(fotoRecuperada);
+      }
+    }
     final temFoto = caminhoFoto != null;
 
     if (temFoto) {
@@ -1110,12 +1933,37 @@ class _MensageriaViewState extends State<MensageriaView> {
   }
 
   Widget _buildListaConversas(AppTheme theme) {
-    final filtradas = _conversas.where((c) {
-      if (_termoBusca.isEmpty) return true;
-      return c.titulo.toLowerCase().contains(_termoBusca) ||
-          c.subtitulo.toLowerCase().contains(_termoBusca) ||
-          c.ultimaMensagem.toLowerCase().contains(_termoBusca);
-    }).toList();
+    final List<ConversaChat> filtradas = [];
+    if (_termoBusca.isEmpty) {
+      filtradas.addAll(_conversas);
+    } else {
+      final idsJaAdicionados = <String>{};
+
+      // 1. Conversas ativas com histórico que combinam com o termo
+      for (final c in _conversas) {
+        final match = c.titulo.toLowerCase().contains(_termoBusca) ||
+            c.subtitulo.toLowerCase().contains(_termoBusca) ||
+            c.identificador.toLowerCase().contains(_termoBusca) ||
+            c.ultimaMensagem.toLowerCase().contains(_termoBusca);
+        if (match) {
+          filtradas.add(c);
+          idsJaAdicionados.add(c.id);
+        }
+      }
+
+      // 2. Contatos cadastrados na loja/app que combinam com o termo (mesmo sem mensagens prévias)
+      for (final c in _todosContatosDisponiveis) {
+        if (!idsJaAdicionados.contains(c.id)) {
+          final match = c.titulo.toLowerCase().contains(_termoBusca) ||
+              c.subtitulo.toLowerCase().contains(_termoBusca) ||
+              c.identificador.toLowerCase().contains(_termoBusca);
+          if (match) {
+            filtradas.add(c);
+            idsJaAdicionados.add(c.id);
+          }
+        }
+      }
+    }
 
     return Column(
       children: [
@@ -1134,36 +1982,52 @@ class _MensageriaViewState extends State<MensageriaView> {
                       color: theme.borderColor.withValues(alpha: 0.6),
                     ),
                   ),
-                  child: TextField(
-                    controller: _buscaController,
-                    style: theme.getTextStyle(
-                      fontSize: 13,
-                      color: theme.textColor,
-                    ),
-                    decoration: InputDecoration(
-                      hintText: 'Pesquisar contatos ou lojas...',
-                      hintStyle: theme.getTextStyle(
-                        fontSize: 12,
-                        color: theme.secondaryTextColor,
+                  child: Stack(
+                    alignment: Alignment.centerLeft,
+                    children: [
+                      TextField(
+                        controller: _buscaController,
+                        style: theme.getTextStyle(
+                          fontSize: 13,
+                          color: theme.textColor,
+                        ),
+                        decoration: InputDecoration(
+                          hintText: '',
+                          prefixIcon: Icon(
+                            Icons.search,
+                            size: 18,
+                            color: theme.secondaryTextColor,
+                          ),
+                          suffixIcon: _buscaController.text.isNotEmpty
+                              ? IconButton(
+                                  icon: Icon(
+                                    Icons.clear,
+                                    size: 16,
+                                    color: theme.secondaryTextColor,
+                                  ),
+                                  onPressed: () => _buscaController.clear(),
+                                )
+                              : null,
+                          border: InputBorder.none,
+                          contentPadding:
+                              const EdgeInsets.symmetric(vertical: 9),
+                        ),
                       ),
-                      prefixIcon: Icon(
-                        Icons.search,
-                        size: 18,
-                        color: theme.secondaryTextColor,
-                      ),
-                      suffixIcon: _buscaController.text.isNotEmpty
-                          ? IconButton(
-                              icon: Icon(
-                                Icons.clear,
-                                size: 16,
+                      if (_buscaController.text.isEmpty)
+                        Positioned(
+                          left: 38,
+                          right: 12,
+                          child: IgnorePointer(
+                            child: TextoRolante(
+                              texto: 'Pesquisar contatos ou lojas...',
+                              style: theme.getTextStyle(
+                                fontSize: 12,
                                 color: theme.secondaryTextColor,
                               ),
-                              onPressed: () => _buscaController.clear(),
-                            )
-                          : null,
-                      border: InputBorder.none,
-                      contentPadding: const EdgeInsets.symmetric(vertical: 9),
-                    ),
+                            ),
+                          ),
+                        ),
+                    ],
                   ),
                 ),
               ),
@@ -1368,12 +2232,10 @@ class _MensageriaViewState extends State<MensageriaView> {
                                 ),
                               ),
                               const SizedBox(height: 2),
-                              Text(
-                                conversa.subtitulo.isNotEmpty
+                              TextoRolante(
+                                texto: conversa.subtitulo.isNotEmpty
                                     ? conversa.subtitulo
                                     : 'Online na rede local',
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
                                 style: theme.getTextStyle(
                                   fontSize: 11,
                                   color: theme.secondaryTextColor,
@@ -1415,13 +2277,15 @@ class _MensageriaViewState extends State<MensageriaView> {
                 )
               : ListView.builder(
                   controller: _mensagensScrollController,
+                  reverse: true,
                   padding: const EdgeInsets.symmetric(
                     horizontal: 14,
                     vertical: 12,
                   ),
                   itemCount: conversa.mensagens.length,
                   itemBuilder: (context, index) {
-                    final msg = conversa.mensagens[index];
+                    final msg = conversa.mensagens[
+                        conversa.mensagens.length - 1 - index];
                     final enviadaPorMim = msg.enviadaPorMim;
 
                     return Align(
@@ -1431,7 +2295,7 @@ class _MensageriaViewState extends State<MensageriaView> {
                       child: Container(
                         margin: const EdgeInsets.only(bottom: 8),
                         constraints: BoxConstraints(
-                          maxWidth: MediaQuery.sizeOf(context).width * 0.70,
+                          maxWidth: MediaQuery.sizeOf(context).width * 0.72,
                         ),
                         padding: const EdgeInsets.symmetric(
                           horizontal: 12,
@@ -1485,13 +2349,22 @@ class _MensageriaViewState extends State<MensageriaView> {
                                 ),
                               ),
 
-                            Text(
-                              msg.texto,
-                              style: theme.getTextStyle(
-                                fontSize: 13,
-                                color: theme.textColor,
+                            // Renderização do conteúdo conforme o tipo
+                            if (msg.tipo == 'imagem')
+                              _buildCardImagem(theme, msg, enviadaPorMim)
+                            else if (msg.tipo == 'arquivo')
+                              _buildCardArquivo(theme, msg, enviadaPorMim)
+                            else if (msg.tipo == 'comanda')
+                              _buildCardComanda(theme, msg, enviadaPorMim)
+                            else
+                              Text(
+                                msg.texto,
+                                style: theme.getTextStyle(
+                                  fontSize: 13,
+                                  color: theme.textColor,
+                                ),
                               ),
-                            ),
+
                             const SizedBox(height: 3),
                             Row(
                               mainAxisSize: MainAxisSize.min,
@@ -1525,7 +2398,7 @@ class _MensageriaViewState extends State<MensageriaView> {
 
         // Barra de Envio
         Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
           decoration: BoxDecoration(
             color: theme.cardBackgroundColor,
             border: Border(
@@ -1536,6 +2409,16 @@ class _MensageriaViewState extends State<MensageriaView> {
           ),
           child: Row(
             children: [
+              IconButton(
+                icon: Icon(
+                  Icons.attach_file_rounded,
+                  color: theme.textColor,
+                  size: 22,
+                ),
+                tooltip: 'Anexar imagem, arquivo ou comanda',
+                onPressed: () => _abrirMenuAnexo(theme),
+              ),
+              const SizedBox(width: 4),
               Expanded(
                 child: Container(
                   height: 42,
@@ -1593,6 +2476,358 @@ class _MensageriaViewState extends State<MensageriaView> {
     );
   }
 
+  Widget _buildCardComanda(
+    AppTheme theme,
+    MensagemChat msg,
+    bool enviadaPorMim,
+  ) {
+    PedidoLoja? pedido;
+    if (msg.dadosPedidoJson.isNotEmpty) {
+      try {
+        final mapa = jsonDecode(msg.dadosPedidoJson) as Map<String, dynamic>;
+        pedido = PedidoLoja.fromJson(mapa);
+      } catch (_) {}
+    }
+
+    final numero =
+        pedido != null ? pedido.numero.toString().padLeft(4, '0') : msg.pedidoId;
+    final totalFormatado = pedido != null
+        ? 'R\$ ${pedido.valor.toStringAsFixed(2)}'
+        : (msg.texto.contains('R\$') ? msg.texto : 'Comanda');
+    final statusNome =
+        pedido != null ? pedido.status.name.toUpperCase() : 'COMANDA';
+
+    return Container(
+      constraints: const BoxConstraints(maxWidth: 290),
+      margin: const EdgeInsets.only(top: 4, bottom: 4),
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: theme.cardBackgroundColor,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(
+          color: theme.borderColor.withValues(alpha: 0.8),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                children: [
+                  Icon(
+                    Icons.receipt_long_rounded,
+                    color: theme.buttonColor,
+                    size: 18,
+                  ),
+                  const SizedBox(width: 6),
+                  Text(
+                    'COMANDA',
+                    style: theme.getTextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.bold,
+                      color: theme.textColor,
+                    ),
+                  ),
+                ],
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(
+                  color: theme.buttonColor.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(6),
+                  border: Border.all(
+                    color: theme.buttonColor.withValues(alpha: 0.4),
+                  ),
+                ),
+                child: Text(
+                  statusNome,
+                  style: theme.getTextStyle(
+                    fontSize: 9,
+                    fontWeight: FontWeight.bold,
+                    color: theme.buttonColor,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Text(
+            'Pedido #$numero',
+            style: theme.getTextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.bold,
+              color: theme.textColor,
+            ),
+          ),
+          if (pedido != null && pedido.clienteNome.isNotEmpty) ...[
+            const SizedBox(height: 2),
+            Text(
+              'Cliente: ${pedido.clienteNome}',
+              style: theme.getTextStyle(
+                fontSize: 11,
+                color: theme.secondaryTextColor,
+              ),
+            ),
+          ],
+          if (pedido != null && pedido.itens.isNotEmpty) ...[
+            const SizedBox(height: 4),
+            ...pedido.itens.take(3).map(
+              (it) => Padding(
+                padding: const EdgeInsets.only(bottom: 2),
+                child: Row(
+                  children: [
+                    Text(
+                      '${it.quantidade}x ',
+                      style: theme.getTextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold,
+                        color: theme.secondaryTextColor,
+                      ),
+                    ),
+                    Expanded(
+                      child: Text(
+                        it.nomeExibicao,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: theme.getTextStyle(
+                          fontSize: 11,
+                          color: theme.secondaryTextColor,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            if (pedido.itens.length > 3)
+              Text(
+                '+ ${pedido.itens.length - 3} outros itens...',
+                style: theme.getTextStyle(
+                  fontSize: 10,
+                  color: theme.secondaryTextColor,
+                ).copyWith(fontStyle: FontStyle.italic),
+              ),
+          ],
+          const SizedBox(height: 6),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'Total:',
+                style: theme.getTextStyle(
+                  fontSize: 11,
+                  color: theme.secondaryTextColor,
+                ),
+              ),
+              Text(
+                totalFormatado,
+                style: theme.getTextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.bold,
+                  color: theme.textColor,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: theme.buttonColor,
+                foregroundColor: theme.buttonTextColor,
+                padding: const EdgeInsets.symmetric(vertical: 6),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+              ),
+              icon: const Icon(Icons.visibility_rounded, size: 14),
+              label: const Text(
+                'Ver Comanda Completa',
+                style: TextStyle(fontSize: 11),
+              ),
+              onPressed: () => _abrirComandaDoChat(msg, pedido),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCardArquivo(
+    AppTheme theme,
+    MensagemChat msg,
+    bool enviadaPorMim,
+  ) {
+    final ehPdf = msg.nomeAnexo.toLowerCase().endsWith('.pdf');
+    final icone = ehPdf
+        ? Icons.picture_as_pdf_rounded
+        : Icons.insert_drive_file_rounded;
+
+    return Container(
+      constraints: const BoxConstraints(maxWidth: 260),
+      margin: const EdgeInsets.only(top: 4, bottom: 4),
+      padding: const EdgeInsets.all(8),
+      decoration: BoxDecoration(
+        color: theme.cardBackgroundColor,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(
+          color: theme.borderColor.withValues(alpha: 0.7),
+        ),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 36,
+            height: 36,
+            decoration: BoxDecoration(
+              color: theme.buttonColor.withValues(alpha: 0.15),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Icon(icone, color: theme.buttonColor, size: 20),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                TextoRolante(
+                  texto: msg.nomeAnexo.isNotEmpty
+                      ? msg.nomeAnexo
+                      : 'Arquivo anexo',
+                  style: theme.getTextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                    color: theme.textColor,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  _formatarTamanho(msg.tamanhoAnexo),
+                  style: theme.getTextStyle(
+                    fontSize: 10,
+                    color: theme.secondaryTextColor,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 4),
+          IconButton(
+            icon: Icon(
+              Icons.open_in_new_rounded,
+              size: 18,
+              color: theme.textColor,
+            ),
+            tooltip: 'Abrir arquivo',
+            onPressed: () => _abrirArquivo(msg.caminhoAnexo),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCardImagem(
+    AppTheme theme,
+    MensagemChat msg,
+    bool enviadaPorMim,
+  ) {
+    final resolvido = ImagemService.resolverCaminhoExistente(msg.caminhoAnexo);
+    final arquivo = resolvido != null ? File(resolvido) : null;
+
+    if ((arquivo == null || !arquivo.existsSync()) &&
+        msg.caminhoAnexo.isNotEmpty &&
+        ClienteRedeLocal().conectado &&
+        !_tentativasDownloadImagens.contains(msg.id)) {
+      _tentativasDownloadImagens.add(msg.id);
+      WidgetsBinding.instance.addPostFrameCallback((_) async {
+        try {
+          final baixado =
+              await ClienteRedeLocal().baixarImagemRemota(msg.caminhoAnexo);
+          if (baixado.isNotEmpty && baixado != msg.caminhoAnexo && mounted) {
+            await ChatService.salvarMensagem(
+              msg.copyWith(caminhoAnexo: baixado),
+              originadaDaRede: true,
+            );
+            if (mounted) setState(() {});
+          }
+        } catch (_) {}
+      });
+    }
+
+    return Column(
+      crossAxisAlignment:
+          enviadaPorMim ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+      children: [
+        if (arquivo != null && arquivo.existsSync())
+          GestureDetector(
+            onTap: () => _visualizarFotoAmpliada(theme, arquivo.path),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(8),
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(
+                  maxWidth: 240,
+                  maxHeight: 200,
+                ),
+                child: Image.file(
+                  arquivo,
+                  fit: BoxFit.cover,
+                  errorBuilder: (context, error, stackTrace) =>
+                      _buildPlaceholderErroImagem(theme),
+                ),
+              ),
+            ),
+          )
+        else
+          _buildPlaceholderErroImagem(theme),
+        if (msg.texto.isNotEmpty) ...[
+          const SizedBox(height: 4),
+          Text(
+            msg.texto,
+            style: theme.getTextStyle(
+              fontSize: 13,
+              color: theme.textColor,
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildPlaceholderErroImagem(AppTheme theme) {
+    return Container(
+      width: 180,
+      height: 120,
+      decoration: BoxDecoration(
+        color: theme.backgroundColor,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: theme.borderColor.withValues(alpha: 0.5)),
+      ),
+      child: Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              Icons.image_outlined,
+              size: 28,
+              color: theme.secondaryTextColor,
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Imagem',
+              style: theme.getTextStyle(
+                fontSize: 11,
+                color: theme.secondaryTextColor,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final desktop = _larguraDesktop(context);
@@ -1602,13 +2837,25 @@ class _MensageriaViewState extends State<MensageriaView> {
       builder: (context, theme, child) {
         final titulo = widget.modoLoja
             ? 'Mensagens — ${widget.nomeLoja ?? "Loja"}'
-            : 'Mensagens Nous';
+            : 'Mensagens';
+        final bool barraUniversalDesabilitadaNoDesktop =
+            desktop && _conversaSelecionada != null;
 
         return Scaffold(
           backgroundColor: theme.backgroundColor,
           appBar: CustomAppBar(
             title: titulo,
-            showBackButton: true,
+            showBackButton: widget.mostrarBotaoVoltar ||
+                barraUniversalDesabilitadaNoDesktop,
+            onBackPressed: () {
+              if (_conversaSelecionada != null) {
+                setState(() {
+                  _conversaSelecionada = null;
+                });
+              } else if (Navigator.of(context).canPop()) {
+                Navigator.of(context).pop();
+              }
+            },
           ),
           body: SafeArea(
             child: desktop
@@ -1639,6 +2886,13 @@ class _MensageriaViewState extends State<MensageriaView> {
                     ? _buildPainelConversaAtiva(theme)
                     : _buildListaConversas(theme)),
           ),
+          bottomNavigationBar: (!widget.modoLoja && !widget.mostrarBotaoVoltar && _conversaSelecionada == null)
+              ? const FloatingBottomNavBar(
+                  maxWidth: 600,
+                  slotSelecionado: 1,
+                  subIndiceSelecionado: 1,
+                )
+              : null,
         );
       },
     );
@@ -1780,12 +3034,10 @@ class _ItemConversaTileState extends State<_ItemConversaTile> {
                     Row(
                       children: [
                         Expanded(
-                          child: Text(
-                            conversa.ultimaMensagem.isNotEmpty
+                          child: TextoRolante(
+                            texto: conversa.ultimaMensagem.isNotEmpty
                                 ? conversa.ultimaMensagem
                                 : conversa.subtitulo,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
                             style: theme.getTextStyle(
                               fontSize: 11,
                               color: theme.secondaryTextColor,
@@ -1806,7 +3058,7 @@ class _ItemConversaTileState extends State<_ItemConversaTile> {
                               '${conversa.naoLidasCount}',
                               style: theme.getTextStyle(
                                 fontSize: 9,
-                                color: Colors.white,
+                                color: theme.buttonTextColor,
                                 fontWeight: FontWeight.bold,
                               ),
                             ),

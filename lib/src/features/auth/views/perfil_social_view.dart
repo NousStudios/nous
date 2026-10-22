@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import 'package:nous/src/core/theme/theme_controller.dart';
 import 'package:nous/src/core/widgets/custom_app_bar.dart';
 import 'package:nous/src/core/widgets/floating_bottom_nav_bar.dart';
+import 'package:nous/src/core/widgets/texto_rolante.dart';
 import 'package:nous/src/features/auth/models/usuario_nous.dart';
 import 'package:nous/src/features/auth/providers/auth_provider.dart';
 import 'package:nous/src/features/auth/views/widgets/editar_perfil_dialog.dart';
@@ -151,10 +152,9 @@ class _PerfilSocialViewState extends State<PerfilSocialView> {
             ),
           ),
           alignment: Alignment.center,
-          child: Text(
-            rotulo,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
+          child: TextoRolante(
+            texto: rotulo,
+            textAlign: TextAlign.center,
             style: theme.getTextStyle(
               fontSize: 12,
               fontWeight: FontWeight.w600,
@@ -208,15 +208,16 @@ class _PerfilSocialViewState extends State<PerfilSocialView> {
             contaPropria.cpf.replaceAll(RegExp(r'\D'), '') ==
                 conta.cpf.replaceAll(RegExp(r'\D'), ''));
 
-    final fotoResolvida = ImagemService.resolverCaminhoExistente(conta.foto);
+    final fotoResolvida =
+        ImagemService.resolverCaminhoExistente(conta.fotoExibicao);
     final temFoto = fotoResolvida != null;
 
-    final apelidoExibicao = conta.apelido.isNotEmpty
-        ? '@${conta.apelido}'
+    final apelidoExibicao = conta.apelidoExibicao.isNotEmpty
+        ? '@${conta.apelidoExibicao}'
         : '@nous';
 
-    final nomeExibicao = conta.nome.isNotEmpty
-        ? conta.nome
+    final nomeExibicao = conta.nomeExibicao.isNotEmpty
+        ? conta.nomeExibicao
         : 'Usuário Nous';
 
     return ValueListenableBuilder<AppTheme>(
@@ -257,8 +258,9 @@ class _PerfilSocialViewState extends State<PerfilSocialView> {
                       ),
                       const SizedBox(height: 12),
                       Center(
-                        child: Text(
-                          apelidoExibicao,
+                        child: TextoRolante(
+                          texto: apelidoExibicao,
+                          textAlign: TextAlign.center,
                           style: theme.getTextStyle(
                             fontSize: 13,
                             color: theme.secondaryTextColor,
@@ -267,8 +269,8 @@ class _PerfilSocialViewState extends State<PerfilSocialView> {
                       ),
                       const SizedBox(height: 4),
                       Center(
-                        child: Text(
-                          nomeExibicao,
+                        child: TextoRolante(
+                          texto: nomeExibicao,
                           textAlign: TextAlign.center,
                           style: theme.getTextStyle(
                             fontSize: 17,
@@ -440,7 +442,8 @@ class _PerfilSocialViewState extends State<PerfilSocialView> {
               ? null
               : const FloatingBottomNavBar(
                   maxWidth: _larguraMaximaConteudo,
-                  indiceSelecionado: 1,
+                  slotSelecionado: 1,
+                  subIndiceSelecionado: 0,
                 ),
         );
       },

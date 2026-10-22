@@ -44,14 +44,21 @@ class _ContasUsuarioViewState extends State<ContasUsuarioView> {
     }
   }
 
-  Future<void> _entrarComEmail(BuildContext context) async {
-    final cpf = context.read<AuthProvider>().cpf;
+  Future<void> _entrarComEmail(BuildContext context, [String? email]) async {
+    final auth = context.read<AuthProvider>();
+    if (email != null && email.isNotEmpty) {
+      auth.definirEmailAtivo(email);
+    }
+    final cpf = auth.cpf;
     await context.read<PdvProvider>().entrarComCpf(cpf);
 
     if (!context.mounted) return;
     Navigator.pushAndRemoveUntil(
       context,
-      MaterialPageRoute(builder: (context) => const PerfisPdvView()),
+      MaterialPageRoute(
+        builder: (context) =>
+            const PerfisPdvView(abrirSincronizacaoInicial: true),
+      ),
       (route) => false,
     );
   }
@@ -61,7 +68,10 @@ class _ContasUsuarioViewState extends State<ContasUsuarioView> {
       context,
       theme: ThemeController.currentTheme.value,
     );
-    if (sucesso == true && context.mounted) await _entrarComEmail(context);
+    if (sucesso == true && context.mounted) {
+      final auth = context.read<AuthProvider>();
+      await _entrarComEmail(context, auth.emailAtivo);
+    }
   }
 
   void _voltar(BuildContext context) {
@@ -228,12 +238,23 @@ class _ContasUsuarioViewState extends State<ContasUsuarioView> {
                         ),
                       ),
                       const SizedBox(height: 12),
-                      if (conta == null || conta.emails.isEmpty)
+                      if (conta == null || conta.emails.isEmpty) ...[
                         EstadoVazioContainer(
                           theme: theme,
                           mensagem: 'Nenhum e-mail associado ainda.',
-                        )
-                      else
+                        ),
+                        const SizedBox(height: 12),
+                        TextButton(
+                          onPressed: () => _entrarComEmail(context),
+                          child: Text(
+                            'Continuar sem e-mail',
+                            style: theme.getTextStyle(
+                              fontSize: 13,
+                              color: theme.secondaryTextColor,
+                            ),
+                          ),
+                        ),
+                      ] else
                         Column(
                           children: [
                             for (final email in conta.emails)
@@ -242,7 +263,8 @@ class _ContasUsuarioViewState extends State<ContasUsuarioView> {
                                 child: _BarraEmail(
                                   theme: theme,
                                   email: email,
-                                  aoClicar: () => _entrarComEmail(context),
+                                  aoClicar: () =>
+                                      _entrarComEmail(context, email),
                                   aoExcluir: () =>
                                       _removerEmail(context, email),
                                 ),

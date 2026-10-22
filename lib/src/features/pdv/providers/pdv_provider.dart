@@ -1432,8 +1432,18 @@ class PdvProvider extends ChangeNotifier {
 
     for (final prog in loja.pedidosProgramados) {
       if (prog.ativo && prog.coincideComData(agora)) {
-        if (prog.ultimaDataGerado == null ||
-            !mesmoDia(prog.ultimaDataGerado, agora)) {
+        final diaStr = agora.day.toString().padLeft(2, '0');
+        final mesStr = agora.month.toString().padLeft(2, '0');
+        final idEsperadoHoje = 'prog_${prog.id}_${agora.year}_${mesStr}_$diaStr';
+
+        final jaExisteHoje = novosPedidosLoja.any((p) {
+          if (p.id == idEsperadoHoje) return true;
+          if (p.id.startsWith('prog_${prog.id}_') && mesmoDia(p.dataHora, agora)) return true;
+          return false;
+        });
+
+        if (!jaExisteHoje &&
+            (prog.ultimaDataGerado == null || !mesmoDia(prog.ultimaDataGerado, agora))) {
           maiorNumero++;
           final novoPedido = prog.toPedidoLoja(
             numero: maiorNumero,
@@ -1442,6 +1452,11 @@ class PdvProvider extends ChangeNotifier {
             cnpjVendedor: loja.cnpj,
           );
           novosPedidosLoja.insert(0, novoPedido);
+          novosProgramados.add(prog.copyWith(ultimaDataGerado: agora));
+          alterou = true;
+          continue;
+        } else if (jaExisteHoje &&
+            (prog.ultimaDataGerado == null || !mesmoDia(prog.ultimaDataGerado, agora))) {
           novosProgramados.add(prog.copyWith(ultimaDataGerado: agora));
           alterou = true;
           continue;

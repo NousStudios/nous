@@ -12,8 +12,8 @@ Este documento descreve o Nous **por tela**: Tela → Container → Botão → o
 ## 0. Caminho geral do usuário
 
 1. Abre o app → **Login** (`main.dart` abre `LoginView`).
-2. Digita o CPF → **Entrar** → abre a janela de **Sincronização em Rede Wi-Fi** com a ficha de quem está entrando.
-3. Passa pela tela de contas (**ContasUsuarioView**) e chega em **Meus Perfis** (a lista das lojas dele). (a confirmar a ordem exata)
+2. Digita o CPF → **Entrar** → tela de triagem de contas/e-mails (**ContasUsuarioView**), onde o usuário seleciona por qual e-mail associado à sua conta Nous irá operar (ou opta por continuar sem e-mail).
+3. Avança para a janela de **Sincronização em Rede Wi-Fi** e chega em **Meus Perfis** (`PerfisPdvView`).
 4. Toca em uma loja → entra na **Tela da Loja** (`DadosPerfilView`), com as abas Dados, Ajustes do Perfil, Loja e Gestão.
 5. Dentro da loja abre as janelas de trabalho (Nova Venda, Caixa, Clientes...).
 
@@ -28,33 +28,54 @@ Dois estados mudam o comportamento de várias telas:
 ### 1.1 Tela de Login
 📄 `auth/views/login_view.dart` · widgets: `cpf_input_widget.dart`, `login_buttons_widget.dart`, `logo_widget.dart`
 - **Campo CPF**: já vem preenchido com o último CPF que entrou (guardado no aparelho como `ultimo_cpf_login`). Valida o CPF (`cpf_validator.dart`).
-- **Botão "Entrar"**: abre imediatamente a janela de Sincronização em Rede Wi-Fi (ver 4.1), mostrando no topo a ficha de quem está entrando: foto, nome em negrito, `@apelido` e CPF formatado.
+- **Botão "Entrar"**: avança para a tela de triagem de e-mails (`ContasUsuarioView`), permitindo selecionar o e-mail da sessão antes de avançar para a rede Wi-Fi e lojas.
 - **Ao digitar um CPF que já existe** (neste aparelho ou em outro da rede): recupera nome, data de nascimento e foto. Se o aparelho foi reinstalado, pergunta ao balcão pela rede.
 - **Ao digitar um CPF novo** (sem ficha em lugar nenhum): abre `CadastrarApelidoDialog` pedindo só o **Apelido**. Ao confirmar, cria a conta e o usuário vira **funcionário** da loja à qual se conectou. 📄 `auth/views/widgets/cadastrar_apelido_dialog.dart`
-- Outras telas de acesso: `associar_cpf_view.dart` (associar CPF), `terms_view.dart` (termos de uso), `adicionar_email_dialog.dart` (adicionar e-mail à conta). (a confirmar detalhes)
+- Outras telas de acesso: `associar_cpf_view.dart` (associar CPF), `terms_view.dart` (termos de uso), `adicionar_email_dialog.dart` (adicionar e-mail à conta).
 
-### 1.2 Contas do usuário (pós-login)
+### 1.2 Triagem de E-mails do Usuário (pós-login)
 📄 `auth/views/contas_usuario_view.dart`
-- Lista as contas disponíveis no aparelho (várias contas por aparelho são permitidas). Tocar na conta abre a **Identidade do Usuário** (1.3).
+- Lista os e-mails associados ao CPF da conta Nous. Tocar em um e-mail define-o como `emailAtivo` da sessão e avança automaticamente para a Sincronização Wi-Fi e Meus Perfis.
+- Inclui botão para adicionar novo e-mail (`AdicionarEmailDialog`) e ação de contingência para "Continuar sem e-mail".
 
 ### 1.3 Janela "Identidade do Usuário"
 📄 `auth/views/widgets/ficha_usuario_dialog.dart`
-- Topo: **foto**, **apelido** (`@`), **nome civil em negrito** e **CPF** logo abaixo (o CPF não se repete no bloco de dados pessoais).
+- Topo: **foto**, **apelido** (`@`), **nome próprio editável pelo titular** (com botão de salvar próprio nome) e **CPF** (protegido contra alteração).
 - Bloco **Dados pessoais**: data de nascimento, nome do pai, nome da mãe, local de nascimento, tipo sanguíneo, estado civil, e-mails.
 - Botão **"Editar dados pessoais"**: fica sempre visível **abaixo** de todos os dados. Ao clicar, o bloco vira editável com **Salvar** e **Cancelar**.
-- **Modo somente leitura**: ao abrir a ficha de outra pessoa, nada é editável. Ao abrir a própria, é editável.
+- **Modo somente leitura**: ao abrir a ficha de outra pessoa, nada é editável. Ao abrir a própria, o nome e dados pessoais são editáveis; o CPF é sempre fixo.
 - A foto e os dados são os mesmos em qualquer aparelho do mesmo CPF (sincronização pela rede).
-- Só se chega nesta janela pelo card da conta em **Configurações** (2.2), por **Contas do usuário** (1.2) ou ao tocar num membro em **Usuários Participantes** (6.1).
+- Acessada a partir da tela **Conta Nous** (2.2.1), pelo card em **Configurações** (2.2) ou ao tocar num membro em **Usuários Participantes** (6.1).
 
 ### 1.4 Tela "Perfil Social do Usuário"
 📄 `auth/views/perfil_social_view.dart` · acessada pelo segundo ícone (pessoinha) da barra inferior flutuante (`FloatingBottomNavBar`).
-- Topo com seta de voltar e engrenagem de **Configurações**.
-- Cabeçalho vertical centralizado: foto grande de avatar centralizada, `@apelido` centralizado, **Nome Completo em negrito** centralizado e métricas (Posts, Seguidores, Seguindo) centralizadas em linha.
+- Topo com engrenagem de **Configurações** (sem botão de voltar quando acessada pela barra inferior).
+- Cabeçalho vertical centralizado: foto grande de avatar centralizada, `@apelido` centralizado, **Nome Completo em negrito** centralizado (ambos com `TextoRolante`) e métricas (Posts, Seguidores, Seguindo) centralizadas em linha.
 - Bloco **Biografia** com título e descrição.
-- Três botões em linha: **"Editar Perfil"** (abre a Identidade do Usuário 1.3), **"Compartilhar"** (copia identificador Nous) e **"Mensagens"** (abre a Mensageria do Usuário).
+- Três botões em linha com `TextoRolante`: **"Editar Perfil"** (abre a Identidade do Usuário 1.3), **"Compartilhar"** (copia identificador Nous) e **"Mensagens"** (abre a Mensageria do Usuário).
 - Carrossel horizontal de destaques circulares.
 - Barra de abas com 4 ícones (Grade, Reels/Vídeo, Documento, Música) e grade de 3 colunas de publicações.
-- Barra flutuante universal no rodapé com o segundo ícone ativo.
+- Barra flutuante universal no rodapé com o segundo botão (pessoinha) ativo.
+
+### 1.5 Barra de Navegação Universal Dupla
+📄 `core/widgets/floating_bottom_nav_bar.dart` · visível no modo compacto para celular e fora de lojas no modo desktop expandido.
+- **Botões Duplos com Rolagem Vertical:** Cada um dos 5 botões da barra possui dois modos e pode ser rolado para cima ou para baixo (arraste com o dedo ou rodinha do mouse), alternando os ícones e os destinos com animação vertical suave:
+  1. **Slot 0 (Compras / Lojas):**
+     - Modo Carrinho (`shopping_cart`): abre a tela **Compras & Carteira** (`ComprasUsuarioView`), com os containers "Carteira Soberana", "Carrinho de Compras" e "Histórico de Compras" (com `TextoRolante` e aviso de em construção).
+     - Modo Lojinha (`storefront`): abre a tela **Meus Perfis** (`PerfisPdvView`).
+  2. **Slot 1 (Social / Comunicação):**
+     - Modo Pessoinha (`person`): abre o **Perfil Social do Usuário** (`PerfilSocialView`).
+     - Modo Mensagens (`chat_bubble`): abre diretamente a **Mensageria** do Usuário (`MensageriaView` sem o prefixo "Nous" no título).
+  3. **Slot 2 (Busca / Player Universal):**
+     - Modo Lupa (`search`): Mapa com barra de pesquisa para localização regional (em construção).
+     - Modo Player (`play_circle`): Super motor e player integrado de vídeos, músicas e PDFs (em construção).
+  4. **Slot 3 (Feeds):**
+     - Modo Descoberta (`explore`): Feed público e memes da rede (em construção).
+     - Modo Conexões (`people`): Feed de amigos e rede de confiança (em construção).
+  5. **Slot 4 (Autogestão / Governança):**
+     - Modo Autogestão (`hub`): Painel geral de assembleias e deliberações populares (em construção).
+     - Modo Governança (`account_tree`): Ferramentas específicas de autogestão (em construção).
+- **Sem Seta de Voltar Indesejada:** A navegação entre os módulos principais da barra não acumula histórico indevido e o `CustomAppBar` possui `automaticallyImplyLeading: false`, garantindo que nenhuma tela de raiz exiba seta de voltar.
 
 ---
 
@@ -62,9 +83,9 @@ Dois estados mudam o comportamento de várias telas:
 
 ### 2.1 Barra superior
 📄 `core/widgets/custom_app_bar.dart`
-- **Título** da tela, centralizado. **Seta de voltar** quando aplicável.
+- **Título** da tela, centralizado com `TextoRolante`. **Seta de voltar** travada via `automaticallyImplyLeading: false` (só aparece se `showBackButton: true`).
 - Lado direito, nesta ordem:
-  - **Sino (Notificações)**: abre 3. Mostra um contador vermelho. Fora da loja: só avisos da conta. Dentro da loja: só avisos daquela loja.
+  - **Sino (Notificações)**: abre 3. Mostra ponto de sinalização vermelho ou contador. Fora da loja: convites, avisos da conta e **novas mensagens não lidas do usuário**. Dentro da loja: alertas de estoque e mensagens exclusivas daquela loja.
   - **Atualizações**: aparece **somente** se houver versão nova. Abre `AtualizacaoDialog` (5.3).
   - **Engrenagem (Configurações)**: abre 2.2.
 - **Não existe** botão de perfil nem botão fixo de Wi-Fi nesta barra.
@@ -72,10 +93,17 @@ Dois estados mudam o comportamento de várias telas:
 ### 2.2 Janela "Configurações"
 📄 aberta a partir de `custom_app_bar.dart` · rolável com altura máxima de 85% da tela (o botão **Sair** sempre fica visível no celular).
 - **Botão de Sincronização Wi-Fi** (`_BarraSincronizacaoWifiSettings`): barra com hover, acima da Identidade. Mostra "Servidor Ativo", "Conectado ao Balcão" ou "Desconectado" e abre a janela 4.1.
-- **Card da conta**: foto, nome completo, CPF formatado e e-mail ativo. Tocar abre a **Identidade do Usuário** (1.3).
+- **Card da conta Nous integrado**: container reunindo foto, nome civil, CPF formatado, e-mail ativo e o botão estilizado **"Conta Nous"** (abre a tela 2.2.1).
 - **Personalizar Aparência**: abre `ThemeCustomizerDialog` (cores, fontes, tamanhos, cor de exclusão). O tema é salvo por CPF. 📄 `core/theme/theme_customizer_dialog.dart`
 - **Sair**: faz logout, desconecta as redes locais e volta ao Login.
-- (a confirmar) Atalho para **Backup** (5.4).
+
+### 2.2.1 Tela "Conta Nous"
+📄 `auth/views/conta_nous_view.dart` · acessada pelo botão "Conta Nous" em Configurações.
+- Reúne os módulos soberanos da identidade e dos dados do cidadão:
+  - **Identidade do Usuário**: foto de perfil, `@apelido`, nome próprio e CPF formatado, com botão "Abrir Ficha Cadastral Completa" (abre `FichaUsuarioDialog` 1.3).
+  - **E-mails Associados**: listagem de todos os e-mails associados ao CPF da conta com indicação do e-mail ativo da sessão e botão para adicionar novo e-mail (`AdicionarEmailDialog`).
+  - **Backup Soberano dos Dados**: atalho seguro para exportação e importação do cofre de dados (transferido de Configurações para o ambiente da conta).
+  - **Excluir Conta Nous**: botão de ação destrutiva em cor de perigo (`theme.dangerColor`) exigindo confirmação explícita em diálogo antes de remover a conta.
 
 ### 2.3 Tela cheia (F11)
 📄 `main.dart` (interceptador global) + `core/services/janela_windows_service.dart`
@@ -89,16 +117,18 @@ Dois estados mudam o comportamento de várias telas:
 
 📄 `notif/views/widgets/notificacoes_dialog.dart` · `notif/providers/notificacoes_provider.dart` · `notif/models/convite_loja.dart` · `notif/services/convites_service.dart`
 
-- **Cabeçalho**: botão **"Limpar todas as notificações"** (ícone `clear_all`). Dispensa todas de uma vez nesta sessão (`dispensarTodasNaSessao`).
-- **Cada card** pode ser **arrastado para o lado** para dispensar. É só da sessão: ao reabrir o app, o que não foi resolvido reaparece.
+- **Cabeçalho**: botão **"Limpar todas as notificações"** (ícone `clear_all`). Dispensa todas de uma vez nesta sessão (`dispensarTodasNaSessao`), incluindo mensagens e alertas.
+- **Cada card** pode ser **arrastado para o lado** para dispensar na sessão.
 - **Tipos de aviso**:
+  - **Mensagens Recebidas**: foto do remetente, nome e texto com `TextoRolante`, data/hora. **Clicar na notificação**: fecha a janela e abre a conversa na Mensageria na hora.
   - Convite para participar de uma loja (aceitar/recusar).
   - Alteração de papel de sócio (`alteracaoPapel`): "Solicitação de [Nome]: alteração do seu papel em [Loja] para [Novo Papel]". Aceitar aplica; recusar descarta.
   - Pedido de saída de dono (`solicitacaoExclusaoDono`): só se efetiva se o dono alvo aceitar.
   - Remoção da loja (`remocaoLoja`): "Você foi removido(a) da loja [Loja] por [Nome]".
   - **Alerta de estoque baixo/esgotado** (menos de 10 unidades ou ≤ 0): mostra loja, produto e saldo com unidade.
-- **Tocar num alerta de estoque**: fecha a janela e abre `MovimentoEstoqueDialog` (7.12) com o item e o tipo "Entrada" já escolhidos, para repor na hora. Com saldo ≥ 10, o alerta some.
-- **Isolamento**: em "Meus Perfis" só aparecem convites e avisos de papel. Dentro da loja, só avisos daquela loja (`pdv.itensEstoqueBaixoPorLoja`).
+- **Tocar num alerta de estoque**: fecha a janela e abre `MovimentoEstoqueDialog` (7.12) com o item e o tipo "Entrada" já escolhidos, para repor na hora.
+- **Isolamento**: em "Meus Perfis" e fora de loja só aparecem convites, avisos de papel e mensagens do usuário. Dentro da loja, só avisos e mensagens daquela loja.
+- **Notificações nativas no Android**: `NotificacaoAndroidService` exibe notificações nativas no sistema operacional com estilo de mensagem e ação de resposta rápida ("Responder" direta na notificação estilo WhatsApp).
 
 ---
 
@@ -106,12 +136,15 @@ Dois estados mudam o comportamento de várias telas:
 
 ### 4.1 Janela "Sincronização em Rede Wi-Fi"
 📄 `pdv/views/widgets/sincronizacao_rede_dialog.dart` · serviços em `pdv/services/rede_local/` (`servidor_rede_local.dart`, `cliente_rede_local.dart`)
-- Abre ao clicar em **Entrar** (Login), pelo botão em **Configurações** (2.2) e pelo primeiro item de **Ajustes do Perfil** (6.2).
+- Abre pelo botão em **Configurações** (2.2), no primeiro item de **Ajustes do Perfil** (6.2) ou pós-login.
 - Topo: ficha do operador ativo (foto, nome, `@apelido`, CPF).
 - Duas abas: **Servidor Balcão** e **Terminal Móvel**.
-  - **Servidor Balcão**: liga o computador como servidor (porta 8080). A própria máquina aparece de imediato na lista de pareados (ícone de desktop e nome real do computador). Lista os terminais conectados com nome do aparelho, nome, apelido, CPF e IP. Botão para copiar o IP.
+  - **Servidor Balcão**: liga o computador como servidor (porta 8080). A máquina balcão reflete o CPF e nome do operador ativo no momento. Lista os terminais conectados com tipo de conexão (Membro / Cliente), nome do aparelho, operador, CPF e IP.
   - **Terminal Móvel**: o celular lista automaticamente os balcões achados na rede (botão **Conectar**) ou conecta por IP e porta manualmente. O computador que é servidor **não pode** se conectar a si mesmo.
-- **Quando um celular novo tenta conectar**, o balcão mostra uma janela com som: nome do aparelho, nome do usuário, CPF e IP, com **Autorizar** ou **Recusar**. Sem resposta em 30 segundos, o celular recebe 403 (negado).
+- **Aprovação Obrigatória com Seletor Cliente vs Membro**: quando um terminal tenta se conectar, o balcão exibe diálogo interativo com som de alerta, detalhes do dispositivo e um seletor para aprovação:
+  - **Cliente**: conecta o aparelho exclusivamente como cliente consumidor da loja (cadastrado em clientes, sem permissões de membro/gestão, pronto para auto-atendimento de pedidos).
+  - **Novo Membro da Loja**: autoriza o aparelho como membro operacional participante da loja.
+  - Botão **Recusar** (ou expiração por timeout de 30s) rejeita com 403.
 - Funcionamento interno: `docs/rede-local.md`.
 
 ---
@@ -134,6 +167,7 @@ Dois estados mudam o comportamento de várias telas:
 ### 5.3 Janela de Atualização
 📄 `core/widgets/atualizacao_dialog.dart` · `core/services/atualizacao_service.dart`
 - Mostra a versão instalada e a disponível. Se for a mesma versão, o botão sai da barra.
+- Container **"Nova Atualização"**: exibe a descrição sintetizada das alterações do `CHANGELOG.MD` com botão de **minimizar/maximizar** para consulta opcional pelo usuário.
 - No celular com versão nova no balcão: **baixa o APK dentro do app com barra de progresso** e abre o instalador do Android.
 - Fonte local (balcão) tem prioridade sobre a internet.
 
@@ -225,7 +259,8 @@ Primeiro item: botão de **Sincronização em Rede Wi-Fi** (abre 4.1). Depois:
 📄 `pdv/views/widgets/gestao_loja_container.dart`
 - Botões de ação no topo (somem no desktop expandido): **Nova Venda, Clientes, Mensagens, Impressora, Relatórios, Caixa, Financeiro, Status da Loja**. O botão "Mensagens" exibe um ponto de atenção vermelho quando há mensagens não lidas para a loja. Tocar em "Mensagens" abre a interface de mensageria da loja. Em tela < 520 px ficam em 2×2.
 - **Abas de pedidos**: **Novos, Aceitos, Concluídos, Cancelados**. Lista com ~380 px de altura no desktop. Concluídos e Cancelados: **mais recentes primeiro** e com **campo de busca** (por #0001, cliente, produto).
-- **Novos**: tocar num pedido abre a comanda com **Recusar / Imprimir / Aceitar**. Pedidos programados do dia entram aqui sozinhos.
+- **Sincronização em tempo real na rede local**: qualquer mudança de status (aceitar, concluir, cancelar ou adicionar observação) feita no celular ou balcão reflete imediatamente em todos os aparelhos conectados sem recarregar a tela; a comparação de pedidos na interface detecta alterações profundas de status e valores.
+- **Novos**: tocar num pedido abre a comanda com **Recusar / Imprimir / Aceitar**. Pedidos programados do dia entram aqui sozinhos pelo nó balcão com ID determinístico, sem duplicar em aparelhos móveis recém-conectados.
 - **Ao entrar no app**: se houver pedidos Novos, toca o alerta sonoro e abre a comanda do primeiro; **Aceitar/Recusar** passa para o próximo; o **X** interrompe a fila sem perder nada.
 - **Aceitos**: tocar abre `PedidoAceitoDialog`, com botão de **impressora** (reimprime a comanda sem concluir), **Cancelar Pedido** e **Concluir**.
 - **Cancelados**: tocar abre `PedidoCanceladoDetalhesDialog` (quem cancelou, quando, motivo, se houve estorno).
@@ -335,22 +370,36 @@ Todas abrem centralizadas, aceitam **F11** e, no desktop expandido, ficam em **d
 ### 7.13 Mensageria e Chat
 📄 `chat/views/mensageria_view.dart` · serviço `chat/services/chat_service.dart` · modelos em `chat/models/` (`mensagem_chat.dart`, `conversa_chat.dart`)
 - Interface estilo WhatsApp adaptável: lista de conversas à esquerda e conversa ativa à direita no desktop (≥ 720 px); lista ou conversa em tela cheia com botão voltar no celular.
+- **Botão de Voltar no Desktop quando chat aberto**: ao navegar para Mensagens pela barra flutuante universal no desktop e selecionar uma conversa (momento em que a barra universal é desabilitada), o `CustomAppBar` exibe automaticamente o botão de voltar no canto superior esquerdo para desmarcar a conversa atual e voltar à lista, impedindo que o usuário fique preso na tela.
+- **Ordem cronológica e ancoragem natural (`reverse: true`)**: as mensagens são exibidas com a mais recente na base, imediatamente acima da barra de envio, mantendo o scroll naturalmente ancorado no final e subindo para ver o histórico anterior.
+- **Busca de contatos com `TextoRolante`**: o campo de pesquisa possui `TextoRolante` ativo em seu placeholder quando vazio, garantindo que o texto nunca seja truncado em telas compactas.
+- **Envio de Arquivos, Imagens e Comandas com Autocura**:
+  - **Botão de anexo (`+` / clipe)** ao lado do campo de mensagem com menu de opções:
+    - **Foto / Imagem**: seleção de arquivos de imagem, persistência local e transmissão em tempo real via WebSocket e REST embutindo payload Base64 para gravação física direta no disco do destinatário (`salvarBytesImagemLocal`). Caso o destinatário não tenha o arquivo físico (ex.: histórico prévio), a malha de autocura requisita e baixa a imagem sob demanda via `/api/imagem`. Miniatura arredondada no chat com clique para visualização em alta resolução em tela cheia.
+    - **Documento / Arquivo**: seleção de qualquer tipo de arquivo (PDFs, relatórios, etc.) com persistência em `anexos_chat/`, card com ícone do tipo, nome rolante, tamanho formatado e botão para abrir no visualizador padrão do sistema.
+    - **Comanda de Pedido**: seleção rápida de pedidos da loja/usuário, enviando um card interativo com número formatado (`#0001`), badge com status, itens, total em R$ e botão **"Ver Comanda Completa"** que abre o `ComandaPedidoDialog`.
+- **Compartilhamento de Comanda direto do PDV** (`ComandaPedidoDialog`): botão "Chat" ao lado de Imprimir e Fechar que permite enviar a comanda com 1 clique para o cliente do pedido ou para a equipe da loja.
 - **Painel limpo por padrão**: ao abrir a tela de Mensagens, nenhuma conversa é auto-selecionada; o painel direito exibe o espaço limpo e receptivo convidando o usuário a escolher ou iniciar um chat.
 - **Destaque de conversa ativa e Hover fixo**: o chat selecionado recebe destaque visual imediato com fundo contrastante aceso fixo e borda lateral esquerda na cor do tema, além de efeito de hover suave ao passar o mouse pelos contatos.
-- **Contatos sob demanda ("+ Nova Conversa")**: a lista lateral só exibe chats que já têm mensagens trocadas ou grupos; para conversar com um novo membro, cliente ou loja, clica-se no botão `+` ao lado de "+ Novo Grupo", que abre modal filtrável para selecionar o destinatário.
-- **Detalhes do Contato estilo WhatsApp**: clique no cabeçalho ativo da conversa abre janela modal com foto ampliada, dados, seção de mídias compartilhadas e o botão **"Ver Perfil Público"**.
-- **Desduplicação soberana por CPF**: reconhecimento de identidade única por CPF normalizado — membros da equipe que também estejam cadastrados como clientes (ou o próprio operador logado cadastrado como cliente) não duplicam perfis, unificando fotos, papéis e histórico em um único chat.
-- **Persistência no SQLite** (`nous.db`): as conversas entre Loja e Usuário utilizam chaves canônicas compartilhadas (`loja_{id}_usuario_{cpf}`), permitindo que mensagens enviadas pela loja apareçam imediatamente no perfil social do usuário, e vice-versa.
+- **Resolução de fotos da equipe**: fotos dos membros da equipe e de clientes são resolvidas automaticamente por CPF (`auth.buscarFotoPorCpf`, `pdv.buscarFotoClientePorCpf`), garantindo fotos reais nos avatares e transmissão com autocura prévia ao balcão.
+- **Leitura sem truncamento (`TextoRolante`)**: aplicada no cabeçalho ativo da conversa, no campo de busca, no nome de arquivos anexos e na prévia da última mensagem na lista lateral (com prefixos automáticos `📷 Foto`, `📎 Arquivo` e `🧾 Comanda`).
+- **Detalhes do Contato estilo WhatsApp e Container Dinâmico "Mídias, Links e Docs"**: clique no cabeçalho ativo da conversa abre janela modal com foto ampliada, dados, botão **"Ver Perfil Público"** e container dinâmico de abas:
+  - **Mídias**: grade com as fotos trocadas na conversa com miniatura e clique para tela cheia.
+  - **Docs**: lista de arquivos e documentos com ícone, nome e tamanho formatado.
+  - **Links**: detecção automática de links web (`http://` ou `https://`) nas mensagens com clique direto para abrir no navegador padrão.
+- **Desduplicação soberana por CPF**: reconhecimento de identidade única por CPF normalizado — membros da equipe que também estejam cadastrados como clientes não duplicam perfis.
+- **Persistência e Sincronização SQLite/Wi-Fi**: tabela `mensagens_chat` com colunas para arquivos, imagens e comandas (`tipo`, `caminho_anexo`, `nome_anexo`, `tamanho_anexo`, `pedido_id`, `dados_pedido_json`), sincronizadas em tempo real via WebSocket e REST na malha local.
 - **Ponto de atenção vermelho**: indica novas mensagens não lidas nos botões da Loja (barra lateral e gestão) e badges numéricos em cada conversa.
-- **Modo Loja**: remetente é a Loja atual; bolhas de mensagem exibem o atendente responsável (ex.: "Léo"); carrega membros da equipe e clientes cadastrados de forma desduplicada.
+- **Modo Loja**: remetente é a Loja atual; bolhas de mensagem exibem o atendente responsável; carrega membros da equipe e clientes cadastrados de forma desduplicada.
 - **Modo Usuário Nous**: remetente é o cidadão/CPF logado; acessado pelo botão "Mensagens" do Perfil Social; conversa com lojas que participa e outros contatos da rede.
 
 ### 7.14 Perfil Social e Identidade do Usuário
-📄 `auth/views/perfil_social_view.dart` · `auth/views/widgets/editar_perfil_dialog.dart` · `auth/views/widgets/ficha_usuario_dialog.dart`
+📄 `auth/views/perfil_social_view.dart` · `auth/views/widgets/editar_perfil_dialog.dart` · `auth/views/widgets/ficha_usuario_dialog.dart` · `auth/models/usuario_nous.dart`
 - **Acesso principal**: segundo ícone da barra flutuante universal inferior (ícone pessoinha); ao abrir por essa barra, a tela **não exibe botão de voltar** no topo esquerdo.
 - **Visual centralizado**: foto do perfil em círculo (raio 50), `@apelido`, nome de exibição em negrito, métricas ("Posts", "Seguidores", "Seguindo") e biografia do usuário, todos alinhados ao centro.
-- **Edição Soberana do Perfil** (`EditarPerfilDialog`): acionado pelo botão "Editar Perfil", permite alterar Biografia (campo livre multilinha), Apelido (@), Nome de exibição e Foto de Perfil, salvando na conta e propagando via rede local.
-- **Janela de Identidade do Usuário** (`FichaUsuarioDialog`): exibe ficha cadastral com botão de olho aberto/fechado no topo (por padrão fechado), aplicando blur visual (`ImageFilter.blur`) sobre CPF, dados pessoais e e-mails para proteção em capturas de tela e prints.
+- **Separação Soberana entre Identidade Civil e Perfil Social**:
+  - **Identidade do Usuário (`FichaUsuarioDialog`)**: contém os dados civis e cadastrais oficiais do cidadão (`nome`, `apelido`, `foto`, `cpf`, filiação, tipo sanguíneo, etc.) para verificação e integridade do sistema. Somente pode ser alterada dentro da própria janela de Identidade pelo usuário.
+  - **Edição do Perfil Público (`EditarPerfilDialog`)**: acessado pelo botão "Editar Perfil" no Perfil Social. Altera exclusivamente os dados de exibição pública (`nomePublico`, `apelidoPublico`, `fotoPublica`, `biografia`), com fallback transparente para a Identidade caso não personalizados. Garante total liberdade estética ao usuário sem comprometer ou sobrescrever os dados oficiais de sua Identidade.
 - **Visualização de Perfil de Terceiros**: quando aberto a partir de uma conversa da Mensageria ("Ver Perfil Público"), a tela exibe o perfil do contato alvo com botão de voltar no topo para retornar ao chat.
 
 ---
