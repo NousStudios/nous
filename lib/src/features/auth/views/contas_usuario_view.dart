@@ -8,6 +8,7 @@ import 'package:nous/src/features/auth/models/usuario_nous.dart';
 import 'package:nous/src/features/auth/providers/auth_provider.dart';
 import 'package:nous/src/features/auth/views/login_view.dart';
 import 'package:nous/src/features/auth/views/widgets/adicionar_email_dialog.dart';
+import 'package:nous/src/features/auth/views/widgets/cadastrar_nome_usuario_dialog.dart';
 import 'package:nous/src/features/auth/views/widgets/ficha_usuario_dialog.dart';
 import 'package:nous/src/features/pdv/providers/pdv_provider.dart';
 import 'package:nous/src/features/pdv/services/imagem_service.dart';
@@ -27,8 +28,27 @@ class _ContasUsuarioViewState extends State<ContasUsuarioView> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      _verificarNomeDeUsuarioSeNecessario();
       _sincronizarFotoSeNecessario();
     });
+  }
+
+  Future<void> _verificarNomeDeUsuarioSeNecessario() async {
+    if (!mounted) return;
+    final auth = context.read<AuthProvider>();
+    final conta = auth.contaAtual;
+    if (conta != null && conta.nomeDeUsuario.trim().isEmpty) {
+      final username = await CadastrarNomeUsuarioDialog.mostrar(
+        context,
+        cpf: conta.cpf,
+        nomeOuApelidoAtual:
+            conta.apelido.isNotEmpty ? conta.apelido : conta.nome,
+        theme: ThemeController.currentTheme.value,
+      );
+      if (username != null && username.trim().isNotEmpty && mounted) {
+        await auth.atualizarNomeDeUsuario(username.trim());
+      }
+    }
   }
 
   void _sincronizarFotoSeNecessario() {
@@ -57,7 +77,7 @@ class _ContasUsuarioViewState extends State<ContasUsuarioView> {
       context,
       MaterialPageRoute(
         builder: (context) =>
-            const PerfisPdvView(abrirSincronizacaoInicial: true),
+            const PerfisPdvView(abrirSincronizacaoInicial: false),
       ),
       (route) => false,
     );
@@ -149,18 +169,18 @@ class _ContasUsuarioViewState extends State<ContasUsuarioView> {
             side: BorderSide(color: theme.borderColor),
           ),
           title: Text(
-            'Excluir Cadastro',
+            'Excluir Conta Nous Definitivamente',
             textAlign: TextAlign.center,
             style: theme.getTextStyle(
               fontSize: 18,
               fontWeight: FontWeight.bold,
-              color: theme.textColor,
+              color: theme.dangerColor,
             ),
           ),
           content: Text(
-            'Tem certeza que deseja excluir este CPF do Nous? Isso também '
-            'apaga todas as lojas criadas por ele. Essa ação não pode ser '
-            'desfeita.',
+            'Tem certeza que deseja excluir esta Conta Nous definitivamente? Isso também '
+            'apaga todas as lojas criadas por este CPF neste dispositivo. '
+            'Esta ação não pode ser desfeita.',
             textAlign: TextAlign.center,
             style: theme.getTextStyle(fontSize: 14),
           ),
@@ -176,8 +196,11 @@ class _ContasUsuarioViewState extends State<ContasUsuarioView> {
             TextButton(
               onPressed: () => Navigator.of(dialogContext).pop(true),
               child: Text(
-                'Excluir',
-                style: theme.getTextStyle(color: theme.dangerColor),
+                'Excluir Definitivamente',
+                style: theme.getTextStyle(
+                  color: theme.dangerColor,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
             ),
           ],
@@ -190,7 +213,7 @@ class _ContasUsuarioViewState extends State<ContasUsuarioView> {
       await context.read<PdvProvider>().excluirDadosDoCpf(cpf);
 
       if (!context.mounted) return;
-      await context.read<AuthProvider>().excluirConta();
+      await context.read<AuthProvider>().excluirConta(cpf);
 
       if (!context.mounted) return;
       Navigator.pushAndRemoveUntil(
@@ -294,7 +317,7 @@ class _ContasUsuarioViewState extends State<ContasUsuarioView> {
                       TextButton(
                         onPressed: () => _excluirConta(context),
                         child: Text(
-                          'Excluir Cadastro',
+                          'Excluir Conta Nous Definitivamente',
                           style: theme.getTextStyle(
                             fontSize: 13,
                             color: theme.dangerColor,

@@ -73,6 +73,7 @@ import 'package:nous/src/features/pdv/views/widgets/sincronizacao_rede_dialog.da
 import 'package:nous/src/features/notificacoes/views/widgets/notificacoes_dialog.dart';
 import 'package:nous/src/features/pdv/views/widgets/pedidos_programados_dialog.dart';
 import 'package:nous/src/features/pdv/views/widgets/comanda_novo_pedido_dialog.dart';
+import 'package:nous/src/features/pdv/views/widgets/aba_gestao_nous_widget.dart';
 import 'package:nous/src/core/widgets/texto_rolante.dart';
 
 class DadosPerfilView extends StatefulWidget {
@@ -2028,7 +2029,8 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
   void _abrirStatusLoja() {
     final cpfLogado = context.read<AuthProvider>().contaAtual?.cpf ?? '';
     final meuPapel = context.read<PdvProvider>().meuPapel(widget.lojaId);
-    final podeSair = meuPapel != null;
+    final ehLojaColetiva = widget.lojaId == PdvProvider.idLojaColetivaNous;
+    final podeSair = !ehLojaColetiva && meuPapel != null;
 
     final lojaAtual = context.read<PdvProvider>().buscarPorId(widget.lojaId);
     Navigator.of(context).push(
@@ -3519,6 +3521,130 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
       color: theme.backgroundColor.withValues(alpha: 0.4),
       borderRadius: BorderRadius.circular(12),
       border: Border.all(color: theme.borderColor.withValues(alpha: 0.6)),
+    );
+  }
+
+  Widget _blocoDadosInstitucionaisNous(
+    AppTheme theme,
+    BoxDecoration decoracaoDoBloco,
+  ) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(20),
+      decoration: decoracaoDoBloco,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Center(
+            child: Container(
+              width: 90,
+              height: 90,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                border: Border.all(
+                  color: theme.borderColor.withValues(alpha: 0.8),
+                  width: 2,
+                ),
+              ),
+              child: ClipOval(
+                child: Image.asset(
+                  'assets/images/logo.png',
+                  fit: BoxFit.cover,
+                  errorBuilder: (context, error, stackTrace) => Icon(
+                    Icons.all_inclusive_rounded,
+                    size: 40,
+                    color: theme.textColor,
+                  ),
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 18),
+          _itemDadoFixoLojaNous(
+            theme: theme,
+            rotulo: 'Nome da Loja',
+            valor: 'Nous',
+            icone: Icons.storefront_outlined,
+          ),
+          const SizedBox(height: 12),
+          _itemDadoFixoLojaNous(
+            theme: theme,
+            rotulo: 'Email',
+            valor: 'nousstudios72@gmail.com',
+            icone: Icons.email_outlined,
+          ),
+          const SizedBox(height: 12),
+          _itemDadoFixoLojaNous(
+            theme: theme,
+            rotulo: 'Redes Sociais',
+            valor: '@nous.studios72',
+            icone: Icons.alternate_email_rounded,
+          ),
+          const SizedBox(height: 12),
+          _itemDadoFixoLojaNous(
+            theme: theme,
+            rotulo: 'Categorias',
+            valor: 'Autogestão, Comunidade, Software Livre',
+            icone: Icons.category_outlined,
+          ),
+          const SizedBox(height: 12),
+          _itemDadoFixoLojaNous(
+            theme: theme,
+            rotulo: 'Descrição',
+            valor: 'Software Universal de Autogestão Comercial e Social',
+            icone: Icons.info_outline,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _itemDadoFixoLojaNous({
+    required AppTheme theme,
+    required String rotulo,
+    required String valor,
+    required IconData icone,
+  }) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        color: theme.backgroundColor.withValues(alpha: 0.35),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(
+          color: theme.borderColor.withValues(alpha: 0.5),
+        ),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icone, size: 18, color: theme.secondaryTextColor),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  rotulo,
+                  style: theme.getTextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    color: theme.secondaryTextColor,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  valor,
+                  style: theme.getTextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: theme.textColor,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -5593,58 +5719,61 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
     switch (_abaSelecionada) {
       case AbaLoja.dados:
         final decoracaoDoBloco = _decoracaoDoBloco(theme);
+        final bool ehLojaNous = widget.lojaId == PdvProvider.idLojaColetivaNous;
 
-        final blocoFormulario = Container(
-          width: double.infinity,
-          padding: const EdgeInsets.all(16),
-          decoration: decoracaoDoBloco,
-          child: Column(
-            children: [
-              AbsorbPointer(
-                absorbing: !possoEditarDados,
-                child: FormularioDadosLoja(
-                  theme: theme,
-                  controllers: _controllers,
-                  logo: _logo,
-                  onAlterarLogo: _alterarLogoLoja,
-                ),
-              ),
-              const SizedBox(height: 20),
-              SizedBox(
+        final Widget blocoFormularioOuDados = ehLojaNous
+            ? _blocoDadosInstitucionaisNous(theme, decoracaoDoBloco)
+            : Container(
                 width: double.infinity,
-                child: FilledButton(
-                  style: FilledButton.styleFrom(
-                    backgroundColor: theme.buttonColor,
-                    foregroundColor: theme.buttonTextColor,
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10),
+                padding: const EdgeInsets.all(16),
+                decoration: decoracaoDoBloco,
+                child: Column(
+                  children: [
+                    AbsorbPointer(
+                      absorbing: !possoEditarDados,
+                      child: FormularioDadosLoja(
+                        theme: theme,
+                        controllers: _controllers,
+                        logo: _logo,
+                        onAlterarLogo: _alterarLogoLoja,
+                      ),
                     ),
-                  ),
-                  onPressed: _salvarDadosLoja,
-                  child: Text(
-                    'Salvar Dados',
-                    style: theme.getTextStyle(
-                      fontSize: 13,
-                      color: theme.buttonTextColor,
+                    const SizedBox(height: 20),
+                    SizedBox(
+                      width: double.infinity,
+                      child: FilledButton(
+                        style: FilledButton.styleFrom(
+                          backgroundColor: theme.buttonColor,
+                          foregroundColor: theme.buttonTextColor,
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                        ),
+                        onPressed: _salvarDadosLoja,
+                        child: Text(
+                          'Salvar Dados',
+                          style: theme.getTextStyle(
+                            fontSize: 13,
+                            color: theme.buttonTextColor,
+                          ),
+                        ),
+                      ),
                     ),
-                  ),
+                    const SizedBox(height: 12),
+                    TextButton(
+                      onPressed: () => _confirmarExclusao(context),
+                      child: Text(
+                        'Excluir Loja',
+                        style: theme.getTextStyle(
+                          fontSize: 13,
+                          color: theme.dangerColor,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
-              ),
-              const SizedBox(height: 12),
-              TextButton(
-                onPressed: () => _confirmarExclusao(context),
-                child: Text(
-                  'Excluir Loja',
-                  style: theme.getTextStyle(
-                    fontSize: 13,
-                    color: theme.dangerColor,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        );
+              );
 
         final meuCpfLimpo = cpfLogado.replaceAll(RegExp(r'\D'), '');
         final meuMembro = lojaAtual?.membros
@@ -5660,6 +5789,11 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
               lojaAtual?.permissoesCargosNativos ?? const {},
           podeGerenciar: possoGerenciarMembros,
           ehDonoOuSocio: ehDonoOuSocio,
+          ehLojaColetivaNous: ehLojaNous,
+          usuarioLogadoEhDesenvolvedor:
+              meuMembro?.cargoPersonalizadoId == 'desenvolvedor',
+          onAlternarDesenvolvedor: () =>
+              pdv.alternarFuncaoDesenvolvedorNous(cpfLogado),
           onAdicionarCargo: (novoCargo) =>
               pdv.adicionarCargoLoja(widget.lojaId, novoCargo),
           onAtualizarCargo: (cargo) =>
@@ -5680,6 +5814,7 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
           cargosPersonalizados: lojaAtual?.cargosPersonalizados ?? const [],
           cpfLogado: cpfLogado,
           podeGerenciar: possoGerenciarMembros,
+          ehLojaColetivaNous: ehLojaNous,
           buscarConta: _buscarContaPorCpf,
           onEnviarConvite: _enviarConvite,
           onRemover: _removerMembro,
@@ -5775,7 +5910,7 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
                 flex: 5,
                 child: Column(
                   children: [
-                    blocoFormulario,
+                    blocoFormularioOuDados,
                     const SizedBox(height: 16),
                     blocoCargos,
                     const SizedBox(height: 16),
@@ -5796,7 +5931,7 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
 
         return Column(
           children: [
-            blocoFormulario,
+            blocoFormularioOuDados,
             const SizedBox(height: 16),
             blocoCargos,
             const SizedBox(height: 16),
@@ -5810,6 +5945,19 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
         return _abaLoja(theme);
 
       case AbaLoja.gestao:
+        final bool ehLojaNous = widget.lojaId == PdvProvider.idLojaColetivaNous;
+        if (ehLojaNous) {
+          final auth = context.watch<AuthProvider>();
+          return AbaGestaoNousWidget(
+            theme: theme,
+            lojaId: widget.lojaId,
+            cpfLogado: _cpfLogado,
+            nomeLogado: _nomeLogado,
+            fotoLogada: auth.contaAtual?.foto ?? '',
+            membros: _membros,
+            onAbrirStatusLoja: _abrirStatusLoja,
+          );
+        }
         final lojaAtual = context.watch<PdvProvider>().buscarPorId(widget.lojaId);
         final onlineEfetivo = lojaAtual?.aberta ?? _lojaOnline;
         return GestaoLojaContainer(
@@ -6053,6 +6201,8 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
                         tipoLayoutNome: 'Layout Desktop Expandido',
                         caixaAberto: lojaAtual?.turnoCaixaAberto != null,
                         temNovasMensagens: _temNovasMensagensLoja,
+                        ehLojaColetivaNous:
+                            widget.lojaId == PdvProvider.idLojaColetivaNous,
                       ),
                       Expanded(
                         child: Column(
@@ -6104,6 +6254,8 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
                     aoTrocarAba: (novaAba) =>
                         setState(() => _abaSelecionada = novaAba),
                     maxWidth: larguraDinamica,
+                    ehLojaColetivaNous:
+                        widget.lojaId == PdvProvider.idLojaColetivaNous,
                   ),
                   FloatingBottomNavBar(maxWidth: larguraDinamica),
                 ],
@@ -6121,12 +6273,14 @@ class _BarraDeAbasDaLoja extends StatelessWidget {
   final AbaLoja abaSelecionada;
   final ValueChanged<AbaLoja> aoTrocarAba;
   final double maxWidth;
+  final bool ehLojaColetivaNous;
 
   const _BarraDeAbasDaLoja({
     required this.theme,
     required this.abaSelecionada,
     required this.aoTrocarAba,
     this.maxWidth = _larguraMaximaConteudo,
+    this.ehLojaColetivaNous = false,
   });
 
   String _rotulo(AbaLoja aba) {
@@ -6148,6 +6302,10 @@ class _BarraDeAbasDaLoja extends StatelessWidget {
     final sobra = larguraDaTela - maxWidth;
     final margemLateral = (sobra / 2).clamp(0.0, larguraDaTela / 2);
 
+    final abas = ehLojaColetivaNous
+        ? const [AbaLoja.dados, AbaLoja.gestao]
+        : AbaLoja.values;
+
     return Container(
       decoration: BoxDecoration(
         color: theme.backgroundColor,
@@ -6160,7 +6318,7 @@ class _BarraDeAbasDaLoja extends StatelessWidget {
         bottom: 10,
       ),
       child: Row(
-        children: AbaLoja.values.map((aba) {
+        children: abas.map((aba) {
           final selecionada = aba == abaSelecionada;
           return Expanded(
             child: Padding(

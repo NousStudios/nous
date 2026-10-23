@@ -50,11 +50,12 @@ class ContasNousService {
   }
 
   static Future<void> excluir(String cpf) async {
+    final cpfLimpo = cpf.replaceAll(RegExp(r'\D'), '');
     final db = await BancoDadosService.db;
     await db.delete(
       'contas_usuarios',
-      where: 'cpf = ?',
-      whereArgs: [cpf],
+      where: 'cpf = ? OR REPLACE(REPLACE(REPLACE(cpf, ".", ""), "-", ""), " ", "") = ?',
+      whereArgs: [cpf, cpfLimpo],
     );
   }
 }

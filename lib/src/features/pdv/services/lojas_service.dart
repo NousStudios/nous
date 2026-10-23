@@ -23,12 +23,12 @@ class LojasService {
 
   static Loja sanitizarCaminhosImagens(Loja loja) {
     String logoFinal = loja.logo;
-    if (logoFinal.isNotEmpty) {
+    if (logoFinal.isNotEmpty && !ImagemService.ehAsset(logoFinal)) {
       logoFinal = ImagemService.resolverCaminhoExistente(logoFinal) ?? logoFinal;
     }
 
     final novasCategorias = loja.categoriasLoja.map((cat) {
-      if (cat.foto.isEmpty) return cat;
+      if (cat.foto.isEmpty || ImagemService.ehAsset(cat.foto)) return cat;
       final fotoResolvida = ImagemService.resolverCaminhoExistente(cat.foto) ?? cat.foto;
       return fotoResolvida != cat.foto ? cat.copyWith(foto: fotoResolvida) : cat;
     }).toList();
@@ -100,12 +100,18 @@ class LojasService {
 
     // 1. Logo da loja
     String logoFinal = lojaNova.logo;
-    final logoResolvida = ImagemService.resolverCaminhoExistente(lojaNova.logo);
-    if (logoResolvida != null) {
-      logoFinal = logoResolvida;
-    } else if (lojaLocal.logo.isNotEmpty && ImagemService.existe(lojaLocal.logo)) {
-      // Preserva a logo local válida caso a remota não exista neste disco
-      logoFinal = ImagemService.resolverCaminhoExistente(lojaLocal.logo) ?? lojaLocal.logo;
+    if (ImagemService.ehAsset(lojaNova.logo)) {
+      logoFinal = lojaNova.logo;
+    } else {
+      final logoResolvida = ImagemService.resolverCaminhoExistente(lojaNova.logo);
+      if (logoResolvida != null) {
+        logoFinal = logoResolvida;
+      } else if (lojaLocal.logo.isNotEmpty && ImagemService.existe(lojaLocal.logo)) {
+        // Preserva a logo local válida caso a remota não exista neste disco
+        logoFinal = ImagemService.ehAsset(lojaLocal.logo)
+            ? lojaLocal.logo
+            : (ImagemService.resolverCaminhoExistente(lojaLocal.logo) ?? lojaLocal.logo);
+      }
     }
 
     // 2. Categorias
@@ -751,7 +757,7 @@ class LojasService {
 
         // 1. Logo
         final logoAtual = map['logo'] as String? ?? '';
-        if (logoAtual.isNotEmpty) {
+        if (logoAtual.isNotEmpty && !ImagemService.ehAsset(logoAtual)) {
           final resolvida = ImagemService.resolverCaminhoExistente(logoAtual);
           if (resolvida != null && resolvida != logoAtual) {
             map['logo'] = resolvida;

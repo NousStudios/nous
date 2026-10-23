@@ -212,9 +212,7 @@ class _PerfilSocialViewState extends State<PerfilSocialView> {
         ImagemService.resolverCaminhoExistente(conta.fotoExibicao);
     final temFoto = fotoResolvida != null;
 
-    final apelidoExibicao = conta.apelidoExibicao.isNotEmpty
-        ? '@${conta.apelidoExibicao}'
-        : '@nous';
+    final apelidoExibicao = conta.usernameExibicao;
 
     final nomeExibicao = conta.nomeExibicao.isNotEmpty
         ? conta.nomeExibicao
@@ -285,9 +283,17 @@ class _PerfilSocialViewState extends State<PerfilSocialView> {
                         children: [
                           _buildMetricaItem(theme, '0', 'Posts'),
                           const SizedBox(width: 28),
-                          _buildMetricaItem(theme, '0', 'Seguidores'),
+                          _buildMetricaItem(
+                            theme,
+                            '${conta.seguidores.length}',
+                            'Seguidores',
+                          ),
                           const SizedBox(width: 28),
-                          _buildMetricaItem(theme, '0', 'Seguindo'),
+                          _buildMetricaItem(
+                            theme,
+                            '${conta.seguindo.length}',
+                            'Seguindo',
+                          ),
                         ],
                       ),
 
@@ -328,6 +334,18 @@ class _PerfilSocialViewState extends State<PerfilSocialView> {
                               theme: theme,
                               rotulo: 'Editar Perfil',
                               onTap: () => _abrirEdicaoPerfil(context, theme, conta),
+                            ),
+                            const SizedBox(width: 8),
+                          ] else if (contaPropria != null) ...[
+                            _buildBotaoPerfil(
+                              theme: theme,
+                              rotulo: contaPropria.estaSeguindo(conta.cpf)
+                                  ? 'Seguindo'
+                                  : 'Seguir',
+                              onTap: () async {
+                                await auth.alternarSeguir(conta.cpf);
+                                if (mounted) setState(() {});
+                              },
                             ),
                             const SizedBox(width: 8),
                           ],

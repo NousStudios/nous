@@ -2,6 +2,7 @@ class UsuarioNous {
   final String cpf;
   final String nome;
   final String apelido;
+  final String nomeDeUsuario;
   final String dataNascimento;
   final List<String> emails;
   final String foto;
@@ -14,11 +15,16 @@ class UsuarioNous {
   final String nomePublico;
   final String apelidoPublico;
   final String fotoPublica;
+  final List<String> dadosPrivados;
+  final List<String> dadosAutorizadosPorCpf;
+  final List<String> seguindo;
+  final List<String> seguidores;
 
   const UsuarioNous({
     required this.cpf,
     required this.nome,
     this.apelido = '',
+    this.nomeDeUsuario = '',
     required this.dataNascimento,
     this.emails = const [],
     this.foto = '',
@@ -31,6 +37,10 @@ class UsuarioNous {
     this.nomePublico = '',
     this.apelidoPublico = '',
     this.fotoPublica = '',
+    this.dadosPrivados = const ['cpf', 'emails', 'dataNascimento', 'filiacao'],
+    this.dadosAutorizadosPorCpf = const [],
+    this.seguindo = const [],
+    this.seguidores = const [],
   });
 
   String get nomeExibicao =>
@@ -40,9 +50,37 @@ class UsuarioNous {
   String get fotoExibicao =>
       fotoPublica.trim().isNotEmpty ? fotoPublica.trim() : foto;
 
+  String get usernameExibicao {
+    final limpo = nomeDeUsuario.replaceAll('@', '').trim();
+    if (limpo.isNotEmpty) {
+      return '@$limpo';
+    }
+    final apelidoLimpo = apelidoExibicao.replaceAll('@', '').trim();
+    if (apelidoLimpo.isNotEmpty) {
+      return '@$apelidoLimpo';
+    }
+    return '';
+  }
+
+  bool dadoEstaPrivado(String chave) => dadosPrivados.contains(chave);
+
+  bool dadoAutorizadoPara(String chave, String cpfOutro) {
+    final meuCpfLimpo = cpf.replaceAll(RegExp(r'\D'), '');
+    final outroLimpo = cpfOutro.replaceAll(RegExp(r'\D'), '');
+    if (meuCpfLimpo == outroLimpo) return true;
+    if (!dadoEstaPrivado(chave)) return true;
+    return dadosAutorizadosPorCpf.contains('$outroLimpo:$chave');
+  }
+
+  bool estaSeguindo(String cpfOuId) {
+    final limpo = cpfOuId.replaceAll(RegExp(r'\D'), '');
+    return seguindo.any((s) => s.replaceAll(RegExp(r'\D'), '') == limpo);
+  }
+
   UsuarioNous copyWith({
     String? nome,
     String? apelido,
+    String? nomeDeUsuario,
     String? dataNascimento,
     List<String>? emails,
     String? foto,
@@ -55,11 +93,16 @@ class UsuarioNous {
     String? nomePublico,
     String? apelidoPublico,
     String? fotoPublica,
+    List<String>? dadosPrivados,
+    List<String>? dadosAutorizadosPorCpf,
+    List<String>? seguindo,
+    List<String>? seguidores,
   }) {
     return UsuarioNous(
       cpf: cpf,
       nome: nome ?? this.nome,
       apelido: apelido ?? this.apelido,
+      nomeDeUsuario: nomeDeUsuario ?? this.nomeDeUsuario,
       dataNascimento: dataNascimento ?? this.dataNascimento,
       emails: emails ?? this.emails,
       foto: foto ?? this.foto,
@@ -72,6 +115,11 @@ class UsuarioNous {
       nomePublico: nomePublico ?? this.nomePublico,
       apelidoPublico: apelidoPublico ?? this.apelidoPublico,
       fotoPublica: fotoPublica ?? this.fotoPublica,
+      dadosPrivados: dadosPrivados ?? this.dadosPrivados,
+      dadosAutorizadosPorCpf:
+          dadosAutorizadosPorCpf ?? this.dadosAutorizadosPorCpf,
+      seguindo: seguindo ?? this.seguindo,
+      seguidores: seguidores ?? this.seguidores,
     );
   }
 
@@ -80,6 +128,7 @@ class UsuarioNous {
       'cpf': cpf,
       'nome': nome,
       'apelido': apelido,
+      'nomeDeUsuario': nomeDeUsuario,
       'dataNascimento': dataNascimento,
       'emails': emails,
       'foto': foto,
@@ -92,6 +141,10 @@ class UsuarioNous {
       'nomePublico': nomePublico,
       'apelidoPublico': apelidoPublico,
       'fotoPublica': fotoPublica,
+      'dadosPrivados': dadosPrivados,
+      'dadosAutorizadosPorCpf': dadosAutorizadosPorCpf,
+      'seguindo': seguindo,
+      'seguidores': seguidores,
     };
   }
 
@@ -100,6 +153,7 @@ class UsuarioNous {
       cpf: json['cpf'] as String? ?? '',
       nome: json['nome'] as String? ?? '',
       apelido: json['apelido'] as String? ?? '',
+      nomeDeUsuario: json['nomeDeUsuario'] as String? ?? '',
       dataNascimento: json['dataNascimento'] as String? ?? '',
       emails: (json['emails'] as List<dynamic>? ?? const [])
           .map((item) => item as String)
@@ -114,6 +168,20 @@ class UsuarioNous {
       nomePublico: json['nomePublico'] as String? ?? '',
       apelidoPublico: json['apelidoPublico'] as String? ?? '',
       fotoPublica: json['fotoPublica'] as String? ?? '',
+      dadosPrivados: (json['dadosPrivados'] as List<dynamic>? ??
+              const ['cpf', 'emails', 'dataNascimento', 'filiacao'])
+          .map((item) => item as String)
+          .toList(),
+      dadosAutorizadosPorCpf:
+          (json['dadosAutorizadosPorCpf'] as List<dynamic>? ?? const [])
+              .map((item) => item as String)
+              .toList(),
+      seguindo: (json['seguindo'] as List<dynamic>? ?? const [])
+          .map((item) => item as String)
+          .toList(),
+      seguidores: (json['seguidores'] as List<dynamic>? ?? const [])
+          .map((item) => item as String)
+          .toList(),
     );
   }
 }

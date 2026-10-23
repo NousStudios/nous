@@ -20,13 +20,16 @@ class MembroLoja {
     PapelMembro? papel,
     DateTime? desde,
     String? cargoPersonalizadoId,
+    bool limparCargoPersonalizado = false,
   }) {
     return MembroLoja(
       cpf: cpf,
       nome: nome ?? this.nome,
       papel: papel ?? this.papel,
       desde: desde ?? this.desde,
-      cargoPersonalizadoId: cargoPersonalizadoId ?? this.cargoPersonalizadoId,
+      cargoPersonalizadoId: limparCargoPersonalizado
+          ? null
+          : (cargoPersonalizadoId ?? this.cargoPersonalizadoId),
     );
   }
 

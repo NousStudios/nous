@@ -7,6 +7,8 @@ import 'package:provider/provider.dart';
 import 'package:nous/src/core/theme/theme_controller.dart';
 import 'package:nous/src/features/auth/models/usuario_nous.dart';
 import 'package:nous/src/features/auth/providers/auth_provider.dart';
+import 'package:nous/src/features/notificacoes/models/convite_loja.dart';
+import 'package:nous/src/features/notificacoes/providers/notificacoes_provider.dart';
 import 'package:nous/src/features/pdv/models/loja.dart';
 import 'package:nous/src/features/pdv/models/membro_loja.dart';
 import 'package:nous/src/features/pdv/providers/pdv_provider.dart';
@@ -228,11 +230,105 @@ class _FichaUsuarioConteudoState extends State<_FichaUsuarioConteudo> {
         border: Border.all(color: theme.borderColor.withValues(alpha: 0.6)),
       );
 
-  Widget _linhaInfo(String rotulo, String valor, {bool destaque = false}) {
+  Future<void> _solicitarAcessoAoDado(String rotulo, String chave) async {
+    final auth = context.read<AuthProvider>();
+    final notificacoes = context.read<NotificacoesProvider>();
+    final usuarioLogado = auth.contaAtual;
+    if (usuarioLogado == null) return;
+
+    final confirmar = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: theme.cardBackgroundColor,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+          side: BorderSide(color: theme.borderColor),
+        ),
+        title: Text(
+          'Solicitar Acesso',
+          style: theme.getTextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.bold,
+            color: theme.textColor,
+          ),
+        ),
+        content: Text(
+          'Deseja enviar uma notificação para ${_usuario.nome.isNotEmpty ? _usuario.nome : "o usuário"} solicitando autorização para visualizar: "$rotulo"?',
+          style: theme.getTextStyle(
+            fontSize: 13,
+            color: theme.textColor,
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: Text(
+              'Cancelar',
+              style: theme.getTextStyle(color: theme.secondaryTextColor),
+            ),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: theme.buttonColor,
+              foregroundColor: theme.buttonTextColor,
+            ),
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: Text(
+              'Enviar Solicitação',
+              style: theme.getTextStyle(color: theme.buttonTextColor),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmar == true && mounted) {
+      final solicitacao = ConviteLoja(
+        id: 'solic_${DateTime.now().millisecondsSinceEpoch}_${usuarioLogado.cpf}',
+        cpfConvidante: usuarioLogado.cpf,
+        nomeConvidante: usuarioLogado.nome.isNotEmpty
+            ? usuarioLogado.nome
+            : usuarioLogado.usernameExibicao,
+        cpfConvidado: _usuario.cpf,
+        lojaId: '',
+        nomeLoja: 'Conta Pessoal',
+        papel: PapelMembro.funcionario,
+        dataHora: DateTime.now(),
+        tipo: TipoNotificacao.solicitacaoDadoUsuario,
+        dadoSolicitado: chave,
+      );
+      await notificacoes.adicionarNotificacao(solicitacao);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            backgroundColor: theme.cardBackgroundColor,
+            content: Text(
+              'Solicitação enviada para ${_usuario.nome.isNotEmpty ? _usuario.nome : "o usuário"}!',
+              style: theme.getTextStyle(color: theme.textColor),
+            ),
+          ),
+        );
+      }
+    }
+  }
+
+  Widget _linhaInfo(
+    String rotulo,
+    String valor, {
+    bool destaque = false,
+    String? chavePrivacidade,
+    bool ehProprioUsuario = true,
+    String? cpfVisualizador,
+  }) {
+    final estaPrivado = !ehProprioUsuario &&
+        chavePrivacidade != null &&
+        _usuario.dadoEstaPrivado(chavePrivacidade) &&
+        !_usuario.dadoAutorizadoPara(chavePrivacidade, cpfVisualizador ?? '');
+
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           Expanded(
             child: Text(
@@ -246,7 +342,7 @@ class _FichaUsuarioConteudoState extends State<_FichaUsuarioConteudo> {
           const SizedBox(width: 8),
           Flexible(
             child: Text(
-              valor.isEmpty ? '—' : valor,
+              estaPrivado ? '••••••••' : (valor.isEmpty ? '—' : valor),
               textAlign: TextAlign.right,
               style: theme.getTextStyle(
                 fontSize: 12,
@@ -255,6 +351,21 @@ class _FichaUsuarioConteudoState extends State<_FichaUsuarioConteudo> {
               ),
             ),
           ),
+          if (estaPrivado) ...[
+            const SizedBox(width: 6),
+            InkWell(
+              onTap: () => _solicitarAcessoAoDado(rotulo, chavePrivacidade),
+              borderRadius: BorderRadius.circular(12),
+              child: Padding(
+                padding: const EdgeInsets.all(2.0),
+                child: Icon(
+                  Icons.visibility_off_outlined,
+                  size: 15,
+                  color: theme.secondaryTextColor,
+                ),
+              ),
+            ),
+          ],
         ],
       ),
     );
@@ -524,14 +635,57 @@ class _FichaUsuarioConteudoState extends State<_FichaUsuarioConteudo> {
                 color: theme.textColor,
               ),
             ),
-          const SizedBox(height: 4),
+          const SizedBox(height: 6),
+          // Nome de Usuário Nous (imutável, com a mesma identidade visual do CPF)
+          Text(
+            contaAtualizada.usernameExibicao.isNotEmpty
+                ? contaAtualizada.usernameExibicao
+                : '@usuario',
+            textAlign: TextAlign.center,
+            style: theme.getTextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+              color: theme.secondaryTextColor,
+            ),
+          ),
+          const SizedBox(height: 2),
           _borrarSeNecessario(
-            Text(
-              _formatarCpf(contaAtualizada.cpf),
-              style: theme.getTextStyle(
-                fontSize: 13,
-                color: theme.secondaryTextColor,
-              ),
+            Builder(
+              builder: (context) {
+                final cpfVisualizador = auth.contaAtual?.cpf ?? '';
+                final estaPrivado = !ehProprioUsuario &&
+                    _usuario.dadoEstaPrivado('cpf') &&
+                    !_usuario.dadoAutorizadoPara('cpf', cpfVisualizador);
+                return Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      estaPrivado
+                          ? '•••.•••.•••-••'
+                          : _formatarCpf(contaAtualizada.cpf),
+                      style: theme.getTextStyle(
+                        fontSize: 13,
+                        color: theme.secondaryTextColor,
+                      ),
+                    ),
+                    if (estaPrivado) ...[
+                      const SizedBox(width: 6),
+                      InkWell(
+                        onTap: () => _solicitarAcessoAoDado('CPF', 'cpf'),
+                        borderRadius: BorderRadius.circular(12),
+                        child: Padding(
+                          padding: const EdgeInsets.all(2.0),
+                          child: Icon(
+                            Icons.visibility_off_outlined,
+                            size: 15,
+                            color: theme.secondaryTextColor,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ],
+                );
+              },
             ),
           ),
 
@@ -609,21 +763,66 @@ class _FichaUsuarioConteudoState extends State<_FichaUsuarioConteudo> {
                     ],
                   ),
                 ] else ...[
-                  _linhaInfo('Data de nascimento', contaAtualizada.dataNascimento),
-                  _linhaInfo('Nome da mãe', contaAtualizada.nomeMae),
-                  _linhaInfo('Nome do pai', contaAtualizada.nomePai),
-                  _linhaInfo('Local de nascimento', contaAtualizada.localNascimento),
-                  _linhaInfo('Tipo sanguíneo', contaAtualizada.tipoSanguineo),
-                  _linhaInfo('Estado civil', contaAtualizada.estadoCivil),
+                  _linhaInfo(
+                    'Data de nascimento',
+                    contaAtualizada.dataNascimento,
+                    chavePrivacidade: 'dataNascimento',
+                    ehProprioUsuario: ehProprioUsuario,
+                    cpfVisualizador: auth.contaAtual?.cpf,
+                  ),
+                  _linhaInfo(
+                    'Nome da mãe',
+                    contaAtualizada.nomeMae,
+                    chavePrivacidade: 'nomeMae',
+                    ehProprioUsuario: ehProprioUsuario,
+                    cpfVisualizador: auth.contaAtual?.cpf,
+                  ),
+                  _linhaInfo(
+                    'Nome do pai',
+                    contaAtualizada.nomePai,
+                    chavePrivacidade: 'nomePai',
+                    ehProprioUsuario: ehProprioUsuario,
+                    cpfVisualizador: auth.contaAtual?.cpf,
+                  ),
+                  _linhaInfo(
+                    'Local de nascimento',
+                    contaAtualizada.localNascimento,
+                    chavePrivacidade: 'localNascimento',
+                    ehProprioUsuario: ehProprioUsuario,
+                    cpfVisualizador: auth.contaAtual?.cpf,
+                  ),
+                  _linhaInfo(
+                    'Tipo sanguíneo',
+                    contaAtualizada.tipoSanguineo,
+                    chavePrivacidade: 'tipoSanguineo',
+                    ehProprioUsuario: ehProprioUsuario,
+                    cpfVisualizador: auth.contaAtual?.cpf,
+                  ),
+                  _linhaInfo(
+                    'Estado civil',
+                    contaAtualizada.estadoCivil,
+                    chavePrivacidade: 'estadoCivil',
+                    ehProprioUsuario: ehProprioUsuario,
+                    cpfVisualizador: auth.contaAtual?.cpf,
+                  ),
                   if (clienteMesmoCpf != null) ...[
                     if (clienteMesmoCpf.telefone.isNotEmpty)
-                      _linhaInfo('Telefone', clienteMesmoCpf.telefone),
+                      _linhaInfo(
+                        'Telefone',
+                        clienteMesmoCpf.telefone,
+                        chavePrivacidade: 'telefone',
+                        ehProprioUsuario: ehProprioUsuario,
+                        cpfVisualizador: auth.contaAtual?.cpf,
+                      ),
                     if (clienteMesmoCpf.endereco.isNotEmpty)
                       _linhaInfo(
                         'Endereço',
                         clienteMesmoCpf.numero.isNotEmpty
                             ? '${clienteMesmoCpf.endereco}, ${clienteMesmoCpf.numero}'
                             : clienteMesmoCpf.endereco,
+                        chavePrivacidade: 'endereco',
+                        ehProprioUsuario: ehProprioUsuario,
+                        cpfVisualizador: auth.contaAtual?.cpf,
                       ),
                     if (clienteMesmoCpf.redesSociais.isNotEmpty)
                       _linhaInfo('Redes sociais', clienteMesmoCpf.redesSociais),
@@ -871,9 +1070,12 @@ class _FichaUsuarioConteudoState extends State<_FichaUsuarioConteudo> {
 
   Widget _borrarSeNecessario(Widget child) {
     if (!_ocultarDados) return child;
-    return ImageFiltered(
-      imageFilter: ImageFilter.blur(sigmaX: 5.5, sigmaY: 5.5),
-      child: child,
+    return IgnorePointer(
+      ignoring: true,
+      child: ImageFiltered(
+        imageFilter: ImageFilter.blur(sigmaX: 5.5, sigmaY: 5.5),
+        child: child,
+      ),
     );
   }
 }

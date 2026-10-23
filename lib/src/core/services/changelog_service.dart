@@ -17,6 +17,19 @@ class ChangelogService {
   /// Garante que o changelog esteja disponível 100% offline mesmo em APK ou executável instalado.
   static const List<ItemNovidadeChangelog> _novidadesPadrao = [
     ItemNovidadeChangelog(
+      versao: 'v1.0.27 (build 28)',
+      data: '22/10/2026',
+      alteracoes: [
+        'Organização e perfil profissional "Nous" de autogestão em "Perfis que eu participo" com todos os usuários Nous como sócios deliberativos.',
+        'Chat geral da comunidade soberana Nous para deliberação coletiva sobre o SuperApp.',
+        'Fluxo obrigatório de cadastro de Nome de Usuário (@username) minúsculo e sem espaços após o login.',
+        'Sincronização bidirecional de perfis e contas de usuários na rede local Wi-Fi entre terminais e balcão.',
+        'Hierarquia de dados secundários no cliente em Nova Venda: 1º Endereço, 2º Telefone, 3º Descrição, com TextoRolante.',
+        'Formatação automática com a primeira letra de cada palavra em maiúsculo no cadastro de clientes.',
+        'Transmissão direta de alterações da nova versão via Wi-Fi no diálogo de atualização do sistema.',
+      ],
+    ),
+    ItemNovidadeChangelog(
       versao: 'v1.0.25 (build 26)',
       data: '22/10/2026',
       alteracoes: [

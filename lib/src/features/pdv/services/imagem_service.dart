@@ -131,19 +131,72 @@ class ImagemService {
     return null;
   }
 
-  /// Retorna true se a imagem ou anexo existe fisicamente em disco (no caminho direto ou em pasta do Nous)
-  static bool existe(String? caminho) => resolverCaminhoExistente(caminho) != null;
+  /// Retorna true se o caminho se refere a um asset embutido no aplicativo (ex.: assets/images/logo.png)
+  static bool ehAsset(String? caminho) {
+    if (caminho == null) return false;
+    final c = caminho.trim();
+    return c.startsWith('assets/') || c.startsWith('asset/');
+  }
 
-  /// Retorna o File real caso a imagem exista fisicamente em disco
+  /// Retorna true se a imagem ou anexo existe fisicamente em disco ou é um asset embutido
+  static bool existe(String? caminho) {
+    if (ehAsset(caminho)) return true;
+    return resolverCaminhoExistente(caminho) != null;
+  }
+
+  /// Retorna o File real caso a imagem exista fisicamente em disco (retorna null para assets)
   static File? obterArquivo(String? caminho) {
+    if (ehAsset(caminho)) return null;
     final resolvido = resolverCaminhoExistente(caminho);
     return resolvido != null ? File(resolvido) : null;
   }
 
-  /// Retorna um ImageProvider (FileImage) pronto para uso, ou null se a foto não existir
+  /// Retorna um ImageProvider pronto para uso (AssetImage para assets, FileImage para arquivos), ou null se a foto não existir
   static ImageProvider? obterImageProvider(String? caminho) {
+    if (ehAsset(caminho)) {
+      return AssetImage(caminho!.trim());
+    }
     final resolvido = resolverCaminhoExistente(caminho);
     return resolvido != null ? FileImage(File(resolvido)) : null;
+  }
+
+  /// Constrói um Widget de imagem com fallback automático e suporte unificado a assets e arquivos locais
+  static Widget construirImagem(
+    String? caminho, {
+    double? width,
+    double? height,
+    BoxFit? fit,
+    Widget? fallback,
+    BorderRadius? borderRadius,
+  }) {
+    Widget img;
+    if (ehAsset(caminho)) {
+      img = Image.asset(
+        caminho!.trim(),
+        width: width,
+        height: height,
+        fit: fit,
+        errorBuilder: (_, _, _) => fallback ?? const SizedBox.shrink(),
+      );
+    } else {
+      final resolvido = resolverCaminhoExistente(caminho);
+      if (resolvido != null) {
+        img = Image.file(
+          File(resolvido),
+          width: width,
+          height: height,
+          fit: fit,
+          errorBuilder: (_, _, _) => fallback ?? const SizedBox.shrink(),
+        );
+      } else {
+        return fallback ?? const SizedBox.shrink();
+      }
+    }
+
+    if (borderRadius != null) {
+      return ClipRRect(borderRadius: borderRadius, child: img);
+    }
+    return img;
   }
 
   /// Consolida e unifica todas as imagens de pastas legadas para a pasta oficial atual.

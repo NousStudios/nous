@@ -1,5 +1,3 @@
-import 'dart:io';
-
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -297,8 +295,7 @@ class _PerfilCardState extends State<_PerfilCard> {
   @override
   Widget build(BuildContext context) {
     final theme = widget.theme;
-    final caminhoResolvido = ImagemService.resolverCaminhoExistente(widget.logoUrl);
-    final temLogo = caminhoResolvido != null;
+    final temLogo = ImagemService.existe(widget.logoUrl);
 
     return MouseRegion(
       onEnter: (_) => setState(() => _hovering = true),
@@ -320,20 +317,18 @@ class _PerfilCardState extends State<_PerfilCard> {
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               if (temLogo)
-                ClipRRect(
+                ImagemService.construirImagem(
+                  widget.logoUrl,
+                  width: 36,
+                  height: 36,
+                  fit: BoxFit.cover,
                   borderRadius: BorderRadius.circular(8),
-                  child: Image.file(
-                    File(caminhoResolvido),
-                    width: 36,
-                    height: 36,
-                    fit: BoxFit.cover,
-                    errorBuilder: (context, error, stackTrace) => Icon(
-                      widget.icon,
-                      size: 32,
-                      color: _hovering
-                          ? theme.buttonTextColor
-                          : theme.secondaryTextColor,
-                    ),
+                  fallback: Icon(
+                    widget.icon,
+                    size: 32,
+                    color: _hovering
+                        ? theme.buttonTextColor
+                        : theme.secondaryTextColor,
                   ),
                 )
               else

@@ -11,6 +11,7 @@ class InfoAtualizacao {
   final String descricao;
   final String urlDownload;
   final DateTime? dataPublicacao;
+  final List<String> alteracoes;
 
   const InfoAtualizacao({
     required this.versao,
@@ -18,12 +19,13 @@ class InfoAtualizacao {
     required this.descricao,
     required this.urlDownload,
     this.dataPublicacao,
+    this.alteracoes = const [],
   });
 }
 
 class AtualizacaoService {
-  static String versaoAtual = '1.0.25';
-  static int buildAtual = 26;
+  static String versaoAtual = '1.0.30';
+  static int buildAtual = 31;
 
   /// Inicializa a identificação da versão do aplicativo.
   /// No Android, consulta dinamicamente a versão real instalada no sistema operacional via MethodChannel.

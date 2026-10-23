@@ -1,4 +1,3 @@
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:nous/src/core/theme/theme_controller.dart';
 import 'package:nous/src/features/pdv/services/imagem_service.dart';
@@ -16,6 +15,8 @@ class DesktopSidebarWidget extends StatelessWidget {
   final VoidCallback onAlternarLayout;
   final String tipoLayoutNome;
   final bool caixaAberto;
+  final bool temNovasMensagens;
+  final bool ehLojaColetivaNous;
 
   const DesktopSidebarWidget({
     super.key,
@@ -31,9 +32,8 @@ class DesktopSidebarWidget extends StatelessWidget {
     required this.tipoLayoutNome,
     this.caixaAberto = false,
     this.temNovasMensagens = false,
+    this.ehLojaColetivaNous = false,
   });
-
-  final bool temNovasMensagens;
 
   String _obterTeclaParaAcao(String acao) {
     for (final entry in atalhosTeclado.entries) {
@@ -57,8 +57,8 @@ class DesktopSidebarWidget extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final logoResolvida = ImagemService.resolverCaminhoExistente(logoLoja);
-    final temLogo = logoResolvida != null;
+    final providerLogo = ImagemService.obterImageProvider(logoLoja);
+    final temLogo = providerLogo != null;
 
     return Container(
       width: 250,
@@ -82,7 +82,7 @@ class DesktopSidebarWidget extends StatelessWidget {
                 CircleAvatar(
                   radius: 20,
                   backgroundColor: theme.borderColor.withValues(alpha: 0.3),
-                  backgroundImage: temLogo ? FileImage(File(logoResolvida)) : null,
+                  backgroundImage: providerLogo,
                   child: !temLogo
                       ? Icon(
                           Icons.storefront_outlined,
@@ -159,28 +159,30 @@ class DesktopSidebarWidget extends StatelessWidget {
                 ),
                 _ItemAbaSidebar(
                   theme: theme,
-                  titulo: 'Dados da Loja',
+                  titulo: ehLojaColetivaNous ? 'Dados da Comunidade' : 'Dados da Loja',
                   icone: Icons.badge_outlined,
                   selecionada: abaSelecionada == AbaLoja.dados,
                   onTap: () => onTrocarAba(AbaLoja.dados),
                 ),
+                if (!ehLojaColetivaNous) ...[
+                  _ItemAbaSidebar(
+                    theme: theme,
+                    titulo: 'Ajustes do Perfil',
+                    icone: Icons.tune,
+                    selecionada: abaSelecionada == AbaLoja.interface,
+                    onTap: () => onTrocarAba(AbaLoja.interface),
+                  ),
+                  _ItemAbaSidebar(
+                    theme: theme,
+                    titulo: 'Loja / Catálogo',
+                    icone: Icons.storefront,
+                    selecionada: abaSelecionada == AbaLoja.loja,
+                    onTap: () => onTrocarAba(AbaLoja.loja),
+                  ),
+                ],
                 _ItemAbaSidebar(
                   theme: theme,
-                  titulo: 'Ajustes do Perfil',
-                  icone: Icons.tune,
-                  selecionada: abaSelecionada == AbaLoja.interface,
-                  onTap: () => onTrocarAba(AbaLoja.interface),
-                ),
-                _ItemAbaSidebar(
-                  theme: theme,
-                  titulo: 'Loja / Catálogo',
-                  icone: Icons.storefront,
-                  selecionada: abaSelecionada == AbaLoja.loja,
-                  onTap: () => onTrocarAba(AbaLoja.loja),
-                ),
-                _ItemAbaSidebar(
-                  theme: theme,
-                  titulo: 'Gestão de Pedidos',
+                  titulo: ehLojaColetivaNous ? 'Gestão / Comunidade' : 'Gestão de Pedidos',
                   icone: Icons.receipt_long,
                   selecionada: abaSelecionada == AbaLoja.gestao,
                   onTap: () => onTrocarAba(AbaLoja.gestao),
@@ -188,29 +190,30 @@ class DesktopSidebarWidget extends StatelessWidget {
               ],
             ),
           ),
-          Divider(
-            height: 1,
-            color: theme.borderColor.withValues(alpha: 0.4),
-          ),
+          if (!ehLojaColetivaNous) ...[
+            Divider(
+              height: 1,
+              color: theme.borderColor.withValues(alpha: 0.4),
+            ),
 
-          // Seção de Comandos de Teclado Rápidos (Acompanha atalhos configurados)
-          Expanded(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Padding(
-                    padding: const EdgeInsets.only(left: 8, bottom: 8),
-                    child: Text(
-                      'COMANDOS RÁPIDOS',
-                      style: theme.getTextStyle(
-                        fontSize: 10,
-                        fontWeight: FontWeight.bold,
-                        color: theme.secondaryTextColor.withValues(alpha: 0.7),
-                      ).copyWith(letterSpacing: 0.8),
+            // Seção de Comandos de Teclado Rápidos (Acompanha atalhos configurados)
+            Expanded(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.only(left: 8, bottom: 8),
+                      child: Text(
+                        'COMANDOS RÁPIDOS',
+                        style: theme.getTextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.bold,
+                          color: theme.secondaryTextColor.withValues(alpha: 0.7),
+                        ).copyWith(letterSpacing: 0.8),
+                      ),
                     ),
-                  ),
                   _BotaoAtalhoSidebar(
                     theme: theme,
                     tecla: _obterTeclaParaAcao('Nova Venda'),
@@ -279,6 +282,9 @@ class DesktopSidebarWidget extends StatelessWidget {
               ),
             ),
           ),
+        ] else ...[
+          const Expanded(child: SizedBox()),
+        ],
 
           // Rodapé da Sidebar: Status do Layout Desktop e Alternar F11
           Container(

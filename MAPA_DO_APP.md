@@ -12,10 +12,11 @@ Este documento descreve o Nous **por tela**: Tela → Container → Botão → o
 ## 0. Caminho geral do usuário
 
 1. Abre o app → **Login** (`main.dart` abre `LoginView`).
-2. Digita o CPF → **Entrar** → tela de triagem de contas/e-mails (**ContasUsuarioView**), onde o usuário seleciona por qual e-mail associado à sua conta Nous irá operar (ou opta por continuar sem e-mail).
-3. Avança para a janela de **Sincronização em Rede Wi-Fi** e chega em **Meus Perfis** (`PerfisPdvView`).
-4. Toca em uma loja → entra na **Tela da Loja** (`DadosPerfilView`), com as abas Dados, Ajustes do Perfil, Loja e Gestão.
-5. Dentro da loja abre as janelas de trabalho (Nova Venda, Caixa, Clientes...).
+2. Digita o CPF → **Entrar** → janela de **Sincronização em Rede Wi-Fi** (`SincronizacaoRedeDialog`), permitindo ao dispositivo se conectar ao balcão imediatamente e receber os dados soberanos da conta cadastrada em outros dispositivos da rede (inclusive o `@username`).
+3. Avança para a tela de triagem de contas/e-mails (**ContasUsuarioView**), onde o usuário seleciona por qual e-mail associado à sua conta Nous irá operar (ou opta por continuar sem e-mail).
+4. Chega em **Meus Perfis** (`PerfisPdvView`).
+5. Toca em uma loja → entra na **Tela da Loja** (`DadosPerfilView`), com as abas Dados, Ajustes do Perfil, Loja e Gestão.
+6. Dentro da loja abre as janelas de trabalho (Nova Venda, Caixa, Clientes...).
 
 Dois estados mudam o comportamento de várias telas:
 - **Fora de uma loja** (Login, Meus Perfis): notificações mostram só avisos da conta.
@@ -28,14 +29,14 @@ Dois estados mudam o comportamento de várias telas:
 ### 1.1 Tela de Login
 📄 `auth/views/login_view.dart` · widgets: `cpf_input_widget.dart`, `login_buttons_widget.dart`, `logo_widget.dart`
 - **Campo CPF**: já vem preenchido com o último CPF que entrou (guardado no aparelho como `ultimo_cpf_login`). Valida o CPF (`cpf_validator.dart`).
-- **Botão "Entrar"**: avança para a tela de triagem de e-mails (`ContasUsuarioView`), permitindo selecionar o e-mail da sessão antes de avançar para a rede Wi-Fi e lojas.
-- **Ao digitar um CPF que já existe** (neste aparelho ou em outro da rede): recupera nome, data de nascimento e foto. Se o aparelho foi reinstalado, pergunta ao balcão pela rede.
-- **Ao digitar um CPF novo** (sem ficha em lugar nenhum): abre `CadastrarApelidoDialog` pedindo só o **Apelido**. Ao confirmar, cria a conta e o usuário vira **funcionário** da loja à qual se conectou. 📄 `auth/views/widgets/cadastrar_apelido_dialog.dart`
+- **Botão "Entrar"**: abre primeiramente o diálogo de **Sincronização em Rede Wi-Fi** (`SincronizacaoRedeDialog`). Ao se conectar ao balcão ou continuar, consulta a conta na rede local. Se for uma conta totalmente nova sem registro, abre `CadastrarNomeUsuarioDialog` e `CadastrarApelidoDialog`. Se for conta antiga sem `@username`, solicita o nome de usuário. Em seguida, avança para a tela de triagem de e-mails (`ContasUsuarioView`).
+- **Ao digitar um CPF que já existe** (neste aparelho ou em outro da rede): recupera nome, nome de usuário, data de nascimento e foto via Wi-Fi do balcão. Se faltar nome de usuário, solicita a criação imediata.
+- **Ao digitar um CPF novo** (sem ficha em lugar nenhum): abre `CadastrarNomeUsuarioDialog` pedindo o **Nome de Usuário (@)** e em seguida `CadastrarApelidoDialog` pedindo o **Apelido**. Ao confirmar, cria a conta Nous e o cidadão vira automaticamente membro sócio da loja coletiva "Nous". 📄 `auth/views/widgets/cadastrar_nome_usuario_dialog.dart` e `cadastrar_apelido_dialog.dart`
 - Outras telas de acesso: `associar_cpf_view.dart` (associar CPF), `terms_view.dart` (termos de uso), `adicionar_email_dialog.dart` (adicionar e-mail à conta).
 
-### 1.2 Triagem de E-mails do Usuário (pós-login)
+### 1.2 Triagem de E-mails do Usuário (pós-sincronia)
 📄 `auth/views/contas_usuario_view.dart`
-- Lista os e-mails associados ao CPF da conta Nous. Tocar em um e-mail define-o como `emailAtivo` da sessão e avança automaticamente para a Sincronização Wi-Fi e Meus Perfis.
+- Lista os e-mails associados ao CPF da conta Nous. Tocar em um e-mail define-o como `emailAtivo` da sessão e avança diretamente para Meus Perfis (`PerfisPdvView`).
 - Inclui botão para adicionar novo e-mail (`AdicionarEmailDialog`) e ação de contingência para "Continuar sem e-mail".
 
 ### 1.3 Janela "Identidade do Usuário"
@@ -43,6 +44,8 @@ Dois estados mudam o comportamento de várias telas:
 - Topo: **foto**, **apelido** (`@`), **nome próprio editável pelo titular** (com botão de salvar próprio nome) e **CPF** (protegido contra alteração).
 - Bloco **Dados pessoais**: data de nascimento, nome do pai, nome da mãe, local de nascimento, tipo sanguíneo, estado civil, e-mails.
 - Botão **"Editar dados pessoais"**: fica sempre visível **abaixo** de todos os dados. Ao clicar, o bloco vira editável com **Salvar** e **Cancelar**.
+- **Blindagem em Dados Ocultos**: quando os dados estão borrados pelo botão do olho, qualquer clique, hover ou foco nos botões e campos internos é totalmente desabilitado com `IgnorePointer(ignoring: true)`, impedindo interação acidental.
+- **Transparência e Olho Fechado em Dados Privados**: se o titular definiu um dado civil como privado, visualizadores terceiros veem a informação censurada com um ícone de olho fechado à direita. Ao tocar nele, abre-se um diálogo confirmando o envio de uma solicitação de acesso deliberativa para o titular via `NotificacoesProvider`.
 - **Modo somente leitura**: ao abrir a ficha de outra pessoa, nada é editável. Ao abrir a própria, o nome e dados pessoais são editáveis; o CPF é sempre fixo.
 - A foto e os dados são os mesmos em qualquer aparelho do mesmo CPF (sincronização pela rede).
 - Acessada a partir da tela **Conta Nous** (2.2.1), pelo card em **Configurações** (2.2) ou ao tocar num membro em **Usuários Participantes** (6.1).
@@ -50,15 +53,16 @@ Dois estados mudam o comportamento de várias telas:
 ### 1.4 Tela "Perfil Social do Usuário"
 📄 `auth/views/perfil_social_view.dart` · acessada pelo segundo ícone (pessoinha) da barra inferior flutuante (`FloatingBottomNavBar`).
 - Topo com engrenagem de **Configurações** (sem botão de voltar quando acessada pela barra inferior).
-- Cabeçalho vertical centralizado: foto grande de avatar centralizada, `@apelido` centralizado, **Nome Completo em negrito** centralizado (ambos com `TextoRolante`) e métricas (Posts, Seguidores, Seguindo) centralizadas em linha.
+- Cabeçalho vertical centralizado: foto grande de avatar centralizada, `@username` identificador único centralizado, **Nome Completo em negrito** centralizado (ambos com `TextoRolante`) e métricas reais (**Posts**, **Seguidores**, **Seguindo**) sincronizadas do modelo `UsuarioNous`.
 - Bloco **Biografia** com título e descrição.
-- Três botões em linha com `TextoRolante`: **"Editar Perfil"** (abre a Identidade do Usuário 1.3), **"Compartilhar"** (copia identificador Nous) e **"Mensagens"** (abre a Mensageria do Usuário).
+- Botões de ação em linha com `TextoRolante`: **"Editar Perfil"** (abre a edição social), **"Seguir" / "Seguindo"** (quando visualizando perfil de terceiros, alternando status social e persistindo seguidores), **"Compartilhar"** (copia identificador Nous) e **"Mensagens"** (abre a Mensageria do Usuário).
 - Carrossel horizontal de destaques circulares.
 - Barra de abas com 4 ícones (Grade, Reels/Vídeo, Documento, Música) e grade de 3 colunas de publicações.
 - Barra flutuante universal no rodapé com o segundo botão (pessoinha) ativo.
 
 ### 1.5 Barra de Navegação Universal Dupla
 📄 `core/widgets/floating_bottom_nav_bar.dart` · visível no modo compacto para celular e fora de lojas no modo desktop expandido.
+- **Transição Vertical Fluida:** A troca de telas pela barra universal utiliza `PageRouteBuilder` com animação suave de deslize vertical (`SlideTransition` em `Curves.easeOutCubic`) e esmaecimento (`FadeTransition`), simulando com leveza física a impressão de subida ou descida da tela.
 - **Botões Duplos com Rolagem Vertical:** Cada um dos 5 botões da barra possui dois modos e pode ser rolado para cima ou para baixo (arraste com o dedo ou rodinha do mouse), alternando os ícones e os destinos com animação vertical suave:
   1. **Slot 0 (Compras / Lojas):**
      - Modo Carrinho (`shopping_cart`): abre a tela **Compras & Carteira** (`ComprasUsuarioView`), com os containers "Carteira Soberana", "Carrinho de Compras" e "Histórico de Compras" (com `TextoRolante` e aviso de em construção).
@@ -67,7 +71,7 @@ Dois estados mudam o comportamento de várias telas:
      - Modo Pessoinha (`person`): abre o **Perfil Social do Usuário** (`PerfilSocialView`).
      - Modo Mensagens (`chat_bubble`): abre diretamente a **Mensageria** do Usuário (`MensageriaView` sem o prefixo "Nous" no título).
   3. **Slot 2 (Busca / Player Universal):**
-     - Modo Lupa (`search`): Mapa com barra de pesquisa para localização regional (em construção).
+     - Modo Lupa (`search`): abre a tela soberana de **Busca & Mapa** (`BuscaMapaView`), com barra de pesquisa para localização regional de lojas e produtos, filtros rápidos ("Todos", "Lojas", "Perfis"), cards de visita e botões para seguir perfis cidadãos.
      - Modo Player (`play_circle`): Super motor e player integrado de vídeos, músicas e PDFs (em construção).
   4. **Slot 3 (Feeds):**
      - Modo Descoberta (`explore`): Feed público e memes da rede (em construção).
@@ -100,10 +104,11 @@ Dois estados mudam o comportamento de várias telas:
 ### 2.2.1 Tela "Conta Nous"
 📄 `auth/views/conta_nous_view.dart` · acessada pelo botão "Conta Nous" em Configurações.
 - Reúne os módulos soberanos da identidade e dos dados do cidadão:
-  - **Identidade do Usuário**: foto de perfil, `@apelido`, nome próprio e CPF formatado, com botão "Abrir Ficha Cadastral Completa" (abre `FichaUsuarioDialog` 1.3).
+  - **Identidade do Usuário**: foto de perfil, `@username` identificador único com diálogo de edição, apelido, nome civil e CPF formatado, com botão "Ver / Editar Identidade Completa" (abre `FichaUsuarioDialog` 1.3).
+  - **Privacidade e Transparência dos Dados**: container com interruptores `ThemedSwitch` por campo (CPF, data de nascimento, filiação, local de nascimento, tipo sanguíneo, estado civil, telefone e endereço). Permite tornar dados públicos ou privados para terceiros nas lojas e buscas.
   - **E-mails Associados**: listagem de todos os e-mails associados ao CPF da conta com indicação do e-mail ativo da sessão e botão para adicionar novo e-mail (`AdicionarEmailDialog`).
-  - **Backup Soberano dos Dados**: atalho seguro para exportação e importação do cofre de dados (transferido de Configurações para o ambiente da conta).
-  - **Excluir Conta Nous**: botão de ação destrutiva em cor de perigo (`theme.dangerColor`) exigindo confirmação explícita em diálogo antes de remover a conta.
+  - **Backup Soberano dos Dados**: atalho seguro para exportação e importação do cofre de dados em arquivo JSON único.
+  - **Excluir Conta Nous Definitivamente**: botão de ação destrutiva em cor de perigo (`theme.dangerColor`) que expurga os dados do SQLite, limpa o cache persistido (`_chaveUltimoCpf`) e redireciona ao login inicial.
 
 ### 2.3 Tela cheia (F11)
 📄 `main.dart` (interceptador global) + `core/services/janela_windows_service.dart`
@@ -121,6 +126,7 @@ Dois estados mudam o comportamento de várias telas:
 - **Cada card** pode ser **arrastado para o lado** para dispensar na sessão.
 - **Tipos de aviso**:
   - **Mensagens Recebidas**: foto do remetente, nome e texto com `TextoRolante`, data/hora. **Clicar na notificação**: fecha a janela e abre a conversa na Mensageria na hora.
+  - **Solicitação de Acesso a Dado Privado (`solicitacaoDadoUsuario`)**: remetente solicita ver dado restrito (CPF, telefone, filiação...). Ao aceitar, autoriza deliberadamente o solicitante a visualizar o dado.
   - Convite para participar de uma loja (aceitar/recusar).
   - Alteração de papel de sócio (`alteracaoPapel`): "Solicitação de [Nome]: alteração do seu papel em [Loja] para [Novo Papel]". Aceitar aplica; recusar descarta.
   - Pedido de saída de dono (`solicitacaoExclusaoDono`): só se efetiva se o dono alvo aceitar.
@@ -154,6 +160,9 @@ Dois estados mudam o comportamento de várias telas:
 ### 5.1 Tela "Meus Perfis"
 📄 `pdv/views/perfis_pdv_view.dart`
 - Duas listas: **"Perfis que eu administro"** (Administra) e **"Perfis que eu participo"** (Participa). No desktop, em grade de 2 colunas.
+- **Logos das Lojas e Assets Embutidos:** Cada card exibe a logo real da loja (com resolução automática para fotos em disco locais ou assets embutidos do app como no Perfil Nous).
+- **Sincronização Mútua Pan-Dispositivo:** Ao conectar na rede local Wi-Fi, todas as lojas participadas e administradas (incluindo lojas móveis como marmitarias) sobem seus arquivos de mídia e logos fisicamente para o balcão via `_prepararLojaComUploadsParaServidor` e consolidam no SQLite sem perda de fotos.
+- **Perfil Profissional Coletivo "Nous":** Sempre listado em **"Perfis que eu participo"**. Todo usuário Nous cadastrado é membro sócio deliberativo desta organização soberana voltada à governança e autogestão da aplicação, contendo chat geral da comunidade.
 - Mostra as **mesmas lojas em qualquer aparelho do mesmo CPF** (fusão automática pela rede).
 - A loja do próprio dono nunca aparece duplicada.
 - **Sino**: só avisos da conta (convites, papéis), sem avisos de lojas.
@@ -167,7 +176,7 @@ Dois estados mudam o comportamento de várias telas:
 ### 5.3 Janela de Atualização
 📄 `core/widgets/atualizacao_dialog.dart` · `core/services/atualizacao_service.dart`
 - Mostra a versão instalada e a disponível. Se for a mesma versão, o botão sai da barra.
-- Container **"Nova Atualização"**: exibe a descrição sintetizada das alterações do `CHANGELOG.MD` com botão de **minimizar/maximizar** para consulta opcional pelo usuário.
+- Container **"Nova Atualização"**: exibe as **"Alterações"** da nova versão disponível (transmitidas diretamente via Wi-Fi pelo balcão ou catálogo offline) com botão de **minimizar/maximizar** para consulta das novidades pelo usuário.
 - No celular com versão nova no balcão: **baixa o APK dentro do app com barra de progresso** e abre o instalador do Android.
 - Fonte local (balcão) tem prioridade sobre a internet.
 
@@ -185,11 +194,19 @@ Dois estados mudam o comportamento de várias telas:
 📄 `pdv/views/dados_perfil_view.dart`
 
 Quatro abas (`AbaLoja`): **Dados**, **Ajustes do Perfil**, **Loja / Catálogo** e **Gestão de Pedidos**.
+*(Exceção soberana: no Perfil Profissional Coletivo **Nous**, existem apenas duas abas: **Dados** e **Gestão**, sem botões de salvar, excluir ou sair).*
 
 **Layout compacto (celular, ou desktop em modo compacto)**: as abas ficam numa navegação inferior/superior, coluna única.
 **Layout desktop expandido**: aparece a **barra lateral fixa** à esquerda (6.0) e as janelas ficam mais largas, em duas colunas.
 
 Esta tela atualiza **em tempo real** quando muda algo no balcão ou em outro celular: pedidos, estoque, produtos, categorias, grupos, clientes, fornecedores, mesas, membros, papéis, anexos (músicas, galeria, vídeos, arquivos), dados cadastrais e status Aberta/Fechada.
+
+### 6.A Particularidades da Loja Coletiva Nous (`idLojaColetivaNous`)
+- **Abas Restritas**: Apenas **Dados** e **Gestão** (as abas Ajustes e Loja/Catálogo são removidas).
+- **Dados Institucionais Fixos**: Exibição da logo oficial (`assets/images/logo.png`) e dados fixos apenas de leitura (Nome: *Nous*, Email: *nousstudios72@gmail.com*, Redes Sociais: *@nous.studios72*, Categorias: *Autogestão, Comunidade, Software Livre*, Descrição: *Software Universal de Autogestão Comercial e Social*). Sem botões de "Salvar Dados" ou "Excluir Loja". Os usuários podem enviar fotos, vídeos e arquivos para as galerias normalmente.
+- **Cargos e Permissões**: Apenas duas abas: **Sócio** e **Desenvolvedor**. A função de Desenvolvedor é voluntariamente requisitada com o botão "Se tornar Desenvolvedor" / "Deixar de ser um desenvolvedor". No container "Usuários Participantes", o membro desenvolvedor recebe o rótulo `Sócio • Desenvolvedor`.
+- **Aba Gestão**: Substitui os controles comerciais por um botão largo **"Status da Loja"** (mostrando a contagem de membros online na rede local em tempo real) e o **Chat Geral da Comunidade** integrado logo abaixo.
+- **Proibição de Saída**: Nenhum usuário pode sair da loja coletiva Nous nem ser excluído por terceiros. Sincronização automática na rede Wi-Fi ao conectar em qualquer loja.
 
 ### 6.0 Barra lateral (só no desktop expandido)
 📄 `pdv/views/widgets/desktop_sidebar_widget.dart`
@@ -277,6 +294,7 @@ Todas abrem centralizadas, aceitam **F11** e, no desktop expandido, ficam em **d
 📄 `nova_venda_dialog.dart`
 - **Estado inicial limpo.** Campo de busca em branco com foco → mostra **só as categorias**. Produtos soltos só aparecem ao pesquisar ou bipar.
 - **Nome do Cliente**: com foco e vazio, lista **todos os clientes**; filtra ao digitar (nome, rua, número, CPF/CNPJ, telefone, e-mail, redes, descrição).
+  - **Hierarquia de exibição de dados do cliente com `TextoRolante`**: na lista de sugestões e no card de cliente selecionado, a informação secundária à direita do nome prioriza estritamente: 1º **Endereço cadastrado** (com número), 2º **Telefone**, 3º **Descrição do cliente**, e demais dados até esgotar, com texto rolante animado contínuo caso o tamanho exceda o espaço disponível.
 - **Leitor de código de barras**: digitar/bipar o código exato + Enter adiciona ao carrinho e limpa o campo.
 - **Variantes**: ao escolher produto com variantes, abre seletor (Padrão + variantes com preço).
 - **Frete, Desconto, Acréscimo**: aceitam R$ ou `%` (ex.: `10%`). Ao tocar, o valor inteiro fica selecionado.
@@ -297,7 +315,9 @@ Todas abrem centralizadas, aceitam **F11** e, no desktop expandido, ficam em **d
 
 ### 7.3 Clientes
 📄 `clientes_dialog.dart`
-- Lista com **busca** e formulário de cadastro. Campo **"CNPJ ou CPF"** com máscara automática (até 11 dígitos = CPF, 12 a 14 = CNPJ).
+- Lista com **busca** e formulário de cadastro.
+- **Nome do Cliente**: formatado automaticamente com `PrimeiraLetraMaiusculaFormatter` (a primeira letra de cada palavra digitada é convertida automaticamente em maiúscula em tempo real, além de validação Title Case no salvamento).
+- Campo **"CNPJ ou CPF"** com máscara automática (até 11 dígitos = CPF, 12 a 14 = CNPJ).
 - **Autopreenchimento**: ao completar o documento, busca em contas Nous, lojas e cadastros prévios e preenche nome, telefone, endereço, e-mail, redes e foto.
 - Altura da lista de clientes: 490 px no desktop expandido; 200 px no compacto.
 - Ao tocar num cliente: valor total já gasto, histórico, **Exportar Extrato PDF**, **Programar Pedido**, **Pedidos Programados** (ver, pausar/ativar, excluir) e quitação.
@@ -398,7 +418,7 @@ Todas abrem centralizadas, aceitam **F11** e, no desktop expandido, ficam em **d
 - **Acesso principal**: segundo ícone da barra flutuante universal inferior (ícone pessoinha); ao abrir por essa barra, a tela **não exibe botão de voltar** no topo esquerdo.
 - **Visual centralizado**: foto do perfil em círculo (raio 50), `@apelido`, nome de exibição em negrito, métricas ("Posts", "Seguidores", "Seguindo") e biografia do usuário, todos alinhados ao centro.
 - **Separação Soberana entre Identidade Civil e Perfil Social**:
-  - **Identidade do Usuário (`FichaUsuarioDialog`)**: contém os dados civis e cadastrais oficiais do cidadão (`nome`, `apelido`, `foto`, `cpf`, filiação, tipo sanguíneo, etc.) para verificação e integridade do sistema. Somente pode ser alterada dentro da própria janela de Identidade pelo usuário.
+  - **Identidade do Usuário (`FichaUsuarioDialog`)**: contém os dados civis e cadastrais oficiais do cidadão (`nome`, `apelido`, `foto`, `cpf`, filiação, tipo sanguíneo, etc.) para verificação e integridade do sistema. O Nome de Usuário Nous (`@username`) é exibido de forma imutável logo acima do CPF com a mesma tipografia secundária, deixando evidente a imutabilidade dessas credenciais, enquanto Apelido e Nome Próprio permanecem editáveis pelo próprio titular.
   - **Edição do Perfil Público (`EditarPerfilDialog`)**: acessado pelo botão "Editar Perfil" no Perfil Social. Altera exclusivamente os dados de exibição pública (`nomePublico`, `apelidoPublico`, `fotoPublica`, `biografia`), com fallback transparente para a Identidade caso não personalizados. Garante total liberdade estética ao usuário sem comprometer ou sobrescrever os dados oficiais de sua Identidade.
 - **Visualização de Perfil de Terceiros**: quando aberto a partir de uma conversa da Mensageria ("Ver Perfil Público"), a tela exibe o perfil do contato alvo com botão de voltar no topo para retornar ao chat.
 

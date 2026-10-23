@@ -64,13 +64,16 @@ class _AtualizacaoDialogState extends State<AtualizacaoDialog> {
     required AppTheme theme,
     required String versao,
     String? descricao,
+    List<String> alteracoesRemotas = const [],
   }) {
     final novidade = ChangelogService.obterUltimaVersao(versao);
-    final itens = (novidade != null && novidade.alteracoes.isNotEmpty)
-        ? novidade.alteracoes
-        : (descricao != null && descricao.trim().isNotEmpty
-            ? [descricao.trim()]
-            : <String>[]);
+    final itens = alteracoesRemotas.isNotEmpty
+        ? alteracoesRemotas
+        : ((novidade != null && novidade.alteracoes.isNotEmpty)
+            ? novidade.alteracoes
+            : (descricao != null && descricao.trim().isNotEmpty
+                ? [descricao.trim()]
+                : <String>[]));
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -87,7 +90,7 @@ class _AtualizacaoDialogState extends State<AtualizacaoDialog> {
                 ),
                 const SizedBox(width: 6),
                 Text(
-                  'Alterações (CHANGELOG.MD)',
+                  'Alterações',
                   style: theme.getTextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.bold,
@@ -418,6 +421,7 @@ class _AtualizacaoDialogState extends State<AtualizacaoDialog> {
                             theme: theme,
                             versao: info.versao,
                             descricao: info.descricao,
+                            alteracoesRemotas: info.alteracoes,
                           ),
                           ValueListenableBuilder<bool>(
                             valueListenable: AtualizacaoService.baixando,

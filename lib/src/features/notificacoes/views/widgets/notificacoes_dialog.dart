@@ -198,6 +198,25 @@ class _NotificacoesConteudo extends StatelessWidget {
       return;
     }
 
+    if (convite.tipo == TipoNotificacao.solicitacaoDadoUsuario) {
+      await auth.autorizarAcessoDado(
+        convite.cpfConvidante,
+        convite.dadoSolicitado.isNotEmpty ? convite.dadoSolicitado : 'cpf',
+      );
+      await notificacoes.aceitar(convite.id);
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          backgroundColor: theme.cardBackgroundColor,
+          content: Text(
+            'Você autorizou ${convite.nomeConvidante} a visualizar seu dado "${convite.dadoSolicitado}".',
+            style: theme.getTextStyle(color: theme.textColor),
+          ),
+        ),
+      );
+      return;
+    }
+
     if (convite.tipo == TipoNotificacao.remocaoLoja) {
       await notificacoes.aceitar(convite.id);
       if (!context.mounted) return;
@@ -377,6 +396,12 @@ class _NotificacoesConteudo extends StatelessWidget {
         titulo = 'Convite de ${c.nomeConvidante}';
         descricao =
             'Para entrar em "${c.nomeLoja}" como ${_rotuloPapel(c.papel)}';
+        ehAvisoInformativo = false;
+        break;
+      case TipoNotificacao.solicitacaoDadoUsuario:
+        titulo = 'Acesso a dado pessoal por ${c.nomeConvidante}';
+        descricao =
+            '${c.nomeConvidante} solicitou permissão para visualizar seu dado "${c.dadoSolicitado.isNotEmpty ? c.dadoSolicitado : "dado privado"}" na rede.';
         ehAvisoInformativo = false;
         break;
     }

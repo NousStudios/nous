@@ -15,6 +15,9 @@ class CargosEPermissoesContainer extends StatefulWidget {
   final ValueChanged<String>? onRemoverCargo;
   final void Function(String papel, Map<String, bool> permissoes)?
       onAtualizarPermissoesCargoNativo;
+  final bool ehLojaColetivaNous;
+  final bool usuarioLogadoEhDesenvolvedor;
+  final VoidCallback? onAlternarDesenvolvedor;
 
   const CargosEPermissoesContainer({
     super.key,
@@ -23,6 +26,9 @@ class CargosEPermissoesContainer extends StatefulWidget {
     this.permissoesCargosNativos = const {},
     required this.podeGerenciar,
     this.ehDonoOuSocio = false,
+    this.ehLojaColetivaNous = false,
+    this.usuarioLogadoEhDesenvolvedor = false,
+    this.onAlternarDesenvolvedor,
     this.onAdicionarCargo,
     this.onAtualizarCargo,
     this.onRemoverCargo,
@@ -37,7 +43,13 @@ class CargosEPermissoesContainer extends StatefulWidget {
 class _CargosEPermissoesContainerState
     extends State<CargosEPermissoesContainer> {
   bool _expandido = false;
-  String _abaSelecionadaId = 'dono';
+  late String _abaSelecionadaId;
+
+  @override
+  void initState() {
+    super.initState();
+    _abaSelecionadaId = widget.ehLojaColetivaNous ? 'socio' : 'dono';
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -99,7 +111,9 @@ class _CargosEPermissoesContainerState
                                 borderRadius: BorderRadius.circular(10),
                               ),
                               child: Text(
-                                '${4 + widget.cargosPersonalizados.length}',
+                                widget.ehLojaColetivaNous
+                                    ? '2'
+                                    : '${4 + widget.cargosPersonalizados.length}',
                                 style: theme.getTextStyle(
                                   fontSize: 11,
                                   fontWeight: FontWeight.w600,
@@ -111,7 +125,9 @@ class _CargosEPermissoesContainerState
                         ),
                         const SizedBox(height: 2),
                         Text(
-                          'Transparência de papéis e regras ativas da loja',
+                          widget.ehLojaColetivaNous
+                              ? 'Papel coletivo e funções da comunidade Nous'
+                              : 'Transparência de papéis e regras ativas da loja',
                           style: theme.getTextStyle(
                             fontSize: 12,
                             color: theme.secondaryTextColor,
@@ -157,6 +173,31 @@ class _CargosEPermissoesContainerState
   }
 
   Widget _construirBarraAbas(AppTheme theme) {
+    if (widget.ehLojaColetivaNous) {
+      return SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: Row(
+          children: [
+            _itemAba(
+              id: 'socio',
+              titulo: 'Sócio',
+              icone: Icons.handshake_outlined,
+              ehNativo: true,
+              theme: theme,
+            ),
+            const SizedBox(width: 8),
+            _itemAba(
+              id: 'desenvolvedor',
+              titulo: 'Desenvolvedor',
+              icone: Icons.code_rounded,
+              ehNativo: true,
+              theme: theme,
+            ),
+          ],
+        ),
+      );
+    }
+
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
       child: Row(
@@ -282,6 +323,10 @@ class _CargosEPermissoesContainerState
   }
 
   Widget _construirPainelCargo(AppTheme theme) {
+    if (widget.ehLojaColetivaNous) {
+      return _construirPainelNous(theme);
+    }
+
     final ehNativo = ['dono', 'socio', 'admin', 'funcionario']
         .contains(_abaSelecionadaId);
     final cargoPersonalizado = widget.cargosPersonalizados
@@ -420,6 +465,174 @@ class _CargosEPermissoesContainerState
               cargoPersonalizado: cargoPersonalizado,
             ),
             const SizedBox(height: 8),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _construirPainelNous(AppTheme theme) {
+    final ehDesenvolvedor = _abaSelecionadaId == 'desenvolvedor';
+    final titulo = ehDesenvolvedor ? 'Desenvolvedor' : 'Sócio';
+    final badge = ehDesenvolvedor ? 'Função Requisitada' : 'Papel Coletivo';
+    final descricao = ehDesenvolvedor
+        ? 'Função requisitada pelo próprio usuário para sinalizar que faz parte da equipe de desenvolvimento do ecossistema Nous. Não concede privilégios sobre outros membros.'
+        : 'Na comunidade Nous, todos os participantes são sócios em regime de autogestão plena e horizontalidade absoluta. Ninguém é dono de ninguém.';
+
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: theme.backgroundColor.withValues(alpha: 0.25),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: theme.borderColor.withValues(alpha: 0.4)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Text(
+                          titulo,
+                          style: theme.getTextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            color: theme.textColor,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 6,
+                            vertical: 2,
+                          ),
+                          decoration: BoxDecoration(
+                            color: theme.borderColor.withValues(alpha: 0.25),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: Text(
+                            badge,
+                            style: theme.getTextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w600,
+                              color: theme.secondaryTextColor,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      descricao,
+                      style: theme.getTextStyle(
+                        fontSize: 12,
+                        color: theme.secondaryTextColor,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          Divider(
+            height: 1,
+            thickness: 1,
+            color: theme.borderColor.withValues(alpha: 0.2),
+          ),
+          const SizedBox(height: 14),
+          if (ehDesenvolvedor) ...[
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: theme.borderColor.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                    widget.usuarioLogadoEhDesenvolvedor
+                        ? Icons.check_circle_outline_rounded
+                        : Icons.info_outline_rounded,
+                    size: 18,
+                    color: widget.usuarioLogadoEhDesenvolvedor
+                        ? theme.textColor
+                        : theme.secondaryTextColor,
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      widget.usuarioLogadoEhDesenvolvedor
+                          ? 'Você está identificado como Desenvolvedor da equipe Nous.'
+                          : 'Você pode requisitar a identificação de Desenvolvedor a qualquer momento.',
+                      style: theme.getTextStyle(
+                        fontSize: 12,
+                        color: theme.textColor,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 14),
+            SizedBox(
+              height: 44,
+              child: ElevatedButton.icon(
+                onPressed: widget.onAlternarDesenvolvedor,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: widget.usuarioLogadoEhDesenvolvedor
+                      ? theme.dangerColor.withValues(alpha: 0.15)
+                      : theme.textColor,
+                  foregroundColor: widget.usuarioLogadoEhDesenvolvedor
+                      ? theme.dangerColor
+                      : theme.backgroundColor,
+                  side: widget.usuarioLogadoEhDesenvolvedor
+                      ? BorderSide(color: theme.dangerColor.withValues(alpha: 0.6))
+                      : BorderSide.none,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                ),
+                icon: Icon(
+                  widget.usuarioLogadoEhDesenvolvedor
+                      ? Icons.person_remove_outlined
+                      : Icons.code_rounded,
+                  size: 18,
+                ),
+                label: Text(
+                  widget.usuarioLogadoEhDesenvolvedor
+                      ? 'Deixar de ser um desenvolvedor'
+                      : 'Se tornar Desenvolvedor',
+                  style: theme.getTextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.bold,
+                    color: widget.usuarioLogadoEhDesenvolvedor
+                        ? theme.dangerColor
+                        : theme.backgroundColor,
+                  ),
+                ),
+              ),
+            ),
+          ] else ...[
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: theme.borderColor.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Text(
+                'Todos os usuários cadastrados no Nous têm a condição de Sócio no perfil coletivo. Todos têm voz, acesso transparente aos dados e participação igualitária.',
+                style: theme.getTextStyle(
+                  fontSize: 12,
+                  color: theme.secondaryTextColor,
+                ),
+              ),
+            ),
           ],
         ],
       ),

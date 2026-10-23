@@ -3,10 +3,12 @@ import 'package:provider/provider.dart';
 import 'package:nous/src/core/theme/theme_controller.dart';
 import 'package:nous/src/features/auth/providers/auth_provider.dart';
 import 'package:nous/src/features/auth/views/widgets/cadastrar_apelido_dialog.dart';
+import 'package:nous/src/features/auth/views/widgets/cadastrar_nome_usuario_dialog.dart';
 import 'package:nous/src/features/auth/views/contas_usuario_view.dart';
 import 'package:nous/src/features/notificacoes/providers/notificacoes_provider.dart';
 import 'package:nous/src/features/pdv/providers/pdv_provider.dart';
 import 'package:nous/src/features/pdv/views/perfis_pdv_view.dart';
+import 'package:nous/src/features/pdv/views/widgets/sincronizacao_rede_dialog.dart';
 
 class LoginButtonsWidget extends StatelessWidget {
   const LoginButtonsWidget({super.key});
@@ -17,11 +19,34 @@ class LoginButtonsWidget extends StatelessWidget {
     final pdvProvider = context.read<PdvProvider>();
     final theme = ThemeController.currentTheme.value;
 
+    // FLUXO MANDATÓRIO:
+    // 1. Login (CPF digitado)
+    // 2. Tela de Sincronia Wi-Fi (conectar ao balcão para reconciliar a conta)
+    await SincronizacaoRedeDialog.mostrar(
+      context,
+      theme: theme,
+      modoLogin: true,
+    );
+
+    if (!context.mounted) return;
+
+    // 3. Consulta a conta na rede local Wi-Fi / cofre local
     final contaEncontrada = await authProvider.buscarConta();
 
     if (!context.mounted) return;
 
     if (!contaEncontrada) {
+      // 1. Cadastra primeiro o nome de usuário (@username) soberano
+      final username = await CadastrarNomeUsuarioDialog.mostrar(
+        context,
+        cpf: authProvider.cpf,
+        theme: theme,
+      );
+      if (username == null || username.trim().isEmpty || !context.mounted) {
+        return;
+      }
+
+      // 2. Cadastra o apelido/nome inicial
       final apelido = await CadastrarApelidoDialog.mostrar(
         context,
         cpf: authProvider.cpf,
@@ -30,7 +55,22 @@ class LoginButtonsWidget extends StatelessWidget {
       if (apelido == null || apelido.trim().isEmpty || !context.mounted) {
         return;
       }
-      await authProvider.associarContaComApelido(apelido.trim());
+      await authProvider.associarContaComApelido(apelido.trim(), username.trim());
+    } else {
+      // Conta antiga existente: verifica se possui nome de usuário cadastrado
+      final conta = authProvider.contaAtual;
+      if (conta != null && conta.nomeDeUsuario.trim().isEmpty) {
+        final username = await CadastrarNomeUsuarioDialog.mostrar(
+          context,
+          cpf: authProvider.cpf,
+          nomeOuApelidoAtual: conta.apelido.isNotEmpty ? conta.apelido : conta.nome,
+          theme: theme,
+        );
+        if (username == null || username.trim().isEmpty || !context.mounted) {
+          return;
+        }
+        await authProvider.atualizarNomeDeUsuario(username.trim());
+      }
     }
 
     await authProvider.salvarUltimoCpf(authProvider.cpf);

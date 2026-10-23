@@ -944,8 +944,8 @@ class _ModoBalcaoWidgetState extends State<ModoBalcaoWidget> {
 
   @override
   Widget build(BuildContext context) {
-    final logoResolvida = ImagemService.resolverCaminhoExistente(widget.logoLoja);
-    final temLogo = logoResolvida != null;
+    final providerLogo = ImagemService.obterImageProvider(widget.logoLoja);
+    final temLogo = providerLogo != null;
 
     return CallbackShortcuts(
       bindings: <ShortcutActivator, VoidCallback>{
@@ -997,8 +997,7 @@ class _ModoBalcaoWidgetState extends State<ModoBalcaoWidget> {
                     CircleAvatar(
                       radius: 16,
                       backgroundColor: theme.borderColor.withValues(alpha: 0.3),
-                      backgroundImage:
-                          temLogo ? FileImage(File(logoResolvida)) : null,
+                      backgroundImage: providerLogo,
                       child: !temLogo
                           ? Icon(Icons.storefront,
                               size: 16, color: theme.textColor)

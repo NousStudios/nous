@@ -4,6 +4,7 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:nous/src/core/services/atualizacao_service.dart';
+import 'package:nous/src/core/services/changelog_service.dart';
 import 'package:nous/src/core/services/navigator_key_service.dart';
 import 'package:nous/src/core/services/som_service.dart';
 import 'package:nous/src/core/theme/theme_controller.dart';
@@ -316,10 +317,14 @@ class ServidorRedeLocal {
               }
             }
 
+            final lojaNous =
+                _pdvProvider?.buscarPorId(PdvProvider.idLojaColetivaNous);
+
             ws.add(
               jsonEncode({
                 'tipo': 'dados_iniciais',
                 'loja': _lojaAtiva!.toJson(),
+                if (lojaNous != null) 'lojaNousColetiva': lojaNous.toJson(),
                 'presencas':
                     obterTodasPresencas().map((p) => p.toJson()).toList(),
                 'fotosUsuariosAusentes': fotosUsuariosAusentes,
@@ -1022,6 +1027,65 @@ class ServidorRedeLocal {
       }
     }
 
+    // 8.1 Sincronização em massa de perfis/contas de usuários na rede local
+    if (path == '/api/usuarios' && request.method == 'GET') {
+      final contas = await ContasNousService.carregarTodas();
+      final contasValidas = contas.where((c) {
+        final cpfLimpo = c.cpf.replaceAll(RegExp(r'\D'), '');
+        return cpfLimpo.length == 11 && c.nome.toLowerCase() != 'blackview';
+      }).toList();
+
+      _responderJson(request, {
+        'sucesso': true,
+        'usuarios': contasValidas.map((c) => c.toJson()).toList(),
+      });
+      return;
+    }
+
+    if (path == '/api/usuarios' && request.method == 'POST') {
+      try {
+        final body = await utf8.decodeStream(request);
+        final dados = jsonDecode(body) as Map<String, dynamic>;
+        final lista = (dados['usuarios'] as List<dynamic>?) ?? [];
+        for (final item in lista) {
+          if (item is Map<String, dynamic>) {
+            final u = UsuarioNous.fromJson(item);
+            final cpfLimpo = u.cpf.replaceAll(RegExp(r'\D'), '');
+            if (cpfLimpo.length == 11 && u.nome.toLowerCase() != 'blackview') {
+              final existente = await ContasNousService.buscarPorCpf(u.cpf);
+              if (existente == null) {
+                await ContasNousService.salvar(u);
+              } else {
+                final mesclada = existente.copyWith(
+                  nome: (existente.nome.isEmpty ||
+                          existente.nome.toLowerCase() == 'blackview')
+                      ? u.nome
+                      : existente.nome,
+                  nomeDeUsuario: existente.nomeDeUsuario.isEmpty
+                      ? u.nomeDeUsuario
+                      : existente.nomeDeUsuario,
+                  apelido:
+                      existente.apelido.isEmpty ? u.apelido : existente.apelido,
+                  foto: existente.foto.isEmpty ? u.foto : existente.foto,
+                  emails: {...existente.emails, ...u.emails}.toList(),
+                );
+                await ContasNousService.salvar(mesclada);
+              }
+            }
+          }
+        }
+        _responderJson(request, {'sucesso': true});
+        return;
+      } catch (e) {
+        _responderJson(
+          request,
+          {'sucesso': false, 'erro': e.toString()},
+          statusCode: HttpStatus.badRequest,
+        );
+        return;
+      }
+    }
+
     // 8.1 Sincronização Pan-Dispositivo de Perfis e Lojas por CPF (Ontologia do Cidadão)
     if (path == '/api/sincronizar_perfis_usuario' && request.method == 'POST') {
       try {
@@ -1038,7 +1102,9 @@ class ServidorRedeLocal {
           for (final lJson in lojasRecebidas) {
             try {
               final loja = Loja.fromJson(lJson as Map<String, dynamic>);
-              await LojasService.salvarLojaIndividual(loja);
+              final lojaExistente = await LojasService.carregarLojaPorId(loja.id);
+              final lojaConsolidada = LojasService.consolidarLojaComImagensLocais(loja, lojaExistente);
+              await LojasService.salvarLojaIndividual(lojaConsolidada);
             } catch (e) {
               debugPrint('[ServidorRedeLocal] Erro ao salvar loja recebida: $e');
             }
@@ -1056,11 +1122,13 @@ class ServidorRedeLocal {
             }
           }
 
-          // 3. Se a conta ativa no servidor for esse CPF, recarrega o PdvProvider
+          // 3. Recarrega o PdvProvider do servidor para refletir instantaneamente novas lojas e logos
           final cpfServidor =
               _authProvider?.cpf.replaceAll(RegExp(r'\D'), '') ?? '';
           if (cpfServidor == cpf) {
             await _pdvProvider?.entrarComCpf(cpf);
+          } else if (cpfServidor.isNotEmpty) {
+            await _pdvProvider?.entrarComCpf(cpfServidor);
           }
 
           // 4. Coleta apenas as referências válidas e lojas do servidor associadas a esse CPF para devolver ao cliente
@@ -1158,6 +1226,7 @@ class ServidorRedeLocal {
       final arquivoApk = _obterArquivoApk();
       final temApk = arquivoApk != null && arquivoApk.existsSync() && arquivoApk.lengthSync() > 0;
       final tamanho = temApk ? arquivoApk.lengthSync() : 0;
+      final novidade = ChangelogService.obterUltimaVersao(AtualizacaoService.versaoAtual);
 
       _responderJson(request, {
         'sucesso': true,
@@ -1166,6 +1235,7 @@ class ServidorRedeLocal {
         'temApk': temApk,
         'tamanhoBytes': tamanho,
         'nomeArquivo': 'Nous_Android_v${AtualizacaoService.versaoAtual}.apk',
+        'alteracoes': novidade?.alteracoes ?? <String>[],
       });
       return;
     }
@@ -1516,24 +1586,32 @@ class ServidorRedeLocal {
     try {
       final contaExistente =
           await ContasNousService.buscarPorCpf(terminal.cpf!);
-      final nome = (terminal.nomeUsuario != null &&
-              terminal.nomeUsuario!.trim().isNotEmpty)
-          ? terminal.nomeUsuario!.trim()
-          : (terminal.nome.isNotEmpty ? terminal.nome : 'Usuário Nous');
-      final apelido = (terminal.apelido != null &&
-              terminal.apelido!.trim().isNotEmpty)
-          ? terminal.apelido!.trim()
-          : '';
-
       final dadosAuto =
           await DadosLocaisService.buscarPorDocumento(terminal.cpf!);
+
+      String nome = (terminal.nomeUsuario != null &&
+              terminal.nomeUsuario!.trim().isNotEmpty)
+          ? terminal.nomeUsuario!.trim()
+          : '';
+      // Hardware NUNCA é identidade do cidadão: ignora nomes de aparelhos
+      if (nome.isEmpty ||
+          nome.toLowerCase() == 'blackview' ||
+          nome.toLowerCase() == 'celular') {
+        nome = (dadosAuto != null && dadosAuto.nome.trim().isNotEmpty)
+            ? dadosAuto.nome.trim()
+            : 'Usuário Nous';
+      }
+
+      final apelido = (terminal.apelido != null &&
+              terminal.apelido!.trim().isNotEmpty &&
+              terminal.apelido!.toLowerCase() != 'blackview')
+          ? terminal.apelido!.trim()
+          : '';
 
       if (contaExistente == null) {
         final novaConta = UsuarioNous(
           cpf: terminal.cpf!,
-          nome: (dadosAuto != null && dadosAuto.nome.isNotEmpty)
-              ? dadosAuto.nome
-              : (apelido.isNotEmpty ? apelido : nome),
+          nome: nome,
           apelido: apelido.isNotEmpty
               ? apelido
               : (dadosAuto?.apelido ?? (dadosAuto?.nome ?? nome)),
@@ -1546,10 +1624,14 @@ class ServidorRedeLocal {
         );
       } else {
         var atualizada = contaExistente;
-        if (contaExistente.nome.isEmpty && nome.isNotEmpty) {
+        // Corrige se a conta no banco estava com nome espúrio de aparelho
+        if (contaExistente.nome.isEmpty ||
+            contaExistente.nome.toLowerCase() == 'blackview') {
           atualizada = atualizada.copyWith(nome: nome);
         }
-        if (apelido.isNotEmpty && contaExistente.apelido != apelido) {
+        if (apelido.isNotEmpty &&
+            contaExistente.apelido != apelido &&
+            contaExistente.apelido.toLowerCase() != 'blackview') {
           atualizada = atualizada.copyWith(apelido: apelido);
         }
         if (contaExistente.foto.isEmpty &&

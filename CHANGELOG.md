@@ -2,6 +2,51 @@
 
 Uma linha por mudança, da mais recente para a mais antiga. O agente deve acrescentar aqui o que fez em cada ciclo (versão do `pubspec.yaml` + o que mudou). Este arquivo guarda **histórico**; a descrição atual do app fica em `MAPA_DO_APP.md`.
 
+## v1.0.30 (build 31) — 23/10/2026
+
+- **Suporte Unificado a Assets e Arquivos em Disco (`ImagemService`):** Implementados os métodos `ehAsset`, `obterImageProvider` e `construirImagem` com resolução automática e fallback transparente, suportando tanto assets do Flutter bundle (`assets/images/logo.png`) quanto imagens salvas localmente em disco.
+- **Restauração da Logo do Perfil Coletivo Nous e Lojas Participadas (`PerfisPdvView` & Sidebars):** Corrigida a renderização de logos em `_PerfilCard`, `DesktopSidebarWidget`, `FormularioDadosLoja`, `ModoBalcaoWidget`, `BuscaMapaView`, `MensageriaView` e diálogos de rede/usuários, eliminando o erro de arquivos inexistentes para assets.
+- **Upload e Sincronização Pan-Dispositivo Bidirecional de Lojas e Fotos (`ClienteRedeLocal` & `ServidorRedeLocal`):** No método `sincronizarPerfisLojasComServidor`, o cliente agora executa `_prepararLojaComUploadsParaServidor` enviando os arquivos físicos de logo, categorias, itens e contatos para o servidor balcão antes do envio do JSON, e o servidor consolida os snapshots com `LojasService.consolidarLojaComImagensLocais`, garantindo que lojas participadas criadas no celular (como a marmitaria) persistam com suas imagens no computador.
+- **Proteção Absoluta contra Sobrescrita de Imagens Válidas (`LojasService`):** Ajustados `sanitizarCaminhosImagens`, `consolidarLojaComImagensLocais` e `autocuraImagensDeLojas` para preservar caminhos de assets e imagens físicas já existentes no disco local de cada dispositivo.
+
+## v1.0.29 (build 30) — 23/10/2026
+
+- **Padronização Soberana de Nome de Usuário (@username):** Garantido na fonte do modelo (`UsuarioNous.usernameExibicao`) que o nome de usuário contenha rigorosamente um único `@`, expurgando duplicações em todas as telas (Perfil Social, Busca & Mapa, Conta Nous e Identidade do Usuário).
+- **Nome de Usuário Imutável na "Identidade do Usuário":** Exibição do Nome de Usuário Nous (`@username`) logo acima do CPF em `FichaUsuarioDialog` com estilo idêntico ao CPF (texto secundário, discreto e sem campo de edição), tornando evidente a proximidade visual e a imutabilidade dessas informações.
+- **Perfil Profissional Coletivo "Nous" (Layout Exclusivo e Soberano):** Removidas as abas "Ajustes" e "Loja" da Loja Coletiva Nous, mantendo exclusivamente as abas "Dados" e "Gestão" no celular e no Desktop.
+- **Aba Gestão da Loja Nous (Status da Loja e Chat Geral de Membros):** Substituído todo o layout comercial de vendas e pedidos da loja coletiva por um botão largo "Status da Loja" (mostrando o total de membros online na rede em tempo real) e um Chat Geral integrado com todos os membros da comunidade Nous.
+- **Cargos e Permissões da Loja Nous (Sócio e Desenvolvedor Requisitado):** Removidas as hierarquias tradicionais da loja Nous; no container de cargos restam apenas as abas "Sócio" e "Desenvolvedor". A função de Desenvolvedor é voluntariamente requisitada com o botão "Se tornar Desenvolvedor" / "Deixar de ser um desenvolvedor", passando a exibir o rótulo `Sócio • Desenvolvedor` no container "Usuários Participantes".
+- **Dados Institucionais Fixos e Proibição de Saída/Exclusão:** Removidos botões de salvar, excluir e sair da loja coletiva Nous; os dados do perfil passam a ser informativos e fixos (Nome: Nous, Email: nousstudios72@gmail.com, Redes: @nous.studios72, Categorias: Autogestão, Comunidade, Software Livre, Descrição: Software Universal de Autogestão Comercial e Social, Foto: Logo do App).
+- **Sincronia Pan-Wi-Fi da Loja Nous e Chat:** Sincronização da loja coletiva e das mensagens do chat da comunidade disparada automaticamente ao conectar em qualquer loja via Wi-Fi.
+
+## v1.0.28 (build 29) — 23/10/2026
+
+- **Fluxo Oficial do Usuário: Login > Sincronia Wi-Fi > Triagem com E-mails:** O caminho de entrada foi corrigido para apresentar o diálogo de Sincronização Wi-Fi logo após a inserção do CPF no Login, garantindo que o dispositivo móvel se conecte ao balcão e receba os dados soberanos da conta antes de qualquer validação cadastral ou triagem de e-mails.
+- **Preservação e Mesclagem Integral do Nome de Usuário (`@username`) via Wi-Fi:** Corrigidas as funções `_mesclarUsuarios`, `sincronizarIdentidadeUsuario` e `buscarUsuarioRemoto` no `ClienteRedeLocal` e `buscarConta()` no `AuthProvider` para mesclar integralmente o campo `nomeDeUsuario` (e metadados sociais/privacidade), impedindo que o nome de usuário cadastrado pelo computador seja descartado ou zerado no celular.
+- **Transição Fluida da Triagem para os Perfis (`ContasUsuarioView`):** Ao escolher o e-mail na triagem, o usuário é direcionado diretamente para seus perfis/lojas sem duplicidade de abertura do diálogo de sincronização.
+- **Suíte de Testes e Análise Estática:** Teste dedicado de preservação de `nomeDeUsuario` na mesclagem de contas adicionado, 60 testes executados com 100% de sucesso e `flutter analyze` com 0 apontamentos.
+
+## v1.0.27 (build 28) — 22/10/2026
+
+- **Organização e Perfil Profissional Coletivo "Nous" (`PdvProvider` & `PerfisPdvView`):** Adicionado perfil profissional de autogestão soberana "Nous" em "Perfis que eu participo", onde todos os usuários cadastrados no SuperApp são membros sócios deliberativos para evolução do software, com chat geral integrado.
+- **Transmissão Direta de Alterações da Nova Versão via Wi-Fi (`AtualizacaoDialog` & `ServidorRedeLocal`):** O balcão agora envia no endpoint `/api/versao` a lista exata das alterações da nova versão ofertada, garantindo que o celular veja o que mudou na versão de destino e não na instalada; rótulo simplificado de "Alterações (CHANGELOG.MD)" para "Alterações".
+- **Sincronização Bidirecional de Contas na Rede e Correção de Hardware (`ServidorRedeLocal` & `BuscaMapaView`):** Novos endpoints `/api/usuarios` (GET e POST) para unificação pan-rede das contas de usuários entre celulares e computador balcão; blindagem contra uso indevido de nomes de hardware (ex.: "BlackView") como identidade de cidadão.
+- **Diálogo Obrigatório de Nome de Usuário (@username):** Criação de `CadastrarNomeUsuarioDialog` bloqueante para validação e cadastro obrigatório de nome de usuário Nous em minúsculas e sem espaços, exigido tanto para novos cadastros quanto para contas antigas no login e triagem de e-mails.
+- **Hierarquia de Dados do Cliente em Nova Venda com `TextoRolante` (`NovaVendaDialog`):** Campo secundário do cliente na seleção e no container passa a priorizar 1º Endereço cadastrado, 2º Telefone, 3º Descrição e demais dados com animação contínua de `TextoRolante` para textos longos.
+- **Capitalização Automática de Nome de Clientes (`ClientesDialog`):** Campo "Nome do Cliente" agora formata em tempo real com `PrimeiraLetraMaiusculaFormatter` (primeira letra de cada palavra em maiúsculo) e garante Title Case no salvamento do cadastro.
+- **Conformidade Estática e Testes:** 60 testes unitários passando com 100% de sucesso e `flutter analyze` com 0 erros e 0 warnings.
+
+## v1.0.26 (build 27) — 22/10/2026
+
+- **Auditoria Imutável em Blockchain Local (`RegistroAcao` & `CriptoService`):** Cada ação registrada no PDV agora é criptograficamente encadeada com a anterior usando hash SHA-256 nativo (bloco gênese de 64 zeros), garantindo integridade inviolável sem bibliotecas externas.
+- **Animação Vertical Fluida na Barra Universal (`FloatingBottomNavBar`):** Transição de tela reimplementada com `PageRouteBuilder`, `CurvedAnimation(Curves.easeOutCubic)` e deslocamento vertical suave (`SlideTransition` + `FadeTransition`), simulando o movimento de subida/descida do arrasto.
+- **Identificador Único Nome de Usuário (`@username` em `UsuarioNous`):** Adicionado campo dedicado de nome de usuário único no cidadão (distinto do apelido e CPF), com exibição formatada, edição na "Conta Nous" e suporte em toda a rede.
+- **Transparência e Privacidade com Deliberação por Notificação:** Novo container em `ContaNousView` com `ThemedSwitch` para definir visibilidade pública de dados civis; informações privadas exibem ícone de olho fechado que permite a terceiros solicitar autorização deliberativa ao titular via `NotificacoesProvider`.
+- **Blindagem e Perda de Foco em Dados Borrados (`FichaUsuarioDialog`):** Containers de dados sensíveis ocultos agora utilizam `IgnorePointer(ignoring: true)`, bloqueando qualquer clique, hover ou foco nos botões borrados da janela "Identidade do Usuário".
+- **Exclusão Definitiva de Conta Nous Unificada:** Botões e diálogos em `ContasUsuarioView` e `ContaNousView` unificados para "Excluir Conta Nous Definitivamente", expurgando registros do banco SQLite, limpando o cache persistido (`_chaveUltimoCpf`) e encerrando a sessão com segurança.
+- **Tela Soberana de Busca & Mapa (`BuscaMapaView`):** Conexão do terceiro slot da barra universal com tela completa de busca por lojas e perfis de cidadãos, filtros dinâmicos, visita a lojas e sistema mútuo de "Seguir" / "Seguindo".
+- **Suíte de Testes Automatizados e Análise Estática:** 60 testes unitários e de integração executados com 100% de sucesso e `flutter analyze` com 0 erros e 0 warnings.
+
 ## v1.0.25 (build 26) — 22/10/2026
 
 - **Container "Nova Atualização" com Novidades Sintetizadas (`AtualizacaoDialog`):** O modal de atualização agora sintetiza o histórico de alterações diretamente do `CHANGELOG.md` e inclui botão de minimizar/maximizar para leitura opcional das novidades pelo usuário.

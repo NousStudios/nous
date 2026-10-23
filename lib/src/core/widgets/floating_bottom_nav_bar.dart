@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:nous/src/core/theme/theme_controller.dart';
 import 'package:nous/src/core/views/em_construcao_view.dart';
 import 'package:nous/src/features/auth/views/perfil_social_view.dart';
+import 'package:nous/src/features/busca/views/busca_mapa_view.dart';
 import 'package:nous/src/features/chat/views/mensageria_view.dart';
 import 'package:nous/src/features/pdv/views/compras_usuario_view.dart';
 import 'package:nous/src/features/pdv/views/perfis_pdv_view.dart';
@@ -119,10 +120,10 @@ class _FloatingBottomNavBarState extends State<FloatingBottomNavBar> {
       // Se já estava no limite, alterna para o outro
       final alternado = subAtual == 0 ? 1 : 0;
       _memoriaSubIndices[slot] = alternado;
-      _navegarPara(slot, alternado);
+      _navegarPara(slot, alternado, paraCima: paraCima);
     } else {
       _memoriaSubIndices[slot] = novoSub;
-      _navegarPara(slot, novoSub);
+      _navegarPara(slot, novoSub, paraCima: paraCima);
     }
   }
 
@@ -141,7 +142,7 @@ class _FloatingBottomNavBarState extends State<FloatingBottomNavBar> {
     _navegarPara(slot, subIndice);
   }
 
-  void _navegarPara(int slot, int subIndice) {
+  void _navegarPara(int slot, int subIndice, {bool? paraCima}) {
     Widget pagina;
 
     if (slot == 0) {
@@ -161,13 +162,7 @@ class _FloatingBottomNavBarState extends State<FloatingBottomNavBar> {
       }
     } else if (slot == 2) {
       if (subIndice == 0) {
-        pagina = const EmConstrucaoView(
-          titulo: 'Busca & Mapa',
-          subtitulo: 'Localize lojas, produtos e produtores soberanos no mapa',
-          icone: Icons.search,
-          slotSelecionado: 2,
-          subIndiceSelecionado: 0,
-        );
+        pagina = const BuscaMapaView();
       } else {
         pagina = const EmConstrucaoView(
           titulo: 'Player Universal',
@@ -215,8 +210,33 @@ class _FloatingBottomNavBarState extends State<FloatingBottomNavBar> {
       }
     }
 
+    // Transição suave vertical simulando o arrasto de descida/subida da tela
+    final offsetInicio = paraCima == null
+        ? const Offset(0.0, 0.05)
+        : (paraCima ? const Offset(0.0, -0.06) : const Offset(0.0, 0.06));
+
     Navigator.of(context).pushAndRemoveUntil(
-      MaterialPageRoute(builder: (_) => pagina),
+      PageRouteBuilder(
+        pageBuilder: (context, anim, secAnim) => pagina,
+        transitionDuration: const Duration(milliseconds: 230),
+        reverseTransitionDuration: const Duration(milliseconds: 200),
+        transitionsBuilder: (context, animation, secondaryAnimation, child) {
+          final curvo = CurvedAnimation(
+            parent: animation,
+            curve: Curves.easeOutCubic,
+          );
+          return FadeTransition(
+            opacity: curvo,
+            child: SlideTransition(
+              position: Tween<Offset>(
+                begin: offsetInicio,
+                end: Offset.zero,
+              ).animate(curvo),
+              child: child,
+            ),
+          );
+        },
+      ),
       (route) => route.isFirst,
     );
   }

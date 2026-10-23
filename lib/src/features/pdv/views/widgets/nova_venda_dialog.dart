@@ -6,6 +6,7 @@ import 'package:provider/provider.dart';
 import 'package:nous/src/core/services/som_service.dart';
 import 'package:nous/src/core/services/janela_windows_service.dart';
 import 'package:nous/src/core/theme/theme_controller.dart';
+import 'package:nous/src/core/widgets/texto_rolante.dart';
 import 'package:nous/src/features/pdv/providers/pdv_provider.dart';
 import 'package:nous/src/features/pdv/models/categoria_loja.dart';
 import 'package:nous/src/features/pdv/models/cliente.dart';
@@ -1535,7 +1536,37 @@ class _NovaVendaConteudoState extends State<_NovaVendaConteudo> {
     );
   }
 
+  String _obterDadoPrioritarioCliente(Cliente cliente) {
+    // 1º Prioridade: Endereço cadastrado (com número, se houver)
+    final end = cliente.endereco.trim();
+    final num = cliente.numero.trim();
+    if (end.isNotEmpty) {
+      return num.isNotEmpty ? '$end, $num' : end;
+    }
+    // 2º Prioridade: Telefone
+    if (cliente.telefone.trim().isNotEmpty) {
+      return cliente.telefone.trim();
+    }
+    // 3º Prioridade: Descrição do cliente
+    if (cliente.descricao.trim().isNotEmpty) {
+      return cliente.descricao.trim();
+    }
+    // Demais dados cadastrados até acabar: E-mail, Redes Sociais, Documento
+    if (cliente.email.trim().isNotEmpty) {
+      return cliente.email.trim();
+    }
+    if (cliente.redesSociais.trim().isNotEmpty) {
+      return cliente.redesSociais.trim();
+    }
+    if (cliente.cnpj.trim().isNotEmpty) {
+      return cliente.cnpj.trim();
+    }
+    return '';
+  }
+
   Widget _linhaDeCliente(Cliente cliente) {
+    final infoSecundaria = _obterDadoPrioritarioCliente(cliente);
+
     return InkWell(
       borderRadius: BorderRadius.circular(8),
       onTap: () => _selecionarCliente(cliente),
@@ -1544,6 +1575,7 @@ class _NovaVendaConteudoState extends State<_NovaVendaConteudo> {
         child: Row(
           children: [
             Expanded(
+              flex: 5,
               child: Text(
                 cliente.nome,
                 maxLines: 1,
@@ -1551,8 +1583,22 @@ class _NovaVendaConteudoState extends State<_NovaVendaConteudo> {
                 style: theme.getTextStyle(fontSize: 12, color: theme.textColor),
               ),
             ),
-            if (cliente.telefone.isNotEmpty)
-              Text(cliente.telefone, style: theme.getTextStyle(fontSize: 11)),
+            if (infoSecundaria.isNotEmpty) ...[
+              const SizedBox(width: 8),
+              Expanded(
+                flex: 5,
+                child: Align(
+                  alignment: Alignment.centerRight,
+                  child: TextoRolante(
+                    texto: infoSecundaria,
+                    style: theme.getTextStyle(
+                      fontSize: 11,
+                      color: theme.secondaryTextColor,
+                    ),
+                  ),
+                ),
+              ),
+            ],
           ],
         ),
       ),
@@ -1630,14 +1676,36 @@ class _NovaVendaConteudoState extends State<_NovaVendaConteudo> {
                   ),
                 ),
             ],
-            if (_clienteSelecionado != null)
-              Padding(
-                padding: const EdgeInsets.only(top: 8),
-                child: Text(
-                  'Cliente cadastrado selecionado.',
-                  style: theme.getTextStyle(fontSize: 11),
-                ),
+            if (_clienteSelecionado != null) ...[
+              const SizedBox(height: 8),
+              Builder(
+                builder: (context) {
+                  final info =
+                      _obterDadoPrioritarioCliente(_clienteSelecionado!);
+                  return Row(
+                    children: [
+                      Text(
+                        'Cliente selecionado: ',
+                        style: theme.getTextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      if (info.isNotEmpty)
+                        Expanded(
+                          child: TextoRolante(
+                            texto: info,
+                            style: theme.getTextStyle(
+                              fontSize: 11,
+                              color: theme.secondaryTextColor,
+                            ),
+                          ),
+                        ),
+                    ],
+                  );
+                },
               ),
+            ],
           ],
         ),
       ),

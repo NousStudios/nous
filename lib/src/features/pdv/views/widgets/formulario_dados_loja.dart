@@ -1,5 +1,3 @@
-import 'dart:io';
-
 import 'package:flutter/material.dart';
 import 'package:nous/src/core/theme/theme_controller.dart';
 import 'package:nous/src/core/widgets/themed_text_field.dart';
@@ -47,8 +45,8 @@ class FormularioDadosLoja extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final logoResolvida = ImagemService.resolverCaminhoExistente(logo);
-    final temLogo = logoResolvida != null;
+    final providerLogo = ImagemService.obterImageProvider(logo);
+    final temLogo = providerLogo != null;
 
     return Column(
       children: [
@@ -58,7 +56,7 @@ class FormularioDadosLoja extends StatelessWidget {
           child: CircleAvatar(
             radius: 44,
             backgroundColor: theme.cardBackgroundColor,
-            backgroundImage: temLogo ? FileImage(File(logoResolvida)) : null,
+            backgroundImage: providerLogo,
             child: temLogo
                 ? null
                 : Icon(

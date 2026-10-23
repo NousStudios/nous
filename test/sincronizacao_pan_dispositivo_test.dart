@@ -16,6 +16,7 @@ void main() {
         cpf: '12345678900',
         nome: 'João da Silva',
         apelido: 'joaozinho',
+        nomeDeUsuario: '',
         dataNascimento: '01/01/1990',
         emails: ['joao@gmail.com'],
         foto: 'caminho/foto/local.jpg',
@@ -30,6 +31,7 @@ void main() {
         cpf: '12345678900',
         nome: 'João da Silva',
         apelido: 'joao',
+        nomeDeUsuario: 'joaonous',
         dataNascimento: '01/01/1990',
         emails: ['joao@trabalho.com'],
         foto: '',
@@ -44,6 +46,9 @@ void main() {
         cpf: local.cpf.isNotEmpty ? local.cpf : remoto.cpf,
         nome: local.nome.isNotEmpty ? local.nome : remoto.nome,
         apelido: local.apelido.isNotEmpty ? local.apelido : remoto.apelido,
+        nomeDeUsuario: local.nomeDeUsuario.isNotEmpty
+            ? local.nomeDeUsuario
+            : remoto.nomeDeUsuario,
         dataNascimento: local.dataNascimento.isNotEmpty
             ? local.dataNascimento
             : remoto.dataNascimento,
@@ -64,6 +69,7 @@ void main() {
 
       expect(mesclado.cpf, equals('12345678900'));
       expect(mesclado.nome, equals('João da Silva'));
+      expect(mesclado.nomeDeUsuario, equals('joaonous'));
       expect(mesclado.nomeMae, equals('Maria da Silva'));
       expect(mesclado.nomePai, equals('José da Silva'));
       expect(mesclado.localNascimento, equals('São Paulo - SP'));

@@ -1,4 +1,3 @@
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:nous/src/core/theme/theme_controller.dart';
@@ -18,22 +17,29 @@ import 'package:provider/provider.dart';
 class SincronizacaoRedeDialog extends StatefulWidget {
   final Loja? loja;
   final AppTheme theme;
+  final bool modoLogin;
 
   const SincronizacaoRedeDialog({
     super.key,
     this.loja,
     required this.theme,
+    this.modoLogin = false,
   });
 
   static Future<void> mostrar(
     BuildContext context, {
     Loja? loja,
     AppTheme? theme,
+    bool modoLogin = false,
   }) {
     final t = theme ?? ThemeController.currentTheme.value;
     return showDialog<void>(
       context: context,
-      builder: (ctx) => SincronizacaoRedeDialog(loja: loja, theme: t),
+      builder: (ctx) => SincronizacaoRedeDialog(
+        loja: loja,
+        theme: t,
+        modoLogin: modoLogin,
+      ),
     );
   }
 
@@ -194,7 +200,9 @@ class _SincronizacaoRedeDialogState extends State<SincronizacaoRedeDialog> {
               ),
               const SizedBox(height: 6),
               Text(
-                'Opere a mesma loja simultaneamente no computador e no celular.',
+                widget.modoLogin
+                    ? 'Conecte-se ao balcão no Wi-Fi para sincronizar sua conta, ou continue para operar offline.'
+                    : 'Opere a mesma loja simultaneamente no computador e no celular.',
                 textAlign: TextAlign.center,
                 style: theme.getTextStyle(
                   fontSize: 12,
@@ -254,15 +262,40 @@ class _SincronizacaoRedeDialogState extends State<SincronizacaoRedeDialog> {
               ],
 
               const SizedBox(height: 16),
-              Align(
-                alignment: Alignment.centerRight,
-                child: TextButton(
-                  onPressed: () => Navigator.of(context).pop(),
-                  style: TextButton.styleFrom(
-                    foregroundColor: theme.secondaryTextColor,
-                  ),
-                  child: const Text('Fechar'),
-                ),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  if (widget.modoLogin) ...[
+                    TextButton(
+                      onPressed: () => Navigator.of(context).pop(),
+                      style: TextButton.styleFrom(
+                        foregroundColor: theme.secondaryTextColor,
+                      ),
+                      child: const Text('Pular'),
+                    ),
+                    const SizedBox(width: 8),
+                    ElevatedButton.icon(
+                      onPressed: () => Navigator.of(context).pop(),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: theme.buttonColor,
+                        foregroundColor: theme.buttonTextColor,
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                      ),
+                      icon: const Icon(Icons.arrow_forward_rounded, size: 16),
+                      label: const Text('Continuar'),
+                    ),
+                  ] else
+                    TextButton(
+                      onPressed: () => Navigator.of(context).pop(),
+                      style: TextButton.styleFrom(
+                        foregroundColor: theme.secondaryTextColor,
+                      ),
+                      child: const Text('Fechar'),
+                    ),
+                ],
               ),
             ],
           ),
@@ -279,8 +312,7 @@ class _SincronizacaoRedeDialogState extends State<SincronizacaoRedeDialog> {
     final nome = conta?.nome ?? 'Usuário Nous';
     final apelido = conta?.apelido;
     final temApelido = apelido != null && apelido.trim().isNotEmpty;
-    final fotoResolvida = ImagemService.resolverCaminhoExistente(conta?.foto);
-    final temFoto = fotoResolvida != null;
+    final temFoto = ImagemService.existe(conta?.foto);
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
@@ -296,11 +328,17 @@ class _SincronizacaoRedeDialogState extends State<SincronizacaoRedeDialog> {
           ClipRRect(
             borderRadius: BorderRadius.circular(21),
             child: temFoto
-                ? Image.file(
-                    File(fotoResolvida),
+                ? ImagemService.construirImagem(
+                    conta?.foto,
                     width: 42,
                     height: 42,
                     fit: BoxFit.cover,
+                    fallback: Container(
+                      width: 42,
+                      height: 42,
+                      color: theme.textColor.withValues(alpha: 0.1),
+                      child: Icon(Icons.person_rounded, size: 24, color: theme.secondaryTextColor),
+                    ),
                   )
                 : Container(
                     width: 42,

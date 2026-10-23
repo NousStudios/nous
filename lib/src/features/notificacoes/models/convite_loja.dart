@@ -7,6 +7,7 @@ enum TipoNotificacao {
   alteracaoPapel,
   remocaoLoja,
   solicitacaoExclusaoDono,
+  solicitacaoDadoUsuario,
 }
 
 class ConviteLoja {
@@ -21,6 +22,7 @@ class ConviteLoja {
   final DateTime dataHora;
   final StatusConvite status;
   final TipoNotificacao tipo;
+  final String dadoSolicitado;
 
   const ConviteLoja({
     required this.id,
@@ -34,12 +36,14 @@ class ConviteLoja {
     required this.dataHora,
     this.status = StatusConvite.pendente,
     this.tipo = TipoNotificacao.conviteEntrada,
+    this.dadoSolicitado = '',
   });
 
   ConviteLoja copyWith({
     StatusConvite? status,
     TipoNotificacao? tipo,
     String? cpfDonoOriginal,
+    String? dadoSolicitado,
   }) {
     return ConviteLoja(
       id: id,
@@ -53,6 +57,7 @@ class ConviteLoja {
       dataHora: dataHora,
       status: status ?? this.status,
       tipo: tipo ?? this.tipo,
+      dadoSolicitado: dadoSolicitado ?? this.dadoSolicitado,
     );
   }
 
@@ -69,6 +74,7 @@ class ConviteLoja {
       'dataHora': dataHora.toIso8601String(),
       'status': status.name,
       'tipo': tipo.name,
+      'dadoSolicitado': dadoSolicitado,
     };
   }
 
@@ -76,7 +82,7 @@ class ConviteLoja {
     final convidante = json['cpfConvidante'] as String? ?? '';
     final dono = json['cpfDonoOriginal'] as String? ?? '';
     return ConviteLoja(
-      id: json['id'] as String,
+      id: json['id'] as String? ?? '',
       cpfConvidante: convidante,
       nomeConvidante: json['nomeConvidante'] as String? ?? '',
       cpfDonoOriginal: dono.isNotEmpty ? dono : convidante,
@@ -97,6 +103,7 @@ class ConviteLoja {
         (t) => t.name == (json['tipo'] as String?),
         orElse: () => TipoNotificacao.conviteEntrada,
       ),
+      dadoSolicitado: json['dadoSolicitado'] as String? ?? '',
     );
   }
 }

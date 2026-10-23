@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:nous/src/core/theme/theme_controller.dart';
 import 'package:nous/src/core/widgets/custom_app_bar.dart';
+import 'package:nous/src/core/widgets/themed_switch.dart';
+import 'package:nous/src/features/auth/models/usuario_nous.dart';
 import 'package:nous/src/features/auth/providers/auth_provider.dart';
 import 'package:nous/src/features/auth/views/login_view.dart';
 import 'package:nous/src/features/auth/views/widgets/adicionar_email_dialog.dart';
@@ -84,6 +86,171 @@ class ContaNousView extends StatelessWidget {
     }
   }
 
+  Future<void> _editarNomeDeUsuario(BuildContext context, UsuarioNous conta) async {
+    final theme = ThemeController.currentTheme.value;
+    final controller = TextEditingController(text: conta.nomeDeUsuario);
+
+    final novoUsername = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: theme.cardBackgroundColor,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16.0),
+          side: BorderSide(color: theme.borderColor),
+        ),
+        title: Text(
+          'Nome de Usuário (@)',
+          textAlign: TextAlign.center,
+          style: theme.getTextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.bold,
+            color: theme.textColor,
+          ),
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Identificador único do seu perfil na rede soberana (não é o apelido). Permite que outros membros encontrem e sigam seu perfil.',
+              style: theme.getTextStyle(
+                fontSize: 12,
+                color: theme.secondaryTextColor,
+              ),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: controller,
+              autofocus: true,
+              style: theme.getTextStyle(fontSize: 14),
+              cursorColor: theme.textColor,
+              decoration: InputDecoration(
+                prefixText: '@',
+                prefixStyle: theme.getTextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.bold,
+                  color: theme.textColor,
+                ),
+                hintText: 'nome.usuario',
+                hintStyle: theme.getTextStyle(
+                  fontSize: 13,
+                  color: theme.secondaryTextColor.withValues(alpha: 0.6),
+                ),
+                isDense: true,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(10),
+                  borderSide: BorderSide(color: theme.borderColor),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(10),
+                  borderSide: BorderSide(color: theme.borderColor),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(10),
+                  borderSide: BorderSide(color: theme.textColor),
+                ),
+              ),
+            ),
+          ],
+        ),
+        actionsAlignment: MainAxisAlignment.center,
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(null),
+            child: Text(
+              'Cancelar',
+              style: theme.getTextStyle(color: theme.secondaryTextColor),
+            ),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: theme.buttonColor,
+              foregroundColor: theme.buttonTextColor,
+            ),
+            onPressed: () {
+              final texto = controller.text
+                  .trim()
+                  .toLowerCase()
+                  .replaceAll('@', '')
+                  .replaceAll(' ', '_');
+              Navigator.of(ctx).pop(texto);
+            },
+            child: Text(
+              'Salvar',
+              style: theme.getTextStyle(
+                color: theme.buttonTextColor,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    if (novoUsername != null && context.mounted) {
+      await context.read<AuthProvider>().atualizarNomeDeUsuario(novoUsername);
+    }
+  }
+
+  Widget _itemPrivacidade({
+    required AppTheme theme,
+    required String titulo,
+    required String subtitulo,
+    required bool privado,
+    required VoidCallback onAlternar,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Text(
+                      titulo,
+                      style: theme.getTextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: theme.textColor,
+                      ),
+                    ),
+                    if (privado) ...[
+                      const SizedBox(width: 6),
+                      Icon(
+                        Icons.visibility_off_outlined,
+                        size: 14,
+                        color: theme.secondaryTextColor,
+                      ),
+                    ],
+                  ],
+                ),
+                Text(
+                  privado
+                      ? 'Privado (exige aprovação prévia para visualização)'
+                      : subtitulo,
+                  style: theme.getTextStyle(
+                    fontSize: 11,
+                    color: theme.secondaryTextColor,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          ThemedSwitch(
+            theme: theme,
+            value: !privado,
+            onChanged: (_) => onAlternar(),
+          ),
+        ],
+      ),
+    );
+  }
+
   Future<void> _excluirConta(BuildContext context) async {
     final theme = ThemeController.currentTheme.value;
 
@@ -97,7 +264,7 @@ class ContaNousView extends StatelessWidget {
             side: BorderSide(color: theme.borderColor),
           ),
           title: Text(
-            'Excluir Conta Nous',
+            'Excluir Conta Nous Definitivamente',
             textAlign: TextAlign.center,
             style: theme.getTextStyle(
               fontSize: 18,
@@ -106,7 +273,7 @@ class ContaNousView extends StatelessWidget {
             ),
           ),
           content: Text(
-            'Tem certeza que deseja excluir esta Conta Nous? Isso também '
+            'Tem certeza que deseja excluir esta Conta Nous definitivamente? Isso também '
             'apaga todas as lojas criadas por este CPF neste dispositivo. '
             'Esta ação não pode ser desfeita.',
             textAlign: TextAlign.center,
@@ -141,7 +308,7 @@ class ContaNousView extends StatelessWidget {
       await context.read<PdvProvider>().excluirDadosDoCpf(cpf);
 
       if (!context.mounted) return;
-      await context.read<AuthProvider>().excluirConta();
+      await context.read<AuthProvider>().excluirConta(cpf);
 
       if (!context.mounted) return;
       Navigator.pushAndRemoveUntil(
@@ -237,14 +404,48 @@ class ContaNousView extends StatelessWidget {
                                           color: theme.textColor,
                                         ),
                                       ),
+                                      const SizedBox(height: 3),
+                                      InkWell(
+                                        borderRadius: BorderRadius.circular(6),
+                                        onTap: conta != null
+                                            ? () => _editarNomeDeUsuario(context, conta)
+                                            : null,
+                                        child: Padding(
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 4,
+                                            vertical: 2,
+                                          ),
+                                          child: Row(
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: [
+                                              Text(
+                                                (conta?.usernameExibicao.isNotEmpty == true)
+                                                    ? conta!.usernameExibicao
+                                                    : '@usuario',
+                                                style: theme.getTextStyle(
+                                                  fontSize: 13,
+                                                  fontWeight: FontWeight.w600,
+                                                  color: theme.buttonColor,
+                                                ),
+                                              ),
+                                              const SizedBox(width: 4),
+                                              Icon(
+                                                Icons.edit_outlined,
+                                                size: 13,
+                                                color: theme.buttonColor,
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                      ),
                                       if (conta?.apelido.isNotEmpty == true) ...[
                                         const SizedBox(height: 2),
                                         Text(
-                                          '@${conta!.apelido}',
+                                          'Apelido: ${conta!.apelido}',
                                           style: theme.getTextStyle(
                                             fontSize: 12,
                                             color: theme.secondaryTextColor,
-                                          ),
+                                         ),
                                         ),
                                       ],
                                       const SizedBox(height: 2),
@@ -296,6 +497,112 @@ class ContaNousView extends StatelessWidget {
                                   ),
                                 ),
                               ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+
+                      // Bloco: Privacidade e Transparência dos Dados
+                      Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: theme.cardBackgroundColor,
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(
+                            color: theme.borderColor.withValues(alpha: 0.6),
+                          ),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Icon(
+                                  Icons.shield_outlined,
+                                  size: 18,
+                                  color: theme.textColor,
+                                ),
+                                const SizedBox(width: 8),
+                                Text(
+                                  'Privacidade e Transparência',
+                                  style: theme.getTextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.bold,
+                                    color: theme.textColor,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 6),
+                            Text(
+                              'Defina quais dados você permite que fiquem visíveis para outros usuários nas lojas e no mapa. Se um dado for mantido privado, outros membros verão um ícone de cadeado e precisarão solicitar sua aprovação por notificação.',
+                              style: theme.getTextStyle(
+                                fontSize: 12,
+                                color: theme.secondaryTextColor,
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+                            _itemPrivacidade(
+                              theme: theme,
+                              titulo: 'CPF do Cidadão',
+                              subtitulo: 'Exibir seu CPF publicamente em lojas',
+                              privado: conta?.dadoEstaPrivado('cpf') ?? false,
+                              onAlternar: () => auth.alternarPrivacidadeDado('cpf'),
+                            ),
+                            _itemPrivacidade(
+                              theme: theme,
+                              titulo: 'Data de Nascimento',
+                              subtitulo: 'Exibir sua data de nascimento',
+                              privado: conta?.dadoEstaPrivado('dataNascimento') ?? false,
+                              onAlternar: () =>
+                                  auth.alternarPrivacidadeDado('dataNascimento'),
+                            ),
+                            _itemPrivacidade(
+                              theme: theme,
+                              titulo: 'Filiação (Mãe e Pai)',
+                              subtitulo: 'Exibir nomes dos pais na identidade',
+                              privado: (conta?.dadoEstaPrivado('nomeMae') ?? false) ||
+                                  (conta?.dadoEstaPrivado('nomePai') ?? false),
+                              onAlternar: () {
+                                auth.alternarPrivacidadeDado('nomeMae');
+                                auth.alternarPrivacidadeDado('nomePai');
+                              },
+                            ),
+                            _itemPrivacidade(
+                              theme: theme,
+                              titulo: 'Local de Nascimento',
+                              subtitulo: 'Exibir cidade e estado de origem',
+                              privado: conta?.dadoEstaPrivado('localNascimento') ?? false,
+                              onAlternar: () =>
+                                  auth.alternarPrivacidadeDado('localNascimento'),
+                            ),
+                            _itemPrivacidade(
+                              theme: theme,
+                              titulo: 'Tipo Sanguíneo',
+                              subtitulo: 'Exibir seu tipo sanguíneo',
+                              privado: conta?.dadoEstaPrivado('tipoSanguineo') ?? false,
+                              onAlternar: () =>
+                                  auth.alternarPrivacidadeDado('tipoSanguineo'),
+                            ),
+                            _itemPrivacidade(
+                              theme: theme,
+                              titulo: 'Estado Civil',
+                              subtitulo: 'Exibir estado civil',
+                              privado: conta?.dadoEstaPrivado('estadoCivil') ?? false,
+                              onAlternar: () =>
+                                  auth.alternarPrivacidadeDado('estadoCivil'),
+                            ),
+                            _itemPrivacidade(
+                              theme: theme,
+                              titulo: 'Telefone e Endereço',
+                              subtitulo: 'Exibir contato telefônico e localização',
+                              privado: (conta?.dadoEstaPrivado('telefone') ?? false) ||
+                                  (conta?.dadoEstaPrivado('endereco') ?? false),
+                              onAlternar: () {
+                                auth.alternarPrivacidadeDado('telefone');
+                                auth.alternarPrivacidadeDado('endereco');
+                              },
                             ),
                           ],
                         ),

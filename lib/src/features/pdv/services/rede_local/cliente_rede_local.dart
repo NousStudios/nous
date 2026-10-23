@@ -15,6 +15,7 @@ import 'package:nous/src/features/pdv/models/cliente.dart';
 import 'package:nous/src/features/pdv/models/fornecedor.dart';
 import 'package:nous/src/features/pdv/models/item_loja.dart';
 import 'package:nous/src/features/pdv/models/loja.dart';
+import 'package:nous/src/features/pdv/models/membro_loja.dart';
 import 'package:nous/src/features/pdv/models/mesa_loja.dart';
 import 'package:nous/src/features/pdv/models/movimento_estoque.dart';
 import 'package:nous/src/features/pdv/models/pagamento_funcionario.dart';
@@ -339,6 +340,11 @@ class ClienteRedeLocal {
         cpfUsuario: cpfLogado,
         lojaId: _lojaSincronizada?.id,
       );
+      ChatService.sincronizarMensagensComBalcao(
+        ipServidor: _ipServidor!,
+        portaServidor: _portaServidor!,
+        lojaId: PdvProvider.idLojaColetivaNous,
+      );
 
       // Checa se o balcão possui uma versão/APK disponível para este aparelho
       verificarAtualizacaoLocal();
@@ -374,6 +380,32 @@ class ClienteRedeLocal {
             await _vincularLojaSeNecessario(lojaNova);
           } finally {
             _aplicandoAtualizacaoRemota = false;
+          }
+        }
+        if (dados['lojaNousColetiva'] != null && _pdvProvider != null) {
+          try {
+            final lojaNousBruta =
+                Loja.fromJson(dados['lojaNousColetiva'] as Map<String, dynamic>);
+            final lojaNousAtual =
+                _pdvProvider!.buscarPorId(PdvProvider.idLojaColetivaNous);
+            if (lojaNousAtual != null) {
+              final membrosCombinados = <String, MembroLoja>{};
+              for (final m in lojaNousAtual.membros) {
+                membrosCombinados[m.cpf.replaceAll(RegExp(r'\D'), '')] = m;
+              }
+              for (final m in lojaNousBruta.membros) {
+                final cpfNorm = m.cpf.replaceAll(RegExp(r'\D'), '');
+                membrosCombinados[cpfNorm] = m;
+              }
+              final mesclada = lojaNousAtual.copyWith(
+                membros: membrosCombinados.values.toList(),
+              );
+              await _pdvProvider!.adicionarOuAtualizarLoja(mesclada);
+            } else {
+              await _pdvProvider!.adicionarOuAtualizarLoja(lojaNousBruta);
+            }
+          } catch (e) {
+            debugPrint('[ClienteRedeLocal] Erro ao sincronizar lojaNousColetiva: $e');
           }
         }
         if (dados['presencas'] != null) {
@@ -803,6 +835,122 @@ class ClienteRedeLocal {
     }
   }
 
+  Future<Loja> _prepararLojaComUploadsParaServidor(Loja loja) async {
+    Loja lojaParaEnvio = loja;
+
+    if (lojaParaEnvio.logo.isNotEmpty && !ImagemService.ehAsset(lojaParaEnvio.logo)) {
+      final logoNoServidor = await _garantirUploadParaServidor(lojaParaEnvio.logo);
+      if (logoNoServidor != lojaParaEnvio.logo) {
+        lojaParaEnvio = lojaParaEnvio.copyWith(logo: logoNoServidor);
+      }
+    }
+
+    final categoriasAjustadas = <CategoriaLoja>[];
+    for (final cat in lojaParaEnvio.categoriasLoja) {
+      if (cat.foto.isNotEmpty && !ImagemService.ehAsset(cat.foto)) {
+        final fotoNoServidor = await _garantirUploadParaServidor(cat.foto);
+        categoriasAjustadas.add(cat.copyWith(foto: fotoNoServidor));
+      } else {
+        categoriasAjustadas.add(cat);
+      }
+    }
+    lojaParaEnvio = lojaParaEnvio.copyWith(categoriasLoja: categoriasAjustadas);
+
+    final itensAjustados = <ItemLoja>[];
+    for (final it in lojaParaEnvio.itensLoja) {
+      final imgsAjustadas = <String>[];
+      for (final img in it.imagens) {
+        if (img.isNotEmpty && !ImagemService.ehAsset(img)) {
+          imgsAjustadas.add(await _garantirUploadParaServidor(img));
+        } else {
+          imgsAjustadas.add(img);
+        }
+      }
+      itensAjustados.add(it.copyWith(imagens: imgsAjustadas));
+    }
+    lojaParaEnvio = lojaParaEnvio.copyWith(itensLoja: itensAjustados);
+
+    final clientesAjustados = <Cliente>[];
+    for (final c in lojaParaEnvio.clientesLoja) {
+      if (c.foto.isNotEmpty && !ImagemService.ehAsset(c.foto)) {
+        final fotoServidor = await _garantirUploadParaServidor(c.foto);
+        clientesAjustados.add(c.copyWith(foto: fotoServidor));
+      } else {
+        clientesAjustados.add(c);
+      }
+    }
+    lojaParaEnvio = lojaParaEnvio.copyWith(clientesLoja: clientesAjustados);
+
+    final fornecedoresAjustados = <Fornecedor>[];
+    for (final f in lojaParaEnvio.fornecedoresLoja) {
+      if (f.foto.isNotEmpty && !ImagemService.ehAsset(f.foto)) {
+        final fotoServidor = await _garantirUploadParaServidor(f.foto);
+        fornecedoresAjustados.add(f.copyWith(foto: fotoServidor));
+      } else {
+        fornecedoresAjustados.add(f);
+      }
+    }
+    lojaParaEnvio = lojaParaEnvio.copyWith(fornecedoresLoja: fornecedoresAjustados);
+
+    final galeriaAjustada = <String>[];
+    for (final g in lojaParaEnvio.galeria) {
+      if (g.isNotEmpty) {
+        galeriaAjustada.add(await _garantirUploadParaServidor(g));
+      } else {
+        galeriaAjustada.add(g);
+      }
+    }
+    lojaParaEnvio = lojaParaEnvio.copyWith(galeria: galeriaAjustada);
+
+    final musicasAjustadas = <String>[];
+    for (final m in lojaParaEnvio.musicas) {
+      if (m.isNotEmpty) {
+        musicasAjustadas.add(
+          await _enviarUploadAnexoParaServidor(m, subpasta: 'musicas'),
+        );
+      } else {
+        musicasAjustadas.add(m);
+      }
+    }
+    lojaParaEnvio = lojaParaEnvio.copyWith(musicas: musicasAjustadas);
+
+    final audiosAjustados = <String>[];
+    for (final a in lojaParaEnvio.arquivosAudio) {
+      if (a.isNotEmpty) {
+        audiosAjustados.add(
+          await _enviarUploadAnexoParaServidor(a, subpasta: 'arquivosAudio'),
+        );
+      } else {
+        audiosAjustados.add(a);
+      }
+    }
+    lojaParaEnvio = lojaParaEnvio.copyWith(arquivosAudio: audiosAjustados);
+
+    final videosAjustados = <String>[];
+    for (final v in lojaParaEnvio.videos) {
+      if (v.isNotEmpty) {
+        videosAjustados.add(
+          await _enviarUploadAnexoParaServidor(v, subpasta: 'videos'),
+        );
+      } else {
+        videosAjustados.add(v);
+      }
+    }
+    lojaParaEnvio = lojaParaEnvio.copyWith(videos: videosAjustados);
+
+    final arquivosAjustados = <String>[];
+    for (final arq in lojaParaEnvio.arquivos) {
+      if (arq.isNotEmpty) {
+        arquivosAjustados.add(
+          await _enviarUploadAnexoParaServidor(arq, subpasta: 'arquivos'),
+        );
+      } else {
+        arquivosAjustados.add(arq);
+      }
+    }
+    return lojaParaEnvio.copyWith(arquivos: arquivosAjustados);
+  }
+
   /// Envia a atualização completa da loja realizada neste terminal móvel para o servidor central (balcão)
   Future<bool> enviarLojaAtualizada(Loja loja, {bool imediato = false}) async {
     if (_ipServidor == null || _portaServidor == null || !conectado) return false;
@@ -812,119 +960,7 @@ class ClienteRedeLocal {
 
     Future<bool> executarEnvio() async {
       try {
-        Loja lojaParaEnvio = loja;
-
-        if (lojaParaEnvio.logo.isNotEmpty) {
-          final logoNoServidor = await _garantirUploadParaServidor(lojaParaEnvio.logo);
-          if (logoNoServidor != lojaParaEnvio.logo) {
-            lojaParaEnvio = lojaParaEnvio.copyWith(logo: logoNoServidor);
-          }
-        }
-
-        final categoriasAjustadas = <CategoriaLoja>[];
-        for (final cat in lojaParaEnvio.categoriasLoja) {
-          if (cat.foto.isNotEmpty) {
-            final fotoNoServidor = await _garantirUploadParaServidor(cat.foto);
-            categoriasAjustadas.add(cat.copyWith(foto: fotoNoServidor));
-          } else {
-            categoriasAjustadas.add(cat);
-          }
-        }
-        lojaParaEnvio = lojaParaEnvio.copyWith(categoriasLoja: categoriasAjustadas);
-
-        final itensAjustados = <ItemLoja>[];
-        for (final it in lojaParaEnvio.itensLoja) {
-          final imgsAjustadas = <String>[];
-          for (final img in it.imagens) {
-            if (img.isNotEmpty) {
-              imgsAjustadas.add(await _garantirUploadParaServidor(img));
-            } else {
-              imgsAjustadas.add(img);
-            }
-          }
-          itensAjustados.add(it.copyWith(imagens: imgsAjustadas));
-        }
-        lojaParaEnvio = lojaParaEnvio.copyWith(itensLoja: itensAjustados);
-
-        final clientesAjustados = <Cliente>[];
-        for (final c in lojaParaEnvio.clientesLoja) {
-          if (c.foto.isNotEmpty) {
-            final fotoServidor = await _garantirUploadParaServidor(c.foto);
-            clientesAjustados.add(c.copyWith(foto: fotoServidor));
-          } else {
-            clientesAjustados.add(c);
-          }
-        }
-        lojaParaEnvio = lojaParaEnvio.copyWith(clientesLoja: clientesAjustados);
-
-        final fornecedoresAjustados = <Fornecedor>[];
-        for (final f in lojaParaEnvio.fornecedoresLoja) {
-          if (f.foto.isNotEmpty) {
-            final fotoServidor = await _garantirUploadParaServidor(f.foto);
-            fornecedoresAjustados.add(f.copyWith(foto: fotoServidor));
-          } else {
-            fornecedoresAjustados.add(f);
-          }
-        }
-        lojaParaEnvio = lojaParaEnvio.copyWith(fornecedoresLoja: fornecedoresAjustados);
-
-        final galeriaAjustada = <String>[];
-        for (final g in lojaParaEnvio.galeria) {
-          if (g.isNotEmpty) {
-            galeriaAjustada.add(await _garantirUploadParaServidor(g));
-          } else {
-            galeriaAjustada.add(g);
-          }
-        }
-        lojaParaEnvio = lojaParaEnvio.copyWith(galeria: galeriaAjustada);
-
-        final musicasAjustadas = <String>[];
-        for (final m in lojaParaEnvio.musicas) {
-          if (m.isNotEmpty) {
-            musicasAjustadas.add(
-              await _enviarUploadAnexoParaServidor(m, subpasta: 'musicas'),
-            );
-          } else {
-            musicasAjustadas.add(m);
-          }
-        }
-        lojaParaEnvio = lojaParaEnvio.copyWith(musicas: musicasAjustadas);
-
-        final audiosAjustados = <String>[];
-        for (final a in lojaParaEnvio.arquivosAudio) {
-          if (a.isNotEmpty) {
-            audiosAjustados.add(
-              await _enviarUploadAnexoParaServidor(a, subpasta: 'arquivosAudio'),
-            );
-          } else {
-            audiosAjustados.add(a);
-          }
-        }
-        lojaParaEnvio = lojaParaEnvio.copyWith(arquivosAudio: audiosAjustados);
-
-        final videosAjustados = <String>[];
-        for (final v in lojaParaEnvio.videos) {
-          if (v.isNotEmpty) {
-            videosAjustados.add(
-              await _enviarUploadAnexoParaServidor(v, subpasta: 'videos'),
-            );
-          } else {
-            videosAjustados.add(v);
-          }
-        }
-        lojaParaEnvio = lojaParaEnvio.copyWith(videos: videosAjustados);
-
-        final arquivosAjustados = <String>[];
-        for (final arq in lojaParaEnvio.arquivos) {
-          if (arq.isNotEmpty) {
-            arquivosAjustados.add(
-              await _enviarUploadAnexoParaServidor(arq, subpasta: 'arquivos'),
-            );
-          } else {
-            arquivosAjustados.add(arq);
-          }
-        }
-        lojaParaEnvio = lojaParaEnvio.copyWith(arquivos: arquivosAjustados);
+        final lojaParaEnvio = await _prepararLojaComUploadsParaServidor(loja);
 
         final client = HttpClient()..connectionTimeout = const Duration(seconds: 15);
         final request = await client.postUrl(
@@ -1268,6 +1304,7 @@ class ClienteRedeLocal {
       Future<String> resolverCaminhoImagem(String? caminhoRemoto) async {
         if (caminhoRemoto == null || caminhoRemoto.trim().isEmpty) return '';
         final caminhoLimpo = caminhoRemoto.trim();
+        if (ImagemService.ehAsset(caminhoLimpo)) return caminhoLimpo;
 
         // Se o caminho já aponta para um arquivo existente localmente neste dispositivo, mantém
         if (File(caminhoLimpo).existsSync()) {
@@ -1483,27 +1520,30 @@ class ClienteRedeLocal {
           if (temFotoRemota) {
             final novaFotoLocal = await baixarImagemRemota(usuarioRemoto.foto);
             usuarioRemoto = usuarioRemoto.copyWith(foto: novaFotoLocal);
-            await ContasNousService.salvar(usuarioRemoto);
-            if (authInstancia != null) {
-              await authInstancia.recarregarConta();
-            }
-            debugPrint(
-              '[ClienteRedeLocal] Identidade do usuário sincronizada com sucesso para o CPF: $cpf (Foto: ${usuarioRemoto.foto})',
-            );
-          } else if (fotoLocalExiste) {
+          }
+
+          final UsuarioNous contaFinal;
+          if (contaLocal != null) {
+            contaFinal = _mesclarUsuarios(contaLocal, usuarioRemoto);
+          } else {
+            contaFinal = usuarioRemoto;
+          }
+
+          await ContasNousService.salvar(contaFinal);
+          if (authInstancia != null) {
+            await authInstancia.recarregarConta();
+          }
+          debugPrint(
+            '[ClienteRedeLocal] Identidade do usuário sincronizada com sucesso para o CPF: $cpf (Nome: ${contaFinal.nome}, Username: ${contaFinal.nomeDeUsuario}, Foto: ${contaFinal.foto})',
+          );
+
+          if (fotoLocalExiste && !temFotoRemota) {
             // Servidor não tem foto, mas nós temos a foto física localmente!
             // Envia a foto local para o servidor para autocura mútua
             debugPrint(
               '[ClienteRedeLocal] Servidor sem foto para $cpf, enviando foto local para completar no balcão...',
             );
-            await enviarUsuario(contaLocal);
-          } else {
-            if (contaLocal == null) {
-              await ContasNousService.salvar(usuarioRemoto);
-              if (authInstancia != null) {
-                await authInstancia.recarregarConta();
-              }
-            }
+            await enviarUsuario(contaFinal);
           }
         }
       } else if (resp.statusCode == HttpStatus.notFound && contaLocal != null) {
@@ -1576,11 +1616,16 @@ class ClienteRedeLocal {
             }
           }
 
-          await ContasNousService.salvar(usuarioRemoto);
+          final local = await ContasNousService.buscarPorCpf(cpfLimpo);
+          final finalSalvar = local != null
+              ? _mesclarUsuarios(local, usuarioRemoto)
+              : usuarioRemoto;
+
+          await ContasNousService.salvar(finalSalvar);
           debugPrint(
-            '[ClienteRedeLocal] Ficha unificada do CPF $cpf recuperada do balcão ($ip:$porta) com sucesso!',
+            '[ClienteRedeLocal] Ficha unificada do CPF $cpf recuperada do balcão ($ip:$porta) com sucesso! Username: ${finalSalvar.nomeDeUsuario}',
           );
-          return usuarioRemoto;
+          return finalSalvar;
         }
       }
     } catch (e) {
@@ -1606,6 +1651,10 @@ class ClienteRedeLocal {
         if (dados['sucesso'] == true && dados['temApk'] == true) {
           final versaoRemota = dados['versao'] as String? ?? AtualizacaoService.versaoAtual;
           final buildRemota = dados['build'] as int? ?? AtualizacaoService.buildAtual;
+          final alteracoesRemotas = (dados['alteracoes'] as List<dynamic>?)
+                  ?.map((e) => e.toString())
+                  .toList() ??
+              <String>[];
 
           final temNovaVersao = buildRemota > AtualizacaoService.buildAtual ||
               (buildRemota == AtualizacaoService.buildAtual &&
@@ -1619,6 +1668,7 @@ class ClienteRedeLocal {
                   'Instalação da versão estável mais recente transmitida diretamente pelo Computador Balcão via Wi-Fi.',
               urlDownload: 'http://$_ipServidor:$_portaServidor/api/download_apk',
               dataPublicacao: DateTime.now(),
+              alteracoes: alteracoesRemotas,
             );
             AtualizacaoService.temAtualizacao.value = true;
             AtualizacaoService.ultimaVerificacao.value = DateTime.now();
@@ -1852,9 +1902,45 @@ class ClienteRedeLocal {
     try {
       final cpfsAExaminar = <String>{};
 
-      // 1. Todas as contas conhecidas no cofre local
+      // 0. Consulta todos os usuários disponíveis no servidor balcão
+      try {
+        final clientUsuarios = HttpClient()..connectionTimeout = const Duration(seconds: 4);
+        final uriUsuarios = Uri.parse('http://$_ipServidor:$_portaServidor/api/usuarios');
+        final reqUsuarios = await clientUsuarios.getUrl(uriUsuarios);
+        final respUsuarios = await reqUsuarios.close();
+        if (respUsuarios.statusCode == HttpStatus.ok) {
+          final bodyUsuarios = await utf8.decodeStream(respUsuarios);
+          final dadosUsuarios = jsonDecode(bodyUsuarios) as Map<String, dynamic>;
+          final listaUsuarios = (dadosUsuarios['usuarios'] as List<dynamic>?) ?? [];
+          for (final uJson in listaUsuarios) {
+            if (uJson is Map<String, dynamic>) {
+              final u = UsuarioNous.fromJson(uJson);
+              final cpfLimpo = u.cpf.replaceAll(RegExp(r'\D'), '');
+              if (cpfLimpo.length == 11 && u.nome.toLowerCase() != 'blackview') {
+                cpfsAExaminar.add(u.cpf);
+                final existente = await ContasNousService.buscarPorCpf(u.cpf);
+                if (existente == null) {
+                  await ContasNousService.salvar(u);
+                } else {
+                  final mesclada = _mesclarUsuarios(existente, u);
+                  await ContasNousService.salvar(mesclada);
+                }
+              }
+            }
+          }
+        }
+      } catch (e) {
+        debugPrint('[ClienteRedeLocal] Erro ao sincronizar catálogo de usuários do servidor: $e');
+      }
+
+      // 1. Todas as contas conhecidas no cofre local (limpando qualquer entrada espúria antiga)
       final contasLocais = await ContasNousService.carregarTodas();
       for (final c in contasLocais) {
+        if (c.nome.trim().toLowerCase() == 'blackview') {
+          // Remove resquício de conta espúria
+          await ContasNousService.excluir(c.cpf);
+          continue;
+        }
         cpfsAExaminar.add(c.cpf);
       }
 
@@ -1952,8 +2038,13 @@ class ClienteRedeLocal {
   UsuarioNous _mesclarUsuarios(UsuarioNous local, UsuarioNous remoto) {
     return UsuarioNous(
       cpf: local.cpf.isNotEmpty ? local.cpf : remoto.cpf,
-      nome: local.nome.isNotEmpty ? local.nome : remoto.nome,
+      nome: (local.nome.isNotEmpty && local.nome.toLowerCase() != 'blackview')
+          ? local.nome
+          : remoto.nome,
       apelido: local.apelido.isNotEmpty ? local.apelido : remoto.apelido,
+      nomeDeUsuario: local.nomeDeUsuario.isNotEmpty
+          ? local.nomeDeUsuario
+          : remoto.nomeDeUsuario,
       dataNascimento: local.dataNascimento.isNotEmpty
           ? local.dataNascimento
           : remoto.dataNascimento,
@@ -1972,6 +2063,14 @@ class ClienteRedeLocal {
       estadoCivil: local.estadoCivil.isNotEmpty
           ? local.estadoCivil
           : remoto.estadoCivil,
+      biografia: local.biografia.isNotEmpty ? local.biografia : remoto.biografia,
+      nomePublico: local.nomePublico.isNotEmpty ? local.nomePublico : remoto.nomePublico,
+      apelidoPublico: local.apelidoPublico.isNotEmpty ? local.apelidoPublico : remoto.apelidoPublico,
+      fotoPublica: local.fotoPublica.isNotEmpty ? local.fotoPublica : remoto.fotoPublica,
+      dadosPrivados: local.dadosPrivados.isNotEmpty ? local.dadosPrivados : remoto.dadosPrivados,
+      dadosAutorizadosPorCpf: {...local.dadosAutorizadosPorCpf, ...remoto.dadosAutorizadosPorCpf}.toList(),
+      seguindo: {...local.seguindo, ...remoto.seguindo}.toList(),
+      seguidores: {...local.seguidores, ...remoto.seguidores}.toList(),
     );
   }
 
@@ -1990,19 +2089,21 @@ class ClienteRedeLocal {
       final referenciasLocais = await LojasService.carregarReferencias(cpf);
       final lojasAEnviar = <Map<String, dynamic>>[];
 
-      // Coleta lojas referenciadas conhecidas
+      // Coleta lojas referenciadas conhecidas com garantia de upload de fotos para o servidor
       for (final ref in referenciasLocais) {
         final loja = await LojasService.carregarLojaPorId(ref.lojaId);
         if (loja != null) {
-          lojasAEnviar.add(LojasService.sanitizarCaminhosImagens(loja).toJson());
+          final lojaPronta = await _prepararLojaComUploadsParaServidor(loja);
+          lojasAEnviar.add(LojasService.sanitizarCaminhosImagens(lojaPronta).toJson());
         }
       }
 
-      // Coleta lojas onde este CPF é dono
+      // Coleta lojas onde este CPF é dono com garantia de upload de fotos para o servidor
       final lojasProprias = await LojasService.carregar(cpf);
       for (final lp in lojasProprias) {
         if (!lojasAEnviar.any((m) => m['id'] == lp.id)) {
-          lojasAEnviar.add(LojasService.sanitizarCaminhosImagens(lp).toJson());
+          final lpPronta = await _prepararLojaComUploadsParaServidor(lp);
+          lojasAEnviar.add(LojasService.sanitizarCaminhosImagens(lpPronta).toJson());
         }
       }
 
@@ -2033,12 +2134,14 @@ class ClienteRedeLocal {
           final lojasRecebidas = dados['lojas'] as List<dynamic>? ?? [];
           var houveAlteracao = false;
 
-          // Salva lojas recebidas após baixar suas fotos (logo, itens, categorias)
+          // Salva lojas recebidas após baixar suas fotos (logo, itens, categorias) e consolidar
           for (final lJson in lojasRecebidas) {
             try {
               final loja = Loja.fromJson(lJson as Map<String, dynamic>);
               final lojaComImagens = await _sincronizarImagensRemotas(loja);
-              await LojasService.salvarLojaIndividual(lojaComImagens);
+              final lojaExistente = await LojasService.carregarLojaPorId(loja.id);
+              final lojaConsolidada = LojasService.consolidarLojaComImagensLocais(lojaComImagens, lojaExistente);
+              await LojasService.salvarLojaIndividual(lojaConsolidada);
               houveAlteracao = true;
             } catch (_) {}
           }

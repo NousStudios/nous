@@ -1899,8 +1899,8 @@ class _MensageriaViewState extends State<MensageriaView> {
       );
     }
 
-    var caminhoFoto = ImagemService.resolverCaminhoExistente(conversa.foto);
-    if (caminhoFoto == null && conversa.identificador.isNotEmpty) {
+    var providerFoto = ImagemService.obterImageProvider(conversa.foto);
+    if (providerFoto == null && conversa.identificador.isNotEmpty) {
       final auth = context.read<AuthProvider>();
       final pdv = context.read<PdvProvider>();
       var fotoRecuperada = auth.buscarFotoPorCpf(conversa.identificador);
@@ -1908,16 +1908,15 @@ class _MensageriaViewState extends State<MensageriaView> {
         fotoRecuperada = pdv.buscarFotoClientePorCpf(conversa.identificador) ?? '';
       }
       if (fotoRecuperada.isNotEmpty) {
-        caminhoFoto = ImagemService.resolverCaminhoExistente(fotoRecuperada);
+        providerFoto = ImagemService.obterImageProvider(fotoRecuperada);
       }
     }
-    final temFoto = caminhoFoto != null;
 
-    if (temFoto) {
+    if (providerFoto != null) {
       return CircleAvatar(
         radius: raio,
         backgroundColor: theme.borderColor.withValues(alpha: 0.3),
-        backgroundImage: FileImage(File(caminhoFoto)),
+        backgroundImage: providerFoto,
       );
     }
 

@@ -24,6 +24,40 @@ import 'package:provider/provider.dart';
 
 String _valor(double v) => 'R\$ ${v.toStringAsFixed(2).replaceAll('.', ',')}';
 
+/// Converte automaticamente a primeira letra de cada palavra em maiúscula enquanto o usuário digita.
+class PrimeiraLetraMaiusculaFormatter extends TextInputFormatter {
+  @override
+  TextEditingValue formatEditUpdate(
+    TextEditingValue oldValue,
+    TextEditingValue newValue,
+  ) {
+    final texto = newValue.text;
+    if (texto.isEmpty) return newValue;
+
+    final buffer = StringBuffer();
+    bool proximaMaiuscula = true;
+
+    for (int i = 0; i < texto.length; i++) {
+      final char = texto[i];
+      if (char == ' ' || char == '\t' || char == '\n' || char == '-' || char == '\'') {
+        buffer.write(char);
+        proximaMaiuscula = true;
+      } else if (proximaMaiuscula) {
+        buffer.write(char.toUpperCase());
+        proximaMaiuscula = false;
+      } else {
+        buffer.write(char);
+      }
+    }
+
+    final formatado = buffer.toString();
+    return TextEditingValue(
+      text: formatado,
+      selection: newValue.selection,
+    );
+  }
+}
+
 class ClientesDialog {
   static Future<void> mostrar(
     BuildContext context, {
@@ -315,8 +349,17 @@ class _ClientesConteudoState extends State<_ClientesConteudo> {
     setState(() => _foto = salvo);
   }
 
+  String _capitalizarPalavras(String texto) {
+    if (texto.trim().isEmpty) return '';
+    return texto.split(' ').map((palavra) {
+      if (palavra.isEmpty) return '';
+      if (palavra.length == 1) return palavra.toUpperCase();
+      return palavra[0].toUpperCase() + palavra.substring(1);
+    }).join(' ');
+  }
+
   void _salvar() {
-    final nome = _nomeController.text.trim();
+    final nome = _capitalizarPalavras(_nomeController.text.trim());
     if (nome.isEmpty) {
       setState(() => _aviso = 'Informe o nome do cliente.');
       return;
@@ -866,6 +909,7 @@ class _ClientesConteudoState extends State<_ClientesConteudo> {
             controller: _nomeController,
             label: 'Nome do Cliente',
             obrigatorio: true,
+            formatadores: [PrimeiraLetraMaiusculaFormatter()],
           ),
           const SizedBox(height: 12),
 

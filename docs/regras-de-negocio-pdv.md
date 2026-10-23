@@ -109,6 +109,8 @@ O que cada tela mostra está em `MAPA_DO_APP.md`. Aqui ficam **as regras de cál
   - Dados do cliente (`linhaDadoCliente`): rótulo intacto, valor em `Expanded(softWrap: true)`.
 - Prévia: 10 perfis históricos do anarquismo (Makhno, Bakunin, Malatesta, Kropotkin, Emma Goldman, Durruti, Maria Lacerda de Moura, Comuna de Paris, CNT/FAI, Nous Autogestão), com canais oficiais do Nous (`nousstudios72@gmail.com`, `@nous.studios72`).
 
-## 12. Auditoria (`RegistroAcao`)
+## 12. Auditoria e Imutabilidade Blockchain (`RegistroAcao`)
 
-Toda ação relevante registra autor (nome, CPF, e-mail), data/hora e descrição/delta: movimentos de estoque, cancelamentos, itens de mesa, pagamentos a membros, sangrias, exclusão de turno, etc. Aba "Ações" em Relatórios permite navegar até o cliente ou o pedido relacionado.
+- **Registro Universal e Transparência Radical:** Toda ação relevante registra autor (nome, CPF, e-mail), data/hora e descrição/delta: movimentos de estoque, cancelamentos, itens de mesa, pagamentos a membros, sangrias, suprimentos, exclusão de turno, deliberações, etc. A aba "Ações" em Relatórios permite auditar e navegar até o cliente ou pedido relacionado.
+- **Encadeamento Criptográfico Estilo Blockchain:** Cada `RegistroAcao` armazena o `hashAnterior` e calcula seu próprio `hash` SHA-256 nativo (padrão FIPS 180-4 em `CriptoService`), selando o ID, timestamp, tipo de ação, autor e delta da operação.
+- **Bloco Gênese e Integridade de Cadeia:** O primeiro registro da loja conecta-se ao hash gênese (64 zeros). Qualquer adulteração retroativa quebra a validação da cadeia de blocos local, garantindo que o trabalhador e o coletivo tenham auditoria incorruptível e soberana.

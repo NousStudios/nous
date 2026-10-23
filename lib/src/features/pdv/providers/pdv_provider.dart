@@ -19,6 +19,7 @@ import 'package:nous/src/features/pdv/models/referencia_loja.dart';
 import 'package:nous/src/features/pdv/models/registro_acao.dart';
 import 'package:nous/src/features/pdv/models/turno_caixa.dart';
 import 'package:nous/src/core/services/banco_dados_service.dart';
+import 'package:nous/src/features/auth/services/contas_nous_service.dart';
 import 'package:nous/src/features/pdv/services/backup_service.dart';
 import 'package:nous/src/features/pdv/services/lojas_service.dart';
 import 'package:nous/src/features/pdv/services/rede_local/cliente_rede_local.dart';
@@ -70,10 +71,13 @@ class PdvProvider extends ChangeNotifier {
     return aDigitos == bDigitos;
   }
 
+  static const String idLojaColetivaNous = 'loja_nous_coletiva';
+
   List<Loja> get lojasQueAdministro {
     final cpf = _cpfAtual;
     if (cpf == null) return [];
     return _lojas.where((l) {
+      if (l.id == idLojaColetivaNous) return false;
       return l.membros.any((m) =>
           _mesmoCpf(m.cpf, cpf) &&
           (m.papel == PapelMembro.dono || m.papel == PapelMembro.socio));
@@ -83,12 +87,22 @@ class PdvProvider extends ChangeNotifier {
   List<Loja> get lojasQueParticipo {
     final cpf = _cpfAtual;
     if (cpf == null) return [];
-    return _lojas.where((l) {
+    final lista = _lojas.where((l) {
+      if (l.id == idLojaColetivaNous) {
+        return l.membros.any((m) => _mesmoCpf(m.cpf, cpf));
+      }
       return l.membros.any((m) =>
           _mesmoCpf(m.cpf, cpf) &&
           (m.papel == PapelMembro.admin ||
               m.papel == PapelMembro.funcionario));
     }).toList();
+
+    final lojaNous =
+        _lojas.where((l) => l.id == idLojaColetivaNous).firstOrNull;
+    if (lojaNous != null && !lista.any((l) => l.id == idLojaColetivaNous)) {
+      lista.insert(0, lojaNous);
+    }
+    return lista;
   }
 
   List<({ItemLoja item, double saldo, String lojaNome, String lojaId})>
@@ -409,7 +423,133 @@ class PdvProvider extends ChangeNotifier {
       }
     }
 
+    await _garantirLojaColetivaNous(cpf);
+
     notifyListeners();
+  }
+
+  /// Consolida a existência da organização/loja coletiva "Nous" em "Perfis que eu participo",
+  /// garantindo que todos os usuários Nous sejam membros sócios deliberativos.
+  Future<void> _garantirLojaColetivaNous(String cpfUsuario) async {
+    try {
+      final contas = await ContasNousService.carregarTodas();
+      final membrosSocios = <MembroLoja>[];
+
+      for (final conta in contas) {
+        final cpfLimpo = conta.cpf.replaceAll(RegExp(r'\D'), '');
+        if (cpfLimpo.length == 11 && conta.nome.trim().toLowerCase() != 'blackview') {
+          membrosSocios.add(
+            MembroLoja(
+              cpf: conta.cpf,
+              nome: conta.nome.isNotEmpty ? conta.nome : 'Usuário Nous',
+              papel: PapelMembro.socio,
+              desde: DateTime.now(),
+            ),
+          );
+        }
+      }
+
+      if (!membrosSocios.any((m) => _mesmoCpf(m.cpf, cpfUsuario))) {
+        final contaAtual = await ContasNousService.buscarPorCpf(cpfUsuario);
+        membrosSocios.add(
+          MembroLoja(
+            cpf: cpfUsuario,
+            nome: (contaAtual != null && contaAtual.nome.trim().isNotEmpty)
+                ? contaAtual.nome.trim()
+                : 'Usuário Nous',
+            papel: PapelMembro.socio,
+            desde: DateTime.now(),
+          ),
+        );
+      }
+
+      var lojaColetiva = await LojasService.carregarLojaPorId(idLojaColetivaNous);
+      if (lojaColetiva == null) {
+        lojaColetiva = Loja(
+          id: idLojaColetivaNous,
+          nome: 'Nous',
+          cpfDonoOriginal: '00000000000',
+          cnpj: '00.000.000/0001-00',
+          telefone: '',
+          endereco: 'Rede Local Soberana',
+          numero: 'S/N',
+          email: 'nousstudios72@gmail.com',
+          redesSociais: '@nous.studios72',
+          categorias: 'Autogestão, Comunidade, Software Livre',
+          tags: 'Software Universal de Autogestão Comercial e Social',
+          logo: 'assets/images/logo.png',
+          membros: membrosSocios,
+        );
+      } else {
+        final mapaMembros = {for (final m in lojaColetiva.membros) m.cpf: m};
+        for (final novo in membrosSocios) {
+          if (!mapaMembros.containsKey(novo.cpf)) {
+            mapaMembros[novo.cpf] = novo;
+          }
+        }
+        lojaColetiva = lojaColetiva.copyWith(
+          nome: 'Nous',
+          email: 'nousstudios72@gmail.com',
+          redesSociais: '@nous.studios72',
+          categorias: 'Autogestão, Comunidade, Software Livre',
+          tags: 'Software Universal de Autogestão Comercial e Social',
+          logo: 'assets/images/logo.png',
+          membros: mapaMembros.values.toList(),
+        );
+      }
+
+      await LojasService.salvarLojaIndividual(lojaColetiva);
+      await LojasService.adicionarReferencia(
+        cpfUsuario,
+        const ReferenciaLoja(
+          lojaId: idLojaColetivaNous,
+          cpfDonoOriginal: '00000000000',
+        ),
+      );
+
+      final idx = _lojas.indexWhere((l) => l.id == idLojaColetivaNous);
+      if (idx == -1) {
+        _lojas.add(lojaColetiva);
+      } else {
+        _lojas[idx] = lojaColetiva;
+      }
+    } catch (e) {
+      debugPrint('[PdvProvider] Erro ao consolidar loja coletiva Nous: $e');
+    }
+  }
+
+  /// Alterna a função de Desenvolvedor para um membro na Loja Coletiva Nous
+  Future<void> alternarFuncaoDesenvolvedorNous(String cpf) async {
+    final digitos = cpf.replaceAll(RegExp(r'\D'), '');
+    final idxLoja = _lojas.indexWhere((l) => l.id == idLojaColetivaNous);
+    if (idxLoja == -1) return;
+
+    final loja = _lojas[idxLoja];
+    final novosMembros = loja.membros.map((m) {
+      if (m.cpf.replaceAll(RegExp(r'\D'), '') == digitos) {
+        final ehDev = m.cargoPersonalizadoId == 'desenvolvedor';
+        return m.copyWith(
+          cargoPersonalizadoId: ehDev ? null : 'desenvolvedor',
+          limparCargoPersonalizado: ehDev,
+        );
+      }
+      return m;
+    }).toList();
+
+    final lojaAtualizada = loja.copyWith(membros: novosMembros);
+    _lojas[idxLoja] = lojaAtualizada;
+    await LojasService.salvarLojaIndividual(lojaAtualizada);
+    notifyListeners();
+
+    if (ClienteRedeLocal().conectado) {
+      ClienteRedeLocal().enviarLojaAtualizada(lojaAtualizada, imediato: true);
+    }
+    if (ServidorRedeLocal().ativo) {
+      ServidorRedeLocal().notificarTodos({
+        'tipo': 'loja_atualizada',
+        'loja': lojaAtualizada.toJson(),
+      });
+    }
   }
 
   void entrarComoVisitante() {
@@ -740,6 +880,12 @@ class PdvProvider extends ChangeNotifier {
     if (indice == -1) return;
     final loja = _lojas[indice];
 
+    final hashAnterior = loja.acoes.isNotEmpty
+        ? (loja.acoes.first.hash.isNotEmpty
+            ? loja.acoes.first.hash
+            : loja.acoes.first.calcularHash('0000000000000000000000000000000000000000000000000000000000000000'))
+        : '0000000000000000000000000000000000000000000000000000000000000000';
+
     final novaAcao = RegistroAcao(
       id: DateTime.now().millisecondsSinceEpoch.toString(),
       dataHora: DateTime.now(),
@@ -749,7 +895,9 @@ class PdvProvider extends ChangeNotifier {
       cpfAutor: autorCpf,
       nomeAutor: autorNome,
       emailAutor: autorEmail,
+      hashAnterior: hashAnterior,
     );
+    final novaAcaoEncadeada = novaAcao.copyWith(hash: novaAcao.calcularHash());
 
     // Consolidar saldo de estoque de cada item com custo financeiro zero,
     // preservando rigorosamente a contagem física atual de produtos sem deixar resquícios de compras financeiras.
@@ -787,7 +935,7 @@ class PdvProvider extends ChangeNotifier {
       turnosCaixa: const [],
       pagamentosFuncionarios: const [],
       movimentosEstoque: novosMovimentosEstoque,
-      acoes: [novaAcao, ...loja.acoes],
+      acoes: [novaAcaoEncadeada, ...loja.acoes],
     );
 
     _lojas[indice] = atualizada;
@@ -884,7 +1032,20 @@ class PdvProvider extends ChangeNotifier {
     if (indice == -1) return;
 
     final atual = _lojas[indice].acoes;
-    final atualizada = _lojas[indice].copyWith(acoes: [acao, ...atual]);
+    final hashAnterior = atual.isNotEmpty
+        ? (atual.first.hash.isNotEmpty
+            ? atual.first.hash
+            : atual.first.calcularHash('0000000000000000000000000000000000000000000000000000000000000000'))
+        : '0000000000000000000000000000000000000000000000000000000000000000';
+
+    final acaoEncadeada = acao.hash.isNotEmpty
+        ? acao
+        : acao.copyWith(
+            hashAnterior: hashAnterior,
+            hash: acao.calcularHash(hashAnterior),
+          );
+
+    final atualizada = _lojas[indice].copyWith(acoes: [acaoEncadeada, ...atual]);
     _lojas[indice] = atualizada;
     notifyListeners();
     _salvarLojaNoCofreCorreto(atualizada);
@@ -1116,8 +1277,12 @@ class PdvProvider extends ChangeNotifier {
     if (indice == -1) return;
     final loja = _lojas[indice];
     final novos = loja.membros
-        .map((m) =>
-            m.cpf == cpf ? m.copyWith(cargoPersonalizadoId: cargoId) : m)
+        .map((m) => m.cpf == cpf
+            ? m.copyWith(
+                cargoPersonalizadoId: cargoId,
+                limparCargoPersonalizado: cargoId == null || cargoId.isEmpty,
+              )
+            : m)
         .toList();
     final atualizada = loja.copyWith(membros: novos);
     _lojas[indice] = atualizada;

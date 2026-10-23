@@ -50,6 +50,15 @@ class NotificacoesProvider extends ChangeNotifier {
 
   Future<void> enviarConvite(ConviteLoja convite) async {
     await ConvitesService.adicionar(convite.cpfConvidado, convite);
+    if (_cpfAtual != null &&
+        _cpfAtual!.replaceAll(RegExp(r'\D'), '') ==
+            convite.cpfConvidado.replaceAll(RegExp(r'\D'), '')) {
+      await carregarParaCpf(_cpfAtual!);
+    }
+  }
+
+  Future<void> adicionarNotificacao(ConviteLoja notificacao) async {
+    await enviarConvite(notificacao);
   }
 
   Future<void> aceitar(String conviteId) async {

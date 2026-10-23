@@ -114,30 +114,42 @@ class AuthProvider extends ChangeNotifier {
       }
     }
 
-    // 2. Se não encontrou ou se a conta encontrada localmente está sem foto física válida,
-    // consulta o balcão via rede Wi-Fi local para enriquecer os dados e trazer a foto da rede!
-    final precisaFotoRemota = conta == null ||
-        conta.foto.isEmpty ||
-        ImagemService.resolverCaminhoExistente(conta.foto) == null;
-
-    if (precisaFotoRemota) {
-      try {
-        final remoto = await ClienteRedeLocal().buscarUsuarioRemoto(_cpf);
-        if (remoto != null) {
-          if (conta == null) {
-            conta = remoto;
-          } else if (remoto.foto.isNotEmpty &&
-              ImagemService.resolverCaminhoExistente(remoto.foto) != null) {
-            conta = conta.copyWith(foto: remoto.foto);
-            await ContasNousService.salvar(conta);
-          }
-          debugPrint(
-            '[AuthProvider] Conta recuperada/enriquecida do balcão Wi-Fi para CPF $_cpf (${conta.nome})',
+    // 2. Consulta o balcão via rede Wi-Fi local para enriquecer os dados (inclusive nomeDeUsuario soberano, foto e dados cadastrais)
+    try {
+      final remoto = await ClienteRedeLocal().buscarUsuarioRemoto(_cpf);
+      if (remoto != null) {
+        if (conta == null) {
+          conta = remoto;
+        } else {
+          conta = conta.copyWith(
+            nome: (conta.nome.isEmpty || conta.nome.toLowerCase() == 'blackview')
+                ? remoto.nome
+                : conta.nome,
+            apelido: conta.apelido.isNotEmpty ? conta.apelido : remoto.apelido,
+            nomeDeUsuario: conta.nomeDeUsuario.isNotEmpty
+                ? conta.nomeDeUsuario
+                : remoto.nomeDeUsuario,
+            foto: (conta.foto.isNotEmpty && ImagemService.existe(conta.foto))
+                ? conta.foto
+                : remoto.foto,
+            emails: {...conta.emails, ...remoto.emails}.toList(),
+            biografia: conta.biografia.isNotEmpty ? conta.biografia : remoto.biografia,
+            nomePublico: conta.nomePublico.isNotEmpty ? conta.nomePublico : remoto.nomePublico,
+            apelidoPublico: conta.apelidoPublico.isNotEmpty ? conta.apelidoPublico : remoto.apelidoPublico,
+            fotoPublica: conta.fotoPublica.isNotEmpty ? conta.fotoPublica : remoto.fotoPublica,
+            dadosPrivados: conta.dadosPrivados.isNotEmpty ? conta.dadosPrivados : remoto.dadosPrivados,
+            dadosAutorizadosPorCpf: {...conta.dadosAutorizadosPorCpf, ...remoto.dadosAutorizadosPorCpf}.toList(),
+            seguindo: {...conta.seguindo, ...remoto.seguindo}.toList(),
+            seguidores: {...conta.seguidores, ...remoto.seguidores}.toList(),
           );
         }
-      } catch (e) {
-        debugPrint('[AuthProvider] Erro ao buscar usuário remoto: $e');
+        await ContasNousService.salvar(conta);
+        debugPrint(
+          '[AuthProvider] Conta recuperada/enriquecida do balcão Wi-Fi para CPF $_cpf (${conta.nome}, username: ${conta.nomeDeUsuario})',
+        );
       }
+    } catch (e) {
+      debugPrint('[AuthProvider] Erro ao buscar usuário remoto: $e');
     }
 
     _contaAtual = conta;
@@ -174,12 +186,16 @@ class AuthProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> associarContaComApelido(String apelido) async {
+  Future<void> associarContaComApelido(String apelido, [String? nomeDeUsuario]) async {
     final apelidoLimpo = apelido.trim();
+    final usernameLimpo = (nomeDeUsuario != null && nomeDeUsuario.trim().isNotEmpty)
+        ? nomeDeUsuario.trim().toLowerCase().replaceAll(RegExp(r'\s+'), '')
+        : '';
     final conta = UsuarioNous(
       cpf: _cpf,
       nome: apelidoLimpo,
       apelido: apelidoLimpo,
+      nomeDeUsuario: usernameLimpo,
       dataNascimento: '',
     );
 
@@ -188,6 +204,7 @@ class AuthProvider extends ChangeNotifier {
     _contaAtual = conta;
     _emailAtivo = null;
     await ThemeController.carregarTemaDoUsuario(_cpf);
+    _propagarUsuarioAtualizado(conta);
     notifyListeners();
   }
 
@@ -295,11 +312,110 @@ class AuthProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> excluirConta() async {
+  Future<void> excluirConta([String? cpfAlvo]) async {
+    final c = _contaAtual;
+    final cpfReal = cpfAlvo ?? c?.cpf ?? _cpf;
+    final cpfLimpo = cpfReal.replaceAll(RegExp(r'\D'), '');
+    if (cpfLimpo.isEmpty) return;
+
+    await ContasNousService.excluir(cpfLimpo);
+
+    final prefs = await SharedPreferences.getInstance();
+    final ultimo = prefs.getString(_chaveUltimoCpf);
+    if (ultimo != null &&
+        ultimo.replaceAll(RegExp(r'\D'), '') == cpfLimpo) {
+      await prefs.remove(_chaveUltimoCpf);
+    }
+
+    _fotosPorCpf.remove(cpfLimpo);
+    _fotosPorCpf.remove(cpfReal);
+    await carregarCacheContas();
+    sair();
+  }
+
+  Future<void> atualizarNomeDeUsuario(String novoUsername) async {
     final conta = _contaAtual;
     if (conta == null) return;
-    await ContasNousService.excluir(conta.cpf);
-    sair();
+
+    final limpo = novoUsername.trim().toLowerCase().replaceAll('@', '');
+    final atualizado = conta.copyWith(nomeDeUsuario: limpo);
+    await ContasNousService.salvar(atualizado);
+    _contaAtual = atualizado;
+    _propagarUsuarioAtualizado(atualizado);
+    notifyListeners();
+  }
+
+  Future<void> alternarPrivacidadeDado(String chave, [bool? privado]) async {
+    final conta = _contaAtual;
+    if (conta == null) return;
+
+    final novaLista = List<String>.from(conta.dadosPrivados);
+    final deveFicarPrivado = privado ?? !novaLista.contains(chave);
+    if (deveFicarPrivado) {
+      if (!novaLista.contains(chave)) novaLista.add(chave);
+    } else {
+      novaLista.remove(chave);
+    }
+
+    final atualizado = conta.copyWith(dadosPrivados: novaLista);
+    await ContasNousService.salvar(atualizado);
+    _contaAtual = atualizado;
+    _propagarUsuarioAtualizado(atualizado);
+    notifyListeners();
+  }
+
+  Future<void> autorizarAcessoDado(String cpfSolicitante, String chave) async {
+    final conta = _contaAtual;
+    if (conta == null) return;
+
+    final solicitanteLimpo = cpfSolicitante.replaceAll(RegExp(r'\D'), '');
+    final chavePermissao = '$solicitanteLimpo:$chave';
+    final novaLista = List<String>.from(conta.dadosAutorizadosPorCpf);
+    if (!novaLista.contains(chavePermissao)) {
+      novaLista.add(chavePermissao);
+    }
+
+    final atualizado = conta.copyWith(dadosAutorizadosPorCpf: novaLista);
+    await ContasNousService.salvar(atualizado);
+    _contaAtual = atualizado;
+    _propagarUsuarioAtualizado(atualizado);
+    notifyListeners();
+  }
+
+  Future<void> alternarSeguir(String cpfAlvo) async {
+    final conta = _contaAtual;
+    if (conta == null) return;
+
+    final alvoLimpo = cpfAlvo.replaceAll(RegExp(r'\D'), '');
+    final novaListaSeguindo = List<String>.from(conta.seguindo);
+
+    final jaSegue = novaListaSeguindo.any((s) => s.replaceAll(RegExp(r'\D'), '') == alvoLimpo);
+    if (jaSegue) {
+      novaListaSeguindo.removeWhere((s) => s.replaceAll(RegExp(r'\D'), '') == alvoLimpo);
+    } else {
+      novaListaSeguindo.add(alvoLimpo);
+    }
+
+    final atualizado = conta.copyWith(seguindo: novaListaSeguindo);
+    await ContasNousService.salvar(atualizado);
+    _contaAtual = atualizado;
+
+    // Atualiza também a conta alvo se existir localmente
+    final contaAlvo = await ContasNousService.buscarPorCpf(alvoLimpo);
+    if (contaAlvo != null) {
+      final meuCpfLimpo = conta.cpf.replaceAll(RegExp(r'\D'), '');
+      final seguidoresAlvo = List<String>.from(contaAlvo.seguidores);
+      if (jaSegue) {
+        seguidoresAlvo.removeWhere((s) => s.replaceAll(RegExp(r'\D'), '') == meuCpfLimpo);
+      } else {
+        if (!seguidoresAlvo.contains(meuCpfLimpo)) seguidoresAlvo.add(meuCpfLimpo);
+      }
+      final alvoAtualizado = contaAlvo.copyWith(seguidores: seguidoresAlvo);
+      await ContasNousService.salvar(alvoAtualizado);
+    }
+
+    _propagarUsuarioAtualizado(atualizado);
+    notifyListeners();
   }
 
   Future<void> atualizarFoto(String novaFoto) async {

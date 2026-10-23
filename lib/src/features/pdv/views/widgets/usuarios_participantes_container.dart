@@ -1,4 +1,3 @@
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -71,6 +70,7 @@ class UsuariosParticipantesContainer extends StatelessWidget {
   final void Function(String cpf, PapelMembro papel) onAtualizarPapel;
   final void Function(String cpf, String? cargoId)? onVincularCargoPersonalizado;
   final VoidCallback onSair;
+  final bool ehLojaColetivaNous;
 
   const UsuariosParticipantesContainer({
     super.key,
@@ -85,6 +85,7 @@ class UsuariosParticipantesContainer extends StatelessWidget {
     required this.onAtualizarPapel,
     this.onVincularCargoPersonalizado,
     required this.onSair,
+    this.ehLojaColetivaNous = false,
   });
 
   BoxDecoration get _decoracaoDoBloco => BoxDecoration(
@@ -415,7 +416,7 @@ class UsuariosParticipantesContainer extends StatelessWidget {
 
   Widget _linhaDeMembro(BuildContext context, MembroLoja membro) {
     final ehVoce = membro.cpf == cpfLogado;
-    final podeEditarPapel = podeGerenciar && !ehVoce;
+    final podeEditarPapel = !ehLojaColetivaNous && podeGerenciar && !ehVoce;
 
     final meuMembro = membros.firstWhere(
       (m) => m.cpf == cpfLogado,
@@ -430,13 +431,15 @@ class UsuariosParticipantesContainer extends StatelessWidget {
     final souSocio = meuMembro.papel == PapelMembro.socio;
 
     bool podeExcluir = false;
-    if (ehVoce) {
-      podeExcluir = true;
-    } else if (souDono) {
-      podeExcluir = true;
-    } else if (souSocio) {
-      podeExcluir = membro.papel == PapelMembro.admin ||
-          membro.papel == PapelMembro.funcionario;
+    if (!ehLojaColetivaNous) {
+      if (ehVoce) {
+        podeExcluir = true;
+      } else if (souDono) {
+        podeExcluir = true;
+      } else if (souSocio) {
+        podeExcluir = membro.papel == PapelMembro.admin ||
+            membro.papel == PapelMembro.funcionario;
+      }
     }
 
     final auth = context.watch<AuthProvider>();
@@ -447,8 +450,7 @@ class UsuariosParticipantesContainer extends StatelessWidget {
       foto = pdv.buscarFotoClientePorCpf(membro.cpf) ?? '';
     }
 
-    final fotoResolvida = ImagemService.resolverCaminhoExistente(foto);
-    final temFoto = fotoResolvida != null;
+    final temFoto = ImagemService.existe(foto);
 
     return _MembroLinhaComHover(
       builder: (hover) => InkWell(
@@ -480,12 +482,12 @@ class UsuariosParticipantesContainer extends StatelessWidget {
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(15),
                 child: temFoto
-                    ? Image.file(
-                        File(fotoResolvida),
+                    ? ImagemService.construirImagem(
+                        foto,
                         width: 32,
                         height: 32,
                         fit: BoxFit.cover,
-                        errorBuilder: (context, error, stackTrace) => Icon(
+                        fallback: Icon(
                           Icons.person,
                           size: 20,
                           color: theme.textColor,
@@ -514,14 +516,18 @@ class UsuariosParticipantesContainer extends StatelessWidget {
                   ),
                   Builder(
                     builder: (context) {
-                      final cargoNome = cargosPersonalizados
-                          .where((c) => c.id == membro.cargoPersonalizadoId)
-                          .firstOrNull
-                          ?.nome;
-                      final rotuloCargo =
-                          cargoNome != null && cargoNome.isNotEmpty
-                              ? '${_rotuloPapel(membro.papel)} ($cargoNome)'
-                              : _rotuloPapel(membro.papel);
+                      final String rotuloCargo;
+                      if (membro.cargoPersonalizadoId == 'desenvolvedor') {
+                        rotuloCargo = '${_rotuloPapel(membro.papel)} • Desenvolvedor';
+                      } else {
+                        final cargoNome = cargosPersonalizados
+                            .where((c) => c.id == membro.cargoPersonalizadoId)
+                            .firstOrNull
+                            ?.nome;
+                        rotuloCargo = cargoNome != null && cargoNome.isNotEmpty
+                            ? '${_rotuloPapel(membro.papel)} ($cargoNome)'
+                            : _rotuloPapel(membro.papel);
+                      }
                       return Text(
                         '$rotuloCargo • ${_formatarCpf(membro.cpf)}'
                         ' • desde ${_dataCurta(membro.desde)}',
@@ -589,7 +595,7 @@ class UsuariosParticipantesContainer extends StatelessWidget {
             )
           else
             for (final membro in membros) _linhaDeMembro(context, membro),
-          if (podeGerenciar) ...[
+          if (!ehLojaColetivaNous && podeGerenciar) ...[
             const SizedBox(height: 8),
             SizedBox(
               width: double.infinity,
@@ -839,9 +845,7 @@ class _ConviteDialogState extends State<_ConviteDialog> {
               ),
               const SizedBox(height: 8),
               Builder(builder: (context) {
-                final fotoResolvida =
-                    ImagemService.resolverCaminhoExistente(_encontrado!.foto);
-                final temFotoEnc = fotoResolvida != null;
+                final temFotoEnc = ImagemService.existe(_encontrado!.foto);
                 return Column(
                   children: [
                     Container(
@@ -856,13 +860,12 @@ class _ConviteDialogState extends State<_ConviteDialog> {
                       child: ClipRRect(
                         borderRadius: BorderRadius.circular(21),
                         child: temFotoEnc
-                            ? Image.file(
-                                File(fotoResolvida),
+                            ? ImagemService.construirImagem(
+                                _encontrado!.foto,
                                 width: 44,
                                 height: 44,
                                 fit: BoxFit.cover,
-                                errorBuilder: (context, error, stackTrace) =>
-                                    Icon(
+                                fallback: Icon(
                                   Icons.person,
                                   size: 24,
                                   color: theme.textColor,
