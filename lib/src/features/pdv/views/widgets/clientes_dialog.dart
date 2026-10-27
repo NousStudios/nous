@@ -948,6 +948,7 @@ class _ClientesConteudoState extends State<_ClientesConteudo> {
                   theme: theme,
                   controller: _enderecoController,
                   label: 'Endereço',
+                  formatadores: [PrimeiraLetraMaiusculaFormatter()],
                 ),
               ),
               const SizedBox(width: 12),

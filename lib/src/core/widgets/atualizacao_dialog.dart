@@ -66,14 +66,22 @@ class _AtualizacaoDialogState extends State<AtualizacaoDialog> {
     String? descricao,
     List<String> alteracoesRemotas = const [],
   }) {
-    final novidade = ChangelogService.obterUltimaVersao(versao);
-    final itens = alteracoesRemotas.isNotEmpty
-        ? alteracoesRemotas
-        : ((novidade != null && novidade.alteracoes.isNotEmpty)
-            ? novidade.alteracoes
-            : (descricao != null && descricao.trim().isNotEmpty
-                ? [descricao.trim()]
-                : <String>[]));
+    final novidade = versao.isNotEmpty
+        ? ChangelogService.obterUltimaVersao(versao)
+        : null;
+
+    List<String> itens = [];
+    if (alteracoesRemotas.isNotEmpty) {
+      itens = alteracoesRemotas;
+    } else if (novidade != null && novidade.alteracoes.isNotEmpty) {
+      itens = novidade.alteracoes;
+    } else if (descricao != null && descricao.trim().isNotEmpty) {
+      itens = descricao
+          .split('\n')
+          .map((l) => l.trim().replaceAll(RegExp(r'^[-*•]\s*'), ''))
+          .where((l) => l.isNotEmpty && !l.startsWith('#'))
+          .toList();
+    }
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -515,11 +523,6 @@ class _AtualizacaoDialogState extends State<AtualizacaoDialog> {
                                 ),
                               ),
                             ],
-                          ),
-                          const SizedBox(height: 8),
-                          _blocoNovidades(
-                            theme: theme,
-                            versao: AtualizacaoService.versaoAtual,
                           ),
                         ],
                       ),

@@ -17,6 +17,10 @@ class MensagemChat {
   final int tamanhoAnexo;
   final String pedidoId;
   final String dadosPedidoJson;
+  final bool editada;
+  final List<Map<String, dynamic>> historicoEdicoes;
+  final String statusEnvio; // 'pendente', 'enviada', 'entregue', 'lida'
+  final bool entregue;
 
   const MensagemChat({
     required this.id,
@@ -30,13 +34,17 @@ class MensagemChat {
     this.enviadaPorMim = false,
     this.nomeAtendente = '',
     this.cpfAtendente = '',
-    this.lida = true,
+    this.lida = false,
     this.tipo = 'texto',
     this.caminhoAnexo = '',
     this.nomeAnexo = '',
     this.tamanhoAnexo = 0,
     this.pedidoId = '',
     this.dadosPedidoJson = '',
+    this.editada = false,
+    this.historicoEdicoes = const [],
+    this.statusEnvio = 'enviada',
+    this.entregue = false,
   });
 
   MensagemChat copyWith({
@@ -58,6 +66,10 @@ class MensagemChat {
     int? tamanhoAnexo,
     String? pedidoId,
     String? dadosPedidoJson,
+    bool? editada,
+    List<Map<String, dynamic>>? historicoEdicoes,
+    String? statusEnvio,
+    bool? entregue,
   }) {
     return MensagemChat(
       id: id ?? this.id,
@@ -78,6 +90,10 @@ class MensagemChat {
       tamanhoAnexo: tamanhoAnexo ?? this.tamanhoAnexo,
       pedidoId: pedidoId ?? this.pedidoId,
       dadosPedidoJson: dadosPedidoJson ?? this.dadosPedidoJson,
+      editada: editada ?? this.editada,
+      historicoEdicoes: historicoEdicoes ?? this.historicoEdicoes,
+      statusEnvio: statusEnvio ?? this.statusEnvio,
+      entregue: entregue ?? this.entregue,
     );
   }
 
@@ -101,10 +117,30 @@ class MensagemChat {
       'tamanhoAnexo': tamanhoAnexo,
       'pedidoId': pedidoId,
       'dadosPedidoJson': dadosPedidoJson,
+      'editada': editada,
+      'historicoEdicoes': historicoEdicoes,
+      'statusEnvio': statusEnvio,
+      'entregue': entregue,
     };
   }
 
   factory MensagemChat.fromJson(Map<String, dynamic> json) {
+    List<Map<String, dynamic>> historico = [];
+    if (json['historicoEdicoes'] is List) {
+      historico = (json['historicoEdicoes'] as List)
+          .map((e) => Map<String, dynamic>.from(e as Map))
+          .toList();
+    }
+
+    final lida = json['lida'] as bool? ?? false;
+    final entregue = json['entregue'] as bool? ?? false;
+    String status = json['statusEnvio'] as String? ?? 'enviada';
+    if (lida) {
+      status = 'lida';
+    } else if (entregue && status == 'pendente') {
+      status = 'entregue';
+    }
+
     return MensagemChat(
       id: json['id'] as String? ?? '',
       conversaId: json['conversaId'] as String? ?? '',
@@ -119,13 +155,17 @@ class MensagemChat {
       enviadaPorMim: json['enviadaPorMim'] as bool? ?? false,
       nomeAtendente: json['nomeAtendente'] as String? ?? '',
       cpfAtendente: json['cpfAtendente'] as String? ?? '',
-      lida: json['lida'] as bool? ?? true,
+      lida: lida,
       tipo: json['tipo'] as String? ?? 'texto',
       caminhoAnexo: json['caminhoAnexo'] as String? ?? '',
       nomeAnexo: json['nomeAnexo'] as String? ?? '',
       tamanhoAnexo: json['tamanhoAnexo'] as int? ?? 0,
       pedidoId: json['pedidoId'] as String? ?? '',
       dadosPedidoJson: json['dadosPedidoJson'] as String? ?? '',
+      editada: json['editada'] as bool? ?? false,
+      historicoEdicoes: historico,
+      statusEnvio: status,
+      entregue: entregue,
     );
   }
 }

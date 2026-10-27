@@ -41,6 +41,8 @@ Mensagens WebSocket:
 - `usuario_atualizado`: ficha do usuário sincronizada.
 - `pedido_adicionado` e `pedido_atualizado`: propagação imediata de novos pedidos e mudanças de status (Novo → Aceito → Concluído/Cancelado), quitado, valores ou cancelamento.
 - `mensagem_chat`: troca de mensagens em tempo real entre atendentes e clientes com foto resolvida do remetente e autocura mútua.
+- `mensagem_entregue`: confirmação imediata quando o terminal receptor grava a mensagem, atualizando o remetente para 2 checks cinzas em tempo real.
+- `mensagens_lidas`: notificação de leitura quando a conversa é aberta pelo receptor, atualizando os checks para azul oficial WhatsApp (`#34B7F1`).
 
 ## 3. Autorização de terminais
 

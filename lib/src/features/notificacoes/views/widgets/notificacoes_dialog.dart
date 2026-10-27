@@ -217,6 +217,22 @@ class _NotificacoesConteudo extends StatelessWidget {
       return;
     }
 
+    if (convite.tipo == TipoNotificacao.solicitacaoExclusaoConversa) {
+      await ChatService.excluirConversaLocal(convite.lojaId);
+      await notificacoes.aceitar(convite.id);
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          backgroundColor: theme.cardBackgroundColor,
+          content: Text(
+            'Você concordou com a exclusão da conversa "${convite.nomeLoja}".',
+            style: theme.getTextStyle(color: theme.textColor),
+          ),
+        ),
+      );
+      return;
+    }
+
     if (convite.tipo == TipoNotificacao.remocaoLoja) {
       await notificacoes.aceitar(convite.id);
       if (!context.mounted) return;
@@ -402,6 +418,12 @@ class _NotificacoesConteudo extends StatelessWidget {
         titulo = 'Acesso a dado pessoal por ${c.nomeConvidante}';
         descricao =
             '${c.nomeConvidante} solicitou permissão para visualizar seu dado "${c.dadoSolicitado.isNotEmpty ? c.dadoSolicitado : "dado privado"}" na rede.';
+        ehAvisoInformativo = false;
+        break;
+      case TipoNotificacao.solicitacaoExclusaoConversa:
+        titulo = 'Consentimento para excluir conversa';
+        descricao =
+            '${c.nomeConvidante} propôs excluir o histórico da conversa "${c.nomeLoja}". Você concorda?';
         ehAvisoInformativo = false;
         break;
     }
@@ -633,11 +655,19 @@ class _NotificacoesConteudo extends StatelessWidget {
         child: InkWell(
           borderRadius: BorderRadius.circular(10),
           onTap: () {
+            final auth = context.read<AuthProvider>();
+            final cpfUsuario = auth.contaAtual?.cpf ?? '';
             Navigator.of(context).pop();
+            if (lojaId != null) {
+              ChatService.marcarMensagensDaLojaComoLidas(lojaId!, cpfUsuario);
+            } else {
+              ChatService.marcarComoLidas(msg.conversaId, cpfUsuario);
+            }
             Navigator.of(context).push(
               MaterialPageRoute(
                 builder: (_) => MensageriaView(
-                  modoLoja: false,
+                  modoLoja: lojaId != null,
+                  lojaId: lojaId,
                   conversaInicialId: msg.conversaId,
                   mostrarBotaoVoltar: true,
                 ),
@@ -743,9 +773,11 @@ class _NotificacoesConteudo extends StatelessWidget {
             .toList();
 
     return FutureBuilder<List<MensagemChat>>(
-      future: (lojaId == null && cpfUsuario.isNotEmpty)
-          ? ChatService.obterMensagensNaoLidasDoUsuario(cpfUsuario)
-          : Future.value(const <MensagemChat>[]),
+      future: (lojaId != null)
+          ? ChatService.obterMensagensNaoLidasDaLoja(lojaId!)
+          : (cpfUsuario.isNotEmpty
+              ? ChatService.obterMensagensNaoLidasDoUsuario(cpfUsuario)
+              : Future.value(const <MensagemChat>[])),
       builder: (context, snapshotMsgs) {
         final todasMensagens = snapshotMsgs.data ?? const <MensagemChat>[];
         final mensagens = todasMensagens
@@ -872,6 +904,9 @@ class _NotificacoesConteudo extends StatelessWidget {
                               ids.add('msg_${m.id}');
                             }
                             notificacoes.dispensarTodasNaSessao(ids);
+                            if (lojaId != null) {
+                              ChatService.marcarMensagensDaLojaComoLidas(lojaId!, cpfUsuario);
+                            }
                           },
                         ),
                       ),
@@ -949,6 +984,9 @@ class _NotificacoesConteudo extends StatelessWidget {
                                   ),
                                   onDismissed: (_) {
                                     notificacoes.dispensarNaSessao('msg_${msg.id}');
+                                    if (lojaId != null) {
+                                      ChatService.marcarMensagensDaLojaComoLidas(lojaId!, cpfUsuario);
+                                    }
                                   },
                                   child: _linhaMensagemChat(context, theme, msg),
                                 ),

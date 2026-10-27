@@ -278,5 +278,31 @@ void main() {
       expect(usuarioSemPublico.apelidoExibicao, equals('cadu'));
       expect(usuarioSemPublico.fotoExibicao, equals('caminho/identidade.jpg'));
     });
+
+    test('UsuarioNous gerencia permissões granulares por campo e respeita privacidade de nome civil com fallback para apelido', () {
+      final user = UsuarioNous(
+        cpf: '11122233344',
+        nome: 'Leonardo Cidadão Brasileiro',
+        apelido: 'Léo',
+        dataNascimento: '1990-01-01',
+        dadosPrivados: const ['nome', 'cpf'],
+      );
+
+      // Terceiro não autorizado vê censurado ou apelido
+      expect(user.nomeExibicaoPara(cpfVisualizador: '99988877766'), equals('Léo'));
+
+      // Dono com dado revelado localmente vê nome completo
+      expect(user.nomeExibicaoPara(reveladoParaDono: true), equals('Leonardo Cidadão Brasileiro'));
+
+      // Concede permissão ao terceiro 99988877766
+      final autorizado = user.concederAutorizacao('nome', '99988877766');
+      expect(autorizado.obterCpfsAutorizadosPara('nome'), contains('99988877766'));
+      expect(autorizado.nomeExibicaoPara(cpfVisualizador: '99988877766'), equals('Leonardo Cidadão Brasileiro'));
+
+      // Revoga permissão
+      final revogado = autorizado.revogarAutorizacao('nome', '99988877766');
+      expect(revogado.obterCpfsAutorizadosPara('nome'), isEmpty);
+      expect(revogado.nomeExibicaoPara(cpfVisualizador: '99988877766'), equals('Léo'));
+    });
   });
 }

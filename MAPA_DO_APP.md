@@ -41,11 +41,14 @@ Dois estados mudam o comportamento de várias telas:
 
 ### 1.3 Janela "Identidade do Usuário"
 📄 `auth/views/widgets/ficha_usuario_dialog.dart`
-- Topo: **foto**, **apelido** (`@`), **nome próprio editável pelo titular** (com botão de salvar próprio nome) e **CPF** (protegido contra alteração).
+- Topo: **foto**, **apelido** e **nome próprio editável pelo titular** (alinhados e centralizados simetricamente com largura de 260px e ícone de privacidade perfeitamente integrado via `Stack`), **nome de usuário** (`@`) e **CPF** (protegido contra alteração).
 - Bloco **Dados pessoais**: data de nascimento, nome do pai, nome da mãe, local de nascimento, tipo sanguíneo, estado civil, e-mails.
 - Botão **"Editar dados pessoais"**: fica sempre visível **abaixo** de todos os dados. Ao clicar, o bloco vira editável com **Salvar** e **Cancelar**.
 - **Blindagem em Dados Ocultos**: quando os dados estão borrados pelo botão do olho, qualquer clique, hover ou foco nos botões e campos internos é totalmente desabilitado com `IgnorePointer(ignoring: true)`, impedindo interação acidental.
-- **Transparência e Olho Fechado em Dados Privados**: se o titular definiu um dado civil como privado, visualizadores terceiros veem a informação censurada com um ícone de olho fechado à direita. Ao tocar nele, abre-se um diálogo confirmando o envio de uma solicitação de acesso deliberativa para o titular via `NotificacoesProvider`.
+- **Privacidade Granular e Ícone de Olho Interativo**:
+  - **Para o próprio titular**: ao clicar no ícone de olho, o dado alterna entre revelado e censurado de forma permanente (persistido localmente até novo clique do usuário).
+  - **Para terceiros**: o dado aparece censurado (`••••••••`) com ícone de olho fechado. Ao clicar no olho, abre-se um diálogo confirmando o envio de solicitação deliberativa de acesso ao titular via notificações.
+  - **Fallback para Apelido**: quando o titular mantém o nome próprio/civil privado, seu apelido é exibido nos cartões, mesas e participantes, mantendo a opção de pedir permissão para visualizar o nome civil.
 - **Modo somente leitura**: ao abrir a ficha de outra pessoa, nada é editável. Ao abrir a própria, o nome e dados pessoais são editáveis; o CPF é sempre fixo.
 - A foto e os dados são os mesmos em qualquer aparelho do mesmo CPF (sincronização pela rede).
 - Acessada a partir da tela **Conta Nous** (2.2.1), pelo card em **Configurações** (2.2) ou ao tocar num membro em **Usuários Participantes** (6.1).
@@ -55,7 +58,7 @@ Dois estados mudam o comportamento de várias telas:
 - Topo com engrenagem de **Configurações** (sem botão de voltar quando acessada pela barra inferior).
 - Cabeçalho vertical centralizado: foto grande de avatar centralizada, `@username` identificador único centralizado, **Nome Completo em negrito** centralizado (ambos com `TextoRolante`) e métricas reais (**Posts**, **Seguidores**, **Seguindo**) sincronizadas do modelo `UsuarioNous`.
 - Bloco **Biografia** com título e descrição.
-- Botões de ação em linha com `TextoRolante`: **"Editar Perfil"** (abre a edição social), **"Seguir" / "Seguindo"** (quando visualizando perfil de terceiros, alternando status social e persistindo seguidores), **"Compartilhar"** (copia identificador Nous) e **"Mensagens"** (abre a Mensageria do Usuário).
+- Botões de ação em linha com `TextoRolante`: **"Editar Perfil"** (abre a edição social), **"Seguir" / "Seguindo"** (quando visualizando perfil de terceiros, alternando status social e persistindo seguidores), **"Compartilhar"** (exibe e copia o nome de usuário Nous `@username`) e **"Mensagens"** (abre a Mensageria do Usuário).
 - Carrossel horizontal de destaques circulares.
 - Barra de abas com 4 ícones (Grade, Reels/Vídeo, Documento, Música) e grade de 3 colunas de publicações.
 - Barra flutuante universal no rodapé com o segundo botão (pessoinha) ativo.
@@ -69,7 +72,7 @@ Dois estados mudam o comportamento de várias telas:
      - Modo Lojinha (`storefront`): abre a tela **Meus Perfis** (`PerfisPdvView`).
   2. **Slot 1 (Social / Comunicação):**
      - Modo Pessoinha (`person`): abre o **Perfil Social do Usuário** (`PerfilSocialView`).
-     - Modo Mensagens (`chat_bubble`): abre diretamente a **Mensageria** do Usuário (`MensageriaView` sem o prefixo "Nous" no título).
+     - Modo Mensagens (`chat_bubble`): abre diretamente a **Mensageria** do Usuário (`MensageriaView`).
   3. **Slot 2 (Busca / Player Universal):**
      - Modo Lupa (`search`): abre a tela soberana de **Busca & Mapa** (`BuscaMapaView`), com barra de pesquisa para localização regional de lojas e produtos, filtros rápidos ("Todos", "Lojas", "Perfis"), cards de visita e botões para seguir perfis cidadãos.
      - Modo Player (`play_circle`): Super motor e player integrado de vídeos, músicas e PDFs (em construção).
@@ -80,6 +83,27 @@ Dois estados mudam o comportamento de várias telas:
      - Modo Autogestão (`hub`): Painel geral de assembleias e deliberações populares (em construção).
      - Modo Governança (`account_tree`): Ferramentas específicas de autogestão (em construção).
 - **Sem Seta de Voltar Indesejada:** A navegação entre os módulos principais da barra não acumula histórico indevido e o `CustomAppBar` possui `automaticallyImplyLeading: false`, garantindo que nenhuma tela de raiz exiba seta de voltar.
+
+### 1.6 Tela "Mensageria e Chats do Usuário / Loja"
+📄 `chat/views/mensageria_view.dart` · widgets: `_ItemConversaTile`, `_PlayerMensagemAudio`, `comanda_pedido_dialog.dart`
+- **Padrão Mercado e Abertura Instantânea no Final:** O chat abre diretamente na última mensagem enviada com rolagem invertida natural (`reverse: true`), ancorando instantaneamente na base sem saltos visuais.
+- **Gravação e Reprodução de Mensagens de Voz (Estilo WhatsApp):**
+  - **Barra de Gravação Interativa:** O botão de envio exibe o ícone de microfone (`mic`) quando o campo de texto está vazio; ao tocar, inicia a gravação de áudio (.m4a AAC LC 128kbps) e transforma a barra de envio em uma faixa com indicador pulsante, cronômetro de duração em tempo real (`0:05`), botão de descarte imediato (lixeira) e botão de envio direto.
+  - **Player Integrado na Bolha:** As mensagens de áudio são renderizadas com um reprodutor nativo (`_PlayerMensagemAudio`), com botão circular de Play/Pause, barra de progresso ajustável com busca temporal (`SliderTheme`), contador de tempo e microfone colorido indicativo de voz.
+  - **Menu de Anexos:** Opção "Mensagem de Voz" também disponível no modal de anexos ao lado de Fotos, Documentos e Comandas de Pedidos.
+- **Envio Otimista em 0ms e Fila Offline (Outbox):** Mensagens enviadas entram imediatamente na interface; quando desconectado da rede, são salvas com status pendente e sincronizadas de forma autônoma assim que restabelecida a conexão local.
+- **Ciclo Completo de Confirmação Visual:** Ícone de relógio cinza (pendente na fila local), 1 check cinza (enviada e registrada na rede), 2 checks cinzas (entregue ao aparelho receptor) e 2 checks azuis WhatsApp (`#34B7F1`) para mensagens lidas.
+- **Barra Superior da Conversa (AppBar):** Exibe com clareza o nome do contato ou participantes, foto de perfil/avatar e status ("Online na rede local"). Ao clicar no cabeçalho ou ícone de informações, abre a janela de detalhes do contato ou grupo.
+- **Janela de Detalhes do Grupo e Edição de Foto:** Clicar no cabeçalho do grupo exibe a lista completa de participantes com avatar, nome, CPF mascarado e badge de destaque "Você", galeria com contagem de Mídias, Links e Documentos, além de botão na foto do grupo para registrar nova foto com a câmera ou galeria, replicando em tempo real na rede local.
+- **Isolamento Absoluto entre Conta Pessoal e Lojas:** Grupos e conversas da conta pessoal não vazam para o atendimento das lojas, e conversas de clientes da loja ficam restritas ao escopo da loja (`lojaId`).
+- **Sincronização Pan-Dispositivo Bidirecional:** O histórico de conversas e grupos é sincronizado integralmente entre o computador (balcão) e os dispositivos móveis (terminais), garantindo lista idêntica em qualquer aparelho logado na mesma conta.
+- **Título da Conversa dentro do Chat:** Posicionado dentro da própria área de mensagens, centralizado e em letras grandes com ícone de edição. Ao tocar, abre o diálogo de renomear a conversa e persiste no banco SQLite e na malha da rede local.
+- **Câmera Física Direta:** O botão de câmera na barra de digitação aciona diretamente a câmera nativa do celular (`ImagePicker` com `ImageSource.camera`) para fotografar e enviar fotos instantaneamente, com fallback para seletor em desktops sem câmera ativa.
+- **Encaminhamento de Mensagens Robusto:** Menu contextual na bolha permite encaminhar mensagens para qualquer contato ou grupo com persistência imediata e atualização reativa.
+- **Criação e Propagação de Grupos:** Criar um grupo despacha evento imediato na rede local (`grupo_criado`), abrindo o chat de grupo em tempo real para todos os membros nos outros aparelhos.
+- **Navegação com Botão Voltar do Android:** Controlado por `PopScope`: ao pressionar o botão voltar do sistema operacional com uma conversa aberta, o app desmarca a conversa e retorna para a lista de conversas da mensageria (sem fechar a tela).
+- **Destaque Permanente no Desktop:** A conversa selecionada no painel lateral esquerdo mantém o destaque de hover e borda temática ativo permanentemente enquanto estiver aberta.
+- **Chat Coletivo da Loja Nous:** Mensagens enviadas na aba de gestão da Loja Coletiva Nous contam com menu contextual de cópia, edição com histórico de versões, exclusão para todos em até 1 minuto e checks duplos azuis de leitura, sendo sincronizadas bidirecionalmente entre todos os nós da rede local.
 
 ---
 
@@ -104,8 +128,8 @@ Dois estados mudam o comportamento de várias telas:
 ### 2.2.1 Tela "Conta Nous"
 📄 `auth/views/conta_nous_view.dart` · acessada pelo botão "Conta Nous" em Configurações.
 - Reúne os módulos soberanos da identidade e dos dados do cidadão:
-  - **Identidade do Usuário**: foto de perfil, `@username` identificador único com diálogo de edição, apelido, nome civil e CPF formatado, com botão "Ver / Editar Identidade Completa" (abre `FichaUsuarioDialog` 1.3).
-  - **Privacidade e Transparência dos Dados**: container com interruptores `ThemedSwitch` por campo (CPF, data de nascimento, filiação, local de nascimento, tipo sanguíneo, estado civil, telefone e endereço). Permite tornar dados públicos ou privados para terceiros nas lojas e buscas.
+  - **Identidade do Usuário**: foto de perfil, `@username` identificador único com diálogo de edição, apelido, nome civil e CPF formatado com alternância permanente de revelação no olho para o dono, com botão "Ver / Editar Identidade Completa" (abre `FichaUsuarioDialog` 1.3).
+  - **Privacidade e Transparência dos Dados**: container com interruptores `ThemedSwitch` por campo (Nome Próprio / Nome Civil, CPF, data de nascimento, filiação, local de nascimento, tipo sanguíneo, estado civil, telefone e endereço). Permite tornar dados públicos ou privados para terceiros nas lojas e buscas. Exibe a lista de membros que receberam autorização de acesso a cada dado privado e botão para revogar a permissão individualmente a qualquer momento.
   - **E-mails Associados**: listagem de todos os e-mails associados ao CPF da conta com indicação do e-mail ativo da sessão e botão para adicionar novo e-mail (`AdicionarEmailDialog`).
   - **Backup Soberano dos Dados**: atalho seguro para exportação e importação do cofre de dados em arquivo JSON único.
   - **Excluir Conta Nous Definitivamente**: botão de ação destrutiva em cor de perigo (`theme.dangerColor`) que expurga os dados do SQLite, limpa o cache persistido (`_chaveUltimoCpf`) e redireciona ao login inicial.
@@ -391,25 +415,41 @@ Todas abrem centralizadas, aceitam **F11** e, no desktop expandido, ficam em **d
 📄 `chat/views/mensageria_view.dart` · serviço `chat/services/chat_service.dart` · modelos em `chat/models/` (`mensagem_chat.dart`, `conversa_chat.dart`)
 - Interface estilo WhatsApp adaptável: lista de conversas à esquerda e conversa ativa à direita no desktop (≥ 720 px); lista ou conversa em tela cheia com botão voltar no celular.
 - **Botão de Voltar no Desktop quando chat aberto**: ao navegar para Mensagens pela barra flutuante universal no desktop e selecionar uma conversa (momento em que a barra universal é desabilitada), o `CustomAppBar` exibe automaticamente o botão de voltar no canto superior esquerdo para desmarcar a conversa atual e voltar à lista, impedindo que o usuário fique preso na tela.
-- **Ordem cronológica e ancoragem natural (`reverse: true`)**: as mensagens são exibidas com a mais recente na base, imediatamente acima da barra de envio, mantendo o scroll naturalmente ancorado no final e subindo para ver o histórico anterior.
-- **Busca de contatos com `TextoRolante`**: o campo de pesquisa possui `TextoRolante` ativo em seu placeholder quando vazio, garantindo que o texto nunca seja truncado em telas compactas.
-- **Envio de Arquivos, Imagens e Comandas com Autocura**:
-  - **Botão de anexo (`+` / clipe)** ao lado do campo de mensagem com menu de opções:
-    - **Foto / Imagem**: seleção de arquivos de imagem, persistência local e transmissão em tempo real via WebSocket e REST embutindo payload Base64 para gravação física direta no disco do destinatário (`salvarBytesImagemLocal`). Caso o destinatário não tenha o arquivo físico (ex.: histórico prévio), a malha de autocura requisita e baixa a imagem sob demanda via `/api/imagem`. Miniatura arredondada no chat com clique para visualização em alta resolução em tela cheia.
-    - **Documento / Arquivo**: seleção de qualquer tipo de arquivo (PDFs, relatórios, etc.) com persistência em `anexos_chat/`, card com ícone do tipo, nome rolante, tamanho formatado e botão para abrir no visualizador padrão do sistema.
-    - **Comanda de Pedido**: seleção rápida de pedidos da loja/usuário, enviando um card interativo com número formatado (`#0001`), badge com status, itens, total em R$ e botão **"Ver Comanda Completa"** que abre o `ComandaPedidoDialog`.
+- **Ordem Natural e Rolagem Automática**: mensagens em ordem cronológica direta (antigas no topo, recentes embaixo), rolando suavemente até o final ao abrir o chat ou receber novas mensagens.
+- **Título da Conversa Interativo**: conversas novas ou sem título iniciam com "Nova Conversa" centralizado (17px); clique no título permite renomear a qualquer momento.
+- **Confirmação de Leitura em Check Duplo Azul**: mensagens lidas pelo destinatário exibem check duplo no azul oficial WhatsApp (`#34B7F1`).
+- **Ações Contextuais de Mensagem (Clique / Toque Longo)**:
+  - **Copiar**: copia o texto da mensagem para a área de transferência.
+  - **Encaminhar**: abre diálogo de seleção de outra conversa da lista para envio imediato.
+  - **Editar**: disponível para o autor da mensagem; exibe selo `(editada)` na bolha, com histórico completo de versões anteriores acessível ao tocar no selo.
+  - **Excluir para todos**: disponível para o autor e **somente nos primeiros 60 segundos** após o envio.
+- **Barra de Envio com Câmera e Anexos**:
+  - **Ícone de Câmera**: captura e envio instantâneo de fotos físicas direto pelo visualizador/câmera.
+  - **Botão de Anexo (`+` / clipe)**:
+    - **Foto / Imagem**: seleção de arquivos de imagem com persistência e malha de autocura em tempo real.
+    - **Documento / Arquivo**: envio de PDFs e arquivos gerais com ícone do tipo e tamanho formatado.
+    - **Comanda de Pedido**: envio de card interativo com status, itens, total e atalho para `ComandaPedidoDialog`.
 - **Compartilhamento de Comanda direto do PDV** (`ComandaPedidoDialog`): botão "Chat" ao lado de Imprimir e Fechar que permite enviar a comanda com 1 clique para o cliente do pedido ou para a equipe da loja.
 - **Painel limpo por padrão**: ao abrir a tela de Mensagens, nenhuma conversa é auto-selecionada; o painel direito exibe o espaço limpo e receptivo convidando o usuário a escolher ou iniciar um chat.
-- **Destaque de conversa ativa e Hover fixo**: o chat selecionado recebe destaque visual imediato com fundo contrastante aceso fixo e borda lateral esquerda na cor do tema, além de efeito de hover suave ao passar o mouse pelos contatos.
+- **Destaque Permanente da Conversa Ativa**: o chat selecionado na barra lateral desktop recebe destaque visual fixo (borda nítida de 4px e fundo aceso contrastante) e efeito suave de hover nos demais contatos.
+- **Busca de Contatos com `TextoRolante`**: placeholder rolante e filtragem dinâmica de contatos e lojas.
 - **Resolução de fotos da equipe**: fotos dos membros da equipe e de clientes são resolvidas automaticamente por CPF (`auth.buscarFotoPorCpf`, `pdv.buscarFotoClientePorCpf`), garantindo fotos reais nos avatares e transmissão com autocura prévia ao balcão.
-- **Leitura sem truncamento (`TextoRolante`)**: aplicada no cabeçalho ativo da conversa, no campo de busca, no nome de arquivos anexos e na prévia da última mensagem na lista lateral (com prefixos automáticos `📷 Foto`, `📎 Arquivo` e `🧾 Comanda`).
-- **Detalhes do Contato estilo WhatsApp e Container Dinâmico "Mídias, Links e Docs"**: clique no cabeçalho ativo da conversa abre janela modal com foto ampliada, dados, botão **"Ver Perfil Público"** e container dinâmico de abas:
-  - **Mídias**: grade com as fotos trocadas na conversa com miniatura e clique para tela cheia.
-  - **Docs**: lista de arquivos e documentos com ícone, nome e tamanho formatado.
-  - **Links**: detecção automática de links web (`http://` ou `https://`) nas mensagens com clique direto para abrir no navegador padrão.
-- **Desduplicação soberana por CPF**: reconhecimento de identidade única por CPF normalizado — membros da equipe que também estejam cadastrados como clientes não duplicam perfis.
-- **Persistência e Sincronização SQLite/Wi-Fi**: tabela `mensagens_chat` com colunas para arquivos, imagens e comandas (`tipo`, `caminho_anexo`, `nome_anexo`, `tamanho_anexo`, `pedido_id`, `dados_pedido_json`), sincronizadas em tempo real via WebSocket e REST na malha local.
-- **Ponto de atenção vermelho**: indica novas mensagens não lidas nos botões da Loja (barra lateral e gestão) e badges numéricos em cada conversa.
+- **Detalhes do Contato e Gestão da Conversa**: clique no cabeçalho abre janela estilo WhatsApp com:
+  - Foto ampliada, dados do contato e botão **"Ver Perfil Público"**.
+  - **Mídias, Links e Docs**: grade de imagens trocadas, lista de documentos e detecção automática de links web clicáveis.
+  - **Exportar backup da conversa**: exporta todo o histórico em arquivo JSON estruturado.
+  - **Excluir conversa deliberativa**: solicita exclusão com consentimento mútuo entre as partes via notificação deliberativa.
+- **Envio Otimista Instantâneo em 0ms**: ao tocar em enviar, a mensagem surge imediatamente na bolha, o campo de digitação é limpo e a rolagem avança; a persistência SQLite e a transmissão pela malha ocorrem de forma não-bloqueante em segundo plano.
+- **Fila de Saída Offline (*Outbox*) com Autodrenagem**: se o dispositivo estiver offline, a mensagem é armazenada com status pendente (ícone de relógio cinza) e é automaticamente drenada e transmitida no momento da reconexão (cliente ou servidor).
+- **Ciclo Completo de Confirmação Visual de Envio/Entrega/Leitura**:
+  - *Relógio cinza* (`Icons.access_time_rounded`): pendente na fila local.
+  - *1 check cinza* (`Icons.check`): transmitida e gravada na rede.
+  - *2 checks cinzas* (`Icons.done_all`): entregue fisicamente no dispositivo do destinatário.
+  - *2 checks azuis* (`#34B7F1`, `Icons.done_all`): visualizada e marcada como lida pelo destinatário.
+- **Fixação e Arquivamento de Conversas**:
+  - Clique com botão direito ou toque longo no item da conversa abre menu com "Fixar/Desafixar conversa" e "Arquivar/Desarquivar".
+  - Conversas fixadas exibem ícone discreto de alfinete (`Icons.push_pin_rounded`) e têm prioridade no topo da lista.
+- **Fonte Única da Verdade e Persistência Imediata**: novas conversas abertas são imediatamente gravadas na tabela `conversas_chat` do SQLite com índices aceleradores, garantindo que nunca desapareçam da lista de chats ativos. O encaminhamento de mensagens garante a persistência formal da conversa de destino no banco e despacha o anexo/texto via rede local com atualização reativa da lista.
 - **Modo Loja**: remetente é a Loja atual; bolhas de mensagem exibem o atendente responsável; carrega membros da equipe e clientes cadastrados de forma desduplicada.
 - **Modo Usuário Nous**: remetente é o cidadão/CPF logado; acessado pelo botão "Mensagens" do Perfil Social; conversa com lojas que participa e outros contatos da rede.
 

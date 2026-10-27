@@ -8,6 +8,7 @@ enum TipoNotificacao {
   remocaoLoja,
   solicitacaoExclusaoDono,
   solicitacaoDadoUsuario,
+  solicitacaoExclusaoConversa,
 }
 
 class ConviteLoja {

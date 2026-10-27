@@ -24,6 +24,7 @@ import 'package:nous/src/features/pdv/services/backup_service.dart';
 import 'package:nous/src/features/pdv/services/lojas_service.dart';
 import 'package:nous/src/features/pdv/services/rede_local/cliente_rede_local.dart';
 import 'package:nous/src/features/pdv/services/rede_local/servidor_rede_local.dart';
+import 'package:nous/src/features/chat/services/chat_service.dart';
 
 class PdvProvider extends ChangeNotifier {
   final List<Loja> _lojas = [];
@@ -35,6 +36,8 @@ class PdvProvider extends ChangeNotifier {
   List<Loja> get lojas => List.unmodifiable(_lojas);
   bool get layoutDesktopGlobal => _layoutDesktopGlobal;
   String get tipoLayoutDesktopGlobal => _tipoLayoutDesktopGlobal;
+
+  void notificarMudanca() => notifyListeners();
 
   bool layoutDesktopAtivo([String? lojaId, double? larguraTela]) {
     if (defaultTargetPlatform == TargetPlatform.android ||
@@ -634,7 +637,7 @@ class PdvProvider extends ChangeNotifier {
     return null;
   }
 
-  Future<void> excluirLoja(String id) async {
+  Future<void> excluirLoja(String id, {bool originadaDaRede = false}) async {
     final loja = buscarPorId(id);
     _lojas.removeWhere((l) => l.id == id);
     notifyListeners();
@@ -644,16 +647,48 @@ class PdvProvider extends ChangeNotifier {
     final dono = loja.cpfDonoOriginal.isEmpty
         ? (_cpfAtual ?? '')
         : loja.cpfDonoOriginal;
-    if (dono.isEmpty) return;
+    if (dono.isNotEmpty) {
+      final cofre = await LojasService.carregar(dono);
+      await LojasService.salvar(
+        dono,
+        cofre.where((l) => l.id != id).toList(),
+      );
+    }
 
-    final cofre = await LojasService.carregar(dono);
-    await LojasService.salvar(
-      dono,
-      cofre.where((l) => l.id != id).toList(),
-    );
+    if (_cpfAtual != null && _cpfAtual!.isNotEmpty && _cpfAtual != dono) {
+      final cofreAtual = await LojasService.carregar(_cpfAtual!);
+      await LojasService.salvar(
+        _cpfAtual!,
+        cofreAtual.where((l) => l.id != id).toList(),
+      );
+    }
 
     for (final membro in loja.membros) {
       await LojasService.removerReferencia(membro.cpf, id);
+    }
+    if (_cpfAtual != null) {
+      await LojasService.removerReferencia(_cpfAtual!, id);
+    }
+
+    // Excluir conversas da loja
+    await ChatService.excluirConversaLocal('loja_${id}_geral');
+
+    // Propagar evento de rede para evitar que outro dispositivo restaure a loja excluída
+    if (!originadaDaRede) {
+      if (ClienteRedeLocal().conectado) {
+        ClienteRedeLocal().enviarMensagemRaw({
+          'tipo': 'loja_excluida',
+          'lojaId': id,
+          'cpfDono': dono,
+        });
+      }
+      if (ServidorRedeLocal().ativo) {
+        ServidorRedeLocal().notificarTodos({
+          'tipo': 'loja_excluida',
+          'lojaId': id,
+          'cpfDono': dono,
+        });
+      }
     }
   }
 
@@ -880,12 +915,6 @@ class PdvProvider extends ChangeNotifier {
     if (indice == -1) return;
     final loja = _lojas[indice];
 
-    final hashAnterior = loja.acoes.isNotEmpty
-        ? (loja.acoes.first.hash.isNotEmpty
-            ? loja.acoes.first.hash
-            : loja.acoes.first.calcularHash('0000000000000000000000000000000000000000000000000000000000000000'))
-        : '0000000000000000000000000000000000000000000000000000000000000000';
-
     final novaAcao = RegistroAcao(
       id: DateTime.now().millisecondsSinceEpoch.toString(),
       dataHora: DateTime.now(),
@@ -895,9 +924,7 @@ class PdvProvider extends ChangeNotifier {
       cpfAutor: autorCpf,
       nomeAutor: autorNome,
       emailAutor: autorEmail,
-      hashAnterior: hashAnterior,
     );
-    final novaAcaoEncadeada = novaAcao.copyWith(hash: novaAcao.calcularHash());
 
     // Consolidar saldo de estoque de cada item com custo financeiro zero,
     // preservando rigorosamente a contagem física atual de produtos sem deixar resquícios de compras financeiras.
@@ -935,7 +962,7 @@ class PdvProvider extends ChangeNotifier {
       turnosCaixa: const [],
       pagamentosFuncionarios: const [],
       movimentosEstoque: novosMovimentosEstoque,
-      acoes: [novaAcaoEncadeada, ...loja.acoes],
+      acoes: [novaAcao, ...loja.acoes],
     );
 
     _lojas[indice] = atualizada;
@@ -1032,20 +1059,7 @@ class PdvProvider extends ChangeNotifier {
     if (indice == -1) return;
 
     final atual = _lojas[indice].acoes;
-    final hashAnterior = atual.isNotEmpty
-        ? (atual.first.hash.isNotEmpty
-            ? atual.first.hash
-            : atual.first.calcularHash('0000000000000000000000000000000000000000000000000000000000000000'))
-        : '0000000000000000000000000000000000000000000000000000000000000000';
-
-    final acaoEncadeada = acao.hash.isNotEmpty
-        ? acao
-        : acao.copyWith(
-            hashAnterior: hashAnterior,
-            hash: acao.calcularHash(hashAnterior),
-          );
-
-    final atualizada = _lojas[indice].copyWith(acoes: [acaoEncadeada, ...atual]);
+    final atualizada = _lojas[indice].copyWith(acoes: [acao, ...atual]);
     _lojas[indice] = atualizada;
     notifyListeners();
     _salvarLojaNoCofreCorreto(atualizada);

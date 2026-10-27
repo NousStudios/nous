@@ -29,8 +29,9 @@ Guia rápido e cirúrgico para criação e alteração de campos em modelos seri
 - **`TurnoCaixa`**, **`MovimentoCaixa`** (`pdv/models/turno_caixa.dart`)
 - **`ConfiguracoesImpressora`** (`pdv/models/configuracoes_impressora.dart`)
 - **`RegistroAcao`** (`pdv/models/registro_acao.dart`)
-- **`ConviteLoja`** (`notificacoes/models/convite_loja.dart`)
-- **Submodelos:** `ItemVendido`, `PagamentoParcial`, `AcompanhamentoEscolhido`, `ItemConsumoMesa`, `ComponenteItem`.
+- **`ConversaChat`** (`chat/models/conversa_chat.dart`)
+- **`MensagemChat`** (`chat/models/mensagem_chat.dart`)
+- **Submodelos:** `ItemVendido`, `PagamentoParcial`, `AcompanhamentoEscolhido`, `ItemConsumoMesa`, `ComponenteItem`, `HistoricoEdicaoMensagem`.
 
 ---
 

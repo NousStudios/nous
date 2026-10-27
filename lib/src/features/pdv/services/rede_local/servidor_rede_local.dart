@@ -223,6 +223,9 @@ class ServidorRedeLocal {
     // Inicia anúncio UDP para descoberta automática no Wi-Fi
     _iniciarAnuncioUdp();
 
+    // Drena qualquer mensagem que estava na fila de saída local
+    ChatService.drenarFilaDeSaida();
+
     return true;
   }
 
@@ -1001,7 +1004,11 @@ class ServidorRedeLocal {
               usuario.cpf, usuario.foto);
         }
 
-        // Se a conta ativa no servidor for esse CPF, recarrega o AuthProvider do servidor
+        // Atualiza cache de identidades e notifica o AuthProvider e PdvProvider
+        _authProvider?.atualizarContaNoCache(usuario);
+        _pdvProvider?.notificarMudanca();
+
+        // Se a conta ativa no servidor for esse CPF, recarrega a conta ativa
         if (_authProvider != null &&
             (_authProvider!.contaAtual?.cpf == usuario.cpf ||
                 _authProvider!.cpf == usuario.cpf)) {
@@ -1308,6 +1315,53 @@ class ServidorRedeLocal {
       }
     }
 
+    // 13. Sincronização de conversas e grupos pela rede Wi-Fi (GET)
+    if (path == '/api/chat/conversas' && request.method == 'GET') {
+      try {
+        final cpf = request.uri.queryParameters['cpf'];
+        final lojaId = request.uri.queryParameters['lojaId'];
+        final conversas = await ChatService.obterConversasParaSincronizacao(
+          cpf: cpf,
+          lojaId: lojaId,
+        );
+        _responderJson(request, {'sucesso': true, 'conversas': conversas});
+        return;
+      } catch (e) {
+        _responderJson(request, {'sucesso': false, 'erro': e.toString()},
+            statusCode: HttpStatus.internalServerError);
+        return;
+      }
+    }
+
+    // 14. Sincronização bidirecional enviada pelo cliente terminal móvel (POST)
+    if (path == '/api/chat/conversas/sync' && request.method == 'POST') {
+      try {
+        final body = await utf8.decodeStream(request);
+        final dados = jsonDecode(body) as Map<String, dynamic>;
+        if (dados['conversas'] is List) {
+          for (final c in dados['conversas'] as List<dynamic>) {
+            if (c is Map<String, dynamic>) {
+              await ChatService.salvarConversaLocal(c);
+            }
+          }
+        }
+        if (dados['mensagens'] is List) {
+          for (final m in dados['mensagens'] as List<dynamic>) {
+            if (m is Map<String, dynamic>) {
+              final msg = MensagemChat.fromJson(m);
+              await ChatService.salvarMensagem(msg, originadaDaRede: true);
+            }
+          }
+        }
+        _responderJson(request, {'sucesso': true});
+        return;
+      } catch (e) {
+        _responderJson(request, {'sucesso': false, 'erro': e.toString()},
+            statusCode: HttpStatus.internalServerError);
+        return;
+      }
+    }
+
     // Rota não encontrada
     _responderJson(
       request,
@@ -1396,6 +1450,36 @@ class ServidorRedeLocal {
             }
           }
         }
+      } else if (tipo == 'mensagem_entregue' || tipo == 'mensagens_lidas') {
+        await ChatService.processarMensagemRecebidaDaRede(dados, emitirAlertaSonoro: false);
+        final payload = jsonEncode(dados);
+        for (final cliente in List<WebSocket>.from(_clientesWs)) {
+          if (cliente != ws) {
+            try {
+              cliente.add(payload);
+            } catch (_) {}
+          }
+        }
+      } else if (tipo == 'usuario_atualizado') {
+        if (dados['usuario'] != null) {
+          try {
+            final usuario = UsuarioNous.fromJson(dados['usuario'] as Map<String, dynamic>);
+            await ContasNousService.salvar(usuario);
+            _authProvider?.atualizarContaNoCache(usuario);
+            _pdvProvider?.notificarMudanca();
+
+            final payload = jsonEncode({'tipo': 'usuario_atualizado', 'usuario': usuario.toJson()});
+            for (final cliente in List<WebSocket>.from(_clientesWs)) {
+              if (cliente != ws) {
+                try {
+                  cliente.add(payload);
+                } catch (_) {}
+              }
+            }
+          } catch (e) {
+            debugPrint('[ServidorRedeLocal] Erro ao processar usuario_atualizado via WS: $e');
+          }
+        }
       } else if (tipo == 'pedido_atualizado') {
         if (dados['pedido'] != null && _pdvProvider != null && _lojaAtiva != null) {
           final pedido = PedidoLoja.fromJson(dados['pedido'] as Map<String, dynamic>);
@@ -1418,6 +1502,19 @@ class ServidorRedeLocal {
                   cliente.add(payload);
                 } catch (_) {}
               }
+            }
+          }
+        }
+      } else if (tipo == 'loja_excluida') {
+        final lojaId = dados['lojaId'] as String?;
+        if (lojaId != null && _pdvProvider != null) {
+          await _pdvProvider!.excluirLoja(lojaId, originadaDaRede: true);
+          final payload = jsonEncode({'tipo': 'loja_excluida', 'lojaId': lojaId});
+          for (final cliente in List<WebSocket>.from(_clientesWs)) {
+            if (cliente != ws) {
+              try {
+                cliente.add(payload);
+              } catch (_) {}
             }
           }
         }

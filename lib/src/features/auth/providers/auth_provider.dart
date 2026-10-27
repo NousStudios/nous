@@ -22,12 +22,64 @@ class AuthProvider extends ChangeNotifier {
   UsuarioNous? _contaAtual;
   String? _emailAtivo;
   Map<String, String> _fotosPorCpf = {};
+  Map<String, UsuarioNous> _contasPorCpf = {};
+  Set<String> _dadosReveladosDono = {};
 
   String get cpf => _cpf;
   String? get errorMessage => _errorMessage;
   bool get carregando => _carregando;
   UsuarioNous? get contaAtual => _contaAtual;
   String? get emailAtivo => _emailAtivo;
+  Set<String> get dadosReveladosDono => _dadosReveladosDono;
+
+  bool dadoEstaReveladoParaDono(String chave) => _dadosReveladosDono.contains(chave);
+
+  UsuarioNous? buscarContaPorCpf(String cpf) {
+    final digitos = CpfValidator.onlyDigits(cpf);
+    if (_contaAtual != null && CpfValidator.onlyDigits(_contaAtual!.cpf) == digitos) {
+      return _contaAtual;
+    }
+    return _contasPorCpf[digitos] ?? _contasPorCpf[cpf];
+  }
+
+  void atualizarContaNoCache(UsuarioNous conta) {
+    final digitos = CpfValidator.onlyDigits(conta.cpf);
+    _contasPorCpf[digitos] = conta;
+    _contasPorCpf[conta.cpf] = conta;
+    if (conta.foto.isNotEmpty) {
+      _fotosPorCpf[conta.cpf] = conta.foto;
+      _fotosPorCpf[digitos] = conta.foto;
+    }
+    if (_contaAtual != null && CpfValidator.onlyDigits(_contaAtual!.cpf) == digitos) {
+      _contaAtual = conta;
+    }
+    notifyListeners();
+  }
+
+  Future<void> carregarDadosReveladosDono(String cpf) async {
+    final digitos = CpfValidator.onlyDigits(cpf);
+    if (digitos.isEmpty) {
+      _dadosReveladosDono = {};
+      return;
+    }
+    final prefs = await SharedPreferences.getInstance();
+    final lista = prefs.getStringList('dados_revelados_$digitos') ?? [];
+    _dadosReveladosDono = lista.toSet();
+    notifyListeners();
+  }
+
+  Future<void> alternarRevelacaoParaDono(String chave) async {
+    if (_contaAtual == null) return;
+    final digitos = CpfValidator.onlyDigits(_contaAtual!.cpf);
+    if (_dadosReveladosDono.contains(chave)) {
+      _dadosReveladosDono.remove(chave);
+    } else {
+      _dadosReveladosDono.add(chave);
+    }
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setStringList('dados_revelados_$digitos', _dadosReveladosDono.toList());
+    notifyListeners();
+  }
 
   bool get isValid => CpfValidator.isValid(_cpf);
 
@@ -55,6 +107,9 @@ class AuthProvider extends ChangeNotifier {
   Future<void> carregarCacheContas() async {
     final todas = await ContasNousService.carregarTodas();
     if (_disposed) return;
+    _contasPorCpf = {
+      for (final c in todas) CpfValidator.onlyDigits(c.cpf): c,
+    };
     _fotosPorCpf = {
       for (final c in todas)
         if (c.fotoExibicao.trim().isNotEmpty) c.cpf: c.fotoExibicao.trim(),
@@ -159,6 +214,7 @@ class AuthProvider extends ChangeNotifier {
 
     if (conta != null) {
       await ThemeController.carregarTemaDoUsuario(conta.cpf);
+      await carregarDadosReveladosDono(conta.cpf);
     }
 
     _carregando = false;
@@ -183,6 +239,7 @@ class AuthProvider extends ChangeNotifier {
     _contaAtual = conta;
     _emailAtivo = null;
     await ThemeController.carregarTemaDoUsuario(_cpf);
+    await carregarDadosReveladosDono(_cpf);
     notifyListeners();
   }
 
@@ -204,6 +261,7 @@ class AuthProvider extends ChangeNotifier {
     _contaAtual = conta;
     _emailAtivo = null;
     await ThemeController.carregarTemaDoUsuario(_cpf);
+    await carregarDadosReveladosDono(_cpf);
     _propagarUsuarioAtualizado(conta);
     notifyListeners();
   }
@@ -255,6 +313,7 @@ class AuthProvider extends ChangeNotifier {
   }
 
   void _propagarUsuarioAtualizado(UsuarioNous usuario) {
+    _contasPorCpf[CpfValidator.onlyDigits(usuario.cpf)] = usuario;
     if (ClienteRedeLocal().conectado) {
       ClienteRedeLocal().enviarUsuario(usuario);
     } else if (ServidorRedeLocal().ativo) {
@@ -465,12 +524,26 @@ class AuthProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  Future<void> revogarAcessoDado(String chave, String cpfAlvo) async {
+    final conta = _contaAtual;
+    if (conta == null) return;
+
+    final atualizado = conta.revogarAutorizacao(chave, cpfAlvo);
+    await ContasNousService.salvar(atualizado);
+    _contaAtual = atualizado;
+    _propagarUsuarioAtualizado(atualizado);
+    notifyListeners();
+  }
+
   Future<void> recarregarConta() async {
     if (_cpf.isEmpty) return;
     final conta = await ContasNousService.buscarPorCpf(_cpf);
     _contaAtual = conta;
     if (conta != null && conta.foto.isNotEmpty) {
       _fotosPorCpf[conta.cpf] = conta.foto;
+    }
+    if (conta != null) {
+      await carregarDadosReveladosDono(conta.cpf);
     }
     notifyListeners();
   }
@@ -480,6 +553,7 @@ class AuthProvider extends ChangeNotifier {
     _errorMessage = null;
     _contaAtual = null;
     _emailAtivo = null;
+    _dadosReveladosDono = {};
     ThemeController.desvincularUsuario();
     notifyListeners();
   }

@@ -69,8 +69,11 @@ Dicas:
 | **Kardex** | Ficha de um produto com todas as entradas e saídas de estoque. |
 | **DRE** | Demonstrativo de resultado: receita, custos, lucro. |
 | **Variante** | Versão de um produto com preço próprio (ex.: tamanho, material). |
-| **Componentes / Adicionais** | Complementos que se escolhem ao pedir um item (grupos com contadores + e −). |
 | **Modo Balcão** | Tela de caixa rápida para bipar produtos e finalizar vendas. |
+| **Envio Otimista (0ms)** | A mensagem aparece imediatamente na tela ao enviar, sem esperar banco ou rede responder. |
+| **Fila de Saída (Outbox)** | Mensagens enviadas sem sinal ficam salvas no aparelho e são transmitidas sozinhas ao reconectar. |
+| **Confirmação em 4 Estágios** | Relógio (pendente), 1 check cinza (enviada), 2 checks cinzas (entregue) e 2 checks azuis (lida). |
+| **Fixação de Conversas** | Manter conversas importantes no topo da lista com um alfinete discreto. |
 
 ## Termos de programação
 

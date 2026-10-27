@@ -14,11 +14,11 @@
 - **Nunca apague silenciosamente funcionalidades que funcionam.** Se precisar remover ou refatorar, avise antes e justifique.
 - **Aviso de build/cache:** ao criar ou alterar campos em modelos persistidos (`fromJson`, `toJson`, `shared_preferences`), avise o desenvolvedor para rodar `flutter clean && flutter pub get`.
 - **Higiene:** ao terminar uma edição, o arquivo fica sem imports não usados, sem comentário óbvio, sem código morto e sem `// TODO` que não será feito agora.
-- **Economia de contexto ("malandragem brasileira" = resolver com o que tem à mão, sem overengineering):**
-  - Leitura cirúrgica: use busca (`Grep`) e leia só trechos (`offset`/`limit`).
-  - Edições atômicas: não reescreva arquivo inteiro se basta mudar uma função.
-  - Sem abstrações prematuras: reutilize widgets e padrões já existentes.
-  - Foco no que foi pedido; não invente features paralelas.
+- **Engenharia de Estado Soberana e Escalável (Padrão Big Tech):**
+  - Fundações sólidas e de concreto armado. Proibido fazer "puxadinhos", atalhos frágeis ou colocar regras de negócio e consultas de banco dentro de Widgets de tela.
+  - O dado (entidades soberanas e repositórios) existe antes da tela; a tela é apenas um consumidor que renderiza o estado e dispara intenções do usuário.
+  - Economia de contexto sim (leitura cirúrgica, grep e edições focadas), mas com arquitetura modular, limpa, desacoplada e escalável.
+  - Foco no que foi pedido; sem remendos imediatistas que criem dívida técnica.
 - **Não adicione pacotes ao `pubspec.yaml` sem alinhamento prévio.**
 
 ### Manter a documentação viva (regra mandatória)
@@ -40,7 +40,7 @@ Após cada ciclo concluído e validado (testes e `flutter analyze`), compile os 
 
 SuperApp brasileiro, livre e de código aberto, de **Autogestão Comercial e Social**, baseado no Plataformismo Brasileiro. Hoje o núcleo é um **PDV completo** (lojas, vendas, estoque, caixa, financeiro, impressão térmica) com identidade por CPF, notificações deliberativas e sincronização local por Wi-Fi. Módulos futuros (pastas reservadas): `chat`, `timeline`, `delivery`, `banco`, `autogestao`.
 
-- Stack: Flutter/Dart, `Provider` (ChangeNotifier), SQLite local (`sqflite_common_ffi`), versão atual no `pubspec.yaml` (hoje v1.0.12+13).
+- Stack: Flutter/Dart, `Provider` (ChangeNotifier), SQLite local (`sqflite_common_ffi`), versão atual no `pubspec.yaml` (hoje v1.0.35+36).
 - Plataformas: Windows (foco principal), Android; também Web, Linux, iOS.
 - Política e filosofia completas: `docs/filosofia.md`.
 
@@ -64,7 +64,7 @@ SuperApp brasileiro, livre e de código aberto, de **Autogestão Comercial e Soc
 
 ## 5. Regras de engenharia (para não quebrar o sistema)
 
-1. **Modelos persistidos** (`Loja`, `Cliente`, `Fornecedor`, `PedidoLoja`, `ItemLoja`, `CategoriaLoja`, `GrupoComponentesLoja`, `ConfiguracoesImpressora`, `MembroLoja`, `RegistroAcao`, `ConviteLoja`, `ReferenciaLoja`, `MovimentoEstoque`, `PagamentoFuncionario`, `TurnoCaixa`, `MovimentoCaixa`, `UsuarioNous`, `PedidoProgramado`):
+1. **Modelos persistidos** (`Loja`, `Cliente`, `Fornecedor`, `PedidoLoja`, `ItemLoja`, `CategoriaLoja`, `GrupoComponentesLoja`, `ConfiguracoesImpressora`, `MembroLoja`, `RegistroAcao`, `ConviteLoja`, `ReferenciaLoja`, `MovimentoEstoque`, `PagamentoFuncionario`, `TurnoCaixa`, `MovimentoCaixa`, `UsuarioNous`, `PedidoProgramado`, `ConversaChat`, `MensagemChat`):
    - `fromJson` com padrão para nulos (`?? ''`, `?? false`, `?? 0.0`).
    - Atualizar sempre os quatro: construtor, `copyWith`, `toJson`, `fromJson`.
    - Enums com `firstWhere(..., orElse: () => Padrao)`.
@@ -77,6 +77,13 @@ SuperApp brasileiro, livre e de código aberto, de **Autogestão Comercial e Soc
    - Nunca retransmitir mensagem recebida do balcão (`aplicandoAtualizacaoRemota`); atualização de loja não pode disparar `entrarComCpf`. Todo salvamento de loja passa por `consolidarLojaComImagensLocais`.
    - Geração de entidades temporais/agendadas: IDs devem ser **determinísticos por ciclo** (`prog_${id}_${ano}_${mes}_${dia}`) e a geração automática pertence ao nó balcão (servidor), evitando duplicação na conexão de nós secundários.
    - Em chat e mensagens: remetente envia metadados completos (inclusive foto física resolvida com autocura prévia) e buscas consultam todos os contatos cadastrados (equipe + clientes).
+6. **Padrão Universal de Mensageria (Estilo WhatsApp nos padrões Nous):**
+   - Todo chat da aplicação (social, loja, comanda, comunidade) DEVE seguir uniformemente o padrão de usabilidade consagrado:
+     - Ordem cronológica natural (mais antigas acima, mais recentes abaixo; rolagem abre na última mensagem).
+     - Menu contextual na bolha (long press / clique direito): copiar texto, editar (apenas autor; histórico e badge `(editada)`), excluir para todos (apenas autor; até 1 minuto pós-envio).
+     - Confirmação visual de status nas mensagens enviadas (1 check cinza: enviada; 2 checks cinzas: entregue na rede; 2 checks azuis `0xFF34B7F1`: lida).
+     - Detalhes ao tocar no cabeçalho: foto editável (se grupo), contagem e lista de participantes, e galeria de mídias/documentos compartilhados.
+     - Isolamento rigoroso: conversas/grupos de loja pertencem à loja (`lojaId`); conversas/grupos sociais pertencem à conta pessoal (`lojaId` vazio), sem cruzamento entre escopos.
 
 ## 6. Design (resumo; completo em `docs/design-system.md`)
 

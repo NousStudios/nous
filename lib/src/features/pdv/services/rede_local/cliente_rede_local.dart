@@ -346,6 +346,9 @@ class ClienteRedeLocal {
         lojaId: PdvProvider.idLojaColetivaNous,
       );
 
+      // Drena imediatamente qualquer mensagem pendente na fila offline
+      ChatService.drenarFilaDeSaida();
+
       // Checa se o balcão possui uma versão/APK disponível para este aparelho
       verificarAtualizacaoLocal();
 
@@ -425,6 +428,11 @@ class ClienteRedeLocal {
         presencasAtivas.value = lista
             .map((e) => TerminalConectadoInfo.fromJson(e as Map<String, dynamic>))
             .toList();
+      } else if (tipo == 'loja_excluida') {
+        final lojaId = dados['lojaId'] as String?;
+        if (lojaId != null && _pdvProvider != null) {
+          await _pdvProvider!.excluirLoja(lojaId, originadaDaRede: true);
+        }
       } else if (tipo == 'pedido_adicionado' || tipo == 'pedido_atualizado') {
         if (dados['pedido'] != null && _pdvProvider != null && _lojaSincronizada != null) {
           final pedido = PedidoLoja.fromJson(dados['pedido'] as Map<String, dynamic>);
@@ -490,6 +498,8 @@ class ClienteRedeLocal {
             }
 
             await ContasNousService.salvar(usuarioRemoto);
+            _authProvider?.atualizarContaNoCache(usuarioRemoto);
+            _pdvProvider?.notificarMudanca();
             _pdvProvider?.sincronizarFotoUsuarioEmClientes(
                 usuarioRemoto.cpf, usuarioRemoto.foto);
 
@@ -650,6 +660,17 @@ class ClienteRedeLocal {
       }
     }
     return false;
+  }
+
+  /// Envia um evento de controle ou confirmação via WebSocket (ex: mensagem_entregue, mensagem_lida)
+  void enviarEventoWs(Map<String, dynamic> payload) {
+    if (_ws != null && estaConectado.value) {
+      try {
+        _ws!.add(jsonEncode(payload));
+      } catch (e) {
+        debugPrint('[ClienteRedeLocal] Erro ao enviar evento WS: $e');
+      }
+    }
   }
 
   /// Envia um pedido (novo ou atualizado) realizado no celular para o servidor central da loja
@@ -2200,6 +2221,17 @@ class ClienteRedeLocal {
       debugPrint('[ClienteRedeLocal] Saída da loja $lojaId notificada ao balcão com sucesso.');
     } catch (e) {
       debugPrint('[ClienteRedeLocal] Erro ao notificar saída da loja ao balcão: $e');
+    }
+  }
+
+  /// Envia payload genérico JSON pelo WebSocket ativo para o servidor balcão
+  void enviarMensagemRaw(Map<String, dynamic> payload) {
+    if (_ws != null && estaConectado.value) {
+      try {
+        _ws!.add(jsonEncode(payload));
+      } catch (e) {
+        debugPrint('[ClienteRedeLocal] Erro ao enviar mensagem raw via WebSocket: $e');
+      }
     }
   }
 }

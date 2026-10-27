@@ -6,7 +6,7 @@ import 'package:nous/src/features/pdv/models/membro_loja.dart';
 import 'package:nous/src/features/pdv/models/registro_acao.dart';
 
 void main() {
-  group('Criptografia e Encadeamento Blockchain (RegistroAcao)', () {
+  group('Criptografia e Encadeamento para Autogestão Social (CriptoService & RegistroAcao)', () {
     test('CriptoService calcula SHA-256 nativo com precisão determinística', () {
       final hash1 = CriptoService.sha256('nous-superapp-soberano');
       final hash2 = CriptoService.sha256('nous-superapp-soberano');

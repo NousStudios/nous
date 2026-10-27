@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:nous/src/core/services/gerador_id.dart';
 import 'package:nous/src/core/theme/theme_controller.dart';
 import 'package:nous/src/features/chat/models/mensagem_chat.dart';
@@ -70,6 +71,7 @@ class _AbaGestaoNousWidgetState extends State<AbaGestaoNousWidget> {
       _conversaId,
       idVisualizador: widget.cpfLogado,
     );
+    await ChatService.marcarMensagensDaLojaComoLidas(widget.lojaId, widget.cpfLogado);
     if (!mounted) return;
     setState(() {
       _mensagens = msgs;
@@ -132,10 +134,24 @@ class _AbaGestaoNousWidgetState extends State<AbaGestaoNousWidget> {
       dataHora: DateTime.now(),
       enviadaPorMim: true,
       tipo: 'texto',
+      statusEnvio: 'pendente',
     );
 
-    await ChatService.salvarMensagem(msg);
-    await _carregarMensagens();
+    setState(() {
+      _mensagens.add(msg);
+    });
+    _rolarParaFim();
+
+    ChatService.enviarMensagemInstantanea(msg).then((msgSalva) {
+      if (mounted) {
+        setState(() {
+          final idx = _mensagens.indexWhere((m) => m.id == msg.id);
+          if (idx != -1) {
+            _mensagens[idx] = msgSalva;
+          }
+        });
+      }
+    });
   }
 
   Future<void> _enviarImagem() async {
@@ -171,10 +187,24 @@ class _AbaGestaoNousWidgetState extends State<AbaGestaoNousWidget> {
       caminhoAnexo: salvo,
       nomeAnexo: file.name,
       tamanhoAnexo: bytes.length,
+      statusEnvio: 'pendente',
     );
 
-    await ChatService.salvarMensagem(msg);
-    await _carregarMensagens();
+    setState(() {
+      _mensagens.add(msg);
+    });
+    _rolarParaFim();
+
+    ChatService.enviarMensagemInstantanea(msg).then((msgSalva) {
+      if (mounted) {
+        setState(() {
+          final idx = _mensagens.indexWhere((m) => m.id == msg.id);
+          if (idx != -1) {
+            _mensagens[idx] = msgSalva;
+          }
+        });
+      }
+    });
   }
 
   String _formatarHora(DateTime d) {
@@ -454,17 +484,232 @@ class _AbaGestaoNousWidgetState extends State<AbaGestaoNousWidget> {
     );
   }
 
+  void _mostrarMenuMensagem(AppTheme theme, MensagemChat msg) {
+    final agora = DateTime.now();
+    final diferencaSegundos = agora.difference(msg.dataHora).inSeconds;
+    final ehMinha = msg.enviadaPorMim ||
+        ChatService.normalizarCpf(msg.remetenteId) == ChatService.normalizarCpf(widget.cpfLogado);
+    final podeExcluir = ehMinha && diferencaSegundos <= 60;
+    final podeEditar = ehMinha && msg.tipo == 'texto';
+
+    showDialog(
+      context: context,
+      builder: (ctx) {
+        return AlertDialog(
+          backgroundColor: theme.cardBackgroundColor,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+            side: BorderSide(color: theme.borderColor),
+          ),
+          title: Row(
+            children: [
+              Icon(Icons.chat_bubble_outline_rounded, color: theme.textColor, size: 20),
+              const SizedBox(width: 8),
+              Text(
+                'Opções da Mensagem',
+                style: theme.getTextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: theme.textColor,
+                ),
+              ),
+            ],
+          ),
+          content: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 320),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (msg.texto.isNotEmpty) ...[
+                  ListTile(
+                    leading: Icon(Icons.copy_rounded, color: theme.textColor, size: 20),
+                    title: Text('Copiar Texto', style: theme.getTextStyle(color: theme.textColor)),
+                    onTap: () {
+                      Navigator.pop(ctx);
+                      Clipboard.setData(ClipboardData(text: msg.texto));
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Texto copiado para a área de transferência.')),
+                      );
+                    },
+                  ),
+                  Divider(color: theme.borderColor.withValues(alpha: 0.3)),
+                ],
+                if (podeEditar) ...[
+                  ListTile(
+                    leading: Icon(Icons.edit_outlined, color: theme.textColor, size: 20),
+                    title: Text('Editar', style: theme.getTextStyle(color: theme.textColor)),
+                    subtitle: Text(
+                      'Mantém o histórico de versões visível',
+                      style: theme.getTextStyle(fontSize: 11, color: theme.secondaryTextColor),
+                    ),
+                    onTap: () {
+                      Navigator.pop(ctx);
+                      _dialogEditarMensagem(theme, msg);
+                    },
+                  ),
+                  Divider(color: theme.borderColor.withValues(alpha: 0.3)),
+                ],
+                if (ehMinha) ...[
+                  ListTile(
+                    enabled: podeExcluir,
+                    leading: Icon(
+                      Icons.delete_outline_rounded,
+                      color: podeExcluir
+                          ? theme.dangerColor
+                          : theme.secondaryTextColor.withValues(alpha: 0.5),
+                      size: 20,
+                    ),
+                    title: Text(
+                      'Excluir para todos',
+                      style: theme.getTextStyle(
+                        color: podeExcluir
+                            ? theme.dangerColor
+                            : theme.secondaryTextColor.withValues(alpha: 0.5),
+                      ),
+                    ),
+                    subtitle: Text(
+                      podeExcluir
+                          ? 'Disponível por mais ${60 - diferencaSegundos}s'
+                          : 'Exclusão permitida apenas até 1 minuto após o envio',
+                      style: theme.getTextStyle(
+                        fontSize: 11,
+                        color: theme.secondaryTextColor,
+                      ),
+                    ),
+                    onTap: podeExcluir
+                        ? () {
+                            Navigator.pop(ctx);
+                            _confirmarExclusaoMensagem(theme, msg);
+                          }
+                        : null,
+                  ),
+                ],
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  void _dialogEditarMensagem(AppTheme theme, MensagemChat msg) {
+    final controller = TextEditingController(text: msg.texto);
+
+    showDialog(
+      context: context,
+      builder: (ctx) {
+        return AlertDialog(
+          backgroundColor: theme.cardBackgroundColor,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+            side: BorderSide(color: theme.borderColor),
+          ),
+          title: Text(
+            'Editar Mensagem',
+            style: theme.getTextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.bold,
+              color: theme.textColor,
+            ),
+          ),
+          content: TextField(
+            controller: controller,
+            autofocus: true,
+            maxLines: 4,
+            style: theme.getTextStyle(color: theme.textColor),
+            decoration: InputDecoration(
+              hintText: 'Digite o novo texto...',
+              hintStyle: theme.getTextStyle(color: theme.secondaryTextColor),
+              filled: true,
+              fillColor: theme.backgroundColor,
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(10),
+                borderSide: BorderSide(color: theme.borderColor),
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: Text('Cancelar', style: theme.getTextStyle(color: theme.secondaryTextColor)),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(backgroundColor: theme.buttonColor),
+              onPressed: () async {
+                final novoTexto = controller.text.trim();
+                if (novoTexto.isEmpty || novoTexto == msg.texto) {
+                  Navigator.pop(ctx);
+                  return;
+                }
+                Navigator.pop(ctx);
+                await ChatService.editarMensagem(msg.id, novoTexto);
+                _carregarMensagens();
+              },
+              child: Text(
+                'Salvar Alteração',
+                style: theme.getTextStyle(fontWeight: FontWeight.bold, color: theme.buttonTextColor),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  void _confirmarExclusaoMensagem(AppTheme theme, MensagemChat msg) {
+    showDialog(
+      context: context,
+      builder: (ctx) {
+        return AlertDialog(
+          backgroundColor: theme.cardBackgroundColor,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+            side: BorderSide(color: theme.borderColor),
+          ),
+          title: Text(
+            'Excluir para todos?',
+            style: theme.getTextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: theme.textColor),
+          ),
+          content: Text(
+            'Esta mensagem será apagada para todos os participantes da comunidade Nous.',
+            style: theme.getTextStyle(fontSize: 13, color: theme.secondaryTextColor),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: Text('Cancelar', style: theme.getTextStyle(color: theme.secondaryTextColor)),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(backgroundColor: theme.dangerColor),
+              onPressed: () async {
+                Navigator.pop(ctx);
+                await ChatService.excluirMensagem(msg.id);
+                _carregarMensagens();
+              },
+              child: Text(
+                'Excluir',
+                style: theme.getTextStyle(fontWeight: FontWeight.bold, color: theme.buttonTextColor),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
   Widget _buildBolhaMensagem(AppTheme theme, MensagemChat msg, bool ehMinha) {
     final fotoResolvida = ImagemService.resolverCaminhoExistente(msg.remetenteFoto);
     final temFoto = fotoResolvida != null && File(fotoResolvida).existsSync();
+    final ehMinhaMsg = ehMinha ||
+        ChatService.normalizarCpf(msg.remetenteId) == ChatService.normalizarCpf(widget.cpfLogado);
 
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: Row(
-        mainAxisAlignment: ehMinha ? MainAxisAlignment.end : MainAxisAlignment.start,
+        mainAxisAlignment: ehMinhaMsg ? MainAxisAlignment.end : MainAxisAlignment.start,
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
-          if (!ehMinha) ...[
+          if (!ehMinhaMsg) ...[
             CircleAvatar(
               radius: 14,
               backgroundColor: theme.borderColor.withValues(alpha: 0.3),
@@ -476,65 +721,115 @@ class _AbaGestaoNousWidgetState extends State<AbaGestaoNousWidget> {
             const SizedBox(width: 8),
           ],
           Flexible(
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              decoration: BoxDecoration(
-                color: ehMinha
-                    ? theme.textColor.withValues(alpha: 0.15)
-                    : theme.cardBackgroundColor,
-                borderRadius: BorderRadius.only(
-                  topLeft: const Radius.circular(12),
-                  topRight: const Radius.circular(12),
-                  bottomLeft: Radius.circular(ehMinha ? 12 : 2),
-                  bottomRight: Radius.circular(ehMinha ? 2 : 12),
-                ),
-                border: Border.all(
-                  color: ehMinha
-                      ? theme.textColor.withValues(alpha: 0.4)
-                      : theme.borderColor.withValues(alpha: 0.6),
-                ),
-              ),
-              child: Column(
-                crossAxisAlignment:
-                    ehMinha ? CrossAxisAlignment.end : CrossAxisAlignment.start,
-                children: [
-                  if (!ehMinha)
-                    Text(
-                      msg.remetenteNome.isNotEmpty ? msg.remetenteNome : 'Membro',
-                      style: theme.getTextStyle(
-                        fontSize: 10,
-                        fontWeight: FontWeight.bold,
-                        color: theme.secondaryTextColor,
-                      ),
-                    ),
-                  if (msg.tipo == 'imagem' && msg.caminhoAnexo.isNotEmpty) ...[
-                    const SizedBox(height: 4),
-                    _buildImagemAnexo(theme, msg.caminhoAnexo),
-                  ],
-                  if (msg.texto.isNotEmpty &&
-                      (msg.tipo != 'imagem' || msg.texto != 'Foto compartilhada')) ...[
-                    const SizedBox(height: 2),
-                    Text(
-                      msg.texto,
-                      style: theme.getTextStyle(
-                        fontSize: 13,
-                        color: theme.textColor,
-                      ),
-                    ),
-                  ],
-                  const SizedBox(height: 2),
-                  Text(
-                    _formatarHora(msg.dataHora),
-                    style: theme.getTextStyle(
-                      fontSize: 9,
-                      color: theme.secondaryTextColor.withValues(alpha: 0.7),
-                    ),
+            child: InkWell(
+              borderRadius: BorderRadius.circular(12),
+              onLongPress: () => _mostrarMenuMensagem(theme, msg),
+              onSecondaryTap: () => _mostrarMenuMensagem(theme, msg),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                decoration: BoxDecoration(
+                  color: ehMinhaMsg
+                      ? theme.textColor.withValues(alpha: 0.15)
+                      : theme.cardBackgroundColor,
+                  borderRadius: BorderRadius.only(
+                    topLeft: const Radius.circular(12),
+                    topRight: const Radius.circular(12),
+                    bottomLeft: Radius.circular(ehMinhaMsg ? 12 : 2),
+                    bottomRight: Radius.circular(ehMinhaMsg ? 2 : 12),
                   ),
-                ],
+                  border: Border.all(
+                    color: ehMinhaMsg
+                        ? theme.textColor.withValues(alpha: 0.4)
+                        : theme.borderColor.withValues(alpha: 0.6),
+                  ),
+                ),
+                child: Column(
+                  crossAxisAlignment:
+                      ehMinhaMsg ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+                  children: [
+                    if (!ehMinhaMsg)
+                      Text(
+                        msg.remetenteNome.isNotEmpty ? msg.remetenteNome : 'Membro',
+                        style: theme.getTextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.bold,
+                          color: theme.secondaryTextColor,
+                        ),
+                      ),
+                    if (msg.tipo == 'imagem' && msg.caminhoAnexo.isNotEmpty) ...[
+                      const SizedBox(height: 4),
+                      _buildImagemAnexo(theme, msg.caminhoAnexo),
+                    ],
+                    if (msg.texto.isNotEmpty &&
+                        (msg.tipo != 'imagem' || msg.texto != 'Foto compartilhada')) ...[
+                      const SizedBox(height: 2),
+                      Text(
+                        msg.texto,
+                        style: theme.getTextStyle(
+                          fontSize: 13,
+                          color: theme.textColor,
+                        ),
+                      ),
+                    ],
+                    const SizedBox(height: 3),
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        if (msg.editada) ...[
+                          Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 2),
+                            child: Text(
+                              '(editada)',
+                              style: theme.getTextStyle(
+                                fontSize: 9,
+                                color: theme.secondaryTextColor.withValues(alpha: 0.9),
+                              ).copyWith(fontStyle: FontStyle.italic),
+                            ),
+                          ),
+                          const SizedBox(width: 4),
+                        ],
+                        Text(
+                          _formatarHora(msg.dataHora),
+                          style: theme.getTextStyle(
+                            fontSize: 9,
+                            color: theme.secondaryTextColor.withValues(alpha: 0.7),
+                          ),
+                        ),
+                        if (ehMinhaMsg) ...[
+                          const SizedBox(width: 4),
+                          if (msg.statusEnvio == 'pendente')
+                            Icon(
+                              Icons.access_time_rounded,
+                              size: 11,
+                              color: theme.secondaryTextColor.withValues(alpha: 0.7),
+                            )
+                          else if (msg.lida || msg.statusEnvio == 'lida')
+                            const Icon(
+                              Icons.done_all,
+                              size: 13,
+                              color: Color(0xFF34B7F1),
+                            )
+                          else if (msg.entregue || msg.statusEnvio == 'entregue')
+                            Icon(
+                              Icons.done_all,
+                              size: 13,
+                              color: theme.secondaryTextColor.withValues(alpha: 0.85),
+                            )
+                          else
+                            Icon(
+                              Icons.check,
+                              size: 13,
+                              color: theme.secondaryTextColor.withValues(alpha: 0.8),
+                            ),
+                        ],
+                      ],
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
-          if (ehMinha) const SizedBox(width: 4),
+          if (ehMinhaMsg) const SizedBox(width: 4),
         ],
       ),
     );

@@ -5,6 +5,8 @@ import 'package:nous/src/core/theme/theme_controller.dart';
 import 'package:nous/src/features/auth/models/usuario_nous.dart';
 import 'package:nous/src/features/auth/providers/auth_provider.dart';
 import 'package:nous/src/features/auth/views/widgets/ficha_usuario_dialog.dart';
+import 'package:nous/src/features/notificacoes/models/convite_loja.dart';
+import 'package:nous/src/features/notificacoes/providers/notificacoes_provider.dart';
 import 'package:nous/src/features/pdv/models/cargo_loja.dart';
 import 'package:nous/src/features/pdv/models/membro_loja.dart';
 import 'package:nous/src/features/pdv/providers/pdv_provider.dart';
@@ -104,6 +106,80 @@ class UsuariosParticipantesContainer extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  Future<void> _solicitarAcessoAoDado(
+    BuildContext context,
+    UsuarioNous usuario,
+    String rotulo,
+    String chave,
+  ) async {
+    final auth = context.read<AuthProvider>();
+    final notificacoes = context.read<NotificacoesProvider>();
+    final usuarioLogado = auth.contaAtual;
+    if (usuarioLogado == null) return;
+
+    final confirmar = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: theme.cardBackgroundColor,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+          side: BorderSide(color: theme.borderColor),
+        ),
+        title: Text(
+          'Solicitar Acesso',
+          style: theme.getTextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.bold,
+            color: theme.textColor,
+          ),
+        ),
+        content: Text(
+          'Deseja enviar uma notificação para ${usuario.nomeExibicao} solicitando autorização para visualizar seu "$rotulo"?',
+          style: theme.getTextStyle(fontSize: 13, color: theme.textColor),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: Text(
+              'Cancelar',
+              style: theme.getTextStyle(color: theme.secondaryTextColor),
+            ),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: theme.buttonColor,
+              foregroundColor: theme.buttonTextColor,
+            ),
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: Text(
+              'Enviar Solicitação',
+              style: theme.getTextStyle(color: theme.buttonTextColor),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmar == true && context.mounted) {
+      final solicitacao = ConviteLoja(
+        id: 'solic_${DateTime.now().millisecondsSinceEpoch}_${usuarioLogado.cpf}',
+        cpfConvidante: usuarioLogado.cpf,
+        nomeConvidante: usuarioLogado.nomeExibicao,
+        cpfConvidado: usuario.cpf,
+        lojaId: '',
+        nomeLoja: 'Conta Pessoal',
+        papel: PapelMembro.funcionario,
+        dataHora: DateTime.now(),
+        tipo: TipoNotificacao.solicitacaoDadoUsuario,
+        dadoSolicitado: chave,
+      );
+      await notificacoes.adicionarNotificacao(solicitacao);
+      if (context.mounted) {
+        _avisar(context, 'Solicitação enviada!');
+      }
+    }
   }
 
   void _confirmarRemocao(BuildContext context, MembroLoja membro) {
@@ -452,6 +528,44 @@ class UsuariosParticipantesContainer extends StatelessWidget {
 
     final temFoto = ImagemService.existe(foto);
 
+    final contaMembro = auth.buscarContaPorCpf(membro.cpf);
+    final nomePrivado = contaMembro?.dadoEstaPrivado('nome') ?? false;
+    final cpfPrivado = contaMembro?.dadoEstaPrivado('cpf') ?? false;
+
+    String nomeExibido = membro.nome.isEmpty ? 'Sem nome' : membro.nome;
+    bool olhoNomeAberto = false;
+    VoidCallback? aoClicarOlhoNome;
+
+    if (nomePrivado && contaMembro != null) {
+      if (ehVoce) {
+        final revelado = auth.dadoEstaReveladoParaDono('nome');
+        olhoNomeAberto = revelado;
+        aoClicarOlhoNome = () => auth.alternarRevelacaoParaDono('nome');
+        nomeExibido = revelado
+            ? (contaMembro.nome.isNotEmpty ? contaMembro.nome : 'Sem nome')
+            : (contaMembro.apelido.isNotEmpty ? contaMembro.apelido : '••••••••');
+      } else {
+        final autorizado = contaMembro.dadoAutorizadoPara('nome', cpfLogado);
+        if (!autorizado) {
+          aoClicarOlhoNome = () => _solicitarAcessoAoDado(context, contaMembro, 'Nome', 'nome');
+          nomeExibido = contaMembro.apelido.isNotEmpty ? contaMembro.apelido : '••••••••';
+        }
+      }
+    }
+
+    String cpfExibido = _formatarCpf(membro.cpf);
+    if (cpfPrivado && contaMembro != null) {
+      if (ehVoce) {
+        final revelado = auth.dadoEstaReveladoParaDono('cpf');
+        cpfExibido = revelado ? _formatarCpf(membro.cpf) : '•••.•••.•••-••';
+      } else {
+        final autorizado = contaMembro.dadoAutorizadoPara('cpf', cpfLogado);
+        if (!autorizado) {
+          cpfExibido = '•••.•••.•••-••';
+        }
+      }
+    }
+
     return _MembroLinhaComHover(
       builder: (hover) => InkWell(
         onTap: () => _abrirIdentidadeDoUsuario(context, membro),
@@ -505,14 +619,37 @@ class UsuariosParticipantesContainer extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    membro.nome.isEmpty ? 'Sem nome' : membro.nome,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: theme.getTextStyle(
-                      fontSize: 13,
-                      color: theme.textColor,
-                    ),
+                  Row(
+                    children: [
+                      Flexible(
+                        child: Text(
+                          nomeExibido,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: theme.getTextStyle(
+                            fontSize: 13,
+                            color: theme.textColor,
+                          ),
+                        ),
+                      ),
+                      if (aoClicarOlhoNome != null) ...[
+                        const SizedBox(width: 4),
+                        InkWell(
+                          onTap: aoClicarOlhoNome,
+                          borderRadius: BorderRadius.circular(10),
+                          child: Padding(
+                            padding: const EdgeInsets.all(2.0),
+                            child: Icon(
+                              olhoNomeAberto
+                                  ? Icons.visibility_outlined
+                                  : Icons.visibility_off_outlined,
+                              size: 14,
+                              color: theme.secondaryTextColor,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ],
                   ),
                   Builder(
                     builder: (context) {
@@ -529,7 +666,7 @@ class UsuariosParticipantesContainer extends StatelessWidget {
                             : _rotuloPapel(membro.papel);
                       }
                       return Text(
-                        '$rotuloCargo • ${_formatarCpf(membro.cpf)}'
+                        '$rotuloCargo • $cpfExibido'
                         ' • desde ${_dataCurta(membro.desde)}',
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,

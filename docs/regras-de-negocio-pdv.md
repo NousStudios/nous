@@ -109,8 +109,8 @@ O que cada tela mostra está em `MAPA_DO_APP.md`. Aqui ficam **as regras de cál
   - Dados do cliente (`linhaDadoCliente`): rótulo intacto, valor em `Expanded(softWrap: true)`.
 - Prévia: 10 perfis históricos do anarquismo (Makhno, Bakunin, Malatesta, Kropotkin, Emma Goldman, Durruti, Maria Lacerda de Moura, Comuna de Paris, CNT/FAI, Nous Autogestão), com canais oficiais do Nous (`nousstudios72@gmail.com`, `@nous.studios72`).
 
-## 12. Auditoria e Imutabilidade Blockchain (`RegistroAcao`)
+## 12. Auditoria, Transparência Radical e Arquitetura Blockchain
 
 - **Registro Universal e Transparência Radical:** Toda ação relevante registra autor (nome, CPF, e-mail), data/hora e descrição/delta: movimentos de estoque, cancelamentos, itens de mesa, pagamentos a membros, sangrias, suprimentos, exclusão de turno, deliberações, etc. A aba "Ações" em Relatórios permite auditar e navegar até o cliente ou pedido relacionado.
-- **Encadeamento Criptográfico Estilo Blockchain:** Cada `RegistroAcao` armazena o `hashAnterior` e calcula seu próprio `hash` SHA-256 nativo (padrão FIPS 180-4 em `CriptoService`), selando o ID, timestamp, tipo de ação, autor e delta da operação.
-- **Bloco Gênese e Integridade de Cadeia:** O primeiro registro da loja conecta-se ao hash gênese (64 zeros). Qualquer adulteração retroativa quebra a validação da cadeia de blocos local, garantindo que o trabalhador e o coletivo tenham auditoria incorruptível e soberana.
+- **Execução Local-First Ultrarrápida no SQLite:** Para garantir máxima fluidez de interface (60 fps), respostas em milissegundos e usabilidade de rede social massiva, os registros operacionais do PDV e da mensageria são persistidos diretamente no banco SQLite local, sem amarras de processamento pesado no fluxo rotineiro.
+- **Blockchain Reservado para Autogestão Social (`features/autogestao`):** A arquitetura de livro-razão imutável, encadeamento criptográfico estrito (hashes de blocos, bloco gênese e validação de cadeia) fica reservada especificamente para as ferramentas de governança social soberana — assembleias deliberativas, votações de urnas populares e auditoria de contratos coletivos —, onde o custo computacional de validação criptográfica é justificado pela inviolabilidade do consenso social.

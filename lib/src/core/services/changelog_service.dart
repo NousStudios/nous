@@ -100,6 +100,7 @@ class ChangelogService {
       for (final item in novidades) {
         if (item.versao.contains(limpa)) return item;
       }
+      return null;
     }
     return novidades.isNotEmpty ? novidades.first : null;
   }

@@ -2,6 +2,69 @@
 
 Uma linha por mudança, da mais recente para a mais antiga. O agente deve acrescentar aqui o que fez em cada ciclo (versão do `pubspec.yaml` + o que mudou). Este arquivo guarda **histórico**; a descrição atual do app fica em `MAPA_DO_APP.md`.
 
+## v1.0.35 (build 36) — 26/10/2026
+
+- **Mensagens de Voz no Chat (Estilo WhatsApp):** Gravação de áudio de alta fidelidade (.m4a AAC LC 128kbps) integrada com a biblioteca oficial `record`, permitindo gravar mensagens de voz diretamente da barra de envio ou do menu de anexos.
+- **Barra de Gravação Interativa com Timer ao Vivo:** Ao iniciar a gravação, a barra de texto se transforma em uma interface de gravação com ícone pulsante, cronômetro de duração decorrida em tempo real, botão de descarte/cancelamento imediato com lixeira e botão de envio instantâneo.
+- **Player de Áudio Nativo Integrado na Bolha:** Bolhas de áudio exibem reprodutor no padrão WhatsApp, com botão de Play/Pause, barra de progresso interativa para avanço/retrocesso temporal, contador de tempo decorrido/total e microfone colorido indicativo de mensagem de voz.
+- **Alternância Dinâmica entre Microfone e Envio:** Campo de texto exibe o ícone de microfone quando vazio (para gravação ágil) e alterna fluidamente para a seta de envio assim que qualquer caractere for digitado.
+- **Autocura e Sincronização Local de Mensagens de Voz:** Arquivos de áudio são transmitidos em Base64 na malha local via WebSocket e REST, suportando download e reprodução automática em qualquer aparelho da rede.
+- **Permissão de Microfone no Android:** Declarada permissão `android.permission.RECORD_AUDIO` no manifesto da aplicação para operação completa em smartphones e tablets.
+- **Primeira Letra Maiúscula no Endereço do Cliente:** `PrimeiraLetraMaiusculaFormatter` aplicado ao campo "Endereço" no cadastro de clientes, padronizando a formatação com o campo de nome.
+- **Alinhamento Simétrico na Identidade do Usuário:** Padronização da largura dos inputs em 260px com `Stack` em `FichaUsuarioDialog`, garantindo centralização visual sem desvios.
+- **Correção Completa do Encaminhamento de Mensagens:** Persistência imediata de conversas ao encaminhar mensagens e atualização reativa do histórico.
+- **Filtro Estrito de Alterações na Janela de Atualizações:** Exibição exclusiva das novidades da próxima versão a ser instalada, omitindo o container de alterações caso o sistema já esteja na versão mais recente.
+
+## v1.0.34 (build 35) — 26/10/2026
+
+- **Reestruturação Soberana e Escalável de Mensageria (Padrão Big Tech):** Arquitetura desacoplada onde os dados residem no SQLite local com índices otimizados (`conversas_chat` e `mensagens_chat`), migração retrocompatível e integridade garantida dos dados legados.
+- **Envio Otimista Instantâneo em 0ms:** Mensagens digitadas entram imediatamente na interface do usuário na hora do envio, limpando o input e avançando a rolagem sem travamentos de rede ou banco.
+- **Fila de Saída Offline (*Outbox*) com Drenagem Automática:** Mensagens enviadas enquanto offline permanecem salvas localmente com status `pendente` e são automaticamente transmitidas e sincronizadas assim que a conexão de rede local (cliente ou servidor balcão) é estabelecida.
+- **Ciclo Completo de Confirmação Visual de Mensagens:** Exibição nativa de relógio cinza (pendente na fila local), 1 check cinza (enviada e registrada na rede), 2 checks cinzas (entregue ao dispositivo receptor) e 2 checks azuis WhatsApp (`#34B7F1`) para mensagens lidas.
+- **Persistência Imediata de Conversas:** Ao selecionar qualquer contato ou cliente para abrir um chat, a conversa é persistida na hora no banco SQLite, eliminando o problema de conversas abertas que desapareciam da lista.
+- **Fixação e Arquivamento de Conversas:** Suporte a toque longo ou clique com botão direito para fixar chats com ícone de alfinete discreto no topo da lista e arquivar conversas.
+- **Confirmação de Entrega em Tempo Real:** Servidor e cliente agora emitem e retransmitem o evento `mensagem_entregue` via WebSocket, atualizando instantaneamente os 2 checks cinzas no nó remetente.
+- **Formatação com Primeira Letra Maiúscula no Endereço do Cliente:** `PrimeiraLetraMaiusculaFormatter` integrado ao campo "Endereço" no diálogo de clientes, padronizando a grafia automaticamente com o campo de nome.
+- **Alinhamento e Centralização Simétrica na Identidade do Usuário:** Inputs de Apelido e Nome Próprio em `FichaUsuarioDialog` padronizados com 260px de largura e ícone de visibilidade integrado em `Stack`, eliminando o desvio visual do eixo central.
+- **Correção Completa do Encaminhamento de Mensagens:** `_dialogEncaminharMensagem` agora persiste a conversa de destino com `ChatService.salvarConversa`, anexa a foto real do remetente, despacha pela rede local e atualiza a interface reativamente.
+- **Filtro Estrito de Alterações na Janela de Atualizações:** `AtualizacaoDialog` agora exibe exclusivamente os itens da próxima versão a ser instalada, omitindo o container de alterações quando o sistema já se encontra na versão estável mais recente.
+
+## v1.0.33 (build 34) — 24/10/2026
+
+- **Isolamento Absoluto entre Conversas da Conta Pessoal e Painel da Loja:** Campo `lojaId` adicionado ao modelo `ConversaChat` e tabela SQLite com migração defensiva; grupos e conversas sociais da conta pessoal agora são filtrados e restritos ao escopo social (`loja_id IS NULL`), impedindo que apareçam dentro do atendimento das lojas e vice-versa.
+- **Sincronização Pan-Dispositivo Bidirecional de Conversas e Grupos:** Endpoints `/api/chat/conversas` (GET) e `/api/chat/conversas/sync` (POST) implementados no servidor e integrados ao cliente; o histórico de chats e grupos criados no celular ou PC é unificado e sincronizado em qualquer dispositivo conectado com a mesma conta.
+- **Janela de Detalhes do Grupo no Cabeçalho e Edição de Foto:** Clicar no cabeçalho ou botão de informações de um grupo abre modal detalhado com contagem, lista de participantes com identificação visual de "Você", galeria de mídias/documentos e botão com acionamento de câmera/galeria para alterar a foto do grupo, com replicação em tempo real na rede local.
+- **Padronização Universal de Chats (Estilo WhatsApp em Todo o App):** Chat comunitário da Loja Nous (`AbaGestaoNousWidget`) e mensageria unificados: suporte a copiar texto, editar mensagens (com histórico de revisões e badge `(editada)`), excluir mensagens para todos até 1 minuto após envio e confirmação de entrega com risquinhos duplos azuis (`#34B7F1`) para mensagens lidas.
+- **Correção do Ícone de Notificações Preso no Vermelho:** Sino da barra superior e `NotificacoesDialog` agora carregam mensagens de loja pendentes quando dentro de uma loja e limpam o status não lido ao dispensar ou tocar na mensagem, retornando o ícone para branco.
+- **Exclusão de Loja Persistente e Propagada:** Processo de exclusão de loja tornado assíncrono com expurgo no banco local e transmissão do evento `loja_excluida` via WebSocket (cliente e servidor), impedindo que outro nó online ressuscite a loja excluída.
+- **Regra Permanente de IA em `AGENTS.md`:** Seção 5, item 6 formaliza a exigência de aderência estrita ao padrão de mensageria WhatsApp nos padrões visuais do Nous para qualquer módulo de comunicação do sistema.
+
+## v1.0.32 (build 33) — 24/10/2026
+
+- **Reflexo Instantâneo de Privacidade e Transparência:** Alterações nas opções de visibilidade em "Privacidade e Transparência" agora atualizam o cache síncrono e notificam a malha de rede imediatamente via WebSocket e REST, refletindo em tempo real no container "Usuários Participantes" da tela "Dados do Perfil" em todos os aparelhos.
+- **Abertura dos Chats no Final (Padrão WhatsApp):** Lista de mensagens de `MensageriaView` refatorada com `reverse: true` e âncora natural na última mensagem enviada, iniciando instantaneamente na base sem saltos visuais.
+- **Acionamento da Câmera Nativa do Celular:** Botão de câmera do chat integrado ao pacote oficial `image_picker` (`ImageSource.camera`), acionando a câmera física do aparelho para fotografar e enviar fotos em tempo real.
+- **Título da Conversa Centralizado Grande dentro do Chat:** O título da conversa agora fica posicionado dentro da própria área de mensagens, centralizado e em letras grandes com ação de clique para renomear, mantendo o nome do contato ou grupo intacto na barra superior (AppBar).
+- **Persistência e Replicação do Chat Coletivo da Loja Nous:** Mensagens enviadas na aba de gestão da Loja Coletiva Nous agora são despachadas imediatamente na rede local e sincronizadas com todos os participantes.
+- **Status de Visualização Realista para Contas Offline:** Mensagens enviadas para destinatários offline nascem como não lidas (`lida: false`) e só são marcadas como lidas quando o destinatário de fato abre o chat, emitindo evento de leitura na rede.
+- **Criação e Propagação em Tempo Real de Grupos:** Criar um grupo agora despacha o evento `grupo_criado` e a mensagem de sistema via WebSocket para a malha da rede local, abrindo a conversa de grupo instantaneamente para todos os membros.
+- **Navegação no Android com `PopScope` e Hover Permanente no Desktop:** O botão padrão de voltar do Android agora retorna para a lista de conversas da mensageria quando houver um chat aberto; no modo desktop, a conversa selecionada mantém o destaque visual e a borda temática ativos permanentemente.
+- **Compartilhamento de Perfil com `@username`:** Ao clicar em "Compartilhar" no Perfil Social, o diálogo agora exibe e copia o identificador social `@nome_de_usuario` do cidadão Nous, e não o CPF.
+
+## v1.0.31 (build 32) — 24/10/2026
+
+- **Privacidade Granular de Dados Soberana:** Suporte a bloqueio e revelação de campos cadastrais (inclusive Nome Próprio / Nome Civil) em toda a aplicação. Dono visualiza e alterna a revelação permanente clicando no ícone do olho com persistência local (`SharedPreferences`). Terceiros veem censurado (`••••••••`) com ícone de olho para solicitar permissão por notificação deliberativa.
+- **Transparência e Revogação de Acesso a Dados (`ContaNousView`):** Novo controle no container "Privacidade e Transparência" listando individualmente os membros autorizados para cada dado sensível, com botão para revogar a permissão a qualquer momento.
+- **Fallback para Apelido em Caso de Nome Civil Privado:** Componentes como `UsuariosParticipantesContainer`, `DadosPerfilView` e cartões exibem o apelido do usuário quando o nome civil estiver privado sem autorização prévia, com suporte a solicitação direta por diálogo.
+- **Ordem Natural das Mensagens no Chat (`MensageriaView`):** Rolagem e fluxo corrigidos para o padrão natural (mensagens antigas no topo, mensagens recentes embaixo, com autoscroll até o fim).
+- **Seleção e Menu Contextual de Mensagens (Estilo WhatsApp):** Menu via clique/long-press permitindo Copiar texto, Encaminhar para qualquer contato/conversa, Editar texto (somente autor, mantendo histórico de versões visível em badge `(editada)`) e Excluir para todos (somente autor e com prazo estrito de até 1 minuto após envio).
+- **Confirmação de Leitura com Double Check Azul:** Ícone `Icons.done_all` exibido em azul oficial WhatsApp (`#34B7F1`) para mensagens lidas e secundário para não lidas.
+- **Renomeação de Conversas e Título Ampliado:** Conversas novas iniciam como "Nova Conversa" centralizado e com fonte 17px, permitindo renomeação direta ao clicar no título ou ícone de edição, refletindo imediatamente na rede local.
+- **Destaque Permanente da Conversa Ativa na Sidebar (Desktop):** A conversa selecionada no desktop recebe borda sólida de 4px em `theme.buttonColor`, fundo com contraste nítido e contorno visível.
+- **Captura Direta de Fotos pela Câmera:** Botão de câmera adicionado à barra de envio ao lado do clipe de anexos para registrar e enviar fotos instantaneamente.
+- **Mídia, Links e Docs com Backup e Exclusão Mútua:** Diálogo de detalhes do contato agora conta com "Exportar backup da conversa" (arquivo JSON soberano) e "Excluir conversa" (com notificação deliberativa de consentimento mútuo).
+- **Arquitetura de Alta Performance e Delimitação de Blockchain:** Removido overhead de encadeamento criptográfico contínuo em ações do PDV, consolidando o fluxo ultrarrápido em SQLite local e WebSockets para resposta instantânea de rede social massiva (60 fps). A arquitetura de blockchain e livro-razão imutável fica formalmente reservada para as funcionalidades futuras de Autogestão Social (deliberações, votações de urnas e contratos coletivos).
+
 ## v1.0.30 (build 31) — 23/10/2026
 
 - **Suporte Unificado a Assets e Arquivos em Disco (`ImagemService`):** Implementados os métodos `ehAsset`, `obterImageProvider` e `construirImagem` com resolução automática e fallback transparente, suportando tanto assets do Flutter bundle (`assets/images/logo.png`) quanto imagens salvas localmente em disco.

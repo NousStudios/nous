@@ -45,8 +45,8 @@ class _PerfilSocialViewState extends State<PerfilSocialView> {
   }
 
   void _compartilharPerfil(BuildContext context, AppTheme theme, UsuarioNous conta) {
-    final link = 'nous://usuario/${conta.cpf.replaceAll(RegExp(r'\D'), '')}';
-    Clipboard.setData(ClipboardData(text: link));
+    final nomeUsuario = conta.usernameExibicao;
+    Clipboard.setData(ClipboardData(text: nomeUsuario));
 
     showDialog(
       context: context,
@@ -75,7 +75,7 @@ class _PerfilSocialViewState extends State<PerfilSocialView> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'Identificador copiado para a área de transferência!',
+              'Nome de usuário copiado para a área de transferência!',
               style: theme.getTextStyle(
                 fontSize: 13,
                 color: theme.textColor,
@@ -92,10 +92,11 @@ class _PerfilSocialViewState extends State<PerfilSocialView> {
                 ),
               ),
               child: SelectableText(
-                link,
+                nomeUsuario,
                 style: theme.getTextStyle(
-                  fontSize: 12,
-                  color: theme.secondaryTextColor,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: theme.textColor,
                 ),
               ),
             ),

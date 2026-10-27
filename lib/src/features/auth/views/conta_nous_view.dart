@@ -193,59 +193,161 @@ class ContaNousView extends StatelessWidget {
   }
 
   Widget _itemPrivacidade({
+    required BuildContext context,
     required AppTheme theme,
     required String titulo,
     required String subtitulo,
     required bool privado,
+    required List<String> chaves,
+    required UsuarioNous? conta,
     required VoidCallback onAlternar,
   }) {
+    final auth = context.read<AuthProvider>();
+    final cpfsAutorizados = <String>{};
+    if (conta != null) {
+      for (final chave in chaves) {
+        cpfsAutorizados.addAll(conta.obterCpfsAutorizadosPara(chave));
+      }
+    }
+
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 6),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.center,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      titulo,
-                      style: theme.getTextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
-                        color: theme.textColor,
-                      ),
+                    Row(
+                      children: [
+                        Text(
+                          titulo,
+                          style: theme.getTextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                            color: theme.textColor,
+                          ),
+                        ),
+                        if (privado) ...[
+                          const SizedBox(width: 6),
+                          Icon(
+                            Icons.visibility_off_outlined,
+                            size: 14,
+                            color: theme.secondaryTextColor,
+                          ),
+                        ],
+                      ],
                     ),
-                    if (privado) ...[
-                      const SizedBox(width: 6),
-                      Icon(
-                        Icons.visibility_off_outlined,
-                        size: 14,
+                    Text(
+                      privado
+                          ? 'Privado (exige aprovação prévia para visualização)'
+                          : subtitulo,
+                      style: theme.getTextStyle(
+                        fontSize: 11,
                         color: theme.secondaryTextColor,
                       ),
-                    ],
+                    ),
                   ],
                 ),
-                Text(
-                  privado
-                      ? 'Privado (exige aprovação prévia para visualização)'
-                      : subtitulo,
-                  style: theme.getTextStyle(
-                    fontSize: 11,
-                    color: theme.secondaryTextColor,
-                  ),
+              ),
+              const SizedBox(width: 8),
+              ThemedSwitch(
+                theme: theme,
+                value: !privado,
+                onChanged: (_) => onAlternar(),
+              ),
+            ],
+          ),
+          if (cpfsAutorizados.isNotEmpty) ...[
+            const SizedBox(height: 6),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+              decoration: BoxDecoration(
+                color: theme.backgroundColor.withValues(alpha: 0.35),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(
+                  color: theme.borderColor.withValues(alpha: 0.4),
                 ),
-              ],
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(
+                        Icons.verified_user_outlined,
+                        size: 13,
+                        color: theme.secondaryTextColor,
+                      ),
+                      const SizedBox(width: 5),
+                      Text(
+                        'Usuários com acesso concedido (${cpfsAutorizados.length}):',
+                        style: theme.getTextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                          color: theme.secondaryTextColor,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 6),
+                  Wrap(
+                    spacing: 6,
+                    runSpacing: 6,
+                    children: cpfsAutorizados.map((cpfAlvo) {
+                      final usuarioAlvo = auth.buscarContaPorCpf(cpfAlvo);
+                      final nomeAlvo = usuarioAlvo?.nomeExibicao.isNotEmpty == true
+                          ? usuarioAlvo!.nomeExibicao
+                          : _formatarCpf(cpfAlvo);
+                      return Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: theme.cardBackgroundColor,
+                          borderRadius: BorderRadius.circular(6),
+                          border: Border.all(
+                            color: theme.borderColor.withValues(alpha: 0.6),
+                          ),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              nomeAlvo,
+                              style: theme.getTextStyle(
+                                fontSize: 11,
+                                color: theme.textColor,
+                              ),
+                            ),
+                            const SizedBox(width: 6),
+                            InkWell(
+                              onTap: () async {
+                                for (final chave in chaves) {
+                                  await auth.revogarAcessoDado(chave, cpfAlvo);
+                                }
+                              },
+                              borderRadius: BorderRadius.circular(10),
+                              child: Padding(
+                                padding: const EdgeInsets.all(2.0),
+                                child: Icon(
+                                  Icons.close_rounded,
+                                  size: 13,
+                                  color: theme.dangerColor,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    }).toList(),
+                  ),
+                ],
+              ),
             ),
-          ),
-          const SizedBox(width: 8),
-          ThemedSwitch(
-            theme: theme,
-            value: !privado,
-            onChanged: (_) => onAlternar(),
-          ),
+          ],
         ],
       ),
     );
@@ -394,15 +496,48 @@ class ContaNousView extends StatelessWidget {
                                   child: Column(
                                     crossAxisAlignment: CrossAxisAlignment.start,
                                     children: [
-                                      Text(
-                                        conta?.nome.isNotEmpty == true
-                                            ? conta!.nome
-                                            : 'Usuário Nous',
-                                        style: theme.getTextStyle(
-                                          fontSize: 16,
-                                          fontWeight: FontWeight.bold,
-                                          color: theme.textColor,
-                                        ),
+                                      Builder(
+                                        builder: (context) {
+                                          final privado = conta?.dadoEstaPrivado('nome') ?? false;
+                                          final revelado = auth.dadoEstaReveladoParaDono('nome');
+                                          final nomeTexto = privado
+                                              ? (revelado
+                                                  ? (conta?.nome.isNotEmpty == true ? conta!.nome : 'Usuário Nous')
+                                                  : (conta?.apelido.isNotEmpty == true ? conta!.apelido : '••••••••'))
+                                              : (conta?.nome.isNotEmpty == true ? conta!.nome : 'Usuário Nous');
+
+                                          return Row(
+                                            children: [
+                                              Flexible(
+                                                child: Text(
+                                                  nomeTexto,
+                                                  style: theme.getTextStyle(
+                                                    fontSize: 16,
+                                                    fontWeight: FontWeight.bold,
+                                                    color: theme.textColor,
+                                                  ),
+                                                ),
+                                              ),
+                                              if (privado) ...[
+                                                const SizedBox(width: 6),
+                                                InkWell(
+                                                  onTap: () => auth.alternarRevelacaoParaDono('nome'),
+                                                  borderRadius: BorderRadius.circular(10),
+                                                  child: Padding(
+                                                    padding: const EdgeInsets.all(2.0),
+                                                    child: Icon(
+                                                      revelado
+                                                          ? Icons.visibility_outlined
+                                                          : Icons.visibility_off_outlined,
+                                                      size: 16,
+                                                      color: theme.secondaryTextColor,
+                                                    ),
+                                                  ),
+                                                ),
+                                              ],
+                                            ],
+                                          );
+                                        },
                                       ),
                                       const SizedBox(height: 3),
                                       InkWell(
@@ -445,16 +580,50 @@ class ContaNousView extends StatelessWidget {
                                           style: theme.getTextStyle(
                                             fontSize: 12,
                                             color: theme.secondaryTextColor,
-                                         ),
+                                          ),
                                         ),
                                       ],
                                       const SizedBox(height: 2),
-                                      Text(
-                                        _formatarCpf(conta?.cpf ?? auth.cpf),
-                                        style: theme.getTextStyle(
-                                          fontSize: 12,
-                                          color: theme.secondaryTextColor,
-                                        ),
+                                      Builder(
+                                        builder: (context) {
+                                          final privado = conta?.dadoEstaPrivado('cpf') ?? false;
+                                          final revelado = auth.dadoEstaReveladoParaDono('cpf');
+                                          final cpfTexto = privado
+                                              ? (revelado
+                                                  ? _formatarCpf(conta?.cpf ?? auth.cpf)
+                                                  : '•••.•••.•••-••')
+                                              : _formatarCpf(conta?.cpf ?? auth.cpf);
+
+                                          return Row(
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: [
+                                              Text(
+                                                cpfTexto,
+                                                style: theme.getTextStyle(
+                                                  fontSize: 12,
+                                                  color: theme.secondaryTextColor,
+                                                ),
+                                              ),
+                                              if (privado) ...[
+                                                const SizedBox(width: 6),
+                                                InkWell(
+                                                  onTap: () => auth.alternarRevelacaoParaDono('cpf'),
+                                                  borderRadius: BorderRadius.circular(10),
+                                                  child: Padding(
+                                                    padding: const EdgeInsets.all(2.0),
+                                                    child: Icon(
+                                                      revelado
+                                                          ? Icons.visibility_outlined
+                                                          : Icons.visibility_off_outlined,
+                                                      size: 14,
+                                                      color: theme.secondaryTextColor,
+                                                    ),
+                                                  ),
+                                                ),
+                                              ],
+                                            ],
+                                          );
+                                        },
                                       ),
                                     ],
                                   ),
@@ -544,61 +713,92 @@ class ContaNousView extends StatelessWidget {
                             ),
                             const SizedBox(height: 12),
                             _itemPrivacidade(
+                              context: context,
+                              theme: theme,
+                              titulo: 'Nome Próprio / Nome Civil',
+                              subtitulo: 'Exibir seu nome civil completo (se privado, exibe apenas seu apelido)',
+                              privado: conta?.dadoEstaPrivado('nome') ?? false,
+                              chaves: const ['nome'],
+                              conta: conta,
+                              onAlternar: () => auth.alternarPrivacidadeDado('nome'),
+                            ),
+                            _itemPrivacidade(
+                              context: context,
                               theme: theme,
                               titulo: 'CPF do Cidadão',
                               subtitulo: 'Exibir seu CPF publicamente em lojas',
                               privado: conta?.dadoEstaPrivado('cpf') ?? false,
+                              chaves: const ['cpf'],
+                              conta: conta,
                               onAlternar: () => auth.alternarPrivacidadeDado('cpf'),
                             ),
                             _itemPrivacidade(
+                              context: context,
                               theme: theme,
                               titulo: 'Data de Nascimento',
                               subtitulo: 'Exibir sua data de nascimento',
                               privado: conta?.dadoEstaPrivado('dataNascimento') ?? false,
+                              chaves: const ['dataNascimento'],
+                              conta: conta,
                               onAlternar: () =>
                                   auth.alternarPrivacidadeDado('dataNascimento'),
                             ),
                             _itemPrivacidade(
+                              context: context,
                               theme: theme,
                               titulo: 'Filiação (Mãe e Pai)',
                               subtitulo: 'Exibir nomes dos pais na identidade',
                               privado: (conta?.dadoEstaPrivado('nomeMae') ?? false) ||
                                   (conta?.dadoEstaPrivado('nomePai') ?? false),
+                              chaves: const ['nomeMae', 'nomePai'],
+                              conta: conta,
                               onAlternar: () {
                                 auth.alternarPrivacidadeDado('nomeMae');
                                 auth.alternarPrivacidadeDado('nomePai');
                               },
                             ),
                             _itemPrivacidade(
+                              context: context,
                               theme: theme,
                               titulo: 'Local de Nascimento',
                               subtitulo: 'Exibir cidade e estado de origem',
                               privado: conta?.dadoEstaPrivado('localNascimento') ?? false,
+                              chaves: const ['localNascimento'],
+                              conta: conta,
                               onAlternar: () =>
                                   auth.alternarPrivacidadeDado('localNascimento'),
                             ),
                             _itemPrivacidade(
+                              context: context,
                               theme: theme,
                               titulo: 'Tipo Sanguíneo',
                               subtitulo: 'Exibir seu tipo sanguíneo',
                               privado: conta?.dadoEstaPrivado('tipoSanguineo') ?? false,
+                              chaves: const ['tipoSanguineo'],
+                              conta: conta,
                               onAlternar: () =>
                                   auth.alternarPrivacidadeDado('tipoSanguineo'),
                             ),
                             _itemPrivacidade(
+                              context: context,
                               theme: theme,
                               titulo: 'Estado Civil',
                               subtitulo: 'Exibir estado civil',
                               privado: conta?.dadoEstaPrivado('estadoCivil') ?? false,
+                              chaves: const ['estadoCivil'],
+                              conta: conta,
                               onAlternar: () =>
                                   auth.alternarPrivacidadeDado('estadoCivil'),
                             ),
                             _itemPrivacidade(
+                              context: context,
                               theme: theme,
                               titulo: 'Telefone e Endereço',
                               subtitulo: 'Exibir contato telefônico e localização',
                               privado: (conta?.dadoEstaPrivado('telefone') ?? false) ||
                                   (conta?.dadoEstaPrivado('endereco') ?? false),
+                              chaves: const ['telefone', 'endereco'],
+                              conta: conta,
                               onAlternar: () {
                                 auth.alternarPrivacidadeDado('telefone');
                                 auth.alternarPrivacidadeDado('endereco');

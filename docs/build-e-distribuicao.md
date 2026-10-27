@@ -2,14 +2,14 @@
 
 ## 1. Versão
 
-- Fonte da verdade: `pubspec.yaml` (`version:`). Hoje **v1.0.17+18**.
+- Fonte da verdade: `pubspec.yaml` (`version:`). Hoje **v1.0.34+35**.
 - O nome dos arquivos em `dist/` utiliza o padrão versionado `Nous_Instalador_v${versao}_Versao_Teste.exe` e `Nous_Android_v${versao}_Versao_Teste.apk`.
 - Ao subir a versão, o `gerar_instalador.ps1` sincroniza `AtualizacaoService.dart` antes de compilar.
 
 ## 2. Pasta `dist/`
 
-- Windows: `dist/Nous_Instalador_v1.0.17_Versao_Teste.exe` (Inno Setup 6, com ícone, dependências C++ e SQLite).
-- Android: `dist/Nous_Android_v1.0.17_Versao_Teste.apk` (modo Release).
+- Windows: `dist/Nous_Instalador_v1.0.34_Versao_Teste.exe` (Inno Setup 6, com ícone, dependências C++ e SQLite).
+- Android: `dist/Nous_Android_v1.0.34_Versao_Teste.apk` (modo Release).
 - O pipeline apaga versões antigas e mantém só a mais recente.
 
 ## 3. Scripts (`scripts/`)

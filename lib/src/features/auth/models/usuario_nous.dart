@@ -72,6 +72,55 @@ class UsuarioNous {
     return dadosAutorizadosPorCpf.contains('$outroLimpo:$chave');
   }
 
+  /// Retorna a lista de CPFs que possuem autorização expressa para visualizar este dado privado
+  List<String> obterCpfsAutorizadosPara(String chave) {
+    final sufixo = ':$chave';
+    final cpfs = <String>[];
+    for (final entrada in dadosAutorizadosPorCpf) {
+      if (entrada.endsWith(sufixo)) {
+        final partes = entrada.split(':');
+        if (partes.length == 2 && partes[0].isNotEmpty) {
+          cpfs.add(partes[0]);
+        }
+      }
+    }
+    return cpfs;
+  }
+
+  /// Revoga a permissão de visualização de um usuário específico para um dado
+  UsuarioNous revogarAutorizacao(String chave, String cpfOutro) {
+    final outroLimpo = cpfOutro.replaceAll(RegExp(r'\D'), '');
+    final chaveRemover = '$outroLimpo:$chave';
+    final novaLista = dadosAutorizadosPorCpf.where((e) => e != chaveRemover).toList();
+    return copyWith(dadosAutorizadosPorCpf: novaLista);
+  }
+
+  /// Concede permissão de visualização de um usuário específico para um dado
+  UsuarioNous concederAutorizacao(String chave, String cpfOutro) {
+    final outroLimpo = cpfOutro.replaceAll(RegExp(r'\D'), '');
+    final chaveAdicionar = '$outroLimpo:$chave';
+    if (dadosAutorizadosPorCpf.contains(chaveAdicionar)) return this;
+    final novaLista = List<String>.from(dadosAutorizadosPorCpf)..add(chaveAdicionar);
+    return copyWith(dadosAutorizadosPorCpf: novaLista);
+  }
+
+  /// Retorna o nome formatado respeitando a privacidade:
+  /// Se o nome próprio for privado e quem visualiza não tiver autorização, retorna o apelido ou "Usuário Nous".
+  String nomeExibicaoPara({String? cpfVisualizador, bool reveladoParaDono = false}) {
+    if (!dadoEstaPrivado('nome')) {
+      return nomeExibicao;
+    }
+    final meuCpfLimpo = cpf.replaceAll(RegExp(r'\D'), '');
+    final outroLimpo = (cpfVisualizador ?? '').replaceAll(RegExp(r'\D'), '');
+    if (outroLimpo.isEmpty || meuCpfLimpo == outroLimpo) {
+      return reveladoParaDono ? nomeExibicao : (apelidoExibicao.isNotEmpty ? apelidoExibicao : 'Usuário Nous');
+    }
+    if (dadoAutorizadoPara('nome', outroLimpo)) {
+      return nomeExibicao;
+    }
+    return apelidoExibicao.isNotEmpty ? apelidoExibicao : 'Usuário Nous';
+  }
+
   bool estaSeguindo(String cpfOuId) {
     final limpo = cpfOuId.replaceAll(RegExp(r'\D'), '');
     return seguindo.any((s) => s.replaceAll(RegExp(r'\D'), '') == limpo);

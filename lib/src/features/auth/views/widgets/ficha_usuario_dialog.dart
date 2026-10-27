@@ -320,10 +320,29 @@ class _FichaUsuarioConteudoState extends State<_FichaUsuarioConteudo> {
     bool ehProprioUsuario = true,
     String? cpfVisualizador,
   }) {
-    final estaPrivado = !ehProprioUsuario &&
-        chavePrivacidade != null &&
-        _usuario.dadoEstaPrivado(chavePrivacidade) &&
-        !_usuario.dadoAutorizadoPara(chavePrivacidade, cpfVisualizador ?? '');
+    final auth = context.watch<AuthProvider>();
+    final temChave = chavePrivacidade != null;
+    final estaPrivado = temChave && _usuario.dadoEstaPrivado(chavePrivacidade);
+
+    bool censurado = false;
+    bool olhoAberto = false;
+    VoidCallback? aoClicarOlho;
+
+    if (estaPrivado) {
+      if (ehProprioUsuario) {
+        final revelado = auth.dadoEstaReveladoParaDono(chavePrivacidade);
+        censurado = !revelado;
+        olhoAberto = revelado;
+        aoClicarOlho = () => auth.alternarRevelacaoParaDono(chavePrivacidade);
+      } else {
+        final autorizado = _usuario.dadoAutorizadoPara(chavePrivacidade, cpfVisualizador ?? '');
+        if (!autorizado) {
+          censurado = true;
+          olhoAberto = false;
+          aoClicarOlho = () => _solicitarAcessoAoDado(rotulo, chavePrivacidade);
+        }
+      }
+    }
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
@@ -342,7 +361,7 @@ class _FichaUsuarioConteudoState extends State<_FichaUsuarioConteudo> {
           const SizedBox(width: 8),
           Flexible(
             child: Text(
-              estaPrivado ? '••••••••' : (valor.isEmpty ? '—' : valor),
+              censurado ? '••••••••' : (valor.isEmpty ? '—' : valor),
               textAlign: TextAlign.right,
               style: theme.getTextStyle(
                 fontSize: 12,
@@ -351,15 +370,15 @@ class _FichaUsuarioConteudoState extends State<_FichaUsuarioConteudo> {
               ),
             ),
           ),
-          if (estaPrivado) ...[
+          if (estaPrivado && aoClicarOlho != null) ...[
             const SizedBox(width: 6),
             InkWell(
-              onTap: () => _solicitarAcessoAoDado(rotulo, chavePrivacidade),
+              onTap: aoClicarOlho,
               borderRadius: BorderRadius.circular(12),
               child: Padding(
                 padding: const EdgeInsets.all(2.0),
                 child: Icon(
-                  Icons.visibility_off_outlined,
+                  olhoAberto ? Icons.visibility_outlined : Icons.visibility_off_outlined,
                   size: 15,
                   color: theme.secondaryTextColor,
                 ),
@@ -515,7 +534,7 @@ class _FichaUsuarioConteudoState extends State<_FichaUsuarioConteudo> {
             Padding(
               padding: const EdgeInsets.only(bottom: 8),
               child: SizedBox(
-                width: 220,
+                width: 260,
                 child: TextField(
                   controller: _apelidoController,
                   textAlign: TextAlign.center,
@@ -573,67 +592,126 @@ class _FichaUsuarioConteudoState extends State<_FichaUsuarioConteudo> {
             ),
 
           if (ehProprioUsuario)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 6),
-              child: SizedBox(
-                width: 260,
-                child: TextField(
-                  controller: _nomeController,
-                  textAlign: TextAlign.center,
-                  style: theme.getTextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                    color: theme.textColor,
-                  ),
-                  cursorColor: theme.textColor,
-                  decoration: InputDecoration(
-                    labelText: 'Nome Próprio',
-                    labelStyle: theme.getTextStyle(
-                      fontSize: 12,
-                      color: theme.secondaryTextColor,
-                    ),
-                    hintText: 'Digite seu nome completo',
-                    hintStyle: theme.getTextStyle(
-                      fontSize: 13,
-                      color: theme.secondaryTextColor.withValues(alpha: 0.6),
-                    ),
-                    isDense: true,
-                    contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 10,
-                      vertical: 8,
-                    ),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(10),
-                      borderSide: BorderSide(
-                        color: theme.borderColor.withValues(alpha: 0.5),
+            Builder(
+              builder: (context) {
+                final estaPrivado = _usuario.dadoEstaPrivado('nome');
+                final revelado = auth.dadoEstaReveladoParaDono('nome');
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 6),
+                  child: Center(
+                    child: SizedBox(
+                      width: 260,
+                      child: Stack(
+                        alignment: Alignment.centerRight,
+                        children: [
+                          TextField(
+                            controller: _nomeController,
+                            textAlign: TextAlign.center,
+                            style: theme.getTextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.bold,
+                              color: theme.textColor,
+                            ),
+                            cursorColor: theme.textColor,
+                            decoration: InputDecoration(
+                              labelText: 'Nome Próprio',
+                              labelStyle: theme.getTextStyle(
+                                fontSize: 12,
+                                color: theme.secondaryTextColor,
+                              ),
+                              hintText: 'Digite seu nome completo',
+                              hintStyle: theme.getTextStyle(
+                                fontSize: 13,
+                                color: theme.secondaryTextColor.withValues(alpha: 0.6),
+                              ),
+                              isDense: true,
+                              contentPadding: EdgeInsets.symmetric(
+                                horizontal: estaPrivado ? 28 : 10,
+                                vertical: 8,
+                              ),
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(10),
+                                borderSide: BorderSide(
+                                  color: theme.borderColor.withValues(alpha: 0.5),
+                                ),
+                              ),
+                              enabledBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(10),
+                                borderSide: BorderSide(
+                                  color: theme.borderColor.withValues(alpha: 0.5),
+                                ),
+                              ),
+                              focusedBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(10),
+                                borderSide: BorderSide(color: theme.textColor),
+                              ),
+                            ),
+                            onChanged: (novo) => _salvarNome(novo),
+                          ),
+                          if (estaPrivado)
+                            Positioned(
+                              right: 6,
+                              child: InkWell(
+                                onTap: () => auth.alternarRevelacaoParaDono('nome'),
+                                borderRadius: BorderRadius.circular(12),
+                                child: Padding(
+                                  padding: const EdgeInsets.all(4.0),
+                                  child: Icon(
+                                    revelado
+                                        ? Icons.visibility_outlined
+                                        : Icons.visibility_off_outlined,
+                                    size: 16,
+                                    color: theme.secondaryTextColor,
+                                  ),
+                                ),
+                              ),
+                            ),
+                        ],
                       ),
                     ),
-                    enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(10),
-                      borderSide: BorderSide(
-                        color: theme.borderColor.withValues(alpha: 0.5),
-                      ),
-                    ),
-                    focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(10),
-                      borderSide: BorderSide(color: theme.textColor),
-                    ),
                   ),
-                  onChanged: (novo) => _salvarNome(novo),
-                ),
-              ),
+                );
+              },
             )
           else
-            Text(
-              contaAtualizada.nome.isEmpty
-                  ? 'Nome do Usuário'
-                  : contaAtualizada.nome,
-              textAlign: TextAlign.center,
-              style: theme.getTextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-                color: theme.textColor,
-              ),
+            Builder(
+              builder: (context) {
+                final estaPrivado = _usuario.dadoEstaPrivado('nome');
+                final autorizado = _usuario.dadoAutorizadoPara('nome', auth.contaAtual?.cpf ?? '');
+                final nomeTexto = estaPrivado && !autorizado
+                    ? (contaAtualizada.apelido.isNotEmpty ? contaAtualizada.apelido : '••••••••')
+                    : (contaAtualizada.nome.isEmpty ? 'Nome do Usuário' : contaAtualizada.nome);
+
+                return Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(
+                      nomeTexto,
+                      textAlign: TextAlign.center,
+                      style: theme.getTextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: theme.textColor,
+                      ),
+                    ),
+                    if (estaPrivado && !autorizado) ...[
+                      const SizedBox(width: 6),
+                      InkWell(
+                        onTap: () => _solicitarAcessoAoDado('Nome', 'nome'),
+                        borderRadius: BorderRadius.circular(12),
+                        child: Padding(
+                          padding: const EdgeInsets.all(2.0),
+                          child: Icon(
+                            Icons.visibility_off_outlined,
+                            size: 15,
+                            color: theme.secondaryTextColor,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ],
+                );
+              },
             ),
           const SizedBox(height: 6),
           // Nome de Usuário Nous (imutável, com a mesma identidade visual do CPF)
@@ -653,14 +731,33 @@ class _FichaUsuarioConteudoState extends State<_FichaUsuarioConteudo> {
             Builder(
               builder: (context) {
                 final cpfVisualizador = auth.contaAtual?.cpf ?? '';
-                final estaPrivado = !ehProprioUsuario &&
-                    _usuario.dadoEstaPrivado('cpf') &&
-                    !_usuario.dadoAutorizadoPara('cpf', cpfVisualizador);
+                final estaPrivado = _usuario.dadoEstaPrivado('cpf');
+
+                bool censurado = false;
+                bool olhoAberto = false;
+                VoidCallback? aoClicarOlho;
+
+                if (estaPrivado) {
+                  if (ehProprioUsuario) {
+                    final revelado = auth.dadoEstaReveladoParaDono('cpf');
+                    censurado = !revelado;
+                    olhoAberto = revelado;
+                    aoClicarOlho = () => auth.alternarRevelacaoParaDono('cpf');
+                  } else {
+                    final autorizado = _usuario.dadoAutorizadoPara('cpf', cpfVisualizador);
+                    if (!autorizado) {
+                      censurado = true;
+                      olhoAberto = false;
+                      aoClicarOlho = () => _solicitarAcessoAoDado('CPF', 'cpf');
+                    }
+                  }
+                }
+
                 return Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Text(
-                      estaPrivado
+                      censurado
                           ? '•••.•••.•••-••'
                           : _formatarCpf(contaAtualizada.cpf),
                       style: theme.getTextStyle(
@@ -668,15 +765,17 @@ class _FichaUsuarioConteudoState extends State<_FichaUsuarioConteudo> {
                         color: theme.secondaryTextColor,
                       ),
                     ),
-                    if (estaPrivado) ...[
+                    if (estaPrivado && aoClicarOlho != null) ...[
                       const SizedBox(width: 6),
                       InkWell(
-                        onTap: () => _solicitarAcessoAoDado('CPF', 'cpf'),
+                        onTap: aoClicarOlho,
                         borderRadius: BorderRadius.circular(12),
                         child: Padding(
                           padding: const EdgeInsets.all(2.0),
                           child: Icon(
-                            Icons.visibility_off_outlined,
+                            olhoAberto
+                                ? Icons.visibility_outlined
+                                : Icons.visibility_off_outlined,
                             size: 15,
                             color: theme.secondaryTextColor,
                           ),

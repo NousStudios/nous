@@ -223,8 +223,15 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
   String get _cpfLogado =>
       context.read<AuthProvider>().contaAtual?.cpf ?? '';
 
-  String get _nomeLogado =>
-      context.read<AuthProvider>().contaAtual?.nome ?? '';
+  String get _nomeLogado {
+    final auth = context.read<AuthProvider>();
+    final conta = auth.contaAtual;
+    if (conta == null) return '';
+    return conta.nomeExibicaoPara(
+      cpfVisualizador: conta.cpf,
+      reveladoParaDono: auth.dadoEstaReveladoParaDono('nome'),
+    );
+  }
 
   String get _emailLogado =>
       context.read<AuthProvider>().emailAtivo ?? '';
@@ -234,13 +241,18 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
     final conta = auth.contaAtual;
     if (conta == null) return;
 
+    final nomeParaExibir = conta.nomeExibicaoPara(
+      cpfVisualizador: conta.cpf,
+      reveladoParaDono: auth.dadoEstaReveladoParaDono('nome'),
+    );
+
     final acao = RegistroAcao(
       id: DateTime.now().millisecondsSinceEpoch.toString(),
       dataHora: DateTime.now(),
       tipo: tipo,
       descricao: descricao,
       cpfAutor: conta.cpf,
-      nomeAutor: conta.nome,
+      nomeAutor: nomeParaExibir,
       emailAutor: auth.emailAtivo ?? '',
     );
 
@@ -3490,10 +3502,11 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
     );
   }
 
-  void _executarExclusao(BuildContext dialogContext) {
+  Future<void> _executarExclusao(BuildContext dialogContext) async {
     final navigator = Navigator.of(dialogContext);
 
-    dialogContext.read<PdvProvider>().excluirLoja(widget.lojaId);
+    await dialogContext.read<PdvProvider>().excluirLoja(widget.lojaId);
+    if (!dialogContext.mounted) return;
 
     navigator.pop();
 

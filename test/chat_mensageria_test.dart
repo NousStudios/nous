@@ -122,5 +122,136 @@ void main() {
       expect(recArquivo.nomeAnexo, equals('cardapio.pdf'));
       expect(recArquivo.tamanhoAnexo, equals(1048576));
     });
+
+    test('MensagemChat serializa e desserializa status de edição e histórico de versões', () {
+      final agora = DateTime.now();
+      final msg = MensagemChat(
+        id: 'msg_edit_1',
+        conversaId: 'conv_1',
+        remetenteId: '12345678900',
+        remetenteNome: 'Maria',
+        destinatarioId: '98765432100',
+        texto: 'Texto corrigido e atualizado',
+        dataHora: agora,
+        editada: true,
+        historicoEdicoes: [
+          {
+            'textoAnterior': 'Texto com erro de digitação',
+            'dataHoraEdicao': agora.subtract(const Duration(minutes: 5)).toIso8601String(),
+          }
+        ],
+      );
+
+      final json = msg.toJson();
+      final recuperada = MensagemChat.fromJson(json);
+
+      expect(recuperada.editada, isTrue);
+      expect(recuperada.historicoEdicoes.length, equals(1));
+      expect(recuperada.historicoEdicoes.first['textoAnterior'], equals('Texto com erro de digitação'));
+      expect(recuperada.texto, equals('Texto corrigido e atualizado'));
+    });
+
+    test('MensagemChat nasce como não lida (lida: false) por padrão para usuários offline', () {
+      final msg = MensagemChat(
+        id: 'msg_offline_1',
+        conversaId: 'conv_1',
+        remetenteId: '111',
+        remetenteNome: 'Ana',
+        texto: 'Mensagem para conta offline',
+        dataHora: DateTime.now(),
+      );
+
+      expect(msg.lida, isFalse);
+
+      final jsonSemLida = {
+        'id': 'msg_offline_2',
+        'conversaId': 'conv_1',
+        'remetenteId': '111',
+        'remetenteNome': 'Ana',
+        'texto': 'Mensagem remota recebida',
+      };
+      final recuperada = MensagemChat.fromJson(jsonSemLida);
+      expect(recuperada.lida, isFalse);
+    });
+
+    test('MensagemChat serializa e desserializa statusEnvio e flag de entregue', () {
+      final msg = MensagemChat(
+        id: 'msg_status_1',
+        conversaId: 'conv_status',
+        remetenteId: 'user_1',
+        remetenteNome: 'Carlos',
+        texto: 'Testando status de entrega',
+        dataHora: DateTime.now(),
+        statusEnvio: 'entregue',
+        entregue: true,
+      );
+
+      final json = msg.toJson();
+      final recuperada = MensagemChat.fromJson(json);
+
+      expect(recuperada.statusEnvio, equals('entregue'));
+      expect(recuperada.entregue, isTrue);
+    });
+
+    test('ConversaChat serializa e preserva fixada, arquivada e ordenação', () {
+      final agora = DateTime.now();
+      final conv1 = ConversaChat(
+        id: 'c1',
+        titulo: 'Conversa Normal Recente',
+        identificador: 'c1',
+        dataHoraUltimaMensagem: agora,
+        fixada: false,
+      );
+      final conv2 = ConversaChat(
+        id: 'c2',
+        titulo: 'Conversa Fixada Mais Antiga',
+        identificador: 'c2',
+        dataHoraUltimaMensagem: agora.subtract(const Duration(days: 2)),
+        fixada: true,
+      );
+
+      final json = conv2.toJson();
+      final recuperada = ConversaChat.fromJson(json);
+      expect(recuperada.fixada, isTrue);
+      expect(recuperada.arquivada, isFalse);
+
+      final lista = [conv1, conv2];
+      lista.sort((a, b) {
+        if (a.fixada != b.fixada) {
+          return a.fixada ? -1 : 1;
+        }
+        return b.dataHoraUltimaMensagem.compareTo(a.dataHoraUltimaMensagem);
+      });
+
+      expect(lista.first.id, equals('c2')); // Fixada vem primeiro
+      expect(lista.last.id, equals('c1'));
+    });
+
+    test('MensagemChat com áudio serializa corretamente e ChatService gera resumo com microfone', () {
+      final msgAudio = MensagemChat(
+        id: 'msg_audio_1',
+        conversaId: 'c1',
+        remetenteId: 'user1',
+        remetenteNome: 'Maria',
+        texto: 'Mensagem de voz (0:14)',
+        tipo: 'audio',
+        caminhoAnexo: 'C:/audios/audio_123.m4a',
+        nomeAnexo: 'audio_123.m4a',
+        tamanhoAnexo: 24500,
+        dataHora: DateTime.now(),
+      );
+
+      final json = msgAudio.toJson();
+      final recuperada = MensagemChat.fromJson(json);
+
+      expect(recuperada.tipo, equals('audio'));
+      expect(recuperada.caminhoAnexo, equals('C:/audios/audio_123.m4a'));
+      expect(recuperada.tamanhoAnexo, equals(24500));
+
+      final resumo = ChatService.gerarResumoMensagem(recuperada);
+      expect(resumo, contains('🎤'));
+      expect(resumo, contains('Mensagem de voz (0:14)'));
+    });
   });
 }
+
