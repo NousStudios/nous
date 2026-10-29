@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'package:file_selector/file_selector.dart';
@@ -27,6 +28,10 @@ import 'package:nous/src/features/pdv/providers/pdv_provider.dart';
 import 'package:nous/src/features/pdv/services/imagem_service.dart';
 import 'package:nous/src/features/pdv/views/widgets/comanda_pedido_dialog.dart';
 import 'package:nous/src/features/pdv/services/rede_local/cliente_rede_local.dart';
+import 'package:nous/src/features/pdv/services/rede_local/servidor_rede_local.dart';
+import 'package:nous/src/core/utils/texto_utils.dart';
+import 'package:nous/src/core/services/gerador_id.dart';
+import 'package:nous/src/features/chat/views/widgets/visualizador_imagem_chat_dialog.dart';
 
 class MensageriaView extends StatefulWidget {
   final bool modoLoja;
@@ -71,6 +76,7 @@ class _MensageriaViewState extends State<MensageriaView> {
   List<ConversaChat> _todosContatosDisponiveis = [];
   ConversaChat? _conversaSelecionada;
   String _termoBusca = '';
+  Timer? _debouncePesquisa;
   bool _inicializado = false;
   final Set<String> _tentativasDownloadImagens = {};
   Map<String, String> _titulosCustomizados = {};
@@ -87,8 +93,13 @@ class _MensageriaViewState extends State<MensageriaView> {
   void initState() {
     super.initState();
     _buscaController.addListener(() {
-      setState(() {
-        _termoBusca = _buscaController.text.trim().toLowerCase();
+      _debouncePesquisa?.cancel();
+      _debouncePesquisa = Timer(const Duration(milliseconds: 180), () {
+        if (mounted) {
+          setState(() {
+            _termoBusca = _buscaController.text.trim().toLowerCase();
+          });
+        }
       });
     });
 
@@ -110,6 +121,7 @@ class _MensageriaViewState extends State<MensageriaView> {
 
   @override
   void dispose() {
+    _debouncePesquisa?.cancel();
     ChatService.alteracoesChatNotifier.removeListener(_aoAtualizarChat);
     GravadorAudioService.instancia.cancelarGravacao();
     PlayerAudioService.instancia.parar();
@@ -136,11 +148,38 @@ class _MensageriaViewState extends State<MensageriaView> {
 
   void _aoAtualizarChat() {
     if (!mounted) return;
-    _recarregarConversas(manterSelecionada: true);
+    _recarregarConversas(manterSelecionada: true).then((_) {
+      if (mounted && _conversaSelecionada != null) {
+        _rolarAteOFim(animado: true);
+      }
+    });
   }
 
   Future<void> _inicializarConversas() async {
     await _recarregarConversas(manterSelecionada: false);
+    _sincronizarComRedeLocal();
+  }
+
+  void _sincronizarComRedeLocal() {
+    if (ServidorRedeLocal().ativo) return;
+    final cliente = ClienteRedeLocal();
+    final pdv = context.read<PdvProvider>();
+    final auth = context.read<AuthProvider>();
+    final contaLogada = auth.contaAtual;
+    final meuCpf = widget.modoLoja ? null : (widget.usuarioCpf ?? contaLogada?.cpf);
+
+    cliente.tentarAutoConectarSeDisponivel(pdv, auth).then((_) {
+      if (cliente.ipServidor != null && cliente.portaServidor != null) {
+        ChatService.sincronizarMensagensComBalcao(
+          ipServidor: cliente.ipServidor!,
+          portaServidor: cliente.portaServidor!,
+          cpfUsuario: meuCpf,
+          lojaId: widget.modoLoja ? widget.lojaId : null,
+        ).then((_) {
+          if (mounted) _recarregarConversas(manterSelecionada: true);
+        });
+      }
+    });
   }
 
   Future<void> _recarregarConversas({bool manterSelecionada = true}) async {
@@ -300,8 +339,8 @@ class _MensageriaViewState extends State<MensageriaView> {
 
           final conversaItem = ConversaChat(
             id: convId,
-            titulo: c.titulo,
-            subtitulo: c.subtitulo,
+            titulo: _titulosCustomizados[convId] ?? 'Conversa',
+            subtitulo: c.titulo.isNotEmpty ? c.titulo : c.subtitulo,
             identificador: c.identificador,
             foto: c.foto,
             ehLoja: false,
@@ -458,8 +497,10 @@ class _MensageriaViewState extends State<MensageriaView> {
 
         final conversaUsuario = ConversaChat(
           id: convId,
-          titulo: entry.value.nome,
-          subtitulo: 'Contato Nous',
+          titulo: _titulosCustomizados[convId] ?? 'Conversa',
+          subtitulo: entry.value.nome.isNotEmpty
+              ? entry.value.nome
+              : 'Contato Nous',
           foto: entry.value.foto,
           identificador: entry.key,
           ehLoja: false,
@@ -517,6 +558,40 @@ class _MensageriaViewState extends State<MensageriaView> {
     );
     lista.addAll(grupos);
     todosDisponiveis.addAll(grupos);
+
+    // Incluir todos os usuários Nous conhecidos para busca instantânea de novos contatos
+    try {
+      final todosUsuariosNous = await ContasNousService.carregarTodas();
+      for (final u in todosUsuariosNous) {
+        final cU = ChatService.normalizarCpf(u.cpf);
+        if (cU.length == 11 && cU != cpfLogadoNorm) {
+          final convId = widget.modoLoja && widget.lojaId != null
+              ? ChatService.conversaIdLojaUsuario(widget.lojaId!, cU)
+              : ChatService.conversaIdEntreUsuarios(cpfLogadoNorm, cU);
+
+          if (!todosDisponiveis.any((c) => c.identificador == cU || c.id == convId)) {
+            final subtituloContato = u.nomeExibicao.isNotEmpty
+                ? u.nomeExibicao
+                : (u.nomeDeUsuario.isNotEmpty ? '@${u.nomeDeUsuario}' : 'Contato Nous');
+            todosDisponiveis.add(ConversaChat(
+              id: convId,
+              titulo: _titulosCustomizados[convId] ?? 'Conversa',
+              subtitulo: subtituloContato,
+              identificador: u.cpf,
+              foto: u.fotoExibicao,
+              ehLoja: false,
+              dataHoraUltimaMensagem: DateTime.fromMillisecondsSinceEpoch(0),
+            ));
+          }
+        }
+      }
+    } catch (_) {}
+
+    final excluidas = await ChatService.obterIdsConversasExcluidas();
+    if (excluidas.isNotEmpty) {
+      lista.removeWhere((c) => excluidas.contains(c.id));
+      todosDisponiveis.removeWhere((c) => excluidas.contains(c.id));
+    }
 
     // Ordenar conversas: fixadas primeiro, depois pela mais recente
     lista.sort((a, b) {
@@ -642,6 +717,12 @@ class _MensageriaViewState extends State<MensageriaView> {
     final resumo = _resumoMensagem(novaMensagem);
     setState(() {
       final msgsAtuais = List<MensagemChat>.from(_conversaSelecionada!.mensagens)..add(novaMensagem);
+      msgsAtuais.sort((a, b) {
+        final cmp = a.dataHora.compareTo(b.dataHora);
+        if (cmp != 0) return cmp;
+        return a.id.compareTo(b.id);
+      });
+
       _conversaSelecionada = _conversaSelecionada!.copyWith(
         mensagens: msgsAtuais,
         ultimaMensagem: resumo,
@@ -661,7 +742,7 @@ class _MensageriaViewState extends State<MensageriaView> {
     if (textoCustomizado == null) {
       _mensagemController.clear();
     }
-    _rolarAteOFim();
+    _rolarAteOFim(animado: false);
 
     // 2. Persistência no SQLite e despacho pela malha de rede em segundo plano (desacoplado da UI)
     ChatService.enviarMensagemInstantanea(novaMensagem).then((msgSalva) {
@@ -671,9 +752,15 @@ class _MensageriaViewState extends State<MensageriaView> {
           final i = msgs.indexWhere((m) => m.id == novaMensagem.id);
           if (i != -1) {
             msgs[i] = msgSalva;
+            msgs.sort((a, b) {
+              final cmp = a.dataHora.compareTo(b.dataHora);
+              if (cmp != 0) return cmp;
+              return a.id.compareTo(b.id);
+            });
             _conversaSelecionada = _conversaSelecionada!.copyWith(mensagens: msgs);
           }
         });
+        _rolarAteOFim(animado: true);
       }
     });
   }
@@ -854,11 +941,13 @@ class _MensageriaViewState extends State<MensageriaView> {
 
   void _dialogRenomearConversa(AppTheme theme, ConversaChat conversa) {
     final tituloAtual = _titulosCustomizados[conversa.id] ??
-        (conversa.ehGrupo
-            ? conversa.titulo
-            : (conversa.titulo == 'Nova Conversa' ? '' : conversa.titulo));
+        (conversa.ehGrupo ? conversa.titulo : 'Conversa');
 
-    final controller = TextEditingController(text: tituloAtual);
+    final controller = TextEditingController(
+      text: (tituloAtual != 'Conversa' && tituloAtual != 'Nova Conversa')
+          ? tituloAtual
+          : '',
+    );
 
     showDialog(
       context: context,
@@ -895,7 +984,7 @@ class _MensageriaViewState extends State<MensageriaView> {
                   autofocus: true,
                   style: theme.getTextStyle(color: theme.textColor),
                   decoration: InputDecoration(
-                    hintText: 'Título da conversa...',
+                    hintText: 'Conversa',
                     hintStyle: theme.getTextStyle(color: theme.secondaryTextColor),
                     filled: true,
                     fillColor: theme.backgroundColor,
@@ -1476,21 +1565,23 @@ class _MensageriaViewState extends State<MensageriaView> {
                 final notif = context.read<NotificacoesProvider>();
                 final contaLogada = auth.contaAtual;
 
-                // Envia notificação deliberativa se houver CPF destinatário
-                final cpfDest = ChatService.normalizarCpf(conversa.identificador);
-                if (cpfDest.isNotEmpty && cpfDest != ChatService.normalizarCpf(contaLogada?.cpf ?? '')) {
-                  final convite = ConviteLoja(
-                    id: 'exc_conv_${DateTime.now().millisecondsSinceEpoch}',
-                    lojaId: widget.lojaId ?? 'nous_chat',
-                    nomeLoja: conversa.titulo,
-                    cpfConvidante: contaLogada?.cpf ?? '',
-                    nomeConvidante: contaLogada?.nomeExibicao ?? 'Usuário',
-                    cpfConvidado: cpfDest,
-                    papel: PapelMembro.funcionario,
-                    dataHora: DateTime.now(),
-                    tipo: TipoNotificacao.solicitacaoExclusaoConversa,
-                  );
-                  await notif.enviarConvite(convite);
+                // Envia notificação deliberativa apenas para chat pessoal (não para grupos ou lojas)
+                if (!conversa.ehGrupo && !conversa.ehLoja) {
+                  final cpfDest = ChatService.normalizarCpf(conversa.identificador);
+                  if (cpfDest.isNotEmpty && cpfDest != ChatService.normalizarCpf(contaLogada?.cpf ?? '')) {
+                    final convite = ConviteLoja(
+                      id: 'exc_conv_${DateTime.now().millisecondsSinceEpoch}',
+                      lojaId: widget.lojaId ?? 'nous_chat',
+                      nomeLoja: conversa.titulo,
+                      cpfConvidante: contaLogada?.cpf ?? '',
+                      nomeConvidante: contaLogada?.nomeExibicao ?? 'Usuário',
+                      cpfConvidado: cpfDest,
+                      papel: PapelMembro.funcionario,
+                      dataHora: DateTime.now(),
+                      tipo: TipoNotificacao.solicitacaoExclusaoConversa,
+                    );
+                    await notif.enviarConvite(convite);
+                  }
                 }
 
                 await ChatService.excluirConversaLocal(conversa.id);
@@ -1509,6 +1600,96 @@ class _MensageriaViewState extends State<MensageriaView> {
                 }
               },
               child: const Text('Confirmar Exclusão'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  void _solicitarSaidaDoGrupo(AppTheme theme, ConversaChat conversa) {
+    showDialog(
+      context: context,
+      builder: (ctx) {
+        return AlertDialog(
+          backgroundColor: theme.cardBackgroundColor,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+            side: BorderSide(color: theme.borderColor),
+          ),
+          title: Text(
+            'Sair do grupo',
+            style: theme.getTextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.bold,
+              color: theme.textColor,
+            ),
+          ),
+          content: Text(
+            'Deseja sair do grupo "${conversa.titulo}"? Você deixará de receber novas mensagens.',
+            style: theme.getTextStyle(fontSize: 13, color: theme.textColor),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: Text('Cancelar', style: theme.getTextStyle(color: theme.secondaryTextColor)),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: theme.dangerColor,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              ),
+              onPressed: () async {
+                Navigator.pop(ctx);
+                final auth = context.read<AuthProvider>();
+                final contaLogada = auth.contaAtual;
+                final meuCpf = ChatService.normalizarCpf(contaLogada?.cpf ?? '');
+                final meuNome = contaLogada?.nomeExibicao ?? 'Usuário';
+
+                // 1. Posta apenas no chat do grupo que o usuário saiu (sem alertar/notificar outros membros de forma invasiva)
+                final msgSaida = MensagemChat(
+                  id: 'msg_saida_${DateTime.now().millisecondsSinceEpoch}_${gerarIdUnico()}',
+                  conversaId: conversa.id,
+                  remetenteId: 'sistema',
+                  remetenteNome: 'Sistema',
+                  destinatarioId: 'todos',
+                  texto: '$meuNome saiu do grupo',
+                  dataHora: DateTime.now(),
+                  statusEnvio: 'entregue',
+                  entregue: true,
+                );
+                await ChatService.salvarMensagem(msgSaida);
+
+                // 2. Remove o CPF da lista de participantes
+                final novosParticipantes = List<String>.from(conversa.participantesIds);
+                novosParticipantes.removeWhere((p) => ChatService.normalizarCpf(p) == meuCpf);
+
+                final grupoAtualizado = conversa.copyWith(
+                  participantesIds: novosParticipantes,
+                  ultimaMensagem: '$meuNome saiu do grupo',
+                  dataHoraUltimaMensagem: DateTime.now(),
+                );
+                ChatService.despacharConversaAtualizada(grupoAtualizado);
+
+                // 3. Remove a conversa deste aparelho
+                await ChatService.excluirConversaLocal(conversa.id);
+
+                if (mounted) {
+                  setState(() {
+                    if (_conversaSelecionada?.id == conversa.id) {
+                      _conversaSelecionada = null;
+                    }
+                  });
+                  await _recarregarConversas(manterSelecionada: false);
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('Você saiu do grupo "${conversa.titulo}".')),
+                    );
+                  }
+                }
+              },
+              child: const Text('Sair do Grupo'),
             ),
           ],
         );
@@ -1541,45 +1722,7 @@ class _MensageriaViewState extends State<MensageriaView> {
   }
 
   void _visualizarFotoAmpliada(AppTheme theme, String caminho) {
-    final resolvido = ImagemService.resolverCaminhoExistente(caminho) ?? caminho;
-    final f = File(resolvido);
-    if (!f.existsSync()) return;
-
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: theme.cardBackgroundColor,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-          side: BorderSide(color: theme.borderColor),
-        ),
-        contentPadding: const EdgeInsets.all(12),
-        content: ConstrainedBox(
-          constraints: BoxConstraints(
-            maxWidth: MediaQuery.sizeOf(ctx).width * 0.85,
-            maxHeight: MediaQuery.sizeOf(ctx).height * 0.80,
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Align(
-                alignment: Alignment.topRight,
-                child: IconButton(
-                  icon: Icon(Icons.close, color: theme.secondaryTextColor, size: 20),
-                  onPressed: () => Navigator.pop(ctx),
-                ),
-              ),
-              Flexible(
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(12),
-                  child: Image.file(f, fit: BoxFit.contain),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
+    VisualizadorImagemChatDialog.abrir(context, caminho: caminho, theme: theme);
   }
 
   void _abrirDialogCompartilharComanda(AppTheme theme) {
@@ -1810,6 +1953,32 @@ class _MensageriaViewState extends State<MensageriaView> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
+                ListTile(
+                  leading: CircleAvatar(
+                    backgroundColor: theme.buttonColor.withValues(alpha: 0.15),
+                    child: Icon(Icons.camera_alt_rounded, color: theme.buttonColor, size: 20),
+                  ),
+                  title: Text(
+                    'Câmera (Tirar Foto)',
+                    style: theme.getTextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.bold,
+                      color: theme.textColor,
+                    ),
+                  ),
+                  subtitle: Text(
+                    'Capturar foto instantaneamente com a câmera',
+                    style: theme.getTextStyle(
+                      fontSize: 11,
+                      color: theme.secondaryTextColor,
+                    ),
+                  ),
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    _capturarFotoCamera();
+                  },
+                ),
+                Divider(color: theme.borderColor.withValues(alpha: 0.3)),
                 ListTile(
                   leading: CircleAvatar(
                     backgroundColor: theme.buttonColor.withValues(alpha: 0.15),
@@ -2087,9 +2256,13 @@ class _MensageriaViewState extends State<MensageriaView> {
                       lojaOrigemId: widget.modoLoja ? widget.lojaId : null,
                     );
 
-                    setState(() {
-                      _conversaSelecionada = grupoCriado;
-                    });
+                    await _recarregarConversas(manterSelecionada: false);
+                    if (mounted) {
+                      setState(() {
+                        _conversaSelecionada = grupoCriado;
+                      });
+                      _rolarAteOFim(animado: false);
+                    }
                   },
                   child: Text(
                     'Criar Grupo',
@@ -2124,127 +2297,130 @@ class _MensageriaViewState extends State<MensageriaView> {
       bool ehLoja,
     })> contatosDisponiveis = [];
 
-    if (widget.modoLoja && widget.lojaId != null) {
-      final loja = pdv.buscarPorId(widget.lojaId!);
-      if (loja != null) {
-        final Map<String, _InfoContatoUnificado> unificados = {};
-        for (final m in loja.membros) {
-          final cM = ChatService.normalizarCpf(m.cpf);
-          if (cM.isEmpty || cM == cpfLogadoNorm) continue;
-          unificados[cM] = _InfoContatoUnificado(
-            identificador: m.cpf,
-            cpfNormalizado: cM,
-            titulo: m.nome,
-            subtitulo: 'Equipe • ${m.papel.name.toUpperCase()}',
-            foto: '',
-            ehMembro: true,
-          );
-        }
-        for (final cli in loja.clientesLoja) {
-          final cCli = ChatService.normalizarCpf(cli.cnpj);
-          if (cCli.length == 11) {
-            if (cCli == cpfLogadoNorm) continue;
-            if (unificados.containsKey(cCli)) {
-              final ant = unificados[cCli]!;
-              unificados[cCli] = ant.copyWith(
+    try {
+      if (widget.modoLoja && widget.lojaId != null) {
+        final loja = pdv.buscarPorId(widget.lojaId!);
+        if (loja != null) {
+          final Map<String, _InfoContatoUnificado> unificados = {};
+          for (final m in loja.membros) {
+            final cM = ChatService.normalizarCpf(m.cpf);
+            if (cM.isEmpty || cM == cpfLogadoNorm) continue;
+            unificados[cM] = _InfoContatoUnificado(
+              identificador: m.cpf,
+              cpfNormalizado: cM,
+              titulo: m.nome,
+              subtitulo: 'Equipe • ${m.papel.name.toUpperCase()}',
+              foto: '',
+              ehMembro: true,
+            );
+          }
+          for (final cli in loja.clientesLoja) {
+            final cCli = ChatService.normalizarCpf(cli.cnpj);
+            final chave = cCli.isNotEmpty ? cCli : 'cli_${cli.id}';
+            if (cCli.isNotEmpty && cCli == cpfLogadoNorm) continue;
+            if (unificados.containsKey(chave)) {
+              final ant = unificados[chave]!;
+              unificados[chave] = ant.copyWith(
                 foto: ant.foto.isNotEmpty ? ant.foto : cli.foto,
                 subtitulo: '${ant.subtitulo} | Cliente',
               );
             } else {
-              unificados[cCli] = _InfoContatoUnificado(
-                identificador: cli.cnpj,
+              unificados[chave] = _InfoContatoUnificado(
+                identificador: cli.cnpj.isNotEmpty ? cli.cnpj : cli.id,
                 cpfNormalizado: cCli,
-                titulo: cli.nome,
+                titulo: cli.nome.isNotEmpty ? cli.nome : 'Cliente',
                 subtitulo: cli.telefone.isNotEmpty ? cli.telefone : 'Cliente',
                 foto: cli.foto,
                 ehCliente: true,
               );
             }
           }
-        }
-        for (final u in unificados.values) {
-          final convId = u.cpfNormalizado.isNotEmpty
-              ? ChatService.conversaIdLojaUsuario(loja.id, u.cpfNormalizado)
-              : 'loja_${loja.id}_cliente_${u.identificador}';
-          contatosDisponiveis.add((
-            id: u.identificador,
-            convId: convId,
-            titulo: u.titulo,
-            subtitulo: u.subtitulo,
-            foto: u.foto,
-            ehLoja: false,
-          ));
-        }
-      }
-    } else {
-      // Modo Social do Usuário
-      // 1. Lojas
-      final todasLojas = [
-        ...pdv.lojasQueAdministro,
-        ...pdv.lojasQueParticipo,
-      ];
-      for (final loja in todasLojas) {
-        final convId = ChatService.conversaIdLojaUsuario(loja.id, cpfLogado);
-        contatosDisponiveis.add((
-          id: loja.id,
-          convId: convId,
-          titulo: loja.nome,
-          subtitulo: 'Loja Nous',
-          foto: loja.logo,
-          ehLoja: true,
-        ));
-      }
-
-      // 2. Outras pessoas / contatos
-      final Map<String, ({String nome, String foto, String subtitulo})> contatosUnicos = {};
-      for (final loja in todasLojas) {
-        for (final m in loja.membros) {
-          final cM = ChatService.normalizarCpf(m.cpf);
-          if (cM.isNotEmpty && cM != cpfLogadoNorm) {
-            contatosUnicos.putIfAbsent(
-              cM,
-              () => (
-                nome: m.nome,
-                foto: '',
-                subtitulo: 'Membro • ${loja.nome}',
-              ),
-            );
+          for (final u in unificados.values) {
+            final convId = u.cpfNormalizado.isNotEmpty
+                ? ChatService.conversaIdLojaUsuario(loja.id, u.cpfNormalizado)
+                : 'loja_${loja.id}_cliente_${u.identificador}';
+            contatosDisponiveis.add((
+              id: u.identificador,
+              convId: convId,
+              titulo: u.titulo,
+              subtitulo: u.subtitulo,
+              foto: u.foto,
+              ehLoja: false,
+            ));
           }
         }
-        for (final cli in loja.clientesLoja) {
-          final cCli = ChatService.normalizarCpf(cli.cnpj);
-          if (cCli.length == 11 && cCli != cpfLogadoNorm) {
-            if (contatosUnicos.containsKey(cCli)) {
-              final ant = contatosUnicos[cCli]!;
+      } else {
+        // Modo Social do Usuário
+        // 1. Lojas
+        final todasLojas = [
+          ...pdv.lojasQueAdministro,
+          ...pdv.lojasQueParticipo,
+        ];
+        for (final loja in todasLojas) {
+          final convId = ChatService.conversaIdLojaUsuario(loja.id, cpfLogado);
+          contatosDisponiveis.add((
+            id: loja.id,
+            convId: convId,
+            titulo: loja.nome,
+            subtitulo: 'Loja Nous',
+            foto: loja.logo,
+            ehLoja: true,
+          ));
+        }
+
+        // 2. Outras pessoas / contatos
+        final Map<String, ({String nome, String foto, String subtitulo})> contatosUnicos = {};
+        for (final loja in todasLojas) {
+          for (final m in loja.membros) {
+            final cM = ChatService.normalizarCpf(m.cpf);
+            if (cM.isNotEmpty && cM != cpfLogadoNorm) {
+              contatosUnicos.putIfAbsent(
+                cM,
+                () => (
+                  nome: m.nome,
+                  foto: '',
+                  subtitulo: 'Membro • ${loja.nome}',
+                ),
+              );
+            }
+          }
+          for (final cli in loja.clientesLoja) {
+            final cCli = ChatService.normalizarCpf(cli.cnpj);
+            final chave = cCli.isNotEmpty ? cCli : 'cli_${cli.id}';
+            if (cCli.isNotEmpty && cCli == cpfLogadoNorm) continue;
+            if (contatosUnicos.containsKey(chave)) {
+              final ant = contatosUnicos[chave]!;
               if (ant.foto.isEmpty && cli.foto.isNotEmpty) {
-                contatosUnicos[cCli] = (
+                contatosUnicos[chave] = (
                   nome: ant.nome,
                   foto: cli.foto,
                   subtitulo: ant.subtitulo,
                 );
               }
             } else {
-              contatosUnicos[cCli] = (
-                nome: cli.nome,
+              contatosUnicos[chave] = (
+                nome: cli.nome.isNotEmpty ? cli.nome : 'Cliente',
                 foto: cli.foto,
                 subtitulo: 'Cliente • ${loja.nome}',
               );
             }
           }
         }
-      }
 
-      for (final entry in contatosUnicos.entries) {
-        final convId = ChatService.conversaIdEntreUsuarios(cpfLogado, entry.key);
-        contatosDisponiveis.add((
-          id: entry.key,
-          convId: convId,
-          titulo: entry.value.nome,
-          subtitulo: entry.value.subtitulo,
-          foto: entry.value.foto,
-          ehLoja: false,
-        ));
+        for (final entry in contatosUnicos.entries) {
+          final convId = ChatService.conversaIdEntreUsuarios(cpfLogado, entry.key);
+          contatosDisponiveis.add((
+            id: entry.key,
+            convId: convId,
+            titulo: entry.value.nome,
+            subtitulo: entry.value.subtitulo,
+            foto: entry.value.foto,
+            ehLoja: false,
+          ));
+        }
       }
+    } catch (e) {
+      debugPrint('Erro ao preparar contatos para nova conversa: $e');
     }
 
     final buscaModalController = TextEditingController();
@@ -2256,11 +2432,11 @@ class _MensageriaViewState extends State<MensageriaView> {
       builder: (ctx) {
         return StatefulBuilder(
           builder: (dialogCtx, setDialogState) {
-            final filtro = buscaModalController.text.trim().toLowerCase();
+            final filtro = buscaModalController.text.trim();
             final filtrados = contatosDisponiveis.where((c) {
               if (filtro.isEmpty) return true;
-              return c.titulo.toLowerCase().contains(filtro) ||
-                  c.subtitulo.toLowerCase().contains(filtro);
+              return TextoUtils.contemIgnorandoAcentos(c.titulo, filtro) ||
+                  TextoUtils.contemIgnorandoAcentos(c.subtitulo, filtro);
             }).toList();
 
             return AlertDialog(
@@ -2283,10 +2459,10 @@ class _MensageriaViewState extends State<MensageriaView> {
                   ),
                 ],
               ),
-              content: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 420, maxHeight: 450),
+              content: SizedBox(
+                width: 420,
+                height: 450,
                 child: Column(
-                  mainAxisSize: MainAxisSize.min,
                   children: [
                     TextField(
                       controller: buscaModalController,
@@ -2433,6 +2609,8 @@ class _MensageriaViewState extends State<MensageriaView> {
     setState(() {
       _conversaSelecionada = conversa;
     });
+
+    ChatService.despacharConversaAtualizada(conversa);
 
     await _marcarConversaComoLida(conversa);
   }
@@ -2618,7 +2796,9 @@ class _MensageriaViewState extends State<MensageriaView> {
                         _buildAvatar(theme, conversaAtual, raio: 42),
                       const SizedBox(height: 12),
                       Text(
-                        conversaAtual.titulo,
+                        conversaAtual.ehGrupo
+                            ? (conversaAtual.nomeGrupo.isNotEmpty ? conversaAtual.nomeGrupo : conversaAtual.titulo)
+                            : (conversaAtual.subtitulo.isNotEmpty ? conversaAtual.subtitulo : conversaAtual.titulo),
                         textAlign: TextAlign.center,
                         style: theme.getTextStyle(
                           fontSize: 17,
@@ -2628,7 +2808,9 @@ class _MensageriaViewState extends State<MensageriaView> {
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        conversaAtual.subtitulo,
+                        conversaAtual.ehGrupo
+                            ? 'Grupo • ${conversaAtual.participantesIds.length} participantes'
+                            : conversaAtual.subtitulo,
                         textAlign: TextAlign.center,
                         style: theme.getTextStyle(
                           fontSize: 12,
@@ -3119,6 +3301,36 @@ class _MensageriaViewState extends State<MensageriaView> {
                       },
                     ),
                   ),
+
+                  // Botão Sair do Grupo se for grupo
+                  if (conversa.ehGrupo) ...[
+                    const SizedBox(height: 8),
+                    SizedBox(
+                      width: double.infinity,
+                      child: OutlinedButton.icon(
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: theme.dangerColor,
+                          side: BorderSide(color: theme.dangerColor.withValues(alpha: 0.5)),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          padding: const EdgeInsets.symmetric(vertical: 11),
+                        ),
+                        icon: Icon(Icons.logout_rounded, color: theme.dangerColor, size: 18),
+                        label: Text(
+                          'Sair do grupo',
+                          style: theme.getTextStyle(
+                            fontWeight: FontWeight.bold,
+                            color: theme.dangerColor,
+                          ),
+                        ),
+                        onPressed: () {
+                          Navigator.pop(ctx);
+                          _solicitarSaidaDoGrupo(theme, conversa);
+                        },
+                      ),
+                    ),
+                  ],
                 ],
               ),
             ),
@@ -3187,6 +3399,7 @@ class _MensageriaViewState extends State<MensageriaView> {
     );
   }
 
+
   Widget _buildListaConversas(AppTheme theme) {
     final List<ConversaChat> filtradas = [];
     if (_termoBusca.isEmpty) {
@@ -3196,10 +3409,11 @@ class _MensageriaViewState extends State<MensageriaView> {
 
       // 1. Conversas ativas com histórico que combinam com o termo
       for (final c in _conversas) {
-        final match = c.titulo.toLowerCase().contains(_termoBusca) ||
-            c.subtitulo.toLowerCase().contains(_termoBusca) ||
-            c.identificador.toLowerCase().contains(_termoBusca) ||
-            c.ultimaMensagem.toLowerCase().contains(_termoBusca);
+        final match = TextoUtils.contemIgnorandoAcentos(c.titulo, _termoBusca) ||
+            TextoUtils.contemIgnorandoAcentos(c.nomeGrupo, _termoBusca) ||
+            TextoUtils.contemIgnorandoAcentos(c.subtitulo, _termoBusca) ||
+            TextoUtils.contemIgnorandoAcentos(c.identificador, _termoBusca) ||
+            TextoUtils.contemIgnorandoAcentos(c.ultimaMensagem, _termoBusca);
         if (match) {
           filtradas.add(c);
           idsJaAdicionados.add(c.id);
@@ -3209,20 +3423,22 @@ class _MensageriaViewState extends State<MensageriaView> {
       // 2. Contatos cadastrados na loja/app que combinam com o termo (mesmo sem mensagens prévias)
       for (final c in _todosContatosDisponiveis) {
         if (!idsJaAdicionados.contains(c.id)) {
-          final match = c.titulo.toLowerCase().contains(_termoBusca) ||
-              c.subtitulo.toLowerCase().contains(_termoBusca) ||
-              c.identificador.toLowerCase().contains(_termoBusca);
+          final match = TextoUtils.contemIgnorandoAcentos(c.titulo, _termoBusca) ||
+              TextoUtils.contemIgnorandoAcentos(c.nomeGrupo, _termoBusca) ||
+              TextoUtils.contemIgnorandoAcentos(c.subtitulo, _termoBusca) ||
+              TextoUtils.contemIgnorandoAcentos(c.identificador, _termoBusca);
           if (match) {
             filtradas.add(c);
             idsJaAdicionados.add(c.id);
           }
         }
       }
+
     }
 
     return Column(
       children: [
-        // Topo com Barra de Busca e Botão + Novo Grupo
+        // Topo com Barra de Busca e Botão + Nova Conversa
         Padding(
           padding: const EdgeInsets.fromLTRB(12, 12, 12, 8),
           child: Row(
@@ -3237,52 +3453,37 @@ class _MensageriaViewState extends State<MensageriaView> {
                       color: theme.borderColor.withValues(alpha: 0.6),
                     ),
                   ),
-                  child: Stack(
-                    alignment: Alignment.centerLeft,
-                    children: [
-                      TextField(
-                        controller: _buscaController,
-                        style: theme.getTextStyle(
-                          fontSize: 13,
-                          color: theme.textColor,
-                        ),
-                        decoration: InputDecoration(
-                          hintText: '',
-                          prefixIcon: Icon(
-                            Icons.search,
-                            size: 18,
-                            color: theme.secondaryTextColor,
-                          ),
-                          suffixIcon: _buscaController.text.isNotEmpty
-                              ? IconButton(
-                                  icon: Icon(
-                                    Icons.clear,
-                                    size: 16,
-                                    color: theme.secondaryTextColor,
-                                  ),
-                                  onPressed: () => _buscaController.clear(),
-                                )
-                              : null,
-                          border: InputBorder.none,
-                          contentPadding:
-                              const EdgeInsets.symmetric(vertical: 9),
-                        ),
+                  child: TextField(
+                    controller: _buscaController,
+                    style: theme.getTextStyle(
+                      fontSize: 13,
+                      color: theme.textColor,
+                    ),
+                    decoration: InputDecoration(
+                      hintText: 'Pesquisar contatos ou lojas...',
+                      hintStyle: theme.getTextStyle(
+                        fontSize: 12,
+                        color: theme.secondaryTextColor,
                       ),
-                      if (_buscaController.text.isEmpty)
-                        Positioned(
-                          left: 38,
-                          right: 12,
-                          child: IgnorePointer(
-                            child: TextoRolante(
-                              texto: 'Pesquisar contatos ou lojas...',
-                              style: theme.getTextStyle(
-                                fontSize: 12,
+                      prefixIcon: Icon(
+                        Icons.search,
+                        size: 18,
+                        color: theme.secondaryTextColor,
+                      ),
+                      suffixIcon: _buscaController.text.isNotEmpty
+                          ? IconButton(
+                              icon: Icon(
+                                Icons.clear,
+                                size: 16,
                                 color: theme.secondaryTextColor,
                               ),
-                            ),
-                          ),
-                        ),
-                    ],
+                              onPressed: () => _buscaController.clear(),
+                            )
+                          : null,
+                      border: InputBorder.none,
+                      contentPadding:
+                          const EdgeInsets.symmetric(vertical: 9),
+                    ),
                   ),
                 ),
               ),
@@ -3432,9 +3633,9 @@ class _MensageriaViewState extends State<MensageriaView> {
 
     final conversa = _conversaSelecionada!;
     final tituloCustom = _titulosCustomizados[conversa.id];
-    final tituloChatGrande = tituloCustom != null && tituloCustom.isNotEmpty
+    final tituloChatGrande = (tituloCustom != null && tituloCustom.isNotEmpty)
         ? tituloCustom
-        : (conversa.ehGrupo ? conversa.titulo : 'Conversa com ${conversa.titulo}');
+        : 'Conversa';
 
     return Column(
       children: [
@@ -3483,7 +3684,11 @@ class _MensageriaViewState extends State<MensageriaView> {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               TextoRolante(
-                                texto: conversa.titulo,
+                                texto: conversa.ehGrupo
+                                    ? (conversa.nomeGrupo.isNotEmpty
+                                        ? conversa.nomeGrupo
+                                        : (conversa.subtitulo.replaceAll(RegExp(r'^Grupo • '), '').split('•').first.trim()))
+                                    : (conversa.subtitulo.isNotEmpty ? conversa.subtitulo : 'Contato'),
                                 style: theme.getTextStyle(
                                   fontSize: 14,
                                   fontWeight: FontWeight.bold,
@@ -3492,9 +3697,11 @@ class _MensageriaViewState extends State<MensageriaView> {
                               ),
                               const SizedBox(height: 2),
                               TextoRolante(
-                                texto: conversa.subtitulo.isNotEmpty
-                                    ? conversa.subtitulo
-                                    : 'Online na rede local',
+                                texto: conversa.ehGrupo
+                                    ? 'Grupo • ${conversa.participantesIds.length} participantes'
+                                    : (conversa.subtitulo.isNotEmpty
+                                        ? conversa.subtitulo
+                                        : 'Online na rede local'),
                                 style: theme.getTextStyle(
                                   fontSize: 11,
                                   color: theme.secondaryTextColor,
@@ -3864,7 +4071,10 @@ class _MensageriaViewState extends State<MensageriaView> {
                         const SizedBox(width: 4),
                         Expanded(
                           child: Container(
-                            height: 42,
+                            constraints: const BoxConstraints(
+                              minHeight: 42,
+                              maxHeight: 110,
+                            ),
                             padding: const EdgeInsets.symmetric(horizontal: 12),
                             decoration: BoxDecoration(
                               color: theme.backgroundColor,
@@ -3873,24 +4083,50 @@ class _MensageriaViewState extends State<MensageriaView> {
                                 color: theme.borderColor.withValues(alpha: 0.6),
                               ),
                             ),
-                            child: TextField(
-                              controller: _mensagemController,
-                              style: theme.getTextStyle(
-                                fontSize: 13,
-                                color: theme.textColor,
-                              ),
-                              onSubmitted: (_) => _enviarMensagem(),
-                              decoration: InputDecoration(
-                                hintText: widget.modoLoja
-                                    ? 'Responder em nome de ${widget.nomeLoja ?? "Loja"}...'
-                                    : 'Digite uma mensagem...',
-                                hintStyle: theme.getTextStyle(
-                                  fontSize: 12,
-                                  color: theme.secondaryTextColor,
+                            child: Focus(
+                              onKeyEvent: (node, event) {
+                                if (!Platform.isAndroid && !Platform.isIOS) {
+                                  if (event is KeyDownEvent &&
+                                      event.logicalKey == LogicalKeyboardKey.enter) {
+                                    if (HardwareKeyboard.instance.isShiftPressed) {
+                                      // Shift + Enter: pula linha normalmente
+                                      return KeyEventResult.ignored;
+                                    } else {
+                                      // Enter sozinho no computador: envia a mensagem
+                                      _enviarMensagem();
+                                      return KeyEventResult.handled;
+                                    }
+                                  }
+                                }
+                                return KeyEventResult.ignored;
+                              },
+                              child: TextField(
+                                controller: _mensagemController,
+                                keyboardType: TextInputType.multiline,
+                                textInputAction: (Platform.isAndroid || Platform.isIOS)
+                                    ? TextInputAction.newline
+                                    : TextInputAction.send,
+                                minLines: 1,
+                                maxLines: 4,
+                                style: theme.getTextStyle(
+                                  fontSize: 13,
+                                  color: theme.textColor,
                                 ),
-                                border: InputBorder.none,
-                                contentPadding:
-                                    const EdgeInsets.symmetric(vertical: 10),
+                                onSubmitted: (Platform.isAndroid || Platform.isIOS)
+                                    ? null
+                                    : (_) => _enviarMensagem(),
+                                decoration: InputDecoration(
+                                  hintText: widget.modoLoja
+                                      ? 'Responder em nome de ${widget.nomeLoja ?? "Loja"}...'
+                                      : 'Digite uma mensagem...',
+                                  hintStyle: theme.getTextStyle(
+                                    fontSize: 12,
+                                    color: theme.secondaryTextColor,
+                                  ),
+                                  border: InputBorder.none,
+                                  contentPadding:
+                                      const EdgeInsets.symmetric(vertical: 10),
+                                ),
                               ),
                             ),
                           ),
@@ -4613,9 +4849,17 @@ class _ItemConversaTileState extends State<_ItemConversaTile> {
                       children: [
                         Expanded(
                           child: TextoRolante(
-                            texto: conversa.ultimaMensagem.isNotEmpty
-                                ? conversa.ultimaMensagem
-                                : conversa.subtitulo,
+                            texto: conversa.ehGrupo
+                                ? (conversa.nomeGrupo.isNotEmpty
+                                    ? (conversa.ultimaMensagem.isNotEmpty
+                                        ? '${conversa.nomeGrupo} • ${conversa.ultimaMensagem}'
+                                        : conversa.nomeGrupo)
+                                    : (conversa.ultimaMensagem.isNotEmpty
+                                        ? conversa.ultimaMensagem
+                                        : conversa.subtitulo))
+                                : (conversa.ultimaMensagem.isNotEmpty
+                                    ? conversa.ultimaMensagem
+                                    : conversa.subtitulo),
                             style: theme.getTextStyle(
                               fontSize: 11,
                               color: theme.secondaryTextColor,

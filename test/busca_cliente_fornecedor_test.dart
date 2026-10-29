@@ -66,5 +66,25 @@ void main() {
       expect(fornecedor.correspondeABusca('12345678000190'), isTrue);
       expect(fornecedor.correspondeABusca('embalagens'), isTrue);
     });
+
+    test('Busca insensível a acentuação para clientes e fornecedores', () {
+      final cliComAcento = Cliente(
+        id: 'cli_acento',
+        nome: 'João Dalósa Café Conceição',
+        endereco: 'Avenida São Sebastião',
+      );
+
+      // Digitando sem acento deve encontrar termos com acento
+      expect(cliComAcento.correspondeABusca('joao'), isTrue);
+      expect(cliComAcento.correspondeABusca('dalosa'), isTrue);
+      expect(cliComAcento.correspondeABusca('cafe'), isTrue);
+      expect(cliComAcento.correspondeABusca('conceicao'), isTrue);
+      expect(cliComAcento.correspondeABusca('sao sebastiao'), isTrue);
+
+      // Digitando com acento também encontra normalmente
+      expect(cliComAcento.correspondeABusca('João'), isTrue);
+      expect(cliComAcento.correspondeABusca('Dalósa'), isTrue);
+      expect(cliComAcento.correspondeABusca('Café'), isTrue);
+    });
   });
 }

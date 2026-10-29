@@ -5,6 +5,7 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:nous/src/core/services/atualizacao_service.dart';
+import 'package:nous/src/core/services/changelog_service.dart';
 import 'package:nous/src/features/auth/models/usuario_nous.dart';
 import 'package:nous/src/features/auth/providers/auth_provider.dart';
 import 'package:nous/src/features/auth/services/contas_nous_service.dart';
@@ -94,6 +95,8 @@ class ClienteRedeLocal {
   final Map<String, String> _mapaUploadsRealizados = {};
 
   bool get conectado => _ws != null && estaConectado.value;
+  String? get ipServidor => _ipServidor;
+  int? get portaServidor => _portaServidor;
   String? get enderecoServidor =>
       _ipServidor != null && _portaServidor != null ? '$_ipServidor:$_portaServidor' : null;
   Loja? get lojaSincronizada => _lojaSincronizada;
@@ -175,6 +178,7 @@ class ClienteRedeLocal {
   }
 
   void _processarDatagramaDescoberta(Datagram datagram) {
+    if (ServidorRedeLocal().ativo) return;
     try {
       final texto = utf8.decode(datagram.data);
       final json = jsonDecode(texto) as Map<String, dynamic>;
@@ -204,8 +208,40 @@ class ClienteRedeLocal {
         lista.removeWhere((d) => agora.difference(d.vistoEm).inSeconds > 10);
 
         lojasEncontradas.value = lista;
+
+        // Auto-conecta se ainda desconectado
+        if (!conectado && _pdvProvider != null) {
+          conectar(ip: info.ip, porta: info.porta, pdv: _pdvProvider!, auth: _authProvider);
+        }
       }
     } catch (_) {}
+  }
+
+  /// Inicia escuta contínua e tenta reconectar automaticamente ao servidor balcão
+  Future<void> tentarAutoConectarSeDisponivel(PdvProvider pdv, [AuthProvider? auth]) async {
+    if (ServidorRedeLocal().ativo) return;
+    _pdvProvider = pdv;
+    if (auth != null) _authProvider = auth;
+    if (conectado) return;
+
+    await iniciarDescoberta();
+
+    // 1. Tenta o último IP conhecido salvo
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final ultimoIp = prefs.getString('nous_ultimo_ip_balcao');
+      final ultimaPorta = prefs.getInt('nous_ultima_porta_balcao') ?? ServidorRedeLocal.portaPadraoHttp;
+      if (ultimoIp != null && ultimoIp.isNotEmpty) {
+        final ok = await conectar(ip: ultimoIp, porta: ultimaPorta, pdv: pdv, auth: auth);
+        if (ok) return;
+      }
+    } catch (_) {}
+
+    // 2. Se já encontrou servidores via UDP, conecta no primeiro disponível
+    if (lojasEncontradas.value.isNotEmpty) {
+      final primeiro = lojasEncontradas.value.first;
+      await conectar(ip: primeiro.ip, porta: primeiro.porta, pdv: pdv, auth: auth);
+    }
   }
 
   /// Conecta ao servidor no IP e porta especificados (manual ou descoberto).
@@ -215,6 +251,10 @@ class ClienteRedeLocal {
     required PdvProvider pdv,
     AuthProvider? auth,
   }) async {
+    if (ServidorRedeLocal().ativo) {
+      debugPrint('[ClienteRedeLocal] Esta máquina já é o Servidor Balcão ativo. Conexão cliente ignorada.');
+      return false;
+    }
     await desconectar();
 
     _ipServidor = ip.trim();
@@ -296,6 +336,12 @@ class ClienteRedeLocal {
 
       estaConectado.value = true;
       debugPrint('[ClienteRedeLocal] Conectado ao servidor via WebSocket em $wsUrl');
+
+      try {
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setString('nous_ultimo_ip_balcao', _ipServidor!);
+        await prefs.setInt('nous_ultima_porta_balcao', _portaServidor!);
+      } catch (_) {}
 
       // Envia identificação nominal do dispositivo e dados do usuário para o balcão
       _ws!.add(
@@ -538,6 +584,30 @@ class ClienteRedeLocal {
           final msgJson = dados['mensagem'] as Map<String, dynamic>;
           await ChatService.processarMensagemRecebidaDaRede(msgJson);
         }
+      } else if (tipo == 'mensagem_entregue' || tipo == 'mensagens_lidas') {
+        await ChatService.processarMensagemRecebidaDaRede(dados, emitirAlertaSonoro: false);
+      } else if (tipo == 'conversa_atualizada') {
+        if (dados['conversa'] != null) {
+          final cMap = dados['conversa'] as Map<String, dynamic>;
+          await ChatService.salvarConversaLocal(cMap);
+        }
+      } else if (tipo == 'conversa_renomeada') {
+        final convId = dados['conversaId'] as String?;
+        final novoTit = dados['novoTitulo'] as String?;
+        if (convId != null && novoTit != null) {
+          await ChatService.renomearConversa(convId, novoTit, originadoDaRede: true);
+        }
+      } else if (tipo == 'conversa_excluida') {
+        final convId = dados['conversaId'] as String?;
+        if (convId != null) {
+          await ChatService.excluirConversaLocal(convId);
+        }
+      } else if (tipo == 'grupo_criado' ||
+          tipo == 'grupo_atualizado' ||
+          tipo == 'mensagem_editada' ||
+          tipo == 'mensagem_excluida') {
+        await ChatService.processarMensagemRecebidaDaRede(dados,
+            emitirAlertaSonoro: false);
       }
     } catch (e) {
       debugPrint('[ClienteRedeLocal] Erro ao processar mensagem WebSocket: $e');
@@ -602,16 +672,8 @@ class ClienteRedeLocal {
     Map<String, dynamic>? payloadCustomizado,
   }) async {
     MensagemChat msgParaEnvio = msg;
-    if (msg.remetenteFoto.isNotEmpty) {
-      final resolvida = ImagemService.resolverCaminhoExistente(msg.remetenteFoto);
-      if (resolvida != null) {
-        final fotoNoServidor = await _enviarUploadImagemParaServidor(resolvida);
-        if (fotoNoServidor.isNotEmpty) {
-          msgParaEnvio = msgParaEnvio.copyWith(remetenteFoto: fotoNoServidor);
-        }
-      }
-    }
 
+    // Se for mensagem de imagem e houver anexo local, garante envio do anexo
     if (msg.tipo == 'imagem' && msg.caminhoAnexo.isNotEmpty) {
       final resolvida = ImagemService.resolverCaminhoExistente(msg.caminhoAnexo);
       if (resolvida != null) {
@@ -628,10 +690,8 @@ class ClienteRedeLocal {
     if (msgParaEnvio.caminhoAnexo != msg.caminhoAnexo) {
       dadosEnvio['caminhoAnexo'] = msgParaEnvio.caminhoAnexo;
     }
-    if (msgParaEnvio.remetenteFoto != msg.remetenteFoto) {
-      dadosEnvio['remetenteFoto'] = msgParaEnvio.remetenteFoto;
-    }
 
+    // 1. Envia via WebSocket em tempo real se conectado
     if (_ws != null && estaConectado.value) {
       try {
         _ws!.add(
@@ -646,15 +706,32 @@ class ClienteRedeLocal {
       }
     }
 
-    if (_ipServidor != null && _portaServidor != null) {
+    // 2. Fallback imediato para REST HTTP POST /api/chat/mensagem
+    String? ip = _ipServidor;
+    int porta = _portaServidor ?? ServidorRedeLocal.portaPadraoHttp;
+    if (ip == null && lojasEncontradas.value.isNotEmpty) {
+      ip = lojasEncontradas.value.first.ip;
+      porta = lojasEncontradas.value.first.porta;
+    }
+    if (ip == null) {
       try {
-        final client = HttpClient()..connectionTimeout = const Duration(seconds: 5);
-        final uri = Uri.parse('http://$_ipServidor:$_portaServidor/api/chat/mensagem');
+        final prefs = await SharedPreferences.getInstance();
+        ip = prefs.getString('nous_ultimo_ip_balcao');
+        porta = prefs.getInt('nous_ultima_porta_balcao') ?? ServidorRedeLocal.portaPadraoHttp;
+      } catch (_) {}
+    }
+
+    if (ip != null) {
+      try {
+        final client = HttpClient()..connectionTimeout = const Duration(seconds: 4);
+        final uri = Uri.parse('http://$ip:$porta/api/chat/mensagem');
         final req = await client.postUrl(uri);
         req.headers.contentType = ContentType.json;
         req.write(jsonEncode(dadosEnvio));
         final resp = await req.close();
-        return resp.statusCode == HttpStatus.ok;
+        if (resp.statusCode == HttpStatus.ok) {
+          return true;
+        }
       } catch (e) {
         debugPrint('[ClienteRedeLocal] Erro ao enviar mensagem de chat via REST: $e');
       }
@@ -1677,6 +1754,15 @@ class ClienteRedeLocal {
                   .toList() ??
               <String>[];
 
+          var alteracoesFinais = alteracoesRemotas;
+          if (alteracoesFinais.isEmpty) {
+            final nov = ChangelogService.obterUltimaVersao(versaoRemota) ??
+                ChangelogService.obterUltimaVersao();
+            if (nov != null && nov.alteracoes.isNotEmpty) {
+              alteracoesFinais = nov.alteracoes;
+            }
+          }
+
           final temNovaVersao = buildRemota > AtualizacaoService.buildAtual ||
               (buildRemota == AtualizacaoService.buildAtual &&
                   AtualizacaoService.versaoMaior(versaoRemota, AtualizacaoService.versaoAtual));
@@ -1689,7 +1775,7 @@ class ClienteRedeLocal {
                   'Instalação da versão estável mais recente transmitida diretamente pelo Computador Balcão via Wi-Fi.',
               urlDownload: 'http://$_ipServidor:$_portaServidor/api/download_apk',
               dataPublicacao: DateTime.now(),
-              alteracoes: alteracoesRemotas,
+              alteracoes: alteracoesFinais,
             );
             AtualizacaoService.temAtualizacao.value = true;
             AtualizacaoService.ultimaVerificacao.value = DateTime.now();
@@ -1716,12 +1802,28 @@ class ClienteRedeLocal {
 
   /// Baixa uma imagem remota individual do balcão e salva no armazenamento local
   Future<String> baixarImagemRemota(String caminhoRemoto) async {
-    if (_ipServidor == null || _portaServidor == null) return caminhoRemoto;
+    String? ip = _ipServidor;
+    int? porta = _portaServidor;
+
+    if (ip == null && lojasEncontradas.value.isNotEmpty) {
+      ip = lojasEncontradas.value.first.ip;
+      porta = lojasEncontradas.value.first.porta;
+    }
+    if (ip == null) {
+      try {
+        final prefs = await SharedPreferences.getInstance();
+        ip = prefs.getString('nous_ultimo_ip_balcao');
+        porta = prefs.getInt('nous_ultima_porta_balcao') ?? ServidorRedeLocal.portaPadraoHttp;
+      } catch (_) {}
+    }
+
+    if (ip == null || porta == null) return caminhoRemoto;
     final caminhoLimpo = caminhoRemoto.trim();
     if (caminhoLimpo.isEmpty) return '';
 
-    if (File(caminhoLimpo).existsSync()) {
-      return caminhoLimpo;
+    final resolvido = ImagemService.resolverCaminhoExistente(caminhoLimpo);
+    if (resolvido != null && File(resolvido).existsSync()) {
+      return resolvido;
     }
 
     try {
@@ -1733,26 +1835,39 @@ class ClienteRedeLocal {
 
       final ext = caminhoLimpo.split('.').last.toLowerCase();
       final extensaoFinal = ImagemService.extensoesImagem.contains(ext) ? ext : 'jpg';
-      final nomeArquivoLocal = 'remota_${caminhoLimpo.hashCode.abs()}.$extensaoFinal';
-      final arquivoLocal = File('${pastaImagens.path}/$nomeArquivoLocal');
+      final nomeBase = p.basename(caminhoLimpo);
+      final nomeHash = 'remota_${caminhoLimpo.hashCode.abs()}.$extensaoFinal';
 
-      if (arquivoLocal.existsSync() && arquivoLocal.lengthSync() > 0) {
-        return arquivoLocal.path;
+      final arquivoHash = File('${pastaImagens.path}/$nomeHash');
+      if (arquivoHash.existsSync() && arquivoHash.lengthSync() > 0) {
+        return arquivoHash.path;
+      }
+      if (nomeBase.isNotEmpty) {
+        final arquivoNome = File('${pastaImagens.path}/$nomeBase');
+        if (arquivoNome.existsSync() && arquivoNome.lengthSync() > 0) {
+          return arquivoNome.path;
+        }
       }
 
       final clienteHttp = HttpClient()..connectionTimeout = const Duration(seconds: 4);
       final uri = Uri.parse(
-        'http://$_ipServidor:$_portaServidor/api/imagem?caminho=${Uri.encodeQueryComponent(caminhoLimpo)}',
+        'http://$ip:$porta/api/imagem?caminho=${Uri.encodeQueryComponent(caminhoLimpo)}',
       );
       final req = await clienteHttp.getUrl(uri);
       final resp = await req.close();
 
       if (resp.statusCode == HttpStatus.ok) {
         final bytes = await resp.fold<List<int>>([], (acc, chunk) => acc..addAll(chunk));
-        await arquivoLocal.writeAsBytes(bytes);
+        await arquivoHash.writeAsBytes(bytes);
+        if (nomeBase.isNotEmpty && nomeBase != nomeHash) {
+          final arquivoNome = File('${pastaImagens.path}/$nomeBase');
+          try {
+            await arquivoNome.writeAsBytes(bytes);
+          } catch (_) {}
+        }
 
-        if (await arquivoLocal.exists() && arquivoLocal.lengthSync() > 0) {
-          return arquivoLocal.path;
+        if (await arquivoHash.exists() && arquivoHash.lengthSync() > 0) {
+          return arquivoHash.path;
         }
       }
     } catch (e) {

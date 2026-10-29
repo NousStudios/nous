@@ -1,3 +1,5 @@
+import 'package:nous/src/core/utils/texto_utils.dart';
+
 class Cliente {
   final String id;
   final String nome;
@@ -80,19 +82,19 @@ class Cliente {
 
   bool correspondeABusca(String termo) {
     if (termo.isEmpty) return true;
-    final termoLimpo = termo.trim().toLowerCase();
+    final termoLimpo = termo.trim();
     if (termoLimpo.isEmpty) return true;
 
     final termoDigitos = termo.replaceAll(RegExp(r'[^0-9]'), '');
 
-    if (nome.toLowerCase().contains(termoLimpo)) return true;
-    if (endereco.toLowerCase().contains(termoLimpo)) return true;
-    if (numero.toLowerCase().contains(termoLimpo)) return true;
-    if (email.toLowerCase().contains(termoLimpo)) return true;
-    if (redesSociais.toLowerCase().contains(termoLimpo)) return true;
-    if (descricao.toLowerCase().contains(termoLimpo)) return true;
-    if (cnpj.toLowerCase().contains(termoLimpo)) return true;
-    if (telefone.toLowerCase().contains(termoLimpo)) return true;
+    if (TextoUtils.contemIgnorandoAcentos(nome, termoLimpo)) return true;
+    if (TextoUtils.contemIgnorandoAcentos(endereco, termoLimpo)) return true;
+    if (TextoUtils.contemIgnorandoAcentos(numero, termoLimpo)) return true;
+    if (TextoUtils.contemIgnorandoAcentos(email, termoLimpo)) return true;
+    if (TextoUtils.contemIgnorandoAcentos(redesSociais, termoLimpo)) return true;
+    if (TextoUtils.contemIgnorandoAcentos(descricao, termoLimpo)) return true;
+    if (TextoUtils.contemIgnorandoAcentos(cnpj, termoLimpo)) return true;
+    if (TextoUtils.contemIgnorandoAcentos(telefone, termoLimpo)) return true;
 
     if (termoDigitos.isNotEmpty) {
       final docDigitos = cnpj.replaceAll(RegExp(r'[^0-9]'), '');

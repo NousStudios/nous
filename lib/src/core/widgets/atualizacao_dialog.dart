@@ -67,8 +67,8 @@ class _AtualizacaoDialogState extends State<AtualizacaoDialog> {
     List<String> alteracoesRemotas = const [],
   }) {
     final novidade = versao.isNotEmpty
-        ? ChangelogService.obterUltimaVersao(versao)
-        : null;
+        ? (ChangelogService.obterUltimaVersao(versao) ?? ChangelogService.obterUltimaVersao())
+        : ChangelogService.obterUltimaVersao();
 
     List<String> itens = [];
     if (alteracoesRemotas.isNotEmpty) {
@@ -81,6 +81,10 @@ class _AtualizacaoDialogState extends State<AtualizacaoDialog> {
           .map((l) => l.trim().replaceAll(RegExp(r'^[-*•]\s*'), ''))
           .where((l) => l.isNotEmpty && !l.startsWith('#'))
           .toList();
+    }
+
+    if (itens.isEmpty && novidade != null && novidade.alteracoes.isNotEmpty) {
+      itens = novidade.alteracoes;
     }
 
     return Column(

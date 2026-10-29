@@ -12,6 +12,10 @@ class ImagemService {
 
   static Directory? _diretorioBaseCache;
 
+  static Future<void> inicializar() async {
+    await obterDiretorioBase();
+  }
+
   static Future<Directory> obterDiretorioBase() async {
     if (_diretorioBaseCache != null && await _diretorioBaseCache!.exists()) {
       return _diretorioBaseCache!;
@@ -66,7 +70,15 @@ class ImagemService {
       adicionarComSubpastas(_diretorioBaseCache!.path);
     }
 
-    // 1. Tenta diretórios padrão do ambiente no Windows
+    // 1. Diretórios padrão do Android
+    if (Platform.isAndroid) {
+      adicionarComSubpastas('/data/user/0/com.example.nous/app_flutter/Nous');
+      adicionarComSubpastas('/data/user/0/com.nous.app/app_flutter/Nous');
+      adicionarComSubpastas('/data/data/com.example.nous/app_flutter/Nous');
+      adicionarComSubpastas('/storage/emulated/0/Download/Nous_Imagens');
+    }
+
+    // 2. Tenta diretórios padrão do ambiente no Windows
     if (Platform.isWindows) {
       final appData = Platform.environment['APPDATA'];
       if (appData != null && appData.isNotEmpty) {
@@ -113,17 +125,27 @@ class ImagemService {
       }
     } catch (_) {}
 
-    // 3. Procura pelo nome do arquivo em todas as pastas possíveis de dados
+    // 3. Procura pelo nome do arquivo ou hash em todas as pastas possíveis de dados
     final nomeArquivo = p.basename(limpo);
     if (nomeArquivo.isEmpty) return null;
+
+    final ext = p.extension(limpo).replaceAll('.', '').toLowerCase();
+    final extFinal = ext.isNotEmpty ? ext : 'jpg';
+    final candidatosNomes = [
+      nomeArquivo,
+      'remota_${limpo.hashCode.abs()}.$extFinal',
+      'remota_${nomeArquivo.hashCode.abs()}.$extFinal',
+    ];
 
     final possiveis = obterDiretoriosPossiveisSync();
     for (final dir in possiveis) {
       try {
         if (!dir.existsSync()) continue;
-        final candidato = File(p.join(dir.path, nomeArquivo));
-        if (candidato.existsSync() && candidato.lengthSync() > 0) {
-          return candidato.path;
+        for (final n in candidatosNomes) {
+          final candidato = File(p.join(dir.path, n));
+          if (candidato.existsSync() && candidato.lengthSync() > 0) {
+            return candidato.path;
+          }
         }
       } catch (_) {}
     }

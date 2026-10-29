@@ -15,6 +15,7 @@ import 'package:nous/src/features/pdv/views/widgets/estado_vazio_container.dart'
 import 'package:nous/src/features/pdv/views/widgets/venda_registrada_dialog.dart';
 import 'package:nous/src/features/pdv/views/widgets/comanda_pedido_dialog.dart';
 import 'package:nous/src/core/widgets/texto_rolante.dart';
+import 'package:nous/src/core/utils/texto_utils.dart';
 
 const List<String> _formasDePagamento = [
   'Pix',
@@ -238,10 +239,10 @@ class _RelatoriosConteudoState extends State<_RelatoriosConteudo> {
       final formas = p.todosPagamentos
           .map((pag) => pag.forma.toLowerCase())
           .join(' ');
-      return p.clienteNome.toLowerCase().contains(termo) ||
-          p.produtoNome.toLowerCase().contains(termo) ||
-          formas.contains(termo) ||
-          p.comanda.toLowerCase().contains(termo) ||
+      return TextoUtils.contemIgnorandoAcentos(p.clienteNome, termo) ||
+          TextoUtils.contemIgnorandoAcentos(p.produtoNome, termo) ||
+          TextoUtils.contemIgnorandoAcentos(formas, termo) ||
+          TextoUtils.contemIgnorandoAcentos(p.comanda, termo) ||
           numero.contains(termo);
     }).toList();
 
@@ -284,18 +285,18 @@ class _RelatoriosConteudoState extends State<_RelatoriosConteudo> {
   }
 
   List<RegistroAcao> _acoesFiltradas(List<RegistroAcao> origem) {
-    final termo = _buscaAcoesController.text.trim().toLowerCase();
+    final termo = _buscaAcoesController.text.trim();
     final lista = termo.isEmpty
         ? List.of(origem)
         : origem.where((a) {
-            if (a.descricao.toLowerCase().contains(termo)) return true;
-            if (a.nomeAutor.toLowerCase().contains(termo)) return true;
-            if (a.emailAutor.toLowerCase().contains(termo)) return true;
+            if (TextoUtils.contemIgnorandoAcentos(a.descricao, termo)) return true;
+            if (TextoUtils.contemIgnorandoAcentos(a.nomeAutor, termo)) return true;
+            if (TextoUtils.contemIgnorandoAcentos(a.emailAutor, termo)) return true;
             if (a.cpfAutor.contains(termo)) return true;
-            if (_formatarCpf(a.cpfAutor).toLowerCase().contains(termo)) {
+            if (TextoUtils.contemIgnorandoAcentos(_formatarCpf(a.cpfAutor), termo)) {
               return true;
             }
-            if (_dataHoraCurta(a.dataHora).toLowerCase().contains(termo)) {
+            if (TextoUtils.contemIgnorandoAcentos(_dataHoraCurta(a.dataHora), termo)) {
               return true;
             }
             return false;

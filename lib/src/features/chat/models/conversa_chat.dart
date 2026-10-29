@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:nous/src/features/chat/models/mensagem_chat.dart';
 
 class ConversaChat {
@@ -8,6 +9,7 @@ class ConversaChat {
   final String identificador; // CPF do usuário, ID da loja ou ID do grupo
   final bool ehLoja;
   final bool ehGrupo;
+  final String nomeGrupo; // Nome do grupo mantido independente do título da conversa
   final String? lojaId; // ID da loja caso pertença ao escopo de uma loja
   final List<String> participantesIds;
   final String ultimaMensagem;
@@ -26,6 +28,7 @@ class ConversaChat {
     required this.identificador,
     this.ehLoja = false,
     this.ehGrupo = false,
+    this.nomeGrupo = '',
     this.lojaId,
     this.participantesIds = const [],
     this.ultimaMensagem = '',
@@ -45,6 +48,7 @@ class ConversaChat {
     String? identificador,
     bool? ehLoja,
     bool? ehGrupo,
+    String? nomeGrupo,
     String? lojaId,
     List<String>? participantesIds,
     String? ultimaMensagem,
@@ -63,6 +67,7 @@ class ConversaChat {
       identificador: identificador ?? this.identificador,
       ehLoja: ehLoja ?? this.ehLoja,
       ehGrupo: ehGrupo ?? this.ehGrupo,
+      nomeGrupo: nomeGrupo ?? this.nomeGrupo,
       lojaId: lojaId ?? this.lojaId,
       participantesIds: participantesIds ?? this.participantesIds,
       ultimaMensagem: ultimaMensagem ?? this.ultimaMensagem,
@@ -85,6 +90,8 @@ class ConversaChat {
       'identificador': identificador,
       'ehLoja': ehLoja,
       'ehGrupo': ehGrupo,
+      'nomeGrupo': nomeGrupo,
+      'nome_grupo': nomeGrupo,
       'lojaId': lojaId ?? '',
       'participantesIds': participantesIds,
       'ultimaMensagem': ultimaMensagem,
@@ -98,32 +105,66 @@ class ConversaChat {
   }
 
   factory ConversaChat.fromJson(Map<String, dynamic> json) {
+    List<String> participantes = const [];
+    if (json['participantesIds'] is List) {
+      participantes = (json['participantesIds'] as List<dynamic>)
+          .map((e) => e.toString())
+          .toList();
+    } else if (json['participantes_json'] is String &&
+        (json['participantes_json'] as String).isNotEmpty) {
+      try {
+        final decoded = jsonDecode(json['participantes_json'] as String);
+        if (decoded is List) {
+          participantes = decoded.map((e) => e.toString()).toList();
+        }
+      } catch (_) {}
+    }
+
+    final dataHoraStr = (json['dataHoraUltimaMensagem'] as String?) ??
+        (json['data_hora_ultima_mensagem'] as String?);
+
+    final ehG = (json['ehGrupo'] as bool?) ??
+        ((json['eh_grupo'] as int?) == 1);
+
+    var nGrupo = (json['nomeGrupo'] as String?) ??
+        (json['nome_grupo'] as String?) ??
+        '';
+
+    final titOriginal = json['titulo'] as String? ?? '';
+    if (nGrupo.isEmpty && ehG && titOriginal.isNotEmpty && titOriginal != 'Conversa' && titOriginal != 'Nova Conversa') {
+      nGrupo = titOriginal;
+    }
+
     return ConversaChat(
       id: json['id'] as String? ?? '',
-      titulo: json['titulo'] as String? ?? '',
+      titulo: titOriginal,
       subtitulo: json['subtitulo'] as String? ?? '',
       foto: json['foto'] as String? ?? '',
       identificador: json['identificador'] as String? ?? '',
-      ehLoja: json['ehLoja'] as bool? ?? false,
-      ehGrupo: json['ehGrupo'] as bool? ?? false,
+      ehLoja: (json['ehLoja'] as bool?) ??
+          ((json['eh_loja'] as int?) == 1),
+      ehGrupo: ehG,
+      nomeGrupo: nGrupo,
       lojaId: json['lojaId'] as String? ?? json['loja_id'] as String?,
-      participantesIds: (json['participantesIds'] as List<dynamic>? ?? const [])
-          .map((e) => e as String)
-          .toList(),
-      ultimaMensagem: json['ultimaMensagem'] as String? ?? '',
-      dataHoraUltimaMensagem: json['dataHoraUltimaMensagem'] != null
-          ? DateTime.tryParse(json['dataHoraUltimaMensagem'] as String) ??
-              DateTime.now()
+      participantesIds: participantes,
+      ultimaMensagem: json['ultimaMensagem'] as String? ??
+          json['ultima_mensagem'] as String? ??
+          '',
+      dataHoraUltimaMensagem: dataHoraStr != null
+          ? DateTime.tryParse(dataHoraStr) ?? DateTime.now()
           : DateTime.now(),
       naoLidasCount: json['naoLidasCount'] as int? ?? 0,
       mensagens: (json['mensagens'] as List<dynamic>? ?? const [])
           .map((m) => MensagemChat.fromJson(m as Map<String, dynamic>))
           .toList(),
-      fixada: json['fixada'] as bool? ?? (json['fixada'] == 1),
-      arquivada: json['arquivada'] as bool? ?? (json['arquivada'] == 1),
+      fixada: json['fixada'] == true || json['fixada'] == 1,
+      arquivada: json['arquivada'] == true || json['arquivada'] == 1,
       atualizadaEm: json['atualizadaEm'] != null
           ? DateTime.tryParse(json['atualizadaEm'] as String)
-          : null,
+          : (json['atualizado_em'] != null
+              ? DateTime.tryParse(json['atualizado_em'] as String)
+              : null),
     );
   }
 }
+

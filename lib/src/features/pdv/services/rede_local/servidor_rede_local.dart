@@ -285,8 +285,22 @@ class ServidorRedeLocal {
     if (path == '/api/ws') {
       if (WebSocketTransformer.isUpgradeRequest(request)) {
         try {
-          final ws = await WebSocketTransformer.upgrade(request);
           final ipRemoto = request.connectionInfo?.remoteAddress.address ?? '127.0.0.1';
+          final ehLoopback = request.connectionInfo?.remoteAddress.isLoopback ?? false;
+          final ehIpLocal = ipRemoto == '127.0.0.1' ||
+              ipRemoto == '::1' ||
+              (_ipServidor != null && ipRemoto == _ipServidor);
+
+          if (ehLoopback || ehIpLocal) {
+            debugPrint(
+              '[ServidorRedeLocal] Rejeitando conexão WebSocket loopback da própria máquina ($ipRemoto).',
+            );
+            request.response.statusCode = HttpStatus.badRequest;
+            await request.response.close();
+            return;
+          }
+
+          final ws = await WebSocketTransformer.upgrade(request);
           final terminal = TerminalConectadoInfo(
             id: 'term_${DateTime.now().millisecondsSinceEpoch}',
             nome: 'Terminal ($ipRemoto)',
@@ -331,6 +345,19 @@ class ServidorRedeLocal {
                 'presencas':
                     obterTodasPresencas().map((p) => p.toJson()).toList(),
                 'fotosUsuariosAusentes': fotosUsuariosAusentes,
+              }),
+            );
+          } else {
+            final lojaNous =
+                _pdvProvider?.buscarPorId(PdvProvider.idLojaColetivaNous);
+            ws.add(
+              jsonEncode({
+                'tipo': 'dados_iniciais',
+                'loja': null,
+                if (lojaNous != null) 'lojaNousColetiva': lojaNous.toJson(),
+                'presencas':
+                    obterTodasPresencas().map((p) => p.toJson()).toList(),
+                'fotosUsuariosAusentes': <String>[],
               }),
             );
           }
@@ -570,14 +597,31 @@ class ServidorRedeLocal {
           _lojaAtiva!.membros.any((m) =>
               ChatService.normalizarCpf(m.cpf) == cpfParamLimpo);
 
+      final usuarioLogado = _authProvider?.contaAtual;
+      final cpfBalcao = usuarioLogado != null
+          ? ChatService.normalizarCpf(usuarioLogado.cpf)
+          : (_pdvProvider?.cpfAtual != null
+              ? ChatService.normalizarCpf(_pdvProvider!.cpfAtual!)
+              : '');
+      final ehMesmaConta =
+          cpfBalcao.isNotEmpty && cpfBalcao == cpfParamLimpo;
+
       final chaveTerminal = (cpfParamLimpo.isNotEmpty)
           ? '${ipRemoto}_$cpfParamLimpo'
           : '${ipRemoto}_${dispositivoParam?.trim() ?? ''}';
 
       ResultadoAutorizacaoConexao? decisao = _decisoesTerminais[chaveTerminal];
 
-      // Sempre exige aprovação no balcão caso o terminal ainda não esteja autorizado nesta sessão
-      if (!ehLocal && !_terminaisAutorizados.contains(chaveTerminal)) {
+      // Auto-autoriza imediatamente dispositivos da mesma conta (mesmo CPF no balcão e no celular), dono ou membros cadastrados
+      if (ehLocal || ehMesmaConta || ehDono || jaEhMembro) {
+        decisao = ResultadoAutorizacaoConexao.autorizadoMembro;
+        _decisoesTerminais[chaveTerminal] = decisao;
+        _terminaisAutorizados.add(chaveTerminal);
+        debugPrint(
+          '[ServidorRedeLocal] Terminal auto-autorizado (MesmaConta: $ehMesmaConta, Dono: $ehDono, Membro: $jaEhMembro, Local: $ehLocal): $chaveTerminal',
+        );
+      } else if (!_terminaisAutorizados.contains(chaveTerminal)) {
+        // Exige aprovação no balcão apenas para novos terminais/clientes desconhecidos
         final resultado = await _solicitarAutorizacaoTerminal(
           ip: ipRemoto,
           nomeDispositivo: (dispositivoParam != null && dispositivoParam.trim().isNotEmpty)
@@ -587,7 +631,7 @@ class ServidorRedeLocal {
               ? '$nomeParam ($apelidoParam)'
               : nomeParam,
           cpf: cpfParam,
-          jaEhMembro: jaEhMembro || ehDono,
+          jaEhMembro: false,
         );
 
         if (resultado == ResultadoAutorizacaoConexao.recusado) {
@@ -633,10 +677,19 @@ class ServidorRedeLocal {
 
       final lojaRetorno = lojaAtiva;
       if (lojaRetorno == null) {
+        final lojaNous =
+            _pdvProvider?.buscarPorId(PdvProvider.idLojaColetivaNous);
         _responderJson(
           request,
-          {'sucesso': false, 'mensagem': 'Nenhuma loja ativa'},
-          statusCode: HttpStatus.notFound,
+          {
+            'sucesso': true,
+            'loja': null,
+            if (lojaNous != null) 'lojaNousColetiva': lojaNous.toJson(),
+            'mensagem': 'Servidor ativo (sem loja comercial vinculada no momento)',
+            'presencas': obterTodasPresencas().map((p) => p.toJson()).toList(),
+            'imagensAusentes': <String>[],
+            'fotosUsuariosAusentes': <String>[],
+          },
         );
         return;
       }
@@ -1233,7 +1286,8 @@ class ServidorRedeLocal {
       final arquivoApk = _obterArquivoApk();
       final temApk = arquivoApk != null && arquivoApk.existsSync() && arquivoApk.lengthSync() > 0;
       final tamanho = temApk ? arquivoApk.lengthSync() : 0;
-      final novidade = ChangelogService.obterUltimaVersao(AtualizacaoService.versaoAtual);
+      final novidade = ChangelogService.obterUltimaVersao(AtualizacaoService.versaoAtual) ??
+          ChangelogService.obterUltimaVersao();
 
       _responderJson(request, {
         'sucesso': true,
@@ -1324,7 +1378,12 @@ class ServidorRedeLocal {
           cpf: cpf,
           lojaId: lojaId,
         );
-        _responderJson(request, {'sucesso': true, 'conversas': conversas});
+        final excluidas = await ChatService.obterIdsConversasExcluidas();
+        _responderJson(request, {
+          'sucesso': true,
+          'conversas': conversas,
+          'excluidas': excluidas,
+        });
         return;
       } catch (e) {
         _responderJson(request, {'sucesso': false, 'erro': e.toString()},
@@ -1338,10 +1397,24 @@ class ServidorRedeLocal {
       try {
         final body = await utf8.decodeStream(request);
         final dados = jsonDecode(body) as Map<String, dynamic>;
+
+        // Processa exclusões vindas do terminal móvel
+        if (dados['excluidas'] is List) {
+          for (final id in dados['excluidas'] as List<dynamic>) {
+            if (id is String && id.isNotEmpty) {
+              await ChatService.excluirConversaLocal(id);
+            }
+          }
+        }
+
         if (dados['conversas'] is List) {
+          final excluidasLocais = await ChatService.obterIdsConversasExcluidas();
           for (final c in dados['conversas'] as List<dynamic>) {
             if (c is Map<String, dynamic>) {
-              await ChatService.salvarConversaLocal(c);
+              final id = c['id'] as String? ?? '';
+              if (!excluidasLocais.contains(id)) {
+                await ChatService.salvarConversaLocal(c);
+              }
             }
           }
         }
@@ -1397,6 +1470,33 @@ class ServidorRedeLocal {
           if (apelido != null && apelido.trim().isNotEmpty) {
             terminal.apelido = apelido.trim();
           }
+
+          // Fecha e limpa conexões antigas duplicadas do mesmo CPF ou IP
+          final cpfLimpoTerm = (cpf != null) ? ChatService.normalizarCpf(cpf) : '';
+          final socketsParaRemover = <WebSocket>[];
+          for (final entry in _terminaisWs.entries) {
+            if (entry.key != ws) {
+              final outroTerm = entry.value;
+              final outroCpfLimpo = outroTerm.cpf != null
+                  ? ChatService.normalizarCpf(outroTerm.cpf!)
+                  : '';
+              final mesmoCpf =
+                  cpfLimpoTerm.isNotEmpty && outroCpfLimpo == cpfLimpoTerm;
+              final mesmoIp =
+                  terminal.ip.isNotEmpty && outroTerm.ip == terminal.ip;
+              if (mesmoCpf || mesmoIp) {
+                socketsParaRemover.add(entry.key);
+              }
+            }
+          }
+          for (final velhoWs in socketsParaRemover) {
+            _clientesWs.remove(velhoWs);
+            _terminaisWs.remove(velhoWs);
+            try {
+              velhoWs.close();
+            } catch (_) {}
+          }
+
           _atualizarListasTerminais();
           debugPrint(
             '[ServidorRedeLocal] Terminal identificado: "${terminal.nome}" (CPF: ${terminal.cpf}, Nome: ${terminal.nomeUsuario}, Apelido: ${terminal.apelido}, IP: ${terminal.ip})',
@@ -1452,6 +1552,60 @@ class ServidorRedeLocal {
         }
       } else if (tipo == 'mensagem_entregue' || tipo == 'mensagens_lidas') {
         await ChatService.processarMensagemRecebidaDaRede(dados, emitirAlertaSonoro: false);
+        final payload = jsonEncode(dados);
+        for (final cliente in List<WebSocket>.from(_clientesWs)) {
+          if (cliente != ws) {
+            try {
+              cliente.add(payload);
+            } catch (_) {}
+          }
+        }
+      } else if (tipo == 'conversa_atualizada') {
+        if (dados['conversa'] != null) {
+          final cMap = dados['conversa'] as Map<String, dynamic>;
+          await ChatService.salvarConversaLocal(cMap);
+          final payload = jsonEncode(dados);
+          for (final cliente in List<WebSocket>.from(_clientesWs)) {
+            if (cliente != ws) {
+              try {
+                cliente.add(payload);
+              } catch (_) {}
+            }
+          }
+        }
+      } else if (tipo == 'conversa_renomeada') {
+        final convId = dados['conversaId'] as String?;
+        final novoTit = dados['novoTitulo'] as String?;
+        if (convId != null && novoTit != null) {
+          await ChatService.renomearConversa(convId, novoTit, originadoDaRede: true);
+          final payload = jsonEncode(dados);
+          for (final cliente in List<WebSocket>.from(_clientesWs)) {
+            if (cliente != ws) {
+              try {
+                cliente.add(payload);
+              } catch (_) {}
+            }
+          }
+        }
+      } else if (tipo == 'conversa_excluida') {
+        final convId = dados['conversaId'] as String?;
+        if (convId != null) {
+          await ChatService.excluirConversaLocal(convId);
+          final payload = jsonEncode(dados);
+          for (final cliente in List<WebSocket>.from(_clientesWs)) {
+            if (cliente != ws) {
+              try {
+                cliente.add(payload);
+              } catch (_) {}
+            }
+          }
+        }
+      } else if (tipo == 'grupo_criado' ||
+          tipo == 'grupo_atualizado' ||
+          tipo == 'mensagem_editada' ||
+          tipo == 'mensagem_excluida') {
+        await ChatService.processarMensagemRecebidaDaRede(dados,
+            emitirAlertaSonoro: false);
         final payload = jsonEncode(dados);
         for (final cliente in List<WebSocket>.from(_clientesWs)) {
           if (cliente != ws) {
@@ -1550,7 +1704,22 @@ class ServidorRedeLocal {
         ),
       );
     }
-    lista.addAll(_terminaisWs.values);
+    // Filtra e desduplica terminais remotos (ignora loopbacks e IPs locais da própria máquina)
+    final mapaTerminaisRemotos = <String, TerminalConectadoInfo>{};
+    for (final term in _terminaisWs.values) {
+      final ip = term.ip.trim();
+      final ehLoopback = ip == '127.0.0.1' ||
+          ip == '::1' ||
+          (_ipServidor != null && ip == _ipServidor);
+      if (ehLoopback) continue;
+
+      final cpfLimpo =
+          term.cpf != null ? ChatService.normalizarCpf(term.cpf!) : '';
+      final chave = cpfLimpo.isNotEmpty ? cpfLimpo : ip;
+      mapaTerminaisRemotos[chave] = term;
+    }
+
+    lista.addAll(mapaTerminaisRemotos.values);
     return lista;
   }
 

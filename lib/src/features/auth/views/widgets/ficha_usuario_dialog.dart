@@ -370,21 +370,26 @@ class _FichaUsuarioConteudoState extends State<_FichaUsuarioConteudo> {
               ),
             ),
           ),
-          if (estaPrivado && aoClicarOlho != null) ...[
-            const SizedBox(width: 6),
-            InkWell(
-              onTap: aoClicarOlho,
-              borderRadius: BorderRadius.circular(12),
-              child: Padding(
-                padding: const EdgeInsets.all(2.0),
-                child: Icon(
-                  olhoAberto ? Icons.visibility_outlined : Icons.visibility_off_outlined,
-                  size: 15,
-                  color: theme.secondaryTextColor,
-                ),
-              ),
-            ),
-          ],
+          const SizedBox(width: 6),
+          SizedBox(
+            width: 20,
+            height: 20,
+            child: (estaPrivado && aoClicarOlho != null)
+                ? InkWell(
+                    onTap: aoClicarOlho,
+                    borderRadius: BorderRadius.circular(12),
+                    child: Center(
+                      child: Icon(
+                        olhoAberto
+                            ? Icons.visibility_outlined
+                            : Icons.visibility_off_outlined,
+                        size: 15,
+                        color: theme.secondaryTextColor,
+                      ),
+                    ),
+                  )
+                : null,
+          ),
         ],
       ),
     );
@@ -753,36 +758,48 @@ class _FichaUsuarioConteudoState extends State<_FichaUsuarioConteudo> {
                   }
                 }
 
-                return Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      censurado
-                          ? '•••.•••.•••-••'
-                          : _formatarCpf(contaAtualizada.cpf),
-                      style: theme.getTextStyle(
-                        fontSize: 13,
+                Widget? widgetOlho;
+                if (estaPrivado && aoClicarOlho != null) {
+                  widgetOlho = InkWell(
+                    onTap: aoClicarOlho,
+                    borderRadius: BorderRadius.circular(12),
+                    child: Padding(
+                      padding: const EdgeInsets.all(2.0),
+                      child: Icon(
+                        olhoAberto
+                            ? Icons.visibility_outlined
+                            : Icons.visibility_off_outlined,
+                        size: 15,
                         color: theme.secondaryTextColor,
                       ),
                     ),
-                    if (estaPrivado && aoClicarOlho != null) ...[
-                      const SizedBox(width: 6),
-                      InkWell(
-                        onTap: aoClicarOlho,
-                        borderRadius: BorderRadius.circular(12),
-                        child: Padding(
-                          padding: const EdgeInsets.all(2.0),
-                          child: Icon(
-                            olhoAberto
-                                ? Icons.visibility_outlined
-                                : Icons.visibility_off_outlined,
-                            size: 15,
+                  );
+                }
+
+                return SizedBox(
+                  width: 220,
+                  height: 22,
+                  child: Stack(
+                    alignment: Alignment.center,
+                    children: [
+                      Center(
+                        child: Text(
+                          censurado
+                              ? '•••.•••.•••-••'
+                              : _formatarCpf(contaAtualizada.cpf),
+                          style: theme.getTextStyle(
+                            fontSize: 13,
                             color: theme.secondaryTextColor,
                           ),
                         ),
                       ),
+                      if (widgetOlho != null)
+                        Positioned(
+                          right: 12,
+                          child: widgetOlho,
+                        ),
                     ],
-                  ],
+                  ),
                 );
               },
             ),

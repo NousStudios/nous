@@ -19,6 +19,7 @@ import 'package:nous/src/features/pdv/services/imagem_service.dart';
 import 'package:nous/src/features/pdv/views/widgets/baixa_estoque_dialog.dart';
 import 'package:nous/src/features/pdv/views/widgets/novo_item_dialog.dart';
 import 'package:nous/src/features/pdv/views/widgets/venda_concluida_dialog.dart';
+import 'package:nous/src/core/utils/texto_utils.dart';
 
 const List<String> _formasDePagamento = [
   'Pix',
@@ -612,24 +613,24 @@ class _NovaVendaConteudoState extends State<_NovaVendaConteudo> {
   }
 
   List<CategoriaLoja> get _categoriasEncontradas {
-    final termo = _buscaController.text.trim().toLowerCase();
+    final termo = _buscaController.text.trim();
     if (termo.isEmpty) return [];
     return widget.categoriasDisponiveis
-        .where((c) => c.nome.toLowerCase().contains(termo))
+        .where((c) => TextoUtils.contemIgnorandoAcentos(c.nome, termo))
         .toList();
   }
 
   List<ItemLoja> get _itensEncontrados {
-    final termo = _buscaController.text.trim().toLowerCase();
+    final termo = _buscaController.text.trim();
     if (termo.isEmpty) return [];
     final idsDeItensEmCategoriasEncontradas = <String>{};
     for (final categoria in _categoriasEncontradas) {
       idsDeItensEmCategoriasEncontradas.addAll(categoria.itemIds);
     }
-    final termoLimpo = termo.replaceAll(RegExp(r'[^0-9a-zA-Z]'), '');
+    final termoLimpo = termo.replaceAll(RegExp(r'[^0-9a-zA-Z]'), '').toLowerCase();
     return widget.itensDisponiveis
         .where((item) {
-          final nomeMatch = item.nome.toLowerCase().contains(termo);
+          final nomeMatch = TextoUtils.contemIgnorandoAcentos(item.nome, termo);
           final codigoLimpo = item.codigoBarras
               .trim()
               .replaceAll(RegExp(r'[^0-9a-zA-Z]'), '')
@@ -2163,7 +2164,7 @@ class _NovaVendaConteudoState extends State<_NovaVendaConteudo> {
         children: [
           _tituloDoBloco('Comanda'),
           ConstrainedBox(
-            constraints: const BoxConstraints(minHeight: 220, maxHeight: 380),
+            constraints: const BoxConstraints(minHeight: 160, maxHeight: 350),
             child: SingleChildScrollView(
               controller: _comandaScrollController,
               child: Center(
@@ -2410,25 +2411,59 @@ class _NovaVendaConteudoState extends State<_NovaVendaConteudo> {
       child: Column(
         children: [
           _tituloDoBloco('Frete, Desconto e Acréscimo'),
-          Row(
-            children: [
-              _campoValor(
-                controller: _freteController,
-                rotulo: 'Frete',
-              ),
-              const SizedBox(width: 8),
-              _campoValor(
-                controller: _descontoController,
-                rotulo: 'Desconto (R\$ ou %)',
-                keyboardType: TextInputType.text,
-              ),
-              const SizedBox(width: 8),
-              _campoValor(
-                controller: _acrescimoController,
-                rotulo: 'Acréscimo (R\$ ou %)',
-                keyboardType: TextInputType.text,
-              ),
-            ],
+          LayoutBuilder(
+            builder: (context, constraints) {
+              if (constraints.maxWidth < 280) {
+                return Column(
+                  children: [
+                    Row(
+                      children: [
+                        _campoValor(
+                          controller: _freteController,
+                          rotulo: 'Frete',
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        _campoValor(
+                          controller: _descontoController,
+                          rotulo: 'Desconto',
+                          keyboardType: TextInputType.text,
+                        ),
+                        const SizedBox(width: 8),
+                        _campoValor(
+                          controller: _acrescimoController,
+                          rotulo: 'Acréscimo',
+                          keyboardType: TextInputType.text,
+                        ),
+                      ],
+                    ),
+                  ],
+                );
+              }
+              return Row(
+                children: [
+                  _campoValor(
+                    controller: _freteController,
+                    rotulo: 'Frete',
+                  ),
+                  const SizedBox(width: 8),
+                  _campoValor(
+                    controller: _descontoController,
+                    rotulo: 'Desconto (R\$ ou %)',
+                    keyboardType: TextInputType.text,
+                  ),
+                  const SizedBox(width: 8),
+                  _campoValor(
+                    controller: _acrescimoController,
+                    rotulo: 'Acréscimo (R\$ ou %)',
+                    keyboardType: TextInputType.text,
+                  ),
+                ],
+              );
+            },
           ),
         ],
       ),
@@ -2656,10 +2691,15 @@ class _NovaVendaConteudoState extends State<_NovaVendaConteudo> {
           ),
         ),
         Flexible(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
-            child: widget.expandido
-                ? Row(
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final emDuasColunas =
+                  widget.expandido && constraints.maxWidth >= 780;
+
+              if (emDuasColunas) {
+                return SingleChildScrollView(
+                  padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+                  child: Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Expanded(
@@ -2667,6 +2707,10 @@ class _NovaVendaConteudoState extends State<_NovaVendaConteudo> {
                         child: Column(
                           children: [
                             _blocoProduto(),
+                            const SizedBox(height: 12),
+                            _blocoComanda(),
+                            const SizedBox(height: 12),
+                            _blocoAjustes(),
                           ],
                         ),
                       ),
@@ -2676,10 +2720,6 @@ class _NovaVendaConteudoState extends State<_NovaVendaConteudo> {
                         child: Column(
                           children: [
                             _blocoCliente(),
-                            const SizedBox(height: 12),
-                            _blocoComanda(),
-                            const SizedBox(height: 12),
-                            _blocoAjustes(),
                             const SizedBox(height: 12),
                             _blocoPagamento(),
                             const SizedBox(height: 12),
@@ -2696,30 +2736,37 @@ class _NovaVendaConteudoState extends State<_NovaVendaConteudo> {
                         ),
                       ),
                     ],
-                  )
-                : Column(
-                    children: [
-                      _blocoCliente(),
-                      const SizedBox(height: 12),
-                      _blocoProduto(),
-                      const SizedBox(height: 12),
-                      _blocoComanda(),
-                      const SizedBox(height: 12),
-                      _blocoAjustes(),
-                      const SizedBox(height: 12),
-                      _blocoPagamento(),
-                      const SizedBox(height: 12),
-                      if (_aviso != null) ...[
-                        Text(
-                          _aviso!,
-                          textAlign: TextAlign.center,
-                          style: theme.getTextStyle(fontSize: 12),
-                        ),
-                        const SizedBox(height: 8),
-                      ],
-                      _botaoConcluir(),
-                    ],
                   ),
+                );
+              }
+
+              return SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+                child: Column(
+                  children: [
+                    _blocoCliente(),
+                    const SizedBox(height: 12),
+                    _blocoProduto(),
+                    const SizedBox(height: 12),
+                    _blocoComanda(),
+                    const SizedBox(height: 12),
+                    _blocoAjustes(),
+                    const SizedBox(height: 12),
+                    _blocoPagamento(),
+                    const SizedBox(height: 12),
+                    if (_aviso != null) ...[
+                      Text(
+                        _aviso!,
+                        textAlign: TextAlign.center,
+                        style: theme.getTextStyle(fontSize: 12),
+                      ),
+                      const SizedBox(height: 8),
+                    ],
+                    _botaoConcluir(),
+                  ],
+                ),
+              );
+            },
           ),
         ),
       ],

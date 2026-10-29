@@ -584,11 +584,11 @@ class _FornecedoresConteudoState extends State<_FornecedoresConteudo> {
   }
 
   Widget _blocoClientes() {
-    final termo = _pesquisaClientesController.text.trim().toLowerCase();
+    final termo = _pesquisaClientesController.text.trim();
     final disponiveis = termo.isEmpty
         ? _clientes
         : _clientes
-            .where((c) => c.nome.toLowerCase().contains(termo))
+            .where((c) => c.correspondeABusca(termo))
             .toList();
 
     return Container(

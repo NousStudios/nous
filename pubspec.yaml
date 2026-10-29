@@ -3,7 +3,7 @@ description: "Um novo projeto Flutter."
 
 publish_to: 'none'
 
-version: 1.0.35+36
+version: 1.0.41+42
 
 environment:
   sdk: ^3.11.4
@@ -44,6 +44,7 @@ flutter:
     - assets/images/
     - assets/icons/
     - assets/sounds/
+    - CHANGELOG.md
 
   fonts:
     - family: Belleza

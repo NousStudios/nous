@@ -13,7 +13,10 @@ import 'package:nous/src/features/pdv/views/dados_perfil_view.dart';
 import 'package:nous/src/features/pdv/views/widgets/criar_perfil_dialog.dart';
 import 'package:nous/src/features/pdv/views/widgets/estado_vazio_container.dart';
 import 'package:nous/src/features/pdv/views/widgets/sincronizacao_rede_dialog.dart';
+import 'package:nous/src/features/auth/providers/auth_provider.dart';
 import 'package:nous/src/features/pdv/services/imagem_service.dart';
+import 'package:nous/src/features/pdv/services/rede_local/servidor_rede_local.dart';
+import 'package:nous/src/features/pdv/services/rede_local/cliente_rede_local.dart';
 
 class PerfisPdvView extends StatefulWidget {
   final bool abrirSincronizacaoInicial;
@@ -33,16 +36,30 @@ class _PerfisPdvViewState extends State<PerfisPdvView> {
   @override
   void initState() {
     super.initState();
-    if (widget.abrirSincronizacaoInicial) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) {
-          SincronizacaoRedeDialog.mostrar(
-            context,
-            theme: ThemeController.currentTheme.value,
-          );
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (!mounted) return;
+      final pdv = context.read<PdvProvider>();
+      final auth = context.read<AuthProvider>();
+
+      final plataforma = Theme.of(context).platform;
+      if (plataforma == TargetPlatform.windows ||
+          plataforma == TargetPlatform.linux ||
+          plataforma == TargetPlatform.macOS) {
+        if (!ServidorRedeLocal().ativo && pdv.lojas.isNotEmpty) {
+          final lojaPadrao = pdv.lojas.first;
+          await ServidorRedeLocal().iniciar(loja: lojaPadrao, pdv: pdv, auth: auth);
         }
-      });
-    }
+      } else {
+        await ClienteRedeLocal().tentarAutoConectarSeDisponivel(pdv, auth);
+      }
+
+      if (widget.abrirSincronizacaoInicial && mounted) {
+        SincronizacaoRedeDialog.mostrar(
+          context,
+          theme: ThemeController.currentTheme.value,
+        );
+      }
+    });
   }
 
   void _handleLogout(BuildContext context) {

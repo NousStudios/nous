@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:nous/src/core/services/changelog_service.dart';
 
 class InfoAtualizacao {
   final String versao;
@@ -24,12 +25,16 @@ class InfoAtualizacao {
 }
 
 class AtualizacaoService {
-  static String versaoAtual = '1.0.35';
-  static int buildAtual = 36;
+  static String versaoAtual = '1.0.41';
+  static int buildAtual = 42;
 
   /// Inicializa a identificação da versão do aplicativo.
   /// No Android, consulta dinamicamente a versão real instalada no sistema operacional via MethodChannel.
   static Future<void> inicializar() async {
+    try {
+      await ChangelogService.inicializar();
+    } catch (_) {}
+
     if (Platform.isAndroid) {
       try {
         final dados = await const MethodChannel('com.nous.app/instalador')
@@ -98,12 +103,18 @@ class AtualizacaoService {
         final dataPub = dataStr != null ? DateTime.tryParse(dataStr) : null;
 
         if (tagName.isNotEmpty && versaoMaior(tagName, versaoAtual)) {
+          final novidade = ChangelogService.obterUltimaVersao(tagName);
+          final alteracoes = (novidade != null && novidade.alteracoes.isNotEmpty)
+              ? novidade.alteracoes
+              : <String>[];
+
           final info = InfoAtualizacao(
             versao: tagName,
             nomeVersao: nome,
             descricao: corpoDesc,
             urlDownload: htmlUrl,
             dataPublicacao: dataPub,
+            alteracoes: alteracoes,
           );
           infoAtualizacao.value = info;
           temAtualizacao.value = true;

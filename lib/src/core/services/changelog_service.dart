@@ -1,4 +1,6 @@
 import 'dart:io';
+import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 
 class ItemNovidadeChangelog {
   final String versao;
@@ -13,94 +15,74 @@ class ItemNovidadeChangelog {
 }
 
 class ChangelogService {
-  /// Versão sintetizada de fallback integrada diretamente no app
-  /// Garante que o changelog esteja disponível 100% offline mesmo em APK ou executável instalado.
-  static const List<ItemNovidadeChangelog> _novidadesPadrao = [
-    ItemNovidadeChangelog(
-      versao: 'v1.0.27 (build 28)',
-      data: '22/10/2026',
-      alteracoes: [
-        'Organização e perfil profissional "Nous" de autogestão em "Perfis que eu participo" com todos os usuários Nous como sócios deliberativos.',
-        'Chat geral da comunidade soberana Nous para deliberação coletiva sobre o SuperApp.',
-        'Fluxo obrigatório de cadastro de Nome de Usuário (@username) minúsculo e sem espaços após o login.',
-        'Sincronização bidirecional de perfis e contas de usuários na rede local Wi-Fi entre terminais e balcão.',
-        'Hierarquia de dados secundários no cliente em Nova Venda: 1º Endereço, 2º Telefone, 3º Descrição, com TextoRolante.',
-        'Formatação automática com a primeira letra de cada palavra em maiúsculo no cadastro de clientes.',
-        'Transmissão direta de alterações da nova versão via Wi-Fi no diálogo de atualização do sistema.',
-      ],
-    ),
-    ItemNovidadeChangelog(
-      versao: 'v1.0.25 (build 26)',
-      data: '22/10/2026',
-      alteracoes: [
-        'Aprovação obrigatória de novos terminais Wi-Fi no balcão com seleção de Cliente ou Novo Membro da Loja.',
-        'Fluxo de triagem de e-mails restaurado após login para seleção soberana da conta.',
-        'Edição do próprio nome permitida na Identidade do Usuário (preservando CPF inalterável).',
-        'Novo menu do Usuário em Configurações com acesso à tela Conta Nous (Identidade, E-mails, Backup e Exclusão).',
-        'Correção de presença no balcão: o terminal agora reflete o CPF real do operador logado, eliminando status falso do dono.',
-        'Container "Nova Atualização" atualizado com resumo sintetizado do CHANGELOG e botão minimizar/maximizar.',
-      ],
-    ),
-    ItemNovidadeChangelog(
-      versao: 'v1.0.24 (build 25)',
-      data: '22/10/2026',
-      alteracoes: [
-        'Aprovação obrigatória de novos terminais Wi-Fi no balcão com seleção de Cliente ou Membro da Loja.',
-        'Fluxo de triagem de e-mails restaurado após login para seleção soberana da conta.',
-        'Edição do próprio nome permitida na Identidade do Usuário (preservando CPF inalterável).',
-        'Novo menu do Usuário em Configurações com acesso à tela Conta Nous (Identidade, E-mails, Backup e Exclusão).',
-        'Correção de presença no balcão: o terminal agora reflete o CPF real do operador logado, eliminando status falso do dono.',
-        'Container "Nova Atualização" atualizado com resumo sintetizado do CHANGELOG e botão minimizar/maximizar.',
-        'Envio físico e autocura de fotos na rede local via WebSocket e REST.',
-        'Separação soberana entre Identidade do Usuário e Perfil Social público.',
-      ],
-    ),
-    ItemNovidadeChangelog(
-      versao: 'v1.0.23 (build 24)',
-      data: '21/10/2026',
-      alteracoes: [
-        'Ordem de mensagens ancorada na base no chat com rolagem fluida.',
-        'Envio de fotos e documentos com leitor nativo e pré-visualização.',
-        'Compartilhamento interativo de comandas de pedidos no chat com a equipe e clientes.',
-        'Persistência completa de anexos e mídias no banco de dados SQLite.',
-      ],
-    ),
-    ItemNovidadeChangelog(
-      versao: 'v1.0.22 (build 23)',
-      data: '21/10/2026',
-      alteracoes: [
-        'Barra de navegação universal dupla com rolagem vertical inteligente.',
-        'Nova tela de Compras & Carteira Soberana para clientes e membros.',
-        'Notificações nativas no Android no estilo mensageiro instantâneo com Direct Reply.',
-      ],
-    ),
-  ];
+  static List<ItemNovidadeChangelog>? _cacheItens;
 
-  /// Obtém o resumo sintetizado das últimas alterações para exibição em tela.
-  /// Tenta ler o arquivo CHANGELOG.md local quando disponível em ambiente de desenvolvimento,
-  /// com fallback imediato para o catálogo padrão embutido.
-  static List<ItemNovidadeChangelog> obterNovidadesSintetizadas() {
+  /// Inicializa o carregamento dinâmico do changelog a partir dos assets do app
+  static Future<void> inicializar() async {
+    if (_cacheItens != null && _cacheItens!.isNotEmpty) return;
     try {
-      final arquivo = File('CHANGELOG.md');
-      if (arquivo.existsSync()) {
-        final conteudo = arquivo.readAsStringSync();
-        final parseado = _parsearChangelog(conteudo);
-        if (parseado.isNotEmpty) return parseado;
+      final conteudo = await rootBundle.loadString('CHANGELOG.md');
+      final parseado = _parsearChangelog(conteudo);
+      if (parseado.isNotEmpty) {
+        _cacheItens = parseado;
+        debugPrint('[ChangelogService] ${parseado.length} versões carregadas dinamicamente via rootBundle.');
+        return;
       }
     } catch (_) {}
+
+    _carregarDeArquivoLocal();
+  }
+
+  /// Tenta ler de caminhos físicos locais
+  static void _carregarDeArquivoLocal() {
+    final caminhosPossiveis = [
+      'CHANGELOG.md',
+      '../CHANGELOG.md',
+      '../../CHANGELOG.md',
+      if (!kIsWeb) ...[
+        '${File(Platform.resolvedExecutable).parent.path}/CHANGELOG.md',
+        '${File(Platform.resolvedExecutable).parent.path}/data/flutter_assets/CHANGELOG.md',
+      ],
+    ];
+
+    for (final caminho in caminhosPossiveis) {
+      try {
+        final f = File(caminho);
+        if (f.existsSync()) {
+          final conteudo = f.readAsStringSync();
+          final parseado = _parsearChangelog(conteudo);
+          if (parseado.isNotEmpty) {
+            _cacheItens = parseado;
+            debugPrint('[ChangelogService] ${parseado.length} versões lidas do arquivo $caminho.');
+            return;
+          }
+        }
+      } catch (_) {}
+    }
+  }
+
+  /// Obtém o resumo das últimas alterações para exibição em tela.
+  static List<ItemNovidadeChangelog> obterNovidadesSintetizadas() {
+    if (_cacheItens != null && _cacheItens!.isNotEmpty) {
+      return _cacheItens!;
+    }
+
+    _carregarDeArquivoLocal();
+    if (_cacheItens != null && _cacheItens!.isNotEmpty) {
+      return _cacheItens!;
+    }
 
     return _novidadesPadrao;
   }
 
-  /// Retorna as alterações da versão mais recente ou da versão especificada
+  /// Retorna as alterações da versão especificada ou da versão mais recente encontrada no CHANGELOG.md
   static ItemNovidadeChangelog? obterUltimaVersao([String? versaoAlvo]) {
     final novidades = obterNovidadesSintetizadas();
-    if (versaoAlvo != null && versaoAlvo.isNotEmpty) {
+    if (versaoAlvo != null && versaoAlvo.trim().isNotEmpty) {
       final limpa = versaoAlvo.replaceAll('v', '').trim();
       for (final item in novidades) {
         if (item.versao.contains(limpa)) return item;
       }
-      return null;
     }
     return novidades.isNotEmpty ? novidades.first : null;
   }
@@ -115,20 +97,24 @@ class ChangelogService {
 
     for (var linha in linhas) {
       linha = linha.trim();
-      if (linha.startsWith('## v')) {
-        if (versaoAtual != null && alteracoes.isNotEmpty) {
-          itens.add(ItemNovidadeChangelog(
-            versao: versaoAtual,
-            data: dataAtual ?? '',
-            alteracoes: List.from(alteracoes),
-          ));
-          alteracoes.clear();
-        }
+      if (linha.startsWith('## v') || linha.startsWith('## [v') || linha.startsWith('## ')) {
+        // Se for um título de versão válido (ex: ## v1.0.40 ...)
+        final textoTitulo = linha.replaceFirst('##', '').trim();
+        if (textoTitulo.toLowerCase().startsWith('v') || RegExp(r'^\d+\.').hasMatch(textoTitulo)) {
+          if (versaoAtual != null && alteracoes.isNotEmpty) {
+            itens.add(ItemNovidadeChangelog(
+              versao: versaoAtual,
+              data: dataAtual ?? '',
+              alteracoes: List.from(alteracoes),
+            ));
+            alteracoes.clear();
+          }
 
-        // Ex: ## v1.0.24 (build 25) — 22/10/2026
-        final partes = linha.replaceAll('##', '').trim().split('—');
-        versaoAtual = partes.first.trim();
-        dataAtual = partes.length > 1 ? partes[1].trim() : '';
+          // Divide entre versão e data (suporta travessão —, travessão curto – e hífen -)
+          final partes = textoTitulo.split(RegExp(r'[—–-]'));
+          versaoAtual = partes.first.trim();
+          dataAtual = partes.length > 1 ? partes[1].trim() : '';
+        }
       } else if (linha.startsWith('- ') && versaoAtual != null) {
         var texto = linha.substring(2).trim();
         // Remove markdown em negrito do início para leitura sintetizada limpa
@@ -150,4 +136,19 @@ class ChangelogService {
 
     return itens;
   }
+
+  /// Fallback offline básico de segurança
+  static const List<ItemNovidadeChangelog> _novidadesPadrao = [
+    ItemNovidadeChangelog(
+      versao: 'v1.0.40 (build 41)',
+      data: '28/10/2026',
+      alteracoes: [
+        'Conexão ubíqua na rede Wi-Fi sem dependência de loja aberta no balcão.',
+        'Espelhamento bidirecional de mensagens e grupos em tempo real.',
+        'Silenciamento inteligente de auto-notificação de mensagens enviadas por mim.',
+        'Envio com tecla Enter no computador físico e quebra de linha com Shift+Enter.',
+      ],
+    ),
+  ];
 }
+

@@ -96,14 +96,25 @@ Dois estados mudam o comportamento de várias telas:
 - **Barra Superior da Conversa (AppBar):** Exibe com clareza o nome do contato ou participantes, foto de perfil/avatar e status ("Online na rede local"). Ao clicar no cabeçalho ou ícone de informações, abre a janela de detalhes do contato ou grupo.
 - **Janela de Detalhes do Grupo e Edição de Foto:** Clicar no cabeçalho do grupo exibe a lista completa de participantes com avatar, nome, CPF mascarado e badge de destaque "Você", galeria com contagem de Mídias, Links e Documentos, além de botão na foto do grupo para registrar nova foto com a câmera ou galeria, replicando em tempo real na rede local.
 - **Isolamento Absoluto entre Conta Pessoal e Lojas:** Grupos e conversas da conta pessoal não vazam para o atendimento das lojas, e conversas de clientes da loja ficam restritas ao escopo da loja (`lojaId`).
-- **Sincronização Pan-Dispositivo Bidirecional:** O histórico de conversas e grupos é sincronizado integralmente entre o computador (balcão) e os dispositivos móveis (terminais), garantindo lista idêntica em qualquer aparelho logado na mesma conta.
-- **Título da Conversa dentro do Chat:** Posicionado dentro da própria área de mensagens, centralizado e em letras grandes com ícone de edição. Ao tocar, abre o diálogo de renomear a conversa e persiste no banco SQLite e na malha da rede local.
+- **Sincronização Pan-Dispositivo com Tombstones:** O histórico de conversas e grupos é sincronizado integralmente entre o computador (balcão) e os dispositivos móveis (terminais); conversas e grupos excluídos no computador geram registro na tabela `conversas_excluidas` e não ressuscitam no celular, garantindo paridade absoluta. Fotos de contatos e anexos ausentes no dispositivo local são autobaixadas em tempo real.
+- **Campo de Busca de Mensagens:** Input de pesquisa utiliza alinhamento nativo de `hintText` com padding balanceado, posicionando o cursor perfeitamente antes da primeira letra ("P" de "Pesquisar") e suporta busca insensível a acentuação.
+- **Visualizador Universal de Imagens no Chat (`VisualizadorImagemChatDialog`):** Clicar em qualquer imagem enviada no chat (seja na mensageria pessoal, chat de loja ou chat comunitário) abre a foto em tela cheia com fundo translúcido, suporte a zoom e deslocamento (`InteractiveViewer`), botão de download direto para o sistema de arquivos (com seletor no desktop ou pasta padrão no mobile) e botão de encaminhar para qualquer contato/grupo aberto.
+- **Saída Discreta de Grupos:** Ao optar por "Sair do grupo" no painel de detalhes da conversa, a aplicação não dispara notificações intrusivas para os demais membros; o sistema apenas insere no histórico da conversa uma mensagem discreta informando que o participante saiu.
+- **Título da Conversa dentro do Chat:** Posicionado dentro da própria área de mensagens, centralizado e em destaque com ícone de edição. Ao tocar, abre o diálogo de renomear a conversa e persiste no banco SQLite e na malha da rede local.
+- **Teclado no Android com Enter para Pular Linha:** O campo de texto do chat opera em modo multiline (`TextInputAction.newline`), permitindo pular linhas com o Enter do teclado virtual; o envio é acionado exclusivamente pelo botão circular "Enviar" da interface Nous.
 - **Câmera Física Direta:** O botão de câmera na barra de digitação aciona diretamente a câmera nativa do celular (`ImagePicker` com `ImageSource.camera`) para fotografar e enviar fotos instantaneamente, com fallback para seletor em desktops sem câmera ativa.
 - **Encaminhamento de Mensagens Robusto:** Menu contextual na bolha permite encaminhar mensagens para qualquer contato ou grupo com persistência imediata e atualização reativa.
 - **Criação e Propagação de Grupos:** Criar um grupo despacha evento imediato na rede local (`grupo_criado`), abrindo o chat de grupo em tempo real para todos os membros nos outros aparelhos.
 - **Navegação com Botão Voltar do Android:** Controlado por `PopScope`: ao pressionar o botão voltar do sistema operacional com uma conversa aberta, o app desmarca a conversa e retorna para a lista de conversas da mensageria (sem fechar a tela).
 - **Destaque Permanente no Desktop:** A conversa selecionada no painel lateral esquerdo mantém o destaque de hover e borda temática ativo permanentemente enquanto estiver aberta.
-- **Chat Coletivo da Loja Nous:** Mensagens enviadas na aba de gestão da Loja Coletiva Nous contam com menu contextual de cópia, edição com histórico de versões, exclusão para todos em até 1 minuto e checks duplos azuis de leitura, sendo sincronizadas bidirecionalmente entre todos os nós da rede local.
+- **Chat Universal da Comunidade Nous (Gestão do Perfil / Perfil Profissional):**
+  - **Tópicos Paralelos Delimitados:** Barra superior de tópicos com chips ("Geral", tópicos adicionais e botões "+ Nova Sala" e "Explorar Salas"), permitindo conversas comunitárias setorizadas sem misturar assuntos.
+  - **Explorador de Salas Comunitárias:** Diálogo para pesquisar todas as salas comunitárias criadas por outros membros com filtro insensível a acentos, entrar em salas abertas, sair de salas e apagar salas criadas pelo próprio usuário (sendo `#Geral` a única sala comunitária fixa).
+  - **Preservação de Títulos de Salas:** Salas comunitárias criadas pelo celular mantêm com rigor o nome definido (ex: "Desenvolver") ao sincronizar com o computador ou outros nós locais.
+  - **Título Editável Centralizado:** Nome do tópico em destaque no meio do espaço do chat, com ícone de edição para renomear em tempo real com broadcast via WebSocket.
+  - **Sino de Notificação por Tópico:** Ícone interativo de sino permitindo ao usuário silenciar ou ativar notificações daquele tópico específico na sua conta Nous.
+  - **Suíte Completa de Mídia:** Gravação de áudio nativo com timer e cancelamento, player de áudio na bolha com busca temporal, câmera, galeria com visualizador ampliado, documentos e menu contextual de mensagens (copiar, editar e excluir para todos em até 1 min).
+  - **Persistência e Sincronização Pan-Dispositivo Imediata:** Conversas abertas no celular espelham em tempo real no computador e vice-versa na mesma rede local, permanecendo sempre visíveis após reiniciar a aplicação.
 
 ---
 
@@ -316,12 +327,13 @@ Todas abrem centralizadas, aceitam **F11** e, no desktop expandido, ficam em **d
 
 ### 7.1 Nova Venda
 📄 `nova_venda_dialog.dart`
-- **Estado inicial limpo.** Campo de busca em branco com foco → mostra **só as categorias**. Produtos soltos só aparecem ao pesquisar ou bipar.
-- **Nome do Cliente**: com foco e vazio, lista **todos os clientes**; filtra ao digitar (nome, rua, número, CPF/CNPJ, telefone, e-mail, redes, descrição).
+- **Layout Adaptativo e Responsivo**: no modo desktop/notebook, distribui dinamicamente os containers em 2 colunas equilibradas (Esquerda: Produto Solicitado, Comanda e Ajustes de Frete/Desconto; Direita: Nome do Cliente, Formas de Pagamento e botão Concluir Venda), permitindo concluir vendas sem necessidade de rolagem de mouse em notebooks; se a largura for reduzida para menos de 780px, adapta fluentemente para coluna única sem erros de layout ou overflow.
+- **Estado inicial limpo.** Campo de busca em branco com foco → mostra **só as categorias**. Produtos soltos só aparecem ao pesquisar ou bipar (busca insensível a acentuação).
+- **Nome do Cliente**: com foco e vazio, lista **todos os clientes**; filtra ao digitar ignorando acentos (nome, rua, número, CPF/CNPJ, telefone, e-mail, redes, descrição).
   - **Hierarquia de exibição de dados do cliente com `TextoRolante`**: na lista de sugestões e no card de cliente selecionado, a informação secundária à direita do nome prioriza estritamente: 1º **Endereço cadastrado** (com número), 2º **Telefone**, 3º **Descrição do cliente**, e demais dados até esgotar, com texto rolante animado contínuo caso o tamanho exceda o espaço disponível.
 - **Leitor de código de barras**: digitar/bipar o código exato + Enter adiciona ao carrinho e limpa o campo.
 - **Variantes**: ao escolher produto com variantes, abre seletor (Padrão + variantes com preço).
-- **Frete, Desconto, Acréscimo**: aceitam R$ ou `%` (ex.: `10%`). Ao tocar, o valor inteiro fica selecionado.
+- **Frete, Desconto, Acréscimo**: aceitam R$ ou `%` (ex.: `10%`). Ao tocar, o valor inteiro fica selecionado. Em telas estreitas, quebra em linhas separadas para evitar qualquer estouro visual.
 - **Pagamento**: Dinheiro, Pix, Débito, Crédito, À Prazo; pode combinar várias formas. Troco = excesso real sobre o total.
 - **Rascunho**: se a janela for fechada sem querer (Esc, voltar, clique fora), tudo é guardado e volta ao reabrir. Botão **lixeira** "Limpar campos da venda". Venda concluída limpa o rascunho.
 - Cada item mostra saldo (`Est: X un`) ou "Esgotado".
@@ -339,8 +351,8 @@ Todas abrem centralizadas, aceitam **F11** e, no desktop expandido, ficam em **d
 
 ### 7.3 Clientes
 📄 `clientes_dialog.dart`
-- Lista com **busca** e formulário de cadastro.
-- **Nome do Cliente**: formatado automaticamente com `PrimeiraLetraMaiusculaFormatter` (a primeira letra de cada palavra digitada é convertida automaticamente em maiúscula em tempo real, além de validação Title Case no salvamento).
+- Lista com **busca insensível a acentuação** e formulário de cadastro.
+- **Nome do Cliente e Endereço**: formatado automaticamente com `PrimeiraLetraMaiusculaFormatter` (a primeira letra de cada palavra digitada é convertida automaticamente em maiúscula em tempo real, permitindo minúsculas intencionais caso o usuário apague e digite em minúsculo).
 - Campo **"CNPJ ou CPF"** com máscara automática (até 11 dígitos = CPF, 12 a 14 = CNPJ).
 - **Autopreenchimento**: ao completar o documento, busca em contas Nous, lojas e cadastros prévios e preenche nome, telefone, endereço, e-mail, redes e foto.
 - Altura da lista de clientes: 490 px no desktop expandido; 200 px no compacto.
@@ -416,7 +428,7 @@ Todas abrem centralizadas, aceitam **F11** e, no desktop expandido, ficam em **d
 - Interface estilo WhatsApp adaptável: lista de conversas à esquerda e conversa ativa à direita no desktop (≥ 720 px); lista ou conversa em tela cheia com botão voltar no celular.
 - **Botão de Voltar no Desktop quando chat aberto**: ao navegar para Mensagens pela barra flutuante universal no desktop e selecionar uma conversa (momento em que a barra universal é desabilitada), o `CustomAppBar` exibe automaticamente o botão de voltar no canto superior esquerdo para desmarcar a conversa atual e voltar à lista, impedindo que o usuário fique preso na tela.
 - **Ordem Natural e Rolagem Automática**: mensagens em ordem cronológica direta (antigas no topo, recentes embaixo), rolando suavemente até o final ao abrir o chat ou receber novas mensagens.
-- **Título da Conversa Interativo**: conversas novas ou sem título iniciam com "Nova Conversa" centralizado (17px); clique no título permite renomear a qualquer momento.
+- **Título da Conversa Interativo**: conversas 1-on-1 iniciam com o título padrão "Conversa" centralizado em destaque (17px); grupos mantêm o nome do grupo e tópicos comunitários o nome da sala; toque no título permite renomear a conversa a qualquer momento para identificação personalizada.
 - **Confirmação de Leitura em Check Duplo Azul**: mensagens lidas pelo destinatário exibem check duplo no azul oficial WhatsApp (`#34B7F1`).
 - **Ações Contextuais de Mensagem (Clique / Toque Longo)**:
   - **Copiar**: copia o texto da mensagem para a área de transferência.

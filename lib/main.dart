@@ -37,6 +37,7 @@ Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await AtualizacaoService.inicializar();
   await BancoDadosService.inicializar();
+  await ImagemService.inicializar();
   await ThemeController.init();
 
   // Consolida e unifica imagens de pastas legadas em segundo plano

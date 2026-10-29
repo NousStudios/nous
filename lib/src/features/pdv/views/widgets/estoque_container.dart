@@ -3,6 +3,7 @@ import 'package:nous/src/core/theme/theme_controller.dart';
 import 'package:nous/src/features/pdv/models/item_loja.dart';
 import 'package:nous/src/features/pdv/models/movimento_estoque.dart';
 import 'package:nous/src/features/pdv/views/widgets/estado_vazio_container.dart';
+import 'package:nous/src/core/utils/texto_utils.dart';
 
 class EstoqueContainer extends StatefulWidget {
   final AppTheme theme;
@@ -486,11 +487,11 @@ class _EstoqueContainerState extends State<EstoqueContainer> {
   }
 
   Widget _conteudo() {
-    final termo = _pesquisaController.text.trim().toLowerCase();
+    final termo = _pesquisaController.text.trim();
     final filtrados = termo.isEmpty
         ? widget.itens
         : widget.itens
-            .where((i) => i.nome.toLowerCase().contains(termo))
+            .where((i) => TextoUtils.contemIgnorandoAcentos(i.nome, termo))
             .toList();
 
     return Column(
