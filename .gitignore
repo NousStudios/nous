@@ -45,3 +45,10 @@ app.*.map.json
 /android/app/release
 # Widget Preview related
 .widget_preview/
+
+# Binaries, releases and installers (keep Git repo lightweight)
+/dist/
+*.apk
+*.aab
+*.exe
+*.msi

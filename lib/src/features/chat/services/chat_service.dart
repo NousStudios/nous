@@ -296,6 +296,66 @@ class ChatService {
     }
   }
 
+  /// Consolida conversas duplicadas e migra mensagens históricas com identificadores legados
+  /// para o ID canônico de conversa entre usuários (user_{minCpf}_user_{maxCpf}).
+  static Future<void> consolidarConversasDuplicadas() async {
+    try {
+      final db = await BancoDadosService.db;
+      final rows = await db.query('conversas_chat');
+      final Map<String, List<Map<String, dynamic>>> porInterlocutor = {};
+
+      for (final r in rows) {
+        final id = r['id'] as String;
+        final ehGrupo = (r['eh_grupo'] as int? ?? 0) == 1;
+        final ehLoja = (r['eh_loja'] as int? ?? 0) == 1;
+        if (ehGrupo || ehLoja || id.startsWith('grupo_') || id.startsWith('loja_nous_coletiva_')) {
+          continue;
+        }
+
+        final ident = normalizarCpf(r['identificador'] as String? ?? '');
+        if (ident.length == 11) {
+          porInterlocutor.putIfAbsent(ident, () => []).add(r);
+        }
+      }
+
+      for (final entry in porInterlocutor.entries) {
+        final lista = entry.value;
+        if (lista.length <= 1) continue;
+
+        // Ordenar pela data da última mensagem
+        lista.sort((a, b) {
+          final dataA = a['data_hora_ultima_mensagem'] as String? ?? '';
+          final dataB = b['data_hora_ultima_mensagem'] as String? ?? '';
+          return dataB.compareTo(dataA);
+        });
+
+        final principal = lista.first;
+        final principalId = principal['id'] as String;
+
+        for (int i = 1; i < lista.length; i++) {
+          final duplicata = lista[i];
+          final dupId = duplicata['id'] as String;
+          if (dupId == principalId) continue;
+
+          await db.update(
+            'mensagens_chat',
+            {'conversa_id': principalId},
+            where: 'conversa_id = ?',
+            whereArgs: [dupId],
+          );
+
+          await db.delete(
+            'conversas_chat',
+            where: 'id = ?',
+            whereArgs: [dupId],
+          );
+        }
+      }
+    } catch (e) {
+      debugPrint('[ChatService] Erro ao consolidar conversas duplicadas: $e');
+    }
+  }
+
   /// Fonte Única da Verdade: retorna todas as conversas persistidas no SQLite
   static Future<List<ConversaChat>> obterTodasConversas({
     String? cpfUsuario,
@@ -814,7 +874,11 @@ class ChatService {
       } else if (ehGrupo) {
         tituloConversa = 'Grupo';
       } else {
-        tituloConversa = 'Conversa';
+        tituloConversa = mensagem.remetenteNome.isNotEmpty &&
+                mensagem.remetenteNome != 'Usuário' &&
+                mensagem.remetenteNome != 'Atendente'
+            ? mensagem.remetenteNome
+            : 'Contato Nous';
       }
 
       await db.insert(

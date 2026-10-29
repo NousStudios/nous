@@ -20,6 +20,8 @@
   - Economia de contexto sim (leitura cirúrgica, grep e edições focadas), mas com arquitetura modular, limpa, desacoplada e escalável.
   - Foco no que foi pedido; sem remendos imediatistas que criem dívida técnica.
 - **Não adicione pacotes ao `pubspec.yaml` sem alinhamento prévio.**
+- **Higiene Estrita de Repositório (Git Leve):** Proibido commitar arquivos binários compilados (`dist/`, `*.apk`, `*.exe`, `*.msi`, `*.aab`). Todos os artefatos de build devem permanecer no `.gitignore`. O repositório armazena estritamente código-fonte e assets essenciais.
+- **Cuidado Proativo com o Desenvolvedor Iniciante:** Por ser autodidata e iniciante, antecipe e proteja contra armadilhas técnicas que ele ainda não conhece (ex.: limites de tamanho do GitHub, arquivos temporários rastreados, flags de compilação pesadas, acoplamento de escopo). Explique os motivos com clareza antes de qualquer ação que impacte o fluxo de trabalho dele.
 
 ### Manter a documentação viva (regra mandatória)
 
@@ -79,11 +81,13 @@ SuperApp brasileiro, livre e de código aberto, de **Autogestão Comercial e Soc
    - Em chat e mensagens: remetente envia metadados completos (inclusive foto física resolvida com autocura prévia) e buscas consultam todos os contatos cadastrados (equipe + clientes).
 6. **Padrão Universal de Mensageria (Estilo WhatsApp nos padrões Nous):**
    - Todo chat da aplicação (social, loja, comanda, comunidade) DEVE seguir uniformemente o padrão de usabilidade consagrado:
+     - **Unicidade Absoluta:** Entre duas pessoas físicas (CPF A e CPF B), existe **exatamente uma única conversa direta canônica** (`user_{minCpf}_user_{maxCpf}`). Históricos duplicados ou legados devem ser autoconsolidados pelo `ChatService`.
+     - **Títulos com Nomes Reais:** O card na lista de conversas e o cabeçalho ativo exibem SEMPRE o **Nome Real da Pessoa**, da **Loja** ou do **Grupo**, e **NUNCA a palavra genérica "Conversa"** (a palavra genérica só pode existir se o próprio usuário a escrever intencionalmente ao renomear).
+     - **Isolamento Rigoroso de Escopo:** Clientes cadastrados no PDV pertencem à gestão do restaurante (Modo Loja) e NUNCA devem poluir ou duplicar a lista de amigos/contatos do chat pessoal da rede social. Conversas de loja pertencem à loja (`lojaId`); conversas sociais pertencem à conta pessoal (`lojaId` vazio).
      - Ordem cronológica natural (mais antigas acima, mais recentes abaixo; rolagem abre na última mensagem).
      - Menu contextual na bolha (long press / clique direito): copiar texto, editar (apenas autor; histórico e badge `(editada)`), excluir para todos (apenas autor; até 1 minuto pós-envio).
      - Confirmação visual de status nas mensagens enviadas (1 check cinza: enviada; 2 checks cinzas: entregue na rede; 2 checks azuis `0xFF34B7F1`: lida).
      - Detalhes ao tocar no cabeçalho: foto editável (se grupo), contagem e lista de participantes, e galeria de mídias/documentos compartilhados.
-     - Isolamento rigoroso: conversas/grupos de loja pertencem à loja (`lojaId`); conversas/grupos sociais pertencem à conta pessoal (`lojaId` vazio), sem cruzamento entre escopos.
 
 ## 6. Design (resumo; completo em `docs/design-system.md`)
 

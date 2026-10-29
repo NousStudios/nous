@@ -156,6 +156,7 @@ class _MensageriaViewState extends State<MensageriaView> {
   }
 
   Future<void> _inicializarConversas() async {
+    await ChatService.consolidarConversasDuplicadas();
     await _recarregarConversas(manterSelecionada: false);
     _sincronizarComRedeLocal();
   }
@@ -494,13 +495,15 @@ class _MensageriaViewState extends State<MensageriaView> {
         final persistida = persistidasMap[convId];
         final fixada = persistida?.fixada ?? false;
         final arquivada = persistida?.arquivada ?? false;
+        final nomeExibicao = entry.value.nome.isNotEmpty
+            ? entry.value.nome
+            : 'Contato Nous';
+        final tituloFinal = _titulosCustomizados[convId] ?? nomeExibicao;
 
         final conversaUsuario = ConversaChat(
           id: convId,
-          titulo: _titulosCustomizados[convId] ?? 'Conversa',
-          subtitulo: entry.value.nome.isNotEmpty
-              ? entry.value.nome
-              : 'Contato Nous',
+          titulo: tituloFinal,
+          subtitulo: nomeExibicao,
           foto: entry.value.foto,
           identificador: entry.key,
           ehLoja: false,
@@ -533,6 +536,9 @@ class _MensageriaViewState extends State<MensageriaView> {
     // Incluir conversas persistidas no SQLite que não coincidiram com a equipe/clientes atuais (ex: conversas históricas)
     for (final rem in persistidasMap.values) {
       if (rem.ehGrupo) continue;
+      // No modo social, não incluir conversas de balcão de lojas com terceiros
+      if (!widget.modoLoja && rem.ehLoja) continue;
+
       final msgs = await ChatService.carregarMensagens(
         rem.id,
         idVisualizador: _idVisualizador,
@@ -570,13 +576,13 @@ class _MensageriaViewState extends State<MensageriaView> {
               : ChatService.conversaIdEntreUsuarios(cpfLogadoNorm, cU);
 
           if (!todosDisponiveis.any((c) => c.identificador == cU || c.id == convId)) {
-            final subtituloContato = u.nomeExibicao.isNotEmpty
+            final nomeContato = u.nomeExibicao.isNotEmpty
                 ? u.nomeExibicao
                 : (u.nomeDeUsuario.isNotEmpty ? '@${u.nomeDeUsuario}' : 'Contato Nous');
             todosDisponiveis.add(ConversaChat(
               id: convId,
-              titulo: _titulosCustomizados[convId] ?? 'Conversa',
-              subtitulo: subtituloContato,
+              titulo: _titulosCustomizados[convId] ?? nomeContato,
+              subtitulo: nomeContato,
               identificador: u.cpf,
               foto: u.fotoExibicao,
               ehLoja: false,
@@ -592,6 +598,29 @@ class _MensageriaViewState extends State<MensageriaView> {
       lista.removeWhere((c) => excluidas.contains(c.id));
       todosDisponiveis.removeWhere((c) => excluidas.contains(c.id));
     }
+
+    // Desduplicação canônica rigorosa: cada pessoa, grupo ou loja aparece exatamente uma vez na lista
+    final Map<String, ConversaChat> listaDesduplicada = {};
+    for (final c in lista) {
+      final chave = c.ehGrupo
+          ? 'grupo_${c.id}'
+          : (c.ehLoja
+              ? 'loja_${c.lojaId ?? c.identificador}'
+              : 'user_${ChatService.normalizarCpf(c.identificador)}');
+
+      if (!listaDesduplicada.containsKey(chave)) {
+        listaDesduplicada[chave] = c;
+      } else {
+        final existente = listaDesduplicada[chave]!;
+        if (c.dataHoraUltimaMensagem.isAfter(existente.dataHoraUltimaMensagem)) {
+          listaDesduplicada[chave] = c.copyWith(
+            mensagens: [...existente.mensagens, ...c.mensagens],
+          );
+        }
+      }
+    }
+    lista.clear();
+    lista.addAll(listaDesduplicada.values);
 
     // Ordenar conversas: fixadas primeiro, depois pela mais recente
     lista.sort((a, b) {
@@ -3632,10 +3661,6 @@ class _MensageriaViewState extends State<MensageriaView> {
     }
 
     final conversa = _conversaSelecionada!;
-    final tituloCustom = _titulosCustomizados[conversa.id];
-    final tituloChatGrande = (tituloCustom != null && tituloCustom.isNotEmpty)
-        ? tituloCustom
-        : 'Conversa';
 
     return Column(
       children: [
@@ -3687,8 +3712,10 @@ class _MensageriaViewState extends State<MensageriaView> {
                                 texto: conversa.ehGrupo
                                     ? (conversa.nomeGrupo.isNotEmpty
                                         ? conversa.nomeGrupo
-                                        : (conversa.subtitulo.replaceAll(RegExp(r'^Grupo • '), '').split('•').first.trim()))
-                                    : (conversa.subtitulo.isNotEmpty ? conversa.subtitulo : 'Contato'),
+                                        : conversa.titulo)
+                                    : (conversa.titulo.isNotEmpty && conversa.titulo != 'Conversa'
+                                        ? conversa.titulo
+                                        : (conversa.subtitulo.isNotEmpty ? conversa.subtitulo : 'Contato')),
                                 style: theme.getTextStyle(
                                   fontSize: 14,
                                   fontWeight: FontWeight.bold,
@@ -3699,9 +3726,7 @@ class _MensageriaViewState extends State<MensageriaView> {
                               TextoRolante(
                                 texto: conversa.ehGrupo
                                     ? 'Grupo • ${conversa.participantesIds.length} participantes'
-                                    : (conversa.subtitulo.isNotEmpty
-                                        ? conversa.subtitulo
-                                        : 'Online na rede local'),
+                                    : (conversa.ehLoja ? 'Loja Nous' : 'Contato Nous'),
                                 style: theme.getTextStyle(
                                   fontSize: 11,
                                   color: theme.secondaryTextColor,
@@ -3717,6 +3742,15 @@ class _MensageriaViewState extends State<MensageriaView> {
               ),
               IconButton(
                 icon: Icon(
+                  Icons.edit_outlined,
+                  size: 18,
+                  color: theme.secondaryTextColor,
+                ),
+                tooltip: 'Renomear conversa',
+                onPressed: () => _dialogRenomearConversa(theme, conversa),
+              ),
+              IconButton(
+                icon: Icon(
                   Icons.more_vert,
                   size: 20,
                   color: theme.secondaryTextColor,
@@ -3725,45 +3759,6 @@ class _MensageriaViewState extends State<MensageriaView> {
                 onPressed: () => _abrirDetalhesContato(theme, conversa),
               ),
             ],
-          ),
-        ),
-
-        // Título da Conversa dentro do chat, centralizado e em letras grandes
-        InkWell(
-          onTap: () => _dialogRenomearConversa(theme, conversa),
-          child: Container(
-            width: double.infinity,
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            decoration: BoxDecoration(
-              color: theme.backgroundColor.withValues(alpha: 0.6),
-              border: Border(
-                bottom: BorderSide(
-                  color: theme.borderColor.withValues(alpha: 0.3),
-                ),
-              ),
-            ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Flexible(
-                  child: Text(
-                    tituloChatGrande,
-                    textAlign: TextAlign.center,
-                    style: theme.getTextStyle(
-                      fontSize: 17,
-                      fontWeight: FontWeight.bold,
-                      color: theme.textColor,
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 6),
-                Icon(
-                  Icons.edit_outlined,
-                  size: 15,
-                  color: theme.secondaryTextColor.withValues(alpha: 0.8),
-                ),
-              ],
-            ),
           ),
         ),
 
