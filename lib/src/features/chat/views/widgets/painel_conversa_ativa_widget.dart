@@ -133,69 +133,80 @@ class _PainelConversaAtivaWidgetState extends State<PainelConversaAtivaWidget> {
         ),
 
         // Área das Mensagens
-        Expanded(
-          child: conversa.mensagens.isEmpty
-              ? Column(
-                  children: [
-                    BannerTituloConversaWidget(
-                      conversa: conversa,
-                      theme: theme,
-                      onRenomearConversa: widget.onRenomearConversa,
-                    ),
-                    Expanded(
-                      child: Center(
-                        child: Text(
-                          'Nenhuma mensagem ainda.\nEnvie uma mensagem abaixo para iniciar.',
-                          textAlign: TextAlign.center,
-                          style: theme.getTextStyle(
-                            fontSize: 12,
-                            color: theme.secondaryTextColor,
+        Builder(
+          builder: (context) {
+            final mensagensValidas = conversa.mensagens.where((m) {
+              if (m.tipo == 'texto' && m.texto.trim().isEmpty && m.caminhoAnexo.trim().isEmpty) {
+                return false;
+              }
+              return true;
+            }).toList();
+
+            return Expanded(
+              child: mensagensValidas.isEmpty
+                  ? Column(
+                      children: [
+                        BannerTituloConversaWidget(
+                          conversa: conversa,
+                          theme: theme,
+                          onRenomearConversa: widget.onRenomearConversa,
+                        ),
+                        Expanded(
+                          child: Center(
+                            child: Text(
+                              'Nenhuma mensagem ainda.\nEnvie uma mensagem abaixo para iniciar.',
+                              textAlign: TextAlign.center,
+                              style: theme.getTextStyle(
+                                fontSize: 12,
+                                color: theme.secondaryTextColor,
+                              ),
+                            ),
                           ),
                         ),
+                      ],
+                    )
+                  : ListView.builder(
+                      controller: _mensagensScrollController,
+                      reverse: true,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 12,
                       ),
-                    ),
-                  ],
-                )
-              : ListView.builder(
-                  controller: _mensagensScrollController,
-                  reverse: true,
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 14,
-                    vertical: 12,
-                  ),
-                  itemCount: conversa.mensagens.length + 1,
-                  itemBuilder: (context, index) {
-                    if (index == conversa.mensagens.length) {
-                      return BannerTituloConversaWidget(
-                        conversa: conversa,
-                        theme: theme,
-                        onRenomearConversa: widget.onRenomearConversa,
-                      );
-                    }
-                    final msg = conversa
-                        .mensagens[conversa.mensagens.length - 1 - index];
-                    final enviadaPorMim =
-                        msg.enviadaPorMim ||
-                        (widget.controller.usuarioCpf != null &&
-                            (msg.remetenteId == widget.controller.usuarioCpf ||
-                                msg.cpfAtendente ==
-                                    widget.controller.usuarioCpf)) ||
-                        (widget.controller.modoLoja &&
-                            msg.remetenteId == widget.controller.lojaId);
+                      itemCount: mensagensValidas.length + 1,
+                      itemBuilder: (context, index) {
+                        if (index == mensagensValidas.length) {
+                          return BannerTituloConversaWidget(
+                            conversa: conversa,
+                            theme: theme,
+                            onRenomearConversa: widget.onRenomearConversa,
+                          );
+                        }
+                        final msg =
+                            mensagensValidas[mensagensValidas.length - 1 - index];
+                        final enviadaPorMim =
+                            msg.enviadaPorMim ||
+                            (widget.controller.usuarioCpf != null &&
+                                (msg.remetenteId == widget.controller.usuarioCpf ||
+                                    msg.cpfAtendente ==
+                                        widget.controller.usuarioCpf)) ||
+                            (widget.controller.modoLoja &&
+                                msg.remetenteId == widget.controller.lojaId);
 
-                    return BalaoMensagemWidget(
-                      msg: msg,
-                      conversa: conversa,
-                      enviadaPorMim: enviadaPorMim,
-                      theme: theme,
-                      onMostrarMenu: widget.onMostrarMenuMensagem,
-                      onVerHistoricoEdicoes: widget.onVerHistoricoEdicoes,
-                      onAbrirArquivo: widget.onAbrirArquivo,
-                      onVisualizarFotoAmpliada: widget.onVisualizarFotoAmpliada,
-                      onVerComanda: widget.onVerComanda,
-                    );
-                  },
-                ),
+                        return BalaoMensagemWidget(
+                          msg: msg,
+                          conversa: conversa,
+                          enviadaPorMim: enviadaPorMim,
+                          theme: theme,
+                          onMostrarMenu: widget.onMostrarMenuMensagem,
+                          onVerHistoricoEdicoes: widget.onVerHistoricoEdicoes,
+                          onAbrirArquivo: widget.onAbrirArquivo,
+                          onVisualizarFotoAmpliada: widget.onVisualizarFotoAmpliada,
+                          onVerComanda: widget.onVerComanda,
+                        );
+                      },
+                    ),
+            );
+          },
         ),
 
         // Barra de Envio

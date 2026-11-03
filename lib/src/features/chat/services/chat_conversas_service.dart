@@ -199,8 +199,10 @@ class ChatConversasService {
                 tituloFinal == 'Cliente') {
               tituloFinal = u.nomeExibicao;
             }
-            if (fotoFinal.isEmpty || !ImagemService.existe(fotoFinal)) {
+            if (u.fotoExibicao.isNotEmpty) {
               fotoFinal = u.fotoExibicao;
+            } else if (fotoFinal.isEmpty || !ImagemService.existe(fotoFinal)) {
+              fotoFinal = u.foto;
             }
             if (subtituloFinal.isEmpty ||
                 subtituloFinal == 'Conversa' ||
@@ -210,6 +212,14 @@ class ChatConversasService {
                   ? u.usernameExibicao
                   : 'Cliente Nous';
             }
+          } else if (contaLogada != null &&
+              idNorm.length == 11 &&
+              idNorm == cpfNormUsuario) {
+            tituloFinal = contaLogada.nomeExibicao;
+            fotoFinal = contaLogada.fotoExibicao;
+            subtituloFinal = contaLogada.usernameExibicao.isNotEmpty
+                ? contaLogada.usernameExibicao
+                : 'Cliente Nous';
           }
         } else {
           final ehFotoPropria = contaLogada != null &&

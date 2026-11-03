@@ -4,6 +4,55 @@ import 'package:nous/src/core/theme/theme_controller.dart';
 import 'package:nous/src/features/auth/providers/auth_provider.dart';
 import 'package:nous/src/features/auth/services/cpf_validator.dart';
 
+/// Controlador que permite ofuscar visualmente os dígitos finais do CPF
+/// preservando os 3 primeiros números e os separadores da máscara.
+class CpfTextEditingController extends TextEditingController {
+  bool oculto;
+
+  CpfTextEditingController({
+    super.text,
+    this.oculto = true,
+  });
+
+  @override
+  TextSpan buildTextSpan({
+    required BuildContext context,
+    TextStyle? style,
+    required bool withComposing,
+  }) {
+    if (!oculto) {
+      return super.buildTextSpan(
+        context: context,
+        style: style,
+        withComposing: withComposing,
+      );
+    }
+
+    final rawText = value.text;
+    final buffer = StringBuffer();
+    int digitCount = 0;
+
+    for (int i = 0; i < rawText.length; i++) {
+      final char = rawText[i];
+      if (RegExp(r'[0-9]').hasMatch(char)) {
+        digitCount++;
+        if (digitCount <= 3) {
+          buffer.write(char);
+        } else {
+          buffer.write('•');
+        }
+      } else {
+        buffer.write(char);
+      }
+    }
+
+    return TextSpan(
+      style: style,
+      text: buffer.toString(),
+    );
+  }
+}
+
 class CpfInputWidget extends StatefulWidget {
   final TextEditingController? controller;
 
@@ -17,10 +66,10 @@ class _CpfInputWidgetState extends State<CpfInputWidget> {
   late final TextEditingController _internalController;
   bool _createdInternalController = false;
 
-  // FocusNode: um objeto que "sabe" se este campo específico está com o
-  // foco (ou seja, se é nele que o teclado está escrevendo agora) ou não.
   late final FocusNode _focusNode;
   bool _isFocused = false;
+  bool _oculto = true;
+  bool _temTexto = false;
 
   TextEditingController get _controller {
     return widget.controller ?? _internalController;
@@ -30,19 +79,18 @@ class _CpfInputWidgetState extends State<CpfInputWidget> {
   void initState() {
     super.initState();
     if (widget.controller == null) {
-      _internalController = TextEditingController();
+      _internalController = CpfTextEditingController(oculto: _oculto);
       _createdInternalController = true;
     }
 
     _focusNode = FocusNode();
-    // addListener registra uma função que vai ser chamada toda vez que o
-    // estado de foco mudar (ganhou foco ou perdeu foco). setState() avisa
-    // o Flutter para redesenhar o widget com o novo valor de _isFocused.
     _focusNode.addListener(() {
       setState(() {
         _isFocused = _focusNode.hasFocus;
       });
     });
+
+    _controller.addListener(_aoMudarTexto);
 
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       if (!mounted) return;
@@ -57,29 +105,41 @@ class _CpfInputWidgetState extends State<CpfInputWidget> {
       } else if (_controller.text.isEmpty) {
         _controller.text = CpfValidator.applyMask(auth.cpf);
       }
+      if (mounted) {
+        setState(() {
+          _temTexto = _controller.text.trim().isNotEmpty;
+        });
+      }
     });
+  }
+
+  void _aoMudarTexto() {
+    final temTextoAgora = _controller.text.trim().isNotEmpty;
+    if (temTextoAgora != _temTexto) {
+      setState(() {
+        _temTexto = temTextoAgora;
+      });
+    }
   }
 
   @override
   void dispose() {
+    _controller.removeListener(_aoMudarTexto);
     if (_createdInternalController) {
       _internalController.dispose();
     }
-    // FocusNode também precisa ser "destruído" quando o widget sai de tela,
-    // assim como o TextEditingController.
     _focusNode.dispose();
     super.dispose();
   }
 
   void _handleChanged(String maskedText) {
-    // A máscara já foi aplicada pelo CpfInputFormatter antes de chegarmos
-    // aqui — então só precisamos avisar o AuthProvider do valor atual.
     context.read<AuthProvider>().updateCpf(maskedText);
   }
 
   @override
   Widget build(BuildContext context) {
     final authProvider = context.watch<AuthProvider>();
+    final temTexto = _controller.text.trim().isNotEmpty;
 
     return ValueListenableBuilder<AppTheme>(
       valueListenable: ThemeController.currentTheme,
@@ -88,18 +148,12 @@ class _CpfInputWidgetState extends State<CpfInputWidget> {
           controller: _controller,
           focusNode: _focusNode,
           onChanged: _handleChanged,
-          // inputFormatters: lista de "filtros" aplicados ao texto sempre
-          // que ele muda. O CpfInputFormatter cuida de aplicar a máscara
-          // (123.456.789-09) e corrigir o comportamento do backspace.
           inputFormatters: [CpfInputFormatter()],
           keyboardType: TextInputType.number,
           textAlign: TextAlign.center,
           maxLength: 14,
           style: theme.getTextStyle(fontSize: 16),
           decoration: InputDecoration(
-            // Se o campo está focado, a dica não aparece — nem vazia, nem
-            // com texto — mesmo antes de o usuário digitar qualquer coisa.
-            // Se perder o foco e o campo continuar vazio, a dica volta.
             hintText: _isFocused ? null : 'Digite seu CPF',
             hintStyle: theme.getTextStyle(
               fontSize: 16,
@@ -111,6 +165,33 @@ class _CpfInputWidgetState extends State<CpfInputWidget> {
               horizontal: 20,
               vertical: 18,
             ),
+            prefixIcon: temTexto
+                ? const SizedBox(
+                    width: 48,
+                    height: 48,
+                  )
+                : null,
+            suffixIcon: temTexto
+                ? IconButton(
+                    icon: Icon(
+                      _oculto
+                          ? Icons.visibility_off_outlined
+                          : Icons.visibility_outlined,
+                      size: 20,
+                      color: theme.secondaryTextColor,
+                    ),
+                    tooltip: _oculto ? 'Mostrar CPF' : 'Ocultar CPF',
+                    onPressed: () {
+                      setState(() {
+                        _oculto = !_oculto;
+                        if (_controller is CpfTextEditingController) {
+                          (_controller as CpfTextEditingController).oculto =
+                              _oculto;
+                        }
+                      });
+                    },
+                  )
+                : null,
             enabledBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(30),
               borderSide: BorderSide(color: theme.borderColor),
@@ -121,11 +202,11 @@ class _CpfInputWidgetState extends State<CpfInputWidget> {
             ),
             errorBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(30),
-              borderSide: const BorderSide(color: Colors.redAccent),
+              borderSide: BorderSide(color: theme.dangerColor),
             ),
             focusedErrorBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(30),
-              borderSide: const BorderSide(color: Colors.redAccent, width: 1.5),
+              borderSide: BorderSide(color: theme.dangerColor, width: 1.5),
             ),
           ),
         );

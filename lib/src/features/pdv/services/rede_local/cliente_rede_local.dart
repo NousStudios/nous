@@ -401,26 +401,37 @@ class ClienteRedeLocal {
       final body = await utf8.decodeStream(response);
       final dados = await decodificarJsonMapaSeguro(body);
 
+      Loja? lojaBrutaParaReconciliar;
+      List<String> imagensAusentesParaReconciliar = [];
+      List<String> fotosUsuariosAusentesParaReconciliar = [];
+
       if (dados['sucesso'] == true) {
         if (dados['loja'] != null) {
           final lojaBruta = Loja.fromJson(dados['loja'] as Map<String, dynamic>);
           if (!LojasService.ehLojaHostFalsa(lojaBruta.id, lojaBruta.tags, lojaBruta.nome)) {
-            final imagensAusentes = (dados['imagensAusentes'] as List<dynamic>? ?? [])
+            lojaBrutaParaReconciliar = lojaBruta;
+            imagensAusentesParaReconciliar = (dados['imagensAusentes'] as List<dynamic>? ?? [])
                 .map((e) => e.toString())
                 .toList();
 
-            // Realiza reconciliação mútua: preenche lacunas do servidor e baixa novidades locais
-            _lojaSincronizada = await _reconciliarLojaMutua(lojaBruta, imagensAusentes);
+            // Consolidação leve imediata para disponibilidade instantânea da loja e pedidos
+            final lojaLocalExistente = _pdvProvider!.buscarPorId(lojaBruta.id) ??
+                await LojasService.carregarLojaPorId(lojaBruta.id);
 
-            // Atualiza a loja no provedor local e no SQLite para visualização completa com imagens
-            await _pdvProvider!.adicionarOuAtualizarLoja(_lojaSincronizada!);
-            await _vincularLojaSeNecessario(_lojaSincronizada!);
+            final lojaConsolidada = LojasService.consolidarLojaComImagensLocais(
+              lojaBruta,
+              lojaLocalExistente,
+              manterItensAusentes: true,
+            );
+
+            _lojaSincronizada = lojaConsolidada;
+            await _pdvProvider!.adicionarOuAtualizarLoja(lojaConsolidada);
+            await _vincularLojaSeNecessario(lojaConsolidada);
 
             if (dados['fotosUsuariosAusentes'] != null) {
-              final ausentes = (dados['fotosUsuariosAusentes'] as List<dynamic>)
+              fotosUsuariosAusentesParaReconciliar = (dados['fotosUsuariosAusentes'] as List<dynamic>)
                   .map((e) => e.toString())
                   .toList();
-              _curarFotosUsuariosAusentesNoServidor(ausentes);
             }
           } else {
             _lojaSincronizada = null;
@@ -520,11 +531,31 @@ class ClienteRedeLocal {
       // Orquestração sequencial e resiliente em background pós-conexão para evitar gargalos no socket e banco SQLite
       unawaited(() async {
         try {
+          // Checagem prioritária imediata de nova versão no balcão (em paralelo, sem esperar nada)
+          unawaited(verificarAtualizacaoLocal());
+
           // 0. Sincroniza o relógio em uníssono com o balcão antes de qualquer operação
           await RelogioRedeService.instancia.sincronizarComServidor(
             ip: _ipServidor!,
             porta: _portaServidor!,
           );
+          if (lojaBrutaParaReconciliar != null) {
+            try {
+              final lojaReconciliada = await _reconciliarLojaMutua(
+                lojaBrutaParaReconciliar,
+                imagensAusentesParaReconciliar,
+              );
+              _lojaSincronizada = lojaReconciliada;
+              await _pdvProvider!.adicionarOuAtualizarLoja(lojaReconciliada);
+              if (fotosUsuariosAusentesParaReconciliar.isNotEmpty) {
+                _curarFotosUsuariosAusentesNoServidor(
+                  fotosUsuariosAusentesParaReconciliar,
+                );
+              }
+            } catch (e) {
+              debugPrint('[ClienteRedeLocal] Reconciliação mútua assíncrona de mídia: $e');
+            }
+          }
           await sincronizarIdentidadeUsuario();
           await reconciliarContasComServidor();
           await sincronizarPerfisLojasComServidor();

@@ -12,17 +12,11 @@ import 'package:nous/src/features/notificacoes/providers/notificacoes_provider.d
 import 'package:nous/src/features/pdv/models/membro_loja.dart';
 import 'package:nous/src/features/pdv/providers/pdv_provider.dart';
 import 'package:nous/src/features/pdv/services/imagem_service.dart';
+import 'package:nous/src/features/auth/services/cpf_validator.dart';
 import 'package:nous/src/features/auth/views/widgets/ficha_usuario/bloco_dados_pessoais_usuario.dart';
 import 'package:nous/src/features/auth/views/widgets/ficha_usuario/bloco_emails_usuario.dart';
 import 'package:nous/src/features/auth/views/widgets/ficha_usuario/bloco_lojas_usuario.dart';
 import 'package:nous/src/features/pdv/views/widgets/opcoes_imagem_dialog.dart';
-
-String _formatarCpf(String cpf) {
-  final digitos = cpf.replaceAll(RegExp(r'[^0-9]'), '');
-  if (digitos.length != 11) return cpf;
-  return '${digitos.substring(0, 3)}.${digitos.substring(3, 6)}.'
-      '${digitos.substring(6, 9)}-${digitos.substring(9, 11)}';
-}
 
 class FichaUsuarioDialog {
   static Future<void> mostrar(
@@ -614,24 +608,23 @@ class _FichaUsuarioConteudoState extends State<_FichaUsuarioConteudo> {
                 bool olhoAberto = false;
                 VoidCallback? aoClicarOlho;
 
-                if (estaPrivado) {
-                  if (ehProprioUsuario) {
-                    final revelado = auth.dadoEstaReveladoParaDono('cpf');
-                    censurado = !revelado;
-                    olhoAberto = revelado;
-                    aoClicarOlho = () => auth.alternarRevelacaoParaDono('cpf');
-                  } else {
-                    final autorizado = _usuario.dadoAutorizadoPara('cpf', cpfVisualizador);
-                    if (!autorizado) {
-                      censurado = true;
-                      olhoAberto = false;
-                      aoClicarOlho = () => _solicitarAcessoAoDado('CPF', 'cpf');
-                    }
+                if (ehProprioUsuario) {
+                  // O próprio usuário sempre tem o olho disponível para alternar (ex: para tirar prints com segurança)
+                  final revelado = auth.dadoEstaReveladoParaDono('cpf');
+                  censurado = !revelado;
+                  olhoAberto = revelado;
+                  aoClicarOlho = () => auth.alternarRevelacaoParaDono('cpf');
+                } else if (estaPrivado) {
+                  final autorizado = _usuario.dadoAutorizadoPara('cpf', cpfVisualizador);
+                  if (!autorizado) {
+                    censurado = true;
+                    olhoAberto = false;
+                    aoClicarOlho = () => _solicitarAcessoAoDado('CPF', 'cpf');
                   }
                 }
 
                 Widget? widgetOlho;
-                if (estaPrivado && aoClicarOlho != null) {
+                if (aoClicarOlho != null) {
                   widgetOlho = InkWell(
                     onTap: aoClicarOlho,
                     borderRadius: BorderRadius.circular(12),
@@ -656,9 +649,10 @@ class _FichaUsuarioConteudoState extends State<_FichaUsuarioConteudo> {
                     children: [
                       Center(
                         child: Text(
-                          censurado
-                              ? '•••.•••.•••-••'
-                              : _formatarCpf(contaAtualizada.cpf),
+                          CpfValidator.formatProtegido(
+                            contaAtualizada.cpf,
+                            revelado: !censurado,
+                          ),
                           style: theme.getTextStyle(
                             fontSize: 13,
                             color: theme.secondaryTextColor,

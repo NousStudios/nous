@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:nous/src/core/theme/theme_controller.dart';
+import 'package:nous/src/core/widgets/texto_rolante.dart';
+import 'package:nous/src/features/pdv/services/rede_local/cliente_rede_local.dart';
 import 'package:nous/src/features/auth/models/usuario_nous.dart';
 import 'package:nous/src/features/auth/providers/auth_provider.dart';
 import 'package:nous/src/features/auth/services/contas_nous_service.dart';
@@ -399,7 +401,7 @@ class ServidorBalcaoWidget extends StatelessWidget {
                                                             if (temCpf)
                                                               TextSpan(
                                                                 text:
-                                                                    ' • CPF: ${CpfValidator.format(term.cpf!)}',
+                                                                    ' • CPF: ${CpfValidator.formatProtegido(term.cpf!)}',
                                                                 style: theme
                                                                     .getTextStyle(
                                                                   fontSize: 11,
@@ -480,6 +482,7 @@ class ServidorBalcaoWidget extends StatelessWidget {
                                   );
                                 }).toList(),
                               ),
+                            _secaoDispositivosNaoPareados(context, theme, terminais),
                           ],
                         );
                       },
@@ -496,6 +499,139 @@ class ServidorBalcaoWidget extends StatelessWidget {
                 color: theme.secondaryTextColor,
               ),
             ),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _secaoDispositivosNaoPareados(
+    BuildContext context,
+    AppTheme theme,
+    List<TerminalConectadoInfo> pareados,
+  ) {
+    return ValueListenableBuilder<List<TerminalConectadoInfo>>(
+      valueListenable: ClienteRedeLocal().presencasAtivas,
+      builder: (context, presencas, _) {
+        final ipsPareados = pareados.map((p) => p.ip).toSet();
+        final idsPareados = pareados.map((p) => p.id).toSet();
+
+        final naoPareados = presencas.where((p) {
+          if (p.id == 'balcao_servidor_local' || p.id == 'este_dispositivo') {
+            return false;
+          }
+          if (idsPareados.contains(p.id) || ipsPareados.contains(p.ip)) {
+            return false;
+          }
+          return true;
+        }).toList();
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const SizedBox(height: 14),
+            Row(
+              children: [
+                Icon(
+                  Icons.devices_other_rounded,
+                  size: 16,
+                  color: theme.secondaryTextColor,
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  'Outros Dispositivos na Rede (Não Pareados):',
+                  style: theme.getTextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                    color: theme.secondaryTextColor,
+                  ),
+                ),
+                const SizedBox(width: 6),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                  decoration: BoxDecoration(
+                    color: theme.textColor.withValues(alpha: 0.08),
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: Text(
+                    '${naoPareados.length}',
+                    style: theme.getTextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
+                      color: theme.secondaryTextColor,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            if (naoPareados.isEmpty)
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: theme.textColor.withValues(alpha: 0.03),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(
+                  'Nenhum outro dispositivo não pareado detectado na rede no momento.',
+                  textAlign: TextAlign.center,
+                  style: theme.getTextStyle(
+                    fontSize: 11,
+                    color: theme.secondaryTextColor,
+                  ),
+                ),
+              )
+            else
+              Column(
+                children: naoPareados.map((term) {
+                  final temUsuario = term.nomeUsuario != null && term.nomeUsuario!.trim().isNotEmpty;
+                  final nomeDisp = temUsuario ? '${term.nome} (${term.nomeUsuario})' : term.nome;
+                  return Container(
+                    margin: const EdgeInsets.only(bottom: 6),
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: theme.textColor.withValues(alpha: 0.04),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(
+                        color: theme.borderColor.withValues(alpha: 0.2),
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(
+                          Icons.perm_device_information_rounded,
+                          size: 20,
+                          color: theme.secondaryTextColor,
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              TextoRolante(
+                                texto: nomeDisp,
+                                style: theme.getTextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                  color: theme.textColor,
+                                ),
+                              ),
+                              const SizedBox(height: 1),
+                              Text(
+                                'IP: ${term.ip} • Aguardando conexão ou pareamento',
+                                style: theme.getTextStyle(
+                                  fontSize: 10,
+                                  color: theme.secondaryTextColor,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                }).toList(),
+              ),
           ],
         );
       },

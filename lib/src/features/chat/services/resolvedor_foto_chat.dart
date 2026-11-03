@@ -154,28 +154,89 @@ class ResolvedorFotoChat {
     final minhaFoto = auth?.contaAtual?.fotoExibicao ?? '';
     final minhaFotoBase = auth?.contaAtual?.foto ?? '';
 
+    // 1. Identificar se a conversa é estritamente com uma LOJA
+    final bool ehContatoLoja = conversa.ehLoja ||
+        conversa.subtitulo.trim().toLowerCase() == 'loja' ||
+        conversa.identificador.startsWith('loja_');
+
+    // 2. Se for pessoa física, identifica o CPF do contato (jamais confunde com loja)
+    var idParaFoto = '';
+    if (!ehContatoLoja) {
+      idParaFoto = ChatService.normalizarCpf(conversa.identificador);
+      if (idParaFoto.length != 11 && conversa.id.startsWith('user_')) {
+        idParaFoto = ChatService.extrairOutroCpf(conversa.id, meuCpf);
+      }
+    }
+
+    final ehContatoCpf = idParaFoto.length == 11;
+    final ehProprioUsuario = !ehContatoLoja && meuCpf.isNotEmpty && idParaFoto == meuCpf;
+
+    // Identifica logo da loja do escopo para profilaxia contra contaminação
+    String idLojaEscopo = conversa.lojaId ?? '';
+    if (idLojaEscopo.isEmpty && conversa.id.contains('loja_')) {
+      final partes = conversa.id.split('_');
+      final idx = partes.indexOf('loja');
+      if (idx != -1 && idx + 1 < partes.length) {
+        idLojaEscopo = 'loja_${partes[idx + 1]}';
+      }
+    }
+    final lojaDoEscopo = pdv != null && idLojaEscopo.isNotEmpty
+        ? (pdv.buscarPorId(idLojaEscopo) ??
+            (idLojaEscopo.startsWith('loja_')
+                ? pdv.buscarPorId(idLojaEscopo.substring(5))
+                : null))
+        : null;
+    final logoLoja = lojaDoEscopo?.logo ?? '';
+
     String? fotoUsar = conversa.foto;
-    if (!conversa.ehGrupo) {
+    if (ehContatoLoja) {
+      // Conversa com loja: JAMAIS exibe a foto pessoal civil do usuário logado!
       if (fotoUsar.isEmpty ||
           (minhaFoto.isNotEmpty && fotoUsar == minhaFoto) ||
           (minhaFotoBase.isNotEmpty && fotoUsar == minhaFotoBase)) {
-        fotoUsar = null;
+        fotoUsar = logoLoja.isNotEmpty ? logoLoja : null;
+      }
+    } else if (!conversa.ehGrupo) {
+      if (ehProprioUsuario) {
+        // Se a conversa for com o próprio usuário logado (ex.: dono abrindo seu próprio contato
+        // na loja como cliente), exibe soberanamente a foto civil do usuário!
+        fotoUsar = minhaFoto.isNotEmpty
+            ? minhaFoto
+            : (minhaFotoBase.isNotEmpty ? minhaFotoBase : conversa.foto);
+        if (logoLoja.isNotEmpty && fotoUsar == logoLoja) {
+          fotoUsar = minhaFoto.isNotEmpty ? minhaFoto : minhaFotoBase;
+        }
+      } else if (ehContatoCpf) {
+        // Se for um contato de pessoa física com CPF:
+        // Jamais exibe logo de loja nem a foto do operador logado
+        if (fotoUsar.isEmpty ||
+            (logoLoja.isNotEmpty && fotoUsar == logoLoja) ||
+            (minhaFoto.isNotEmpty && fotoUsar == minhaFoto) ||
+            (minhaFotoBase.isNotEmpty && fotoUsar == minhaFotoBase)) {
+          fotoUsar = null;
+        }
       }
     }
 
     ImageProvider? providerFoto;
-    if (fotoUsar != null && fotoUsar.isNotEmpty) {
+    if (fotoUsar != null &&
+        fotoUsar.isNotEmpty &&
+        ImagemService.existe(fotoUsar)) {
       providerFoto = ImagemService.obterImageProvider(fotoUsar);
     }
 
-    String idParaFoto = '';
     String fotoRecuperada = '';
 
     if (providerFoto == null) {
-      if (conversa.ehLoja) {
-        // Se for Loja, busca EXCLUSIVAMENTE a logo cadastrada na própria loja no PdvProvider.
-        final idLoja = conversa.lojaId ?? conversa.identificador;
-        final loja = pdv?.buscarPorId(idLoja);
+      if (ehContatoLoja) {
+        // Se for Loja no modo social, busca EXCLUSIVAMENTE a logo cadastrada na própria loja no PdvProvider.
+        final idLoja = idLojaEscopo.isNotEmpty
+            ? idLojaEscopo
+            : (conversa.lojaId ?? conversa.identificador);
+        final loja = pdv?.buscarPorId(idLoja) ??
+            (idLoja.startsWith('loja_')
+                ? pdv?.buscarPorId(idLoja.substring(5))
+                : null);
         if (loja != null &&
             loja.logo.isNotEmpty &&
             ImagemService.existe(loja.logo) &&
@@ -184,20 +245,19 @@ class ResolvedorFotoChat {
           providerFoto = ImagemService.obterImageProvider(loja.logo);
         }
       } else {
-        idParaFoto = ChatService.normalizarCpf(conversa.identificador);
-        if (idParaFoto.length != 11 || (meuCpf.isNotEmpty && idParaFoto == meuCpf)) {
-          final outro = ChatService.extrairOutroCpf(conversa.id, meuCpf);
-          if (outro.isNotEmpty) idParaFoto = outro;
-        }
-        if (idParaFoto.isNotEmpty) {
+        if (ehProprioUsuario) {
+          fotoRecuperada = minhaFoto.isNotEmpty ? minhaFoto : minhaFotoBase;
+        } else if (idParaFoto.isNotEmpty) {
           fotoRecuperada = resolverFotoSincrona(
             identificador: idParaFoto,
             auth: auth,
             pdv: pdv,
           );
-          if (fotoRecuperada.isNotEmpty) {
-            providerFoto = ImagemService.obterImageProvider(fotoRecuperada);
-          }
+        }
+        if (fotoRecuperada.isNotEmpty &&
+            (logoLoja.isEmpty || fotoRecuperada != logoLoja) &&
+            ImagemService.existe(fotoRecuperada)) {
+          providerFoto = ImagemService.obterImageProvider(fotoRecuperada);
         }
       }
     }
@@ -219,7 +279,7 @@ class ResolvedorFotoChat {
       fotoRemota: fotoRecuperada.isNotEmpty ? fotoRecuperada : fotoUsar,
       cpf: idParaFoto.length == 11 ? idParaFoto : null,
       ehGrupo: false,
-      ehLoja: conversa.ehLoja,
+      ehLoja: ehContatoLoja,
     );
   }
 

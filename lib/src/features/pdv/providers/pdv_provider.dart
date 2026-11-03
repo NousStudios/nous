@@ -178,6 +178,7 @@ class PdvProvider extends ChangeNotifier {
         final cDigits = cliente.cnpj.replaceAll(RegExp(r'[^0-9]'), '');
         if (cDigits == digitos &&
             cliente.foto.isNotEmpty &&
+            (loja.logo.isEmpty || cliente.foto != loja.logo) &&
             File(cliente.foto).existsSync()) {
           return cliente.foto;
         }

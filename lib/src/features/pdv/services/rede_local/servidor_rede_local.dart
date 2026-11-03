@@ -312,9 +312,10 @@ class ServidorRedeLocal {
           );
 
           // Envia dados iniciais da loja e lista de presenças ativas
-          if (_lojaAtiva != null) {
+          final lojaParaEnvio = lojaAtiva;
+          if (lojaParaEnvio != null) {
             final fotosUsuariosAusentes = <String>[];
-            for (final m in _lojaAtiva!.membros) {
+            for (final m in lojaParaEnvio.membros) {
               final cpfLimpo = m.cpf.replaceAll(RegExp(r'\D'), '');
               if (cpfLimpo.isNotEmpty) {
                 final contaMembro =
@@ -335,7 +336,7 @@ class ServidorRedeLocal {
             ws.add(
               jsonEncode({
                 'tipo': 'dados_iniciais',
-                'loja': _lojaAtiva!.toJson(),
+                'loja': lojaParaEnvio.toJson(),
                 if (lojaNous != null) 'lojaNousColetiva': lojaNous.toJson(),
                 'presencas':
                     obterTodasPresencas().map((p) => p.toJson()).toList(),

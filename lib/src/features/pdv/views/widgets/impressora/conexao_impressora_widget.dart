@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:nous/src/core/theme/theme_controller.dart';
+import 'package:nous/src/core/widgets/texto_rolante.dart';
 import 'package:printing/printing.dart';
 
 class ConexaoImpressoraWidget extends StatelessWidget {
@@ -121,10 +122,8 @@ class ConexaoImpressoraWidget extends StatelessWidget {
             ),
             const SizedBox(width: 8),
             Expanded(
-              child: Text(
-                printer.name,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
+              child: TextoRolante(
+                texto: printer.name,
                 style: theme.getTextStyle(
                   fontSize: 12,
                   fontWeight:

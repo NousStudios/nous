@@ -282,8 +282,8 @@ class ChatRepositorioSqlite {
       'mensagens_chat',
       {'lida': 1, 'status_envio': 'lida'},
       where:
-          'conversa_id = ? AND lida = 0 AND remetente_id != ? AND remetente_id != ?',
-      whereArgs: [conversaId, idLeitor, leitorNorm],
+          'conversa_id = ? AND lida = 0 AND remetente_id NOT IN (?, ?, ?)',
+      whereArgs: [conversaId, idLeitor, leitorNorm, 'user_$leitorNorm'],
     );
 
     return alterados > 0;
@@ -300,8 +300,8 @@ class ChatRepositorioSqlite {
       'mensagens_chat',
       {'lida': 1, 'status_envio': 'lida'},
       where:
-          '(destinatario_id = ? OR conversa_id LIKE ?) AND remetente_id != ? AND remetente_id != ? AND lida = 0',
-      whereArgs: [lojaId, 'loja_${lojaId}_%', idLeitor, leitorNorm],
+          '(destinatario_id = ? OR conversa_id LIKE ?) AND remetente_id NOT IN (?, ?, ?, ?) AND lida = 0',
+      whereArgs: [lojaId, 'loja_${lojaId}_%', idLeitor, leitorNorm, 'user_$leitorNorm', lojaId],
     );
 
     return alterados > 0;
@@ -320,13 +320,14 @@ class ChatRepositorioSqlite {
       lojaId,
       'loja_${lojaId}_%',
       lojaId,
+      'loja_$lojaId',
       if (idConversaAtiva != null && idConversaAtiva.isNotEmpty) idConversaAtiva,
     ];
     final rows = await db.query(
       'mensagens_chat',
       columns: ['id'],
       where:
-          '(destinatario_id = ? OR conversa_id LIKE ?) AND remetente_id != ? AND lida = 0$condicaoAtiva',
+          '(destinatario_id = ? OR conversa_id LIKE ?) AND remetente_id NOT IN (?, ?) AND lida = 0$condicaoAtiva',
       whereArgs: args,
       limit: 1,
     );
@@ -348,14 +349,16 @@ class ChatRepositorioSqlite {
       cpfNorm,
       '%$cpfNorm%',
       'grupo_%',
+      cpf,
       cpfNorm,
+      'user_$cpfNorm',
       if (idConversaAtiva != null && idConversaAtiva.isNotEmpty) idConversaAtiva,
     ];
     final rows = await db.query(
       'mensagens_chat',
       columns: ['id'],
       where:
-          '(destinatario_id = ? OR conversa_id LIKE ? OR conversa_id LIKE ?) AND remetente_id != ? AND lida = 0$condicaoAtiva',
+          '(destinatario_id = ? OR conversa_id LIKE ? OR conversa_id LIKE ?) AND remetente_id NOT IN (?, ?, ?) AND lida = 0$condicaoAtiva',
       whereArgs: args,
       limit: 1,
     );
@@ -370,8 +373,8 @@ class ChatRepositorioSqlite {
     final idVisNorm = normalizarCpf(idVisualizador);
 
     final res = await db.rawQuery(
-      'SELECT COUNT(*) as total FROM mensagens_chat WHERE conversa_id = ? AND lida = 0 AND remetente_id != ? AND remetente_id != ?',
-      [conversaId, idVisualizador, idVisNorm],
+      'SELECT COUNT(*) as total FROM mensagens_chat WHERE conversa_id = ? AND lida = 0 AND remetente_id NOT IN (?, ?, ?)',
+      [conversaId, idVisualizador, idVisNorm, 'user_$idVisNorm'],
     );
 
     if (res.isNotEmpty && res.first['total'] != null) {

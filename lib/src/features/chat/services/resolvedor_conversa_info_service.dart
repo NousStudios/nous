@@ -45,6 +45,7 @@ class ResolvedorConversaInfoService {
     String subtituloConversa = ehLoja ? 'Loja Nous' : 'Contato Nous';
     String fotoConversa = '';
     String identificadorConversa = mensagem.destinatarioId;
+    String cpfUsuario = '';
 
     if (!ehGrupo && !ehLoja) {
       // Conversa direta entre dois usuários Nous (Rede Social / P2P)
@@ -70,7 +71,6 @@ class ResolvedorConversaInfoService {
       }
     } else if (ehLoja) {
       // Conversa comercial de Loja com Usuário/Cliente
-      var cpfUsuario = '';
       if (mensagem.conversaId.contains('_usuario_')) {
         cpfUsuario = ChatRepositorioSqlite.normalizarCpf(
           mensagem.conversaId.split('_usuario_').last,
@@ -99,12 +99,14 @@ class ResolvedorConversaInfoService {
       tituloConversa = ehGrupo ? 'Grupo' : 'Contato Nous';
     }
 
+    final ehContatoLoja = ehLoja && cpfUsuario.isEmpty;
+
     return MetadadosConversaInfo(
       titulo: tituloConversa,
       subtitulo: subtituloConversa,
       foto: fotoConversa,
       identificador: identificadorConversa,
-      ehLoja: ehLoja,
+      ehLoja: ehContatoLoja,
       ehGrupo: ehGrupo,
       lojaId: lojaId,
     );

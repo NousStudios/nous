@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:nous/src/core/theme/theme_controller.dart';
+import 'package:nous/src/core/widgets/texto_rolante.dart';
 import 'package:nous/src/features/auth/models/usuario_nous.dart';
 import 'package:nous/src/features/auth/providers/auth_provider.dart';
 import 'package:nous/src/features/auth/services/cpf_validator.dart';
@@ -17,10 +18,14 @@ class IdentidadeAtivaCardWidget extends StatelessWidget {
     final auth = context.watch<AuthProvider>();
     final conta = auth.contaAtual;
     final cpf = auth.cpf;
-    final cpfFormatado = CpfValidator.format(cpf);
+    final revelado = auth.dadoEstaReveladoParaDono('cpf');
+    final cpfExibicao = CpfValidator.formatProtegido(cpf, revelado: revelado);
     final nome = conta?.nome ?? 'Usuário Nous';
-    final apelido = conta?.apelido;
-    final temApelido = apelido != null && apelido.trim().isNotEmpty;
+    final apelidoBruto = conta?.apelido.trim() ?? '';
+    final temApelido = apelidoBruto.isNotEmpty;
+    final apelidoFormatado = apelidoBruto.startsWith('@')
+        ? '($apelidoBruto)'
+        : '(@$apelidoBruto)';
     final temFoto = ImagemService.existe(conta?.foto);
 
     return Container(
@@ -67,21 +72,19 @@ class IdentidadeAtivaCardWidget extends StatelessWidget {
                 Row(
                   children: [
                     Flexible(
-                      child: Text(
-                        nome,
+                      child: TextoRolante(
+                        texto: nome,
                         style: theme.getTextStyle(
                           fontSize: 14,
                           fontWeight: FontWeight.bold,
                           color: theme.textColor,
                         ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
                       ),
                     ),
                     if (temApelido) ...[
                       const SizedBox(width: 6),
                       Text(
-                        '(@$apelido)',
+                        apelidoFormatado,
                         style: theme.getTextStyle(
                           fontSize: 12,
                           color: theme.secondaryTextColor,
@@ -91,12 +94,31 @@ class IdentidadeAtivaCardWidget extends StatelessWidget {
                   ],
                 ),
                 const SizedBox(height: 2),
-                Text(
-                  'CPF: $cpfFormatado',
-                  style: theme.getTextStyle(
-                    fontSize: 12,
-                    color: theme.secondaryTextColor,
-                  ),
+                Row(
+                  children: [
+                    Text(
+                      'CPF: $cpfExibicao',
+                      style: theme.getTextStyle(
+                        fontSize: 12,
+                        color: theme.secondaryTextColor,
+                      ),
+                    ),
+                    const SizedBox(width: 4),
+                    InkWell(
+                      onTap: () => auth.alternarRevelacaoParaDono('cpf'),
+                      borderRadius: BorderRadius.circular(8),
+                      child: Padding(
+                        padding: const EdgeInsets.all(2.0),
+                        child: Icon(
+                          revelado
+                              ? Icons.visibility_outlined
+                              : Icons.visibility_off_outlined,
+                          size: 13,
+                          color: theme.secondaryTextColor,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),
@@ -109,7 +131,7 @@ class IdentidadeAtivaCardWidget extends StatelessWidget {
                   UsuarioNous(
                     cpf: cpf,
                     nome: nome,
-                    apelido: apelido ?? '',
+                    apelido: apelidoBruto,
                     dataNascimento: '',
                   );
               FichaUsuarioDialog.mostrar(

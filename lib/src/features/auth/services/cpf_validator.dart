@@ -80,6 +80,17 @@ class CpfValidator {
 
   /// Formata um CPF para a exibição "000.000.000-00".
   static String format(String rawInput) => applyMask(rawInput);
+
+  /// Formata um CPF protegido ocultando os dígitos após os 3 primeiros: "123.•••.•••-••".
+  /// Se [revelado] for true, retorna o CPF completo formatado "123.456.789-01".
+  static String formatProtegido(String rawCpf, {bool revelado = false}) {
+    final digitos = onlyDigits(rawCpf);
+    if (digitos.length != 11) return rawCpf;
+    if (revelado) {
+      return format(digitos);
+    }
+    return '${digitos.substring(0, 3)}.•••.•••-••';
+  }
 }
 
 // ============================================================================

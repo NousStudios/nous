@@ -5,6 +5,7 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:nous/src/core/theme/theme_controller.dart';
 import 'package:nous/src/features/auth/services/contas_nous_service.dart';
 import 'package:nous/src/features/chat/models/mensagem_chat.dart';
+import 'package:nous/src/features/chat/services/chat_media_service.dart';
 import 'package:nous/src/features/chat/services/chat_service.dart';
 import 'package:nous/src/features/pdv/services/imagem_service.dart';
 
@@ -166,6 +167,15 @@ class NotificacaoAndroidService {
         icon: avatarIcon,
       );
 
+      final textoCorpo = mensagem.texto.trim().isNotEmpty
+          ? mensagem.texto.trim()
+          : ChatMediaService.gerarResumoMensagem(mensagem);
+
+      final ehGrupo = mensagem.conversaId.startsWith('grupo_');
+      final tituloConversa = ehGrupo
+          ? (mensagem.remetenteNome.isNotEmpty ? mensagem.remetenteNome : 'Grupo')
+          : null;
+
       final androidDetails = AndroidNotificationDetails(
         canalId,
         canalNome,
@@ -176,20 +186,18 @@ class NotificacaoAndroidService {
         icon: '@mipmap/ic_launcher',
         largeIcon: avatarBitmap,
         color: corApp,
-        colorized: true,
+        colorized: false,
         category: AndroidNotificationCategory.message,
         styleInformation: MessagingStyleInformation(
           Person(
             name: 'Eu',
             key: mensagem.destinatarioId,
           ),
-          conversationTitle: mensagem.remetenteNome.isNotEmpty
-              ? mensagem.remetenteNome
-              : 'Chat Nous',
-          groupConversation: false,
+          conversationTitle: tituloConversa,
+          groupConversation: ehGrupo,
           messages: [
             Message(
-              mensagem.texto,
+              textoCorpo,
               mensagem.dataHora,
               personRemetente,
             ),
@@ -199,7 +207,6 @@ class NotificacaoAndroidService {
           AndroidNotificationAction(
             acaoResponderId,
             'Responder',
-            icon: DrawableResourceAndroidBitmap('@mipmap/ic_launcher'),
             inputs: [
               AndroidNotificationActionInput(
                 label: 'Digite sua resposta...',
@@ -227,7 +234,7 @@ class NotificacaoAndroidService {
         title: mensagem.remetenteNome.isNotEmpty
             ? mensagem.remetenteNome
             : 'Nova Mensagem',
-        body: mensagem.texto,
+        body: textoCorpo,
         notificationDetails: notificationDetails,
         payload: jsonEncode(payloadMap),
       );

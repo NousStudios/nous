@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:file_selector/file_selector.dart';
@@ -12,6 +13,7 @@ import 'package:nous/src/features/auth/views/widgets/cadastrar_nome_usuario_dial
 import 'package:nous/src/features/auth/views/widgets/ficha_usuario_dialog.dart';
 import 'package:nous/src/features/pdv/providers/pdv_provider.dart';
 import 'package:nous/src/features/pdv/services/imagem_service.dart';
+import 'package:nous/src/features/pdv/services/rede_local/cliente_rede_local.dart';
 import 'package:nous/src/features/pdv/views/perfis_pdv_view.dart';
 import 'package:nous/src/features/pdv/views/widgets/estado_vazio_container.dart';
 import 'package:nous/src/features/pdv/views/widgets/opcoes_imagem_dialog.dart';
@@ -81,6 +83,7 @@ class _ContasUsuarioViewState extends State<ContasUsuarioView> {
 
     final auth = context.read<AuthProvider>();
     auth.definirEmailAtivo(emailFinal);
+    unawaited(ClienteRedeLocal().verificarAtualizacaoLocal());
     final cpf = auth.cpf;
     await context.read<PdvProvider>().entrarComCpf(cpf);
 

@@ -54,10 +54,8 @@ class ClienteSeletorNovaVendaWidget extends StatelessWidget {
           children: [
             Expanded(
               flex: 5,
-              child: Text(
-                cliente.nome,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
+              child: TextoRolante(
+                texto: cliente.nome,
                 style: theme.getTextStyle(fontSize: 12, color: theme.textColor),
               ),
             ),

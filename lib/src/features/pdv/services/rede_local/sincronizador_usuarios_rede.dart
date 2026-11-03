@@ -541,6 +541,9 @@ class SincronizadorUsuariosRede {
                 lojaExistente,
               );
               await LojasService.salvarLojaIndividual(lojaConsolidada);
+              if (pdvProvider != null) {
+                await pdvProvider.adicionarOuAtualizarLoja(lojaConsolidada);
+              }
               houveAlteracao = true;
             } catch (_) {}
           }
@@ -558,7 +561,7 @@ class SincronizadorUsuariosRede {
           }
 
           if (houveAlteracao && pdvProvider != null) {
-            await pdvProvider.entrarComCpf(cpf);
+            pdvProvider.notificarMudanca();
           }
         }
       }

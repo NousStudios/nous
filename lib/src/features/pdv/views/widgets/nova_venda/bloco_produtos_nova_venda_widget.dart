@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:nous/src/core/theme/theme_controller.dart';
+import 'package:nous/src/core/widgets/texto_rolante.dart';
 import 'package:nous/src/features/pdv/models/categoria_loja.dart';
 import 'package:nous/src/features/pdv/models/grupo_componentes_loja.dart';
 import 'package:nous/src/features/pdv/models/item_loja.dart';
@@ -102,10 +103,8 @@ class BlocoProdutosNovaVendaWidget extends StatelessWidget {
                   size: 16, color: theme.secondaryTextColor),
             const SizedBox(width: 8),
             Expanded(
-              child: Text(
-                'Categoria: ${categoria.nome}',
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
+              child: TextoRolante(
+                texto: 'Categoria: ${categoria.nome}',
                 style: theme.getTextStyle(fontSize: 12, color: theme.textColor),
               ),
             ),
@@ -152,10 +151,8 @@ class BlocoProdutosNovaVendaWidget extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Text(
-                    item.nome,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
+                  TextoRolante(
+                    texto: item.nome,
                     style: theme.getTextStyle(fontSize: 12, color: theme.textColor),
                   ),
                   Wrap(
@@ -245,10 +242,8 @@ class BlocoProdutosNovaVendaWidget extends StatelessWidget {
                 const SizedBox(width: 8),
               ],
               Expanded(
-                child: Text(
-                  nomeExibicaoLinha(linha),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
+                child: TextoRolante(
+                  texto: nomeExibicaoLinha(linha),
                   style: theme.getTextStyle(
                     fontSize: 12,
                     color: theme.textColor,
@@ -297,19 +292,17 @@ class BlocoProdutosNovaVendaWidget extends StatelessWidget {
               children: [
                 Expanded(
                   child: acompanhamentos.isEmpty
-                      ? Text(
-                          temGrupos ? 'sem acompanhamentos' : '',
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: theme.getTextStyle(
-                            fontSize: 10,
-                            color: theme.secondaryTextColor,
-                          ),
-                        )
-                      : Text(
-                          resumoAcompanhamentos(linha),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
+                      ? (temGrupos
+                          ? Text(
+                              'sem acompanhamentos',
+                              style: theme.getTextStyle(
+                                fontSize: 10,
+                                color: theme.secondaryTextColor,
+                              ),
+                            )
+                          : const SizedBox.shrink())
+                      : TextoRolante(
+                          texto: resumoAcompanhamentos(linha),
                           style: theme.getTextStyle(
                             fontSize: 10,
                             color: theme.secondaryTextColor,

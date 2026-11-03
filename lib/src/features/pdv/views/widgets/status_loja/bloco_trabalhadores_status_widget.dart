@@ -4,6 +4,8 @@ import 'package:provider/provider.dart';
 import 'package:nous/src/core/theme/theme_controller.dart';
 import 'package:nous/src/core/widgets/texto_rolante.dart';
 import 'package:nous/src/features/auth/providers/auth_provider.dart';
+import 'package:nous/src/features/auth/services/cpf_validator.dart';
+import 'package:nous/src/features/chat/services/chat_service.dart';
 import 'package:nous/src/features/pdv/models/membro_loja.dart';
 import 'package:nous/src/features/pdv/providers/pdv_provider.dart';
 import 'package:nous/src/features/pdv/services/imagem_service.dart';
@@ -22,13 +24,6 @@ String _rotuloPapel(PapelMembro papel) {
     case PapelMembro.funcionario:
       return 'Funcionário';
   }
-}
-
-String _formatarCpf(String cpf) {
-  final digitos = cpf.replaceAll(RegExp(r'[^0-9]'), '');
-  if (digitos.length != 11) return cpf;
-  return '${digitos.substring(0, 3)}.${digitos.substring(3, 6)}.'
-      '${digitos.substring(6, 9)}-${digitos.substring(9, 11)}';
 }
 
 /// Card que exibe a lista de trabalhadores e status dos seus dispositivos na rede local.
@@ -179,10 +174,8 @@ class BlocoTrabalhadoresStatusWidget extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        membro.nome.isEmpty ? 'Sem nome' : membro.nome,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
+                      TextoRolante(
+                        texto: membro.nome.isEmpty ? 'Sem nome' : membro.nome,
                         style: theme.getTextStyle(
                           fontSize: 13,
                           fontWeight: FontWeight.w600,
@@ -190,14 +183,58 @@ class BlocoTrabalhadoresStatusWidget extends StatelessWidget {
                         ),
                       ),
                       const SizedBox(height: 2),
-                      Text(
-                        '$rotuloCargo • ${_formatarCpf(membro.cpf)}',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: theme.getTextStyle(
-                          fontSize: 10,
-                          color: theme.secondaryTextColor,
-                        ),
+                      Builder(
+                        builder: (context) {
+                          final auth = context.watch<AuthProvider>();
+                          final meuCpf = ChatService.normalizarCpf(cpfLogado);
+                          final cpfMembro = ChatService.normalizarCpf(membro.cpf);
+                          final ehEuMesmo = meuCpf.isNotEmpty && meuCpf == cpfMembro;
+
+                          String cpfTexto;
+                          bool revelado = false;
+                          if (ehEuMesmo) {
+                            revelado = auth.dadoEstaReveladoParaDono('cpf');
+                            cpfTexto = CpfValidator.formatProtegido(membro.cpf, revelado: revelado);
+                          } else {
+                            final contaMembro = auth.buscarContaPorCpf(cpfMembro);
+                            final privado = contaMembro?.dadoEstaPrivado('cpf') ?? true;
+                            final autorizado = contaMembro?.dadoAutorizadoPara('cpf', meuCpf) ?? false;
+                            cpfTexto = CpfValidator.formatProtegido(membro.cpf, revelado: !privado || autorizado);
+                          }
+
+                          return Row(
+                            children: [
+                              Flexible(
+                                child: Text(
+                                  '$rotuloCargo • $cpfTexto',
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: theme.getTextStyle(
+                                    fontSize: 10,
+                                    color: theme.secondaryTextColor,
+                                  ),
+                                ),
+                              ),
+                              if (ehEuMesmo) ...[
+                                const SizedBox(width: 4),
+                                InkWell(
+                                  onTap: () => auth.alternarRevelacaoParaDono('cpf'),
+                                  borderRadius: BorderRadius.circular(8),
+                                  child: Padding(
+                                    padding: const EdgeInsets.all(2.0),
+                                    child: Icon(
+                                      revelado
+                                          ? Icons.visibility_outlined
+                                          : Icons.visibility_off_outlined,
+                                      size: 13,
+                                      color: theme.secondaryTextColor,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ],
+                          );
+                        },
                       ),
                     ],
                   ),

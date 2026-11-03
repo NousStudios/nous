@@ -39,6 +39,10 @@ class BalaoMensagemWidget extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (msg.tipo == 'texto' && msg.texto.trim().isEmpty && msg.caminhoAnexo.trim().isEmpty) {
+      return const SizedBox.shrink();
+    }
+
     return Align(
       alignment: enviadaPorMim ? Alignment.centerRight : Alignment.centerLeft,
       child: InkWell(

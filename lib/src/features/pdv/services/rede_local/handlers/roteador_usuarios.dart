@@ -265,16 +265,13 @@ class RoteadorUsuarios {
 
           final cpfServidor =
               servidor.authProvider?.cpf.replaceAll(RegExp(r'\D'), '') ?? '';
-          if (cpfServidor == cpf) {
-            await servidor.pdvProvider?.entrarComCpf(cpf);
-          } else if (cpfServidor.isNotEmpty) {
-            await servidor.pdvProvider?.entrarComCpf(cpfServidor);
-          }
 
           final referenciasLocais =
               await LojasService.carregarReferencias(cpf);
           final referenciasValidas = <ReferenciaLoja>[];
           final lojasDoServidor = <Map<String, dynamic>>[];
+          final idsLojasColetadas = <String>{};
+
           for (final r in referenciasLocais) {
             final l = await LojasService.carregarLojaPorId(r.lojaId);
             if (l != null) {
@@ -285,6 +282,7 @@ class RoteadorUsuarios {
               );
               if (ehMembro || cpfDonoDigitos == cpf) {
                 referenciasValidas.add(r);
+                idsLojasColetadas.add(l.id);
                 lojasDoServidor.add(
                   LojasService.sanitizarCaminhosImagens(l).toJson(),
                 );
@@ -295,12 +293,39 @@ class RoteadorUsuarios {
               await LojasService.removerReferencia(cpf, r.lojaId);
             }
           }
+
           final lojasProprias = await LojasService.carregar(cpf);
           for (final lp in lojasProprias) {
-            if (!lojasDoServidor.any((m) => m['id'] == lp.id)) {
+            if (idsLojasColetadas.add(lp.id)) {
               lojasDoServidor.add(
                 LojasService.sanitizarCaminhosImagens(lp).toJson(),
               );
+            }
+          }
+
+          // Inclui lojas hospedadas no servidor onde o solicitante participa como membro
+          final todasLojasServidor = <Loja>[
+            ...?servidor.pdvProvider?.lojas,
+            if (cpfServidor.isNotEmpty) ...await LojasService.carregar(cpfServidor),
+          ];
+          for (final ls in todasLojasServidor) {
+            if (LojasService.ehLojaHostFalsa(ls.id, ls.tags, ls.nome)) continue;
+            final ehMembro = ls.membros.any(
+              (m) => m.cpf.replaceAll(RegExp(r'\D'), '') == cpf,
+            );
+            final ehDono = ls.cpfDonoOriginal.replaceAll(RegExp(r'\D'), '') == cpf;
+            if (ehMembro || ehDono) {
+              if (idsLojasColetadas.add(ls.id)) {
+                lojasDoServidor.add(
+                  LojasService.sanitizarCaminhosImagens(ls).toJson(),
+                );
+                final novaRef = ReferenciaLoja(
+                  lojaId: ls.id,
+                  cpfDonoOriginal: ls.cpfDonoOriginal,
+                );
+                referenciasValidas.add(novaRef);
+                await LojasService.adicionarReferencia(cpf, novaRef);
+              }
             }
           }
 

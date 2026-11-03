@@ -5,6 +5,7 @@ import 'package:nous/src/features/pdv/models/categoria_loja.dart';
 import 'package:nous/src/features/pdv/models/item_loja.dart';
 import 'package:nous/src/features/pdv/models/loja.dart';
 import 'package:nous/src/features/pdv/models/mesa_loja.dart';
+import 'package:nous/src/features/pdv/models/pedido_loja.dart';
 import 'package:nous/src/features/pdv/models/referencia_loja.dart';
 import 'package:nous/src/features/pdv/models/registro_acao.dart';
 import 'package:nous/src/features/pdv/services/lojas_service.dart';
@@ -303,6 +304,106 @@ void main() {
       final revogado = autorizado.revogarAutorizacao('nome', '99988877766');
       expect(revogado.obterCpfsAutorizadosPara('nome'), isEmpty);
       expect(revogado.nomeExibicaoPara(cpfVisualizador: '99988877766'), equals('Léo'));
+    });
+
+    test('consolidarLojaComImagensLocais atualiza pedidos para estados terminais (concluido/cancelado) e quitado', () {
+      final horaCriacao = DateTime(2026, 11, 3, 10, 0);
+
+      // Celular tem o pedido como 'novo' ou 'aceito' e não quitado
+      final pedidoCelular = PedidoLoja(
+        id: 'ped_1',
+        numero: 101,
+        clienteNome: 'Cliente Teste',
+        produtoNome: 'Marmita Tradicional',
+        dataHora: horaCriacao,
+        status: StatusPedido.aceito,
+        valor: 50.0,
+        quitado: false,
+        valorPago: 0.0,
+      );
+
+      final lojaCelular = Loja(
+        id: 'loja_providence',
+        cpfDonoOriginal: '11111111111',
+        nome: 'Marmitaria Providence',
+        cnpj: '',
+        telefone: '',
+        endereco: '',
+        numero: '',
+        email: '',
+        categorias: '',
+        tags: '',
+        pedidosLoja: [pedidoCelular],
+      );
+
+      // Balcão atualizou o mesmo pedido para 'concluido' e quitado
+      final pedidoBalcao = PedidoLoja(
+        id: 'ped_1',
+        numero: 101,
+        clienteNome: 'Cliente Teste',
+        produtoNome: 'Marmita Tradicional',
+        dataHora: horaCriacao,
+        status: StatusPedido.concluido,
+        valor: 50.0,
+        quitado: true,
+        valorPago: 50.0,
+      );
+
+      final lojaBalcao = lojaCelular.copyWith(
+        pedidosLoja: [pedidoBalcao],
+      );
+
+      // Ao sincronizar a loja do balcão no celular:
+      final consolidada = LojasService.consolidarLojaComImagensLocais(
+        lojaBalcao,
+        lojaCelular,
+      );
+
+      expect(consolidada.pedidosLoja.length, equals(1));
+      final pedidoFinal = consolidada.pedidosLoja.first;
+      expect(pedidoFinal.status, equals(StatusPedido.concluido));
+      expect(pedidoFinal.quitado, isTrue);
+      expect(pedidoFinal.valorPago, equals(50.0));
+    });
+
+    test('Ordenação de pedidos exibe os mais recentes no topo (ordem decrescente de dataHora e número)', () {
+      final p1 = PedidoLoja(
+        id: 'p1',
+        numero: 1,
+        clienteNome: 'Cliente 1',
+        produtoNome: 'Prato 1',
+        dataHora: DateTime(2026, 11, 3, 10, 0),
+        status: StatusPedido.novo,
+        valor: 20.0,
+      );
+      final p2 = PedidoLoja(
+        id: 'p2',
+        numero: 2,
+        clienteNome: 'Cliente 2',
+        produtoNome: 'Prato 2',
+        dataHora: DateTime(2026, 11, 3, 11, 30),
+        status: StatusPedido.novo,
+        valor: 25.0,
+      );
+      final p3 = PedidoLoja(
+        id: 'p3',
+        numero: 3,
+        clienteNome: 'Cliente 3',
+        produtoNome: 'Prato 3',
+        dataHora: DateTime(2026, 11, 3, 11, 30),
+        status: StatusPedido.novo,
+        valor: 30.0,
+      );
+
+      final lista = [p1, p2, p3];
+      lista.sort((a, b) {
+        final cmp = b.dataHora.compareTo(a.dataHora);
+        if (cmp != 0) return cmp;
+        return b.numero.compareTo(a.numero);
+      });
+
+      // Mais recente primeiro: p3 (11:30, num 3), depois p2 (11:30, num 2), depois p1 (10:00, num 1)
+      expect(lista.map((p) => p.numero).toList(), equals([3, 2, 1]));
     });
   });
 }

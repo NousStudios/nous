@@ -79,12 +79,24 @@ class MontadorConversasModoLoja {
             ? uCliente!.nomeExibicao
             : cliente.nome;
 
+        final logoLoja = loja.logo.trim();
+        final minhaFoto = auth.contaAtual?.fotoExibicao ?? auth.contaAtual?.foto ?? '';
+
         if (contatosUnificados.containsKey(cpfCliente)) {
           final existente = contatosUnificados[cpfCliente]!;
-          final fotoResolvida = (existente.foto.isNotEmpty &&
-                  ImagemService.existe(existente.foto))
+          var fotoResolvida = (existente.foto.isNotEmpty &&
+                  ImagemService.existe(existente.foto) &&
+                  (logoLoja.isEmpty || existente.foto != logoLoja))
               ? existente.foto
-              : (cliente.foto.isNotEmpty ? cliente.foto : existente.foto);
+              : (cliente.foto.isNotEmpty && (logoLoja.isEmpty || cliente.foto != logoLoja)
+                  ? cliente.foto
+                  : existente.foto);
+          if (ehProprioOperador && minhaFoto.isNotEmpty) {
+            fotoResolvida = minhaFoto;
+          }
+          if (logoLoja.isNotEmpty && fotoResolvida == logoLoja) {
+            fotoResolvida = ehProprioOperador ? minhaFoto : (uCliente?.fotoExibicao ?? '');
+          }
           contatosUnificados[cpfCliente] = existente.copyWith(
             titulo: ehProprioOperador
                 ? '$nomeClienteSoberano (Você)'
@@ -95,13 +107,26 @@ class MontadorConversasModoLoja {
           );
         } else {
           var fotoCliente = cliente.foto;
+          if (logoLoja.isNotEmpty && fotoCliente == logoLoja) {
+            fotoCliente = '';
+          }
+          if (ehProprioOperador && minhaFoto.isNotEmpty) {
+            fotoCliente = minhaFoto;
+          }
           if (fotoCliente.isEmpty) {
-            fotoCliente = ResolvedorFotoChat.instancia.resolverFotoSincrona(
-              identificador: cliente.cnpj,
-              auth: auth,
-              pdv: pdv,
-              mapaUsuarios: usuariosNousPorCpf,
-            );
+            if (uCliente != null && uCliente.fotoExibicao.isNotEmpty) {
+              fotoCliente = uCliente.fotoExibicao;
+            } else {
+              fotoCliente = ResolvedorFotoChat.instancia.resolverFotoSincrona(
+                identificador: cliente.cnpj,
+                auth: auth,
+                pdv: pdv,
+                mapaUsuarios: usuariosNousPorCpf,
+              );
+            }
+          }
+          if (logoLoja.isNotEmpty && fotoCliente == logoLoja) {
+            fotoCliente = ehProprioOperador ? minhaFoto : (uCliente?.fotoExibicao ?? '');
           }
           contatosUnificados[cpfCliente] = InfoContatoUnificado(
             identificador: cliente.cnpj,
@@ -232,7 +257,7 @@ class MontadorConversasModoLoja {
         subtitulo: c.subtitulo,
         foto: c.foto,
         identificador: c.identificador,
-        ehLoja: true,
+        ehLoja: false,
         lojaId: loja.id,
         ultimaMensagem: ultimaMsg,
         dataHoraUltimaMensagem: dataHoraUltima,

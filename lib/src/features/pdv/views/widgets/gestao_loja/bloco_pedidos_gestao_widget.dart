@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:nous/src/core/theme/theme_controller.dart';
+import 'package:nous/src/core/widgets/texto_rolante.dart';
 import 'package:nous/src/features/pdv/models/cliente.dart';
 import 'package:nous/src/features/pdv/models/item_loja.dart';
 import 'package:nous/src/features/pdv/models/pedido_loja.dart';
@@ -323,10 +324,8 @@ class _BlocoPedidosGestaoWidgetState extends State<BlocoPedidosGestaoWidget> {
                   ),
                 )
               : Icon(Icons.account_circle, size: 26, color: theme.textColor),
-          Text(
-            pedido.clienteNome,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
+          TextoRolante(
+            texto: pedido.clienteNome,
             textAlign: TextAlign.center,
             style: fonteMiuda,
           ),
@@ -359,10 +358,8 @@ class _BlocoPedidosGestaoWidgetState extends State<BlocoPedidosGestaoWidget> {
             _miniaturaProduto(pedido, theme),
             const SizedBox(width: 6),
             Expanded(
-              child: Text(
-                pedido.produtoNome,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
+              child: TextoRolante(
+                texto: pedido.produtoNome,
                 style: theme.getTextStyle(fontSize: 12, color: theme.textColor),
               ),
             ),
@@ -412,10 +409,11 @@ class _BlocoPedidosGestaoWidgetState extends State<BlocoPedidosGestaoWidget> {
     final pedidosDaAba =
         widget.pedidos.where((pedido) => pedido.status == statusDaAba).toList();
 
-    if (widget.abaPedidos == AbaPedidos.concluidos ||
-        widget.abaPedidos == AbaPedidos.cancelados) {
-      pedidosDaAba.sort((a, b) => b.dataHora.compareTo(a.dataHora));
-    }
+    pedidosDaAba.sort((a, b) {
+      final cmp = b.dataHora.compareTo(a.dataHora);
+      if (cmp != 0) return cmp;
+      return b.numero.compareTo(a.numero);
+    });
 
     final termo = _buscaPedidosController.text.trim().toLowerCase();
     final aplicarBusca = (widget.abaPedidos == AbaPedidos.concluidos ||
@@ -511,7 +509,7 @@ class _BlocoPedidosGestaoWidgetState extends State<BlocoPedidosGestaoWidget> {
                   isDense: true,
                   contentPadding:
                       const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                  hintText: 'Buscar por nº (#0001), cliente ou produto...',
+                  hintText: 'Buscar pedido, cliente ou item...',
                   hintStyle: theme.getTextStyle(
                     fontSize: 12,
                     color: theme.secondaryTextColor,

@@ -815,6 +815,29 @@ void main() {
       expect(listaDesduplicada.length, equals(2));
       expect(listaDesduplicada.values.map((c) => c.titulo), containsAll(['Rosa', 'Leonardo']));
     });
+
+    test('Isolamento de Identidade: contato do usuário na loja não usa logo da loja', () {
+      final cpfDono = '12345678901';
+      final fotoCivilDono = 'C:/Users/Nous/fotos/leonardo_civil.jpg';
+      final logoLoja = 'C:/Users/Nous/fotos/laricas_alien.png';
+
+      // Conversa gerada no modo loja para o próprio contato Nous do dono
+      final conversaClienteDono = ConversaChat(
+        id: 'loja_laricas_usuario_$cpfDono',
+        titulo: 'Leonardo',
+        subtitulo: '@taddeoleonardo • Cliente',
+        identificador: cpfDono,
+        ehLoja: false,
+        lojaId: 'laricas',
+        foto: fotoCivilDono,
+        dataHoraUltimaMensagem: DateTime.now(),
+      );
+
+      expect(conversaClienteDono.ehLoja, isFalse);
+      expect(conversaClienteDono.foto, equals(fotoCivilDono));
+      expect(conversaClienteDono.foto, isNot(equals(logoLoja)));
+      expect(conversaClienteDono.identificador, equals(cpfDono));
+    });
   });
 }
 

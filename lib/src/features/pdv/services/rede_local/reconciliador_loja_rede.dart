@@ -18,6 +18,7 @@ import 'package:nous/src/features/pdv/models/registro_acao.dart';
 import 'package:nous/src/features/pdv/models/turno_caixa.dart';
 import 'package:nous/src/features/pdv/providers/pdv_provider.dart';
 import 'package:nous/src/features/pdv/services/imagem_service.dart';
+import 'package:nous/src/features/pdv/services/loja/consolidador_loja_local.dart';
 import 'package:nous/src/features/pdv/services/lojas_service.dart';
 import 'package:nous/src/features/pdv/services/rede_local/transferencia_arquivos_rede.dart';
 
@@ -552,15 +553,29 @@ class ReconciliadorLojaRede {
     lojaParaServidor = lojaParaServidor.copyWith(acoes: acoesLimitadas);
 
     // H. Pedidos, Movimentos de Estoque e Pagamentos - Indexação O(1)
-    final pedidosMesclados =
-        List<PedidoLoja>.from(lojaParaServidor.pedidosLoja);
-    final idsPedidos = pedidosMesclados.map((p) => p.id).toSet();
+    final mapaPedidos = <String, PedidoLoja>{
+      for (final p in lojaParaServidor.pedidosLoja) p.id: p,
+    };
     for (final pLocal in lojaLocal.pedidosLoja) {
-      if (idsPedidos.add(pLocal.id)) {
-        pedidosMesclados.add(pLocal);
+      if (!mapaPedidos.containsKey(pLocal.id)) {
+        mapaPedidos[pLocal.id] = pLocal;
         houveCuraNoServidor = true;
+      } else {
+        final existente = mapaPedidos[pLocal.id]!;
+        final mesclado =
+            ConsolidadorLojaLocal.mesclarDoisPedidos(existente, pLocal);
+        if (mesclado != existente) {
+          mapaPedidos[pLocal.id] = mesclado;
+          if (mesclado.status != existente.status ||
+              mesclado.quitado != existente.quitado ||
+              mesclado.valorPago != existente.valorPago) {
+            houveCuraNoServidor = true;
+          }
+        }
       }
     }
+    final pedidosMesclados = mapaPedidos.values.toList()
+      ..sort((a, b) => b.dataHora.compareTo(a.dataHora));
 
     final movimentosMesclados =
         List<MovimentoEstoque>.from(lojaParaServidor.movimentosEstoque);

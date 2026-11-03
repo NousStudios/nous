@@ -259,10 +259,7 @@ class ConsolidadorLojaLocal {
         pedidosMesclados[p.id] = p;
       } else {
         final existente = pedidosMesclados[p.id]!;
-        if (p.dataHora.isAfter(existente.dataHora) ||
-            (existente.status == StatusPedido.novo && p.status != StatusPedido.novo)) {
-          pedidosMesclados[p.id] = p;
-        }
+        pedidosMesclados[p.id] = mesclarDoisPedidos(existente, p);
       }
     }
     final listaPedidos = pedidosMesclados.values.toList()
@@ -373,6 +370,79 @@ class ConsolidadorLojaLocal {
       tipoLayoutMaior: lojaLocal.tipoLayoutMaior.isNotEmpty
           ? lojaLocal.tipoLayoutMaior
           : lojaNova.tipoLayoutMaior,
+    );
+  }
+
+  /// Mescla soberana de dois pedidos com o mesmo ID respeitando a máquina de estados,
+  /// quitações e integridade de itens e comentários.
+  static PedidoLoja mesclarDoisPedidos(PedidoLoja a, PedidoLoja b) {
+    int pesoStatus(StatusPedido s) {
+      switch (s) {
+        case StatusPedido.novo:
+          return 1;
+        case StatusPedido.aceito:
+          return 2;
+        case StatusPedido.concluido:
+          return 3;
+        case StatusPedido.cancelado:
+          return 4;
+      }
+    }
+
+    final pesoA = pesoStatus(a.status);
+    final pesoB = pesoStatus(b.status);
+
+    final StatusPedido statusFinal;
+    String motivoCancelamentoFinal = a.motivoCancelamento.isNotEmpty
+        ? a.motivoCancelamento
+        : b.motivoCancelamento;
+
+    if (pesoB > pesoA) {
+      statusFinal = b.status;
+      if (b.motivoCancelamento.isNotEmpty) {
+        motivoCancelamentoFinal = b.motivoCancelamento;
+      }
+    } else if (pesoA > pesoB) {
+      statusFinal = a.status;
+    } else {
+      statusFinal = a.status;
+    }
+
+    final quitadoFinal = a.quitado || b.quitado;
+    final valorPagoFinal = a.valorPago >= b.valorPago ? a.valorPago : b.valorPago;
+    final comandaFinal = b.comanda.isNotEmpty ? b.comanda : a.comanda;
+
+    String comentarioFinal = a.comentario;
+    String cpfAutorFinal = a.comentarioAutorCpf;
+    String nomeAutorFinal = a.comentarioAutorNome;
+    String emailAutorFinal = a.comentarioAutorEmail;
+    DateTime? dataHoraComentarioFinal = a.comentarioDataHora;
+
+    if (b.comentario.isNotEmpty) {
+      final dataA = a.comentarioDataHora ?? a.dataHora;
+      final dataB = b.comentarioDataHora ?? b.dataHora;
+      if (a.comentario.isEmpty || dataB.isAfter(dataA)) {
+        comentarioFinal = b.comentario;
+        cpfAutorFinal = b.comentarioAutorCpf;
+        nomeAutorFinal = b.comentarioAutorNome;
+        emailAutorFinal = b.comentarioAutorEmail;
+        dataHoraComentarioFinal = b.comentarioDataHora;
+      }
+    }
+
+    final pedidoBase = (pesoB > pesoA || b.dataHora.isAfter(a.dataHora)) ? b : a;
+
+    return pedidoBase.copyWith(
+      status: statusFinal,
+      motivoCancelamento: motivoCancelamentoFinal,
+      quitado: quitadoFinal,
+      valorPago: valorPagoFinal,
+      comanda: comandaFinal,
+      comentario: comentarioFinal,
+      comentarioAutorCpf: cpfAutorFinal,
+      comentarioAutorNome: nomeAutorFinal,
+      comentarioAutorEmail: emailAutorFinal,
+      comentarioDataHora: dataHoraComentarioFinal,
     );
   }
 }

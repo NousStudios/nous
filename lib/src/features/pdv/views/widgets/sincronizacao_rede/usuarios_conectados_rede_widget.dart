@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:nous/src/core/theme/theme_controller.dart';
+import 'package:nous/src/core/widgets/texto_rolante.dart';
 import 'package:nous/src/features/auth/models/usuario_nous.dart';
 import 'package:nous/src/features/auth/providers/auth_provider.dart';
 import 'package:nous/src/features/auth/services/contas_nous_service.dart';
@@ -67,39 +68,15 @@ class _UsuariosConectadosRedeWidgetState
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Row(
-                    children: [
-                      Icon(Icons.hub_rounded,
-                          size: 18, color: theme.textColor),
-                      const SizedBox(width: 8),
-                      Text(
-                        'Usuários Conectados na Rede:',
-                        style: theme.getTextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.bold,
-                          color: theme.textColor,
-                        ),
-                      ),
-                    ],
-                  ),
-                  Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
-                    decoration: BoxDecoration(
-                      color: Colors.greenAccent.withValues(alpha: 0.15),
-                      borderRadius: BorderRadius.circular(6),
-                      border: Border.all(
-                          color: Colors.greenAccent.withValues(alpha: 0.4)),
-                    ),
-                    child: Text(
-                      '${presencas.length} online',
-                      style: theme.getTextStyle(
-                        fontSize: 10,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.greenAccent,
-                      ),
+                  Icon(Icons.hub_rounded, size: 18, color: theme.textColor),
+                  const SizedBox(width: 8),
+                  Text(
+                    'UsuÃ¡rios Conectados na Rede:',
+                    style: theme.getTextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.bold,
+                      color: theme.textColor,
                     ),
                   ),
                 ],
@@ -146,7 +123,45 @@ class _UsuariosConectadosRedeWidgetState
                   ),
                 ),
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 10),
+              Padding(
+                padding: const EdgeInsets.only(bottom: 6),
+                child: Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: Colors.greenAccent.withValues(alpha: 0.15),
+                        borderRadius: BorderRadius.circular(6),
+                        border: Border.all(
+                            color: Colors.greenAccent.withValues(alpha: 0.4)),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Container(
+                            width: 6,
+                            height: 6,
+                            decoration: const BoxDecoration(
+                              color: Colors.greenAccent,
+                              shape: BoxShape.circle,
+                            ),
+                          ),
+                          const SizedBox(width: 5),
+                          Text(
+                            '${presencas.length} online na rede',
+                            style: theme.getTextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.greenAccent,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
               if (listaFiltrada.isEmpty)
                 Container(
                   padding: const EdgeInsets.all(12),
@@ -156,8 +171,8 @@ class _UsuariosConectadosRedeWidgetState
                   ),
                   child: Text(
                     presencas.isEmpty
-                        ? 'Nenhum outro usuário detectado na rede até o momento.'
-                        : 'Nenhum usuário encontrado para a busca "$termo".',
+                        ? 'Nenhum outro usuÃ¡rio detectado na rede atÃ© o momento.'
+                        : 'Nenhum usuÃ¡rio encontrado para a busca "$termo".',
                     textAlign: TextAlign.center,
                     style: theme.getTextStyle(
                       fontSize: 11,
@@ -207,15 +222,13 @@ class _UsuariosConectadosRedeWidgetState
                                 Row(
                                   children: [
                                     Expanded(
-                                      child: Text(
-                                        nomeExibicao,
+                                      child: TextoRolante(
+                                        texto: nomeExibicao,
                                         style: theme.getTextStyle(
                                           fontSize: 12,
                                           fontWeight: FontWeight.bold,
                                           color: theme.textColor,
                                         ),
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
                                       ),
                                     ),
                                     if (term.ehHost)
@@ -245,41 +258,15 @@ class _UsuariosConectadosRedeWidgetState
                                 Row(
                                   children: [
                                     Expanded(
-                                      child: Text.rich(
-                                        TextSpan(
-                                          children: [
-                                            if (temApelido)
-                                              TextSpan(
-                                                text: '@${term.apelido}',
-                                                style: theme.getTextStyle(
-                                                  fontSize: 10,
-                                                  color: theme.buttonColor,
-                                                  fontWeight: FontWeight.w600,
-                                                ),
-                                              ),
-                                            if (temApelido && temCpf)
-                                              TextSpan(
-                                                text: ' • ',
-                                                style: theme.getTextStyle(
-                                                  fontSize: 10,
-                                                  color:
-                                                      theme.secondaryTextColor,
-                                                ),
-                                              ),
-                                            if (temCpf)
-                                              TextSpan(
-                                                text: CpfValidator.format(
-                                                    term.cpf!),
-                                                style: theme.getTextStyle(
-                                                  fontSize: 10,
-                                                  color:
-                                                      theme.secondaryTextColor,
-                                                ),
-                                              ),
-                                          ],
+                                      child: TextoRolante(
+                                        texto: [
+                                          if (temApelido) '@${term.apelido}',
+                                          if (temCpf) CpfValidator.formatProtegido(term.cpf!),
+                                        ].join(' • '),
+                                        style: theme.getTextStyle(
+                                          fontSize: 10,
+                                          color: theme.secondaryTextColor,
                                         ),
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
                                       ),
                                     ),
                                     Text(
@@ -298,7 +285,7 @@ class _UsuariosConectadosRedeWidgetState
                           const SizedBox(width: 8),
                           if (temCpf)
                             IconButton(
-                              tooltip: 'Ver Ficha do Usuário',
+                              tooltip: 'Ver Ficha do UsuÃ¡rio',
                               icon: Icon(Icons.info_outline_rounded,
                                   size: 16, color: theme.secondaryTextColor),
                               padding: EdgeInsets.zero,

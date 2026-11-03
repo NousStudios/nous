@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -46,6 +47,7 @@ class _PerfisPdvViewState extends State<PerfisPdvView> {
           plataforma != TargetPlatform.macOS) {
         await ClienteRedeLocal().tentarAutoConectarSeDisponivel(pdv, auth);
       }
+      unawaited(ClienteRedeLocal().verificarAtualizacaoLocal());
 
       if (widget.abrirSincronizacaoInicial && mounted) {
         SincronizacaoRedeDialog.mostrar(
