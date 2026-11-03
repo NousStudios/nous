@@ -2,6 +2,19 @@
 
 Uma linha por mudança, da mais recente para a mais antiga. O agente deve acrescentar aqui o que fez em cada ciclo (versão do `pubspec.yaml` + o que mudou). Este arquivo guarda **histórico**; a descrição atual do app fica em `MAPA_DO_APP.md`.
 
+## v1.0.68 (build 69) — 02/11/2026
+
+- **Concorrência Aditiva em Mesas na Rede Local, Manutenção Preventiva de Banco SQLite (VACUUM/Integrity Check) e Desacoplamento do PdvProvider (Meta /goal Concluída):**
+  - **Blindagem Concorrente em Mesas na Rede Local P2P (Ponto A):**
+    - [reconciliador_loja_rede.dart](file:///d:/Nous/nous/lib/src/features/pdv/services/rede_local/reconciliador_loja_rede.dart): Mesclagem de mesas aprimorada de substituição cega para união aditiva e granular de consumos (`ItemComandaMesa`). Itens lançados por diferentes garçons ou terminais concorrentes são mesclados por ID sem perda ou sobrescrita, preservando o status e total acumulado.
+    - [roteador_loja_pedidos.dart](file:///d:/Nous/nous/lib/src/features/pdv/services/rede_local/handlers/roteador_loja_pedidos.dart): Endpoint `POST /api/mesa` atualizado para mesclagem aditiva inteligente, impedindo que lançamentos simultâneos descartem consumos registrados por outro terminal na mesma mesa.
+  - **Manutenção Preventiva e Saúde do SQLite (Ponto C):**
+    - [banco_dados_service.dart](file:///d:/Nous/nous/lib/src/core/services/banco_dados_service.dart): Implementado `executarManutencaoPreventiva()` com `PRAGMA integrity_check` (detecção de corrupção de páginas B-Tree), `VACUUM` (compactação, desfragmentação física e devolução de espaço em disco ao sistema operacional) e `PRAGMA optimize`. Rotina disparada automaticamente a cada 7 dias em segundo plano sem travar o startup.
+  - **Desacoplamento e Redução do PdvProvider (Item 1):**
+    - Criado [pdv_lojas_cofre_helper.dart](file:///d:/Nous/nous/lib/src/features/pdv/providers/helpers/pdv_lojas_cofre_helper.dart): Extraídas responsabilidades de resolução de referências, expurgo de órfãs, sucessão de dono e loja coletiva Nous.
+    - [pdv_provider.dart](file:///d:/Nous/nous/lib/src/features/pdv/providers/pdv_provider.dart) reduzido de **1.292 para 1.071 linhas**, tornando o fluxo de gerenciamento de lojas limpo e desacoplado.
+  - **Qualidade, Estabilidade e Documentação:** 0 issues no `dart analyze`, 102/102 testes aprovados no `flutter test`, documentação em `MAPA_DO_APP.md`, `README.md` e binários atualizados na pasta `dist/`.
+
 ## v1.0.67 (build 68) — 02/11/2026
 
 - **Blindagem Definitiva de Longo Prazo: Proteção de Memória (RAM), Otimização de Rede LAN O(1) e Paginação em Relatórios e Estoque (Meta /goal Concluída):**

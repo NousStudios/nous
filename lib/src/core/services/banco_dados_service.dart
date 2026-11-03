@@ -53,7 +53,74 @@ class BancoDadosService {
 
     await _migrarDadosDoSharedPreferencesSeNecessario(banco);
 
+    // Dispara a manutenção preventiva periódica (VACUUM e integrity_check) em segundo plano
+    _executarManutencaoEmSegundoPlano(banco);
+
     return banco;
+  }
+
+  static void _executarManutencaoEmSegundoPlano(Database banco) {
+    Future.microtask(() async {
+      try {
+        await executarManutencaoPreventiva(bancoInstancia: banco);
+      } catch (e) {
+        debugPrint('[BancoDadosService] Erro na manutenção periódica em background: $e');
+      }
+    });
+  }
+
+  /// Executa manutenção preventiva de saúde e integridade do banco SQLite:
+  /// 1. PRAGMA integrity_check para detectar corrupção de páginas.
+  /// 2. VACUUM para compactar, desfragmentar e devolver espaço em disco ao SO.
+  /// 3. PRAGMA optimize para atualizar estatísticas do planejador de consultas.
+  static Future<Map<String, dynamic>> executarManutencaoPreventiva({
+    Database? bancoInstancia,
+    bool forcar = false,
+  }) async {
+    const chaveUltimaManutencao = 'nous_ultima_manutencao_sqlite';
+    final agora = DateTime.now();
+
+    final prefs = await SharedPreferences.getInstance();
+    if (!forcar) {
+      final ultimaStr = prefs.getString(chaveUltimaManutencao);
+      if (ultimaStr != null) {
+        final ultimaData = DateTime.tryParse(ultimaStr);
+        if (ultimaData != null && agora.difference(ultimaData).inDays < 7) {
+          return {
+            'executado': false,
+            'motivo': 'Manutenção já realizada recentemente (${ultimaData.toIso8601String()})',
+          };
+        }
+      }
+    }
+
+    final database = bancoInstancia ?? await db;
+
+    debugPrint('[BancoDadosService] Iniciando manutenção preventiva do SQLite (VACUUM e PRAGMA)...');
+
+    // 1. Verificação de integridade
+    final integridadeRes = await database.rawQuery('PRAGMA integrity_check');
+    final statusIntegridade = integridadeRes.isNotEmpty
+        ? integridadeRes.first.values.first?.toString() ?? 'ok'
+        : 'ok';
+
+    // 2. Compactação e desfragmentação com devolução de espaço em disco ao sistema
+    await database.execute('VACUUM');
+
+    // 3. Otimização dos índices e tabelas
+    await database.execute('PRAGMA optimize');
+
+    await prefs.setString(chaveUltimaManutencao, agora.toIso8601String());
+
+    debugPrint(
+      '[BancoDadosService] Manutenção preventiva concluída com sucesso! Integridade: $statusIntegridade',
+    );
+
+    return {
+      'executado': true,
+      'integridade': statusIntegridade,
+      'dataHora': agora.toIso8601String(),
+    };
   }
 
   static Future<void> _criarTabelas(Database db) async {

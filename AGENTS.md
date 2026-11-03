@@ -45,7 +45,7 @@ Após cada ciclo concluído e validado (testes e `flutter analyze`), compile os 
 
 SuperApp brasileiro, livre e de código aberto, de **Autogestão Comercial e Social**, baseado no Plataformismo Brasileiro. Hoje o núcleo é um **PDV completo** (lojas, vendas, estoque, caixa, financeiro, impressão térmica) com identidade por CPF, notificações deliberativas e sincronização local por Wi-Fi. Módulos futuros (pastas reservadas): `chat`, `timeline`, `delivery`, `banco`, `autogestao`.
 
-- Stack: Flutter/Dart, `Provider` (ChangeNotifier), SQLite local (`sqflite_common_ffi`), versão atual no `pubspec.yaml` (hoje v1.0.62+63).
+- Stack: Flutter/Dart, `Provider` (ChangeNotifier), SQLite local (`sqflite_common_ffi`), versão atual no `pubspec.yaml` (hoje v1.0.68+69).
 - Plataformas: Windows (foco principal), Android; também Web, Linux, iOS.
 - Política e filosofia completas: `docs/filosofia.md`.
 

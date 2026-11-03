@@ -402,10 +402,30 @@ class RoteadorLojaPedidos {
           if (lojaAtual != null) {
             final mesas = List<MesaLoja>.from(lojaAtual.mesas);
             final idx = mesas.indexWhere((m) => m.id == mesa.id);
+            MesaLoja mesaEfetiva = mesa;
             if (idx != -1) {
-              mesas[idx] = mesa;
+              final existente = mesas[idx];
+              if (mesa.status == StatusMesa.livre && mesa.itens.isEmpty) {
+                mesaEfetiva = mesa;
+              } else {
+                final mapaItens = <String, ItemComandaMesa>{
+                  for (final it in existente.itens) it.id: it,
+                };
+                for (final it in mesa.itens) {
+                  mapaItens[it.id] = it;
+                }
+                final itensMesclados = mapaItens.values.toList()
+                  ..sort((a, b) => a.dataHora.compareTo(b.dataHora));
+                mesaEfetiva = mesa.copyWith(
+                  itens: itensMesclados,
+                  status: itensMesclados.isNotEmpty
+                      ? StatusMesa.ocupada
+                      : mesa.status,
+                );
+              }
+              mesas[idx] = mesaEfetiva;
             } else {
-              mesas.add(mesa);
+              mesas.add(mesaEfetiva);
             }
             servidor.pdvProvider!.atualizarListasLoja(
               lojaAtual.id,
@@ -413,7 +433,7 @@ class RoteadorLojaPedidos {
             );
             servidor.notificarTodos({
               'tipo': 'mesa_atualizada',
-              'mesa': mesa.toJson(),
+              'mesa': mesaEfetiva.toJson(),
             });
           }
         }

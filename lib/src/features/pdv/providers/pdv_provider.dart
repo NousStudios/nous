@@ -15,12 +15,8 @@ import 'package:nous/src/features/pdv/models/movimento_estoque.dart';
 import 'package:nous/src/features/pdv/models/pagamento_funcionario.dart';
 import 'package:nous/src/features/pdv/models/pedido_loja.dart';
 import 'package:nous/src/features/pdv/models/pedido_programado.dart';
-import 'package:nous/src/features/pdv/models/referencia_loja.dart';
 import 'package:nous/src/features/pdv/models/registro_acao.dart';
 import 'package:nous/src/features/pdv/models/turno_caixa.dart';
-import 'package:nous/src/core/services/banco_dados_service.dart';
-import 'package:nous/src/features/auth/services/contas_nous_service.dart';
-import 'package:nous/src/features/pdv/services/backup_service.dart';
 import 'package:nous/src/features/pdv/services/lojas_service.dart';
 import 'package:nous/src/features/pdv/services/rede_local/cliente_rede_local.dart';
 import 'package:nous/src/features/pdv/services/rede_local/servidor_rede_local.dart';
@@ -30,6 +26,7 @@ import 'package:nous/src/features/pdv/providers/helpers/pdv_caixa_helper.dart';
 import 'package:nous/src/features/pdv/providers/helpers/pdv_pedidos_programados_helper.dart';
 import 'package:nous/src/features/pdv/providers/helpers/pdv_membros_cargos_helper.dart';
 import 'package:nous/src/features/pdv/providers/helpers/pdv_estoque_financeiro_helper.dart';
+import 'package:nous/src/features/pdv/providers/helpers/pdv_lojas_cofre_helper.dart';
 
 class PdvProvider extends ChangeNotifier {
   final List<Loja> _lojas = [];
@@ -276,161 +273,13 @@ class PdvProvider extends ChangeNotifier {
 
   Future<void> entrarComCpf(String cpf) async {
     _cpfAtual = cpf;
-    await LojasService.expurgarLojasHostFalsas();
-
-    final minhasLojasBrutas = await LojasService.carregar(cpf);
-    final minhasLojasDesduplicadas =
-        BackupService.desduplicarLojas(minhasLojasBrutas);
-    final minhasLojas = minhasLojasDesduplicadas
-        .map((l) => l.cpfDonoOriginal.isEmpty
-            ? l.copyWith(cpfDonoOriginal: cpf)
-            : l)
-        .where((l) =>
-            _mesmoCpf(l.cpfDonoOriginal, cpf) ||
-            l.membros.any((m) => _mesmoCpf(m.cpf, cpf)))
-        .toList();
-    if (minhasLojas.length != minhasLojasBrutas.length) {
-      await LojasService.salvar(cpf, minhasLojas);
-    }
-
-    final referencias = await LojasService.carregarReferencias(cpf);
-    final lojasReferenciadas = <Loja>[];
-    final referenciasOrfas = <ReferenciaLoja>[];
-
-    for (final ref in referencias) {
-      // Se a referência aponta para a própria loja do dono ou já existe em minhasLojas, remove a redundância
-      if (_mesmoCpf(ref.cpfDonoOriginal, cpf) ||
-          minhasLojas.any((l) => l.id == ref.lojaId)) {
-        referenciasOrfas.add(ref);
-        continue;
-      }
-      final cofre = await LojasService.carregar(ref.cpfDonoOriginal);
-      Loja? encontrada;
-      for (final l in cofre) {
-        if (l.id == ref.lojaId) {
-          encontrada = l;
-          break;
-        }
-      }
-      encontrada ??= await LojasService.carregarLojaPorId(ref.lojaId);
-
-      if (encontrada == null ||
-          (!_mesmoCpf(encontrada.cpfDonoOriginal, cpf) &&
-           !encontrada.membros.any((m) => _mesmoCpf(m.cpf, cpf)))) {
-        referenciasOrfas.add(ref);
-        continue;
-      }
-      lojasReferenciadas.add(encontrada);
-    }
-
-    for (final ref in referenciasOrfas) {
-      await LojasService.removerReferencia(cpf, ref.lojaId);
-    }
-
+    final lojasCompletas = await PdvLojasCofreHelper.carregarLojasCompletas(cpf);
     _lojas
       ..clear()
-      ..addAll(minhasLojas.where((l) => !LojasService.ehLojaHostFalsa(l.id, l.tags, l.nome)));
-    for (final refLoja in lojasReferenciadas) {
-      if (!LojasService.ehLojaHostFalsa(refLoja.id, refLoja.tags, refLoja.nome) &&
-          !_lojas.any((l) => l.id == refLoja.id)) {
-        _lojas.add(refLoja);
-      }
-    }
-
-    await _garantirLojaColetivaNous(cpf);
-
+      ..addAll(lojasCompletas);
     notifyListeners();
   }
 
-  /// Consolida a existência da organização/loja coletiva "Nous" em "Perfis que eu participo",
-  /// garantindo que todos os usuários Nous sejam membros sócios deliberativos.
-  Future<void> _garantirLojaColetivaNous(String cpfUsuario) async {
-    try {
-      final contas = await ContasNousService.carregarTodas();
-      final membrosSocios = <MembroLoja>[];
-
-      for (final conta in contas) {
-        final cpfLimpo = conta.cpf.replaceAll(RegExp(r'\D'), '');
-        if (cpfLimpo.length == 11 && conta.nome.trim().toLowerCase() != 'blackview') {
-          membrosSocios.add(
-            MembroLoja(
-              cpf: conta.cpf,
-              nome: conta.nome.isNotEmpty ? conta.nome : 'Usuário Nous',
-              papel: PapelMembro.socio,
-              desde: DateTime.now(),
-            ),
-          );
-        }
-      }
-
-      if (!membrosSocios.any((m) => _mesmoCpf(m.cpf, cpfUsuario))) {
-        final contaAtual = await ContasNousService.buscarPorCpf(cpfUsuario);
-        membrosSocios.add(
-          MembroLoja(
-            cpf: cpfUsuario,
-            nome: (contaAtual != null && contaAtual.nome.trim().isNotEmpty)
-                ? contaAtual.nome.trim()
-                : 'Usuário Nous',
-            papel: PapelMembro.socio,
-            desde: DateTime.now(),
-          ),
-        );
-      }
-
-      var lojaColetiva = await LojasService.carregarLojaPorId(idLojaColetivaNous);
-      if (lojaColetiva == null) {
-        lojaColetiva = Loja(
-          id: idLojaColetivaNous,
-          nome: 'Nous',
-          cpfDonoOriginal: '00000000000',
-          cnpj: '00.000.000/0001-00',
-          telefone: '',
-          endereco: 'Rede Local Soberana',
-          numero: 'S/N',
-          email: 'nousstudios72@gmail.com',
-          redesSociais: '@nous.studios72',
-          categorias: 'Autogestão, Comunidade, Software Livre',
-          tags: 'Software Universal de Autogestão Comercial e Social',
-          logo: 'assets/images/logo.png',
-          membros: membrosSocios,
-        );
-      } else {
-        final mapaMembros = {for (final m in lojaColetiva.membros) m.cpf: m};
-        for (final novo in membrosSocios) {
-          if (!mapaMembros.containsKey(novo.cpf)) {
-            mapaMembros[novo.cpf] = novo;
-          }
-        }
-        lojaColetiva = lojaColetiva.copyWith(
-          nome: 'Nous',
-          email: 'nousstudios72@gmail.com',
-          redesSociais: '@nous.studios72',
-          categorias: 'Autogestão, Comunidade, Software Livre',
-          tags: 'Software Universal de Autogestão Comercial e Social',
-          logo: 'assets/images/logo.png',
-          membros: mapaMembros.values.toList(),
-        );
-      }
-
-      await LojasService.salvarLojaIndividual(lojaColetiva);
-      await LojasService.adicionarReferencia(
-        cpfUsuario,
-        const ReferenciaLoja(
-          lojaId: idLojaColetivaNous,
-          cpfDonoOriginal: '00000000000',
-        ),
-      );
-
-      final idx = _lojas.indexWhere((l) => l.id == idLojaColetivaNous);
-      if (idx == -1) {
-        _lojas.add(lojaColetiva);
-      } else {
-        _lojas[idx] = lojaColetiva;
-      }
-    } catch (e) {
-      debugPrint('[PdvProvider] Erro ao consolidar loja coletiva Nous: $e');
-    }
-  }
 
   /// Alterna a função de Desenvolvedor para um membro na Loja Coletiva Nous
   Future<void> alternarFuncaoDesenvolvedorNous(String cpf) async {
@@ -1098,84 +947,10 @@ class PdvProvider extends ChangeNotifier {
     if (indice == -1) return;
     final loja = _lojas[indice];
 
-    final souDonoOriginal = _mesmoCpf(loja.cpfDonoOriginal, cpf);
-    final outros = loja.membros.where((m) => !_mesmoCpf(m.cpf, cpf)).toList();
-
     _lojas.removeAt(indice);
     notifyListeners();
 
-    if (outros.isEmpty) {
-      if (souDonoOriginal) {
-        final cofre = await LojasService.carregar(cpf);
-        await LojasService.salvar(
-          cpf,
-          cofre.where((l) => l.id != lojaId).toList(),
-        );
-      } else {
-        await LojasService.removerReferencia(cpf, lojaId);
-        final db = await BancoDadosService.db;
-        await db.delete('lojas', where: 'id = ?', whereArgs: [lojaId]);
-        if (ClienteRedeLocal().conectado) {
-          await ClienteRedeLocal().notificarSaidaLoja(lojaId, cpf);
-        }
-      }
-      return;
-    }
-
-    int peso(PapelMembro p) {
-      if (p == PapelMembro.socio) return 0;
-      if (p == PapelMembro.admin) return 1;
-      if (p == PapelMembro.funcionario) return 2;
-      return 3;
-    }
-
-    final ordenados = [...outros]
-      ..sort((a, b) => peso(a.papel).compareTo(peso(b.papel)));
-    final sucessor = ordenados.first;
-
-    if (souDonoOriginal) {
-      final lojaTransferida = loja.copyWith(
-        cpfDonoOriginal: sucessor.cpf,
-        membros: outros
-            .map((m) => m.cpf == sucessor.cpf
-                ? m.copyWith(papel: PapelMembro.dono)
-                : m)
-            .toList(),
-      );
-
-      final cofreSucessor = await LojasService.carregar(sucessor.cpf);
-      final jaTem =
-          cofreSucessor.any((l) => l.id == lojaTransferida.id);
-      if (jaTem) {
-        await LojasService.salvar(
-          sucessor.cpf,
-          cofreSucessor
-              .map((l) =>
-                  l.id == lojaTransferida.id ? lojaTransferida : l)
-              .toList(),
-        );
-      } else {
-        await LojasService.salvar(
-          sucessor.cpf,
-          [...cofreSucessor, lojaTransferida],
-        );
-      }
-
-      final cofreAntigo = await LojasService.carregar(cpf);
-      await LojasService.salvar(
-        cpf,
-        cofreAntigo.where((l) => l.id != lojaId).toList(),
-      );
-    } else {
-      final lojaAtualizada = loja.copyWith(membros: outros);
-      await _salvarLojaNoCofreCorreto(lojaAtualizada);
-      await LojasService.removerReferencia(cpf, lojaId);
-      final db = await BancoDadosService.db;
-      await db.delete('lojas', where: 'id = ?', whereArgs: [lojaId]);
-      if (ClienteRedeLocal().conectado) {
-        await ClienteRedeLocal().notificarSaidaLoja(lojaId, cpf);
-      }
-    }
+    await PdvLojasCofreHelper.processarSaidaLoja(loja: loja, cpfUsuario: cpf);
   }
 
   TurnoCaixa? turnoCaixaAberto(String lojaId) =>

@@ -520,6 +520,17 @@ Todas abrem centralizadas, aceitam **F11** e, no desktop expandido, ficam em **d
   - 📄 `pdv/views/widgets/relatorios/auditoria_relatorio_widget.dart`: Reduzido para 285 linhas, com renderização de lotes progressivos (50 itens por página) via rolagem infinita. Detalhes desacoplados em `detalhes_acao_dialog.dart` e `barra_acao_widget.dart`.
   - 📄 `pdv/views/widgets/estoque_container.dart`: Reduzido para 357 linhas. Cálculo de saldos otimizado de $O(I \times M)$ para $O(M)$ por pré-computação em mapa hash. Subcomponentes `ficha_kardex_dialog.dart` e `linha_movimento_widget.dart` extraídos para `views/widgets/estoque/`.
 
+### 7.17 Concorrência Aditiva em Mesas, Manutenção de Banco e Desacoplamento do PdvProvider (v1.0.68)
+- **Blindagem de Concorrência em Mesas na Rede Local P2P**:
+  - 📄 `pdv/services/rede_local/reconciliador_loja_rede.dart` e `pdv/services/rede_local/handlers/roteador_loja_pedidos.dart`:
+    - Mesclagem aditiva e granular de consumos (`ItemComandaMesa`) nas mesas.
+    - Quando dois garçons ou terminais lançam pedidos concorrentemente na mesma mesa, os itens são combinados por ID único sem perda de consumo e sem sobrescrever comanda.
+- **Manutenção Preventiva e Saúde do SQLite**:
+  - 📄 `core/services/banco_dados_service.dart`: Método `executarManutencaoPreventiva()` executando `PRAGMA integrity_check`, `VACUUM` (compactação física de páginas e liberação de espaço em disco ao sistema) e `PRAGMA optimize`.
+  - Execução periódica automática em segundo plano a cada 7 dias de uso contínuo.
+- **Desacoplamento do PdvProvider**:
+  - 📄 `pdv/providers/helpers/pdv_lojas_cofre_helper.dart`: Extraído helper de carregamento de lojas, referências, sucessão de dono e consolidação da Loja Coletiva Nous, reduzindo a complexidade de `PdvProvider`.
+
 ---
 
 ## 8. Atalhos de teclado (resumo)

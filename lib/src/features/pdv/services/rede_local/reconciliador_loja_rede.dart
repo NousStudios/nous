@@ -487,16 +487,54 @@ class ReconciliadorLojaRede {
     lojaParaServidor =
         lojaParaServidor.copyWith(fornecedoresLoja: novosFornecedoresServidor);
 
-    // F. Mesas
-    final mesasMescladas = List<MesaLoja>.from(lojaParaServidor.mesas);
-    final idsMesas = mesasMescladas.map((m) => m.id).toSet();
+    // F. Mesas com mesclagem aditiva granular de itens de comanda (blindagem contra concorrência)
+    final mapaMesas = <String, MesaLoja>{
+      for (final m in lojaParaServidor.mesas) m.id: m,
+    };
     for (final mLocal in lojaLocal.mesas) {
-      if (idsMesas.add(mLocal.id)) {
-        mesasMescladas.add(mLocal);
+      final mExistente = mapaMesas[mLocal.id];
+      if (mExistente == null) {
+        mapaMesas[mLocal.id] = mLocal;
         houveCuraNoServidor = true;
+      } else {
+        // Ambas as pontas possuem a mesma mesa: mesclar itens de comanda por ID do item
+        final mapaItens = <String, ItemComandaMesa>{
+          for (final it in mExistente.itens) it.id: it,
+        };
+        var itensAdicionados = false;
+        for (final itLocal in mLocal.itens) {
+          if (!mapaItens.containsKey(itLocal.id)) {
+            mapaItens[itLocal.id] = itLocal;
+            itensAdicionados = true;
+          }
+        }
+        if (itensAdicionados) {
+          final todosItens = mapaItens.values.toList()
+            ..sort((a, b) => a.dataHora.compareTo(b.dataHora));
+          final statusEfetivo = todosItens.isNotEmpty
+              ? StatusMesa.ocupada
+              : (mExistente.status == StatusMesa.ocupada ||
+                      mLocal.status == StatusMesa.ocupada
+                  ? StatusMesa.ocupada
+                  : StatusMesa.livre);
+          final clienteEfetivo = mExistente.clienteNome.isNotEmpty
+              ? mExistente.clienteNome
+              : mLocal.clienteNome;
+          final obsEfetiva = mExistente.observacoes.isNotEmpty
+              ? mExistente.observacoes
+              : mLocal.observacoes;
+
+          mapaMesas[mLocal.id] = mExistente.copyWith(
+            itens: todosItens,
+            status: statusEfetivo,
+            clienteNome: clienteEfetivo,
+            observacoes: obsEfetiva,
+          );
+          houveCuraNoServidor = true;
+        }
       }
     }
-    lojaParaServidor = lojaParaServidor.copyWith(mesas: mesasMescladas);
+    lojaParaServidor = lojaParaServidor.copyWith(mesas: mapaMesas.values.toList());
 
     // G. Histórico de Auditoria (Ações) - Com janela de retenção de 2.000 itens para evitar OOM
     final acoesMescladas = List<RegistroAcao>.from(lojaParaServidor.acoes);
