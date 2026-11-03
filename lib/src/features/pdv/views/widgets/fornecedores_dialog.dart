@@ -1,21 +1,17 @@
-import 'dart:io';
-
 import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:nous/src/core/theme/theme_controller.dart';
 import 'package:nous/src/core/services/janela_windows_service.dart';
-import 'package:nous/src/core/widgets/themed_text_field.dart';
 import 'package:nous/src/features/pdv/models/cliente.dart';
 import 'package:nous/src/features/pdv/models/fornecedor.dart';
 import 'package:nous/src/features/pdv/providers/pdv_provider.dart';
-import 'package:nous/src/features/pdv/services/cnpj_input_formatter.dart';
 import 'package:nous/src/features/pdv/services/imagem_service.dart';
-import 'package:nous/src/features/pdv/services/telefone_input_formatter.dart';
-import 'package:nous/src/features/pdv/views/widgets/estado_vazio_container.dart';
 import 'package:nous/src/features/pdv/views/widgets/opcoes_imagem_dialog.dart';
-import 'package:nous/src/core/widgets/texto_rolante.dart';
+import 'package:nous/src/features/pdv/views/widgets/fornecedores/bloco_importar_cliente_fornecedor_widget.dart';
+import 'package:nous/src/features/pdv/views/widgets/fornecedores/formulario_fornecedor_widget.dart';
+import 'package:nous/src/features/pdv/views/widgets/fornecedores/lista_fornecedores_widget.dart';
 
 class FornecedoresDialog {
   static Future<void> mostrar(
@@ -102,8 +98,6 @@ class _FornecedoresConteudoState extends State<_FornecedoresConteudo> {
   final _emailController = TextEditingController();
   final _redesSociaisController = TextEditingController();
   final _descricaoController = TextEditingController();
-  final _pesquisaController = TextEditingController();
-  final _pesquisaClientesController = TextEditingController();
 
   late List<Fornecedor> _fornecedores;
   late List<Cliente> _clientes;
@@ -131,8 +125,6 @@ class _FornecedoresConteudoState extends State<_FornecedoresConteudo> {
     _emailController.dispose();
     _redesSociaisController.dispose();
     _descricaoController.dispose();
-    _pesquisaController.dispose();
-    _pesquisaClientesController.dispose();
     super.dispose();
   }
 
@@ -336,530 +328,43 @@ class _FornecedoresConteudoState extends State<_FornecedoresConteudo> {
     return _fornecedores.any((f) => f.origemClienteId == cliente.id);
   }
 
-  BoxDecoration get _decoracaoDoBloco => BoxDecoration(
-        color: theme.backgroundColor.withValues(alpha: 0.4),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: theme.borderColor.withValues(alpha: 0.6)),
-      );
-
-  InputDecoration _decoracaoPesquisa(String dica) {
-    OutlineInputBorder borda(Color cor) => OutlineInputBorder(
-          borderRadius: BorderRadius.circular(30),
-          borderSide: BorderSide(color: cor),
-        );
-    return InputDecoration(
-      hintText: dica,
-      hintStyle:
-          theme.getTextStyle(fontSize: 12, color: theme.secondaryTextColor),
-      isDense: true,
-      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      prefixIcon: Icon(
-        Icons.search,
-        size: 18,
-        color: theme.secondaryTextColor,
-      ),
-      prefixIconConstraints: const BoxConstraints(minWidth: 36),
-      enabledBorder: borda(theme.borderColor),
-      focusedBorder: borda(theme.textColor),
-    );
-  }
-
-  Widget _tituloDoBloco(String texto) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 10),
-      child: Text(
-        texto,
-        textAlign: TextAlign.center,
-        style: theme.getTextStyle(
-          fontSize: 15,
-          fontWeight: FontWeight.w600,
-          color: theme.textColor,
-        ),
-      ),
-    );
-  }
-
-  Widget _botao(String rotulo, VoidCallback aoPressionar,
-      {bool destaque = false}) {
-    return OutlinedButton(
-      style: ButtonStyle(
-        backgroundColor: WidgetStateProperty.resolveWith((states) {
-          if (states.contains(WidgetState.hovered)) {
-            return theme.borderColor.withValues(alpha: 0.18);
-          }
-          return (destaque && theme.buttonColor != Colors.transparent)
-              ? theme.buttonColor
-              : Colors.transparent;
-        }),
-        foregroundColor: WidgetStateProperty.resolveWith((states) {
-          if (destaque && theme.buttonColor != Colors.transparent) {
-            return theme.buttonTextColor;
-          }
-          return theme.textColor;
-        }),
-        side: WidgetStateProperty.resolveWith((states) {
-          if (states.contains(WidgetState.hovered)) {
-            return BorderSide(color: theme.textColor, width: 1.4);
-          }
-          return BorderSide(color: theme.borderColor, width: 1.0);
-        }),
-        padding: const WidgetStatePropertyAll(
-          EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        ),
-        shape: WidgetStatePropertyAll(
-          RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-        ),
-      ),
-      onPressed: aoPressionar,
-      child: Text(
-        rotulo,
-        style: theme.getTextStyle(
-          fontSize: 12,
-          fontWeight: destaque ? FontWeight.bold : FontWeight.normal,
-          color: (destaque && theme.buttonColor != Colors.transparent)
-              ? theme.buttonTextColor
-              : theme.textColor,
-        ),
-      ),
-    );
-  }
-
-  Widget _blocoFormulario() {
-    final editando = _editando;
-    final veioDeCliente = _origemClienteId != null && editando == null;
-
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(12),
-      decoration: _decoracaoDoBloco,
-      child: Column(
-        children: [
-          _tituloDoBloco(
-            editando != null
-                ? 'Editar Fornecedor'
-                : (veioDeCliente
-                    ? 'Novo Fornecedor (dados do cliente)'
-                    : 'Novo Fornecedor'),
-          ),
-
-          InkWell(
-            onTap: _alterarFotoFornecedor,
-            customBorder: const CircleBorder(),
-            child: Builder(
-              builder: (context) {
-                final fotoResolvida = ImagemService.resolverCaminhoExistente(_foto);
-                return CircleAvatar(
-                  radius: 40,
-                  backgroundColor: theme.cardBackgroundColor,
-                  backgroundImage:
-                      fotoResolvida != null ? FileImage(File(fotoResolvida)) : null,
-                  child: fotoResolvida == null
-                      ? Icon(
-                          Icons.storefront_outlined,
-                          size: 44,
-                          color: theme.secondaryTextColor,
-                        )
-                      : null,
-                );
-              },
-            ),
-          ),
-          const SizedBox(height: 20),
-
-          ThemedTextField(
-            theme: theme,
-            controller: _nomeController,
-            label: 'Nome do Fornecedor',
-            obrigatorio: true,
-          ),
-          const SizedBox(height: 12),
-
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                child: ThemedTextField(
-                  theme: theme,
-                  controller: _cnpjController,
-                  label: 'CNPJ',
-                  tipoDeTeclado: TextInputType.number,
-                  formatadores: [CnpjInputFormatter()],
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: ThemedTextField(
-                  theme: theme,
-                  controller: _telefoneController,
-                  label: 'Telefone',
-                  tipoDeTeclado: TextInputType.phone,
-                  formatadores: [TelefoneInputFormatter()],
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                flex: 3,
-                child: ThemedTextField(
-                  theme: theme,
-                  controller: _enderecoController,
-                  label: 'Endereço',
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                flex: 1,
-                child: ThemedTextField(
-                  theme: theme,
-                  controller: _numeroController,
-                  label: 'Nº',
-                  tipoDeTeclado: TextInputType.number,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-
-          ThemedTextField(
-            theme: theme,
-            controller: _emailController,
-            label: 'Email',
-            tipoDeTeclado: TextInputType.emailAddress,
-          ),
-          const SizedBox(height: 12),
-
-          ThemedTextField(
-            theme: theme,
-            controller: _redesSociaisController,
-            label: 'Redes Sociais',
-          ),
-          const SizedBox(height: 12),
-
-          ThemedTextField(
-            theme: theme,
-            controller: _descricaoController,
-            label: 'Descrição',
-            linhas: 4,
-          ),
-
-          if (_aviso != null)
-            Padding(
-              padding: const EdgeInsets.only(top: 12),
-              child: Text(_aviso!, style: theme.getTextStyle(fontSize: 12)),
-            ),
-
-          const SizedBox(height: 16),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              if (editando != null || veioDeCliente) ...[
-                _botao('Cancelar', _cancelarEdicao),
-                const SizedBox(width: 8),
-              ],
-              _botao(editando != null ? 'Salvar' : 'Cadastrar', _salvar,
-                  destaque: true),
-            ],
-          ),
-          if (editando != null) ...[
-            const SizedBox(height: 8),
-            TextButton(
-              onPressed: () => _confirmarExclusao(editando),
-              child: Text(
-                'Excluir Fornecedor',
-                style: theme.getTextStyle(
-                  fontSize: 12,
-                  color: theme.dangerColor,
-                ),
-              ),
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-
-  Widget _blocoClientes() {
-    final termo = _pesquisaClientesController.text.trim();
-    final disponiveis = termo.isEmpty
-        ? _clientes
-        : _clientes
-            .where((c) => c.correspondeABusca(termo))
-            .toList();
-
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(12),
-      decoration: _decoracaoDoBloco,
-      child: Column(
-        children: [
-          _tituloDoBloco('Usar cliente como fornecedor'),
-          Text(
-            'Clique em um cliente para preencher o formulário com os '
-            'dados dele. Você pode ajustar antes de salvar.',
-            textAlign: TextAlign.center,
-            style: theme.getTextStyle(
-              fontSize: 11,
-              color: theme.secondaryTextColor,
-            ),
-          ),
-          const SizedBox(height: 10),
-          TextField(
-            controller: _pesquisaClientesController,
-            onChanged: (_) => setState(() {}),
-            cursorColor: theme.textColor,
-            style: theme.getTextStyle(fontSize: 12),
-            decoration: _decoracaoPesquisa('Pesquisar clientes...'),
-          ),
-          const SizedBox(height: 10),
-          if (_clientes.isEmpty)
-            EstadoVazioContainer(
-              theme: theme,
-              mensagem: 'Nenhum cliente cadastrado ainda.',
-            )
-          else if (disponiveis.isEmpty)
-            EstadoVazioContainer(
-              theme: theme,
-              mensagem: 'Nenhum cliente encontrado.',
-            )
-          else
-            ConstrainedBox(
-              constraints: const BoxConstraints(maxHeight: 200),
-              child: ListView.separated(
-                shrinkWrap: true,
-                itemCount: disponiveis.length,
-                separatorBuilder: (context, index) =>
-                    const SizedBox(height: 8),
-                itemBuilder: (context, index) {
-                  final cliente = disponiveis[index];
-                  final jaEh = _clienteJaEhFornecedor(cliente);
-                  return _LinhaComHover(
-                    aoClicar: jaEh
-                        ? () {}
-                        : () => _copiarClienteParaFormulario(cliente),
-                    builder: (hover) => Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 10,
-                      ),
-                      decoration: BoxDecoration(
-                        color: hover && !jaEh
-                            ? theme.borderColor.withValues(alpha: 0.18)
-                            : Colors.transparent,
-                        borderRadius: BorderRadius.circular(30),
-                        border: Border.all(
-                          color: hover && !jaEh
-                              ? theme.textColor
-                              : theme.borderColor,
-                        ),
-                      ),
-                      child: Row(
-                        children: [
-                          Builder(
-                            builder: (context) {
-                              final fotoCliente =
-                                  ImagemService.resolverCaminhoExistente(cliente.foto);
-                              return CircleAvatar(
-                                radius: 11,
-                                backgroundColor: Colors.transparent,
-                                backgroundImage: fotoCliente != null
-                                    ? FileImage(File(fotoCliente))
-                                    : null,
-                                child: fotoCliente == null
-                                    ? Icon(
-                                        Icons.account_circle,
-                                        size: 22,
-                                        color: jaEh
-                                            ? theme.secondaryTextColor
-                                            : theme.textColor,
-                                      )
-                                    : null,
-                              );
-                            },
-                          ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: TextoRolante(
-                              texto: cliente.nome,
-                              textAlign: TextAlign.start,
-                              style: theme.getTextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w600,
-                                color: jaEh
-                                    ? theme.secondaryTextColor
-                                    : theme.textColor,
-                              ),
-                            ),
-                          ),
-                          if (jaEh)
-                            Text(
-                              'Já é fornecedor',
-                              style: theme.getTextStyle(
-                                fontSize: 10,
-                                color: theme.secondaryTextColor,
-                              ),
-                            )
-                          else if (cliente.telefone.isNotEmpty)
-                            Text(
-                              cliente.telefone,
-                              style: theme.getTextStyle(fontSize: 11),
-                            ),
-                        ],
-                      ),
-                    ),
-                  );
-                },
-              ),
-            ),
-        ],
-      ),
-    );
-  }
-
-  Widget _blocoLista() {
-    final termo = _pesquisaController.text.trim();
-    final filtrados = termo.isEmpty
-        ? _fornecedores
-        : _fornecedores
-            .where((f) => f.correspondeABusca(termo))
-            .toList();
-
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(12),
-      decoration: _decoracaoDoBloco,
-      child: Column(
-        children: [
-          _tituloDoBloco('Fornecedores Cadastrados'),
-          Padding(
-            padding: const EdgeInsets.only(bottom: 10),
-            child: TextField(
-              controller: _pesquisaController,
-              onChanged: (_) => setState(() {}),
-              cursorColor: theme.textColor,
-              style: theme.getTextStyle(fontSize: 12),
-              decoration: _decoracaoPesquisa('Pesquisar por nome, rua, número, CNPJ...'),
-            ),
-          ),
-          if (_fornecedores.isEmpty)
-            EstadoVazioContainer(
-              theme: theme,
-              mensagem: 'Nenhum fornecedor cadastrado ainda.',
-            )
-          else if (filtrados.isEmpty)
-            EstadoVazioContainer(
-              theme: theme,
-              mensagem: 'Nenhum fornecedor encontrado.',
-            )
-          else
-            ConstrainedBox(
-              constraints: const BoxConstraints(maxHeight: 200),
-              child: ListView.separated(
-                shrinkWrap: true,
-                itemCount: filtrados.length,
-                separatorBuilder: (context, index) =>
-                    const SizedBox(height: 8),
-                itemBuilder: (context, index) {
-                  final fornecedor = filtrados[index];
-                  final temEndereco = fornecedor.endereco.isNotEmpty ||
-                      fornecedor.numero.isNotEmpty;
-                  final enderecoTexto = [
-                    if (fornecedor.endereco.isNotEmpty) fornecedor.endereco,
-                    if (fornecedor.numero.isNotEmpty) 'nº ${fornecedor.numero}',
-                  ].join(', ');
-
-                  return _LinhaComHover(
-                    aoClicar: () => _abrirEdicao(fornecedor),
-                    builder: (hover) => Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 10,
-                      ),
-                      decoration: BoxDecoration(
-                        color: hover
-                            ? theme.borderColor.withValues(alpha: 0.18)
-                            : Colors.transparent,
-                        borderRadius: BorderRadius.circular(30),
-                        border: Border.all(
-                          color:
-                              hover ? theme.textColor : theme.borderColor,
-                        ),
-                      ),
-                      child: Row(
-                        children: [
-                          Builder(
-                            builder: (context) {
-                              final fotoFornecedor =
-                                  ImagemService.resolverCaminhoExistente(fornecedor.foto);
-                              return CircleAvatar(
-                                radius: 11,
-                                backgroundColor: Colors.transparent,
-                                backgroundImage: fotoFornecedor != null
-                                    ? FileImage(File(fotoFornecedor))
-                                    : null,
-                                child: fotoFornecedor == null
-                                    ? Icon(
-                                        Icons.storefront_outlined,
-                                        size: 22,
-                                        color: theme.textColor,
-                                      )
-                                    : null,
-                              );
-                            },
-                          ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Text(
-                                  fornecedor.nome,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: theme.getTextStyle(
-                                    fontSize: 12,
-                                    color: theme.textColor,
-                                  ),
-                                ),
-                                if (temEndereco)
-                                  Text(
-                                    enderecoTexto,
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: theme.getTextStyle(
-                                      fontSize: 10,
-                                      color: theme.secondaryTextColor,
-                                    ),
-                                  ),
-                              ],
-                            ),
-                          ),
-                          if (fornecedor.telefone.isNotEmpty)
-                            Text(
-                              fornecedor.telefone,
-                              style: theme.getTextStyle(fontSize: 11),
-                            ),
-                        ],
-                      ),
-                    ),
-                  );
-                },
-              ),
-            ),
-        ],
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     final editando = _editando;
     final veioDeCliente = _origemClienteId != null && editando == null;
+
+    final blocoFormulario = FormularioFornecedorWidget(
+      theme: theme,
+      editando: editando,
+      veioDeCliente: veioDeCliente,
+      foto: _foto,
+      aviso: _aviso,
+      nomeController: _nomeController,
+      cnpjController: _cnpjController,
+      telefoneController: _telefoneController,
+      enderecoController: _enderecoController,
+      numeroController: _numeroController,
+      emailController: _emailController,
+      redesSociaisController: _redesSociaisController,
+      descricaoController: _descricaoController,
+      onAlterarFoto: _alterarFotoFornecedor,
+      onCancelar: _cancelarEdicao,
+      onSalvar: _salvar,
+      onExcluir: _confirmarExclusao,
+    );
+
+    final blocoClientes = BlocoImportarClienteFornecedorWidget(
+      theme: theme,
+      clientes: _clientes,
+      clienteJaEhFornecedor: _clienteJaEhFornecedor,
+      onCopiarCliente: _copiarClienteParaFormulario,
+    );
+
+    final blocoLista = ListaFornecedoresWidget(
+      theme: theme,
+      fornecedores: _fornecedores,
+      onAbrirEdicao: _abrirEdicao,
+    );
 
     return Column(
       mainAxisSize: MainAxisSize.min,
@@ -898,10 +403,10 @@ class _FornecedoresConteudoState extends State<_FornecedoresConteudo> {
                         flex: 5,
                         child: Column(
                           children: [
-                            _blocoLista(),
+                            blocoLista,
                             if (editando == null && !veioDeCliente) ...[
                               const SizedBox(height: 12),
-                              _blocoClientes(),
+                              blocoClientes,
                             ],
                           ],
                         ),
@@ -911,7 +416,7 @@ class _FornecedoresConteudoState extends State<_FornecedoresConteudo> {
                         flex: 5,
                         child: Column(
                           children: [
-                            _blocoFormulario(),
+                            blocoFormulario,
                           ],
                         ),
                       ),
@@ -920,49 +425,21 @@ class _FornecedoresConteudoState extends State<_FornecedoresConteudo> {
                 : Column(
                     children: [
                       if (editando != null || veioDeCliente) ...[
-                        _blocoFormulario(),
+                        blocoFormulario,
                         const SizedBox(height: 12),
-                        _blocoLista(),
+                        blocoLista,
                       ] else ...[
-                        _blocoLista(),
+                        blocoLista,
                         const SizedBox(height: 12),
-                        _blocoClientes(),
+                        blocoClientes,
                         const SizedBox(height: 12),
-                        _blocoFormulario(),
+                        blocoFormulario,
                       ],
                     ],
                   ),
           ),
         ),
       ],
-    );
-  }
-}
-
-class _LinhaComHover extends StatefulWidget {
-  final Widget Function(bool hover) builder;
-  final VoidCallback aoClicar;
-
-  const _LinhaComHover({required this.builder, required this.aoClicar});
-
-  @override
-  State<_LinhaComHover> createState() => _LinhaComHoverState();
-}
-
-class _LinhaComHoverState extends State<_LinhaComHover> {
-  bool _hover = false;
-
-  @override
-  Widget build(BuildContext context) {
-    return MouseRegion(
-      cursor: SystemMouseCursors.click,
-      onEnter: (_) => setState(() => _hover = true),
-      onExit: (_) => setState(() => _hover = false),
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTap: widget.aoClicar,
-        child: widget.builder(_hover),
-      ),
     );
   }
 }

@@ -4,8 +4,6 @@ import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:nous/src/core/services/atualizacao_service.dart';
-import 'package:nous/src/core/services/changelog_service.dart';
 import 'package:nous/src/core/services/relogio_rede_service.dart';
 import 'package:nous/src/core/utils/json_isolate_utils.dart';
 import 'package:nous/src/features/auth/models/usuario_nous.dart';
@@ -27,6 +25,7 @@ import 'package:nous/src/features/pdv/services/rede_local/reconciliador_loja_red
 import 'package:nous/src/features/pdv/services/rede_local/servidor_rede_local.dart';
 import 'package:nous/src/features/pdv/services/rede_local/sincronizador_usuarios_rede.dart';
 import 'package:nous/src/features/pdv/services/rede_local/transferencia_arquivos_rede.dart';
+import 'package:nous/src/features/pdv/services/rede_local/despachante_cliente_rede.dart';
 import 'package:nous/src/features/pdv/services/rede_local/handlers/cliente_ws_message_handler.dart';
 
 /// Informações de um servidor de loja anunciado na rede Wi-Fi local.
@@ -99,6 +98,7 @@ class ClienteRedeLocal {
     transferencia: _transferencia,
     reconciliador: _reconciliador,
   );
+  final DespachanteClienteRede _despachante = const DespachanteClienteRede();
 
   Timer? _timerDebounceEnvioLoja;
 
@@ -789,57 +789,28 @@ class ClienteRedeLocal {
       } catch (_) {}
     }
 
-    if (_ipServidor == null || _portaServidor == null) return false;
-    try {
-      final client = HttpClient()..connectionTimeout = const Duration(seconds: 4);
-      final request = await client.postUrl(
-        Uri.parse('http://$_ipServidor:$_portaServidor/api/pedido'),
-      );
-      request.headers.contentType = ContentType.json;
-      request.write(jsonEncode(pedido.toJson()));
-      final response = await request.close();
-      return response.statusCode == HttpStatus.ok;
-    } catch (e) {
-      debugPrint('[ClienteRedeLocal] Erro ao enviar pedido ao servidor: $e');
-      return false;
-    }
+    return _despachante.enviarPedido(
+      ipServidor: _ipServidor,
+      portaServidor: _portaServidor,
+      pedido: pedido,
+    );
   }
 
   /// Envia uma movimentação de estoque realizada no celular para o servidor
-  Future<bool> enviarMovimentoEstoque(MovimentoEstoque mov) async {
-    if (_ipServidor == null || _portaServidor == null) return false;
-    try {
-      final client = HttpClient()..connectionTimeout = const Duration(seconds: 4);
-      final request = await client.postUrl(
-        Uri.parse('http://$_ipServidor:$_portaServidor/api/movimento_estoque'),
+  Future<bool> enviarMovimentoEstoque(MovimentoEstoque mov) =>
+      _despachante.enviarMovimentoEstoque(
+        ipServidor: _ipServidor,
+        portaServidor: _portaServidor,
+        mov: mov,
       );
-      request.headers.contentType = ContentType.json;
-      request.write(jsonEncode(mov.toJson()));
-      final response = await request.close();
-      return response.statusCode == HttpStatus.ok;
-    } catch (e) {
-      debugPrint('[ClienteRedeLocal] Erro ao enviar estoque ao servidor: $e');
-      return false;
-    }
-  }
 
   /// Envia atualização de mesa para o servidor central
-  Future<bool> enviarMesa(MesaLoja mesa) async {
-    if (_ipServidor == null || _portaServidor == null) return false;
-    try {
-      final client = HttpClient()..connectionTimeout = const Duration(seconds: 4);
-      final request = await client.postUrl(
-        Uri.parse('http://$_ipServidor:$_portaServidor/api/mesa'),
+  Future<bool> enviarMesa(MesaLoja mesa) =>
+      _despachante.enviarMesa(
+        ipServidor: _ipServidor,
+        portaServidor: _portaServidor,
+        mesa: mesa,
       );
-      request.headers.contentType = ContentType.json;
-      request.write(jsonEncode(mesa.toJson()));
-      final response = await request.close();
-      return response.statusCode == HttpStatus.ok;
-    } catch (e) {
-      debugPrint('[ClienteRedeLocal] Erro ao enviar mesa ao servidor: $e');
-      return false;
-    }
-  }
 
   Future<String> _enviarUploadImagemParaServidor(String caminhoLocal) {
     return _transferencia.enviarUploadImagemParaServidor(
@@ -1006,72 +977,12 @@ class ClienteRedeLocal {
   }
 
   /// Verifica se o balcão possui atualizações do sistema ou APK disponível para download
-  Future<void> verificarAtualizacaoLocal() async {
-    if (_ipServidor == null || _portaServidor == null) return;
+  Future<void> verificarAtualizacaoLocal() =>
+      _despachante.verificarAtualizacaoLocal(
+        ipServidor: _ipServidor,
+        portaServidor: _portaServidor,
+      );
 
-    try {
-      final client = HttpClient()..connectionTimeout = const Duration(seconds: 4);
-      final uri = Uri.parse('http://$_ipServidor:$_portaServidor/api/versao');
-      final req = await client.getUrl(uri);
-      final resp = await req.close();
-
-      if (resp.statusCode == HttpStatus.ok) {
-        final body = await utf8.decodeStream(resp);
-        final dados = jsonDecode(body) as Map<String, dynamic>;
-
-        if (dados['sucesso'] == true && dados['temApk'] == true) {
-          final versaoRemota = dados['versao'] as String? ?? AtualizacaoService.versaoAtual;
-          final buildRemota = dados['build'] as int? ?? AtualizacaoService.buildAtual;
-          final alteracoesRemotas = (dados['alteracoes'] as List<dynamic>?)
-                  ?.map((e) => e.toString())
-                  .toList() ??
-              <String>[];
-
-          var alteracoesFinais = alteracoesRemotas;
-          if (alteracoesFinais.isEmpty) {
-            final nov = ChangelogService.obterUltimaVersao(versaoRemota) ??
-                ChangelogService.obterUltimaVersao();
-            if (nov != null && nov.alteracoes.isNotEmpty) {
-              alteracoesFinais = nov.alteracoes;
-            }
-          }
-
-          final temNovaVersao = buildRemota > AtualizacaoService.buildAtual ||
-              (buildRemota == AtualizacaoService.buildAtual &&
-                  AtualizacaoService.versaoMaior(versaoRemota, AtualizacaoService.versaoAtual));
-
-          if (temNovaVersao) {
-            AtualizacaoService.infoAtualizacao.value = InfoAtualizacao(
-              versao: versaoRemota,
-              nomeVersao: 'Atualização do Balcão Wi-Fi (v$versaoRemota • Build $buildRemota)',
-              descricao:
-                  'Instalação da versão estável mais recente transmitida diretamente pelo Computador Balcão via Wi-Fi.',
-              urlDownload: 'http://$_ipServidor:$_portaServidor/api/download_apk',
-              dataPublicacao: DateTime.now(),
-              alteracoes: alteracoesFinais,
-            );
-            AtualizacaoService.temAtualizacao.value = true;
-            AtualizacaoService.ultimaVerificacao.value = DateTime.now();
-            AtualizacaoService.mensagemStatus.value =
-                'Nova versão v$versaoRemota disponível para download no balcão!';
-            debugPrint('[ClienteRedeLocal] Atualização disponível no balcão via Wi-Fi!');
-          } else {
-            AtualizacaoService.infoAtualizacao.value = null;
-            AtualizacaoService.temAtualizacao.value = false;
-            AtualizacaoService.ultimaVerificacao.value = DateTime.now();
-            AtualizacaoService.mensagemStatus.value =
-                'O Nous já está na versão mais recente (v${AtualizacaoService.versaoAtual}).';
-            debugPrint('[ClienteRedeLocal] O aplicativo já está na mesma versão ou mais recente que o balcão.');
-          }
-        } else {
-          AtualizacaoService.infoAtualizacao.value = null;
-          AtualizacaoService.temAtualizacao.value = false;
-        }
-      }
-    } catch (e) {
-      debugPrint('[ClienteRedeLocal] Erro ao checar atualização local: $e');
-    }
-  }
 
   /// Baixa uma imagem remota individual do balcão e salva no armazenamento local
   Future<String> baixarImagemRemota(String caminhoRemoto, {String? cpf}) {
@@ -1142,21 +1053,14 @@ class ClienteRedeLocal {
   }
 
   /// Notifica o servidor balcão que o membro saiu da loja para desvinculação imediata
-  Future<void> notificarSaidaLoja(String lojaId, String cpf) async {
-    if (_ipServidor == null || _portaServidor == null) return;
-    try {
-      final client = HttpClient()..connectionTimeout = const Duration(seconds: 4);
-      final uri = Uri.parse('http://$_ipServidor:$_portaServidor/api/loja/sair');
-      final req = await client.postUrl(uri);
-      req.headers.contentType = ContentType.json;
-      req.write(jsonEncode({'cpf': cpf, 'lojaId': lojaId}));
-      final resp = await req.close();
-      await resp.drain();
-      debugPrint('[ClienteRedeLocal] Saída da loja $lojaId notificada ao balcão com sucesso.');
-    } catch (e) {
-      debugPrint('[ClienteRedeLocal] Erro ao notificar saída da loja ao balcão: $e');
-    }
-  }
+  Future<void> notificarSaidaLoja(String lojaId, String cpf) =>
+      _despachante.notificarSaidaLoja(
+        ipServidor: _ipServidor,
+        portaServidor: _portaServidor,
+        lojaId: lojaId,
+        cpf: cpf,
+      );
+
 
   /// Envia payload genérico JSON pelo WebSocket ativo para o servidor balcão
   void enviarMensagemRaw(Map<String, dynamic> payload) {

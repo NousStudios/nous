@@ -1,17 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:nous/src/core/theme/theme_controller.dart';
-import 'package:nous/src/core/widgets/texto_rolante.dart';
-import 'package:nous/src/core/widgets/themed_switch.dart';
-import 'package:nous/src/core/widgets/themed_text_field.dart';
 import 'package:nous/src/features/pdv/models/categoria_loja.dart';
 import 'package:nous/src/features/pdv/models/grupo_componentes_loja.dart';
 import 'package:nous/src/features/pdv/models/item_loja.dart';
 import 'package:nous/src/features/pdv/services/imagem_service.dart';
 import 'package:nous/src/features/pdv/views/widgets/nova_categoria_dialog.dart';
 import 'package:nous/src/features/pdv/views/widgets/novo_grupo_componentes_dialog.dart';
-import 'package:nous/src/features/pdv/views/widgets/novo_item/botoes_hover_item_widget.dart';
-import 'package:nous/src/features/pdv/views/widgets/novo_item/estoque_custo_item_widget.dart';
-import 'package:nous/src/features/pdv/views/widgets/novo_item/fotos_item_widget.dart';
+import 'package:nous/src/features/pdv/views/widgets/novo_item/coluna_identificacao_item_widget.dart';
+import 'package:nous/src/features/pdv/views/widgets/novo_item/coluna_operacao_estoque_item_widget.dart';
 import 'package:nous/src/features/pdv/views/widgets/novo_item/seletor_multiplo_dialog.dart';
 import 'package:nous/src/features/pdv/views/widgets/novo_item/variantes_item_widget.dart';
 
@@ -121,7 +117,6 @@ class _NovoItemDialogState extends State<NovoItemDialog> {
   TipoItemLoja? _tipo;
   bool _possuiDelivery = false;
   UnidadeItemLoja _unidadeBase = UnidadeItemLoja.un;
-  bool _descricaoExpandida = false;
 
   late final List<CategoriaLoja> _categorias = List.from(widget.categorias);
   late final List<GrupoComponentesLoja> _grupos =
@@ -156,9 +151,6 @@ class _NovoItemDialogState extends State<NovoItemDialog> {
       _precoCustoController.text = item.precoCusto;
       _codigoBarrasController.text = item.codigoBarras;
       _descricaoController.text = item.descricao;
-      if (item.descricao.isNotEmpty) {
-        _descricaoExpandida = true;
-      }
       _freteGratisAteController.text = item.freteGratisAte;
       _valorPorKmController.text = item.valorPorKm;
       _estoqueMinimoController.text = item.estoqueMinimo;
@@ -354,62 +346,6 @@ class _NovoItemDialogState extends State<NovoItemDialog> {
     );
   }
 
-  Widget _campoSelecao({
-    required String label,
-    required String? valorExibido,
-    required VoidCallback onTap,
-  }) {
-    final theme = widget.theme;
-
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-        decoration: BoxDecoration(
-          color: theme.cardBackgroundColor,
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: theme.borderColor),
-        ),
-        child: Row(
-          children: [
-            Expanded(
-              child: TextoRolante(
-                texto: (valorExibido == null || valorExibido.isEmpty)
-                    ? label
-                    : valorExibido,
-                textAlign: TextAlign.start,
-                style: theme.getTextStyle(
-                  fontSize: 14,
-                  color: (valorExibido == null || valorExibido.isEmpty)
-                      ? theme.secondaryTextColor
-                      : theme.textColor,
-                ),
-              ),
-            ),
-            Icon(Icons.keyboard_arrow_down, color: theme.secondaryTextColor),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _botaoUnidade(
-    AppTheme theme,
-    String rotulo,
-    UnidadeItemLoja valor,
-  ) {
-    final selecionado = _unidadeBase == valor;
-    return Expanded(
-      child: BotaoHoverUnidade(
-        theme: theme,
-        rotulo: rotulo,
-        selecionado: selecionado,
-        aoClicar: () => setState(() => _unidadeBase = valor),
-      ),
-    );
-  }
-
   String _rotuloUnidade() {
     switch (_unidadeBase) {
       case UnidadeItemLoja.un:
@@ -423,101 +359,6 @@ class _NovoItemDialogState extends State<NovoItemDialog> {
 
   String _formatarMoeda(double v) {
     return v.toStringAsFixed(2).replaceAll('.', ',');
-  }
-
-  Widget _buildBlocoDescricao(AppTheme theme) {
-    final temDescricao = _descricaoController.text.trim().isNotEmpty;
-    return Container(
-      decoration: BoxDecoration(
-        color: theme.backgroundColor.withValues(alpha: 0.25),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(
-          color: theme.borderColor.withValues(alpha: 0.4),
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          InkWell(
-            borderRadius: BorderRadius.circular(10),
-            onTap: () => setState(() => _descricaoExpandida = !_descricaoExpandida),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-              child: Row(
-                children: [
-                  Icon(
-                    Icons.notes_rounded,
-                    size: 18,
-                    color: theme.secondaryTextColor,
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: TextoRolante(
-                      texto: temDescricao
-                          ? (_descricaoExpandida
-                              ? 'Descrição do item'
-                              : 'Descrição: ${_descricaoController.text.trim().split('\n').first}')
-                          : 'Descrição do item (opcional)',
-                      textAlign: TextAlign.start,
-                      style: theme.getTextStyle(
-                        fontSize: 13,
-                        color: temDescricao ? theme.textColor : theme.secondaryTextColor,
-                        fontWeight: temDescricao ? FontWeight.w500 : FontWeight.normal,
-                      ),
-                    ),
-                  ),
-                  Icon(
-                    _descricaoExpandida
-                        ? Icons.keyboard_arrow_up_rounded
-                        : Icons.keyboard_arrow_down_rounded,
-                    color: theme.secondaryTextColor,
-                    size: 20,
-                  ),
-                ],
-              ),
-            ),
-          ),
-          if (_descricaoExpandida) ...[
-            Padding(
-              padding: const EdgeInsets.fromLTRB(10, 0, 10, 10),
-              child: ThemedTextField(
-                theme: theme,
-                controller: _descricaoController,
-                label: 'Escreva a descrição do item',
-                linhas: 3,
-              ),
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-
-  Widget _buildSeletorTipo(AppTheme theme) {
-    final tipoAtual = _tipo ?? TipoItemLoja.produto;
-    return Row(
-      children: [
-        Expanded(
-          child: BotaoHoverTipoItem(
-            theme: theme,
-            rotulo: 'Produto',
-            icone: Icons.inventory_2_outlined,
-            selecionado: tipoAtual == TipoItemLoja.produto,
-            aoClicar: () => setState(() => _tipo = TipoItemLoja.produto),
-          ),
-        ),
-        const SizedBox(width: 10),
-        Expanded(
-          child: BotaoHoverTipoItem(
-            theme: theme,
-            rotulo: 'Serviço',
-            icone: Icons.handyman_outlined,
-            selecionado: tipoAtual == TipoItemLoja.servico,
-            aoClicar: () => setState(() => _tipo = TipoItemLoja.servico),
-          ),
-        ),
-      ],
-    );
   }
 
   void _criar() {
@@ -657,175 +498,72 @@ class _NovoItemDialogState extends State<NovoItemDialog> {
           'Margem bruta estimada: $sinal R\$ $lucroFormatado ($sinal${margem.toStringAsFixed(1)}%)';
     }
 
-    Widget buildColunaIdentificacao() {
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          FotosItemWidget(
-            theme: theme,
-            imagens: _imagens,
-            onImagensAlteradas: () => setState(() {}),
-          ),
-          const SizedBox(height: 16),
-          ThemedTextField(
-            theme: theme,
-            controller: _nomeController,
-            label: 'Nome do novo item',
-          ),
-          const SizedBox(height: 14),
-          _buildBlocoDescricao(theme),
-          const SizedBox(height: 14),
-          _buildSeletorTipo(theme),
-          const SizedBox(height: 14),
-          ThemedTextField(
-            theme: theme,
-            controller: _precoController,
-            label: 'Preço de venda (ex: 12,50)',
-            tipoDeTeclado: TextInputType.number,
-          ),
-          const SizedBox(height: 14),
-          _campoSelecao(
-            label: 'Categorias do item',
-            valorExibido: nomesCategoriasSelecionadas,
-            onTap: () => SeletorMultiploDialog.mostrar(
-              context: context,
-              theme: theme,
-              titulo: 'Categorias do item',
-              opcoes: opcoesCategorias,
-              fotos: fotosCategorias,
-              selecionados: _categoriasSelecionadas,
-              onCriarNovo: _abrirCriarNovaCategoria,
-              textoCriarNovo: 'Nova Categoria',
-              onAlterado: () => setState(() {}),
-            ),
-          ),
-          const SizedBox(height: 12),
-          _campoSelecao(
-            label: 'Grupos de componentes',
-            valorExibido: nomesGruposSelecionados,
-            onTap: () => SeletorMultiploDialog.mostrar(
-              context: context,
-              theme: theme,
-              titulo: 'Grupos de componentes',
-              opcoes: opcoesGrupos,
-              fotos: fotosGrupos,
-              selecionados: _gruposSelecionados,
-              onCriarNovo: _abrirCriarNovoGrupo,
-              textoCriarNovo: 'Novo Grupo de Componentes',
-              onAlterado: () => setState(() {}),
-            ),
-          ),
-          const SizedBox(height: 14),
-          VariantesItemWidget(
-            theme: theme,
-            variantesControllers: _variantesControllers,
-            onAdicionarVariante: _adicionarCampoVariante,
-            onRemoverVariante: _removerCampoVariante,
-          ),
-        ],
-      );
-    }
+    final colunaIdentificacao = ColunaIdentificacaoItemWidget(
+      theme: theme,
+      imagens: _imagens,
+      onImagensAlteradas: () => setState(() {}),
+      nomeController: _nomeController,
+      descricaoController: _descricaoController,
+      tipo: _tipo,
+      onTipoAlterado: (novoTipo) => setState(() => _tipo = novoTipo),
+      precoController: _precoController,
+      nomesCategoriasSelecionadas: nomesCategoriasSelecionadas,
+      onAbrirSeletorCategorias: () => SeletorMultiploDialog.mostrar(
+        context: context,
+        theme: theme,
+        titulo: 'Categorias do item',
+        opcoes: opcoesCategorias,
+        fotos: fotosCategorias,
+        selecionados: _categoriasSelecionadas,
+        onCriarNovo: _abrirCriarNovaCategoria,
+        textoCriarNovo: 'Nova Categoria',
+        onAlterado: () => setState(() {}),
+      ),
+      nomesGruposSelecionados: nomesGruposSelecionados,
+      onAbrirSeletorGrupos: () => SeletorMultiploDialog.mostrar(
+        context: context,
+        theme: theme,
+        titulo: 'Grupos de componentes',
+        opcoes: opcoesGrupos,
+        fotos: fotosGrupos,
+        selecionados: _gruposSelecionados,
+        onCriarNovo: _abrirCriarNovoGrupo,
+        textoCriarNovo: 'Novo Grupo de Componentes',
+        onAlterado: () => setState(() {}),
+      ),
+      variantesControllers: _variantesControllers,
+      onAdicionarVariante: _adicionarCampoVariante,
+      onRemoverVariante: _removerCampoVariante,
+    );
 
-    Widget buildColunaOperacaoEEstoque() {
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          ThemedTextField(
-            theme: theme,
-            controller: _codigoBarrasController,
-            label: 'Código de barras / EAN (opcional)',
-          ),
-          const SizedBox(height: 14),
-          Text(
-            'Unidade de medida',
-            textAlign: TextAlign.center,
-            style: theme.getTextStyle(
-              fontSize: 13,
-              color: theme.secondaryTextColor,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Row(
-            children: [
-              _botaoUnidade(theme, 'Unidade', UnidadeItemLoja.un),
-              const SizedBox(width: 8),
-              _botaoUnidade(theme, 'Grama', UnidadeItemLoja.g),
-              const SizedBox(width: 8),
-              _botaoUnidade(theme, 'Mililitro', UnidadeItemLoja.ml),
-            ],
-          ),
-          const SizedBox(height: 14),
-          ThemedTextField(
-            theme: theme,
-            controller: _consumoController,
-            label: 'Consumo por venda (${_rotuloUnidade()})',
-            tipoDeTeclado: TextInputType.number,
-          ),
-          const SizedBox(height: 14),
-          EstoqueCustoItemWidget(
-            theme: theme,
-            editando: editando,
-            saldoEstoqueAtual: widget.saldoEstoqueAtual,
-            rotuloUnidade: _rotuloUnidade(),
-            estoqueAtualController: _estoqueAtualController,
-            estoqueMinimoController: _estoqueMinimoController,
-            custoTotalCompraController: _custoTotalCompraController,
-            quantidadeCompraController: _quantidadeCompraController,
-            precoCustoController: _precoCustoController,
-            calculoTexto: calculoTexto,
-            margemTexto: margemTexto,
-            onAbrirMovimentoDetalhado: widget.onAbrirMovimentoDetalhado != null
-                ? () {
-                    Navigator.of(context).pop();
-                    widget.onAbrirMovimentoDetalhado!(widget.itemParaEditar!);
-                  }
-                : null,
-            formatarNumero: _formatarNumero,
-          ),
-          const SizedBox(height: 14),
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  'O Produto possui delivery',
-                  style: theme.getTextStyle(fontSize: 13),
-                ),
-              ),
-              ThemedSwitch(
-                theme: theme,
-                value: _possuiDelivery,
-                onChanged: (valor) =>
-                    setState(() => _possuiDelivery = valor),
-              ),
-            ],
-          ),
-          if (_possuiDelivery) ...[
-            const SizedBox(height: 8),
-            Row(
-              children: [
-                Expanded(
-                  child: ThemedTextField(
-                    theme: theme,
-                    controller: _freteGratisAteController,
-                    label: 'Frete Grátis até',
-                    tipoDeTeclado: TextInputType.number,
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: ThemedTextField(
-                    theme: theme,
-                    controller: _valorPorKmController,
-                    label: 'R\$ por Km',
-                    tipoDeTeclado: TextInputType.number,
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ],
-      );
-    }
+    final colunaOperacaoEEstoque = ColunaOperacaoEstoqueItemWidget(
+      theme: theme,
+      editando: editando,
+      saldoEstoqueAtual: widget.saldoEstoqueAtual,
+      codigoBarrasController: _codigoBarrasController,
+      unidadeBase: _unidadeBase,
+      onUnidadeAlterada: (novaUnidade) =>
+          setState(() => _unidadeBase = novaUnidade),
+      consumoController: _consumoController,
+      estoqueAtualController: _estoqueAtualController,
+      estoqueMinimoController: _estoqueMinimoController,
+      custoTotalCompraController: _custoTotalCompraController,
+      quantidadeCompraController: _quantidadeCompraController,
+      precoCustoController: _precoCustoController,
+      calculoTexto: calculoTexto,
+      margemTexto: margemTexto,
+      onAbrirMovimentoDetalhado: widget.onAbrirMovimentoDetalhado != null
+          ? () {
+              Navigator.of(context).pop();
+              widget.onAbrirMovimentoDetalhado!(widget.itemParaEditar!);
+            }
+          : null,
+      formatarNumero: _formatarNumero,
+      possuiDelivery: _possuiDelivery,
+      onDeliveryAlterado: (valor) => setState(() => _possuiDelivery = valor),
+      freteGratisAteController: _freteGratisAteController,
+      valorPorKmController: _valorPorKmController,
+    );
 
     return AlertDialog(
       backgroundColor: theme.cardBackgroundColor,
@@ -850,18 +588,18 @@ class _NovoItemDialogState extends State<NovoItemDialog> {
               ? Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Expanded(child: buildColunaIdentificacao()),
+                    Expanded(child: colunaIdentificacao),
                     const SizedBox(width: 18),
-                    Expanded(child: buildColunaOperacaoEEstoque()),
+                    Expanded(child: colunaOperacaoEEstoque),
                   ],
                 )
               : Column(
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    buildColunaIdentificacao(),
+                    colunaIdentificacao,
                     const SizedBox(height: 14),
-                    buildColunaOperacaoEEstoque(),
+                    colunaOperacaoEEstoque,
                   ],
                 ),
         ),

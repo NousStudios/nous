@@ -1,11 +1,12 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:nous/src/core/theme/theme_controller.dart';
 import 'package:nous/src/core/widgets/themed_switch.dart';
 import 'package:nous/src/features/pdv/models/cliente.dart';
 import 'package:nous/src/features/pdv/models/mesa_loja.dart';
 import 'package:nous/src/features/pdv/models/pedido_loja.dart';
 import 'package:nous/src/features/pdv/views/widgets/mesas/cadastro_cliente_rapido_mesa_dialog.dart';
+import 'package:nous/src/features/pdv/views/widgets/mesas/painel_ajustes_totais_mesa_widget.dart';
+import 'package:nous/src/features/pdv/views/widgets/mesas/painel_dividir_pagamento_mesa_widget.dart';
 
 String _valorFormatado(double valor) =>
     'R\$ ${valor.toStringAsFixed(2).replaceAll('.', ',')}';
@@ -138,7 +139,8 @@ class _FecharContaMesaDialogState extends State<FecharContaMesaDialog> {
   void _aplicarDezPorCento() {
     final dezPorCento = _totalBase * 0.10;
     setState(() {
-      _acrescimoController.text = dezPorCento.toStringAsFixed(2).replaceAll('.', ',');
+      _acrescimoController.text =
+          dezPorCento.toStringAsFixed(2).replaceAll('.', ',');
     });
   }
 
@@ -381,114 +383,12 @@ class _FecharContaMesaDialogState extends State<FecharContaMesaDialog> {
           const SizedBox(height: 12),
 
           // Ajustes: Desconto e Taxa / Acréscimo
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: theme.backgroundColor.withValues(alpha: 0.25),
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(
-                color: theme.borderColor.withValues(alpha: 0.5),
-              ),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      'Ajustes no Total (Opcional):',
-                      style: theme.getTextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w600,
-                        color: theme.secondaryTextColor,
-                      ),
-                    ),
-                    InkWell(
-                      borderRadius: BorderRadius.circular(6),
-                      onTap: _aplicarDezPorCento,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 8,
-                          vertical: 2,
-                        ),
-                        decoration: BoxDecoration(
-                          color: theme.cardBackgroundColor,
-                          borderRadius: BorderRadius.circular(6),
-                          border: Border.all(
-                            color: theme.borderColor.withValues(alpha: 0.6),
-                          ),
-                        ),
-                        child: Text(
-                          '+10% Garçom',
-                          style: theme.getTextStyle(
-                            fontSize: 10,
-                            fontWeight: FontWeight.w600,
-                            color: theme.textColor,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                Row(
-                  children: [
-                    Expanded(
-                      child: TextField(
-                        controller: _descontoController,
-                        onChanged: (_) => setState(() {}),
-                        keyboardType:
-                            const TextInputType.numberWithOptions(decimal: true),
-                        inputFormatters: [
-                          FilteringTextInputFormatter.allow(RegExp(r'[0-9,]')),
-                        ],
-                        cursorColor: theme.textColor,
-                        style: theme.getTextStyle(fontSize: 12),
-                        decoration: InputDecoration(
-                          labelText: 'Desconto (R\$)',
-                          labelStyle: theme.getTextStyle(
-                            fontSize: 11,
-                            color: theme.secondaryTextColor,
-                          ),
-                          isDense: true,
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(8),
-                            borderSide: BorderSide(color: theme.borderColor),
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: TextField(
-                        controller: _acrescimoController,
-                        onChanged: (_) => setState(() {}),
-                        keyboardType:
-                            const TextInputType.numberWithOptions(decimal: true),
-                        inputFormatters: [
-                          FilteringTextInputFormatter.allow(RegExp(r'[0-9,]')),
-                        ],
-                        cursorColor: theme.textColor,
-                        style: theme.getTextStyle(fontSize: 12),
-                        decoration: InputDecoration(
-                          labelText: 'Taxa / Acréscimo (R\$)',
-                          labelStyle: theme.getTextStyle(
-                            fontSize: 11,
-                            color: theme.secondaryTextColor,
-                          ),
-                          isDense: true,
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(8),
-                            borderSide: BorderSide(color: theme.borderColor),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
+          PainelAjustesTotaisMesaWidget(
+            theme: theme,
+            descontoController: _descontoController,
+            acrescimoController: _acrescimoController,
+            onAplicarDezPorCento: _aplicarDezPorCento,
+            onAlterado: () => setState(() {}),
           ),
           const SizedBox(height: 14),
 
@@ -614,156 +514,18 @@ class _FecharContaMesaDialogState extends State<FecharContaMesaDialog> {
               ),
             ),
           ] else ...[
-            // Se Dividir Conta
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: theme.backgroundColor.withValues(alpha: 0.35),
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(
-                  color: theme.borderColor.withValues(alpha: 0.6),
-                ),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        'Pago: ${_valorFormatado(_totalPagoDividido)}',
-                        style: theme.getTextStyle(
-                          fontSize: 12,
-                          color: theme.textColor,
-                        ),
-                      ),
-                      Text(
-                        _restantePagar > 0.005
-                            ? 'Falta: ${_valorFormatado(_restantePagar)}'
-                            : 'Conta Quitada!',
-                        style: theme.getTextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.bold,
-                          color: _restantePagar > 0.005
-                              ? Colors.redAccent
-                              : theme.textColor,
-                        ),
-                      ),
-                    ],
-                  ),
-                  if (_pagamentosParciais.isNotEmpty) ...[
-                    const SizedBox(height: 8),
-                    for (int i = 0; i < _pagamentosParciais.length; i++)
-                      Padding(
-                        padding: const EdgeInsets.only(bottom: 4),
-                        child: Row(
-                          children: [
-                            Icon(Icons.check_circle,
-                                size: 14, color: theme.textColor),
-                            const SizedBox(width: 6),
-                            Text(
-                              _pagamentosParciais[i].forma,
-                              style: theme.getTextStyle(
-                                fontSize: 12,
-                                color: theme.textColor,
-                              ),
-                            ),
-                            const Spacer(),
-                            Text(
-                              _valorFormatado(_pagamentosParciais[i].valor),
-                              style: theme.getTextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.bold,
-                                color: theme.textColor,
-                              ),
-                            ),
-                            const SizedBox(width: 6),
-                            GestureDetector(
-                              onTap: () => _removerPagamentoParcial(i),
-                              child: Icon(Icons.close,
-                                  size: 14, color: theme.secondaryTextColor),
-                            ),
-                          ],
-                        ),
-                      ),
-                  ],
-                  if (_restantePagar > 0.005) ...[
-                    const SizedBox(height: 10),
-                    Row(
-                      children: [
-                        Expanded(
-                          flex: 3,
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8),
-                            decoration: BoxDecoration(
-                              color: theme.cardBackgroundColor,
-                              borderRadius: BorderRadius.circular(8),
-                              border: Border.all(
-                                color: theme.borderColor.withValues(alpha: 0.6),
-                              ),
-                            ),
-                            child: DropdownButtonHideUnderline(
-                              child: DropdownButton<String>(
-                                value: _formaParcial,
-                                dropdownColor: theme.cardBackgroundColor,
-                                isExpanded: true,
-                                items: _formasDePagamento.map((forma) {
-                                  return DropdownMenuItem<String>(
-                                    value: forma,
-                                    child: Text(
-                                      forma,
-                                      style: theme.getTextStyle(fontSize: 12),
-                                    ),
-                                  );
-                                }).toList(),
-                                onChanged: (nova) {
-                                  if (nova != null) {
-                                    setState(() => _formaParcial = nova);
-                                  }
-                                },
-                              ),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          flex: 2,
-                          child: TextField(
-                            controller: _valorParcialController,
-                            keyboardType: const TextInputType.numberWithOptions(
-                              decimal: true,
-                            ),
-                            inputFormatters: [
-                              FilteringTextInputFormatter.allow(
-                                  RegExp(r'[0-9,]')),
-                            ],
-                            style: theme.getTextStyle(fontSize: 12),
-                            decoration: InputDecoration(
-                              hintText: 'Valor',
-                              isDense: true,
-                              contentPadding: const EdgeInsets.symmetric(
-                                horizontal: 10,
-                                vertical: 10,
-                              ),
-                              border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(8),
-                                borderSide:
-                                    BorderSide(color: theme.borderColor),
-                              ),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 6),
-                        IconButton(
-                          icon: Icon(Icons.add,
-                              size: 20, color: theme.textColor),
-                          onPressed: _adicionarPagamentoParcial,
-                        ),
-                      ],
-                    ),
-                  ],
-                ],
-              ),
+            PainelDividirPagamentoMesaWidget(
+              theme: theme,
+              formasDePagamento: _formasDePagamento,
+              pagamentosParciais: _pagamentosParciais,
+              totalPagoDividido: _totalPagoDividido,
+              restantePagar: _restantePagar,
+              formaParcial: _formaParcial,
+              onFormaParcialAlterada: (nova) =>
+                  setState(() => _formaParcial = nova),
+              valorParcialController: _valorParcialController,
+              onAdicionarPagamentoParcial: _adicionarPagamentoParcial,
+              onRemoverPagamentoParcial: _removerPagamentoParcial,
             ),
           ],
           const SizedBox(height: 12),
@@ -862,4 +624,3 @@ class _FecharContaMesaDialogState extends State<FecharContaMesaDialog> {
     );
   }
 }
-

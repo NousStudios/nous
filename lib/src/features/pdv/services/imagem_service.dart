@@ -413,4 +413,88 @@ class ImagemService {
     if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(1)} KB';
     return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
   }
+
+  /// Calcula o tamanho total somado de todas as pastas de mídias e anexos do aplicativo
+  static Future<int> obterTamanhoTotalCacheBytes() async {
+    var totalBytes = 0;
+    final pastas = obterDiretoriosPossiveisSync();
+    for (final dir in pastas) {
+      try {
+        if (!await dir.exists()) continue;
+        await for (final entidade in dir.list(recursive: false, followLinks: false)) {
+          if (entidade is File) {
+            try {
+              totalBytes += await entidade.length();
+            } catch (_) {}
+          }
+        }
+      } catch (_) {}
+    }
+    return totalBytes;
+  }
+
+  /// Limpa arquivos temporários antigos e orfãos, garantindo respeito à cota máxima de disco
+  static Future<int> limparArquivosTemporariosExpirados({
+    Duration idadeMaxima = const Duration(days: 30),
+    int limiteTotalBytes = limiteBytesMeioGiga,
+  }) async {
+    var bytesLiberados = 0;
+    try {
+      final base = await obterDiretorioBase();
+      final pastaTemp = Directory('${base.path}/temp');
+      final agora = DateTime.now();
+
+      if (await pastaTemp.exists()) {
+        await for (final entidade in pastaTemp.list()) {
+          if (entidade is File) {
+            try {
+              final stat = await entidade.stat();
+              if (agora.difference(stat.modified) > idadeMaxima) {
+                final len = await entidade.length();
+                await entidade.delete();
+                bytesLiberados += len;
+              }
+            } catch (_) {}
+          }
+        }
+      }
+
+      // Se o tamanho total de mídias exceder a cota, realiza limpeza LRU nas mídias remotas em cache
+      final tamanhoAtual = await obterTamanhoTotalCacheBytes();
+      if (tamanhoAtual > limiteTotalBytes) {
+        final arquivosRemotos = <File>[];
+        final pastas = obterDiretoriosPossiveisSync();
+        for (final dir in pastas) {
+          if (!await dir.exists()) continue;
+          await for (final entidade in dir.list()) {
+            if (entidade is File && p.basename(entidade.path).startsWith('remota_')) {
+              arquivosRemotos.add(entidade);
+            }
+          }
+        }
+
+        // Ordena pelos mais antigos primeiro (LRU)
+        arquivosRemotos.sort((a, b) {
+          try {
+            return a.lastModifiedSync().compareTo(b.lastModifiedSync());
+          } catch (_) {
+            return 0;
+          }
+        });
+
+        var tamanhoRestante = tamanhoAtual;
+        for (final arq in arquivosRemotos) {
+          if (tamanhoRestante <= limiteTotalBytes) break;
+          try {
+            final len = await arq.length();
+            await arq.delete();
+            bytesLiberados += len;
+            tamanhoRestante -= len;
+          } catch (_) {}
+        }
+      }
+    } catch (_) {}
+    return bytesLiberados;
+  }
 }
+

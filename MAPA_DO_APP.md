@@ -502,7 +502,12 @@ Todas abrem centralizadas, aceitam **F11** e, no desktop expandido, ficam em **d
 - **Separação Soberana entre Identidade Civil e Perfil Social**:
   - **Identidade do Usuário (`FichaUsuarioDialog`)**: contém os dados civis e cadastrais oficiais do cidadão (`nome`, `apelido`, `foto`, `cpf`, filiação, tipo sanguíneo, etc.) para verificação e integridade do sistema. O Nome de Usuário Nous (`@username`) é exibido de forma imutável logo acima do CPF com a mesma tipografia secundária, deixando evidente a imutabilidade dessas credenciais, enquanto Apelido e Nome Próprio permanecem editáveis pelo próprio titular.
   - **Edição do Perfil Público (`EditarPerfilDialog`)**: acessado pelo botão "Editar Perfil" no Perfil Social. Altera exclusivamente os dados de exibição pública (`nomePublico`, `apelidoPublico`, `fotoPublica`, `biografia`), com fallback transparente para a Identidade caso não personalizados. Garante total liberdade estética ao usuário sem comprometer ou sobrescrever os dados oficiais de sua Identidade.
-- **Visualização de Perfil de Terceiros**: quando aberto a partir de uma conversa da Mensageria ("Ver Perfil Público"), a tela exibe o perfil do contato alvo com botão de voltar no topo para retornar ao chat.
+### 7.15 Arquitetura Modular e Otimizada do PDV e Financeiro (v1.0.66)
+- **Catálogo de Produtos (`AbaCatalogoLojaWidget`)**: Decomposto em módulos coesos para categorias e grupos (`PainelCategoriasGruposWidget`) e grade de cards com drag & drop reordenável (`PainelItensCatalogoWidget`).
+- **Módulo Financeiro (`FinanceiroView`)**: Operações de DRE, fluxo de caixa, pagamentos de equipe, compras e balanço desacopladas via `FinanceiroOperacoesHelper`.
+- **Gestão Operacional de Pedidos (`GestaoLojaContainer`)**: Desacoplado em barra de atalhos rápidos (`BlocoBotoesGestaoWidget`) e listagem paginada de pedidos com filtros e abas (`BlocoPedidosGestaoWidget`).
+- **Resumo Operacional e Fornecedores**: Telas `StatusLojaView` e `FornecedoresDialog` estruturadas em subcomponentes reutilizáveis de formulário, importação e listagem.
+- **Auditoria de Memória**: `PedidosRepositorioLoja` com retenção inteligente de pedidos e `ImagemService` com política LRU (cota de 500 MB) para sanitização automática de cache.
 
 ---
 

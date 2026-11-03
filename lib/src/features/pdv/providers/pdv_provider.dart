@@ -830,6 +830,40 @@ class PdvProvider extends ChangeNotifier {
     _salvarLojaNoCofreCorreto(atualizada);
   }
 
+  /// Consulta pedidos da loja sob demanda de forma paginada para relatórios e análises sem sobrecarregar a memória
+  Future<List<PedidoLoja>> obterHistoricoPedidosPaginado({
+    required String lojaId,
+    int limite = 100,
+    int offset = 0,
+    DateTime? dataInicio,
+    DateTime? dataFim,
+    StatusPedido? status,
+  }) {
+    return LojasService.carregarPedidosPaginados(
+      lojaId: lojaId,
+      limite: limite,
+      offset: offset,
+      dataInicio: dataInicio,
+      dataFim: dataFim,
+      status: status,
+    );
+  }
+
+  /// Retorna a contagem total de pedidos da loja no SQLite
+  Future<int> obterTotalPedidos({
+    required String lojaId,
+    DateTime? dataInicio,
+    DateTime? dataFim,
+    StatusPedido? status,
+  }) {
+    return LojasService.contarTotalPedidos(
+      lojaId: lojaId,
+      dataInicio: dataInicio,
+      dataFim: dataFim,
+      status: status,
+    );
+  }
+
   Future<void> resetarTransacoesLoja(
     String lojaId, {
     String autorCpf = '',
