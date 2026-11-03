@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:nous/src/core/theme/theme_controller.dart';
-import 'package:nous/src/core/widgets/themed_switch.dart';
 import 'package:nous/src/features/pdv/models/fornecedor.dart';
 import 'package:nous/src/features/pdv/models/item_loja.dart';
 import 'package:nous/src/features/pdv/models/movimento_estoque.dart';
+import 'package:nous/src/features/pdv/views/widgets/estoque/botao_hover_tipo_estoque.dart';
+import 'package:nous/src/features/pdv/views/widgets/estoque/card_ajustes_rapidos_item_dialog.dart';
 
 class MovimentoEstoqueDialog {
   static Future<MovimentoEstoque?> mostrar(
@@ -264,268 +265,26 @@ class _MovimentoEstoqueConteudoState
     final item = _item;
     if (item == null) return const SizedBox.shrink();
 
-    final ehEntrada = _tipo == TipoMovimentoEstoque.entrada;
-
-    return Container(
-      margin: const EdgeInsets.only(top: 8, bottom: 4),
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: theme.backgroundColor.withValues(alpha: 0.25),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: theme.borderColor.withValues(alpha: 0.4),
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Row(
-            children: [
-              Icon(Icons.inventory_2_outlined, size: 16, color: theme.textColor),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  'Dados do Cadastro do Item',
-                  style: theme.getTextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.bold,
-                    color: theme.textColor,
-                  ),
-                ),
-              ),
-              if (widget.onEditarItemCompleto != null)
-                InkWell(
-                  onTap: () {
-                    Navigator.of(context).pop();
-                    widget.onEditarItemCompleto!(item);
-                  },
-                  borderRadius: BorderRadius.circular(6),
-                  child: Padding(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
-                    child: Row(
-                      children: [
-                        Icon(Icons.edit_note_rounded,
-                            size: 15, color: theme.textColor),
-                        const SizedBox(width: 4),
-                        Text(
-                          'Editar completo',
-                          style: theme.getTextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.bold,
-                            color: theme.textColor,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  'Venda: R\$ ${item.preco.isEmpty ? "0,00" : item.preco}',
-                  style: theme.getTextStyle(
-                      fontSize: 11, color: theme.secondaryTextColor),
-                ),
-              ),
-              Expanded(
-                child: Text(
-                  'Custo atual: R\$ ${item.precoCusto.isEmpty ? "0,00" : item.precoCusto}',
-                  style: theme.getTextStyle(
-                      fontSize: 11, color: theme.secondaryTextColor),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 4),
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  'Código: ${item.codigoBarras.isEmpty ? "Sem código" : item.codigoBarras}',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: theme.getTextStyle(
-                      fontSize: 11, color: theme.secondaryTextColor),
-                ),
-              ),
-              Expanded(
-                child: Text(
-                  'Mínimo: ${item.estoqueMinimo.isEmpty ? "0" : item.estoqueMinimo} ${_rotuloUnidade(item)}',
-                  style: theme.getTextStyle(
-                      fontSize: 11, color: theme.secondaryTextColor),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          InkWell(
-            onTap: () => setState(
-                () => _mostrarAjustesRapidos = !_mostrarAjustesRapidos),
-            borderRadius: BorderRadius.circular(6),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(
-                  _mostrarAjustesRapidos
-                      ? Icons.keyboard_arrow_up
-                      : Icons.tune,
-                  size: 14,
-                  color: theme.textColor,
-                ),
-                const SizedBox(width: 4),
-                Text(
-                  _mostrarAjustesRapidos
-                      ? 'Ocultar ajustes rápidos'
-                      : 'Ajustar preço de venda, código de barras ou unidade',
-                  style: theme.getTextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w600,
-                    color: theme.textColor,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          if (_mostrarAjustesRapidos) ...[
-            const SizedBox(height: 10),
-            Row(
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Novo Preço de Venda (R\$)',
-                        style: theme.getTextStyle(
-                            fontSize: 10, color: theme.secondaryTextColor),
-                      ),
-                      const SizedBox(height: 4),
-                      TextField(
-                        controller: _precoVendaRapidoController,
-                        keyboardType: const TextInputType.numberWithOptions(
-                            decimal: true),
-                        cursorColor: theme.textColor,
-                        style: theme.getTextStyle(fontSize: 11),
-                        decoration: _decoracaoCampo('Ex: 15,00'),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Código de Barras / EAN',
-                        style: theme.getTextStyle(
-                            fontSize: 10, color: theme.secondaryTextColor),
-                      ),
-                      const SizedBox(height: 4),
-                      TextField(
-                        controller: _codigoBarrasRapidoController,
-                        cursorColor: theme.textColor,
-                        style: theme.getTextStyle(fontSize: 11),
-                        decoration: _decoracaoCampo('Código'),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 10),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Unidade de Medida do Item',
-                  style: theme.getTextStyle(
-                      fontSize: 10, color: theme.secondaryTextColor),
-                ),
-                const SizedBox(height: 4),
-                Row(
-                  children: [
-                    for (final u in UnidadeItemLoja.values)
-                      Padding(
-                        padding: const EdgeInsets.only(right: 6),
-                        child: InkWell(
-                          onTap: () => setState(() => _unidadeRapida = u),
-                          borderRadius: BorderRadius.circular(8),
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 10, vertical: 6),
-                            decoration: BoxDecoration(
-                              color: _unidadeRapida == u
-                                  ? (theme.buttonColor != Colors.transparent
-                                      ? theme.buttonColor
-                                          .withValues(alpha: 0.8)
-                                      : theme.borderColor
-                                          .withValues(alpha: 0.35))
-                                  : theme.backgroundColor
-                                      .withValues(alpha: 0.2),
-                              borderRadius: BorderRadius.circular(8),
-                              border: Border.all(
-                                color: _unidadeRapida == u
-                                    ? theme.textColor
-                                    : theme.borderColor
-                                        .withValues(alpha: 0.5),
-                                width: _unidadeRapida == u ? 1.4 : 1.0,
-                              ),
-                            ),
-                            child: Text(
-                              u == UnidadeItemLoja.un
-                                  ? 'Unidade (un)'
-                                  : u == UnidadeItemLoja.g
-                                      ? 'Gramas (g)'
-                                      : 'Mililitros (ml)',
-                              style: theme.getTextStyle(
-                                fontSize: 11,
-                                fontWeight: _unidadeRapida == u
-                                    ? FontWeight.bold
-                                    : FontWeight.normal,
-                                color: _unidadeRapida == u
-                                    ? theme.textColor
-                                    : theme.secondaryTextColor,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                  ],
-                ),
-              ],
-            ),
-          ],
-          if (ehEntrada) ...[
-            const SizedBox(height: 8),
-            Row(
-              children: [
-                ThemedSwitch(
-                  theme: theme,
-                  value: _atualizarCustoNoCadastro,
-                  onChanged: (v) =>
-                      setState(() => _atualizarCustoNoCadastro = v),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    'Atualizar preço de custo no cadastro do item com esta compra',
-                    style: theme.getTextStyle(
-                      fontSize: 11,
-                      color: theme.textColor,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ],
-      ),
+    return CardAjustesRapidosItemDialog(
+      theme: theme,
+      item: item,
+      ehEntrada: _tipo == TipoMovimentoEstoque.entrada,
+      mostrarAjustesRapidos: _mostrarAjustesRapidos,
+      onAlternarMostrarAjustesRapidos: () =>
+          setState(() => _mostrarAjustesRapidos = !_mostrarAjustesRapidos),
+      precoVendaController: _precoVendaRapidoController,
+      codigoBarrasController: _codigoBarrasRapidoController,
+      unidadeRapida: _unidadeRapida,
+      onAlterarUnidade: (u) => setState(() => _unidadeRapida = u),
+      atualizarCustoNoCadastro: _atualizarCustoNoCadastro,
+      onAlternarAtualizarCustoNoCadastro: (v) =>
+          setState(() => _atualizarCustoNoCadastro = v),
+      onEditarItemCompleto: widget.onEditarItemCompleto != null
+          ? () {
+              Navigator.of(context).pop();
+              widget.onEditarItemCompleto!(item);
+            }
+          : null,
     );
   }
 
@@ -563,7 +322,7 @@ class _MovimentoEstoqueConteudoState
   Widget _botaoTipo(String rotulo, TipoMovimentoEstoque tipo) {
     final selecionado = _tipo == tipo;
     return Expanded(
-      child: _BotaoHoverTipoEstoque(
+      child: BotaoHoverTipoEstoque(
         theme: theme,
         rotulo: rotulo,
         selecionado: selecionado,
@@ -966,85 +725,6 @@ class _MovimentoEstoqueConteudoState
           ),
         ),
       ],
-    );
-  }
-}
-
-class _BotaoHoverTipoEstoque extends StatefulWidget {
-  final AppTheme theme;
-  final String rotulo;
-  final bool selecionado;
-  final VoidCallback aoClicar;
-
-  const _BotaoHoverTipoEstoque({
-    required this.theme,
-    required this.rotulo,
-    required this.selecionado,
-    required this.aoClicar,
-  });
-
-  @override
-  State<_BotaoHoverTipoEstoque> createState() => _BotaoHoverTipoEstoqueState();
-}
-
-class _BotaoHoverTipoEstoqueState extends State<_BotaoHoverTipoEstoque> {
-  bool _hover = false;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = widget.theme;
-    final ativo = widget.selecionado;
-    final corAtiva = theme.buttonColor != Colors.transparent
-        ? theme.buttonColor
-        : theme.borderColor.withValues(alpha: 0.25);
-
-    final corFundo = ativo
-        ? (_hover ? corAtiva.withValues(alpha: 0.35) : corAtiva)
-        : (_hover
-            ? theme.borderColor.withValues(alpha: 0.12)
-            : Colors.transparent);
-
-    final corBorda = ativo
-        ? theme.textColor
-        : (_hover
-            ? theme.borderColor
-            : theme.borderColor.withValues(alpha: 0.6));
-
-    final corTexto = ativo
-        ? (theme.buttonColor != Colors.transparent
-            ? theme.buttonTextColor
-            : theme.textColor)
-        : theme.textColor;
-
-    return MouseRegion(
-      cursor: SystemMouseCursors.click,
-      onEnter: (_) => setState(() => _hover = true),
-      onExit: (_) => setState(() => _hover = false),
-      child: GestureDetector(
-        onTap: widget.aoClicar,
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 140),
-          padding: const EdgeInsets.symmetric(vertical: 12),
-          decoration: BoxDecoration(
-            color: corFundo,
-            borderRadius: BorderRadius.circular(10),
-            border: Border.all(
-              color: corBorda,
-              width: ativo ? 1.6 : 1.0,
-            ),
-          ),
-          child: Center(
-            child: Text(
-              widget.rotulo,
-              style: theme.getTextStyle(
-                fontSize: 12,
-                fontWeight: ativo ? FontWeight.bold : FontWeight.normal,
-                color: corTexto,
-              ),
-            ),
-          ),
-        ),
-      ),
     );
   }
 }

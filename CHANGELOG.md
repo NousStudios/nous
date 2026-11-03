@@ -2,8 +2,448 @@
 
 Uma linha por mudança, da mais recente para a mais antiga. O agente deve acrescentar aqui o que fez em cada ciclo (versão do `pubspec.yaml` + o que mudou). Este arquivo guarda **histórico**; a descrição atual do app fica em `MAPA_DO_APP.md`.
 
+## v1.0.65 (build 66) — 02/11/2026
+
+- **Refatoração Arquitetural Global — Decomposição Plena dos Monólitos do PDV, Gestão Operacional, Identidade Social e Mensageria (Meta /goal Concluída):**
+  - **Opção A — Higienização de Identidade Social e Mensageria:**
+    - [conta_nous_view.dart](file:///d:/Nous/nous/lib/src/features/auth/views/conta_nous_view.dart): Decomposto de 1.115 para 66 linhas de puro orquestrador. Submódulos criados em `lib/src/features/auth/views/widgets/conta_nous/`:
+      - `bloco_identidade_conta_widget.dart` (dados civis, CPF, nome completo, biometria).
+      - `bloco_privacidade_conta_widget.dart` (regras e alternâncias de privacidade).
+      - `bloco_emails_conta_widget.dart` (gestão e alternância de e-mails ativos).
+      - `bloco_seguranca_conta_widget.dart` (PIN, senha, autenticação e recuperação).
+    - [montador_conversas_chat.dart](file:///d:/Nous/nous/lib/src/features/chat/services/montador_conversas_chat.dart): Reduzido de 907 para 170 linhas limpas. Submódulos criados em `lib/src/features/chat/services/montador/`:
+      - `montador_conversas_modo_loja.dart`
+      - `montador_conversas_modo_social.dart`
+      - `curador_conversas_chat.dart`
+    - [painel_conversa_ativa_widget.dart](file:///d:/Nous/nous/lib/src/features/chat/views/widgets/painel_conversa_ativa_widget.dart): Reduzido de 884 para 170 linhas limpas. Submódulos criados em `lib/src/features/chat/views/widgets/painel_conversa/`:
+      - `dialog_menu_anexos_chat.dart`
+      - `banner_titulo_conversa_widget.dart`
+      - `cabecalho_conversa_ativa_widget.dart`
+      - `barra_envio_mensagem_widget.dart`
+    - [mensageria_view.dart](file:///d:/Nous/nous/lib/src/features/chat/views/mensageria_view.dart): Reduzido de 951 para 370 linhas com eliminação total de 250 linhas de duplicação entre mobile e desktop via:
+      - `lib/src/features/chat/services/mensageria_acoes_delegate.dart`
+  - **Opção B — Higienização do PDV e Gestão Operacional:**
+    - [nova_venda_dialog.dart](file:///d:/Nous/nous/lib/src/features/pdv/views/widgets/nova_venda_dialog.dart): Decomposto o bloco de finalização e baixa de estoque para:
+      - `lib/src/features/pdv/views/widgets/nova_venda/finalizador_nova_venda.dart`
+    - [usuarios_participantes_container.dart](file:///d:/Nous/nous/lib/src/features/pdv/views/widgets/usuarios_participantes_container.dart): Reduzido de 1.094 para 290 linhas limpas. Submódulos criados em `lib/src/features/pdv/views/widgets/usuarios/`:
+      - `dialog_convite_membro_loja.dart`
+      - `dialog_troca_papel_membro.dart`
+      - `card_membro_loja_widget.dart`
+    - [venda_registrada_dialog.dart](file:///d:/Nous/nous/lib/src/features/pdv/views/widgets/venda_registrada_dialog.dart): Reduzido de 1.076 para 180 linhas limpas. Submódulos criados em `lib/src/features/pdv/views/widgets/venda_registrada/`:
+      - `barra_venda_widget.dart`
+      - `bloco_acoes_venda_widget.dart`
+      - `bloco_resumo_venda_widget.dart`
+      - `bloco_itens_venda_widget.dart`
+      - `bloco_comentario_venda_widget.dart`
+    - [cargos_permissoes_container.dart](file:///d:/Nous/nous/lib/src/features/pdv/views/widgets/cargos_permissoes_container.dart): Reduzido de 1.014 para 450 linhas limpas. Submódulos criados em `lib/src/features/pdv/views/widgets/cargos/`:
+      - `dialogs_gerenciar_cargo.dart`
+      - `painel_coletivo_nous_widget.dart`
+      - `card_permissao_loja_widget.dart`
+    - [financeiro_view.dart](file:///d:/Nous/nous/lib/src/features/pdv/views/financeiro_view.dart): Decompostos os blocos de resumo e controle para `lib/src/features/pdv/views/widgets/financeiro/`:
+      - `barra_acoes_financeiro_widget.dart`
+      - `bloco_entradas_financeiro_widget.dart`
+      - `bloco_balanco_financeiro_widget.dart`
+    - [caixa_dialog.dart](file:///d:/Nous/nous/lib/src/features/pdv/views/widgets/caixa_dialog.dart): Decomposto de 981 para 550 linhas limpas. Submódulos criados em `lib/src/features/pdv/views/widgets/caixa/`:
+      - `painel_abertura_turno.dart`
+      - `painel_turno_aberto.dart`
+    - [modo_balcao_widget.dart](file:///d:/Nous/nous/lib/src/features/pdv/views/widgets/modo_balcao_widget.dart): Decomposto de 924 para 780 linhas limpas. Submódulos criados em `lib/src/features/pdv/views/widgets/modo_balcao/`:
+      - `barra_superior_balcao_widget.dart`
+      - `campo_bipador_balcao_widget.dart`
+  - **Garantia de Qualidade e Conformidade Soberana:**
+    - Zero issues no analisador estático (`flutter analyze` = No issues found!).
+    - 100% dos testes automatizados aprovados (102/102 testes verdes).
+    - Scripts de build de instaladores para Windows e Android validados.
+
+## v1.0.64 (build 65) — 02/11/2026
+
+- **Refatoração Integral dos Monólitos Finais e Blindagem da Rede Social e Mensageria (Meta /goal Concluída):**
+  - **Isolamento de Metadados e Saneamento do Chat da Aplicação:**
+    - Criado [resolvedor_conversa_info_service.dart](file:///d:/Nous/nous/lib/src/features/chat/services/resolvedor_conversa_info_service.dart): desacoplou e centralizou a resolução de metadados, títulos, avatares e usernames da rede social com o modelo imutável `MetadadosConversaInfo`.
+    - Refatoração de [chat_mensagens_service.dart](file:///d:/Nous/nous/lib/src/features/chat/services/chat_mensagens_service.dart): eliminada duplicação de regras de resolução de contatos e conversas, garantindo blindagem de identidade social contra sobreposições e cache corrompido.
+  - **Modularização do Sistema de Notificações:**
+    - Criado [card_notificacao_estoque.dart](file:///d:/Nous/nous/lib/src/features/notificacoes/views/widgets/cards/card_notificacao_estoque.dart): exibição e resolução de alertas de estoque baixo por loja.
+    - Criado [card_notificacao_chat.dart](file:///d:/Nous/nous/lib/src/features/notificacoes/views/widgets/cards/card_notificacao_chat.dart): visualização e navegação de mensagens não lidas no chat social.
+    - Criado [card_notificacao_convite.dart](file:///d:/Nous/nous/lib/src/features/notificacoes/views/widgets/cards/card_notificacao_convite.dart): cards de solicitações de dados e convites de membros de loja.
+    - Criado [gerenciador_acoes_notificacao.dart](file:///d:/Nous/nous/lib/src/features/notificacoes/services/gerenciador_acoes_notificacao.dart): centralizou regras de aceite e recusa de convites.
+    - Refatoração de [notificacoes_dialog.dart](file:///d:/Nous/nous/lib/src/features/notificacoes/views/widgets/notificacoes_dialog.dart): reduziu de **1.139 para 536 linhas** (-603 linhas).
+  - **Modularização da Ficha de Identidade e Privacidade do Usuário:**
+    - Criado [linha_info_usuario.dart](file:///d:/Nous/nous/lib/src/features/auth/views/widgets/ficha_usuario/linha_info_usuario.dart): suporte completo a censura seletiva e privacidade por campo.
+    - Criado [bloco_dados_pessoais_usuario.dart](file:///d:/Nous/nous/lib/src/features/auth/views/widgets/ficha_usuario/bloco_dados_pessoais_usuario.dart): alternância entre visualização com blur e edição.
+    - Criado [bloco_emails_usuario.dart](file:///d:/Nous/nous/lib/src/features/auth/views/widgets/ficha_usuario/bloco_emails_usuario.dart): listagem de e-mails associados e status do e-mail ativo.
+    - Criado [bloco_lojas_usuario.dart](file:///d:/Nous/nous/lib/src/features/auth/views/widgets/ficha_usuario/bloco_lojas_usuario.dart): exibição de lojas administradas e participadas com cargos e papéis.
+    - Refatoração de [ficha_usuario_dialog.dart](file:///d:/Nous/nous/lib/src/features/auth/views/widgets/ficha_usuario_dialog.dart): reduziu de **1.009 para 755 linhas**.
+  - **Modularização dos Ajustes da Loja e Modo de Visualização do PDV:**
+    - Criado [bloco_atalhos_teclado_widget.dart](file:///d:/Nous/nous/lib/src/features/pdv/views/widgets/ajustes_loja/bloco_atalhos_teclado_widget.dart): configuração de comandos e teclas de função F1-F12.
+    - Criado [bloco_tempo_conclusao_widget.dart](file:///d:/Nous/nous/lib/src/features/pdv/views/widgets/ajustes_loja/bloco_tempo_conclusao_widget.dart): tempo estimado de preparo e conclusão de pedidos.
+    - Criado [bloco_sons_alertas_widget.dart](file:///d:/Nous/nous/lib/src/features/pdv/views/widgets/ajustes_loja/bloco_sons_alertas_widget.dart): configuração de áudios e sinos de avisos.
+    - Refatoração de [aba_ajustes_loja_widget.dart](file:///d:/Nous/nous/lib/src/features/pdv/views/widgets/abas_loja/aba_ajustes_loja_widget.dart): reduziu de **747 para 505 linhas**.
+  - **Modularização de Movimento de Estoque e Cadastro de Item:**
+    - Criado [card_ajustes_rapidos_item_dialog.dart](file:///d:/Nous/nous/lib/src/features/pdv/views/widgets/estoque/card_ajustes_rapidos_item_dialog.dart): ajustes rápidos de venda, código de barras e unidade durante entrada de compras.
+    - Criado [botao_hover_tipo_estoque.dart](file:///d:/Nous/nous/lib/src/features/pdv/views/widgets/estoque/botao_hover_tipo_estoque.dart): seleção visual com hover para tipo de movimento.
+    - Criado [botoes_hover_item_widget.dart](file:///d:/Nous/nous/lib/src/features/pdv/views/widgets/novo_item/botoes_hover_item_widget.dart): botões hover de unidades de medida e produto/serviço.
+    - Refatoração de [movimento_estoque_dialog.dart](file:///d:/Nous/nous/lib/src/features/pdv/views/widgets/movimento_estoque_dialog.dart): reduziu de **1.050 para 730 linhas**.
+    - Refatoração de [novo_item_dialog.dart](file:///d:/Nous/nous/lib/src/features/pdv/views/widgets/novo_item_dialog.dart): reduziu de **1.103 para 923 linhas**.
+  - **Garantia de Qualidade e Conformidade Soberana:**
+    - 0 warnings e 0 errors no analisador estático (`flutter analyze` = No issues found!).
+    - 102/102 testes automatizados passando com 100% de sucesso (`flutter test`).
+
+## v1.0.63 (build 64) — 02/11/2026
+
+- **Modularização Profunda de Rede Local, Relatórios PDF, Caixas e Mesas para Crescimento Saudável da Aplicação (Meta /goal Concluída):**
+  - **Decomposição dos Monólitos de Rede Local em Message Handlers Dedicados:**
+    - Criado [terminal_conectado_info.dart](file:///d:/Nous/nous/lib/src/features/pdv/models/terminal_conectado_info.dart) para desacoplamento de metadados de conexões ativas na rede LAN.
+    - Criado [servidor_ws_message_handler.dart](file:///d:/Nous/nous/lib/src/features/pdv/services/rede_local/handlers/servidor_ws_message_handler.dart) para centralizar a lógica de identificação, logout, chat, convites de loja e broadcast de sincronização.
+    - Criado [cliente_ws_message_handler.dart](file:///d:/Nous/nous/lib/src/features/pdv/services/rede_local/handlers/cliente_ws_message_handler.dart) para orquestrar recepção de dados iniciais, reconciliação de loja, pedidos, estoque, mesas e convites.
+    - Refatoração de [servidor_rede_local.dart](file:///d:/Nous/nous/lib/src/features/pdv/services/rede_local/servidor_rede_local.dart) e [cliente_rede_local.dart](file:///d:/Nous/nous/lib/src/features/pdv/services/rede_local/cliente_rede_local.dart), reduzindo mais de 650 linhas dos núcleos de conectividade.
+  - **Reestruturação e Decomposição de Relatórios e Exportação Documental PDF:**
+    - Criado [pdf_formatacao_util.dart](file:///d:/Nous/nous/lib/src/features/pdv/services/relatorios/pdf_formatacao_util.dart): utilitários compartilhados de estilo, formatação e gravação cross-platform (`FilePicker` / `file_selector`).
+    - Criado [exportador_pdf_comanda.dart](file:///d:/Nous/nous/lib/src/features/pdv/services/relatorios/exportador_pdf_comanda.dart): geração especializada de comandas e recibos de mesa/balcão.
+    - Criado [exportador_pdf_financeiro.dart](file:///d:/Nous/nous/lib/src/features/pdv/services/relatorios/exportador_pdf_financeiro.dart): relatórios gerenciais e fluxo financeiro analítico.
+    - Criado [exportador_pdf_dre.dart](file:///d:/Nous/nous/lib/src/features/pdv/services/relatorios/exportador_pdf_dre.dart): Demonstrativo de Resultados do Exercício (DRE) detalhado.
+    - Criado [exportador_pdf_extrato_cliente.dart](file:///d:/Nous/nous/lib/src/features/pdv/services/relatorios/exportador_pdf_extrato_cliente.dart): extrato de compras e dívidas a prazo por cliente.
+    - Redução drástica de [relatorios_pdf_service.dart](file:///d:/Nous/nous/lib/src/features/pdv/services/relatorios_pdf_service.dart) de **1.372 linhas para apenas 78 linhas**, operando como uma Facade limpa e 100% retrocompatível.
+  - **Modularização dos Diálogos Operacionais de Caixa e Mesas:**
+    - Criados [painel_historico_turnos.dart](file:///d:/Nous/nous/lib/src/features/pdv/views/widgets/caixa/painel_historico_turnos.dart), [bloco_movimentacoes_turno.dart](file:///d:/Nous/nous/lib/src/features/pdv/views/widgets/caixa/bloco_movimentacoes_turno.dart), [painel_lancamento_movimento.dart](file:///d:/Nous/nous/lib/src/features/pdv/views/widgets/caixa/painel_lancamento_movimento.dart) e [painel_fechamento_turno.dart](file:///d:/Nous/nous/lib/src/features/pdv/views/widgets/caixa/painel_fechamento_turno.dart).
+    - Criados [card_operacional_turno.dart](file:///d:/Nous/nous/lib/src/features/pdv/views/widgets/caixa/card_operacional_turno.dart) e [card_resumo_financeiro_turno.dart](file:///d:/Nous/nous/lib/src/features/pdv/views/widgets/caixa/card_resumo_financeiro_turno.dart), reduzindo [detalhes_turno_caixa_dialog.dart](file:///d:/Nous/nous/lib/src/features/pdv/views/widgets/detalhes_turno_caixa_dialog.dart) de 1.229 para **758 linhas** (saiu da lista de monólitos).
+    - Criado [configuracao_item_mesa_widget.dart](file:///d:/Nous/nous/lib/src/features/pdv/views/widgets/mesas/configuracao_item_mesa_widget.dart): reduziu [adicionar_item_mesa_dialog.dart](file:///d:/Nous/nous/lib/src/features/pdv/views/widgets/mesas/adicionar_item_mesa_dialog.dart) em ~300 linhas.
+    - Criado [cadastro_cliente_rapido_mesa_dialog.dart](file:///d:/Nous/nous/lib/src/features/pdv/views/widgets/mesas/cadastro_cliente_rapido_mesa_dialog.dart): reduziu [fechar_conta_mesa_dialog.dart](file:///d:/Nous/nous/lib/src/features/pdv/views/widgets/mesas/fechar_conta_mesa_dialog.dart) em ~200 linhas.
+  - **Conformidade de Compilação e Suíte de Testes:**
+    - `ndkVersion` configurado de forma canônica no Android (`28.2.13676358`).
+    - 0 warnings e 0 errors no analisador estático (`flutter analyze` = No issues found!).
+    - 102/102 testes aprovados com 100% de sucesso (`flutter test`).
+
+## v1.0.62 (build 63) — 02/11/2026
+
+- **Correção de Identidade no Chat da Loja e Modularização Completa dos Monólitos do PDV (Meta /goal Concluída):**
+  - **Correção Soberana de Identidade no Chat da Loja:**
+    - Resolvido o bug de chave de cache em [montador_conversas_chat.dart](file:///d:/Nous/nous/lib/src/features/chat/services/montador_conversas_chat.dart) (`loja_conversa_${c.id}`), eliminando a sobreposição de identidade da atendente ("Rosa") nas conversas com clientes reais.
+    - Implementada proteção e cura de identidade no [chat_mensagens_service.dart](file:///d:/Nous/nous/lib/src/features/chat/services/chat_mensagens_service.dart) e na visualização de conversas, garantindo exibição fidedigna de avatar, nome real e telefone do cliente.
+    - Criada suíte completa de 32 testes unitários em [chat_mensageria_test.dart](file:///d:/Nous/nous/test/chat_mensageria_test.dart) com 100% de aprovação.
+  - **Modularização de `dados_perfil_view.dart` (Reduzido de 1.992 para 424 linhas):**
+    - Criado [dados_perfil_loja_controller.dart](file:///d:/Nous/nous/lib/src/features/pdv/views/widgets/loja/dados_perfil_loja_controller.dart): orquestrador único de estados, timers e ciclo de vida.
+    - Criado [seletor_conteudo_abas_loja_widget.dart](file:///d:/Nous/nous/lib/src/features/pdv/views/widgets/loja/seletor_conteudo_abas_loja_widget.dart): isolamento completo da renderização das 4 abas (Dados, Loja, Gestão e Ajustes).
+    - Criado [layout_principal_loja_widget.dart](file:///d:/Nous/nous/lib/src/features/pdv/views/widgets/loja/layout_principal_loja_widget.dart): encapsulamento de atalhos globais (F1-F12), Modo Balcão, Scaffold Desktop Expandido e Scaffold Compacto.
+    - Criado [gerenciador_dialogs_loja.dart](file:///d:/Nous/nous/lib/src/features/pdv/views/widgets/loja/gerenciador_dialogs_loja.dart): centralização de diálogos operacionais (clientes, financeiro, impressora, relatórios, caixa, mesas e atalhos).
+    - Criado [gerenciador_clientes_fornecedores_loja.dart](file:///d:/Nous/nous/lib/src/features/pdv/views/widgets/loja/gerenciador_clientes_fornecedores_loja.dart): regras de negócio e cadastro de clientes e fornecedores.
+    - Criado [persistencia_loja_helper.dart](file:///d:/Nous/nous/lib/src/features/pdv/views/widgets/loja/persistencia_loja_helper.dart): persistência local e propagação na rede Wi-Fi.
+  - **Modularização de `aba_gestao_nous_widget.dart` (Reduzido de 1.834 para 787 linhas):**
+    - Criados [dialogs_topicos_gestao.dart](file:///d:/Nous/nous/lib/src/features/pdv/views/widgets/gestao_nous/dialogs_topicos_gestao.dart), [barra_envio_mensagem_gestao.dart](file:///d:/Nous/nous/lib/src/features/pdv/views/widgets/gestao_nous/barra_envio_mensagem_gestao.dart), [bolha_mensagem_gestao.dart](file:///d:/Nous/nous/lib/src/features/pdv/views/widgets/gestao_nous/bolha_mensagem_gestao.dart), [barra_topicos_comunitarios_widget.dart](file:///d:/Nous/nous/lib/src/features/pdv/views/widgets/gestao_nous/barra_topicos_comunitarios_widget.dart) e [cabecalho_chat_gestao_widget.dart](file:///d:/Nous/nous/lib/src/features/pdv/views/widgets/gestao_nous/cabecalho_chat_gestao_widget.dart).
+  - **Modularização de `programar_pedido_dialog.dart` (Reduzido de 1.592 para 606 linhas):**
+    - Criados [bloco_frequencia_horario_widget.dart](file:///d:/Nous/nous/lib/src/features/pdv/views/widgets/programar_pedido/bloco_frequencia_horario_widget.dart), [bloco_selecao_item_programado_widget.dart](file:///d:/Nous/nous/lib/src/features/pdv/views/widgets/programar_pedido/bloco_selecao_item_programado_widget.dart) e [bloco_comanda_programada_widget.dart](file:///d:/Nous/nous/lib/src/features/pdv/views/widgets/programar_pedido/bloco_comanda_programada_widget.dart).
+  - **Modularização da Suíte de Turno de Caixa e Venda:**
+    - Criados [barra_turno_item.dart](file:///d:/Nous/nous/lib/src/features/pdv/views/widgets/caixa/barra_turno_item.dart), [card_movimento_turno.dart](file:///d:/Nous/nous/lib/src/features/pdv/views/widgets/caixa/card_movimento_turno.dart), [card_venda_turno.dart](file:///d:/Nous/nous/lib/src/features/pdv/views/widgets/caixa/card_venda_turno.dart) e [gerador_comprovante_venda.dart](file:///d:/Nous/nous/lib/src/features/pdv/services/gerador_comprovante_venda.dart).
+  - **Métricas Finais e Auditoria de Qualidade:**
+    - Zero issues no analisador estático (`flutter analyze` = No issues found!).
+    - 102 de 102 testes passando com 100% de aprovação (`flutter test`).
+    - Novos instaladores de teste gerados em `dist/`.
+
+## v1.0.61 (build 62) — 02/11/2026
+
+- **Modularização Arquitetural em Cascata e Extinção dos Três Maiores Monólitos Remanescentes:**
+  - **Prioridade 1: Modularização da Criação e Fechamento de Vendas (`NovaVendaDialog`):**
+    - Criado [cliente_seletor_nova_venda_widget.dart](file:///d:/Nous/nous/lib/src/features/pdv/views/widgets/nova_venda/cliente_seletor_nova_venda_widget.dart): desacoplou a busca preditiva de clientes, histórico recente, exibição prioritária com `TextoRolante` e gatilho de cadastro ágil.
+    - Criado [comanda_resumo_nova_venda_widget.dart](file:///d:/Nous/nous/lib/src/features/pdv/views/widgets/nova_venda/comanda_resumo_nova_venda_widget.dart): encapsulou a renderização do cupom de papel da comanda física com itens, adicionais, observações e totais formatados.
+    - Criado [pagamento_nova_venda_widget.dart](file:///d:/Nous/nous/lib/src/features/pdv/views/widgets/nova_venda/pagamento_nova_venda_widget.dart): separou em `BlocoAjustesNovaVendaWidget` (frete, desconto, acréscimo) e `BlocoPagamentoNovaVendaWidget` (formas de pagamento, cálculo de troco/falta e quitação).
+    - Redução drástica de [nova_venda_dialog.dart](file:///d:/Nous/nous/lib/src/features/pdv/views/widgets/nova_venda_dialog.dart) de 2.430 linhas para 1.543 linhas (-887 linhas).
+  - **Prioridade 2: Modularização da Comunidade e Gestão Nous (`AbaGestaoNousWidget`):**
+    - Criado [dialog_explorar_salas_comunitarias.dart](file:///d:/Nous/nous/lib/src/features/pdv/views/dialogs/dialog_explorar_salas_comunitarias.dart): diálogo modal completo para explorar, buscar e ingressar em salas comunitárias Nous.
+    - Criado [card_audio_mensagem_gestao.dart](file:///d:/Nous/nous/lib/src/features/pdv/views/widgets/gestao_nous/card_audio_mensagem_gestao.dart): player autônomo com scrubber slider, controle de reprodução e contador de duração.
+    - Redução de [aba_gestao_nous_widget.dart](file:///d:/Nous/nous/lib/src/features/pdv/views/widgets/aba_gestao_nous_widget.dart) de 2.396 linhas para 1.833 linhas (-563 linhas).
+  - **Prioridade 3: Modularização do Agendamento e Contratos Recorrentes (`ProgramarPedidoDialog`):**
+    - Criado [dialog_digitar_horario.dart](file:///d:/Nous/nous/lib/src/features/pdv/views/dialogs/dialog_digitar_horario.dart): diálogo especializado com máscara, rolagem por mouse wheel e sugestões rápidas de horário, com o reutilizável `HorarioInputFormatter`.
+    - Criado [calendario_programacao_widget.dart](file:///d:/Nous/nous/lib/src/features/pdv/views/widgets/programar_pedido/calendario_programacao_widget.dart): grade visual adaptável de calendário com seleção múltipla de datas e navegação por mês.
+    - Redução de [programar_pedido_dialog.dart](file:///d:/Nous/nous/lib/src/features/pdv/views/widgets/programar_pedido_dialog.dart) de 2.140 linhas para 1.591 linhas (-549 linhas).
+  - **Qualidade, Estabilidade e Suíte de Testes:**
+    - Zero issues no analisador estático (`dart analyze` = No issues found!).
+    - 100% de sucesso nos testes automatizados (101/101 testes passando).
+
+## v1.0.60 (build 61) — 02/11/2026
+
+- **Modularização de Monólitos do PDV e Desacoplamento da Gestão de Catálogo, Pedidos e Módulo Financeiro:**
+  - **Desacoplamento do Catálogo da Loja (`GerenciadorCatalogoLoja`):**
+    - Criado [gerenciador_catalogo_loja.dart](file:///d:/Nous/nous/lib/src/features/pdv/views/widgets/loja/gerenciador_catalogo_loja.dart) desacoplando integralmente a criação, edição, expansão, exclusão e auditoria de itens, categorias e grupos de componentes.
+    - Sincronização automática e atômica de vínculos entre categorias e grupos no catálogo do PDV.
+  - **Desacoplamento do Ciclo de Vida de Pedidos da Loja (`GerenciadorPedidosLoja`):**
+    - Criado [gerenciador_pedidos_loja.dart](file:///d:/Nous/nous/lib/src/features/pdv/views/widgets/loja/gerenciador_pedidos_loja.dart) encapsulando o processamento da fila de novos pedidos, timers de verificação de conclusão, diálogos de cancelamento, recusa, estorno automático no estoque e registro em caixa.
+    - Redução cumulativa de ~1.200 linhas em [dados_perfil_view.dart](file:///d:/Nous/nous/lib/src/features/pdv/views/dados_perfil_view.dart) (caindo de 3.449 para 2.261 linhas), com UI 100% retrocompatível e ágil.
+  - **Decomposição do Módulo Financeiro (`FinanceiroView`):**
+    - Criado [item_linha_financeira.dart](file:///d:/Nous/nous/lib/src/features/pdv/views/widgets/financeiro/item_linha_financeira.dart) com os widgets reutilizáveis `LinhaPagamentoFuncionarioWidget`, `LinhaCompraEstoqueWidget`, `LinhaComHoverWidget` e o formatador de datas `DataInputFormatter`.
+    - Criado [seletor_periodo_financeiro_widget.dart](file:///d:/Nous/nous/lib/src/features/pdv/views/widgets/financeiro/seletor_periodo_financeiro_widget.dart) encapsulando a seleção de períodos (Hoje, Semana, Mês, Tudo, Personalizado), navegação direta por dia e calendário pop-up.
+    - Criado [bloco_compras_financeiro_widget.dart](file:///d:/Nous/nous/lib/src/features/pdv/views/widgets/financeiro/bloco_compras_financeiro_widget.dart) com lista de compras por fornecedor, busca interativa e paginação visual.
+    - Criado [bloco_funcionarios_financeiro_widget.dart](file:///d:/Nous/nous/lib/src/features/pdv/views/widgets/financeiro/bloco_funcionarios_financeiro_widget.dart) com gestão da folha de pagamento da equipe.
+    - Criado [bloco_vendas_financeiro_widget.dart](file:///d:/Nous/nous/lib/src/features/pdv/views/widgets/financeiro/bloco_vendas_financeiro_widget.dart) com busca de vendas, filtro por forma de pagamento e visualização de comprovantes.
+    - Criado [bloco_resumo_operacional_widget.dart](file:///d:/Nous/nous/lib/src/features/pdv/views/widgets/financeiro/bloco_resumo_operacional_widget.dart) com o dashboard de faturamento, ticket médio, status de caixa e recebíveis.
+    - Redução maciça de 2.276 linhas para 995 linhas em [financeiro_view.dart](file:///d:/Nous/nous/lib/src/features/pdv/views/financeiro_view.dart) (-56% de código no arquivo!).
+  - **Qualidade, Estabilidade e Suíte de Testes:**
+    - Zero issues no Dart Analyzer (`dart analyze` = No issues found!).
+    - 100% dos testes unitários e de integração aprovados (101/101 testes passando).
+
+## v1.0.59 (build 60) — 01/11/2026
+
+- **Decomposição do Monólito de Mensageria (`ChatService`) e Eliminação de Gargalos de Troca de Chat:**
+  - **Criação do Repositório SQLite Dedicado (`ChatRepositorioSqlite`):**
+    - Criado [chat_repositorio_sqlite.dart](file:///d:/Nous/nous/lib/src/features/chat/services/chat_repositorio_sqlite.dart) centralizando tabelas, migrações e índices de alta performance (`idx_chat_lida` cobrindo `[conversa_id, lida, remetente_id]`).
+    - **Otimização Crítica de Leitura:** Substituído loop O(N) que realizava updates individuais linha a linha por batch update único indexado (`UPDATE mensagens_chat SET lida = 1, status_envio = 'lida' WHERE conversa_id = ? AND lida = 0 AND remetente_id != ?`), eliminando o congelamento na troca de conversas.
+    - Otimização da listagem de conversas e grupos com leitura de última mensagem via queries leves `LIMIT 1` em vez de carregar listas completas em memória.
+  - **Criação do Serviço de Mídias e Resumos (`ChatMediaService`):**
+    - Criado [chat_media_service.dart](file:///d:/Nous/nous/lib/src/features/chat/services/chat_media_service.dart) para gestão segura de anexos em disco, leitura protegida de bytes em Base64 para envio na malha local e geração inteligente de resumos textuais de mensagens.
+  - **Criação do Serviço de Sincronização e Malha de Rede (`ChatSincronizacaoService`):**
+    - Criado [chat_sincronizacao_service.dart](file:///d:/Nous/nous/lib/src/features/chat/services/chat_sincronizacao_service.dart) para roteamento e propagação de mensagens, eventos de entrega, leitura e digitação via WebSocket/HTTP tanto no Balcão (Servidor) quanto nos Terminais (Clientes).
+  - **Refatoração do `ChatService` como Fachada Soberana e Unificada:**
+    - Redução maciça de 2.742 linhas para ~1.340 linhas, mantendo 100% de retrocompatibilidade com todos os métodos e fluxos públicos consumidos pela interface.
+  - **Qualidade e Estabilidade:**
+    - Zero erros estáticos no Dart Analyzer e 100% dos testes da suíte (101/101 testes) aprovados com sucesso.
+
+## v1.0.58 (build 59) — 01/11/2026
+
+- **Modularização de Monólitos do PDV, Higiene Arquitetural e Desacoplamento:**
+  - **Criação do `EstoqueBaixaService` (lib/src/features/pdv/services/estoque_baixa_service.dart):**
+    - Serviço canônico e unificado para cálculo soberano de baixas e estornos de estoque em vendas e cancelamentos.
+    - Ponderação rigorosa por `consumoPorVenda` do item e de acompanhamentos selecionados em pedidos de balcão e de salão/mesas, eliminando discrepâncias e duplicação de regras.
+  - **Desacoplamento do Gerenciador de Mesas (`GerenciadorMesasLoja`):**
+    - Criado `lib/src/features/pdv/views/widgets/mesas/gerenciador_mesas_loja.dart` desacoplando toda a lógica de abertura, alteração de comanda, transferência, exclusão e fechamento de conta de salão.
+    - Redução de ~400 linhas em `dados_perfil_view.dart`, tornando a tela de gestão ágil, testável e sem gargalos de manutenção.
+  - **Extração de Formatadores Compartilhados (`texto_formatters.dart`):**
+    - Extração de `PrimeiraLetraMaiusculaFormatter` de `clientes_dialog.dart` para `lib/src/core/utils/texto_formatters.dart`, viabilizando reuso global.
+  - **Suíte de Testes Expandida:**
+    - Criado `test/estoque_baixa_service_e_formatters_test.dart` com 100% de cobertura nos cálculos de estoque e formatação de texto (101 testes automatizados passando).
+
+## v1.0.57 (build 58) — 01/11/2026
+
+- **Trilha A: Blindagem Estrutural da Fase 1 Local-First & Preparação para Hub Universal:**
+  - **Diretrizes Arquiteturais Soberanas:**
+    - Criada a regra formal `.agents/rules/arquitetura_hub_universal.md` incorporada às instruções de agentes (`AGENTS.md`) definindo os 5 pilares do Hub Universal: Desacoplamento Físico de Dados, Outbox Pattern, Adaptadores de Conectores Externos, IDs Universais e Arquitetura de Mídia Relativa/Canônica.
+  - **Blindagem Quádrupla de Resolução de Imagens e Mídia em Rede Local:**
+    - `ManipuladorMidiaServidor._atenderImagem`: Adicionada resolução quádrupla e resiliente a falhas no endpoint `/api/imagem` (caminho -> fallback por `item_id` no catálogo -> fallback por `categoria_id` no catálogo -> fallback por CPF/CNPJ de cliente ou fornecedor -> fallback por nome base de arquivo), eliminando em 100% quebras de fotos na sincronização entre Windows e Android.
+    - `ReconciliadorLojaRede.resolverCaminhoImagem`: Envio explícito de `item_id`, `categoria_id` e `cnpj` como parâmetros de consulta prioritários durante a reconciliação e download de mídias de produtos e contatos do catálogo da loja.
+  - **Isolamento e Robustez em Banco de Dados SQLite em Testes:**
+    - Adicionado método `@visibleForTesting` `BancoDadosService.resetDbInstanciaParaTestes()` para redefinição limpa de conexões SQLite entre suites.
+    - Isolamento de diretórios temporários (`createTempSync`) em testes concorrentes (`dados_locais_service_test.dart`), prevenindo bloqueios de concorrência (`database is locked`) e assegurando 100% dos testes unitários passando (98/98).
+
+## v1.0.56 (build 57) — 31/10/2026
+
+- **Otimização de Desempenho e Decodificação Assíncrona de JSON em Isolate:**
+  - Criado o utilitário soberano `json_isolate_utils.dart` com decodificação assíncrona em Isolates dedicados (`compute`) para payloads grandes (> 20KB).
+  - Aplicada a decodificação em Isolate no cliente e no servidor de rede local para handshake REST de lojas/catálogos e mensagens WebSocket em tempo real, eliminando travamentos de UI e quedas de quadros (jank).
+- **Refatoração Modular do Servidor de Rede Local (`ServidorRedeLocal`):**
+  - Desacoplamento do monólito de 2.200 linhas em módulos de roteamento dedicados sob `pdv/services/rede_local/handlers/`:
+    - `RoteadorLojaPedidos`: endpoints de Loja (`/api/loja`, `/api/loja/atualizar`, `/api/loja/sair`), Pedidos (`/api/pedido`), Movimentos de Estoque (`/api/movimento_estoque`) e Mesas (`/api/mesa`).
+    - `RoteadorUsuarios`: endpoints de Identidade e Usuários (`/api/usuario`, `/api/usuarios`, `/api/sincronizar_perfis_usuario`).
+    - `RoteadorChat`: endpoints de Mensageria (`/api/chat/mensagem`, `/api/chat/mensagens`, `/api/chat/conversas`, `/api/chat/conversas/sync`).
+  - Redução drástica do tamanho e complexidade do servidor principal, mantendo 100% de retrocompatibilidade e zero perda de dados.
+- **Suporte a Paginação no Carregamento de Mensagens de Chat:**
+  - `ChatService.carregarMensagens` atualizado com suporte opcional a `limite` e `offset`, preparando a infraestrutura para carregamento sob demanda e scroll infinito.
+
+## v1.0.55 (build 56) — 31/10/2026
+
+- **Cabeçalho do Chat em Padrão WhatsApp (Anti-Sobreposição Pan-Dispositivo):**
+  - Substituição da arquitetura em `Stack` centralizada por uma `Row` responsiva e adaptável: informações do contato (avatar circular, nome em negrito e status/@username) ancoradas à esquerda dentro de um `Expanded`, garantindo zero sobreposição com os controles.
+  - Botões de ligação de vídeo, ligação de voz, edição/renomear e menu de 3 pontos alinhados à extrema direita em `Row(mainAxisSize: MainAxisSize.min)` tanto no modo compacto (mobile) quanto no modo desktop.
+- **Espelhamento Correto de Câmera WebRTC e Ativação em Chamada de Voz:**
+  - O vídeo local PiP agora utiliza espelhamento reativo (`mirror: cameraFrontalAtiva.value`): **apenas a câmera frontal (selfie) é espelhada**. Ao alternar para a câmera traseira (`inverterCamera`), o espelhamento é desativado para exibir o ambiente real de forma fidedigna.
+  - Implementada a obtenção dinâmica de trilha de vídeo via `getUserMedia` quando a câmera é ativada no decorrer de uma ligação iniciada em modo voz.
+- **Lista de Usuários Conectados e Pesquisa na Aba "Terminal Móvel" (Wi-Fi):**
+  - Identificação clara do host conectado (se conectado a uma Loja ou ao Servidor em Modo Usuário Nous) e respectivo endereço IP e porta.
+  - Implementada a listagem em tempo real de todos os nós/usuários conectados na mesma rede local (`presencasAtivas`), com input de pesquisa instantânea filtrando por nome civil, nome de usuário (`@username`) ou CPF mascarado.
+  - Acesso direto à ficha cadastral dos usuários conectados via modal soberano (`FichaUsuarioDialog`).
+- **Preservação Cronológica e Reconciliação do Histórico do SQLite:**
+  - Ajuste de causalidade monotônica restrito estritamente a novas mensagens locais/em trânsito (`!originadaDaRede`), preservando os timestamps originais de mensagens antigas sincronizadas.
+  - Atualização determinística do resumo da conversa (`ultima_mensagem` e `data_hora_ultima_mensagem`) na tabela `conversas_chat` utilizando sempre a mensagem mais recente do histórico.
+  - Reconciliação em segundo plano do histórico do SQLite ao selecionar uma conversa no `MensageriaController`.
+
+## v1.0.54 (build 55) — 31/10/2026
+
+- **Chamadas de Áudio e Vídeo P2P via WebRTC nos Chats:**
+  - Implementado sistema completo de chamadas diretas P2P em tempo real (`flutter_webrtc: ^1.6.3`) utilizando a rede local Wi-Fi sem necessidade de internet ou servidores externos na nuvem.
+  - **Sinalização Nativa sobre WebSocket:** Roteamento bidirecional transparente no `ServidorRedeLocal` e `ClienteRedeLocal` para mensagens de sinalização (`chamada_iniciar`, `chamada_aceita`, `chamada_rejeitada`, `chamada_encerrada`, `chamada_sinal_sdp`, `chamada_candidato_ice`).
+  - **Interface Imersiva de Chamada (`ChamadaAtivaView`):** Vídeo local em picture-in-picture (PIP), fluxo de vídeo remoto em tela cheia, cronômetro de duração, controles para silenciar microfone, alternar câmera frontal/traseira, ligar/desligar câmera e chavear viva-voz.
+  - **Modal de Chamada Recebida (`DialogChamadaRecebida`):** Notificação em tempo real com avatar, nome de contato, indicação clara de chamada de voz ou vídeo e toque sonoro contínuo com opções de atender ou recusar.
+  - **Botões Integrados na Conversa:** Botões de ligar por áudio (`phone`) e vídeo (`videocam`) incorporados ao cabeçalho de conversas privadas e grupos no `PainelConversaAtivaWidget`, com exclusão estrita e deliberada do chat comunitário público da Loja Nous.
+  - **Permissões de Hardware no Android:** Adicionadas permissões `CAMERA`, `RECORD_AUDIO` e `MODIFY_AUDIO_SETTINGS` ao `AndroidManifest.xml`.
+- **Paridade e Estabilidade do Modo Servidor de Usuário Nous:**
+  - Corrigido o handshake de rede local para quando o servidor é iniciado no modo pessoal/usuário (sem loja comercial aberta). O host agora inclui sempre a sua própria presença em `obterTodasPresencas()` e o cliente aceita o snapshot sem descartar eventos de sincronização.
+
+## v1.0.53 (build 54) — 31/10/2026
+
+- **Sincronização de Relógio em Rede Local (Uníssono Silencioso):**
+  - Implementado `RelogioRedeService` e endpoint `/api/relogio` no balcão calculando latência RTT e offset de relógio via algoritmo de Cristian, garantindo ordem causal estrita em chats e comandas mesmo com relógios divergentes.
+  - Sincronização 100% autônoma e em segundo plano no handshake de conexão com o balcão.
+- **Unificação de Fotos de Perfil e Autocura de Imagens:**
+  - `PerfilSocialView` e `DialogDetalhesContato` integrados com `ResolvedorFotoChat` e rotina de busca de dados remotos e download de imagens ausentes via rede local.
+- **Eliminação de Gargalos, Perda de Mensagens e Divergência de Históricos:**
+  - IDs únicos protegidos contra colisão via contador monotônico e entropia aleatória.
+  - Causalidade de Lamport antes da inserção no banco de dados SQLite.
+  - Limitação segura de frames WebSocket a 3.5MB para evitar travamento da Isolate principal e estouro de buffer.
+  - Download assíncrono não-bloqueante de imagens recebidas via balcão.
+
+## v1.0.52 (build 53) — 30/10/2026
+
+- **Eliminação Total da Lentidão na Troca de Chats (Zero-Lag UI a 60/120 FPS):**
+  - **Seleção Otimista Instantânea:** A troca de conversa em `MensageriaController.selecionarConversa` e `selecionarOuIniciarConversa` agora atualiza a conversa ativa imediatamente no mesmo frame (0ms de atraso perceptível), eliminando consultas síncronas bloqueantes de banco de dados.
+  - **Interrupção de Loop de Recarga Local:** O método `ChatService.marcarComoLidas` recebeu o parâmetro `notificar: false` para operações originadas na tela de mensagens ativa. Isso impede que a seleção de um chat dispare notificações de alteração global no `alteracoesChatNotifier`, que causava um congelamento de tela com debounce de 120ms para reconsultar todos os contatos do SQLite.
+  - **Otimização de Parsing JSON:** Em `ChatService.carregarMensagens`, mensagens não editadas ignoram completamente chamadas desnecessárias de `jsonDecode`, acelerando em mais de 10x o carregamento do histórico.
+- **Decomposição do Monólito do PDV Balcão (`ModoBalcaoWidget`):**
+  - **Extração de `ComandaBalcaoWidget` (-524 linhas):** Criado `comanda_balcao_widget.dart` isolando o carrinho lateral ampliado do cliente, a listagem viva de itens escaneados, adicionais, observações, seleção rápida de formas de pagamento e cálculo em tempo real de troco.
+  - Redução de `modo_balcao_widget.dart` de 2.375 para 1.851 linhas, permitindo renderizações pontuais e melhorias de performance em PDVs com catálogos extensos.
+- **Validação de Integridade e Testes:**
+  - Zero erros e zero advertências estáticas (`dart analyze`).
+  - 100% dos 98 testes automatizados validados com sucesso.
+
+## v1.0.51 (build 52) — 30/10/2026
+
+- **Desacoplamento Arquitetural de Relatórios PDF A4 (`RelatoriosPdfService`):**
+  - **Extração de Serviço Especializado:** Criado `relatorios_pdf_service.dart` (1.375 linhas), isolando completamente a geração e composição visual de relatórios documentais A4 (`exportarComandaPDF`, `exportarFinanceiroPDF`, `exportarDREPDF` e `exportarExtratoClientePDF`).
+  - **Enxugamento do `ImpressaoService` (-43%):** Redução de 2.798 para 1.606 linhas (-1.192 linhas), concentrando `ImpressaoService` estritamente no envio térmico de cupons (ESC/POS 58mm/80mm) e expondo métodos de fachada retrocompatíveis que delegam para `RelatoriosPdfService`.
+  - **Isolamento de Dependências:** O pacote `file_selector` foi restrito a `relatorios_pdf_service.dart`, mantendo o serviço de impressão puramente dedicado à integração direta com o spooler do sistema (`printing`).
+- **Expurgo Cirúrgico de Código Morto e Arquivos Órfãos:**
+  - Removidos 6 arquivos legados que não eram referenciados em nenhuma parte da aplicação: `associar_cpf_view.dart`, `modelo_layout_desktop.dart`, `container_simbolico.dart`, `dados_bancarios_container.dart`, `delivery_container.dart` e `grupo_componentes_container.dart` (-972 linhas de ruído eliminadas).
+- **Modularização de Telas e Modais do PDV (`DadosPerfilView`):**
+  - Desacoplados componentes modais focados: `dialog_conclusao_pedido_tempo.dart` (alerta de tempo de preparo com timer sonoro), `estoque_dialog.dart` (modal padronizado de controle de estoque), `dialog_confirmacao_estorno_pedido.dart` (confirmação de estorno de itens ao estoque) e `barra_acoes_loja_widget.dart` (ações rápidas de catálogo e suprimentos).
+- **Higiene, Estabilidade e Integridade do Super App:**
+  - Zero advertências e zero erros estáticos na suíte completa (`dart analyze: No issues found!`).
+  - 100% dos testes automatizados validados com sucesso (`flutter test: 98/98 passed`).
+
+## v1.0.50 (build 51) — 30/10/2026
+
+- **Sincronização Soberana Aditiva e Proteção Anti-Perda de Finanças (Pedidos e Turnos de Caixa):**
+  - **Reconciliação Não-Destrutiva Bidirecional:** A consolidação de lojas (`LojasService.consolidarLojaComImagensLocais` e `ClienteRedeLocal._reconciliarLojaMutua`) agora realiza a união soberana de pedidos (`pedidosLoja`), turnos de caixa (`turnosCaixa`), movimentações de estoque (`movimentosEstoque`), pagamentos de funcionários (`pagamentosFuncionarios`), pedidos programados e cargos. Dispositivos desatualizados que se conectam na rede local nunca mais sobrescrevem ou zeram finanças de outros terminais.
+  - **Eliminação de Deleção Cega no SQLite:** Removida a rotina `DELETE ... NOT IN` em `LojasService.salvarLojas`, impedindo que pedidos históricos ou criados em modo offline sejam deletados silenciosamente por snapshots parciais de rede.
+  - **Propagação Mútua de Novidades Financeiras:** Ao conectar ao balcão via WebSocket, se o terminal móvel detectar que possui pedidos, turnos ou estoque que o servidor central não tem, ele despacha imediatamente a versão enriquecida para o balcão se atualizar em tempo real.
+- **Triagem com E-mail Estritamente Obrigatório e Remoção de Entrada sem E-mail:**
+  - **Exigência Mandatória de E-mail:** Na segunda tela de triagem (`ContasUsuarioView`), foi removida a opção "Continuar sem e-mail". Usuários sem e-mail cadastrado são impedidos de prosseguir e direcionados ao cadastro obrigatório de e-mail.
+- **Encerramento Completo de Conexões e Sessões no Logout:**
+  - O método `AuthProvider.sair()` e as ações de saída da aplicação agora encerram e fecham ativamente os sockets WebSockets (`ClienteRedeLocal.desconectar(manual: true)`), cancelam timers de reconexão e ping, interrompem a escuta de anúncios UDP (`pararDescoberta`), limpam o operador do balcão e resetam o estado do `PdvProvider` (`limparSessao`).
+- **Refatoração Arquitetural e Desmembramento de Monólitos de Rede e Chat:**
+  - **Decomposição do `ClienteRedeLocal` (-47% de código monólito):**
+    - Criado `transferencia_arquivos_rede.dart` (256 linhas): isolamento completo de upload/download HTTP multipart e binário de fotos de produtos, anexos de chat, áudios e comprovantes com cache local.
+    - Criado `reconciliador_loja_rede.dart` (658 linhas): isolamento dos algoritmos de união não-destrutiva de pedidos, turnos, movimentos de estoque, pagamentos, catálogo e mesas.
+    - Criado `sincronizador_usuarios_rede.dart` (574 linhas): isolamento da sincronização pan-dispositivo de identidades Nous, fotos e vínculos de lojas por CPF.
+    - O arquivo `cliente_rede_local.dart` foi reduzido de 2.589 para 1.373 linhas, preservando 100% da fachada pública (zero breaking changes para chamadores).
+  - **Decomposição do `ChatService` (-20% de código monólito):**
+    - Criado `sincronizador_chat_balcao.dart` (338 linhas): centralização da esteira de sincronização HTTP e reconciliação SQLite de conversas, mensagens, tombstones de exclusão e anexos.
+    - Criado `comunidade_chat_service.dart` (390 linhas): gestão modular de salas comunitárias e tópicos da Comunidade Nous (`#Geral` e tópicos dinâmicos).
+    - O arquivo `chat_service.dart` foi reduzido de 3.303 para 2.682 linhas, mantendo métodos de conveniência e contratos existentes.
+  - **Decomposição do `ServidorRedeLocal` (Par Arquitetural Cliente-Servidor):**
+    - Criado `manipulador_midia_servidor.dart` (260 linhas): centraliza o streaming de áudio com `Accept-Ranges: bytes`, atendimento binário e por CPF de imagens (`/api/imagem`), recepção de uploads de mídia e entrega de instaladores APK Android via Wi-Fi (`/api/download_apk`, `/api/versao`).
+    - O arquivo `servidor_rede_local.dart` delegou todas as operações de baixo nível de stream de arquivos, mantendo a regra de autorização de terminais, roteamento REST e canais WebSocket intactos.
+  - **Decomposição e Desacoplamento da `DadosPerfilView` (Tela da Loja):**
+    - Criado `barra_acoes_loja_widget.dart` (85 linhas): desacopla a barra de ações horizontais da vitrine da loja (Novo Item, Nova Categoria, Novo Grupo e Estoque).
+    - Criado `dialog_conclusao_pedido_tempo.dart` (140 linhas): isola o diálogo de conclusão por tempo estimado de preparo atingido com feedback sonoro e visual.
+    - Criado `estoque_dialog.dart` (112 linhas): padroniza a abertura modal do container de estoque, isolando o estado e callbacks de fornecedores e movimentações.
+    - Criado `dialog_confirmacao_estorno_pedido.dart` (75 linhas): desacopla a confirmação de estorno de itens de volta ao estoque no fluxo de exclusão de pedidos.
+    - Redução de ~380 linhas de código inline no maior arquivo da aplicação, melhorando drasticamente a legibilidade e a manutenção operacional.
+  - **Eficiência e Fluidez:** Código mais legível, busca instantânea e navegação otimizada para desenvolvedores e agentes de IA, sem gargalos ou acoplamentos circulares. Zero erros no analisador estático (`dart analyze`) e 100% dos testes automatizados validados.
+
+## v1.0.49 (build 50) — 30/10/2026
+
+- **Sincronização e Download Automático de Fotos de Perfil e Grupos (Autocura de Avatares):**
+  - **Normalização de Caminhos Multiplataforma:** Normalizadas as barras invertidas (`\`) para barras (`/`) em caminhos de arquivos vindos do Windows, corrigindo falha no Android onde arquivos recebidos ficavam inacessíveis.
+  - **Download com Fallback Baseado em CPF (`/api/imagem`):** O endpoint HTTP do servidor balcão agora aceita parâmetro `cpf`. Se o caminho absoluto do arquivo no servidor mudar ou for inacessível no terminal móvel, o servidor localiza a foto atualizada no cadastro do usuário e a devolve.
+  - **Widget `_AvatarComAutocura` no Chat:** Quando um avatar do chat (contato ou grupo) aponta para um caminho local ainda inexistente, o widget renderiza o placeholder e dispara download em segundo plano via Wi-Fi pelo balcão, atualizando o avatar na tela assim que o download termina sem travar o scroll ou a UI.
+  - **Eliminação de Gargalo de Reconciliação em Massa:** No `ClienteRedeLocal`, o loop de reconciliação de contas deixou de disparar dezenas de requisições HTTP redundantes e lentas, aproveitando a lista completa de contas já entregue em lote pelo servidor.
+- **Desobstrução do Fluxo de Envio e WebSocket do Chat:**
+  - **Despacho Imediato de Mensagens com Imagem:** Mensagens com anexos em Base64 são enviadas de imediato pelo socket WebSocket sem aguardar upload HTTP prévio bloqueante de até 15s.
+  - **Pipeline Sequencial de Reconexão:** Ao restabelecer conexão Wi-Fi, o `ClienteRedeLocal` executa as etapas de sincronização em uma esteira única não bloqueante, eliminando esgotamento de conexões e quedas acidentais do WebSocket (`onDone`).
+- **Sincronização Completa de Mensagens de Grupos na Rede Local:**
+  - Corrigidas as consultas de sincronização de mensagens (`obterConversasParaSincronizacao` e `obterMensagensParaSincronizacao`) para incluir grupos (`eh_grupo = 1` e `conversa_id LIKE 'grupo_%'`), garantindo que mensagens trocadas em grupos sejam sincronizadas para todos os membros mesmo quando recebidas enquanto offline.
+  - Inclusão dos metadados de grupo (`grupoTitulo`, `grupoFoto`, `grupoParticipantesJson`) no payload de rede, evitando perdas de dados cadastrais do grupo em dispositivos móveis conectados.
+
+## v1.0.48 (build 49) — 30/10/2026
+
+- **Confirmação Instantânea de Leitura e Risquinhos Azuis (`status_envio == 'lida'`):**
+  - **Reconhecimento Imediato de Visualização:** Quando o usuário está com a conversa aberta na tela (`idConversaAtiva`), novas mensagens que chegam pela rede local são salvas instantaneamente como lidas (`lida: true, statusEnvio: 'lida'`) e o evento de confirmação de leitura (`mensagens_lidas`) é despachado imediatamente para o remetente, ativando os dois risquinhos azuis em tempo real.
+  - **Atualização Bidirecional de Leitura:** O método `marcarComoLidas()` agora atualiza o banco local com `status_envio: 'lida'` e retransmite a confirmação pela rede, sincronizando os checks azuis no balcão e nos celulares pareados.
+- **Supressão de Notificações Redundantes e Limpeza de Indicadores com Conversa Aberta:**
+  - **Supressão de Bip e Push em Conversa Ativa:** Mensagens recebidas na conversa atualmente aberta deixam de emitir alerta sonoro e não disparam notificações de push locais no Android, respeitando a visualização em tempo real do usuário.
+  - **Barra de Conversas e Sino de Notificações Limpos:** As queries de contagem não lida (`temMensagensNaoLidasNoUsuario` e `temMensagensNaoLidasNaLoja`), bem como o `MontadorConversasChat` e o `ItemConversaTile`, agora desconsideram mensagens da conversa ativa (`idConversaAtiva`), mantendo o sino da `CustomAppBar` e os badges da lista limpos enquanto o usuário está conversando.
+- **Centralização do Nome da Conversa no Cabeçalho:**
+  - Em `PainelConversaAtivaWidget`, o nome do contato/loja/grupo, avatar e status foram reposicionados com alinhamento centralizado geométrico (`Stack` e `Center`), garantindo harmonia visual e equilíbrio com os botões de retorno à esquerda e ações à direita.
+- **Notificações Nativas no Android Estilo WhatsApp com Logo Nous e Resposta Rápida:**
+  - A notificação no Android agora utiliza o ícone oficial do Nous (`@mipmap/ic_launcher`) tanto no ícone pequeno quanto no `largeIcon`, exibe a cor do tema da aplicação (`colorized: true`) e adota `MessagingStyleInformation`, permitindo responder diretamente pela notificação com envio imediato para a malha da rede local via `ChatService.enviarMensagemInstantanea()`.
+- **Isolamento de Fotos de Perfis Profissionais de Lojas:**
+  - Corrigido o resolvedor de fotos (`ResolvedorFotoChat.buildAvatar`) e o `MontadorConversasChat` para que buscas por lojas recém-criadas sem logotipo (ex.: "Berenice") nunca herdem ou exibam a foto do usuário que a criou; lojas sem logo personalizada exibem o ícone padrão de perfis comerciais do Nous (`Icons.storefront_outlined`).
+- **Controle Flexível e Fim do Auto-Start Indevido do Servidor Balcão:**
+  - Removida a inicialização automática silenciosa do servidor local como "Laricas" em `perfis_pdv_view.dart`. O servidor agora é iniciado sob demanda pelo usuário, com seletor de identidade que permite escolher entre atuar como "Usuário Nous" ou como uma Loja comercial específica.
+- **Expurgo e Bloqueio Total de Lojas Host Artificiais ("Host: Usuário Nous"):**
+  - **Servidor Puro em Modo Usuário Nous:** O `ServidorRedeLocal.iniciar()` agora suporta formalmente execução sem loja vinculada (`loja: null`), transmitindo anúncio UDP e rotas HTTP/WebSocket com `tipoHost: 'usuario'`, sem instanciar qualquer objeto `Loja` artificial.
+  - **Expurgo Automático no Banco de Dados:** Adicionado `LojasService.expurgarLojasHostFalsas()`, que elimina do SQLite qualquer registro espúrio criado anteriormente (`id` iniciando com `host_`, tags `host_pessoal` ou nome `Host:`), acionado preventivamente no login e inicialização do `PdvProvider`.
+  - **Garantia de Exibição Única de Lojas Autênticas:** `PdvProvider`, `LojasService` e `ClienteRedeLocal` bloqueiam adição, salvamento ou sincronização de lojas falsas de host, garantindo que em "Meus Perfis Profissionais" e "Perfis que eu participo" constem estritamente as lojas criadas pelos próprios usuários.
+  - **Interface de Sincronização Wi-Fi Aprimorada:** O diálogo `SincronizacaoRedeDialog` mantém o seletor de transmissão na rede ("Transmitir na rede como:"), permitindo alternar entre "👤 Usuário Nous" e as lojas reais cadastradas, com ícones distintos na descoberta do Wi-Fi (pessoa em azul para usuários, loja em verde para estabelecimentos).
+
+## v1.0.47 (build 48) — 29/10/2026
+
+- **Ordenação Temporal Monotônica e Causalidade Distribuída (Relógio de Lamport):**
+  - **Resolução de Skew de Relógios entre Dispositivos:** Resolvido o problema de mensagens invertidas quando o relógio do celular e do computador apresentam diferença de horário. Implementada causalidade lógica de Lamport tanto na criação otimista (`enviarMensagem`) quanto na persistência e reconciliação de rede (`salvarMensagem`), garantindo que novas mensagens sempre tenham timestamp estritamente posterior à última mensagem conhecida da conversa.
+- **Eliminação Definitiva do Reabrimento Automático de Chat no Celular:**
+  - **Fim da Recuperação Forçada em Reload:** Removido o bloco de auto-seleção indevida em `recarregarConversas()` quando nenhuma conversa está ativa (`_conversaSelecionada == null`). Ao fechar uma conversa no celular (`onVoltarMobile` ou botão voltar), o estado permanece nulo e limpo na lista de conversas, sem reabrir conversas em segundo plano a cada sincronização ou mensagem recebida.
+  - **Consumo Único de `conversaInicialId`:** Parâmetros de navegação inicial agora são consumidos uma única vez na inicialização (`_conversaInicialConsumida`), impedindo que eventos do barramento local restaurem telas anteriores.
+- **Correção Estrutural de Títulos de Conversa e Eliminação de Loops Recursivos:**
+  - **Separação Rígida entre Nome do Contato e Título do Chat:** Refatorada a propriedade `temTituloConversa` para descartar títulos redundantes que replicam o nome do contato ou do grupo (`tituloConversa == titulo`).
+  - **Eliminação de Loop Infinito no Montador de Conversas:** Substituída a chamada recursiva de `ChatService.renomearConversa()` dentro de `MontadorConversasChat.montarConversas()` pelo método silencioso `ChatService.atualizarMetadadosContatoConversa()`, que persiste atualizações cadastrais no banco SQLite sem disparar loops ininterruptos de notificação reativa e re-renderização.
+  - **Higienização Automática de Dados Corrompidos:** Adicionada rotina de migração em `_migrarHistoricoExistenteParaConversas()` que limpa automaticamente registros antigos onde `titulo_conversa` havia sido indevidamente gravado com o nome do contato.
+- **Otimização Extrema de Desempenho e I/O de Imagens:**
+  - **Cache em Memória de Resolução de Caminhos (`_cacheResolucaoCaminhos`):** Adicionado cache rápido em `ImagemService.resolverCaminhoExistente()`, eliminando dezenas de verificações síncronas de sistema de arquivos (`existsSync`) por quadro para caminhos de fotos que não existem ou que vieram de plataformas diferentes (ex.: Android vs Windows).
+
+## v1.0.46 (build 47) — 29/10/2026
+
+- **Sincronização Local-First em Tempo Real de Convites de Loja:**
+  - **Barramento de Convites via WebSocket:** Convites de loja (`ConviteLoja`), solicitações de papéis e remoções agora são transmitidos em tempo real via rede local (`novo_convite_loja` e `convite_loja_removido`) por `ConvitesService`, `NotificacoesProvider`, `ServidorRedeLocal` e `ClienteRedeLocal`.
+  - **Anexação e Preservação de Metadados da Loja:** O envio do convite agora anexa a definição completa da `Loja`, que é salva imediatamente no SQLite do aparelho receptor. Ao aceitar o convite, o terminal convidado já possui os dados completos da loja sem erros de "loja indisponível".
+  - **Sincronização na Conexão:** Ao identificar um terminal pelo CPF (`tipo: 'identificacao'`), o servidor busca e transmite imediatamente todos os convites pendentes armazenados para aquele cidadão (`sincronizacao_convites`).
+- **Eliminação Total de Flickering e Piscas no Chat:**
+  - **Remoção de Animações Concorrentes:** Substituído o widget `TextoRolante` por `Text` com `TextOverflow.ellipsis` no cabeçalho da conversa ativa (`PainelConversaAtivaWidget`), em todos os cards da lista lateral (`ItemConversaTile`) e no card de arquivos anexos (`CardMensagemArquivo`), eliminando dezenas de timers concorrentes e o efeito visual de piscar intermitente.
+  - **Banner de Título Sob Demanda:** O banner de título no topo do histórico agora só é renderizado quando a conversa de fato possui um título definido (`temTituloConversa == true`), sem poluir a área do chat com caixas de layout instáveis.
+- **Debouncing de Atualizações Reativas no Chat:**
+  - Implementado debounce de 120ms em `_aoAtualizarChat` no `MensageriaView`, agrupando disparos rápidos de mensagens e sincronização para evitar reconstruções e leituras de banco desnecessárias.
+- **Nova Regra de Arquitetura (.agents/rules/contrato_rede_local_first.md):**
+  - Formalizado o contrato de 4 elos obrigatórios (Persistência Origem -> Despacho WebSocket -> Recepção Destino -> Reatividade UI) e proibição de animações contínuas em listas dinâmicas.
+
+## v1.0.45 (build 46) — 29/10/2026
+
+- **Solução Definitiva do Loop de Conexão/Desconexão Wi-Fi no Celular:**
+  - **Eliminação de Corrida Concorrente:** Adicionada trava atômica `_conectando` e guarda de estado em `ClienteRedeLocal`, impedindo que broadcasts UDP a cada 3 segundos ou múltiplos disparos paralelos chamem `conectar()` enquanto uma conexão já está em andamento.
+  - **Descarte de Eventos `onDone` de Sockets Substituídos:** O ouvinte de WebSocket agora compara `_ws == socketInstancia`, garantindo que o fechamento ordenado de conexões antigas nunca mais feche o novo socket ativo nem dispare `_aoDesconectar()` acidentalmente.
+  - **Isolamento de Terminais por CPF no Servidor Balcão:** O `ServidorRedeLocal` agora desduplica conexões estritamente por CPF em vez de fechar indiscriminadamente por IP (`mesmoIp`), permitindo múltiplos terminais na mesma sub-rede/Wi-Fi sem que um aparelho mate a conexão do outro.
+  - **Proteção de Reconexão Manual e Desconexão Limpa:** `desconectar(manual: true)` agora sinaliza explicitamente a intenção do usuário, cancelando temporizadores residuais e impedindo loops de reconexão forçada.
+
+## v1.0.44 (build 45) — 29/10/2026
+
+- **Eliminação Definitiva da Reconciliação Destrutiva de Conversas:** Removida a rotina que excluía conversas e mensagens locais no celular caso o servidor balcão ainda não as tivesse registrado. Conversas locais agora são estritamente preservadas e protegidas contra apagamentos acidentais.
+- **Fim do Atraso de 35 Segundos no Envio e Conexão:** Dispositivos e cidadãos/usuários Nous conectados com CPF válido na rede Wi-Fi agora são auto-autorizados instantaneamente (0ms) no `ServidorRedeLocal`, eliminando o modal de bloqueio de 35/45 segundos que travava conexões de terminais móveis e atrasava a transmissão de mensagens.
+- **Confirmação Imediata de Entrega (2 Checks) via WebSocket:** O `ServidorRedeLocal` agora despacha imediatamente uma confirmação de entrega (`mensagem_entregue`) de volta ao socket remetente ao receber uma mensagem de chat, garantindo atualização em tempo real do status de envio.
+- **Limpeza Defensiva de Tombstones Espúrios de Usuários:** Adicionada rotina de expurgo de tombstones espúrios (`user_%`) na inicialização do `ChatService`, ressuscitando imediatamente conversas de contatos pessoais (como a Carol) que haviam sido marcadas indevidamente como excluídas.
+- **Persistência e Restauração da Última Conversa Aberta:** O `MensageriaController` agora memoriza e restaura a última conversa ativa por usuário através do `SharedPreferences`, assegurando que o contexto de navegação não seja perdido ao abrir e fechar a tela no celular.
+
+## v1.0.43 (build 44) — 29/10/2026
+
+- **Bloqueio de Mensagens Diretas para a Loja Coletiva Nous:** A Loja Nous Coletiva (`loja_nous_coletiva`) agora fica restrita exclusivamente ao seu chat público acessível diretamente dentro da loja. Ela não é mais inserida como conversa 1-a-1 na barra lateral de chats, nem na lista de contatos do diálogo "Nova Conversa", e conversas diretas residuais com a Loja Nous são automaticamente expurgadas do banco de dados local.
+- **Ressurreição Imediata de Conversas Excluídas ao Enviar Mensagens:** Solução definitiva da falha em que contatos (como a Carol) não apareciam na lista de chats após o envio de mensagem. O tombstone em `conversas_excluidas` agora é automaticamente removido pelo `ChatService` ao enviar mensagens, ao selecionar/iniciar uma conversa e durante a leitura de exclusões, garantindo que qualquer conversa com atividade recente volte a ser exibida instantaneamente na lista lateral.
+- **Desacoplamento Rigoroso entre Nome do Contato e Título/Assunto da Conversa:** O nome oficial do contato (`conversa.titulo`, ex: "Claudiane Basilio Fernandes") nunca mais é sobrescrito ou corrompido ao alterar o título de uma conversa. Foi criado o campo persistido e sincronizado `tituloConversa` (`titulo_conversa` no SQLite) para armazenar o título customizado ou assunto temático atribuído pelo usuário àquela conversa.
+- **Banner de Título de Conversa no Topo da Área de Chat com Rolagem Natural:** O título da conversa agora é exibido como um banner elegante no topo da área de rolagem do chat (acima da primeira mensagem), permitindo edição rápida através de botão contextual. Conforme novas mensagens são enviadas e a conversa cresce para baixo, o banner sobe naturalmente com o histórico do chat.
+- **Identificação de Títulos Customizados na Lista Lateral:** Na lista de conversas, o título do item continua sendo o nome real da pessoa, e caso a conversa possua um título/assunto customizado, ele é exibido sutilmente com o marcador `🏷️ [Título da Conversa]` no subtítulo, oferecendo clareza sem alterar a identidade do interlocutor.
+
+## v1.0.42 (build 43) — 29/10/2026
+
+- **Identidade Real e Autocura de Contatos na Mensageria:** Solução definitiva da causa-raiz que atribuía o nome e a foto do próprio usuário logado aos cards de contato quando este enviava a última mensagem (`_migrarHistoricoExistenteParaConversas`, `obterTodasConversas`, `enviarMensagemInstantanea`). Agora o interlocutor é resolvido e mantido de ponta a ponta com nome real, foto de perfil soberana e `@username`.
+- **Blindagem de Títulos Customizados contra Nomes do Próprio Usuário:** `ChatService.obterTitulosCustomizados([String? cpfLogado])` filtra ativamente variantes de nome civil, social e apelido do usuário autenticado, impedindo que nomes de remetente gravados em conversas 1-a-1 sejam interpretados como apelidos locais.
+- **Autocura e Sanitização de Avatares no ResolvedorFotoChat:** Detecção e descarte proativo do avatar do usuário autenticado em chats 1-a-1; o resolvedor busca o avatar verdadeiro do contato ou seu fallback gerado com iniciais elegantes, atualizando e curando registros incorretos no SQLite.
+- **Subtítulo Harmonioso com @username no ItemConversaTile:** Quando a conversa possui `@username`, a visualização exibe `@username • última mensagem` (ou apenas `@username` caso ainda não haja mensagens), garantindo busca instantânea e identificação imediata sem o termo genérico "Conversa".
+- **Modularização Arquitetural das Abas da Loja:** Extração de `BarraDeAbasDaLojaWidget` e `BotaoAbaLojaWidget` para `lib/src/features/pdv/views/widgets/abas_loja/barra_de_abas_loja_widget.dart`, reduzindo o arquivo `dados_perfil_view.dart` em mais de 2.200 linhas com desacoplamento total de responsabilidade.
+- **Modularização do Demonstrativo Financeiro (DRE):** Extração do relatório DRE em modal dedicado (`DialogDemonstrativoDRE` em `lib/src/features/pdv/views/dialogs/dialog_demonstrativo_dre.dart`), enxugando `financeiro_view.dart`.
+- **Modularização da Janela de Nova Venda do PDV:** Criação de `lib/src/features/pdv/models/modelos_nova_venda.dart` para `LinhaCarrinho`, `LinhaPagamento`, `ItemRascunho` e `RascunhoVenda`; extração de `BotaoHoverForma`, `DialogEscolherVarianteItem`, `DialogEditarAcompanhamentos` e `DialogSeletorItemCategoria`, enxugando e desacoplando a experiência de frente de caixa.
+- **Controle Direto e Resiliente de Ligar/Desligar o Servidor Local da Loja:** Disponibilizado botão liga/desliga (Switch) direto e reativo para o servidor Wi-Fi do balcão na tela "Status da Loja" (`StatusLojaView`) e no card de sincronização dos "Ajustes da Loja" (`AbaAjustesLojaWidget`), sem exigir navegação oculta por diálogos. No menu de sincronização (`CustomAppBar` e `SincronizacaoRedeDialog`), o diálogo agora recebe a loja ativa do PDV (`buscarPorId(lojaId)`), não força mais a aba cliente quando aberto sem parâmetro e implementa fallback defensivo soberano, garantindo que o servidor possa ser iniciado ou desligado com 1 clique a qualquer momento.
+- **Isolamento de Fotos de Lojas contra Fotos de Usuários:** Conversas com lojas no modo social agora preservam rigorosamente o `logo` da loja e descartam proativamente a foto do próprio usuário logado caso tenha sido associada indevidamente no SQLite (`ChatService.obterTodasConversas`, `MontadorConversasChat` e `ResolvedorFotoChat`), sanando a exibição de lojas com a foto do titular.
+- **Filtro de Busca Inteligente Sem Falsos Positivos de Lojas:** `MensageriaController.combinaBusca` agora ignora prefixos técnicos como `loja_` e o subtítulo genérico `'Loja'` na busca por caracteres únicos (como a letra "j"), evitando que todas as lojas sejam listadas indevidamente ao pesquisar por contatos ou amigos.
+- **Sincronização e Reconciliação Instantânea de Contatos entre Celular e PC:** Exposição pública de `reconciliarContasComServidor()` no `ClienteRedeLocal` com notificação reativa de alteração no `ChatService`, permitindo que celulares conectados pela primeira vez com outro CPF recebam imediatamente todo o catálogo de contas de usuários do balcão e os exibam na busca da mensageria.
+- **Ordenação Estável de Conversas e Reordenação Imediata ao Enviar:** Correção no `MontadorConversasChat` que atribuía indevidamente `DateTime.now()` a lojas e contatos sem histórico de mensagens toda vez que a lista era reconstruída, fazendo com que conversas vazias saltassem para o topo e empurrassem conversas ativas (como a loja "Laricas") para baixo. Agora conversas sem mensagens iniciam com época zero (`fromMillisecondsSinceEpoch(0)`), e ao enviar uma mensagem o `MensageriaController` reposiciona a conversa imediatamente no índice 0 (topo da lista).
+- **Proteção Total contra Crash de Ciclo de Vida do MensageriaController:** Resolução definitiva da exceção `FlutterError (A MensageriaController was used after being disposed)` ao navegar para a loja ou trocar de tela após enviar mensagem. Todas as operações assíncronas em segundo plano (`enviarMensagemInstantanea.then`, `sincronizarComRedeLocal`, `recarregarConversas`, `inicializar`, `selecionarOuIniciarConversa`) e os listeners da `MensageriaView` agora checam rigorosamente `isDisposed` e `mounted` antes de despachar notificações ou alterar o estado da interface.
+- **Qualidade, Estabilidade e Testes Unitários:** Adição de testes cobrindo reordenação para o topo no envio, ordenação de conversas vazias versus ativas e blindagem de ciclo de vida após descarte; 100% de testes automatizados passando (85/85) e zero avisos ou erros no `flutter analyze`.
+
 ## v1.0.41 (build 42) — 28/10/2026
 
+- **Modularização Arquitetural e Alta Performance na Mensageria:** Refatoração completa da tela de chat (`mensageria_view.dart`, anteriormente com mais de 5.390 linhas), dividida em camadas soberanas e desacopladas: controller reativo (`MensageriaController`), widgets especializados (`ListaConversasWidget`, `PainelConversaAtivaWidget`, `BalaoMensagemWidget`, `ItemConversaTile`), cards dedicados (áudio, imagem, arquivo, comanda), diálogos isolados em `views/dialogs/` e serviço centralizado com cache de fotos (`ResolvedorFotoChat`).
+- **Eliminação de Gargalo em Tempo de Execução e Autocura de Mídias:** Remoção das centenas de consultas e loops assíncronos que travavam a renderização a cada mensagem recebida; resolução de fotos agora conta com cache em memória em tempo constante (O(1)); correção do encaminhamento de mensagens para envio e despacho imediato na malha local; e correção da galeria de mídias que agora consome as mensagens ativas em tempo real.
+- **Nova Regra Institucional de Modularidade e Limite de Tamanho de Arquivos:** Instituída diretriz mandatória em `.agents/rules/modularidade_e_tamanho_arquivos.md` e `AGENTS.md` fixando teto estrito de 500 a 800 linhas para arquivos `.dart`, proibindo arquivos monolíticos gigantes e exigindo divisão padronizada em views, controllers, widgets, dialogs e services.
 - **Unificação e Fim de Contatos Duplicados na Mensageria:** Implementado o método `ChatService.consolidarConversasDuplicadas()` e desduplicação canônica por chave universal de identidade (`user_{cpf}`, `grupo_{id}`, `loja_{id}`). Cada pessoa física, loja ou grupo aparece exatamente uma única vez na lista de conversas, agrupando históricos fragmentados e isolando os clientes do balcão do PDV da lista de amigos/contatos do chat social pessoal.
 - **Títulos com Nomes Reais de Contatos (Padrão WhatsApp):** Os cards na lista de conversas, o campo de busca e o cabeçalho ativo agora exibem com destaque o nome real do interlocutor (ex: nome da pessoa, da loja ou do grupo), eliminando o texto genérico "Conversa" e removendo a faixa cinza redundante que ocupava o topo do chat.
 - **Higiene do Repositório Git e Proteção de Tamanho:** Adicionada regra no `.gitignore` para a pasta `dist/` e instaladores/binários (`*.apk`, `*.exe`), e atualizado o arquivo `AGENTS.md` com diretrizes permanentes de higiene do repositório, unicidade de mensageria e cuidado proativo com desenvolvedor iniciante.

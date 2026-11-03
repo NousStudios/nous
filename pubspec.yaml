@@ -3,7 +3,7 @@ description: "Um novo projeto Flutter."
 
 publish_to: 'none'
 
-version: 1.0.41+42
+version: 1.0.65+66
 
 environment:
   sdk: ^3.11.4
@@ -29,6 +29,7 @@ dependencies:
   flutter_local_notifications: ^22.3.2
   image_picker: ^1.1.2
   record: ^7.1.2
+  flutter_webrtc: ^1.6.3
 
 dev_dependencies:
   flutter_test:

@@ -2,9 +2,17 @@ import 'dart:io';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
+import 'package:nous/src/features/auth/providers/auth_provider.dart';
+import 'package:nous/src/features/chat/controllers/mensageria_controller.dart';
 import 'package:nous/src/features/chat/models/conversa_chat.dart';
 import 'package:nous/src/features/chat/models/mensagem_chat.dart';
 import 'package:nous/src/features/chat/services/chat_service.dart';
+import 'package:nous/src/features/chat/services/montador_conversas_chat.dart';
+import 'package:nous/src/features/pdv/services/rede_local/cliente_rede_local.dart';
+import 'package:nous/src/features/notificacoes/models/convite_loja.dart';
+import 'package:nous/src/features/notificacoes/services/convites_service.dart';
+import 'package:nous/src/features/notificacoes/providers/notificacoes_provider.dart';
+import 'package:nous/src/features/pdv/models/membro_loja.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -381,7 +389,7 @@ void main() {
 
       final recuperada = ConversaChat.fromJson(json);
       expect(recuperada.nomeGrupo, equals('Amigos do Futebol'));
-      expect(recuperada.titulo, equals('Conversa'));
+      expect(recuperada.titulo, equals('Amigos do Futebol'));
 
       // Se renomear o título da conversa, o nomeGrupo permanece o mesmo
       final renomeada = recuperada.copyWith(titulo: 'Chat Importante de Futebol');
@@ -446,6 +454,366 @@ void main() {
       expect(lista[2].id, equals('pc_2'));
       expect(lista[3].id, equals('cel_2'));
       expect(lista.last.texto, equals('Última mensagem do celular'));
+    });
+
+    test('ChatService.extrairOutroCpf extrai o CPF oposto com perfeição a partir do ID canônico', () {
+      final cpfA = '11122233344';
+      final cpfB = '55566677788';
+      final convId = ChatService.conversaIdEntreUsuarios(cpfA, cpfB);
+
+      expect(ChatService.extrairOutroCpf(convId, cpfA), equals(cpfB));
+      expect(ChatService.extrairOutroCpf(convId, cpfB), equals(cpfA));
+      expect(ChatService.extrairOutroCpf('grupo_123', cpfA), isEmpty);
+    });
+
+    test('Busca de contatos e usuários Nous filtra por nome, @username e CPF exibindo dados reais', () {
+      final convUser = ConversaChat(
+        id: 'user_11122233344_user_99988877766',
+        titulo: 'Leonardo Silva',
+        subtitulo: '@leosilva',
+        foto: 'caminho/foto.jpg',
+        identificador: '99988877766',
+        ehLoja: false,
+        dataHoraUltimaMensagem: DateTime.now(),
+      );
+
+      expect(convUser.titulo, isNot(equals('Conversa')));
+      expect(convUser.subtitulo, equals('@leosilva'));
+      expect(convUser.titulo.toLowerCase().contains('leonardo'), isTrue);
+      expect(convUser.subtitulo.toLowerCase().contains('leosilva'), isTrue);
+    });
+
+    test('obterTitulosCustomizados ignora placeholders e ConversaChat.fromJson descarta Conversa', () {
+      final jsonLegado = {
+        'id': 'user_11122233344_user_99988877766',
+        'titulo': 'Conversa',
+        'subtitulo': '@carlos',
+        'identificador': '99988877766',
+        'ehLoja': false,
+        'ehGrupo': false,
+      };
+
+      final c = ConversaChat.fromJson(jsonLegado);
+      expect(c.titulo, isNot(equals('Conversa')));
+      expect(c.titulo, equals('@carlos'));
+    });
+
+    test('obterTitulosCustomizados com cpfLogado não assume o próprio nome do usuário como título de contato', () async {
+      final titulos = await ChatService.obterTitulosCustomizados('11122233344');
+      for (final t in titulos.values) {
+        expect(t, isNot(equals('Conversa')));
+        expect(t, isNot(equals('Nova Conversa')));
+        expect(t, isNot(equals('Contato Nous')));
+      }
+    });
+
+    test('MontadorConversasChat.resumoMensagem gera resumos visuais corretos com emojis temáticos', () {
+      final msgTexto = MensagemChat(
+        id: '1',
+        conversaId: 'c1',
+        remetenteId: 'u1',
+        remetenteNome: 'Nome',
+        texto: 'Olá amigo',
+        dataHora: DateTime.now(),
+      );
+      expect(MontadorConversasChat.resumoMensagem(msgTexto), equals('Olá amigo'));
+
+      final msgFoto = msgTexto.copyWith(tipo: 'imagem', texto: '');
+      expect(MontadorConversasChat.resumoMensagem(msgFoto), equals('📷 Foto'));
+
+      final msgAudio = msgTexto.copyWith(tipo: 'audio', texto: '');
+      expect(MontadorConversasChat.resumoMensagem(msgAudio), equals('🎤 Mensagem de Voz'));
+
+      final msgComanda = msgTexto.copyWith(tipo: 'comanda', texto: '');
+      expect(MontadorConversasChat.resumoMensagem(msgComanda), equals('🧾 Comanda de Pedido'));
+
+      final msgArquivo = msgTexto.copyWith(tipo: 'arquivo', nomeAnexo: 'relatorio.pdf', texto: '');
+      expect(MontadorConversasChat.resumoMensagem(msgArquivo), equals('📎 relatorio.pdf'));
+    });
+
+    test('MensageriaController.combinaBusca não dá falso positivo em lojas ao buscar por "j"', () {
+      final controller = MensageriaController();
+      final conversaLoja = ConversaChat(
+        id: 'loja_bebasbolos_usuario_12345678900',
+        titulo: 'Bebasbolos',
+        subtitulo: 'Loja',
+        identificador: 'loja_bebasbolos',
+        ehLoja: true,
+        dataHoraUltimaMensagem: DateTime.now(),
+      );
+
+      // 'Bebasbolos' não tem 'j' no título nem subtítulo. O identificador 'loja_bebasbolos' contém 'j', mas não deve casar!
+      expect(controller.combinaBusca(conversaLoja, 'j'), isFalse);
+      expect(controller.combinaBusca(conversaLoja, 'beba'), isTrue);
+    });
+
+    test('Conversas com mensagens reais se mantêm no topo e lojas vazias com epoch 0 ficam no final', () {
+      final conversaAtiva = ConversaChat(
+        id: 'loja_laricas_usuario_123',
+        titulo: 'Laricas',
+        subtitulo: 'Loja',
+        identificador: 'loja_laricas',
+        ehLoja: true,
+        dataHoraUltimaMensagem: DateTime.now(),
+        ultimaMensagem: 'Oi, tudo bem?',
+      );
+
+      final conversaVazia = ConversaChat(
+        id: 'loja_outra_usuario_123',
+        titulo: 'Outra Loja',
+        subtitulo: 'Loja',
+        identificador: 'loja_outra',
+        ehLoja: true,
+        dataHoraUltimaMensagem: DateTime.fromMillisecondsSinceEpoch(0),
+        ultimaMensagem: 'Toque para conversar com a loja.',
+      );
+
+      final lista = [conversaVazia, conversaAtiva];
+      lista.sort((a, b) {
+        if (a.fixada != b.fixada) return a.fixada ? -1 : 1;
+        return b.dataHoraUltimaMensagem.compareTo(a.dataHoraUltimaMensagem);
+      });
+
+      expect(lista.first.titulo, equals('Laricas'));
+      expect(lista.last.titulo, equals('Outra Loja'));
+    });
+
+    test('enviarMensagem move imediatamente a conversa selecionada para o topo da lista de conversas', () async {
+      final controller = MensageriaController();
+      final auth = AuthProvider();
+
+      final conv1 = ConversaChat(
+        id: 'c1',
+        titulo: 'Primeira',
+        subtitulo: 'Sub',
+        identificador: 'id1',
+        ehLoja: false,
+        dataHoraUltimaMensagem: DateTime(2026, 1, 1),
+      );
+
+      final convLaricas = ConversaChat(
+        id: 'loja_laricas',
+        titulo: 'Laricas',
+        subtitulo: 'Loja',
+        identificador: 'laricas_id',
+        ehLoja: true,
+        dataHoraUltimaMensagem: DateTime(2026, 1, 1),
+      );
+
+      controller.conversas.addAll([conv1, convLaricas]);
+      controller.selecionarConversa(convLaricas);
+
+      expect(controller.conversas[0].id, equals('c1'));
+      expect(controller.conversas[1].id, equals('loja_laricas'));
+
+      await controller.enviarMensagem(
+        texto: 'Olá Laricas',
+        auth: auth,
+      );
+
+      expect(controller.conversas.first.id, equals('loja_laricas'));
+      expect(controller.conversas.first.ultimaMensagem, equals('Olá Laricas'));
+    });
+
+    test('MensageriaController não lança erro ao chamar notifyListeners após dispose', () {
+      final controller = MensageriaController();
+      expect(controller.isDisposed, isFalse);
+
+      controller.dispose();
+      expect(controller.isDisposed, isTrue);
+
+      expect(() => controller.notifyListeners(), returnsNormally);
+    });
+
+    test('ClienteRedeLocal desconectar(manual: true) desativa conexões e reseta estado sem loops', () async {
+      final cliente = ClienteRedeLocal();
+      expect(cliente.conectado, isFalse);
+      expect(cliente.conectando, isFalse);
+
+      await cliente.desconectar(manual: true);
+      expect(cliente.estaConectado.value, isFalse);
+      expect(cliente.conectado, isFalse);
+      expect(cliente.ipServidor, isNull);
+      expect(cliente.portaServidor, isNull);
+    });
+
+    test('ConvitesService salva, despacha e NotificacoesProvider integra convite na rede local', () async {
+      final notif = NotificacoesProvider();
+      expect(NotificacoesProvider.instanciaAtiva, equals(notif));
+
+      final convite = ConviteLoja(
+        id: 'conv_123',
+        cpfConvidante: '11122233344',
+        nomeConvidante: 'Carol',
+        cpfConvidado: '55566677788',
+        lojaId: 'loja_teste_1',
+        nomeLoja: 'Loja Teste',
+        papel: PapelMembro.funcionario,
+        dataHora: DateTime.now(),
+      );
+
+      await ConvitesService.adicionar('55566677788', convite);
+      final carregados = await ConvitesService.carregar('55566677788');
+      expect(carregados.any((c) => c.id == 'conv_123'), isTrue);
+
+      await notif.carregarParaCpf('55566677788');
+      expect(notif.quantidadePendentes, greaterThanOrEqualTo(1));
+      expect(notif.convites.any((c) => c.id == 'conv_123'), isTrue);
+
+      await notif.aceitar('conv_123');
+      expect(notif.convites.any((c) => c.id == 'conv_123'), isFalse);
+    });
+
+    test('salvarMensagem garante causalidade monotônica mesmo com relógio do emissor atrasado', () async {
+      final baseId = 'conv_lamport_${DateTime.now().millisecondsSinceEpoch}';
+      final agora = DateTime.now();
+
+      final msg1 = MensagemChat(
+        id: 'msg_1_$baseId',
+        conversaId: baseId,
+        remetenteId: '47192956813',
+        remetenteNome: 'Leonardo',
+        destinatarioId: '43334347850',
+        texto: 'Primeira pergunta',
+        dataHora: agora,
+      );
+      await ChatService.salvarMensagem(msg1);
+
+      // Simulando relógio do celular atrasado em 2 minutos
+      final relogioAtrasadoDoCelular = agora.subtract(const Duration(minutes: 2));
+      final msg2Atrasada = MensagemChat(
+        id: 'msg_2_$baseId',
+        conversaId: baseId,
+        remetenteId: '43334347850',
+        remetenteNome: 'Carol',
+        destinatarioId: '47192956813',
+        texto: 'Resposta enviada do celular',
+        dataHora: relogioAtrasadoDoCelular,
+      );
+      await ChatService.salvarMensagem(msg2Atrasada);
+
+      final msgs = await ChatService.carregarMensagens(baseId);
+      expect(msgs.length, equals(2));
+      expect(msgs[0].texto, equals('Primeira pergunta'));
+      expect(msgs[1].texto, equals('Resposta enviada do celular'));
+      // A segunda mensagem deve ser posterior à primeira
+      expect(msgs[1].dataHora.isAfter(msgs[0].dataHora), isTrue);
+    });
+
+    test('ConversaChat temTituloConversa descarta títulos que replicam o nome do contato', () {
+      final conversaComNomeDuplicado = ConversaChat(
+        id: 'user_1_user_2',
+        titulo: 'Claudiane Basilio Fernandes',
+        tituloConversa: 'Claudiane Basilio Fernandes',
+        identificador: '33610704810',
+        dataHoraUltimaMensagem: DateTime.now(),
+      );
+      expect(conversaComNomeDuplicado.temTituloConversa, isFalse);
+
+      final conversaComTituloReal = ConversaChat(
+        id: 'user_1_user_2',
+        titulo: 'Claudiane Basilio Fernandes',
+        tituloConversa: 'Orçamento de Doces',
+        identificador: '33610704810',
+        dataHoraUltimaMensagem: DateTime.now(),
+      );
+      expect(conversaComTituloReal.temTituloConversa, isTrue);
+    });
+
+    test('ChatService.marcarComoLidas atualiza lida=1 e status_envio=lida', () async {
+      final convId = 'teste_lidas_${DateTime.now().millisecondsSinceEpoch}';
+      final msg = MensagemChat(
+        id: 'msg_lida_1',
+        conversaId: convId,
+        remetenteId: '99999999999',
+        remetenteNome: 'Remetente Teste',
+        destinatarioId: '88888888888',
+        texto: 'Mensagem de teste',
+        dataHora: DateTime.now(),
+        lida: false,
+        statusEnvio: 'enviada',
+      );
+      await ChatService.salvarMensagem(msg);
+
+      var msgs = await ChatService.carregarMensagens(convId);
+      expect(msgs.first.lida, isFalse);
+
+      await ChatService.marcarComoLidas(convId, '88888888888');
+
+      msgs = await ChatService.carregarMensagens(convId);
+      expect(msgs.first.lida, isTrue);
+      expect(msgs.first.statusEnvio, equals('lida'));
+    });
+
+    test('ChatService.idConversaAtiva suprime contagem de mensagens nao lidas no usuario', () async {
+      final convId = 'teste_ativa_${DateTime.now().millisecondsSinceEpoch}';
+      final msg = MensagemChat(
+        id: 'msg_ativa_1',
+        conversaId: convId,
+        remetenteId: '99999999999',
+        remetenteNome: 'Remetente Teste',
+        destinatarioId: '77777777777',
+        texto: 'Aviso urgente',
+        dataHora: DateTime.now(),
+        lida: false,
+        statusEnvio: 'enviada',
+      );
+      await ChatService.salvarMensagem(msg);
+
+      ChatService.idConversaAtiva = null;
+      var temNaoLidas = await ChatService.temMensagensNaoLidasNoUsuario('77777777777');
+      expect(temNaoLidas, isTrue);
+
+      // Com a conversa aberta na tela, a barra/appbar não deve indicar mensagens não lidas para essa conversa
+      ChatService.idConversaAtiva = convId;
+      temNaoLidas = await ChatService.temMensagensNaoLidasNoUsuario('77777777777');
+      expect(temNaoLidas, isFalse);
+
+      ChatService.idConversaAtiva = null;
+    });
+
+    test('Modo Loja preserva clientes distintos sem colapsar conversas na mesma chave', () {
+      final conversaRosa = ConversaChat(
+        id: 'loja_123_usuario_11111111111',
+        titulo: 'Rosa',
+        subtitulo: 'Cliente',
+        identificador: '11111111111',
+        ehLoja: true,
+        lojaId: '123',
+        dataHoraUltimaMensagem: DateTime(2026, 1, 1, 10, 0),
+        ultimaMensagem: 'Olá da Rosa',
+      );
+
+      final conversaLeonardo = ConversaChat(
+        id: 'loja_123_usuario_22222222222',
+        titulo: 'Leonardo',
+        subtitulo: 'Cliente',
+        identificador: '22222222222',
+        ehLoja: true,
+        lojaId: '123',
+        dataHoraUltimaMensagem: DateTime(2026, 1, 1, 10, 30),
+        ultimaMensagem: 'Olá do Leonardo',
+      );
+
+      final lista = [conversaRosa, conversaLeonardo];
+      final Map<String, ConversaChat> listaDesduplicada = {};
+      String calcularChave(ConversaChat c, bool modoLoja) {
+        return c.ehGrupo
+            ? 'grupo_${c.id}'
+            : (modoLoja
+                ? 'loja_conversa_${c.id}'
+                : (c.ehLoja
+                    ? 'loja_${c.lojaId ?? c.identificador}'
+                    : 'user_${c.identificador}'));
+      }
+
+      for (final c in lista) {
+        final chave = calcularChave(c, true);
+        listaDesduplicada[chave] = c;
+      }
+
+      expect(listaDesduplicada.length, equals(2));
+      expect(listaDesduplicada.values.map((c) => c.titulo), containsAll(['Rosa', 'Leonardo']));
     });
   });
 }

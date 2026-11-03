@@ -1,24 +1,46 @@
+import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
+import 'package:nous/src/core/services/banco_dados_service.dart';
+import 'package:nous/src/features/auth/models/usuario_nous.dart';
+import 'package:nous/src/features/auth/services/contas_nous_service.dart';
+import 'package:nous/src/features/pdv/models/loja.dart';
 import 'package:nous/src/features/pdv/services/dados_locais_service.dart';
+import 'package:nous/src/features/pdv/services/lojas_service.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+  late Directory tempDir;
 
   setUpAll(() {
     sqfliteFfiInit();
     databaseFactory = databaseFactoryFfi;
+    tempDir = Directory.systemTemp.createTempSync('nous_dados_locais_test_');
 
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(
       const MethodChannel('plugins.flutter.io/path_provider'),
       (MethodCall methodCall) async {
-        return Directory.systemTemp.path;
+        return tempDir.path;
       },
     );
+    BancoDadosService.resetDbInstanciaParaTestes();
+  });
+
+  tearDownAll(() async {
+    try {
+      final db = await BancoDadosService.db;
+      await db.close();
+    } catch (_) {}
+    BancoDadosService.resetDbInstanciaParaTestes();
+    try {
+      if (tempDir.existsSync()) {
+        tempDir.deleteSync(recursive: true);
+      }
+    } catch (_) {}
   });
 
   test('Autopreenchimento recupera dados unificados de conta e cadastros locais',
@@ -78,6 +100,12 @@ void main() {
       'nous_contas_cpf': contasJson,
       'nous_lojas_47192956813': lojasJson,
     });
+
+    final contaObj = UsuarioNous.fromJson(jsonDecode(contasJson)[0] as Map<String, dynamic>);
+    await ContasNousService.salvar(contaObj);
+
+    final lojaObj = Loja.fromJson(jsonDecode(lojasJson)[0] as Map<String, dynamic>);
+    await LojasService.salvar('47192956813', [lojaObj]);
 
     final resultado =
         await DadosLocaisService.buscarPorDocumento('47192956813');

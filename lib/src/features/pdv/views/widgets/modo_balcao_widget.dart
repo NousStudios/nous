@@ -1,5 +1,3 @@
-import 'dart:io';
-
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:nous/src/core/services/janela_windows_service.dart';
@@ -12,7 +10,14 @@ import 'package:nous/src/features/pdv/models/grupo_componentes_loja.dart';
 import 'package:nous/src/features/pdv/models/item_loja.dart';
 import 'package:nous/src/features/pdv/models/movimento_estoque.dart';
 import 'package:nous/src/features/pdv/models/pedido_loja.dart';
-import 'package:nous/src/features/pdv/services/imagem_service.dart';
+import 'package:nous/src/features/pdv/views/widgets/modo_balcao/barra_superior_balcao_widget.dart';
+import 'package:nous/src/features/pdv/views/widgets/modo_balcao/campo_bipador_balcao_widget.dart';
+import 'package:nous/src/features/pdv/views/widgets/modo_balcao/catalogo_balcao_widget.dart';
+import 'package:nous/src/features/pdv/views/widgets/modo_balcao/cliente_ajustes_balcao_widget.dart';
+import 'package:nous/src/features/pdv/views/widgets/modo_balcao/comanda_balcao_widget.dart';
+import 'package:nous/src/features/pdv/views/widgets/modo_balcao/dialogo_componentes_balcao.dart';
+import 'package:nous/src/features/pdv/views/widgets/modo_balcao/dialogo_variante_balcao.dart';
+import 'package:nous/src/features/pdv/views/widgets/modo_balcao/visor_ultimo_produto_widget.dart';
 import 'package:nous/src/features/pdv/views/widgets/venda_concluida_dialog.dart';
 
 const List<String> _formasBalcao = [
@@ -176,17 +181,9 @@ class _ModoBalcaoWidgetState extends State<ModoBalcaoWidget> {
     return _carrinho.fold<double>(0.0, (soma, item) => soma + item.subtotal);
   }
 
-  double get _freteValor {
-    return _precoComoNumero(_freteController.text);
-  }
-
-  double get _descontoValor {
-    return _precoComoNumero(_descontoController.text);
-  }
-
-  double get _acrescimoValor {
-    return _precoComoNumero(_acrescimoController.text);
-  }
+  double get _freteValor => _precoComoNumero(_freteController.text);
+  double get _descontoValor => _precoComoNumero(_descontoController.text);
+  double get _acrescimoValor => _precoComoNumero(_acrescimoController.text);
 
   double get _totalGeral {
     final sub = _subtotalCarrinho;
@@ -194,9 +191,7 @@ class _ModoBalcaoWidgetState extends State<ModoBalcaoWidget> {
     return total < 0 ? 0 : total;
   }
 
-  double get _valorRecebido {
-    return _precoComoNumero(_valorRecebidoController.text);
-  }
+  double get _valorRecebido => _precoComoNumero(_valorRecebidoController.text);
 
   double get _trocoCalculado {
     if (_formaPagamentoSelecionada != 'Dinheiro') return 0.0;
@@ -276,113 +271,16 @@ class _ModoBalcaoWidgetState extends State<ModoBalcaoWidget> {
 
   Future<void> _processarAdicaoItemAoCarrinho(ItemLoja item) async {
     if (item.variantes.isNotEmpty) {
-      final varianteEscolhida = await _selecionarVarianteDialog(item);
+      final varianteEscolhida = await DialogoVarianteBalcao.mostrar(
+        context: context,
+        theme: theme,
+        item: item,
+      );
       if (varianteEscolhida == null) return;
       _adicionarItemAoCarrinho(item, variante: varianteEscolhida);
     } else {
       _adicionarItemAoCarrinho(item);
     }
-  }
-
-  Future<VarianteItem?> _selecionarVarianteDialog(ItemLoja item) {
-    return showDialog<VarianteItem>(
-      context: context,
-      builder: (dialogCtx) => AlertDialog(
-        backgroundColor: theme.cardBackgroundColor,
-        surfaceTintColor: Colors.transparent,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-          side: BorderSide(color: theme.borderColor),
-        ),
-        title: Text(
-          'Escolha a Variante\n${item.nome}',
-          textAlign: TextAlign.center,
-          style: theme.getTextStyle(
-            fontSize: 15,
-            fontWeight: FontWeight.bold,
-            color: theme.textColor,
-          ),
-        ),
-        content: SizedBox(
-          width: 320,
-          child: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                ListTile(
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 12),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(10),
-                    side: BorderSide(
-                      color: theme.borderColor.withValues(alpha: 0.5),
-                    ),
-                  ),
-                  title: Text(
-                    'Padrão',
-                    style: theme.getTextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.bold,
-                      color: theme.textColor,
-                    ),
-                  ),
-                  trailing: Text(
-                    'R\$ ${item.preco}',
-                    style: theme.getTextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.bold,
-                      color: theme.textColor,
-                    ),
-                  ),
-                  onTap: () => Navigator.of(dialogCtx).pop(
-                    VarianteItem(nome: '', preco: item.preco),
-                  ),
-                ),
-                const SizedBox(height: 8),
-                for (final v in item.variantes) ...[
-                  ListTile(
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 12),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10),
-                      side: BorderSide(
-                        color: theme.borderColor.withValues(alpha: 0.5),
-                      ),
-                    ),
-                    title: Text(
-                      v.nome,
-                      style: theme.getTextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.bold,
-                        color: theme.textColor,
-                      ),
-                    ),
-                    trailing: Text(
-                      'R\$ ${v.preco.isNotEmpty ? v.preco : item.preco}',
-                      style: theme.getTextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.bold,
-                        color: theme.textColor,
-                      ),
-                    ),
-                    onTap: () => Navigator.of(dialogCtx).pop(v),
-                  ),
-                  const SizedBox(height: 8),
-                ],
-              ],
-            ),
-          ),
-        ),
-        actionsAlignment: MainAxisAlignment.center,
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(dialogCtx).pop(null),
-            child: Text(
-              'Cancelar',
-              style: theme.getTextStyle(color: theme.secondaryTextColor),
-            ),
-          ),
-        ],
-      ),
-    );
   }
 
   void _adicionarItemAoCarrinho(ItemLoja item, {VarianteItem? variante}) {
@@ -480,333 +378,54 @@ class _ModoBalcaoWidgetState extends State<ModoBalcaoWidget> {
     return widget.gruposComponentes;
   }
 
-  void _abrirDialogoComponentes(int indice) {
+  Future<void> _abrirDialogoComponentes(int indice) async {
     final item = _carrinho[indice];
     final grupos = _obterGruposDoItemVendido(item);
 
     if (grupos.isEmpty) {
-      _editarObservacaoItem(indice);
+      await _editarObservacaoItem(indice);
       return;
     }
 
-    final selecionados = <String, int>{};
-    for (final a in item.acompanhamentos) {
-      selecionados[a.itemId] = a.quantidadePorUnidade;
-    }
-    final obsController = TextEditingController(text: item.observacao);
-
-    showDialog<void>(
+    final itemAtualizado = await DialogoComponentesBalcao.mostrar(
       context: context,
-      builder: (dialogContext) {
-        return StatefulBuilder(
-          builder: (dialogContext, setDialogState) {
-            return AlertDialog(
-              backgroundColor: theme.cardBackgroundColor,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(16.0),
-                side: BorderSide(color: theme.borderColor),
-              ),
-              title: Text(
-                'Componentes e Observações\n${item.nomeExibicao}',
-                textAlign: TextAlign.center,
-                style: theme.getTextStyle(
-                  fontSize: 15,
-                  fontWeight: FontWeight.bold,
-                  color: theme.textColor,
-                ),
-              ),
-              content: SizedBox(
-                width: 380,
-                child: SingleChildScrollView(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      for (final grupo in grupos) ...[
-                        Padding(
-                          padding: const EdgeInsets.only(top: 8, bottom: 6),
-                          child: Text(
-                            grupo.nome,
-                            textAlign: TextAlign.center,
-                            style: theme.getTextStyle(
-                              fontSize: 13,
-                              fontWeight: FontWeight.bold,
-                              color: theme.textColor,
-                            ),
-                          ),
-                        ),
-                        for (final compId in grupo.itemIds)
-                          Builder(
-                            builder: (context) {
-                              final comp = widget.itens
-                                  .where((i) => i.id == compId)
-                                  .firstOrNull;
-                              if (comp == null) return const SizedBox.shrink();
-                              final qtd = selecionados[compId] ?? 0;
-                              return Padding(
-                                padding:
-                                    const EdgeInsets.symmetric(vertical: 4),
-                                child: Row(
-                                  children: [
-                                    Expanded(
-                                      child: Text(
-                                        comp.nome,
-                                        style: theme.getTextStyle(fontSize: 12),
-                                      ),
-                                    ),
-                                    Text(
-                                      'R\$ ${comp.preco}',
-                                      style: theme.getTextStyle(fontSize: 11),
-                                    ),
-                                    const SizedBox(width: 6),
-                                    IconButton(
-                                      padding: EdgeInsets.zero,
-                                      visualDensity: VisualDensity.compact,
-                                      constraints: const BoxConstraints(
-                                          minWidth: 30, minHeight: 30),
-                                      icon: Icon(Icons.remove,
-                                          size: 16, color: theme.textColor),
-                                      onPressed: () {
-                                        setDialogState(() {
-                                          final atual =
-                                              selecionados[compId] ?? 0;
-                                          if (atual <= 1) {
-                                            selecionados.remove(compId);
-                                          } else {
-                                            selecionados[compId] = atual - 1;
-                                          }
-                                        });
-                                      },
-                                    ),
-                                    SizedBox(
-                                      width: 20,
-                                      child: Text(
-                                        '$qtd',
-                                        textAlign: TextAlign.center,
-                                        style: theme.getTextStyle(
-                                          fontSize: 12,
-                                          fontWeight: FontWeight.bold,
-                                        ),
-                                      ),
-                                    ),
-                                    IconButton(
-                                      padding: EdgeInsets.zero,
-                                      visualDensity: VisualDensity.compact,
-                                      constraints: const BoxConstraints(
-                                          minWidth: 30, minHeight: 30),
-                                      icon: Icon(Icons.add,
-                                          size: 16, color: theme.textColor),
-                                      onPressed: () {
-                                        setDialogState(() {
-                                          selecionados[compId] =
-                                              (selecionados[compId] ?? 0) + 1;
-                                        });
-                                      },
-                                    ),
-                                  ],
-                                ),
-                              );
-                            },
-                          ),
-                        Divider(
-                          color: theme.borderColor.withValues(alpha: 0.4),
-                          height: 16,
-                        ),
-                      ],
-                      const SizedBox(height: 6),
-                      Text(
-                        'Observação / Comentário do Item',
-                        style: theme.getTextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.bold,
-                          color: theme.textColor,
-                        ),
-                      ),
-                      const SizedBox(height: 6),
-                      TextField(
-                        controller: obsController,
-                        style: theme.getTextStyle(fontSize: 12),
-                        maxLines: 2,
-                        decoration: InputDecoration(
-                          hintText: 'Ex: Sem cebola, bem passado, sem gelo...',
-                          hintStyle: theme.getTextStyle(
-                            fontSize: 11,
-                            color: theme.secondaryTextColor,
-                          ),
-                          filled: true,
-                          fillColor:
-                              theme.backgroundColor.withValues(alpha: 0.3),
-                          contentPadding: const EdgeInsets.symmetric(
-                              horizontal: 10, vertical: 8),
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(8),
-                            borderSide: BorderSide(
-                              color: theme.borderColor.withValues(alpha: 0.5),
-                            ),
-                          ),
-                          focusedBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(8),
-                            borderSide:
-                                BorderSide(color: theme.textColor, width: 1.2),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              actionsAlignment: MainAxisAlignment.center,
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.of(dialogContext).pop(),
-                  child: Text(
-                    'Cancelar',
-                    style: theme.getTextStyle(color: theme.secondaryTextColor),
-                  ),
-                ),
-                TextButton(
-                  onPressed: () {
-                    final novosAcomp = <AcompanhamentoEscolhido>[];
-                    selecionados.forEach((compId, qtd) {
-                      if (qtd > 0) {
-                        final comp = widget.itens
-                            .where((i) => i.id == compId)
-                            .firstOrNull;
-                        if (comp != null) {
-                          novosAcomp.add(
-                            AcompanhamentoEscolhido(
-                              itemId: comp.id,
-                              nomeItem: comp.nome,
-                              precoItem: _precoComoNumero(comp.preco),
-                              quantidadePorUnidade: qtd,
-                            ),
-                          );
-                        }
-                      }
-                    });
-
-                    setState(() {
-                      final itemAtualizado = item.copyWith(
-                        acompanhamentos: novosAcomp,
-                        observacao: obsController.text.trim(),
-                      );
-                      _carrinho[indice] = itemAtualizado;
-                      if (_ultimoItemVendido?.itemId == item.itemId &&
-                          _ultimoItemVendido?.categoriaId ==
-                              item.categoriaId) {
-                        _ultimoItemVendido = itemAtualizado;
-                      }
-                    });
-
-                    Navigator.of(dialogContext).pop();
-                    _garantirFocoBipador();
-                  },
-                  child: Text(
-                    'Concluir',
-                    style: theme.getTextStyle(
-                      fontWeight: FontWeight.bold,
-                      color: theme.textColor,
-                    ),
-                  ),
-                ),
-              ],
-            );
-          },
-        );
-      },
+      theme: theme,
+      item: item,
+      grupos: grupos,
+      itens: widget.itens,
     );
+
+    if (itemAtualizado != null) {
+      setState(() {
+        _carrinho[indice] = itemAtualizado;
+        if (_ultimoItemVendido?.itemId == item.itemId &&
+            _ultimoItemVendido?.categoriaId == item.categoriaId) {
+          _ultimoItemVendido = itemAtualizado;
+        }
+      });
+      _garantirFocoBipador();
+    }
   }
 
-  void _editarObservacaoItem(int indice) {
+  Future<void> _editarObservacaoItem(int indice) async {
     final item = _carrinho[indice];
-    final controller = TextEditingController(text: item.observacao);
-
-    showDialog<void>(
+    final novaObs = await DialogoObservacaoBalcao.mostrar(
       context: context,
-      builder: (dialogCtx) => AlertDialog(
-        backgroundColor: theme.cardBackgroundColor,
-        surfaceTintColor: Colors.transparent,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-          side: BorderSide(color: theme.borderColor),
-        ),
-        title: Text(
-          'Observação do Item\n${item.nomeExibicao}',
-          textAlign: TextAlign.center,
-          style: theme.getTextStyle(
-            fontSize: 15,
-            fontWeight: FontWeight.bold,
-            color: theme.textColor,
-          ),
-        ),
-        content: SizedBox(
-          width: 320,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              TextField(
-                controller: controller,
-                autofocus: true,
-                maxLines: 3,
-                style: theme.getTextStyle(fontSize: 13),
-                decoration: InputDecoration(
-                  hintText: 'Ex: Sem gelo, sem cebola, ponto da carne...',
-                  hintStyle: theme.getTextStyle(
-                    fontSize: 12,
-                    color: theme.secondaryTextColor,
-                  ),
-                  filled: true,
-                  fillColor: theme.backgroundColor.withValues(alpha: 0.3),
-                  contentPadding: const EdgeInsets.all(12),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(10),
-                    borderSide: BorderSide(color: theme.borderColor),
-                  ),
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(10),
-                    borderSide: BorderSide(color: theme.textColor, width: 1.4),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-        actionsAlignment: MainAxisAlignment.center,
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(dialogCtx).pop(),
-            child: Text(
-              'Cancelar',
-              style: theme.getTextStyle(color: theme.secondaryTextColor),
-            ),
-          ),
-          TextButton(
-            onPressed: () {
-              setState(() {
-                final atualizado = item.copyWith(
-                  observacao: controller.text.trim(),
-                );
-                _carrinho[indice] = atualizado;
-                if (_ultimoItemVendido?.itemId == item.itemId &&
-                    _ultimoItemVendido?.categoriaId == item.categoriaId) {
-                  _ultimoItemVendido = atualizado;
-                }
-              });
-              Navigator.of(dialogCtx).pop();
-              _garantirFocoBipador();
-            },
-            child: Text(
-              'Salvar',
-              style: theme.getTextStyle(
-                fontWeight: FontWeight.bold,
-                color: theme.textColor,
-              ),
-            ),
-          ),
-        ],
-      ),
+      theme: theme,
+      item: item,
     );
+
+    if (novaObs != null) {
+      setState(() {
+        final atualizado = item.copyWith(observacao: novaObs);
+        _carrinho[indice] = atualizado;
+        if (_ultimoItemVendido?.itemId == item.itemId &&
+            _ultimoItemVendido?.categoriaId == item.categoriaId) {
+          _ultimoItemVendido = atualizado;
+        }
+      });
+      _garantirFocoBipador();
+    }
   }
 
   void _limparVenda() {
@@ -817,34 +436,35 @@ class _ModoBalcaoWidgetState extends State<ModoBalcaoWidget> {
       _clienteSelecionado = null;
       _mostrarSugestoesCliente = false;
       _clienteController.clear();
-      _freteController.clear();
       _descontoController.clear();
       _acrescimoController.clear();
+      _freteController.clear();
       _valorRecebidoController.clear();
       _formaPagamentoSelecionada = 'Dinheiro';
-      _bipadorController.clear();
       _aviso = null;
+      _quantidadeUltimoBipado = 1;
     });
     _garantirFocoBipador();
   }
 
   String _montarComanda() {
     final buffer = StringBuffer();
-    for (final it in _carrinho) {
+    for (final item in _carrinho) {
       buffer.writeln(
-          '${it.quantidade}x ${it.nomeExibicao} - R\$ ${_valorFormatado(it.subtotal)}');
-      if (it.observacao.trim().isNotEmpty) {
-        buffer.writeln('   Obs: ${it.observacao.trim()}');
+        '${item.quantidade}x ${item.nomeExibicao} - R\$ ${_valorFormatado(item.subtotal)}',
+      );
+      for (final a in item.acompanhamentos) {
+        buffer.writeln('  + ${a.quantidadePorUnidade}x ${a.nomeItem}');
       }
-      for (final a in it.acompanhamentos) {
-        buffer.writeln('   + ${a.quantidadePorUnidade}x ${a.nomeItem}');
+      if (item.observacao.isNotEmpty) {
+        buffer.writeln('  Obs: ${item.observacao}');
       }
     }
     if (_freteValor > 0) {
-      buffer.writeln('Frete: + R\$ ${_valorFormatado(_freteValor)}');
+      buffer.writeln('Frete: R\$ ${_valorFormatado(_freteValor)}');
     }
     if (_acrescimoValor > 0) {
-      buffer.writeln('Acréscimo: + R\$ ${_valorFormatado(_acrescimoValor)}');
+      buffer.writeln('Acréscimo: R\$ ${_valorFormatado(_acrescimoValor)}');
     }
     if (_descontoValor > 0) {
       buffer.writeln('Desconto: - R\$ ${_valorFormatado(_descontoValor)}');
@@ -944,9 +564,6 @@ class _ModoBalcaoWidgetState extends State<ModoBalcaoWidget> {
 
   @override
   Widget build(BuildContext context) {
-    final providerLogo = ImagemService.obterImageProvider(widget.logoLoja);
-    final temLogo = providerLogo != null;
-
     return CallbackShortcuts(
       bindings: <ShortcutActivator, VoidCallback>{
         const SingleActivator(LogicalKeyboardKey.escape): widget.onSair,
@@ -960,129 +577,13 @@ class _ModoBalcaoWidgetState extends State<ModoBalcaoWidget> {
           child: Column(
             children: [
               // ═══ BARRA SUPERIOR DO MODO BALCÃO ═══
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                decoration: BoxDecoration(
-                  color: theme.cardBackgroundColor.withValues(alpha: 0.9),
-                  border: Border(
-                    bottom: BorderSide(
-                      color: theme.borderColor.withValues(alpha: 0.6),
-                      width: 1.2,
-                    ),
-                  ),
-                ),
-                child: Row(
-                  children: [
-                    OutlinedButton.icon(
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: theme.textColor,
-                        side: BorderSide(color: theme.borderColor),
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 14, vertical: 10),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                      ),
-                      onPressed: widget.onSair,
-                      icon: const Icon(Icons.arrow_back_rounded, size: 18),
-                      label: Text(
-                        'Voltar ao PDV (Esc)',
-                        style: theme.getTextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 16),
-                    CircleAvatar(
-                      radius: 16,
-                      backgroundColor: theme.borderColor.withValues(alpha: 0.3),
-                      backgroundImage: providerLogo,
-                      child: !temLogo
-                          ? Icon(Icons.storefront,
-                              size: 16, color: theme.textColor)
-                          : null,
-                    ),
-                    const SizedBox(width: 10),
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          widget.nomeLoja.isNotEmpty
-                              ? widget.nomeLoja
-                              : 'Minha Loja',
-                          style: theme.getTextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.bold,
-                            color: theme.textColor,
-                          ),
-                        ),
-                        Row(
-                          children: [
-                            Container(
-                              width: 8,
-                              height: 8,
-                              decoration: BoxDecoration(
-                                shape: BoxShape.circle,
-                                color: widget.caixaAberto
-                                    ? const Color(0xFF4CAF50)
-                                    : theme.secondaryTextColor,
-                              ),
-                            ),
-                            const SizedBox(width: 6),
-                            Text(
-                              widget.caixaAberto ? 'Caixa Aberto' : 'Caixa Fechado',
-                              style: theme.getTextStyle(
-                                fontSize: 11,
-                                color: theme.secondaryTextColor,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                    const Spacer(),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 12, vertical: 6),
-                      decoration: BoxDecoration(
-                        color: theme.borderColor.withValues(alpha: 0.2),
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(
-                          color: theme.textColor.withValues(alpha: 0.3),
-                        ),
-                      ),
-                      child: Row(
-                        children: [
-                          Icon(Icons.point_of_sale_rounded,
-                              size: 16, color: theme.textColor),
-                          const SizedBox(width: 8),
-                          Text(
-                            'MODO BALCÃO • FRENTE DE CAIXA',
-                            style: theme.getTextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.bold,
-                              color: theme.textColor,
-                            ).copyWith(letterSpacing: 0.8),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    IconButton(
-                      icon: Icon(Icons.fullscreen_rounded,
-                          color: theme.textColor, size: 20),
-                      tooltip: 'Alternar Tela Cheia (F11)',
-                      onPressed: () => JanelaWindowsService.alternarTelaCheia(),
-                    ),
-                    IconButton(
-                      icon: Icon(Icons.delete_sweep_outlined,
-                          color: theme.secondaryTextColor, size: 20),
-                      tooltip: 'Limpar Venda Atual',
-                      onPressed: _limparVenda,
-                    ),
-                  ],
-                ),
+              BarraSuperiorBalcaoWidget(
+                theme: theme,
+                nomeLoja: widget.nomeLoja,
+                logoLoja: widget.logoLoja,
+                caixaAberto: widget.caixaAberto,
+                onSair: widget.onSair,
+                onLimparVenda: _limparVenda,
               ),
 
               // ═══ CORPO PRINCIPAL: 2 GRANDES ÁREAS (OPERADOR & CLIENTE) ═══
@@ -1099,107 +600,87 @@ class _ModoBalcaoWidgetState extends State<ModoBalcaoWidget> {
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
                             // 1. Campo de Bipagem e Leitura de Código
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 14, vertical: 8),
-                              decoration: BoxDecoration(
-                                color: theme.cardBackgroundColor
-                                    .withValues(alpha: 0.8),
-                                borderRadius: BorderRadius.circular(14),
-                                border: Border.all(
-                                  color: theme.textColor.withValues(alpha: 0.7),
-                                  width: 1.8,
-                                ),
-                              ),
-                              child: Row(
-                                children: [
-                                  Icon(Icons.qr_code_scanner_rounded,
-                                      size: 26, color: theme.textColor),
-                                  const SizedBox(width: 12),
-                                  Expanded(
-                                    child: TextField(
-                                      controller: _bipadorController,
-                                      focusNode: _bipadorFocusNode,
-                                      autofocus: true,
-                                      cursorColor: theme.textColor,
-                                      style: theme.getTextStyle(
-                                        fontSize: 16,
-                                        fontWeight: FontWeight.w600,
-                                        color: theme.textColor,
-                                      ),
-                                      decoration: InputDecoration(
-                                        hintText:
-                                            'Passe o código de barras ou digite o nome do item e aperte Enter...',
-                                        hintStyle: theme.getTextStyle(
-                                          fontSize: 13,
-                                          color: theme.secondaryTextColor
-                                              .withValues(alpha: 0.7),
-                                        ),
-                                        border: InputBorder.none,
-                                        isDense: true,
-                                      ),
-                                      onChanged: _aoDigitarBipador,
-                                      onSubmitted: (_) =>
-                                          _aoPressionarEnterBipador(),
-                                    ),
-                                  ),
-                                  if (_bipadorController.text.isNotEmpty)
-                                    IconButton(
-                                      icon: const Icon(Icons.clear, size: 18),
-                                      color: theme.secondaryTextColor,
-                                      onPressed: () {
-                                        _bipadorController.clear();
-                                        setState(() {});
-                                        _garantirFocoBipador();
-                                      },
-                                    ),
-                                  const SizedBox(width: 4),
-                                  ElevatedButton.icon(
-                                    style: ElevatedButton.styleFrom(
-                                      backgroundColor: theme.buttonColor !=
-                                              Colors.transparent
-                                          ? theme.buttonColor
-                                          : theme.borderColor
-                                              .withValues(alpha: 0.3),
-                                      foregroundColor: theme.textColor,
-                                      padding: const EdgeInsets.symmetric(
-                                          horizontal: 14, vertical: 12),
-                                      shape: RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(10),
-                                        side: BorderSide(color: theme.textColor),
-                                      ),
-                                    ),
-                                    onPressed: _aoPressionarEnterBipador,
-                                    icon: const Icon(Icons.add, size: 18),
-                                    label: Text(
-                                      'Inserir (Enter)',
-                                      style: theme.getTextStyle(
-                                        fontSize: 12,
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
+                            CampoBipadorBalcaoWidget(
+                              theme: theme,
+                              controller: _bipadorController,
+                              focusNode: _bipadorFocusNode,
+                              onChanged: _aoDigitarBipador,
+                              onSubmitted: _aoPressionarEnterBipador,
+                              onLimpar: () {
+                                _bipadorController.clear();
+                                setState(() {});
+                                _garantirFocoBipador();
+                              },
                             ),
                             const SizedBox(height: 12),
 
                             // 2. Visor do Último Produto Registrado (Visor do Caixa)
-                            _buildVisorUltimoProduto(),
+                            VisorUltimoProdutoWidget(
+                              theme: theme,
+                              item: _ultimoItemBipado,
+                              itemVendido: _ultimoItemVendido,
+                              quantidade: _quantidadeUltimoBipado,
+                              formatarValor: _valorFormatado,
+                            ),
                             const SizedBox(height: 12),
 
-                            // 3. Barra de Categorias e Filtros Rápidos
-                            _buildBarraCategorias(),
-                            const SizedBox(height: 10),
-
-                            // 4. Catálogo Visual de Produtos
+                            // 3 e 4. Categorias e Catálogo Visual de Produtos
                             Expanded(
-                              child: _buildCatalogoProdutos(),
+                              child: CatalogoBalcaoWidget(
+                                theme: theme,
+                                categorias: widget.categorias,
+                                categoriaFiltroId: _categoriaFiltroId,
+                                itens: _itensFiltrados,
+                                obterSaldoEstoque: _saldoEstoque,
+                                onSelecionarCategoria: (id) {
+                                  setState(() => _categoriaFiltroId = id);
+                                  _garantirFocoBipador();
+                                },
+                                onSelecionarItem: (item) {
+                                  _processarAdicaoItemAoCarrinho(item);
+                                  _garantirFocoBipador();
+                                },
+                              ),
                             ),
                             const SizedBox(height: 10),
 
                             // 5. Linha de Cliente e Descontos Rápidos
-                            _buildSecaoClienteEAjustes(),
+                            ClienteAjustesBalcaoWidget(
+                              theme: theme,
+                              clientes: widget.clientes,
+                              sugestoesClientes: _sugestoesClientes,
+                              clienteSelecionado: _clienteSelecionado,
+                              mostrarSugestoesCliente: _mostrarSugestoesCliente,
+                              clienteController: _clienteController,
+                              clienteFocusNode: _clienteFocusNode,
+                              descontoController: _descontoController,
+                              freteController: _freteController,
+                              acrescimoController: _acrescimoController,
+                              onSelecionarCliente: (c) {
+                                setState(() {
+                                  _clienteSelecionado = c;
+                                  _clienteController.text = c.nome;
+                                  _mostrarSugestoesCliente = false;
+                                });
+                              },
+                              onRemoverCliente: () {
+                                setState(() {
+                                  _clienteSelecionado = null;
+                                  _clienteController.clear();
+                                  _mostrarSugestoesCliente = false;
+                                  if (_formaPagamentoSelecionada
+                                      .toLowerCase()
+                                      .contains('prazo')) {
+                                    _formaPagamentoSelecionada = 'Dinheiro';
+                                  }
+                                });
+                              },
+                              onAlterarVisibilidadeSugestoes: (visivel) {
+                                setState(() => _mostrarSugestoesCliente = visivel);
+                              },
+                              onGarantirFocoBipador: _garantirFocoBipador,
+                              onAjusteAlterado: () => setState(() {}),
+                            ),
                           ],
                         ),
                       ),
@@ -1218,7 +699,28 @@ class _ModoBalcaoWidgetState extends State<ModoBalcaoWidget> {
                       child: Container(
                         padding: const EdgeInsets.all(16),
                         color: theme.cardBackgroundColor.withValues(alpha: 0.4),
-                        child: _buildComandaAmpliada(),
+                        child: ComandaBalcaoWidget(
+                          theme: theme,
+                          carrinho: _carrinho,
+                          formaPagamentoSelecionada: _formaPagamentoSelecionada,
+                          formasDePagamento: _formasBalcao,
+                          valorRecebidoController: _valorRecebidoController,
+                          subtotal: _subtotalCarrinho,
+                          total: _totalGeral,
+                          troco: _trocoCalculado,
+                          descontoValor: _descontoValor,
+                          acrescimoValor: _acrescimoValor,
+                          freteValor: _freteValor,
+                          aviso: _aviso,
+                          obterGruposDoItemVendido: _obterGruposDoItemVendido,
+                          onAlterarQuantidade: _alterarQuantidadeCarrinho,
+                          onRemoverItem: _removerItemCarrinho,
+                          onAbrirComponentes: _abrirDialogoComponentes,
+                          onEditarObservacao: _editarObservacaoItem,
+                          onSelecionarForma: (forma) => setState(
+                              () => _formaPagamentoSelecionada = forma),
+                          onFinalizarVenda: _finalizarVenda,
+                        ),
                       ),
                     ),
                   ],
@@ -1228,1148 +730,6 @@ class _ModoBalcaoWidgetState extends State<ModoBalcaoWidget> {
           ),
         ),
       ),
-    );
-  }
-
-  // ═══ VISOR DO ÚLTIMO PRODUTO BIPADO ═══
-  Widget _buildVisorUltimoProduto() {
-    final itemVendido = _ultimoItemVendido;
-    final item = _ultimoItemBipado;
-    final foto = item?.imagens.firstOrNull ?? itemVendido?.foto ?? '';
-    final fotoResolvida = ImagemService.resolverCaminhoExistente(foto);
-    final temFoto = fotoResolvida != null;
-    final nomeExibicao = itemVendido?.nomeExibicao ?? item?.nome ?? '';
-    final precoUnitario =
-        itemVendido?.precoUnitario ?? _precoComoNumero(item?.preco ?? '');
-    final totalItem = itemVendido?.subtotal ??
-        (precoUnitario * _quantidadeUltimoBipado);
-
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: theme.backgroundColor.withValues(alpha: 0.3),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: theme.borderColor.withValues(alpha: 0.4),
-        ),
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 56,
-            height: 56,
-            decoration: BoxDecoration(
-              color: theme.borderColor.withValues(alpha: 0.2),
-              borderRadius: BorderRadius.circular(10),
-              image: temFoto
-                  ? DecorationImage(
-                      image: FileImage(File(fotoResolvida)),
-                      fit: BoxFit.cover,
-                    )
-                  : null,
-            ),
-            child: !temFoto
-                ? Icon(Icons.shopping_bag_outlined,
-                    size: 28, color: theme.textColor)
-                : null,
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  item != null || itemVendido != null
-                      ? 'ÚLTIMO PRODUTO: $nomeExibicao'
-                      : 'NENHUM PRODUTO REGISTRADO AINDA',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: theme.getTextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.bold,
-                    color: item != null || itemVendido != null
-                        ? theme.textColor
-                        : theme.secondaryTextColor,
-                  ),
-                ),
-                const SizedBox(height: 3),
-                Text(
-                  item != null || itemVendido != null
-                      ? 'Qtd: $_quantidadeUltimoBipado | Unitário: R\$ ${_valorFormatado(precoUnitario)}'
-                      : 'Passe o leitor óptico sobre o código de barras',
-                  style: theme.getTextStyle(
-                    fontSize: 11,
-                    color: theme.secondaryTextColor,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          if (item != null || itemVendido != null)
-            Text(
-              'R\$ ${_valorFormatado(totalItem)}',
-              style: theme.getTextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-                color: theme.textColor,
-              ),
-            ),
-        ],
-      ),
-    );
-  }
-
-  // ═══ BARRA DE CATEGORIAS ═══
-  Widget _buildBarraCategorias() {
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      child: Row(
-        children: [
-          _buildChipCategoria(
-            titulo: 'Todos',
-            selecionado: _categoriaFiltroId == null,
-            onTap: () => setState(() => _categoriaFiltroId = null),
-          ),
-          for (final cat in widget.categorias)
-            _buildChipCategoria(
-              titulo: cat.nome,
-              selecionado: _categoriaFiltroId == cat.id,
-              onTap: () => setState(() => _categoriaFiltroId = cat.id),
-            ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildChipCategoria({
-    required String titulo,
-    required bool selecionado,
-    required VoidCallback onTap,
-  }) {
-    return Padding(
-      padding: const EdgeInsets.only(right: 8),
-      child: InkWell(
-        onTap: () {
-          onTap();
-          _garantirFocoBipador();
-        },
-        borderRadius: BorderRadius.circular(8),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-          decoration: BoxDecoration(
-            color: selecionado
-                ? (theme.buttonColor != Colors.transparent
-                    ? theme.buttonColor.withValues(alpha: 0.8)
-                    : theme.borderColor.withValues(alpha: 0.35))
-                : theme.backgroundColor.withValues(alpha: 0.2),
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(
-              color: selecionado
-                  ? theme.textColor
-                  : theme.borderColor.withValues(alpha: 0.5),
-              width: selecionado ? 1.4 : 1.0,
-            ),
-          ),
-          child: Text(
-            titulo,
-            style: theme.getTextStyle(
-              fontSize: 11,
-              fontWeight: selecionado ? FontWeight.bold : FontWeight.normal,
-              color: selecionado ? theme.textColor : theme.secondaryTextColor,
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  // ═══ CATÁLOGO VISUAL DE PRODUTOS ═══
-  Widget _buildCatalogoProdutos() {
-    final itens = _itensFiltrados;
-    if (itens.isEmpty) {
-      return Center(
-        child: Text(
-          'Nenhum produto encontrado.',
-          style: theme.getTextStyle(
-            fontSize: 12,
-            color: theme.secondaryTextColor,
-          ),
-        ),
-      );
-    }
-
-    return GridView.builder(
-      gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-        maxCrossAxisExtent: 160,
-        mainAxisExtent: 120,
-        crossAxisSpacing: 10,
-        mainAxisSpacing: 10,
-      ),
-      itemCount: itens.length,
-      itemBuilder: (context, index) {
-        final item = itens[index];
-        final foto = item.imagens.firstOrNull ?? '';
-        final fotoResolvida = ImagemService.resolverCaminhoExistente(foto);
-        final temFoto = fotoResolvida != null;
-        final saldo = _saldoEstoque(item.id);
-        final esgotado = saldo <= 0;
-
-        return InkWell(
-          onTap: () {
-            _processarAdicaoItemAoCarrinho(item);
-            _garantirFocoBipador();
-          },
-          borderRadius: BorderRadius.circular(10),
-          child: Container(
-            decoration: BoxDecoration(
-              color: theme.backgroundColor.withValues(alpha: 0.25),
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(
-                color: theme.borderColor.withValues(alpha: 0.4),
-              ),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Expanded(
-                  child: Stack(
-                    children: [
-                      Container(
-                        decoration: BoxDecoration(
-                          borderRadius: const BorderRadius.vertical(
-                              top: Radius.circular(9)),
-                          image: temFoto
-                              ? DecorationImage(
-                                  image: FileImage(File(fotoResolvida)),
-                                  fit: BoxFit.cover,
-                                )
-                              : null,
-                          color: theme.borderColor.withValues(alpha: 0.15),
-                        ),
-                        child: !temFoto
-                            ? Center(
-                                child: Icon(Icons.shopping_bag_outlined,
-                                    size: 24,
-                                    color: theme.secondaryTextColor),
-                              )
-                            : null,
-                      ),
-                      Positioned(
-                        top: 4,
-                        right: 4,
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 5, vertical: 2),
-                          decoration: BoxDecoration(
-                            color: esgotado
-                                ? Colors.redAccent.withValues(alpha: 0.85)
-                                : theme.cardBackgroundColor
-                                    .withValues(alpha: 0.85),
-                            borderRadius: BorderRadius.circular(4),
-                          ),
-                          child: Text(
-                            esgotado
-                                ? 'Esgotado'
-                                : 'Est: ${formatarQuantidadeComUnidade(saldo, item.unidadeBase)}',
-                            style: theme.getTextStyle(
-                              fontSize: 9,
-                              fontWeight: FontWeight.bold,
-                              color: esgotado ? theme.textColor : theme.textColor,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        item.nome,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: theme.getTextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.bold,
-                          color: theme.textColor,
-                        ),
-                      ),
-                      Text(
-                        'R\$ ${item.preco}',
-                        style: theme.getTextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.bold,
-                          color: theme.textColor,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-        );
-      },
-    );
-  }
-
-  // ═══ LINHA DE CLIENTE E AJUSTES RÁPIDOS COM SUGESTÕES ═══
-  Widget _buildSecaoClienteEAjustes() {
-    return TapRegion(
-      groupId: 'balcao_cliente_busca',
-      onTapOutside: (_) {
-        if (_mostrarSugestoesCliente) {
-          setState(() => _mostrarSugestoesCliente = false);
-        }
-      },
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          if (_mostrarSugestoesCliente && _clienteSelecionado == null)
-            _buildPainelSugestoesCliente(),
-          _buildLinhaClienteEAjustes(),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildPainelSugestoesCliente() {
-    final clientes = _sugestoesClientes;
-    return Container(
-      margin: const EdgeInsets.only(bottom: 6),
-      constraints: const BoxConstraints(maxHeight: 180),
-      decoration: BoxDecoration(
-        color: theme.cardBackgroundColor,
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: theme.borderColor),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.25),
-            blurRadius: 8,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: clientes.isEmpty
-          ? Padding(
-              padding: const EdgeInsets.all(12),
-              child: Text(
-                widget.clientes.isEmpty
-                    ? 'Nenhum cliente cadastrado no sistema.'
-                    : 'Nenhum cliente encontrado para este termo.',
-                style: theme.getTextStyle(
-                  fontSize: 12,
-                  color: theme.secondaryTextColor,
-                ),
-              ),
-            )
-          : ListView.separated(
-              shrinkWrap: true,
-              itemCount: clientes.length,
-              separatorBuilder: (context, index) => Divider(
-                height: 1,
-                color: theme.borderColor.withValues(alpha: 0.2),
-              ),
-              itemBuilder: (context, index) {
-                final c = clientes[index];
-                final fotoResolvida = ImagemService.resolverCaminhoExistente(c.foto);
-                final temFoto = fotoResolvida != null;
-                final doc = c.cnpj.isNotEmpty ? c.cnpj : '';
-                final tel = c.telefone.isNotEmpty ? c.telefone : '';
-                final end = c.endereco.isNotEmpty
-                    ? '${c.endereco}${c.numero.isNotEmpty ? ', nº ${c.numero}' : ''}'
-                    : '';
-
-                return InkWell(
-                  onTap: () {
-                    setState(() {
-                      _clienteSelecionado = c;
-                      _clienteController.text = c.nome;
-                      _mostrarSugestoesCliente = false;
-                    });
-                    _garantirFocoBipador();
-                  },
-                  child: Padding(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                    child: Row(
-                      children: [
-                        CircleAvatar(
-                          radius: 16,
-                          backgroundColor:
-                              theme.borderColor.withValues(alpha: 0.3),
-                          backgroundImage:
-                              temFoto ? FileImage(File(fotoResolvida)) : null,
-                          child: !temFoto
-                              ? Icon(Icons.person,
-                                  size: 18, color: theme.textColor)
-                              : null,
-                        ),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                c.nome,
-                                style: theme.getTextStyle(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.bold,
-                                  color: theme.textColor,
-                                ),
-                              ),
-                              if (doc.isNotEmpty || tel.isNotEmpty)
-                                Text(
-                                  [if (doc.isNotEmpty) doc, if (tel.isNotEmpty) tel]
-                                      .join(' • '),
-                                  style: theme.getTextStyle(
-                                    fontSize: 10,
-                                    color: theme.secondaryTextColor,
-                                  ),
-                                ),
-                              if (end.isNotEmpty)
-                                Text(
-                                  end,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: theme.getTextStyle(
-                                    fontSize: 10,
-                                    color: theme.secondaryTextColor,
-                                  ),
-                                ),
-                            ],
-                          ),
-                        ),
-                        Icon(Icons.add_circle_outline,
-                            size: 18, color: theme.secondaryTextColor),
-                      ],
-                    ),
-                  ),
-                );
-              },
-            ),
-    );
-  }
-
-  Widget _buildLinhaClienteEAjustes() {
-    return Container(
-      padding: const EdgeInsets.all(10),
-      decoration: BoxDecoration(
-        color: theme.backgroundColor.withValues(alpha: 0.2),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(
-          color: theme.borderColor.withValues(alpha: 0.4),
-        ),
-      ),
-      child: Row(
-        children: [
-          Icon(Icons.person_outline, size: 18, color: theme.secondaryTextColor),
-          const SizedBox(width: 8),
-          Expanded(
-            flex: 3,
-            child: _clienteSelecionado != null
-                ? Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: theme.borderColor.withValues(alpha: 0.2),
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: theme.borderColor),
-                    ),
-                    child: Row(
-                      children: [
-                        CircleAvatar(
-                          radius: 12,
-                          backgroundColor:
-                              theme.borderColor.withValues(alpha: 0.3),
-                          backgroundImage: () {
-                            final f = ImagemService.resolverCaminhoExistente(
-                                _clienteSelecionado!.foto);
-                            return f != null ? FileImage(File(f)) : null;
-                          }(),
-                          child: !ImagemService.existe(_clienteSelecionado!.foto)
-                              ? Icon(Icons.person,
-                                  size: 14, color: theme.textColor)
-                              : null,
-                        ),
-                        const SizedBox(width: 6),
-                        Expanded(
-                          child: Text(
-                            _clienteSelecionado!.nome,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: theme.getTextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.bold,
-                              color: theme.textColor,
-                            ),
-                          ),
-                        ),
-                        InkWell(
-                          onTap: () {
-                            setState(() {
-                              _clienteSelecionado = null;
-                              _clienteController.clear();
-                              _mostrarSugestoesCliente = false;
-                              if (_formaPagamentoSelecionada
-                                  .toLowerCase()
-                                  .contains('prazo')) {
-                                _formaPagamentoSelecionada = 'Dinheiro';
-                              }
-                            });
-                            _garantirFocoBipador();
-                          },
-                          child: Padding(
-                            padding: const EdgeInsets.all(2),
-                            child: Icon(Icons.close,
-                                size: 14, color: theme.secondaryTextColor),
-                          ),
-                        ),
-                      ],
-                    ),
-                  )
-                : TextField(
-                    controller: _clienteController,
-                    focusNode: _clienteFocusNode,
-                    cursorColor: theme.textColor,
-                    style: theme.getTextStyle(fontSize: 11),
-                    decoration: InputDecoration(
-                      hintText: 'Cliente (clique ou digite p/ buscar)',
-                      hintStyle: theme.getTextStyle(
-                          fontSize: 11, color: theme.secondaryTextColor),
-                      border: InputBorder.none,
-                      isDense: true,
-                    ),
-                    onTap: () {
-                      setState(() => _mostrarSugestoesCliente = true);
-                    },
-                    onChanged: (v) {
-                      setState(() => _mostrarSugestoesCliente = true);
-                    },
-                  ),
-          ),
-          const SizedBox(width: 8),
-          Expanded(
-            flex: 2,
-            child: TextField(
-              controller: _descontoController,
-              keyboardType:
-                  const TextInputType.numberWithOptions(decimal: true),
-              cursorColor: theme.textColor,
-              style: theme.getTextStyle(fontSize: 11),
-              decoration: InputDecoration(
-                hintText: 'Desc: 0,00',
-                hintStyle: theme.getTextStyle(
-                    fontSize: 11, color: theme.secondaryTextColor),
-                border: InputBorder.none,
-                isDense: true,
-              ),
-              onChanged: (_) => setState(() {}),
-            ),
-          ),
-          const SizedBox(width: 8),
-          Expanded(
-            flex: 2,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                TextField(
-                  controller: _freteController,
-                  keyboardType:
-                      const TextInputType.numberWithOptions(decimal: true),
-                  cursorColor: theme.textColor,
-                  style: theme.getTextStyle(fontSize: 11),
-                  decoration: InputDecoration(
-                    hintText: 'Frete: 0,00',
-                    hintStyle: theme.getTextStyle(
-                        fontSize: 11, color: theme.secondaryTextColor),
-                    border: InputBorder.none,
-                    isDense: true,
-                    contentPadding: EdgeInsets.zero,
-                  ),
-                  onChanged: (_) => setState(() {}),
-                ),
-                Container(
-                  height: 1,
-                  color: theme.borderColor.withValues(alpha: 0.25),
-                  margin: const EdgeInsets.symmetric(vertical: 2),
-                ),
-                TextField(
-                  controller: _acrescimoController,
-                  keyboardType:
-                      const TextInputType.numberWithOptions(decimal: true),
-                  cursorColor: theme.textColor,
-                  style: theme.getTextStyle(fontSize: 11),
-                  decoration: InputDecoration(
-                    hintText: 'Acrésc: 0,00',
-                    hintStyle: theme.getTextStyle(
-                        fontSize: 11, color: theme.secondaryTextColor),
-                    border: InputBorder.none,
-                    isDense: true,
-                    contentPadding: EdgeInsets.zero,
-                  ),
-                  onChanged: (_) => setState(() {}),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // ═══ ÁREA 2: A GRANDE COMANDA AMPLIADA DO CLIENTE ═══
-  Widget _buildComandaAmpliada() {
-    final subtotal = _subtotalCarrinho;
-    final total = _totalGeral;
-    final troco = _trocoCalculado;
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        // Cabeçalho da Comanda do Balcão
-        Row(
-          children: [
-            Icon(Icons.receipt_long_rounded, size: 24, color: theme.textColor),
-            const SizedBox(width: 10),
-            Text(
-              'COMANDA DA COMPRA',
-              style: theme.getTextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-                color: theme.textColor,
-              ).copyWith(letterSpacing: 0.8),
-            ),
-            const Spacer(),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              decoration: BoxDecoration(
-                color: theme.borderColor.withValues(alpha: 0.2),
-                borderRadius: BorderRadius.circular(6),
-              ),
-              child: Text(
-                '${_carrinho.length} ${_carrinho.length == 1 ? "item" : "itens"}',
-                style: theme.getTextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.bold,
-                  color: theme.textColor,
-                ),
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 12),
-        Divider(height: 1, color: theme.borderColor.withValues(alpha: 0.4)),
-        const SizedBox(height: 8),
-
-        // Lista de Itens Ampliada (Visível com clareza para o Cliente no Balcão)
-        Expanded(
-          child: _carrinho.isEmpty
-              ? Center(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(
-                        Icons.shopping_cart_outlined,
-                        size: 64,
-                        color: theme.secondaryTextColor.withValues(alpha: 0.4),
-                      ),
-                      const SizedBox(height: 14),
-                      Text(
-                        'CAIXA LIVRE',
-                        style: theme.getTextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                          color: theme.secondaryTextColor,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        'Passe o primeiro produto no leitor de código de barras.',
-                        textAlign: TextAlign.center,
-                        style: theme.getTextStyle(
-                          fontSize: 13,
-                          color: theme.secondaryTextColor,
-                        ),
-                      ),
-                    ],
-                  ),
-                )
-              : ListView.separated(
-                  itemCount: _carrinho.length,
-                  separatorBuilder: (context, index) => Divider(
-                    height: 12,
-                    color: theme.borderColor.withValues(alpha: 0.2),
-                  ),
-                  itemBuilder: (context, index) {
-                    final item = _carrinho[index];
-                    final itemTotal = item.subtotal;
-                    final fotoResolvida = ImagemService.resolverCaminhoExistente(item.foto);
-                    final temFoto = fotoResolvida != null;
-
-                    return Container(
-                      padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                        color: theme.backgroundColor.withValues(alpha: 0.2),
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: Row(
-                        children: [
-                          Container(
-                            width: 44,
-                            height: 44,
-                            decoration: BoxDecoration(
-                              color: theme.borderColor.withValues(alpha: 0.2),
-                              borderRadius: BorderRadius.circular(8),
-                              image: temFoto
-                                  ? DecorationImage(
-                                      image: FileImage(File(fotoResolvida)),
-                                      fit: BoxFit.cover,
-                                    )
-                                  : null,
-                            ),
-                            child: !temFoto
-                                ? Icon(Icons.shopping_bag_outlined,
-                                    size: 20, color: theme.secondaryTextColor)
-                                : null,
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  item.nomeExibicao,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: theme.getTextStyle(
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.bold,
-                                    color: theme.textColor,
-                                  ),
-                                ),
-                                const SizedBox(height: 2),
-                                Text(
-                                  '${item.quantidade}x R\$ ${_valorFormatado(item.precoUnitario)}',
-                                  style: theme.getTextStyle(
-                                    fontSize: 12,
-                                    color: theme.secondaryTextColor,
-                                  ),
-                                ),
-                                if (item.acompanhamentos.isNotEmpty) ...[
-                                  const SizedBox(height: 3),
-                                  Text(
-                                    item.acompanhamentos
-                                        .map((a) =>
-                                            '${a.quantidadePorUnidade}x ${a.nomeItem} (+R\$ ${_valorFormatado(a.precoItem * a.quantidadePorUnidade)})')
-                                        .join(' • '),
-                                    maxLines: 2,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: theme.getTextStyle(
-                                      fontSize: 10,
-                                      color: theme.secondaryTextColor,
-                                    ),
-                                  ),
-                                ],
-                                if (item.observacao.isNotEmpty) ...[
-                                  const SizedBox(height: 3),
-                                  Text(
-                                    'Obs: ${item.observacao}',
-                                    maxLines: 2,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: theme.getTextStyle(
-                                      fontSize: 11,
-                                      color: theme.textColor
-                                          .withValues(alpha: 0.85),
-                                    ).copyWith(fontStyle: FontStyle.italic),
-                                  ),
-                                ],
-                                const SizedBox(height: 4),
-                                Wrap(
-                                  spacing: 6,
-                                  runSpacing: 4,
-                                  children: [
-                                    if (_obterGruposDoItemVendido(item)
-                                        .isNotEmpty)
-                                      InkWell(
-                                        onTap: () =>
-                                            _abrirDialogoComponentes(index),
-                                        borderRadius:
-                                            BorderRadius.circular(6),
-                                        child: Container(
-                                          padding: const EdgeInsets.symmetric(
-                                              horizontal: 7, vertical: 3),
-                                          decoration: BoxDecoration(
-                                            color: item
-                                                    .acompanhamentos.isNotEmpty
-                                                ? theme.textColor
-                                                    .withValues(alpha: 0.12)
-                                                : theme.borderColor
-                                                    .withValues(alpha: 0.15),
-                                            borderRadius:
-                                                BorderRadius.circular(6),
-                                            border: Border.all(
-                                              color: item.acompanhamentos
-                                                      .isNotEmpty
-                                                  ? theme.textColor
-                                                  : theme.borderColor
-                                                      .withValues(alpha: 0.4),
-                                            ),
-                                          ),
-                                          child: Row(
-                                            mainAxisSize: MainAxisSize.min,
-                                            children: [
-                                              Icon(Icons.tune,
-                                                  size: 11,
-                                                  color: theme.textColor),
-                                              const SizedBox(width: 4),
-                                              Text(
-                                                item.acompanhamentos.isNotEmpty
-                                                    ? 'Componentes (${item.acompanhamentos.length})'
-                                                    : '+ Componentes',
-                                                style: theme.getTextStyle(
-                                                  fontSize: 9,
-                                                  fontWeight: FontWeight.w600,
-                                                  color: theme.textColor,
-                                                ),
-                                              ),
-                                            ],
-                                          ),
-                                        ),
-                                      ),
-                                    InkWell(
-                                      onTap: () =>
-                                          _editarObservacaoItem(index),
-                                      borderRadius: BorderRadius.circular(6),
-                                      child: Container(
-                                        padding: const EdgeInsets.symmetric(
-                                            horizontal: 7, vertical: 3),
-                                        decoration: BoxDecoration(
-                                          color: item.observacao.isNotEmpty
-                                              ? theme.textColor
-                                                  .withValues(alpha: 0.12)
-                                              : theme.borderColor
-                                                  .withValues(alpha: 0.15),
-                                          borderRadius:
-                                              BorderRadius.circular(6),
-                                          border: Border.all(
-                                            color: item.observacao.isNotEmpty
-                                                ? theme.textColor
-                                                : theme.borderColor
-                                                    .withValues(alpha: 0.4),
-                                          ),
-                                        ),
-                                        child: Row(
-                                          mainAxisSize: MainAxisSize.min,
-                                          children: [
-                                            Icon(Icons.edit_note_outlined,
-                                                size: 12,
-                                                color: theme.textColor),
-                                            const SizedBox(width: 4),
-                                            Text(
-                                              item.observacao.isNotEmpty
-                                                  ? 'Editar Obs'
-                                                  : '+ Observação',
-                                              style: theme.getTextStyle(
-                                                fontSize: 9,
-                                                fontWeight: FontWeight.w600,
-                                                color: theme.textColor,
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ],
-                            ),
-                          ),
-                          // Controles de quantidade
-                          Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              IconButton(
-                                icon: const Icon(Icons.remove_circle_outline,
-                                    size: 18),
-                                color: theme.secondaryTextColor,
-                                onPressed: () =>
-                                    _alterarQuantidadeCarrinho(index, -1),
-                              ),
-                              Text(
-                                '${item.quantidade}',
-                                style: theme.getTextStyle(
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.bold,
-                                  color: theme.textColor,
-                                ),
-                              ),
-                              IconButton(
-                                icon: const Icon(Icons.add_circle_outline,
-                                    size: 18),
-                                color: theme.secondaryTextColor,
-                                onPressed: () =>
-                                    _alterarQuantidadeCarrinho(index, 1),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(width: 8),
-                          Text(
-                            'R\$ ${_valorFormatado(itemTotal)}',
-                            style: theme.getTextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                              color: theme.textColor,
-                            ),
-                          ),
-                          IconButton(
-                            icon: const Icon(Icons.close,
-                                size: 16, color: Colors.redAccent),
-                            tooltip: 'Remover',
-                            onPressed: () => _removerItemCarrinho(index),
-                          ),
-                        ],
-                      ),
-                    );
-                  },
-                ),
-        ),
-        const SizedBox(height: 10),
-
-        // Painel de Formas de Pagamento
-        SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          child: Row(
-            children: [
-              for (final forma in _formasBalcao)
-                Padding(
-                  padding: const EdgeInsets.only(right: 6),
-                  child: InkWell(
-                    onTap: () {
-                      if (forma.toLowerCase().contains('prazo') &&
-                          _clienteSelecionado == null) {
-                        setState(() {
-                          _aviso =
-                              'Selecione um cliente cadastrado para vender a prazo.';
-                          _mostrarSugestoesCliente = true;
-                        });
-                        _clienteFocusNode.requestFocus();
-                        return;
-                      }
-                      setState(() => _formaPagamentoSelecionada = forma);
-                      _garantirFocoBipador();
-                    },
-                    borderRadius: BorderRadius.circular(8),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 12, vertical: 7),
-                      decoration: BoxDecoration(
-                        color: _formaPagamentoSelecionada == forma
-                            ? (theme.buttonColor != Colors.transparent
-                                ? theme.buttonColor.withValues(alpha: 0.8)
-                                : theme.borderColor.withValues(alpha: 0.35))
-                            : theme.backgroundColor.withValues(alpha: 0.2),
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(
-                          color: _formaPagamentoSelecionada == forma
-                              ? theme.textColor
-                              : theme.borderColor.withValues(alpha: 0.4),
-                          width:
-                              _formaPagamentoSelecionada == forma ? 1.4 : 1.0,
-                        ),
-                      ),
-                      child: Text(
-                        forma,
-                        style: theme.getTextStyle(
-                          fontSize: 11,
-                          fontWeight: _formaPagamentoSelecionada == forma
-                              ? FontWeight.bold
-                              : FontWeight.normal,
-                          color: _formaPagamentoSelecionada == forma
-                              ? theme.textColor
-                              : theme.secondaryTextColor,
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 10),
-
-        // Se forma for dinheiro: Campo de valor recebido e Troco Gigante
-        if (_formaPagamentoSelecionada == 'Dinheiro') ...[
-          Container(
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(
-              color: theme.backgroundColor.withValues(alpha: 0.25),
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(
-                color: theme.borderColor.withValues(alpha: 0.4),
-              ),
-            ),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Valor Recebido (R\$)',
-                        style: theme.getTextStyle(
-                            fontSize: 11, color: theme.secondaryTextColor),
-                      ),
-                      const SizedBox(height: 4),
-                      TextField(
-                        controller: _valorRecebidoController,
-                        keyboardType: const TextInputType.numberWithOptions(
-                            decimal: true),
-                        cursorColor: theme.textColor,
-                        style: theme.getTextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                          color: theme.textColor,
-                        ),
-                        decoration: InputDecoration(
-                          hintText: 'Ex: 100,00',
-                          hintStyle: theme.getTextStyle(
-                              fontSize: 13,
-                              color: theme.secondaryTextColor),
-                          border: InputBorder.none,
-                          isDense: true,
-                        ),
-                        onChanged: (_) => setState(() {}),
-                      ),
-                    ],
-                  ),
-                ),
-                Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                  decoration: BoxDecoration(
-                    color: theme.borderColor.withValues(alpha: 0.2),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    children: [
-                      Text(
-                        'TROCO DO CLIENTE',
-                        style: theme.getTextStyle(
-                          fontSize: 10,
-                          fontWeight: FontWeight.bold,
-                          color: theme.secondaryTextColor,
-                        ),
-                      ),
-                      Text(
-                        'R\$ ${_valorFormatado(troco)}',
-                        style: theme.getTextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.bold,
-                          color: theme.textColor,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 10),
-        ],
-
-        // Bloco do TOTAL GERAL em Destaque Gigante
-        Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: theme.backgroundColor.withValues(alpha: 0.4),
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(
-              color: theme.textColor.withValues(alpha: 0.7),
-              width: 1.6,
-            ),
-          ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'TOTAL A PAGAR',
-                    style: theme.getTextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.bold,
-                      color: theme.secondaryTextColor,
-                    ).copyWith(letterSpacing: 1.0),
-                  ),
-                  if (_descontoValor > 0 || _acrescimoValor > 0 || _freteValor > 0)
-                    Text(
-                      'Subtotal: R\$ ${_valorFormatado(subtotal)}',
-                      style: theme.getTextStyle(
-                        fontSize: 11,
-                        color: theme.secondaryTextColor,
-                      ),
-                    ),
-                ],
-              ),
-              Text(
-                'R\$ ${_valorFormatado(total)}',
-                style: theme.getTextStyle(
-                  fontSize: 34,
-                  fontWeight: FontWeight.bold,
-                  color: theme.textColor,
-                ),
-              ),
-            ],
-          ),
-        ),
-        if (_aviso != null) ...[
-          const SizedBox(height: 8),
-          Text(
-            _aviso!,
-            textAlign: TextAlign.center,
-            style: theme.getTextStyle(
-              fontSize: 12,
-              color: Colors.redAccent,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-        ],
-        const SizedBox(height: 12),
-
-        // Botão Gigante de Finalizar Venda
-        ElevatedButton.icon(
-          style: ElevatedButton.styleFrom(
-            backgroundColor: theme.buttonColor != Colors.transparent
-                ? theme.buttonColor
-                : theme.borderColor.withValues(alpha: 0.35),
-            foregroundColor: theme.textColor,
-            minimumSize: const Size(double.infinity, 54),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(14),
-              side: BorderSide(color: theme.textColor, width: 1.5),
-            ),
-            elevation: 2,
-          ),
-          onPressed: _finalizarVenda,
-          icon: const Icon(Icons.check_circle_outline, size: 24),
-          label: Text(
-            'FINALIZAR VENDA',
-            style: theme.getTextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.bold,
-              color: theme.textColor,
-            ).copyWith(letterSpacing: 0.8),
-          ),
-        ),
-      ],
     );
   }
 }

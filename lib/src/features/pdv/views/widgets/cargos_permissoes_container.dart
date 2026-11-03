@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:nous/src/core/theme/theme_controller.dart';
-import 'package:nous/src/core/widgets/themed_switch.dart';
 import 'package:nous/src/features/pdv/models/cargo_loja.dart';
-import 'package:nous/src/features/pdv/models/loja.dart';
+import 'package:nous/src/features/pdv/views/widgets/cargos/card_permissao_loja_widget.dart';
+import 'package:nous/src/features/pdv/views/widgets/cargos/dialogs_gerenciar_cargo.dart';
+import 'package:nous/src/features/pdv/views/widgets/cargos/painel_coletivo_nous_widget.dart';
 
+/// Container retrátil para transparência e gerenciamento de cargos e permissões da loja.
 class CargosEPermissoesContainer extends StatefulWidget {
   final AppTheme theme;
   final List<CargoLoja> cargosPersonalizados;
@@ -158,7 +160,7 @@ class _CargosEPermissoesContainerState
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  // Barra de abas (Estilo Discord)
+                  // Barra de abas
                   _construirBarraAbas(theme),
                   const SizedBox(height: 16),
                   // Conteúdo do cargo selecionado
@@ -182,7 +184,6 @@ class _CargosEPermissoesContainerState
               id: 'socio',
               titulo: 'Sócio',
               icone: Icons.handshake_outlined,
-              ehNativo: true,
               theme: theme,
             ),
             const SizedBox(width: 8),
@@ -190,7 +191,6 @@ class _CargosEPermissoesContainerState
               id: 'desenvolvedor',
               titulo: 'Desenvolvedor',
               icone: Icons.code_rounded,
-              ehNativo: true,
               theme: theme,
             ),
           ],
@@ -206,7 +206,6 @@ class _CargosEPermissoesContainerState
             id: 'dono',
             titulo: 'Dono',
             icone: Icons.workspace_premium_outlined,
-            ehNativo: true,
             theme: theme,
           ),
           const SizedBox(width: 8),
@@ -214,7 +213,6 @@ class _CargosEPermissoesContainerState
             id: 'socio',
             titulo: 'Sócio',
             icone: Icons.handshake_outlined,
-            ehNativo: true,
             theme: theme,
           ),
           const SizedBox(width: 8),
@@ -222,7 +220,6 @@ class _CargosEPermissoesContainerState
             id: 'admin',
             titulo: 'Administrador',
             icone: Icons.security_outlined,
-            ehNativo: true,
             theme: theme,
           ),
           const SizedBox(width: 8),
@@ -230,7 +227,6 @@ class _CargosEPermissoesContainerState
             id: 'funcionario',
             titulo: 'Funcionário',
             icone: Icons.badge_outlined,
-            ehNativo: true,
             theme: theme,
           ),
           for (final cargo in widget.cargosPersonalizados) ...[
@@ -239,7 +235,6 @@ class _CargosEPermissoesContainerState
               id: cargo.id,
               titulo: cargo.nome,
               icone: Icons.tag_rounded,
-              ehNativo: false,
               theme: theme,
             ),
           ],
@@ -257,7 +252,13 @@ class _CargosEPermissoesContainerState
                   borderRadius: BorderRadius.circular(10),
                 ),
               ),
-              onPressed: () => _abrirDialogNovoCargo(theme),
+              onPressed: () => DialogsGerenciarCargo.abrirDialogNovoCargo(
+                context: context,
+                theme: theme,
+                onAdicionarCargo: widget.onAdicionarCargo,
+                onCargoCriado: (novoId) =>
+                    setState(() => _abaSelecionadaId = novoId),
+              ),
               icon: const Icon(Icons.add, size: 16),
               label: Text(
                 'Novo Cargo',
@@ -277,7 +278,6 @@ class _CargosEPermissoesContainerState
     required String id,
     required String titulo,
     required IconData icone,
-    required bool ehNativo,
     required AppTheme theme,
   }) {
     final selecionado = _abaSelecionadaId == id;
@@ -324,7 +324,12 @@ class _CargosEPermissoesContainerState
 
   Widget _construirPainelCargo(AppTheme theme) {
     if (widget.ehLojaColetivaNous) {
-      return _construirPainelNous(theme);
+      return PainelColetivoNousWidget(
+        theme: theme,
+        abaSelecionadaId: _abaSelecionadaId,
+        usuarioLogadoEhDesenvolvedor: widget.usuarioLogadoEhDesenvolvedor,
+        onAlternarDesenvolvedor: widget.onAlternarDesenvolvedor,
+      );
     }
 
     final ehNativo = ['dono', 'socio', 'admin', 'funcionario']
@@ -425,13 +430,19 @@ class _CargosEPermissoesContainerState
                   ],
                 ),
               ),
-              if (!ehNativo && widget.podeGerenciar && cargoPersonalizado != null) ...[
+              if (!ehNativo &&
+                  widget.podeGerenciar &&
+                  cargoPersonalizado != null) ...[
                 IconButton(
                   tooltip: 'Renomear cargo',
-                  icon: Icon(Icons.edit_outlined, size: 18, color: theme.textColor),
-                  onPressed: () => _abrirDialogRenomearCargo(
-                    theme,
-                    cargoPersonalizado,
+                  icon:
+                      Icon(Icons.edit_outlined, size: 18, color: theme.textColor),
+                  onPressed: () =>
+                      DialogsGerenciarCargo.abrirDialogRenomearCargo(
+                    context: context,
+                    theme: theme,
+                    cargo: cargoPersonalizado,
+                    onAtualizarCargo: widget.onAtualizarCargo,
                   ),
                 ),
                 IconButton(
@@ -441,9 +452,14 @@ class _CargosEPermissoesContainerState
                     size: 18,
                     color: Colors.redAccent,
                   ),
-                  onPressed: () => _confirmarExcluirCargo(
-                    theme,
-                    cargoPersonalizado,
+                  onPressed: () =>
+                      DialogsGerenciarCargo.confirmarExcluirCargo(
+                    context: context,
+                    theme: theme,
+                    cargo: cargoPersonalizado,
+                    onRemoverCargo: widget.onRemoverCargo,
+                    onCargoExcluido: () =>
+                        setState(() => _abaSelecionadaId = 'dono'),
                   ),
                 ),
               ],
@@ -458,556 +474,22 @@ class _CargosEPermissoesContainerState
           const SizedBox(height: 14),
           // Lista de permissões
           for (final perm in PermissaoLojaConst.todas) ...[
-            _construirCardPermissao(
+            CardPermissaoLojaWidget(
               theme: theme,
               perm: perm,
-              ehNativo: ehNativo,
+              abaSelecionadaId: _abaSelecionadaId,
+              permissoesCargosNativos: widget.permissoesCargosNativos,
               cargoPersonalizado: cargoPersonalizado,
+              ehDonoOuSocio: widget.ehDonoOuSocio,
+              podeGerenciar: widget.podeGerenciar,
+              onAtualizarPermissoesCargoNativo:
+                  widget.onAtualizarPermissoesCargoNativo,
+              onAtualizarCargo: widget.onAtualizarCargo,
             ),
             const SizedBox(height: 8),
           ],
         ],
       ),
-    );
-  }
-
-  Widget _construirPainelNous(AppTheme theme) {
-    final ehDesenvolvedor = _abaSelecionadaId == 'desenvolvedor';
-    final titulo = ehDesenvolvedor ? 'Desenvolvedor' : 'Sócio';
-    final badge = ehDesenvolvedor ? 'Função Requisitada' : 'Papel Coletivo';
-    final descricao = ehDesenvolvedor
-        ? 'Função requisitada pelo próprio usuário para sinalizar que faz parte da equipe de desenvolvimento do ecossistema Nous. Não concede privilégios sobre outros membros.'
-        : 'Na comunidade Nous, todos os participantes são sócios em regime de autogestão plena e horizontalidade absoluta. Ninguém é dono de ninguém.';
-
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: theme.backgroundColor.withValues(alpha: 0.25),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: theme.borderColor.withValues(alpha: 0.4)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Row(
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Text(
-                          titulo,
-                          style: theme.getTextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                            color: theme.textColor,
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 6,
-                            vertical: 2,
-                          ),
-                          decoration: BoxDecoration(
-                            color: theme.borderColor.withValues(alpha: 0.25),
-                            borderRadius: BorderRadius.circular(6),
-                          ),
-                          child: Text(
-                            badge,
-                            style: theme.getTextStyle(
-                              fontSize: 10,
-                              fontWeight: FontWeight.w600,
-                              color: theme.secondaryTextColor,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      descricao,
-                      style: theme.getTextStyle(
-                        fontSize: 12,
-                        color: theme.secondaryTextColor,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 14),
-          Divider(
-            height: 1,
-            thickness: 1,
-            color: theme.borderColor.withValues(alpha: 0.2),
-          ),
-          const SizedBox(height: 14),
-          if (ehDesenvolvedor) ...[
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: theme.borderColor.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Row(
-                children: [
-                  Icon(
-                    widget.usuarioLogadoEhDesenvolvedor
-                        ? Icons.check_circle_outline_rounded
-                        : Icons.info_outline_rounded,
-                    size: 18,
-                    color: widget.usuarioLogadoEhDesenvolvedor
-                        ? theme.textColor
-                        : theme.secondaryTextColor,
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Text(
-                      widget.usuarioLogadoEhDesenvolvedor
-                          ? 'Você está identificado como Desenvolvedor da equipe Nous.'
-                          : 'Você pode requisitar a identificação de Desenvolvedor a qualquer momento.',
-                      style: theme.getTextStyle(
-                        fontSize: 12,
-                        color: theme.textColor,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 14),
-            SizedBox(
-              height: 44,
-              child: ElevatedButton.icon(
-                onPressed: widget.onAlternarDesenvolvedor,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: widget.usuarioLogadoEhDesenvolvedor
-                      ? theme.dangerColor.withValues(alpha: 0.15)
-                      : theme.textColor,
-                  foregroundColor: widget.usuarioLogadoEhDesenvolvedor
-                      ? theme.dangerColor
-                      : theme.backgroundColor,
-                  side: widget.usuarioLogadoEhDesenvolvedor
-                      ? BorderSide(color: theme.dangerColor.withValues(alpha: 0.6))
-                      : BorderSide.none,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                ),
-                icon: Icon(
-                  widget.usuarioLogadoEhDesenvolvedor
-                      ? Icons.person_remove_outlined
-                      : Icons.code_rounded,
-                  size: 18,
-                ),
-                label: Text(
-                  widget.usuarioLogadoEhDesenvolvedor
-                      ? 'Deixar de ser um desenvolvedor'
-                      : 'Se tornar Desenvolvedor',
-                  style: theme.getTextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.bold,
-                    color: widget.usuarioLogadoEhDesenvolvedor
-                        ? theme.dangerColor
-                        : theme.backgroundColor,
-                  ),
-                ),
-              ),
-            ),
-          ] else ...[
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: theme.borderColor.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Text(
-                'Todos os usuários cadastrados no Nous têm a condição de Sócio no perfil coletivo. Todos têm voz, acesso transparente aos dados e participação igualitária.',
-                style: theme.getTextStyle(
-                  fontSize: 12,
-                  color: theme.secondaryTextColor,
-                ),
-              ),
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-
-  Widget _construirCardPermissao({
-    required AppTheme theme,
-    required PermissaoInfo perm,
-    required bool ehNativo,
-    required CargoLoja? cargoPersonalizado,
-  }) {
-    final ehSoberano =
-        _abaSelecionadaId == 'dono' || _abaSelecionadaId == 'socio';
-    final ehNativoInferior =
-        _abaSelecionadaId == 'admin' || _abaSelecionadaId == 'funcionario';
-
-    final bool ativa;
-    if (ehSoberano) {
-      ativa = true;
-    } else if (ehNativoInferior) {
-      final customizadas =
-          widget.permissoesCargosNativos[_abaSelecionadaId];
-      if (customizadas != null && customizadas.containsKey(perm.chave)) {
-        ativa = customizadas[perm.chave] ?? false;
-      } else {
-        ativa =
-            Loja.permissoesPadraoPorPapel(_abaSelecionadaId)[perm.chave] ??
-                false;
-      }
-    } else {
-      ativa = cargoPersonalizado?.temPermissao(perm.chave) ?? false;
-    }
-
-    final ValueChanged<bool>? onSwitchChanged;
-    if (ehSoberano) {
-      onSwitchChanged = null;
-    } else if (ehNativoInferior) {
-      // Sócios e Donos podem mudar todas as permissões de cargos inferiores nativos
-      onSwitchChanged = widget.ehDonoOuSocio
-          ? (novoValor) {
-              final mapaBase =
-                  widget.permissoesCargosNativos[_abaSelecionadaId] ??
-                      Loja.permissoesPadraoPorPapel(_abaSelecionadaId);
-              final novoMapa = Map<String, bool>.from(mapaBase);
-              novoMapa[perm.chave] = novoValor;
-              widget.onAtualizarPermissoesCargoNativo?.call(
-                _abaSelecionadaId,
-                novoMapa,
-              );
-            }
-          : null;
-    } else {
-      // Cargos personalizados criados
-      onSwitchChanged =
-          (widget.podeGerenciar && cargoPersonalizado != null)
-              ? (novoValor) {
-                  final novasPerms =
-                      Map<String, bool>.from(cargoPersonalizado.permissoes);
-                  novasPerms[perm.chave] = novoValor;
-                  final atualizado =
-                      cargoPersonalizado.copyWith(permissoes: novasPerms);
-                  widget.onAtualizarCargo?.call(atualizado);
-                }
-              : null;
-    }
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      decoration: BoxDecoration(
-        color: theme.backgroundColor.withValues(alpha: 0.35),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(
-          color: ativa
-              ? theme.textColor.withValues(alpha: 0.25)
-              : theme.borderColor.withValues(alpha: 0.3),
-        ),
-      ),
-      child: Row(
-        children: [
-          Icon(
-            _iconeDaPermissao(perm.chave),
-            size: 20,
-            color: ativa ? theme.textColor : theme.secondaryTextColor,
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  perm.titulo,
-                  style: theme.getTextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                    color: theme.textColor,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  perm.descricao,
-                  style: theme.getTextStyle(
-                    fontSize: 11,
-                    color: theme.secondaryTextColor,
-                  ),
-                ),
-                if (ehSoberano) ...[
-                  const SizedBox(height: 2),
-                  Text(
-                    'Regra fundamental do sistema (inalterável)',
-                    style: theme.getTextStyle(
-                      fontSize: 10,
-                      fontWeight: FontWeight.w500,
-                      color: theme.secondaryTextColor.withValues(alpha: 0.8),
-                    ),
-                  ),
-                ] else if (ehNativoInferior) ...[
-                  const SizedBox(height: 2),
-                  Text(
-                    widget.ehDonoOuSocio
-                        ? 'Configurável por Sócios e Donos'
-                        : 'Definido pela gestão da loja',
-                    style: theme.getTextStyle(
-                      fontSize: 10,
-                      fontWeight: FontWeight.w500,
-                      color: theme.secondaryTextColor.withValues(alpha: 0.8),
-                    ),
-                  ),
-                ],
-              ],
-            ),
-          ),
-          const SizedBox(width: 12),
-          ThemedSwitch(
-            theme: theme,
-            value: ativa,
-            onChanged: onSwitchChanged,
-          ),
-        ],
-      ),
-    );
-  }
-
-  IconData _iconeDaPermissao(String chave) {
-    switch (chave) {
-      case PermissaoLojaConst.editarAbaLoja:
-        return Icons.inventory_2_outlined;
-      case PermissaoLojaConst.usarImpressora:
-        return Icons.print_outlined;
-      case PermissaoLojaConst.editarDadosLoja:
-        return Icons.storefront_outlined;
-      case PermissaoLojaConst.usarFinanceiro:
-        return Icons.account_balance_wallet_outlined;
-      case PermissaoLojaConst.registrarPagamento:
-        return Icons.payments_outlined;
-      case PermissaoLojaConst.gerenciarMembros:
-        return Icons.people_alt_outlined;
-      case PermissaoLojaConst.resetarTransacoes:
-        return Icons.restart_alt_rounded;
-      case PermissaoLojaConst.excluirLoja:
-        return Icons.delete_forever_outlined;
-      default:
-        return Icons.check_circle_outline;
-    }
-  }
-
-  void _abrirDialogNovoCargo(AppTheme theme) {
-    final controller = TextEditingController();
-    showDialog(
-      context: context,
-      builder: (dialogContext) {
-        return AlertDialog(
-          backgroundColor: theme.cardBackgroundColor,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-            side: BorderSide(color: theme.borderColor),
-          ),
-          title: Text(
-            'Novo Cargo',
-            style: theme.getTextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.bold,
-              color: theme.textColor,
-            ),
-          ),
-          content: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 400),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Dê um nome para o novo cargo (ex: Gerente, Garçom, Cozinheiro, Entregador):',
-                  style: theme.getTextStyle(
-                    fontSize: 12,
-                    color: theme.secondaryTextColor,
-                  ),
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: controller,
-                  autofocus: true,
-                  style: theme.getTextStyle(fontSize: 13),
-                  decoration: InputDecoration(
-                    hintText: 'Nome do cargo...',
-                    hintStyle: theme.getTextStyle(
-                      fontSize: 13,
-                      color: theme.secondaryTextColor,
-                    ),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(10),
-                      borderSide: BorderSide(color: theme.borderColor),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(dialogContext),
-              child: Text(
-                'Cancelar',
-                style: theme.getTextStyle(
-                  fontSize: 12,
-                  color: theme.secondaryTextColor,
-                ),
-              ),
-            ),
-            FilledButton(
-              style: FilledButton.styleFrom(
-                backgroundColor: theme.buttonColor,
-                foregroundColor: theme.buttonTextColor,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
-                ),
-              ),
-              onPressed: () {
-                final nome = controller.text.trim();
-                if (nome.isEmpty) return;
-                final novoCargo = CargoLoja(
-                  id: 'cargo_${DateTime.now().millisecondsSinceEpoch}',
-                  nome: nome,
-                  permissoes: {
-                    PermissaoLojaConst.usarFinanceiro: true,
-                  },
-                );
-                widget.onAdicionarCargo?.call(novoCargo);
-                setState(() => _abaSelecionadaId = novoCargo.id);
-                Navigator.pop(dialogContext);
-              },
-              child: Text(
-                'Criar Cargo',
-                style: theme.getTextStyle(
-                  fontSize: 12,
-                  color: theme.buttonTextColor,
-                ),
-              ),
-            ),
-          ],
-        );
-      },
-    );
-  }
-
-  void _abrirDialogRenomearCargo(AppTheme theme, CargoLoja cargo) {
-    final controller = TextEditingController(text: cargo.nome);
-    showDialog(
-      context: context,
-      builder: (dialogContext) {
-        return AlertDialog(
-          backgroundColor: theme.cardBackgroundColor,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-            side: BorderSide(color: theme.borderColor),
-          ),
-          title: Text(
-            'Renomear Cargo',
-            style: theme.getTextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.bold,
-              color: theme.textColor,
-            ),
-          ),
-          content: TextField(
-            controller: controller,
-            autofocus: true,
-            style: theme.getTextStyle(fontSize: 13),
-            decoration: InputDecoration(
-              hintText: 'Novo nome...',
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(10),
-                borderSide: BorderSide(color: theme.borderColor),
-              ),
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(dialogContext),
-              child: Text(
-                'Cancelar',
-                style: theme.getTextStyle(
-                  fontSize: 12,
-                  color: theme.secondaryTextColor,
-                ),
-              ),
-            ),
-            FilledButton(
-              style: FilledButton.styleFrom(
-                backgroundColor: theme.buttonColor,
-                foregroundColor: theme.buttonTextColor,
-              ),
-              onPressed: () {
-                final nome = controller.text.trim();
-                if (nome.isEmpty) return;
-                widget.onAtualizarCargo?.call(cargo.copyWith(nome: nome));
-                Navigator.pop(dialogContext);
-              },
-              child: Text('Salvar', style: theme.getTextStyle(fontSize: 12)),
-            ),
-          ],
-        );
-      },
-    );
-  }
-
-  void _confirmarExcluirCargo(AppTheme theme, CargoLoja cargo) {
-    showDialog(
-      context: context,
-      builder: (dialogContext) {
-        return AlertDialog(
-          backgroundColor: theme.cardBackgroundColor,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-            side: BorderSide(color: theme.borderColor),
-          ),
-          title: Text(
-            'Excluir Cargo',
-            textAlign: TextAlign.center,
-            style: theme.getTextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-              color: theme.textColor,
-            ),
-          ),
-          content: Text(
-            'Deseja excluir o cargo "${cargo.nome}"? Os membros que possuem esse cargo voltarão ao papel nativo padrão.',
-            textAlign: TextAlign.center,
-            style: theme.getTextStyle(fontSize: 14),
-          ),
-          actionsAlignment: MainAxisAlignment.center,
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(dialogContext),
-              child: Text(
-                'Cancelar',
-                style: theme.getTextStyle(
-                  color: theme.secondaryTextColor,
-                ),
-              ),
-            ),
-            TextButton(
-              onPressed: () {
-                widget.onRemoverCargo?.call(cargo.id);
-                setState(() => _abaSelecionadaId = 'dono');
-                Navigator.pop(dialogContext);
-              },
-              child: Text(
-                'Excluir',
-                style: theme.getTextStyle(color: theme.dangerColor),
-              ),
-            ),
-          ],
-        );
-      },
     );
   }
 }

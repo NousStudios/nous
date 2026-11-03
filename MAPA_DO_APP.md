@@ -32,7 +32,7 @@ Dois estados mudam o comportamento de várias telas:
 - **Botão "Entrar"**: abre primeiramente o diálogo de **Sincronização em Rede Wi-Fi** (`SincronizacaoRedeDialog`). Ao se conectar ao balcão ou continuar, consulta a conta na rede local. Se for uma conta totalmente nova sem registro, abre `CadastrarNomeUsuarioDialog` e `CadastrarApelidoDialog`. Se for conta antiga sem `@username`, solicita o nome de usuário. Em seguida, avança para a tela de triagem de e-mails (`ContasUsuarioView`).
 - **Ao digitar um CPF que já existe** (neste aparelho ou em outro da rede): recupera nome, nome de usuário, data de nascimento e foto via Wi-Fi do balcão. Se faltar nome de usuário, solicita a criação imediata.
 - **Ao digitar um CPF novo** (sem ficha em lugar nenhum): abre `CadastrarNomeUsuarioDialog` pedindo o **Nome de Usuário (@)** e em seguida `CadastrarApelidoDialog` pedindo o **Apelido**. Ao confirmar, cria a conta Nous e o cidadão vira automaticamente membro sócio da loja coletiva "Nous". 📄 `auth/views/widgets/cadastrar_nome_usuario_dialog.dart` e `cadastrar_apelido_dialog.dart`
-- Outras telas de acesso: `associar_cpf_view.dart` (associar CPF), `terms_view.dart` (termos de uso), `adicionar_email_dialog.dart` (adicionar e-mail à conta).
+- Outras telas de acesso: `terms_view.dart` (termos de uso), `adicionar_email_dialog.dart` (adicionar e-mail à conta).
 
 ### 1.2 Triagem de E-mails do Usuário (pós-sincronia)
 📄 `auth/views/contas_usuario_view.dart`
@@ -40,10 +40,12 @@ Dois estados mudam o comportamento de várias telas:
 - Inclui botão para adicionar novo e-mail (`AdicionarEmailDialog`) e ação de contingência para "Continuar sem e-mail".
 
 ### 1.3 Janela "Identidade do Usuário"
-📄 `auth/views/widgets/ficha_usuario_dialog.dart`
+📄 `auth/views/widgets/ficha_usuario_dialog.dart` · subcomponentes: `bloco_dados_pessoais_usuario.dart`, `bloco_emails_usuario.dart`, `bloco_lojas_usuario.dart`, `linha_info_usuario.dart`
 - Topo: **foto**, **apelido** e **nome próprio editável pelo titular** (alinhados e centralizados simetricamente com largura de 260px e ícone de privacidade perfeitamente integrado via `Stack`), **nome de usuário** (`@`) e **CPF** (protegido contra alteração).
-- Bloco **Dados pessoais**: data de nascimento, nome do pai, nome da mãe, local de nascimento, tipo sanguíneo, estado civil, e-mails.
-- Botão **"Editar dados pessoais"**: fica sempre visível **abaixo** de todos os dados. Ao clicar, o bloco vira editável com **Salvar** e **Cancelar**.
+- Bloco **Dados pessoais** (`BlocoDadosPessoaisUsuario`): data de nascimento, nome do pai, nome da mãe, local de nascimento, tipo sanguíneo, estado civil, telefones e redes sociais.
+- Bloco **E-mails Associados** (`BlocoEmailsUsuario`): e-mails vinculados ao CPF e destaque para a credencial ativa da sessão.
+- Bloco **Lojas e Coletivos** (`BlocoLojasUsuario`): histórico de lojas administradas e participadas com indicação do cargo e papel do membro.
+- Botão **"Editar dados pessoais"**: fica visível no rodapé do bloco de dados pessoais. Ao clicar, o bloco vira editável com **Salvar** e **Cancelar**.
 - **Blindagem em Dados Ocultos**: quando os dados estão borrados pelo botão do olho, qualquer clique, hover ou foco nos botões e campos internos é totalmente desabilitado com `IgnorePointer(ignoring: true)`, impedindo interação acidental.
 - **Privacidade Granular e Ícone de Olho Interativo**:
   - **Para o próprio titular**: ao clicar no ícone de olho, o dado alterna entre revelado e censurado de forma permanente (persistido localmente até novo clique do usuário).
@@ -85,7 +87,11 @@ Dois estados mudam o comportamento de várias telas:
 - **Sem Seta de Voltar Indesejada:** A navegação entre os módulos principais da barra não acumula histórico indevido e o `CustomAppBar` possui `automaticallyImplyLeading: false`, garantindo que nenhuma tela de raiz exiba seta de voltar.
 
 ### 1.6 Tela "Mensageria e Chats do Usuário / Loja"
-📄 `chat/views/mensageria_view.dart` · widgets: `_ItemConversaTile`, `_PlayerMensagemAudio`, `comanda_pedido_dialog.dart`
+📄 `chat/views/mensageria_view.dart` · controller: `chat/controllers/mensageria_controller.dart` · views: `chat/views/chamada_ativa_view.dart` · widgets: `lista_conversas_widget.dart`, `painel_conversa_ativa_widget.dart`, `balao_mensagem_widget.dart`, `item_conversa_tile.dart`, cards (`card_mensagem_audio.dart`, `card_mensagem_imagem.dart`, `card_mensagem_arquivo.dart`, `card_mensagem_comanda.dart`) · dialogs: `dialog_chamada_recebida.dart`, `dialog_nova_conversa.dart`, `dialog_criar_grupo.dart`, `dialog_detalhes_contato.dart`, `dialog_encaminhar_mensagem.dart`, `dialog_editar_mensagem.dart`, `dialog_historico_edicoes.dart`, `dialog_renomear_conversa.dart`, `dialog_compartilhar_comanda.dart` · services: `chamada_webrtc_service.dart`, `resolvedor_foto_chat.dart`
+- **Chamadas de Voz e Vídeo P2P via WebRTC:**
+  - **Botões na Barra Superior:** O cabeçalho de conversas privadas e grupos (`PainelConversaAtivaWidget`) exibe os botões de ligação por áudio (`phone`) e vídeo (`videocam`), permitindo discar diretamente na rede local. Excluídos estritamente do chat comunitário público da Loja Nós.
+  - **Modal de Chamada Recebida (`DialogChamadaRecebida`):** Toca alerta sonoro contínuo, exibe avatar e nome de quem está ligando, identifica se é áudio ou vídeo, e oferece botões claros de atender ou recusar.
+  - **Tela de Chamada Ativa (`ChamadaAtivaView`):** Janela imersiva com renderização de vídeo remoto em tela cheia e vídeo local em Picture-in-Picture (PIP) flutuante, cronômetro de tempo de chamada, controles para silenciar microfone, ligar/desligar câmera, alternar entre câmera frontal e traseira e ativar viva-voz.
 - **Padrão Mercado e Abertura Instantânea no Final:** O chat abre diretamente na última mensagem enviada com rolagem invertida natural (`reverse: true`), ancorando instantaneamente na base sem saltos visuais.
 - **Gravação e Reprodução de Mensagens de Voz (Estilo WhatsApp):**
   - **Barra de Gravação Interativa:** O botão de envio exibe o ícone de microfone (`mic`) quando o campo de texto está vazio; ao tocar, inicia a gravação de áudio (.m4a AAC LC 128kbps) e transforma a barra de envio em uma faixa com indicador pulsante, cronômetro de duração em tempo real (`0:05`), botão de descarte imediato (lixeira) e botão de envio direto.
@@ -137,7 +143,7 @@ Dois estados mudam o comportamento de várias telas:
 - **Sair**: faz logout, desconecta as redes locais e volta ao Login.
 
 ### 2.2.1 Tela "Conta Nous"
-📄 `auth/views/conta_nous_view.dart` · acessada pelo botão "Conta Nous" em Configurações.
+📄 `auth/views/conta_nous_view.dart` · submódulos modulares em `auth/views/widgets/conta_nous/` (`bloco_identidade_conta_widget.dart`, `bloco_privacidade_conta_widget.dart`, `bloco_emails_conta_widget.dart`, `bloco_seguranca_conta_widget.dart`) · acessada pelo botão "Conta Nous" em Configurações.
 - Reúne os módulos soberanos da identidade e dos dados do cidadão:
   - **Identidade do Usuário**: foto de perfil, `@username` identificador único com diálogo de edição, apelido, nome civil e CPF formatado com alternância permanente de revelação no olho para o dono, com botão "Ver / Editar Identidade Completa" (abre `FichaUsuarioDialog` 1.3).
   - **Privacidade e Transparência dos Dados**: container com interruptores `ThemedSwitch` por campo (Nome Próprio / Nome Civil, CPF, data de nascimento, filiação, local de nascimento, tipo sanguíneo, estado civil, telefone e endereço). Permite tornar dados públicos ou privados para terceiros nas lojas e buscas. Exibe a lista de membros que receberam autorização de acesso a cada dado privado e botão para revogar a permissão individualmente a qualquer momento.
@@ -155,9 +161,10 @@ Dois estados mudam o comportamento de várias telas:
 
 ## 3. Notificações
 
-📄 `notif/views/widgets/notificacoes_dialog.dart` · `notif/providers/notificacoes_provider.dart` · `notif/models/convite_loja.dart` · `notif/services/convites_service.dart`
+📄 `notif/views/widgets/notificacoes_dialog.dart` · widgets: `notif/views/widgets/cards/card_notificacao_estoque.dart`, `card_notificacao_chat.dart`, `card_notificacao_convite.dart` · services: `notif/services/gerenciador_acoes_notificacao.dart`, `notif/services/convites_service.dart` · `notif/providers/notificacoes_provider.dart`
 
 - **Cabeçalho**: botão **"Limpar todas as notificações"** (ícone `clear_all`). Dispensa todas de uma vez nesta sessão (`dispensarTodasNaSessao`), incluindo mensagens e alertas.
+- **Arquitetura Modular de Cards**: cada notificação é renderizada por seu widget especializado com isolamento de estilo e responsividade (`CardNotificacaoEstoque`, `CardNotificacaoChat`, `CardNotificacaoConvite`), delegando confirmações e ações para o `GerenciadorAcoesNotificacao`.
 - **Cada card** pode ser **arrastado para o lado** para dispensar na sessão.
 - **Tipos de aviso**:
   - **Mensagens Recebidas**: foto do remetente, nome e texto com `TextoRolante`, data/hora. **Clicar na notificação**: fecha a janela e abre a conversa na Mensageria na hora.
@@ -176,12 +183,12 @@ Dois estados mudam o comportamento de várias telas:
 ## 4. Rede Wi-Fi
 
 ### 4.1 Janela "Sincronização em Rede Wi-Fi"
-📄 `pdv/views/widgets/sincronizacao_rede_dialog.dart` · serviços em `pdv/services/rede_local/` (`servidor_rede_local.dart`, `cliente_rede_local.dart`)
+📄 `pdv/views/widgets/sincronizacao_rede_dialog.dart` · submódulos de UI em `pdv/views/widgets/sincronizacao_rede/` (`aba_servidor_balcao_widget.dart`, `aba_terminal_movel_widget.dart`, `dialog_aprovar_conexao_terminal.dart`) · serviços em `pdv/services/rede_local/` (`servidor_rede_local.dart`, `manipulador_midia_servidor.dart`, `cliente_rede_local.dart`, `reconciliador_loja_rede.dart`, `sincronizador_usuarios_rede.dart`, `transferencia_arquivos_rede.dart`)
 - Abre pelo botão em **Configurações** (2.2), no primeiro item de **Ajustes do Perfil** (6.2) ou pós-login.
 - Topo: ficha do operador ativo (foto, nome, `@apelido`, CPF).
 - Duas abas: **Servidor Balcão** e **Terminal Móvel**.
   - **Servidor Balcão**: liga o computador como servidor (porta 8080). A máquina balcão reflete o CPF e nome do operador ativo no momento. Lista os terminais conectados com tipo de conexão (Membro / Cliente), nome do aparelho, operador, CPF e IP.
-  - **Terminal Móvel**: o celular lista automaticamente os balcões achados na rede (botão **Conectar**) ou conecta por IP e porta manualmente. O computador que é servidor **não pode** se conectar a si mesmo.
+  - **Terminal Móvel**: o celular lista automaticamente os balcões achados na rede (botão **Conectar**) ou conecta por IP e porta manualmente. O computador que é servidor **não pode** se conectar a si mesmo. Quando conectado a um servidor (seja Loja ou Modo Usuário Nous), exibe status, endereço do host, botão de desconectar e a **Lista de Usuários Conectados na Rede no Nous** com campo de pesquisa em tempo real (filtra por nome, `@username` ou CPF com botão de limpar), avatares reais, horários de conexão e atalho para abrir a `FichaUsuarioDialog`.
 - **Aprovação Obrigatória com Seletor Cliente vs Membro**: quando um terminal tenta se conectar, o balcão exibe diálogo interativo com som de alerta, detalhes do dispositivo e um seletor para aprovação:
   - **Cliente**: conecta o aparelho exclusivamente como cliente consumidor da loja (cadastrado em clientes, sem permissões de membro/gestão, pronto para auto-atendimento de pedidos).
   - **Novo Membro da Loja**: autoriza o aparelho como membro operacional participante da loja.
@@ -226,7 +233,15 @@ Dois estados mudam o comportamento de várias telas:
 
 ## 6. Tela da Loja (`DadosPerfilView`)
 
-📄 `pdv/views/dados_perfil_view.dart`
+📄 `pdv/views/dados_perfil_view.dart` (< 450 linhas, altamente modular).
+Controladores e componentes modulares especialistas:
+- `widgets/loja/dados_perfil_loja_controller.dart`: orquestrador de estado reativo, controladores e ciclo de vida.
+- `widgets/loja/layout_principal_loja_widget.dart`: gerencia atalhos de teclado (F1-F12), alternância Desktop Expandido / Balcão / Compacto.
+- `widgets/loja/seletor_conteudo_abas_loja_widget.dart`: renderizador de abas isolado (Dados, Loja, Gestão, Ajustes).
+- `widgets/loja/gerenciador_dialogs_loja.dart`: central de roteamento de diálogos, popups e confirmações operacionais.
+- `widgets/loja/gerenciador_clientes_fornecedores_loja.dart`: regras de negócio e persistência de clientes e fornecedores.
+- `widgets/loja/persistencia_loja_helper.dart`: sincronização e difusão na rede local Wi-Fi.
+- `widgets/loja/gerenciador_catalogo_loja.dart`, `widgets/loja/gerenciador_pedidos_loja.dart`, `widgets/mesas/gerenciador_mesas_loja.dart`, `widgets/loja/gerenciador_membros_loja.dart`, `widgets/loja/gerenciador_anexos_loja.dart`.
 
 Quatro abas (`AbaLoja`): **Dados**, **Ajustes do Perfil**, **Loja / Catálogo** e **Gestão de Pedidos**.
 *(Exceção soberana: no Perfil Profissional Coletivo **Nous**, existem apenas duas abas: **Dados** e **Gestão**, sem botões de salvar, excluir ou sair).*
@@ -240,7 +255,13 @@ Esta tela atualiza **em tempo real** quando muda algo no balcão ou em outro cel
 - **Abas Restritas**: Apenas **Dados** e **Gestão** (as abas Ajustes e Loja/Catálogo são removidas).
 - **Dados Institucionais Fixos**: Exibição da logo oficial (`assets/images/logo.png`) e dados fixos apenas de leitura (Nome: *Nous*, Email: *nousstudios72@gmail.com*, Redes Sociais: *@nous.studios72*, Categorias: *Autogestão, Comunidade, Software Livre*, Descrição: *Software Universal de Autogestão Comercial e Social*). Sem botões de "Salvar Dados" ou "Excluir Loja". Os usuários podem enviar fotos, vídeos e arquivos para as galerias normalmente.
 - **Cargos e Permissões**: Apenas duas abas: **Sócio** e **Desenvolvedor**. A função de Desenvolvedor é voluntariamente requisitada com o botão "Se tornar Desenvolvedor" / "Deixar de ser um desenvolvedor". No container "Usuários Participantes", o membro desenvolvedor recebe o rótulo `Sócio • Desenvolvedor`.
-- **Aba Gestão**: Substitui os controles comerciais por um botão largo **"Status da Loja"** (mostrando a contagem de membros online na rede local em tempo real) e o **Chat Geral da Comunidade** integrado logo abaixo.
+- **Aba Gestão Modularizada**: 📄 `aba_gestao_nous_widget.dart` (< 790 linhas) composto por:
+  - `widgets/gestao_nous/dialogs_topicos_gestao.dart`: criação, exclusão, renomeação e saída de salas.
+  - `widgets/gestao_nous/barra_envio_mensagem_gestao.dart`: input de texto, áudio com timer e anexos.
+  - `widgets/gestao_nous/bolha_mensagem_gestao.dart`: bolhas, menus de contexto e ações de mensagens.
+  - `widgets/gestao_nous/barra_topicos_comunitarios_widget.dart`: navegação horizontal entre salas comunitárias.
+  - `widgets/gestao_nous/cabecalho_chat_gestao_widget.dart`: cabeçalho centralizado com sino e ações da sala.
+  - `widgets/gestao_nous/card_audio_mensagem_gestao.dart` e `dialogs/dialog_explorar_salas_comunitarias.dart`.
 - **Proibição de Saída**: Nenhum usuário pode sair da loja coletiva Nous nem ser excluído por terceiros. Sincronização automática na rede Wi-Fi ao conectar em qualquer loja.
 
 ### 6.0 Barra lateral (só no desktop expandido)
@@ -255,14 +276,14 @@ Esta tela atualiza **em tempo real** quando muda algo no balcão ou em outro cel
 ### 6.1 Aba "Dados"
 Containers, de cima para baixo:
 1. **Formulário de Dados da Loja** 📄 `pdv/views/widgets/formulario_dados_loja.dart`: nome, documento (CNPJ), logo, contatos etc.
-2. **Cargos e Permissões (estilo Discord)** 📄 `pdv/views/widgets/cargos_permissoes_container.dart`
+2. **Cargos e Permissões (estilo Discord)** 📄 `pdv/views/widgets/cargos_permissoes_container.dart` · subcomponentes: `pdv/views/widgets/cargos/` (`dialogs_gerenciar_cargo.dart`, `painel_coletivo_nous_widget.dart`, `card_permissao_loja_widget.dart`)
    - Começa **minimizado**; clique expande/recolhe.
    - Abas: **Dono, Sócio, Administrador, Funcionário** e cargos criados em **"+ Novo Cargo"**.
    - Lista todas as permissões, cada uma com explicação e interruptor.
    - **Dono e Sócio**: interruptores travados com o aviso "Regra fundamental do sistema (inalterável)".
    - Dono e Sócio podem alterar livremente as permissões de Administrador, Funcionário e cargos criados (salvo em `Loja.permissoesCargosNativos`; se não houver, valem os padrões `Loja.permissoesPadraoPorPapel`).
    - Se a permissão **"Gerenciar Membros e Cargos"** for dada a Administrador/Funcionário, eles passam a poder alterar papéis de outros membros (nunca de Dono ou Sócio).
-3. **Usuários Participantes** 📄 `pdv/views/widgets/usuarios_participantes_container.dart`
+3. **Usuários Participantes** 📄 `pdv/views/widgets/usuarios_participantes_container.dart` · subcomponentes: `pdv/views/widgets/usuarios/` (`dialog_convite_membro_loja.dart`, `dialog_troca_papel_membro.dart`, `card_membro_loja_widget.dart`)
    - Cada membro é uma **barra com foto, nome e hover**. A foto vem pelo CPF (`auth.buscarFotoPorCpf` e, se faltar, `pdv.buscarFotoClientePorCpf`).
    - **Clicar em outro membro**: abre a **Identidade do Usuário** em somente leitura. **Clicar em si mesmo**: abre editável.
    - **Editar membro**: escolher papel operacional e vincular um **cargo** criado. O subtítulo mostra o cargo.
@@ -326,7 +347,7 @@ Primeiro item: botão de **Sincronização em Rede Wi-Fi** (abre 4.1). Depois:
 Todas abrem centralizadas, aceitam **F11** e, no desktop expandido, ficam em **duas colunas** (~1050 px).
 
 ### 7.1 Nova Venda
-📄 `nova_venda_dialog.dart`
+📄 `nova_venda_dialog.dart` · subwidgets modulares: `widgets/nova_venda/cliente_seletor_nova_venda_widget.dart`, `widgets/nova_venda/comanda_resumo_nova_venda_widget.dart`, `widgets/nova_venda/pagamento_nova_venda_widget.dart`, `widgets/nova_venda/botao_hover_forma.dart`
 - **Layout Adaptativo e Responsivo**: no modo desktop/notebook, distribui dinamicamente os containers em 2 colunas equilibradas (Esquerda: Produto Solicitado, Comanda e Ajustes de Frete/Desconto; Direita: Nome do Cliente, Formas de Pagamento e botão Concluir Venda), permitindo concluir vendas sem necessidade de rolagem de mouse em notebooks; se a largura for reduzida para menos de 780px, adapta fluentemente para coluna única sem erros de layout ou overflow.
 - **Estado inicial limpo.** Campo de busca em branco com foco → mostra **só as categorias**. Produtos soltos só aparecem ao pesquisar ou bipar (busca insensível a acentuação).
 - **Nome do Cliente**: com foco e vazio, lista **todos os clientes**; filtra ao digitar ignorando acentos (nome, rua, número, CPF/CNPJ, telefone, e-mail, redes, descrição).
@@ -341,7 +362,7 @@ Todas abrem centralizadas, aceitam **F11** e, no desktop expandido, ficam em **d
 - Ao concluir: **VendaConcluidaDialog** (cupom). Protegido: sair pede para salvar ou descartar; tem **Voltar** e **"Voltar para edição"**.
 
 ### 7.2 Modo Balcão (frente de caixa)
-📄 `modo_balcao_widget.dart` · abre pela barra lateral ("Modo Balcão") ou pelo botão equivalente; **Esc** volta.
+📄 `modo_balcao_widget.dart` · submódulos modulares em `pdv/views/widgets/modo_balcao/` (`barra_superior_balcao_widget.dart`, `campo_bipador_balcao_widget.dart`, `catalogo_balcao_widget.dart`, `visor_ultimo_produto_widget.dart`, `cliente_ajustes_balcao_widget.dart`, `comanda_balcao_widget.dart`, `dialogo_variante_balcao.dart`, `dialogo_componentes_balcao.dart`) · abre pela barra lateral ("Modo Balcão") ou pelo botão equivalente; **Esc** volta.
 - **Esquerda (Operador)**: campo de bipador sempre focado; visor do último produto (foto, quantidade, nome, valor); catálogo por categorias com badges de saldo; busca de cliente com painel flutuante (avatar, CPF/CNPJ, telefone, endereço) e chip do cliente selecionado com botão de desvincular.
 - **Direita (Comanda ampliada)**: cada item com nome completo (categoria e variante), preço, **+ / − / remover**, resumo dos adicionais, observação em itálico (`Obs: ...`) e botões **+ Componentes** e **+ Observação / Editar Obs**.
 - Campos **Frete** (acima de **Acrésc:**), **Desconto**, **Acréscimo**; **TOTAL GERAL** gigante; formas de pagamento com valor recebido e **troco em verde**.
@@ -350,13 +371,13 @@ Todas abrem centralizadas, aceitam **F11** e, no desktop expandido, ficam em **d
 - Venda avulsa em "Todos" cobra o preço puro do item; o preço da categoria só soma se a categoria estiver selecionada.
 
 ### 7.3 Clientes
-📄 `clientes_dialog.dart`
+📄 `clientes_dialog.dart` · submódulos modulares em `pdv/views/widgets/clientes/` (`painel_lista_clientes_widget.dart`, `formulario_cadastro_cliente_widget.dart`, `dialog_acoes_cliente.dart`, `dialog_quitacao_debito_cliente.dart`)
 - Lista com **busca insensível a acentuação** e formulário de cadastro.
 - **Nome do Cliente e Endereço**: formatado automaticamente com `PrimeiraLetraMaiusculaFormatter` (a primeira letra de cada palavra digitada é convertida automaticamente em maiúscula em tempo real, permitindo minúsculas intencionais caso o usuário apague e digite em minúsculo).
 - Campo **"CNPJ ou CPF"** com máscara automática (até 11 dígitos = CPF, 12 a 14 = CNPJ).
 - **Autopreenchimento**: ao completar o documento, busca em contas Nous, lojas e cadastros prévios e preenche nome, telefone, endereço, e-mail, redes e foto.
 - Altura da lista de clientes: 490 px no desktop expandido; 200 px no compacto.
-- Ao tocar num cliente: valor total já gasto, histórico, **Exportar Extrato PDF**, **Programar Pedido**, **Pedidos Programados** (ver, pausar/ativar, excluir) e quitação.
+- Ao tocar num cliente: valor total já gasto, histórico, **Exportar Extrato PDF**, **Programar Pedido** (📄 `programar_pedido_dialog.dart` com `dialogs/dialog_digitar_horario.dart` e `widgets/programar_pedido/calendario_programacao_widget.dart`), **Pedidos Programados** (ver, pausar/ativar, excluir) e quitação.
 - **Quitar valor / Quitar tudo**: abre confirmação mostrando cliente, valor, dívida atual e saldo restante. Escolhe a forma (Dinheiro, Pix, Cartão). Se for dinheiro e o caixa estiver aberto, registra um **suprimento** no turno.
 - **Excluir Cliente**: em vermelho, com confirmação; avisa se houver débito a prazo. O histórico de pedidos é preservado.
 
@@ -364,36 +385,36 @@ Todas abrem centralizadas, aceitam **F11** e, no desktop expandido, ficam em **d
 📄 `fornecedores_dialog.dart` — lista e clientes vinculados à esquerda; cadastro à direita. Busca multicampo. Excluir em vermelho com confirmação. Opção "usar cliente como fornecedor" mostra a foto do cliente.
 
 ### 7.5 Caixa do Balcão
-📄 `caixa_dialog.dart` · `detalhes_turno_caixa_dialog.dart`
-- **Caixa fechado**: formulário de **abertura** (fundo de troco, responsável) e lista **"Últimos Turnos Fechados"**.
-  - Cada barra tem hover, seta e dica; **clicar** abre `DetalhesTurnoCaixaDialog`; o botão de **impressora** reimprime o fechamento sem abrir detalhes.
-- **Caixa aberto**: **Suprimento** (entrada) e **Sangria** (saída), ambos com justificativa obrigatória e botões **Confirmar** / **Confirmar e Imprimir** (comprovante com linha de assinatura). Histórico do turno com reimpressão de 2ª via.
-- **Fechar caixa** (fechamento cego): informa o contado em Dinheiro, Crédito, Débito, Pix e Outros; o sistema compara e mostra sobra ou falta. Emite comprovante de fechamento (58 ou 80 mm).
+📄 `caixa_dialog.dart` · `detalhes_turno_caixa_dialog.dart` · subwidgets modulares em `pdv/views/widgets/caixa/` (`painel_abertura_turno.dart`, `painel_turno_aberto.dart`, `painel_historico_turnos.dart`, `bloco_movimentacoes_turno.dart`, `painel_lancamento_movimento.dart`, `painel_fechamento_turno.dart`, `card_operacional_turno.dart`, `card_resumo_financeiro_turno.dart`, `barra_turno_item.dart`, `card_movimento_turno.dart`, `card_venda_turno.dart`)
+- **Caixa fechado**: formulário de **abertura** (`PainelAberturaTurno`: fundo de troco, responsável) e lista **"Últimos Turnos Fechados"** (`PainelHistoricoTurnos`).
+  - Cada barra tem hover, seta e dica; **clicar** abre `DetalhesTurnoCaixaDialog` (< 760 linhas, decomposto com `CardOperacionalTurno` e `CardResumoFinanceiroTurno`); o botão de **impressora** reimprime o fechamento sem abrir detalhes.
+- **Caixa aberto**: **Suprimento** (entrada) e **Sangria** (saída) via `PainelLancamentoMovimento`, ambos com justificativa obrigatória e botões **Confirmar** / **Confirmar e Imprimir** (comprovante com linha de assinatura). Histórico do turno com reimpressão de 2ª via.
+- **Fechar caixa** (fechamento cego) via `PainelFechamentoTurno`: informa o contado em Dinheiro, Crédito, Débito, Pix e Outros; o sistema compara e mostra sobra ou falta. Emite comprovante de fechamento (58 ou 80 mm).
 - **Detalhes do turno**: quem abriu e quem fechou (foto, nome, CPF), horários, duração, resumo (fundo, vendas por forma incluindo À Prazo, suprimentos, sangrias, esperado × informado, divergência em `dangerColor`), abas de **movimentações** e de **vendas do turno**, observação de fechamento e **Apagar Registro** (confirmação + auditoria).
 
 ### 7.6 Relatórios
-📄 `relatorios_dialog.dart`
+📄 `relatorios_dialog.dart` · submódulos modulares em `pdv/views/widgets/relatorios/` (`aba_pedidos_relatorios_widget.dart`, `aba_pendencias_relatorios_widget.dart`, `aba_acoes_relatorios_widget.dart`, `dialog_detalhes_acao_relatorio.dart`)
 - Filtros por data com botões `<` e `>`, calendário e campo de data.
 - **Pedidos Programados** (acima de Pendências): agendamentos do dia, com foto do cliente, horário e frequência; clique abre a comanda.
 - **Pendências**: pedidos a prazo em aberto **agrupados por cliente** (total devido, último pedido, selo com quantidade). Clique abre a ficha do cliente, ou a comanda se for pedido avulso.
 - **Ações** (auditoria): cada barra abre `_DetalhesAcaoDialog` com data/hora, autor (CPF e e-mail) e descrição, com atalho **"Ver Perfil de [Cliente]"** ou **"Ver Comanda do Pedido #N"** quando ainda existem.
 
-### 7.7 Impressora
-📄 `impressora_dialog.dart` · `pdv/services/impressao_service.dart`
+### 7.7 Impressora e Exportação Documental PDF
+📄 `impressora_dialog.dart` · submódulos de interface em `pdv/views/widgets/impressora/` (`coluna_configuracao_hardware_widget.dart`, `coluna_automacao_recibo_widget.dart`, `painel_previa_comanda_widget.dart`) · suíte de impressão térmica ESC/POS modularizada em `pdv/services/impressao/` (`gerador_escpos_service.dart`, `comunicador_socket_impressora.dart`, `comunicador_windows_spooler.dart` com fachada em `impressao_service.dart`) · suíte modular de relatórios documentais PDF em `pdv/services/relatorios/` (`exportador_pdf_comanda.dart`, `exportador_pdf_financeiro.dart`, `exportador_pdf_dre.dart`, `exportador_pdf_extrato_cliente.dart`, `pdf_formatacao_util.dart` com fachada retrocompatível em `pdv/services/relatorios_pdf_service.dart`)
 - Coluna 1: conexão, **largura da bobina (58 / 80 mm)**, **Tipografia da Comanda** (lista de 11 fontes com prévia), **Calibração Bilateral** (margem esquerda padrão 5 mm e direita padrão 3 mm, passos de 0,5 mm).
 - Coluna 2: dados da loja/cliente no recibo, automações (**impressão automática ao concluir venda**), rodapé, **testar** e **salvar**.
 - **Prévia viva** da comanda dentro da calibração, com um dos 10 perfis históricos (sorteado), e botão de impressora para imprimir o exemplo.
 
 ### 7.8 Mesas e Comandas (Restaurante)
-📄 pasta `pdv/views/widgets/mesas/` — `mesas_container.dart`, `criar_mesa_dialog.dart`, `comanda_mesa_dialog.dart`, `adicionar_item_mesa_dialog.dart`, `fechar_conta_mesa_dialog.dart`, `transferir_mesa_dialog.dart`
+📄 pasta `pdv/views/widgets/mesas/` — `mesas_container.dart`, `criar_mesa_dialog.dart`, `comanda_mesa_dialog.dart`, `adicionar_item_mesa_dialog.dart`, `configuracao_item_mesa_widget.dart`, `fechar_conta_mesa_dialog.dart`, `cadastro_cliente_rapido_mesa_dialog.dart`, `transferir_mesa_dialog.dart`
 - Cada mesa tem status (**livre/ocupada**), número, descrição/capacidade, cliente e atendente.
-- Lançar item (com variantes e adicionais); remover item gera auditoria. **Imprimir conferência** (pré-fechamento).
+- Lançar item: seleção visual desacoplada em `ConfiguracaoItemMesaWidget` (variantes, complementos, quantidades e observações); remover item gera auditoria. **Imprimir conferência** (pré-fechamento).
 - **Transferir / Unir** comandas.
-- **Fechar conta**: pagamento único ou **dividido** em várias formas com saldo restante; botão de **10% de atendimento**; desconto. Se faltar quitar ou sobrar pagamento, **bloqueia**. Forma "À Prazo" exige cliente; se não existir, abre cadastro rápido (nome obrigatório, endereço, telefone).
+- **Fechar conta**: pagamento único ou **dividido** em várias formas com saldo restante; botão de **10% de atendimento**; desconto. Se faltar quitar ou sobrar pagamento, **bloqueia**. Forma "À Prazo" exige cliente; se não existir, abre `CadastroClienteRapidoMesaDialog` desacoplado (nome obrigatório, endereço, telefone).
 - Cabeçalho "Mesas" com `TextoRolante`, sem colidir com **+ Nova Mesa**.
 
 ### 7.9 Financeiro
-📄 `pdv/views/financeiro_view.dart` (tela, não janela)
+📄 `pdv/views/financeiro_view.dart` · widgets em `pdv/views/widgets/financeiro/`: `barra_acoes_financeiro_widget.dart`, `seletor_periodo_financeiro_widget.dart`, `bloco_resumo_operacional_widget.dart`, `bloco_entradas_financeiro_widget.dart`, `bloco_balanco_financeiro_widget.dart`, `bloco_compras_financeiro_widget.dart`, `bloco_vendas_financeiro_widget.dart`, `bloco_funcionarios_financeiro_widget.dart`, `item_linha_financeira.dart`
 - Ordem dos containers: **Resumo Operacional do Dia/Contexto** (primeiro, logo abaixo do filtro de período) → período e balanço → **Compras do Período** → **Vendas do Período** (busca, filtros por forma de pagamento, lista de vendas) → trabalhadores.
 - **Período**: Hoje, Semana, Mês, Tudo, ou **De / Até** (um dia só, ou intervalo). Botões `<` `>` e calendário. Digitar uma data desmarca o botão ativo; botão `x` limpa.
 - **Entradas por forma de pagamento**: inclui **À Prazo** com o valor real.
@@ -417,18 +438,22 @@ Todas abrem centralizadas, aceitam **F11** e, no desktop expandido, ficam em **d
 - Entra sozinho em **Novos** no dia certo, sem duplicar.
 
 ### 7.12 Item e Estoque
-- **Novo/Editar Item** 📄 `novo_item_dialog.dart` — ordem dos campos: Foto → Nome → Descrição (minimizada) → Tipo (Produto/Serviço) → Preço de Venda → Categorias e Grupos → Variantes → Código de Barras → Unidades (`un`, `g`, `ml`) → Consumo por Venda → **Estoque e Preço de Custo** (saldo, ajuste/inicial, mínimo, **Lançar Movimento Detalhado**, custo unitário da última compra, margem estimada) → Delivery. Largura: ~740 px (2 colunas) no expandido, ~380 px (1 coluna) no compacto.
+- **Novo/Editar Item** 📄 `novo_item_dialog.dart` (submódulos modulares em `pdv/views/widgets/novo_item/`: `seletor_midia_item_widget.dart`, `campos_basicos_item_widget.dart`, `seletor_taxonomia_item_widget.dart`, `gestao_variantes_item_widget.dart`, `gestao_estoque_custo_widget.dart`) — ordem dos campos: Foto → Nome → Descrição (minimizada) → Tipo (Produto/Serviço) → Preço de Venda → Categorias e Grupos → Variantes → Código de Barras → Unidades (`un`, `g`, `ml`) → Consumo por Venda → **Estoque e Preço de Custo** (saldo, ajuste/inicial, mínimo, **Lançar Movimento Detalhado**, custo unitário da última compra, margem estimada) → Delivery. Largura: ~740 px (2 colunas) no expandido, ~380 px (1 coluna) no compacto.
 - **Movimento de Estoque** 📄 `movimento_estoque_dialog.dart` — tipo (Entrada etc.), quantidade e **custo total da compra** (o custo unitário se calcula sozinho, e vice-versa). Seção rápida permite mudar preço de venda, código de barras e **unidade de medida**.
-- **Baixa de Estoque** 📄 `baixa_estoque_dialog.dart` — o sistema propõe, o humano confirma.
-- **Cancelar Pedido** 📄 `cancelar_pedido_dialog.dart` — motivo obrigatório e opção de devolver ao estoque.
-- Outras janelas de apoio: `nova_categoria_dialog.dart`, `novo_grupo_componentes_dialog.dart`, `opcoes_imagem_dialog.dart` ("Procurar nova imagem", "Retirar imagem", "Cancelar"; se o campo está vazio, abre direto o seletor de arquivos), `venda_registrada_dialog.dart` (comanda de venda já feita, com **Quitar Pagamento à Prazo**), `comanda_pedido.dart`, `comanda_pedido_dialog.dart`.
+- **Baixa de Estoque e Estornos Unificados** 📄 `lib/src/features/pdv/services/estoque_baixa_service.dart` — serviço soberano para cálculo de saídas por vendas e entradas por estornos, ponderando rigorosamente o `consumoPorVenda` do item base e de todos os acompanhamentos selecionados em pedidos de balcão e comandas de mesas.
+- **Gestão Modular de Mesas e Salão** 📄 `lib/src/features/pdv/views/widgets/mesas/gerenciador_mesas_loja.dart` — controlador desacoplado responsável por comandas de mesa (`comanda_mesa_dialog.dart`), transferências e unificações de mesas (`transferir_mesa_dialog.dart`), edição/cadastro (`criar_mesa_dialog.dart`) e fechamento de conta com baixa automática de estoque (`fechar_conta_mesa_dialog.dart`).
+- **Cancelar Pedido** 📄 `cancelar_pedido_dialog.dart` — motivo obrigatório e opção de devolver ao estoque com estorno recalculado via `EstoqueBaixaService`.
+- Outras janelas de apoio: `nova_categoria_dialog.dart`, `novo_grupo_componentes_dialog.dart`, `opcoes_imagem_dialog.dart` ("Procurar nova imagem", "Retirar imagem", "Cancelar"; se o campo está vazio, abre direto o seletor de arquivos), `venda_registrada_dialog.dart` (comanda de venda já feita, com **Quitar Pagamento à Prazo**, modularizado com `barra_venda_widget.dart`, `bloco_acoes_venda_widget.dart`, `bloco_resumo_venda_widget.dart`, `bloco_itens_venda_widget.dart`, `bloco_comentario_venda_widget.dart`), `comanda_pedido.dart`, `comanda_pedido_dialog.dart`.
 
 ### 7.13 Mensageria e Chat
-📄 `chat/views/mensageria_view.dart` · serviço `chat/services/chat_service.dart` · modelos em `chat/models/` (`mensagem_chat.dart`, `conversa_chat.dart`)
+📄 `chat/views/mensageria_view.dart` · serviços `chat/services/chat_service.dart`, `chat/services/sincronizador_chat_balcao.dart`, `chat/services/comunidade_chat_service.dart` · modelos em `chat/models/` (`mensagem_chat.dart`, `conversa_chat.dart`)
 - Interface estilo WhatsApp adaptável: lista de conversas à esquerda e conversa ativa à direita no desktop (≥ 720 px); lista ou conversa em tela cheia com botão voltar no celular.
+- **Cabeçalho da Conversa Ativa Padrão WhatsApp**: tanto em celular/compacto quanto no desktop, o topo do chat alinha estritamente as informações do contato à esquerda (avatar circular com foto ou iniciais, nome completo do contato em negrito e subtítulo com status ou `@username`, com toque em splash que abre os detalhes da conversa) e posiciona os botões de ação à direita (`IconButton` de chamada de vídeo, chamada de áudio, renomear conversa e menu com 3 pontos), eliminando qualquer sobreposição visual.
+- **Chamadas de Voz e Vídeo WebRTC LAN P2P**: chamadas diretas pela rede local sem internet. Permite iniciar por voz e ativar a câmera dinamicamente no meio da chamada (`alternarCamera`). O espelhamento de vídeo é inteligente e seletivo: apenas a câmera frontal (selfie) é espelhada localmente (`mirror: true`), mantendo a câmera traseira na orientação real e a câmera do interlocutor remoto sempre fiel e desespelhada.
 - **Botão de Voltar no Desktop quando chat aberto**: ao navegar para Mensagens pela barra flutuante universal no desktop e selecionar uma conversa (momento em que a barra universal é desabilitada), o `CustomAppBar` exibe automaticamente o botão de voltar no canto superior esquerdo para desmarcar a conversa atual e voltar à lista, impedindo que o usuário fique preso na tela.
-- **Ordem Natural e Rolagem Automática**: mensagens em ordem cronológica direta (antigas no topo, recentes embaixo), rolando suavemente até o final ao abrir o chat ou receber novas mensagens.
-- **Título da Conversa Interativo**: conversas 1-on-1 iniciam com o título padrão "Conversa" centralizado em destaque (17px); grupos mantêm o nome do grupo e tópicos comunitários o nome da sala; toque no título permite renomear a conversa a qualquer momento para identificação personalizada.
+- **Ordem Natural e Rolagem Automática**: mensagens em ordem cronológica direta (antigas no topo, recentes embaixo), rolando suavemente até o final ao abrir o chat ou receber novas mensagens. Sincronização via rede preserva timestamps originais e reconcilia histórico completo do SQLite ao entrar no chat.
+- **Título da Conversa Interativo e Identidade Soberana**: conversas 1-on-1 exibem com destaque o nome real e avatar do interlocutor (com `@username` visível e filtragem soberana que nunca exibe o próprio nome do usuário logado); grupos mantêm o nome do grupo e tópicos comunitários o nome da sala; toque no título permite renomear a conversa a qualquer momento para apelido personalizado.
+- **Arquitetura Modular da Mensageria**: organizada em camadas desacopladas (`MensageriaController`, `ListaConversasWidget`, `PainelConversaAtivaWidget`, `BalaoMensagemWidget`, `ItemConversaTile`, `ResolvedorFotoChat`, `SincronizadorChatBalcao`, `ComunidadeChatService`), garantindo renderização instantânea em O(1) com cache inteligente e autocura no SQLite.
 - **Confirmação de Leitura em Check Duplo Azul**: mensagens lidas pelo destinatário exibem check duplo no azul oficial WhatsApp (`#34B7F1`).
 - **Ações Contextuais de Mensagem (Clique / Toque Longo)**:
   - **Copiar**: copia o texto da mensagem para a área de transferência.
@@ -461,7 +486,12 @@ Todas abrem centralizadas, aceitam **F11** e, no desktop expandido, ficam em **d
 - **Fixação e Arquivamento de Conversas**:
   - Clique com botão direito ou toque longo no item da conversa abre menu com "Fixar/Desafixar conversa" e "Arquivar/Desarquivar".
   - Conversas fixadas exibem ícone discreto de alfinete (`Icons.push_pin_rounded`) e têm prioridade no topo da lista.
-- **Fonte Única da Verdade e Persistência Imediata**: novas conversas abertas são imediatamente gravadas na tabela `conversas_chat` do SQLite com índices aceleradores, garantindo que nunca desapareçam da lista de chats ativos. O encaminhamento de mensagens garante a persistência formal da conversa de destino no banco e despacha o anexo/texto via rede local com atualização reativa da lista.
+- **Fonte Única da Verdade, Persistência Imediata e Arquitetura Modular**: novas conversas abertas são imediatamente gravadas na tabela `conversas_chat` do SQLite com índices aceleradores (`idx_chat_lida`), garantindo que nunca desapareçam da lista de chats ativos e que a troca de conversa seja instantânea sem travamentos. O subsistema de chat foi modularizado e desacoplado em responsabilidades únicas:
+  - 📄 `chat/services/chat_repositorio_sqlite.dart`: persistência SQLite soberana, batch updates atômicos de leitura e carregamento paginado leve.
+  - 📄 `chat/services/chat_media_service.dart`: gestão segura de anexos em disco, leitura protegida em Base64 e formatação de resumos.
+  - 📄 `chat/services/chat_sincronizacao_service.dart`: despacho via malha de rede local Wi-Fi (servidor/cliente), eventos de entrega/leitura e drenagem de fila.
+  - 📄 `chat/services/chat_service.dart`: fachada soberana e unificada de mensageria retrocompatível.
+  - 📄 `pdv/providers/helpers/pdv_vendas_estoque_helper.dart` e `pdv_sincronizacao_rede_helper.dart`: módulos especialistas desacoplados do `PdvProvider` para gerenciamento soberano de baixas de estoque e tráfego de sincronização de rede local.
 - **Modo Loja**: remetente é a Loja atual; bolhas de mensagem exibem o atendente responsável; carrega membros da equipe e clientes cadastrados de forma desduplicada.
 - **Modo Usuário Nous**: remetente é o cidadão/CPF logado; acessado pelo botão "Mensagens" do Perfil Social; conversa com lojas que participa e outros contatos da rede.
 

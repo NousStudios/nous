@@ -14,9 +14,16 @@ import 'package:nous/src/features/pdv/providers/pdv_provider.dart';
 import 'package:nous/src/core/services/gerador_id.dart';
 import 'package:nous/src/features/pdv/models/registro_acao.dart';
 import 'package:nous/src/features/pdv/services/impressao_service.dart';
-import 'package:nous/src/features/pdv/views/widgets/estado_vazio_container.dart';
 import 'package:nous/src/features/pdv/views/widgets/registrar_pagamento_dialog.dart';
-import 'package:nous/src/features/pdv/views/widgets/venda_registrada_dialog.dart';
+import 'package:nous/src/features/pdv/views/dialogs/dialog_demonstrativo_dre.dart';
+import 'package:nous/src/features/pdv/views/widgets/financeiro/seletor_periodo_financeiro_widget.dart';
+import 'package:nous/src/features/pdv/views/widgets/financeiro/bloco_compras_financeiro_widget.dart';
+import 'package:nous/src/features/pdv/views/widgets/financeiro/bloco_funcionarios_financeiro_widget.dart';
+import 'package:nous/src/features/pdv/views/widgets/financeiro/bloco_vendas_financeiro_widget.dart';
+import 'package:nous/src/features/pdv/views/widgets/financeiro/bloco_resumo_operacional_widget.dart';
+import 'package:nous/src/features/pdv/views/widgets/financeiro/barra_acoes_financeiro_widget.dart';
+import 'package:nous/src/features/pdv/views/widgets/financeiro/bloco_entradas_financeiro_widget.dart';
+import 'package:nous/src/features/pdv/views/widgets/financeiro/bloco_balanco_financeiro_widget.dart';
 
 const List<String> _formasDePagamento = [
   'Pix',
@@ -25,34 +32,6 @@ const List<String> _formasDePagamento = [
   'Crédito',
   'À Prazo',
 ];
-
-class _DataInputFormatter extends TextInputFormatter {
-  @override
-  TextEditingValue formatEditUpdate(
-    TextEditingValue oldValue,
-    TextEditingValue newValue,
-  ) {
-    final digitos = newValue.text.replaceAll(RegExp(r'[^0-9]'), '');
-    final limitado = digitos.length > 8 ? digitos.substring(0, 8) : digitos;
-    final buffer = StringBuffer();
-    for (var i = 0; i < limitado.length; i++) {
-      if (i == 2 || i == 4) buffer.write('/');
-      buffer.write(limitado[i]);
-    }
-    final texto = buffer.toString();
-    var offset = newValue.selection.end;
-    if (offset > texto.length) offset = texto.length;
-    if (texto.length > oldValue.text.length && (offset == 2 || offset == 5)) {
-      offset++;
-    }
-    return TextEditingValue(
-      text: texto,
-      selection: TextSelection.collapsed(offset: offset),
-    );
-  }
-}
-
-enum PeriodoFinanceiro { hoje, semana, mes, tudo, personalizado }
 
 class FinanceiroView extends StatefulWidget {
   final String lojaId;
@@ -419,435 +398,17 @@ class _FinanceiroViewState extends State<FinanceiroView> {
     );
   }
 
-  Widget _botaoPeriodo(AppTheme theme, PeriodoFinanceiro p) {
-    final selecionado = p == _periodo;
-    final fundoAtivo = theme.buttonColor != Colors.transparent
-        ? theme.buttonColor
-        : theme.borderColor.withValues(alpha: 0.25);
-    final textoAtivo = theme.buttonColor != Colors.transparent
-        ? theme.buttonTextColor
-        : theme.textColor;
-
-    return _LinhaComHover(
-      aoClicar: () {
-        setState(() {
-          _periodo = p;
-          _dataInicioController.clear();
-          _dataFimController.clear();
-        });
-      },
-      builder: (hover) => Container(
-        width: 80,
-        padding: const EdgeInsets.symmetric(vertical: 10),
-        decoration: BoxDecoration(
-          color: selecionado
-              ? (hover
-                  ? (theme.buttonColor != Colors.transparent
-                      ? theme.buttonColor.withValues(alpha: 0.85)
-                      : theme.borderColor.withValues(alpha: 0.35))
-                  : fundoAtivo)
-              : (hover
-                  ? theme.borderColor.withValues(alpha: 0.18)
-                  : Colors.transparent),
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(
-            color: selecionado || hover
-                ? theme.textColor
-                : theme.borderColor.withValues(alpha: 0.45),
-            width: selecionado ? 1.6 : 1.0,
-          ),
-        ),
-        child: Text(
-          _rotuloPeriodoDe(p),
-          textAlign: TextAlign.center,
-          style: theme.getTextStyle(
-            fontSize: 12,
-            fontWeight: selecionado ? FontWeight.bold : FontWeight.normal,
-            color: selecionado
-                ? textoAtivo
-                : (hover ? theme.textColor : theme.secondaryTextColor),
-          ),
-        ),
-      ),
-    );
+  double _totalPagamentosPeriodo(Loja? loja) {
+    if (loja == null) return 0.0;
+    return _pagamentosDoPeriodo(loja).fold(0.0, (soma, p) => soma + p.valor);
   }
 
-  Widget _filtroPeriodo(AppTheme theme) {
-    const double larguraBotao = 80;
-    const double espaco = 8;
-
-    const opcoes = [
-      PeriodoFinanceiro.hoje,
-      PeriodoFinanceiro.semana,
-      PeriodoFinanceiro.mes,
-      PeriodoFinanceiro.tudo,
-    ];
-
-    final botoes = opcoes.map((p) => _botaoPeriodo(theme, p)).toList();
-
-    final larguraTotal =
-        larguraBotao * botoes.length + espaco * (botoes.length - 1);
-
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        LayoutBuilder(
-          builder: (context, constraints) {
-            if (larguraTotal <= constraints.maxWidth) {
-              return Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  for (var i = 0; i < botoes.length; i++) ...[
-                    if (i > 0) const SizedBox(width: espaco),
-                    botoes[i],
-                  ],
-                ],
-              );
-            }
-            return SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: Row(
-                children: [
-                  for (var i = 0; i < botoes.length; i++) ...[
-                    if (i > 0) const SizedBox(width: espaco),
-                    botoes[i],
-                  ],
-                ],
-              ),
-            );
-          },
-        ),
-        const SizedBox(height: 10),
-        _inputsDataPersonalizada(theme),
-      ],
-    );
-  }
-
-  InputDecoration _decoracaoCampoData(AppTheme theme, String dica) {
-    return InputDecoration(
-      hintText: dica,
-      hintStyle: theme.getTextStyle(
-        fontSize: 11,
-        color: theme.secondaryTextColor,
-      ),
-      isDense: true,
-      contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-      filled: true,
-      fillColor: theme.cardBackgroundColor,
-      border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(8),
-        borderSide: BorderSide(
-          color: theme.borderColor.withValues(alpha: 0.6),
-        ),
-      ),
-      enabledBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(8),
-        borderSide: BorderSide(
-          color: theme.borderColor.withValues(alpha: 0.6),
-        ),
-      ),
-      focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(8),
-        borderSide: BorderSide(
-          color: theme.textColor,
-          width: 1.4,
-        ),
-      ),
-    );
-  }
-
-  void _ajustarDiaController(TextEditingController controller, int delta) {
-    DateTime base;
-    final atual = _parseData(controller.text);
-    if (atual != null) {
-      base = atual.add(Duration(days: delta));
-    } else {
-      base = DateTime.now();
-    }
-    controller.text = _formatarDataBR(base);
-    setState(() {
-      _periodo = PeriodoFinanceiro.personalizado;
-    });
-  }
-
-  Future<void> _abrirDatePickerController(
-      BuildContext context, TextEditingController controller, AppTheme theme) async {
-    final atual = _parseData(controller.text) ?? DateTime.now();
-    final selecionada = await showDatePicker(
-      context: context,
-      initialDate: atual,
-      firstDate: DateTime(2000),
-      lastDate: DateTime(2100),
-      builder: (context, child) {
-        return Theme(
-          data: ThemeData.dark().copyWith(
-            colorScheme: ColorScheme.dark(
-              primary: theme.buttonColor != Colors.transparent
-                  ? theme.buttonColor
-                  : theme.textColor,
-              onPrimary: theme.buttonTextColor,
-              surface: theme.cardBackgroundColor,
-              onSurface: theme.textColor,
-            ),
-          ),
-          child: child!,
-        );
-      },
-    );
-    if (selecionada != null) {
-      controller.text = _formatarDataBR(selecionada);
-      setState(() {
-        _periodo = PeriodoFinanceiro.personalizado;
-      });
-    }
-  }
-
-  Widget _campoDataComNavegacao({
-    required AppTheme theme,
-    required String rotulo,
-    required TextEditingController controller,
-    required VoidCallback aoMudar,
-  }) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Tooltip(
-          message: 'Dia anterior',
-          child: _LinhaComHover(
-            aoClicar: () => _ajustarDiaController(controller, -1),
-            builder: (hover) => Container(
-              padding: const EdgeInsets.all(7),
-              decoration: BoxDecoration(
-                color: hover
-                    ? theme.borderColor.withValues(alpha: 0.25)
-                    : Colors.transparent,
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(
-                  color: hover
-                      ? theme.textColor
-                      : theme.borderColor.withValues(alpha: 0.45),
-                ),
-              ),
-              child: Icon(
-                Icons.chevron_left_rounded,
-                size: 15,
-                color: hover ? theme.textColor : theme.secondaryTextColor,
-              ),
-            ),
-          ),
-        ),
-        const SizedBox(width: 4),
-        SizedBox(
-          width: 148,
-          child: TextField(
-            controller: controller,
-            keyboardType: TextInputType.number,
-            inputFormatters: [_DataInputFormatter()],
-            cursorColor: theme.textColor,
-            style: theme.getTextStyle(fontSize: 12),
-            decoration: _decoracaoCampoData(theme, rotulo).copyWith(
-              suffixIcon: Tooltip(
-                message: 'Abrir calendário',
-                child: IconButton(
-                  icon: Icon(
-                    Icons.calendar_month_outlined,
-                    size: 15,
-                    color: theme.textColor,
-                  ),
-                  onPressed: () =>
-                      _abrirDatePickerController(context, controller, theme),
-                ),
-              ),
-            ),
-            onChanged: (_) => aoMudar(),
-          ),
-        ),
-        const SizedBox(width: 4),
-        Tooltip(
-          message: 'Próximo dia',
-          child: _LinhaComHover(
-            aoClicar: () => _ajustarDiaController(controller, 1),
-            builder: (hover) => Container(
-              padding: const EdgeInsets.all(7),
-              decoration: BoxDecoration(
-                color: hover
-                    ? theme.borderColor.withValues(alpha: 0.25)
-                    : Colors.transparent,
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(
-                  color: hover
-                      ? theme.textColor
-                      : theme.borderColor.withValues(alpha: 0.45),
-                ),
-              ),
-              child: Icon(
-                Icons.chevron_right_rounded,
-                size: 15,
-                color: hover ? theme.textColor : theme.secondaryTextColor,
-              ),
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _inputsDataPersonalizada(AppTheme theme) {
-    final temFiltroData = _dataInicioController.text.trim().isNotEmpty ||
-        _dataFimController.text.trim().isNotEmpty;
-    final dataInicioInvalida = _dataInicioController.text.length == 10 &&
-        _parseData(_dataInicioController.text) == null;
-    final dataFimInvalida = _dataFimController.text.length == 10 &&
-        _parseData(_dataFimController.text) == null;
-
-    void atualizarFiltro() {
-      setState(() {
-        if (_dataInicioController.text.isNotEmpty ||
-            _dataFimController.text.isNotEmpty) {
-          _periodo = PeriodoFinanceiro.personalizado;
-        } else {
-          _periodo = PeriodoFinanceiro.hoje;
-        }
-      });
-    }
-
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Wrap(
-          alignment: WrapAlignment.center,
-          crossAxisAlignment: WrapCrossAlignment.center,
-          spacing: 8,
-          runSpacing: 8,
-          children: [
-            _campoDataComNavegacao(
-              theme: theme,
-              rotulo: 'De: dd/mm/aaaa',
-              controller: _dataInicioController,
-              aoMudar: atualizarFiltro,
-            ),
-            _campoDataComNavegacao(
-              theme: theme,
-              rotulo: 'Até: dd/mm/aaaa',
-              controller: _dataFimController,
-              aoMudar: atualizarFiltro,
-            ),
-            if (temFiltroData) ...[
-              Tooltip(
-                message: 'Limpar filtro de data',
-                child: InkWell(
-                  borderRadius: BorderRadius.circular(8),
-                  onTap: () {
-                    setState(() {
-                      _dataInicioController.clear();
-                      _dataFimController.clear();
-                      _periodo = PeriodoFinanceiro.hoje;
-                    });
-                  },
-                  child: Container(
-                    padding: const EdgeInsets.all(7),
-                    decoration: BoxDecoration(
-                      color: theme.borderColor.withValues(alpha: 0.15),
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(
-                        color: theme.borderColor.withValues(alpha: 0.45),
-                      ),
-                    ),
-                    child: Icon(
-                      Icons.close,
-                      size: 14,
-                      color: theme.secondaryTextColor,
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ],
-        ),
-        if (dataInicioInvalida || dataFimInvalida) ...[
-          const SizedBox(height: 4),
-          Text(
-            'Data inválida (use o formato dd/mm/aaaa)',
-            style: theme.getTextStyle(
-              fontSize: 11,
-              color: Colors.redAccent,
-            ),
-          ),
-        ],
-      ],
-    );
-  }
-
-  String _rotuloPeriodoDe(PeriodoFinanceiro p) {
-    switch (p) {
-      case PeriodoFinanceiro.hoje:
-        return 'Hoje';
-      case PeriodoFinanceiro.semana:
-        return 'Semana';
-      case PeriodoFinanceiro.mes:
-        return 'Mês';
-      case PeriodoFinanceiro.tudo:
-        return 'Tudo';
-      case PeriodoFinanceiro.personalizado:
-        return 'Personalizado';
-    }
-  }
-
-  Widget _botaoAcao(
-    AppTheme theme,
-    String rotulo, {
-    required bool carregando,
-    required VoidCallback? aoPressionar,
-  }) {
-    return OutlinedButton(
-      style: OutlinedButton.styleFrom(
-        foregroundColor: theme.textColor,
-        side: BorderSide(color: theme.borderColor),
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(10),
-        ),
-      ),
-      onPressed: carregando ? null : aoPressionar,
-      child: carregando
-          ? SizedBox(
-              width: 14,
-              height: 14,
-              child: CircularProgressIndicator(
-                strokeWidth: 2,
-                color: theme.textColor,
-              ),
-            )
-          : Text(rotulo, style: theme.getTextStyle(fontSize: 12)),
-    );
-  }
-
-  Widget _barraAcoes(AppTheme theme, Loja? loja) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        _botaoAcao(
-          theme,
-          'DRE Simples',
-          carregando: false,
-          aoPressionar: loja == null ? null : () => _abrirDRE(loja),
-        ),
-        const SizedBox(width: 8),
-        _botaoAcao(
-          theme,
-          'Imprimir',
-          carregando: _imprimindo,
-          aoPressionar: loja == null ? null : () => _imprimir(loja),
-        ),
-        const SizedBox(width: 8),
-        _botaoAcao(
-          theme,
-          'Exportar PDF',
-          carregando: _exportando,
-          aoPressionar: loja == null ? null : () => _exportar(loja),
-        ),
-      ],
-    );
+  double _saldoPeriodo(Loja? loja) {
+    final entradas = _totalEntradas;
+    final saidaEstoque = _saidaEstoqueDoPeriodo(loja);
+    final totalPagamentos = _totalPagamentosPeriodo(loja);
+    final saidas = totalPagamentos + (_contarEstoque ? saidaEstoque : 0);
+    return entradas - saidas;
   }
 
   Future<void> _imprimir(Loja loja) async {
@@ -948,178 +509,19 @@ class _FinanceiroViewState extends State<FinanceiroView> {
     final theme = ThemeController.currentTheme.value;
     final receita = _totalEntradas;
     final cmv = _saidaEstoqueDoPeriodo(loja);
-    final lucroBruto = receita - cmv;
-    final margemBruta = receita > 0 ? (lucroBruto / receita * 100) : 0.0;
     final pagamentos = _pagamentosDoPeriodo(loja);
     final despesasPessoal = pagamentos.fold(0.0, (s, p) => s + p.valor);
-    final resultadoLiquido = lucroBruto - despesasPessoal;
-    final margemLiquida =
-        receita > 0 ? (resultadoLiquido / receita * 100) : 0.0;
 
-    showDialog<void>(
-      context: context,
-      builder: (dialogContext) {
-        return Dialog(
-          backgroundColor: theme.cardBackgroundColor,
-          insetPadding: const EdgeInsets.all(16),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-            side: BorderSide(color: theme.borderColor),
-          ),
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 480),
-            child: Padding(
-              padding: const EdgeInsets.all(20),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Row(
-                    children: [
-                      IconButton(
-                        icon: Icon(Icons.arrow_back, color: theme.textColor),
-                        onPressed: () => Navigator.of(dialogContext).pop(),
-                      ),
-                      Expanded(
-                        child: Column(
-                          children: [
-                            Text(
-                              'Demonstrativo de Resultado (DRE)',
-                              textAlign: TextAlign.center,
-                              style: theme.getTextStyle(
-                                fontSize: 15,
-                                fontWeight: FontWeight.bold,
-                                color: theme.textColor,
-                              ),
-                            ),
-                            Text(
-                              'Período: $_rotuloPeriodoAtual',
-                              textAlign: TextAlign.center,
-                              style: theme.getTextStyle(
-                                fontSize: 11,
-                                color: theme.secondaryTextColor,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(width: 48),
-                    ],
-                  ),
-                  const SizedBox(height: 14),
-                  Container(
-                    padding: const EdgeInsets.all(14),
-                    decoration: BoxDecoration(
-                      color: theme.backgroundColor.withValues(alpha: 0.4),
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(
-                        color: theme.borderColor.withValues(alpha: 0.6),
-                      ),
-                    ),
-                    child: Column(
-                      children: [
-                        _linha(theme, '1. Receita Operacional Bruta',
-                            _valorFormatado(receita),
-                            destaque: true),
-                        const SizedBox(height: 4),
-                        _linha(
-                          theme,
-                          '2. (-) Custo dos Produtos / Insumos',
-                          _valorFormatado(cmv),
-                        ),
-                        const Divider(height: 16),
-                        _linha(
-                          theme,
-                          '3. (=) Lucro Operacional Bruto',
-                          _valorComSinal(lucroBruto),
-                          destaque: true,
-                          negativo: lucroBruto < 0,
-                        ),
-                        Padding(
-                          padding: const EdgeInsets.only(bottom: 6),
-                          child: Align(
-                            alignment: Alignment.centerRight,
-                            child: Text(
-                              'Margem Bruta: ${margemBruta.toStringAsFixed(1)}%',
-                              style: theme.getTextStyle(
-                                fontSize: 10,
-                                color: theme.secondaryTextColor,
-                              ),
-                            ),
-                          ),
-                        ),
-                        _linha(
-                          theme,
-                          '4. (-) Pagamentos a Trabalhadores',
-                          _valorFormatado(despesasPessoal),
-                        ),
-                        const Divider(height: 16),
-                        _linha(
-                          theme,
-                          '5. (=) Resultado Líquido do Período',
-                          _valorComSinal(resultadoLiquido),
-                          destaque: true,
-                          negativo: resultadoLiquido < 0,
-                        ),
-                        Align(
-                          alignment: Alignment.centerRight,
-                          child: Text(
-                            'Margem Líquida: ${margemLiquida.toStringAsFixed(1)}%',
-                            style: theme.getTextStyle(
-                              fontSize: 10,
-                              color: resultadoLiquido < 0
-                                  ? Colors.redAccent
-                                  : theme.secondaryTextColor,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 14),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.end,
-                    children: [
-                      TextButton(
-                        onPressed: () => Navigator.of(dialogContext).pop(),
-                        child: Text(
-                          'Fechar',
-                          style: theme.getTextStyle(
-                            fontSize: 12,
-                            color: theme.secondaryTextColor,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      OutlinedButton.icon(
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: theme.textColor,
-                          side: BorderSide(color: theme.borderColor),
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 12, vertical: 10),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                        ),
-                        onPressed: () {
-                          Navigator.of(dialogContext).pop();
-                          _exportarDRE(loja);
-                        },
-                        icon: Icon(Icons.picture_as_pdf_outlined,
-                            size: 14, color: theme.textColor),
-                        label: Text(
-                          'Exportar DRE em PDF',
-                          style: theme.getTextStyle(fontSize: 12),
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          ),
-        );
-      },
+    DialogDemonstrativoDRE.mostrar(
+      context,
+      theme: theme,
+      rotuloPeriodo: _rotuloPeriodoAtual,
+      receita: receita,
+      cmv: cmv,
+      despesasPessoal: despesasPessoal,
+      formatarValor: _valorFormatado,
+      formatarValorComSinal: _valorComSinal,
+      onExportarPdf: () => _exportarDRE(loja),
     );
   }
 
@@ -1257,654 +659,13 @@ class _FinanceiroViewState extends State<FinanceiroView> {
     }
   }
 
-  Widget _blocoEntradas(AppTheme theme) {
-    return Container(
-      width: 320,
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-      decoration: _decoracaoDoBloco(theme),
-      child: Column(
-        children: [
-          _tituloDoBloco(theme, 'Entradas por forma de pagamento'),
-          for (final forma in _formasDePagamento)
-            _linha(theme, forma, _valorFormatado(_entradasPorForma(forma))),
-          const Divider(height: 20),
-          _linha(
-            theme,
-            'Total',
-            _valorFormatado(_totalEntradas),
-            destaque: true,
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _blocoBalanco(AppTheme theme, Loja? loja) {
-    final entradas = _totalEntradas;
-    final saidaEstoque = _saidaEstoqueDoPeriodo(loja);
-    final pagamentos = _pagamentosDoPeriodo(loja);
-    double totalPagamentos = 0;
-    for (final p in pagamentos) {
-      totalPagamentos += p.valor;
-    }
-    final saidas =
-        totalPagamentos + (_contarEstoque ? saidaEstoque : 0);
-    final saldo = entradas - saidas;
-    final aReceber = _totalAReceber;
-
-    return Container(
-      width: 320,
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-      decoration: _decoracaoDoBloco(theme),
-      child: Column(
-        children: [
-          _tituloDoBloco(theme, 'Balança orçamentária'),
-          _linha(theme, 'Entradas', _valorFormatado(entradas)),
-          _linha(
-            theme,
-            'Saídas (funcionários)',
-            _valorFormatado(totalPagamentos),
-          ),
-          _linha(
-            theme,
-            'Saídas (estoque)',
-            _contarEstoque
-                ? _valorFormatado(saidaEstoque)
-                : '${_valorFormatado(saidaEstoque)} (fora do cálculo)',
-          ),
-          const SizedBox(height: 4),
-          _linhaToggleEstoque(theme),
-          const Divider(height: 20),
-          _linha(
-            theme,
-            'Saldo',
-            _valorComSinal(saldo),
-            destaque: true,
-            negativo: saldo < 0,
-          ),
-          if (aReceber > 0) ...[
-            const SizedBox(height: 8),
-            Text(
-              'A receber (pedidos e saldo a prazo): ${_valorFormatado(aReceber)}',
-              textAlign: TextAlign.center,
-              style: theme.getTextStyle(
-                fontSize: 11,
-                color: theme.secondaryTextColor,
-              ),
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-
-  Widget _linhaToggleEstoque(AppTheme theme) {
-    return InkWell(
-      borderRadius: BorderRadius.circular(8),
-      onTap: () => setState(() => _contarEstoque = !_contarEstoque),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 4),
-        child: Row(
-          children: [
-            SizedBox(
-              width: 24,
-              height: 24,
-              child: Checkbox(
-                value: _contarEstoque,
-                onChanged: (valor) =>
-                    setState(() => _contarEstoque = valor ?? false),
-                activeColor: theme.buttonColor,
-                checkColor: theme.buttonTextColor,
-                side: BorderSide(color: theme.borderColor),
-                materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-              ),
-            ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Text(
-                'Contar custo de estoque no saldo',
-                style: theme.getTextStyle(
-                  fontSize: 11,
-                  color: theme.secondaryTextColor,
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _blocoCompras(AppTheme theme, Loja? loja) {
-    final porFornecedor = _comprasPorFornecedor(loja);
-    final compras = _comprasDoPeriodo(loja);
-    if (porFornecedor.isEmpty && compras.isEmpty) {
-      return Container(
-        width: 320,
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-        decoration: _decoracaoDoBloco(theme),
-        child: Column(
-          children: [
-            _tituloDoBloco(theme, 'Compras do período'),
-            EstadoVazioContainer(
-              theme: theme,
-              mensagem: 'Nenhuma compra com custo registrado no período.',
-            ),
-          ],
-        ),
-      );
-    }
-
-    final entradas = porFornecedor.entries.toList()
-      ..sort((a, b) => b.value.compareTo(a.value));
-
-    var total = 0.0;
-    for (final e in entradas) {
-      total += e.value;
-    }
-
-    final termo = _pesquisaComprasController.text.trim().toLowerCase();
-    final comprasFiltradas = compras.where((m) {
-      if (termo.isEmpty) return true;
-      final nome = _nomeDoItem(loja, m).toLowerCase();
-      final fornecedor = m.fornecedorNome.toLowerCase();
-      final motivo = m.motivo.toLowerCase();
-      return nome.contains(termo) ||
-          fornecedor.contains(termo) ||
-          motivo.contains(termo);
-    }).toList();
-
-    return Container(
-      width: 320,
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-      decoration: _decoracaoDoBloco(theme),
-      child: Column(
-        children: [
-          _tituloDoBloco(theme, 'Compras do período'),
-          for (final e in entradas)
-            _linha(theme, e.key, _valorFormatado(e.value)),
-          const Divider(height: 20),
-          _linha(
-            theme,
-            'Total',
-            _valorFormatado(total),
-            destaque: true,
-          ),
-          const Divider(height: 24),
-          Padding(
-            padding: const EdgeInsets.only(bottom: 10),
-            child: TextField(
-              controller: _pesquisaComprasController,
-              onChanged: (_) => setState(() {}),
-              style: theme.getTextStyle(fontSize: 12, color: theme.textColor),
-              decoration: InputDecoration(
-                isDense: true,
-                hintText: 'Buscar item ou fornecedor...',
-                hintStyle: theme.getTextStyle(
-                  fontSize: 12,
-                  color: theme.secondaryTextColor,
-                ),
-                prefixIcon: Icon(
-                  Icons.search,
-                  size: 16,
-                  color: theme.secondaryTextColor,
-                ),
-                prefixIconConstraints: const BoxConstraints(
-                  minWidth: 32,
-                  minHeight: 32,
-                ),
-                suffixIcon: _pesquisaComprasController.text.isNotEmpty
-                    ? IconButton(
-                        icon: Icon(
-                          Icons.clear,
-                          size: 14,
-                          color: theme.secondaryTextColor,
-                        ),
-                        padding: EdgeInsets.zero,
-                        constraints: const BoxConstraints(
-                          minWidth: 28,
-                          minHeight: 28,
-                        ),
-                        onPressed: () {
-                          _pesquisaComprasController.clear();
-                          setState(() {});
-                        },
-                      )
-                    : null,
-                filled: true,
-                fillColor: theme.backgroundColor.withValues(alpha: 0.3),
-                contentPadding: const EdgeInsets.symmetric(
-                  horizontal: 10,
-                  vertical: 8,
-                ),
-                enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
-                  borderSide: BorderSide(
-                    color: theme.borderColor.withValues(alpha: 0.6),
-                  ),
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
-                  borderSide: BorderSide(color: theme.buttonColor),
-                ),
-              ),
-            ),
-          ),
-          if (comprasFiltradas.isEmpty)
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: 8),
-              child: Text(
-                'Nenhum item encontrado.',
-                style: theme.getTextStyle(
-                  fontSize: 12,
-                  color: theme.secondaryTextColor,
-                ),
-              ),
-            )
-          else
-            ConstrainedBox(
-              constraints: const BoxConstraints(maxHeight: 290),
-              child: Scrollbar(
-                controller: _scrollComprasController,
-                thumbVisibility: comprasFiltradas.length > 6,
-                child: ListView.builder(
-                  controller: _scrollComprasController,
-                  shrinkWrap: true,
-                  physics: comprasFiltradas.length > 6
-                      ? const AlwaysScrollableScrollPhysics()
-                      : const NeverScrollableScrollPhysics(),
-                  itemCount: comprasFiltradas.length,
-                  itemBuilder: (context, index) {
-                    final compra = comprasFiltradas[index];
-                    return Padding(
-                      padding: EdgeInsets.only(
-                        bottom: index == comprasFiltradas.length - 1 ? 0 : 6,
-                      ),
-                      child: _LinhaCompraEstoque(
-                        theme: theme,
-                        movimento: compra,
-                        nomeItem: _nomeDoItem(loja, compra),
-                        unidade: _unidadeDoItem(loja, compra.itemId),
-                      ),
-                    );
-                  },
-                ),
-              ),
-            ),
-        ],
-      ),
-    );
-  }
-
-  Widget _blocoFuncionarios(AppTheme theme, Loja? loja) {
-    final pagamentos = _pagamentosDoPeriodo(loja);
-    final podeRegistrar =
-        context.read<PdvProvider>().possoRegistrarPagamento(widget.lojaId);
-
-    return Container(
-      width: 320,
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-      decoration: _decoracaoDoBloco(theme),
-      child: Column(
-        children: [
-          _tituloDoBloco(theme, 'Pagamento de funcionários'),
-          if (pagamentos.isEmpty)
-            EstadoVazioContainer(
-              theme: theme,
-              mensagem: 'Nenhum pagamento registrado no período.',
-            )
-          else
-            for (final p in pagamentos)
-              Padding(
-                padding: const EdgeInsets.only(bottom: 8),
-                child: _LinhaPagamento(
-                  theme: theme,
-                  pagamento: p,
-                  podeExcluir: podeRegistrar,
-                  onExcluir: () => _excluirPagamento(p),
-                ),
-              ),
-          if (podeRegistrar) ...[
-            const SizedBox(height: 12),
-            SizedBox(
-              width: double.infinity,
-              child: OutlinedButton(
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: theme.textColor,
-                  side: BorderSide(color: theme.borderColor),
-                  padding: const EdgeInsets.symmetric(vertical: 12),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                ),
-                onPressed: loja == null ? null : () => _registrarPagamento(loja),
-                child: Text(
-                  'Registrar pagamento',
-                  style: theme.getTextStyle(fontSize: 13),
-                ),
-              ),
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-
-  Widget _itemMetricaResumo({
-    required AppTheme theme,
-    required IconData icone,
-    required String rotulo,
-    required String valor,
-    bool destaque = false,
-  }) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      decoration: BoxDecoration(
-        color: theme.backgroundColor.withValues(alpha: 0.3),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(
-          color: destaque
-              ? theme.textColor.withValues(alpha: 0.35)
-              : theme.borderColor.withValues(alpha: 0.4),
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(icone, size: 14, color: theme.secondaryTextColor),
-              const SizedBox(width: 4),
-              Expanded(
-                child: Text(
-                  rotulo,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: theme.getTextStyle(
-                    fontSize: 11,
-                    color: theme.secondaryTextColor,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 6),
-          Text(
-            valor,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: theme.getTextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.bold,
-              color: theme.textColor,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _blocoResumoOperacional(AppTheme theme, Loja? loja) {
-    if (loja == null) return const SizedBox.shrink();
-
-    final desde = _inicioDoPeriodo;
-    final ate = _fimDoPeriodo;
-    final todosPedidos = loja.pedidosLoja;
-
-    final pedidosPeriodoConcluidos = todosPedidos.where((p) {
-      if (p.status != StatusPedido.concluido) return false;
-      if (desde != null && p.dataHora.isBefore(desde)) return false;
-      if (ate != null && p.dataHora.isAfter(ate)) return false;
-      return true;
-    }).toList();
-
-    final pedidosPeriodoEmAberto = todosPedidos.where((p) {
-      if (p.status != StatusPedido.aceito && p.status != StatusPedido.novo) {
-        return false;
-      }
-      if (desde != null && p.dataHora.isBefore(desde)) return false;
-      if (ate != null && p.dataHora.isAfter(ate)) return false;
-      return true;
-    }).toList();
-
-    final totalVendas = pedidosPeriodoConcluidos.length;
-    final faturamento = pedidosPeriodoConcluidos.fold<double>(
-      0.0,
-      (soma, p) => soma + p.valor,
-    );
-    final totalEmAberto = pedidosPeriodoEmAberto.fold<double>(
-      0.0,
-      (soma, p) => soma + p.valor,
-    );
-    final ticketMedio = totalVendas == 0 ? 0.0 : faturamento / totalVendas;
-
-    final String tituloBloco;
-    final String rotuloVendas;
-    final String rotuloAReceber;
-
-    if (_periodo == PeriodoFinanceiro.hoje) {
-      tituloBloco = 'Resumo Operacional do Dia';
-      rotuloVendas = 'Vendas Hoje';
-      rotuloAReceber = 'A receber hoje';
-    } else if (_ehDiaUnico) {
-      tituloBloco = 'Resumo Operacional do Dia ($_rotuloPeriodoAtual)';
-      rotuloVendas = 'Vendas do Dia';
-      rotuloAReceber = 'A receber no dia';
-    } else {
-      tituloBloco = 'Resumo Operacional ($_rotuloPeriodoAtual)';
-      rotuloVendas = 'Vendas no Período';
-      rotuloAReceber = 'A receber no período';
-    }
-
-    double saldoEmDinheiro = 0.0;
-    final bool caixaAberto;
-
-    if (_periodo == PeriodoFinanceiro.hoje) {
-      final turnoAberto = loja.turnosCaixa.where((t) => t.aberto).firstOrNull;
-      caixaAberto = turnoAberto != null;
-      if (turnoAberto != null) {
-        double vendasDinheiroTurno = 0.0;
-        for (final p in loja.pedidosLoja) {
-          if (p.status == StatusPedido.cancelado) continue;
-          if (p.dataHora.isAfter(turnoAberto.dataAbertura) ||
-              p.dataHora.isAtSameMomentAs(turnoAberto.dataAbertura)) {
-            if (p.pagamentosExtras.isNotEmpty) {
-              for (final pag in p.todosPagamentos) {
-                if (pag.forma.toLowerCase() == 'dinheiro') {
-                  vendasDinheiroTurno += pag.valor;
-                }
-              }
-              vendasDinheiroTurno -= p.troco;
-            } else {
-              if (p.formaPagamento.toLowerCase() == 'dinheiro') {
-                vendasDinheiroTurno += p.valor;
-              }
-            }
-          }
-        }
-        if (vendasDinheiroTurno < 0) vendasDinheiroTurno = 0.0;
-        saldoEmDinheiro = turnoAberto.saldoInicial +
-            turnoAberto.totalSuprimentos -
-            turnoAberto.totalSangrias +
-            vendasDinheiroTurno;
-        if (saldoEmDinheiro < 0) saldoEmDinheiro = 0.0;
-      } else {
-        final ultimoTurno =
-            loja.turnosCaixa.isNotEmpty ? loja.turnosCaixa.last : null;
-        if (ultimoTurno != null && ultimoTurno.saldoFinalInformado != null) {
-          saldoEmDinheiro = ultimoTurno.saldoFinalInformado!;
-        }
-      }
-    } else {
-      final turnosDoPeriodo = loja.turnosCaixa.where((t) {
-        if (desde != null && t.dataAbertura.isBefore(desde)) return false;
-        if (ate != null && t.dataAbertura.isAfter(ate)) return false;
-        return true;
-      }).toList();
-
-      final turnoAbertoPeriodo =
-          turnosDoPeriodo.where((t) => t.aberto).firstOrNull;
-      caixaAberto = turnoAbertoPeriodo != null;
-
-      if (turnosDoPeriodo.isNotEmpty) {
-        final turnoRef = turnosDoPeriodo.last;
-        if (turnoRef.aberto) {
-          double vendasDinheiroTurno = 0.0;
-          for (final p in loja.pedidosLoja) {
-            if (p.status == StatusPedido.cancelado) continue;
-            if (p.dataHora.isAfter(turnoRef.dataAbertura) ||
-                p.dataHora.isAtSameMomentAs(turnoRef.dataAbertura)) {
-              if (p.pagamentosExtras.isNotEmpty) {
-                for (final pag in p.todosPagamentos) {
-                  if (pag.forma.toLowerCase() == 'dinheiro') {
-                    vendasDinheiroTurno += pag.valor;
-                  }
-                }
-                vendasDinheiroTurno -= p.troco;
-              } else {
-                if (p.formaPagamento.toLowerCase() == 'dinheiro') {
-                  vendasDinheiroTurno += p.valor;
-                }
-              }
-            }
-          }
-          if (vendasDinheiroTurno < 0) vendasDinheiroTurno = 0.0;
-          saldoEmDinheiro = turnoRef.saldoInicial +
-              turnoRef.totalSuprimentos -
-              turnoRef.totalSangrias +
-              vendasDinheiroTurno;
-        } else if (turnoRef.saldoFinalInformado != null) {
-          saldoEmDinheiro = turnoRef.saldoFinalInformado!;
-        } else {
-          saldoEmDinheiro = _entradasPorForma('Dinheiro');
-        }
-      } else {
-        saldoEmDinheiro = _entradasPorForma('Dinheiro');
-      }
-      if (saldoEmDinheiro < 0) saldoEmDinheiro = 0.0;
-    }
-
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(16),
-      decoration: _decoracaoDoBloco(theme),
-      child: Column(
-        children: [
-          Row(
-            children: [
-              Icon(Icons.dashboard_outlined, size: 20, color: theme.textColor),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  tituloBloco,
-                  style: theme.getTextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w600,
-                    color: theme.textColor,
-                  ),
-                ),
-              ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(
-                  color: caixaAberto
-                      ? theme.borderColor.withValues(alpha: 0.25)
-                      : Colors.redAccent.withValues(alpha: 0.15),
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(
-                    color: caixaAberto ? theme.borderColor : Colors.redAccent,
-                  ),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      caixaAberto ? Icons.lock_open : Icons.lock_outline,
-                      size: 13,
-                      color: caixaAberto ? theme.textColor : Colors.redAccent,
-                    ),
-                    const SizedBox(width: 4),
-                    Text(
-                      caixaAberto ? 'Caixa Aberto' : 'Caixa Fechado',
-                      style: theme.getTextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.bold,
-                        color: caixaAberto ? theme.textColor : Colors.redAccent,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          Row(
-            children: [
-              Expanded(
-                child: _itemMetricaResumo(
-                  theme: theme,
-                  icone: Icons.attach_money,
-                  rotulo: 'Faturamento',
-                  valor: _valorFormatado(faturamento),
-                  destaque: true,
-                ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: _itemMetricaResumo(
-                  theme: theme,
-                  icone: Icons.receipt_long_outlined,
-                  rotulo: rotuloVendas,
-                  valor: '$totalVendas',
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 10),
-          Row(
-            children: [
-              Expanded(
-                child: _itemMetricaResumo(
-                  theme: theme,
-                  icone: Icons.trending_up,
-                  rotulo: 'Ticket Médio',
-                  valor: _valorFormatado(ticketMedio),
-                ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: _itemMetricaResumo(
-                  theme: theme,
-                  icone: Icons.point_of_sale_outlined,
-                  rotulo: 'Saldo Caixa (Dinheiro)',
-                  valor: _valorFormatado(saldoEmDinheiro),
-                ),
-              ),
-            ],
-          ),
-          if (pedidosPeriodoEmAberto.isNotEmpty) ...[
-            const SizedBox(height: 10),
-            Text(
-              '$rotuloAReceber (${pedidosPeriodoEmAberto.length} ${pedidosPeriodoEmAberto.length == 1 ? 'pedido em aberto' : 'pedidos em aberto'}): ${_valorFormatado(totalEmAberto)}',
-              textAlign: TextAlign.center,
-              style: theme.getTextStyle(
-                fontSize: 11,
-                color: theme.secondaryTextColor,
-              ),
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-
-  Widget _blocoVendasDoPeriodo(AppTheme theme, Loja? loja) {
+  List<PedidoLoja> _obterVendasFiltradas(Loja? loja) {
     final todosPedidos = loja?.pedidosLoja ?? widget.pedidos;
     final desde = _inicioDoPeriodo;
     final ate = _fimDoPeriodo;
     final termo = _pesquisaVendasController.text.trim().toLowerCase().replaceAll('#', '');
 
-    final vendas = todosPedidos.where((p) {
+    return todosPedidos.where((p) {
       if (p.status == StatusPedido.cancelado) return false;
       if (desde != null && p.dataHora.isBefore(desde)) return false;
       if (ate != null && p.dataHora.isAfter(ate)) return false;
@@ -1924,153 +685,6 @@ class _FinanceiroViewState extends State<FinanceiroView> {
           numero.contains(termo);
     }).toList()
       ..sort((a, b) => b.dataHora.compareTo(a.dataHora));
-
-    final auth = context.read<AuthProvider>();
-    final conta = auth.contaAtual;
-
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(16),
-      decoration: _decoracaoDoBloco(theme),
-      child: Column(
-        children: [
-          _tituloDoBloco(theme, 'Vendas do período'),
-          TextField(
-            controller: _pesquisaVendasController,
-            cursorColor: theme.textColor,
-            style: theme.getTextStyle(fontSize: 12),
-            decoration: InputDecoration(
-              hintText: 'Pesquisar vendas do período',
-              hintStyle: theme.getTextStyle(
-                fontSize: 12,
-                color: theme.secondaryTextColor,
-              ),
-              isDense: true,
-              contentPadding:
-                  const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-              prefixIcon: Icon(
-                Icons.search,
-                size: 16,
-                color: theme.secondaryTextColor,
-              ),
-              filled: true,
-              fillColor: theme.cardBackgroundColor,
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(8),
-                borderSide: BorderSide(
-                  color: theme.borderColor.withValues(alpha: 0.6),
-                ),
-              ),
-              enabledBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(8),
-                borderSide: BorderSide(
-                  color: theme.borderColor.withValues(alpha: 0.6),
-                ),
-              ),
-              focusedBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(8),
-                borderSide: BorderSide(
-                  color: theme.textColor,
-                  width: 1.4,
-                ),
-              ),
-            ),
-            onChanged: (_) => setState(() {}),
-          ),
-          const SizedBox(height: 10),
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: Row(
-              children: [
-                for (final forma in _formasDePagamento)
-                  Padding(
-                    padding: const EdgeInsets.only(right: 6),
-                    child: _LinhaComHover(
-                      aoClicar: () {
-                        setState(() {
-                          _formaFiltroVendas =
-                              _formaFiltroVendas == forma ? null : forma;
-                        });
-                      },
-                      builder: (hover) {
-                        final selecionada = _formaFiltroVendas == forma;
-                        return Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 12, vertical: 8),
-                          decoration: BoxDecoration(
-                            color: selecionada
-                                ? (hover
-                                    ? (theme.buttonColor != Colors.transparent
-                                        ? theme.buttonColor
-                                            .withValues(alpha: 0.85)
-                                        : theme.borderColor
-                                            .withValues(alpha: 0.35))
-                                    : (theme.buttonColor != Colors.transparent
-                                        ? theme.buttonColor
-                                        : theme.borderColor
-                                            .withValues(alpha: 0.25)))
-                                : (hover
-                                    ? theme.borderColor.withValues(alpha: 0.18)
-                                    : Colors.transparent),
-                            borderRadius: BorderRadius.circular(8),
-                            border: Border.all(
-                              color: selecionada || hover
-                                  ? theme.textColor
-                                  : theme.borderColor.withValues(alpha: 0.45),
-                              width: selecionada ? 1.6 : 1.0,
-                            ),
-                          ),
-                          child: Text(
-                            forma,
-                            style: theme.getTextStyle(
-                              fontSize: 11,
-                              fontWeight: selecionada
-                                  ? FontWeight.bold
-                                  : FontWeight.normal,
-                              color: selecionada
-                                  ? (theme.buttonColor != Colors.transparent
-                                      ? theme.buttonTextColor
-                                      : theme.textColor)
-                                  : (hover
-                                      ? theme.textColor
-                                      : theme.secondaryTextColor),
-                            ),
-                          ),
-                        );
-                      },
-                    ),
-                  ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 12),
-          if (vendas.isEmpty)
-            EstadoVazioContainer(
-              theme: theme,
-              mensagem: 'Nenhuma venda encontrada no período.',
-            )
-          else
-            ConstrainedBox(
-              constraints: const BoxConstraints(maxHeight: 360),
-              child: ListView.separated(
-                shrinkWrap: true,
-                itemCount: vendas.length,
-                separatorBuilder: (context, index) =>
-                    const SizedBox(height: 8),
-                itemBuilder: (context, index) => BarraVenda(
-                  theme: theme,
-                  lojaId: widget.lojaId,
-                  pedido: vendas[index],
-                  mostrarCliente: true,
-                  autorCpf: conta?.cpf ?? '',
-                  autorNome: conta?.nome ?? '',
-                  autorEmail: auth.emailAtivo ?? '',
-                ),
-              ),
-            ),
-        ],
-      ),
-    );
   }
 
   @override
@@ -2093,23 +707,113 @@ class _FinanceiroViewState extends State<FinanceiroView> {
                 (loja?.layoutExpandido ?? false) && larguraDaTela > 850;
 
             final conteudoColuna1 = [
-              _barraAcoes(theme, loja),
+              BarraAcoesFinanceiroWidget(
+                theme: theme,
+                loja: loja,
+                imprimindo: _imprimindo,
+                exportando: _exportando,
+                onAbrirDRE: loja == null ? null : () => _abrirDRE(loja),
+                onImprimir: loja == null ? null : () => _imprimir(loja),
+                onExportar: loja == null ? null : () => _exportar(loja),
+              ),
               const SizedBox(height: 12),
-              _filtroPeriodo(theme),
+              SeletorPeriodoFinanceiroWidget(
+                theme: theme,
+                periodo: _periodo,
+                dataInicioController: _dataInicioController,
+                dataFimController: _dataFimController,
+                onPeriodoAlterado: (novo) => setState(() => _periodo = novo),
+                parseData: _parseData,
+                formatarDataBR: _formatarDataBR,
+              ),
               const SizedBox(height: 16),
-              _blocoResumoOperacional(theme, loja),
+              BlocoResumoOperacionalWidget(
+                theme: theme,
+                loja: loja,
+                periodo: _periodo,
+                desde: _inicioDoPeriodo,
+                ate: _fimDoPeriodo,
+                ehDiaUnico: _ehDiaUnico,
+                rotuloPeriodoAtual: _rotuloPeriodoAtual,
+                decoracaoBloco: _decoracaoDoBloco(theme),
+                valorFormatado: _valorFormatado,
+                entradasPorForma: _entradasPorForma,
+              ),
               const SizedBox(height: 16),
-              _blocoEntradas(theme),
+              BlocoEntradasFinanceiroWidget(
+                theme: theme,
+                formasDePagamento: _formasDePagamento,
+                entradasPorForma: _entradasPorForma,
+                totalEntradas: _totalEntradas,
+                valorFormatado: _valorFormatado,
+                decoracaoBloco: _decoracaoDoBloco,
+                tituloDoBloco: _tituloDoBloco,
+                linha: _linha,
+              ),
               const SizedBox(height: 16),
-              _blocoBalanco(theme, loja),
+              BlocoBalancoFinanceiroWidget(
+                theme: theme,
+                entradas: _totalEntradas,
+                totalPagamentos: _totalPagamentosPeriodo(loja),
+                saidaEstoque: _saidaEstoqueDoPeriodo(loja),
+                contarEstoque: _contarEstoque,
+                onToggleContarEstoque: (valor) =>
+                    setState(() => _contarEstoque = valor),
+                saldo: _saldoPeriodo(loja),
+                aReceber: _totalAReceber,
+                valorFormatado: _valorFormatado,
+                valorComSinal: _valorComSinal,
+                decoracaoBloco: _decoracaoDoBloco,
+                tituloDoBloco: _tituloDoBloco,
+                linha: _linha,
+              ),
             ];
 
             final conteudoColuna2 = [
-              _blocoCompras(theme, loja),
+              BlocoComprasFinanceiroWidget(
+                theme: theme,
+                loja: loja,
+                porFornecedor: _comprasPorFornecedor(loja),
+                compras: _comprasDoPeriodo(loja),
+                pesquisaComprasController: _pesquisaComprasController,
+                scrollComprasController: _scrollComprasController,
+                decoracaoBloco: _decoracaoDoBloco(theme),
+                tituloDoBloco: _tituloDoBloco,
+                linha: _linha,
+                valorFormatado: _valorFormatado,
+                nomeDoItem: _nomeDoItem,
+                unidadeDoItem: _unidadeDoItem,
+                onChangedPesquisa: () => setState(() {}),
+              ),
               const SizedBox(height: 16),
-              _blocoVendasDoPeriodo(theme, loja),
+              BlocoVendasFinanceiroWidget(
+                theme: theme,
+                lojaId: widget.lojaId,
+                vendas: _obterVendasFiltradas(loja),
+                pesquisaVendasController: _pesquisaVendasController,
+                formaFiltroVendas: _formaFiltroVendas,
+                formasDePagamento: _formasDePagamento,
+                decoracaoBloco: _decoracaoDoBloco(theme),
+                tituloDoBloco: _tituloDoBloco,
+                onAlternarFormaPagamento: (forma) => setState(() {
+                  _formaFiltroVendas =
+                      _formaFiltroVendas == forma ? null : forma;
+                }),
+                onChangedPesquisa: () => setState(() {}),
+                contaAtual: context.read<AuthProvider>().contaAtual,
+                emailAtivo: context.read<AuthProvider>().emailAtivo ?? '',
+              ),
               const SizedBox(height: 16),
-              _blocoFuncionarios(theme, loja),
+              BlocoFuncionariosFinanceiroWidget(
+                theme: theme,
+                loja: loja,
+                pagamentos: _pagamentosDoPeriodo(loja),
+                podeRegistrar: context.read<PdvProvider>().possoRegistrarPagamento(widget.lojaId),
+                decoracaoBloco: _decoracaoDoBloco(theme),
+                tituloDoBloco: _tituloDoBloco,
+                onExcluirPagamento: _excluirPagamento,
+                onRegistrarPagamento: _registrarPagamento,
+              ),
             ];
 
             return Scaffold(
@@ -2164,270 +868,6 @@ class _FinanceiroViewState extends State<FinanceiroView> {
             );
           },
         ),
-      ),
-    );
-  }
-}
-
-class _LinhaPagamento extends StatefulWidget {
-  final AppTheme theme;
-  final PagamentoFuncionario pagamento;
-  final bool podeExcluir;
-  final VoidCallback onExcluir;
-
-  const _LinhaPagamento({
-    required this.theme,
-    required this.pagamento,
-    required this.podeExcluir,
-    required this.onExcluir,
-  });
-
-  @override
-  State<_LinhaPagamento> createState() => _LinhaPagamentoState();
-}
-
-class _LinhaPagamentoState extends State<_LinhaPagamento> {
-  bool _hover = false;
-
-  AppTheme get theme => widget.theme;
-
-  String _dataHora(DateTime d) {
-    String dois(int n) => n.toString().padLeft(2, '0');
-    return '${dois(d.day)}/${dois(d.month)}/${d.year} '
-        '${dois(d.hour)}:${dois(d.minute)}';
-  }
-
-  String _valor(double v) =>
-      'R\$ ${v.toStringAsFixed(2).replaceAll('.', ',')}';
-
-  @override
-  Widget build(BuildContext context) {
-    final p = widget.pagamento;
-    return MouseRegion(
-      onEnter: (_) => setState(() => _hover = true),
-      onExit: (_) => setState(() => _hover = false),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-        decoration: BoxDecoration(
-          color: _hover
-              ? theme.borderColor.withValues(alpha: 0.18)
-              : Colors.transparent,
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(
-            color: _hover ? theme.textColor : theme.borderColor,
-          ),
-        ),
-        child: Row(
-          children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    p.nome,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: theme.getTextStyle(
-                      fontSize: 12,
-                      color: theme.textColor,
-                    ),
-                  ),
-                  Text(
-                    '${_dataHora(p.dataHora)}'
-                    '${p.nomeAutor.isNotEmpty ? ' • por ${p.nomeAutor}' : ''}',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: theme.getTextStyle(
-                      fontSize: 10,
-                      color: theme.secondaryTextColor,
-                    ),
-                  ),
-                  if (p.descricao.trim().isNotEmpty)
-                    Text(
-                      p.descricao.trim(),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: theme.getTextStyle(
-                        fontSize: 10,
-                        color: theme.secondaryTextColor,
-                      ),
-                    ),
-                ],
-              ),
-            ),
-            const SizedBox(width: 8),
-            Text(
-              _valor(p.valor),
-              style: theme.getTextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.bold,
-                color: theme.textColor,
-              ),
-            ),
-            if (widget.podeExcluir)
-              PopupMenuButton<String>(
-                padding: EdgeInsets.zero,
-                iconSize: 16,
-                icon: Icon(Icons.more_vert,
-                    color: theme.secondaryTextColor),
-                color: theme.cardBackgroundColor,
-                onSelected: (valor) {
-                  if (valor == 'excluir') widget.onExcluir();
-                },
-                itemBuilder: (context) => [
-                  PopupMenuItem(
-                    value: 'excluir',
-                    child: Row(
-                      children: [
-                        Icon(Icons.delete_outline,
-                            size: 16, color: theme.secondaryTextColor),
-                        const SizedBox(width: 8),
-                        Text('Excluir',
-                            style: theme.getTextStyle()),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _LinhaCompraEstoque extends StatefulWidget {
-  final AppTheme theme;
-  final MovimentoEstoque movimento;
-  final String nomeItem;
-  final String unidade;
-
-  const _LinhaCompraEstoque({
-    required this.theme,
-    required this.movimento,
-    required this.nomeItem,
-    required this.unidade,
-  });
-
-  @override
-  State<_LinhaCompraEstoque> createState() => _LinhaCompraEstoqueState();
-}
-
-class _LinhaCompraEstoqueState extends State<_LinhaCompraEstoque> {
-  bool _hover = false;
-
-  AppTheme get theme => widget.theme;
-
-  String _dataHora(DateTime d) {
-    String dois(int n) => n.toString().padLeft(2, '0');
-    return '${dois(d.day)}/${dois(d.month)}/${d.year} '
-        '${dois(d.hour)}:${dois(d.minute)}';
-  }
-
-  String _valor(double v) =>
-      'R\$ ${v.toStringAsFixed(2).replaceAll('.', ',')}';
-
-  String _formatarQuantidade(double qtd, String unidade) {
-    final qtdFormatada = qtd == qtd.roundToDouble()
-        ? qtd.toInt().toString()
-        : qtd.toStringAsFixed(2).replaceAll('.', ',');
-    return '$qtdFormatada $unidade';
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final m = widget.movimento;
-    final qtdFormatada = _formatarQuantidade(m.quantidade, widget.unidade);
-    final custoUnit = _valor(m.custoUnitario);
-    final detalhes = <String>[
-      '$qtdFormatada x $custoUnit',
-      if (m.fornecedorNome.trim().isNotEmpty) m.fornecedorNome.trim(),
-      _dataHora(m.dataHora),
-    ];
-
-    return MouseRegion(
-      onEnter: (_) => setState(() => _hover = true),
-      onExit: (_) => setState(() => _hover = false),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-        decoration: BoxDecoration(
-          color: _hover
-              ? theme.borderColor.withValues(alpha: 0.18)
-              : Colors.transparent,
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(
-            color: _hover ? theme.textColor : theme.borderColor,
-          ),
-        ),
-        child: Row(
-          children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    widget.nomeItem,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: theme.getTextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                      color: theme.textColor,
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    detalhes.join(' • '),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: theme.getTextStyle(
-                      fontSize: 10,
-                      color: theme.secondaryTextColor,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(width: 8),
-            Text(
-              _valor(m.custoTotal),
-              style: theme.getTextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.bold,
-                color: theme.textColor,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _LinhaComHover extends StatefulWidget {
-  final Widget Function(bool hover) builder;
-  final VoidCallback aoClicar;
-
-  const _LinhaComHover({required this.builder, required this.aoClicar});
-
-  @override
-  State<_LinhaComHover> createState() => _LinhaComHoverState();
-}
-
-class _LinhaComHoverState extends State<_LinhaComHover> {
-  bool _hover = false;
-
-  @override
-  Widget build(BuildContext context) {
-    return MouseRegion(
-      cursor: SystemMouseCursors.click,
-      onEnter: (_) => setState(() => _hover = true),
-      onExit: (_) => setState(() => _hover = false),
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTap: widget.aoClicar,
-        child: widget.builder(_hover),
       ),
     );
   }

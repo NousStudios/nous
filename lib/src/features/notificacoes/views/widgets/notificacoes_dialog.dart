@@ -1,51 +1,21 @@
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:nous/src/core/theme/theme_controller.dart';
-import 'package:nous/src/core/widgets/texto_rolante.dart';
 import 'package:nous/src/features/auth/providers/auth_provider.dart';
 import 'package:nous/src/features/chat/models/mensagem_chat.dart';
 import 'package:nous/src/features/chat/services/chat_service.dart';
 import 'package:nous/src/features/chat/views/mensageria_view.dart';
-import 'package:nous/src/features/notificacoes/models/convite_loja.dart';
 import 'package:nous/src/features/notificacoes/providers/notificacoes_provider.dart';
+import 'package:nous/src/features/notificacoes/services/gerenciador_acoes_notificacao.dart';
+import 'package:nous/src/features/notificacoes/views/widgets/cards/card_notificacao_chat.dart';
+import 'package:nous/src/features/notificacoes/views/widgets/cards/card_notificacao_convite.dart';
+import 'package:nous/src/features/notificacoes/views/widgets/cards/card_notificacao_estoque.dart';
 import 'package:nous/src/features/pdv/models/item_loja.dart';
-import 'package:nous/src/features/pdv/models/loja.dart';
-import 'package:nous/src/features/pdv/models/membro_loja.dart';
 import 'package:nous/src/features/pdv/models/movimento_estoque.dart';
-import 'package:nous/src/features/pdv/models/referencia_loja.dart';
 import 'package:nous/src/features/pdv/models/registro_acao.dart';
 import 'package:nous/src/features/pdv/providers/pdv_provider.dart';
-import 'package:nous/src/features/pdv/services/imagem_service.dart';
-import 'package:nous/src/features/pdv/services/lojas_service.dart';
 import 'package:nous/src/features/pdv/views/widgets/estado_vazio_container.dart';
 import 'package:nous/src/features/pdv/views/widgets/movimento_estoque_dialog.dart';
-
-String _formatarCpf(String cpf) {
-  final digitos = cpf.replaceAll(RegExp(r'[^0-9]'), '');
-  if (digitos.length != 11) return cpf;
-  return '${digitos.substring(0, 3)}.${digitos.substring(3, 6)}.'
-      '${digitos.substring(6, 9)}-${digitos.substring(9, 11)}';
-}
-
-String _rotuloPapel(PapelMembro papel) {
-  switch (papel) {
-    case PapelMembro.dono:
-      return 'Dono';
-    case PapelMembro.socio:
-      return 'Sócio';
-    case PapelMembro.admin:
-      return 'Admin';
-    case PapelMembro.funcionario:
-      return 'Funcionário';
-  }
-}
-
-String _doisDigitos(int n) => n.toString().padLeft(2, '0');
-
-String _dataHoraCurta(DateTime d) =>
-    '${_doisDigitos(d.day)}/${_doisDigitos(d.month)}/${d.year} '
-    '${_doisDigitos(d.hour)}:${_doisDigitos(d.minute)}';
 
 String _formatarQuantidade(double v) {
   if (v == v.truncateToDouble()) return v.toInt().toString();
@@ -63,6 +33,8 @@ String _rotuloUnidadeCurto(UnidadeItemLoja u) {
   }
 }
 
+/// Diálogo central de Notificações da aplicação, agregando convites de lojas,
+/// alertas de estoque baixo e mensagens de chat.
 class NotificacoesDialog {
   static Future<void> mostrar(BuildContext context, {String? lojaId}) async {
     final alertaEscolhido = await showDialog<
@@ -173,583 +145,36 @@ class _NotificacoesConteudo extends StatelessWidget {
   final String? lojaId;
   const _NotificacoesConteudo({this.lojaId});
 
-  void _avisar(BuildContext context, String mensagem) {
-    final theme = ThemeController.currentTheme.value;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        backgroundColor: theme.cardBackgroundColor,
-        content: Text(
-          mensagem,
-          style: theme.getTextStyle(color: theme.textColor),
-        ),
-      ),
-    );
-  }
-
-  Future<void> _aceitar(BuildContext context, ConviteLoja convite) async {
-    final auth = context.read<AuthProvider>();
-    final pdv = context.read<PdvProvider>();
-    final notificacoes = context.read<NotificacoesProvider>();
-    final theme = ThemeController.currentTheme.value;
-    final conta = auth.contaAtual;
-
-    if (conta == null) {
-      _avisar(context, 'Você precisa estar logado.');
-      return;
-    }
-
-    if (convite.tipo == TipoNotificacao.solicitacaoDadoUsuario) {
-      await auth.autorizarAcessoDado(
-        convite.cpfConvidante,
-        convite.dadoSolicitado.isNotEmpty ? convite.dadoSolicitado : 'cpf',
-      );
-      await notificacoes.aceitar(convite.id);
-      if (!context.mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          backgroundColor: theme.cardBackgroundColor,
-          content: Text(
-            'Você autorizou ${convite.nomeConvidante} a visualizar seu dado "${convite.dadoSolicitado}".',
-            style: theme.getTextStyle(color: theme.textColor),
-          ),
-        ),
-      );
-      return;
-    }
-
-    if (convite.tipo == TipoNotificacao.solicitacaoExclusaoConversa) {
-      await ChatService.excluirConversaLocal(convite.lojaId);
-      await notificacoes.aceitar(convite.id);
-      if (!context.mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          backgroundColor: theme.cardBackgroundColor,
-          content: Text(
-            'Você concordou com a exclusão da conversa "${convite.nomeLoja}".',
-            style: theme.getTextStyle(color: theme.textColor),
-          ),
-        ),
-      );
-      return;
-    }
-
-    if (convite.tipo == TipoNotificacao.remocaoLoja) {
-      await notificacoes.aceitar(convite.id);
-      if (!context.mounted) return;
-      await pdv.entrarComCpf(conta.cpf);
-      return;
-    }
-
-    if (convite.tipo == TipoNotificacao.solicitacaoExclusaoDono) {
-      await pdv.sairDaLoja(convite.lojaId);
-      if (!context.mounted) return;
-      await notificacoes.aceitar(convite.id);
-      if (!context.mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          backgroundColor: theme.cardBackgroundColor,
-          content: Text(
-            'Você concordou com a saída e não faz mais parte da loja "${convite.nomeLoja}".',
-            style: theme.getTextStyle(color: theme.textColor),
-          ),
-        ),
-      );
-      return;
-    }
-
-    final donoCofre = convite.cpfDonoOriginal.isNotEmpty
-        ? convite.cpfDonoOriginal
-        : convite.cpfConvidante;
-    var cofreDoDono = await LojasService.carregar(donoCofre);
-    if (!context.mounted) return;
-
-    Loja? lojaOriginal;
-    for (final loja in cofreDoDono) {
-      if (loja.id == convite.lojaId) {
-        lojaOriginal = loja;
-        break;
-      }
-    }
-
-    if (lojaOriginal == null && convite.cpfConvidante != donoCofre) {
-      final cofreAlternativo =
-          await LojasService.carregar(convite.cpfConvidante);
-      if (!context.mounted) return;
-      for (final loja in cofreAlternativo) {
-        if (loja.id == convite.lojaId) {
-          lojaOriginal = loja;
-          cofreDoDono = cofreAlternativo;
-          break;
-        }
-      }
-    }
-
-    if (lojaOriginal == null) {
-      _avisar(context, 'A loja deste convite não está mais disponível.');
-      await notificacoes.aceitar(convite.id);
-      return;
-    }
-
-    final cpfDonoOriginal = lojaOriginal.cpfDonoOriginal.isEmpty
-        ? donoCofre
-        : lojaOriginal.cpfDonoOriginal;
-
-    if (convite.tipo == TipoNotificacao.alteracaoPapel) {
-      final novosMembros = lojaOriginal.membros.map((m) {
-        return m.cpf == conta.cpf ? m.copyWith(papel: convite.papel) : m;
-      }).toList();
-
-      final lojaAtualizada = lojaOriginal.copyWith(
-        cpfDonoOriginal: cpfDonoOriginal,
-        membros: novosMembros,
-      );
-
-      final cofreAtualizado = cofreDoDono
-          .map((l) => l.id == lojaAtualizada.id ? lojaAtualizada : l)
-          .toList();
-      await LojasService.salvar(cpfDonoOriginal, cofreAtualizado);
-      if (!context.mounted) return;
-
-      await notificacoes.aceitar(convite.id);
-      if (!context.mounted) return;
-
-      await pdv.entrarComCpf(conta.cpf);
-      if (!context.mounted) return;
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          backgroundColor: theme.cardBackgroundColor,
-          content: Text(
-            'Seu papel na loja "${convite.nomeLoja}" foi alterado para ${_rotuloPapel(convite.papel)}.',
-            style: theme.getTextStyle(color: theme.textColor),
-          ),
-        ),
-      );
-      return;
-    }
-
-    final jaMembro =
-        lojaOriginal.membros.any((m) => m.cpf == conta.cpf);
-    final novosMembros = jaMembro
-        ? lojaOriginal.membros
-        : [
-            ...lojaOriginal.membros,
-            MembroLoja(
-              cpf: conta.cpf,
-              nome: conta.nome,
-              papel: convite.papel,
-              desde: DateTime.now(),
-            ),
-          ];
-
-    final lojaAtualizada = lojaOriginal.copyWith(
-      cpfDonoOriginal: cpfDonoOriginal,
-      membros: novosMembros,
-    );
-
-    final cofreAtualizado = cofreDoDono
-        .map((l) => l.id == lojaAtualizada.id ? lojaAtualizada : l)
-        .toList();
-    await LojasService.salvar(cpfDonoOriginal, cofreAtualizado);
-    if (!context.mounted) return;
-
-    await LojasService.adicionarReferencia(
-      conta.cpf,
-      ReferenciaLoja(
-        lojaId: lojaAtualizada.id,
-        cpfDonoOriginal: cpfDonoOriginal,
-      ),
-    );
-    if (!context.mounted) return;
-
-    await notificacoes.aceitar(convite.id);
-    if (!context.mounted) return;
-
-    await pdv.entrarComCpf(conta.cpf);
-    if (!context.mounted) return;
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        backgroundColor: theme.cardBackgroundColor,
-        content: Text(
-          'Você agora é ${_rotuloPapel(convite.papel)} em "${convite.nomeLoja}".',
-          style: theme.getTextStyle(color: theme.textColor),
-        ),
-      ),
-    );
-  }
-
-  Future<void> _recusar(BuildContext context, ConviteLoja convite) async {
-    final notificacoes = context.read<NotificacoesProvider>();
-    await notificacoes.recusar(convite.id);
-  }
-
-  Widget _linhaConvite(BuildContext context, AppTheme theme, ConviteLoja c) {
-    final String titulo;
-    final String descricao;
-    final bool ehAvisoInformativo;
-
-    switch (c.tipo) {
-      case TipoNotificacao.alteracaoPapel:
-        titulo = 'Solicitação de ${c.nomeConvidante}';
-        descricao =
-            'Alteração do seu papel em "${c.nomeLoja}" para ${_rotuloPapel(c.papel)}';
-        ehAvisoInformativo = false;
-        break;
-      case TipoNotificacao.solicitacaoExclusaoDono:
-        titulo = 'Solicitação de saída por ${c.nomeConvidante}';
-        descricao =
-            '${c.nomeConvidante} solicitou a sua saída da loja "${c.nomeLoja}". Como você é Dono(a), sua saída depende do seu consentimento.';
-        ehAvisoInformativo = false;
-        break;
-      case TipoNotificacao.remocaoLoja:
-        titulo = 'Aviso de remoção';
-        descricao =
-            'Você foi removido(a) da loja "${c.nomeLoja}" por ${c.nomeConvidante}.';
-        ehAvisoInformativo = true;
-        break;
-      case TipoNotificacao.conviteEntrada:
-        titulo = 'Convite de ${c.nomeConvidante}';
-        descricao =
-            'Para entrar em "${c.nomeLoja}" como ${_rotuloPapel(c.papel)}';
-        ehAvisoInformativo = false;
-        break;
-      case TipoNotificacao.solicitacaoDadoUsuario:
-        titulo = 'Acesso a dado pessoal por ${c.nomeConvidante}';
-        descricao =
-            '${c.nomeConvidante} solicitou permissão para visualizar seu dado "${c.dadoSolicitado.isNotEmpty ? c.dadoSolicitado : "dado privado"}" na rede.';
-        ehAvisoInformativo = false;
-        break;
-      case TipoNotificacao.solicitacaoExclusaoConversa:
-        titulo = 'Consentimento para excluir conversa';
-        descricao =
-            '${c.nomeConvidante} propôs excluir o histórico da conversa "${c.nomeLoja}". Você concorda?';
-        ehAvisoInformativo = false;
-        break;
-    }
-
+  Widget _buildDismissibleFundo() {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      alignment: Alignment.centerLeft,
+      padding: const EdgeInsets.symmetric(horizontal: 16),
       margin: const EdgeInsets.only(bottom: 8),
       decoration: BoxDecoration(
+        color: Colors.redAccent.withValues(alpha: 0.2),
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: theme.borderColor),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            titulo,
-            style: theme.getTextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.w600,
-              color: theme.textColor,
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            descricao,
-            style: theme.getTextStyle(fontSize: 12),
-          ),
-          const SizedBox(height: 2),
-          Text(
-            '${_formatarCpf(c.cpfConvidante)} • ${_dataHoraCurta(c.dataHora)}',
-            style: theme.getTextStyle(
-              fontSize: 10,
-              color: theme.secondaryTextColor,
-            ),
-          ),
-          const SizedBox(height: 10),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.end,
-            children: [
-              if (ehAvisoInformativo)
-                TextButton(
-                  onPressed: () => _aceitar(context, c),
-                  child: Text(
-                    'Entendido',
-                    style: theme.getTextStyle(
-                      fontSize: 12,
-                      color: theme.textColor,
-                    ),
-                  ),
-                )
-              else ...[
-                TextButton(
-                  onPressed: () => _recusar(context, c),
-                  child: Text(
-                    'Recusar',
-                    style: theme.getTextStyle(
-                      fontSize: 12,
-                      color: Colors.redAccent,
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 4),
-                TextButton(
-                  onPressed: () => _aceitar(context, c),
-                  child: Text(
-                    'Aceitar',
-                    style: theme.getTextStyle(
-                      fontSize: 12,
-                      color: theme.textColor,
-                    ),
-                  ),
-                ),
-              ],
-            ],
-          ),
-        ],
+      child: const Icon(
+        Icons.visibility_off_outlined,
+        color: Colors.redAccent,
+        size: 20,
       ),
     );
   }
 
-  void _resolverAlertaEstoque(
-    BuildContext context,
-    ({ItemLoja item, double saldo, String lojaNome, String lojaId}) alerta,
-  ) {
-    Navigator.of(context).pop(alerta);
-  }
-
-  Widget _linhaAlertaEstoque(
-    BuildContext context,
-    AppTheme theme,
-    ({ItemLoja item, double saldo, String lojaNome, String lojaId}) alerta,
-  ) {
-    final saldoFormatado = alerta.saldo.truncateToDouble() == alerta.saldo
-        ? alerta.saldo.toInt().toString()
-        : alerta.saldo.toStringAsFixed(1);
-    final unidadeTexto = alerta.item.unidadeBase.name;
-    final esgotado = alerta.saldo <= 0;
-
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
+  Widget _buildDismissibleFundoSecundario() {
+    return Container(
+      alignment: Alignment.centerRight,
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      margin: const EdgeInsets.only(bottom: 8),
+      decoration: BoxDecoration(
+        color: Colors.redAccent.withValues(alpha: 0.2),
         borderRadius: BorderRadius.circular(10),
-        onTap: () => _resolverAlertaEstoque(context, alerta),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-          margin: const EdgeInsets.only(bottom: 8),
-          decoration: BoxDecoration(
-            color: theme.backgroundColor.withValues(alpha: 0.4),
-            borderRadius: BorderRadius.circular(10),
-            border: Border.all(
-              color: Colors.redAccent.withValues(alpha: 0.6),
-            ),
-          ),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: Colors.redAccent.withValues(alpha: 0.15),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Icon(
-                  esgotado
-                      ? Icons.remove_shopping_cart_outlined
-                      : Icons.warning_amber_rounded,
-                  color: Colors.redAccent,
-                  size: 20,
-                ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            esgotado
-                                ? 'Estoque Esgotado: ${alerta.item.nome}'
-                                : 'Estoque Baixo: ${alerta.item.nome}',
-                            style: theme.getTextStyle(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w600,
-                              color: theme.textColor,
-                            ),
-                          ),
-                        ),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 6, vertical: 2),
-                          decoration: BoxDecoration(
-                            color: Colors.redAccent.withValues(alpha: 0.18),
-                            borderRadius: BorderRadius.circular(6),
-                          ),
-                          child: Text(
-                            '$saldoFormatado $unidadeTexto',
-                            style: theme.getTextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.redAccent,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      'Loja: ${alerta.lojaNome}',
-                      style: theme.getTextStyle(
-                        fontSize: 11,
-                        color: theme.secondaryTextColor,
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      esgotado
-                          ? 'O item está sem saldo disponível. Toque para registrar uma nova entrada imediatamente.'
-                          : 'O saldo está abaixo de 10 unidades. Toque para reabastecer agora.',
-                      style: theme.getTextStyle(
-                        fontSize: 11,
-                        color: theme.secondaryTextColor,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.end,
-                      children: [
-                        Text(
-                          'Adicionar ao estoque',
-                          style: theme.getTextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.bold,
-                            color: theme.textColor,
-                          ),
-                        ),
-                        const SizedBox(width: 4),
-                        Icon(
-                          Icons.arrow_forward_rounded,
-                          size: 14,
-                          color: theme.textColor,
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
       ),
-    );
-  }
-
-  Widget _linhaMensagemChat(
-    BuildContext context,
-    AppTheme theme,
-    MensagemChat msg,
-  ) {
-    final fotoResolvida =
-        ImagemService.resolverCaminhoExistente(msg.remetenteFoto);
-    final temFoto = fotoResolvida != null;
-
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          borderRadius: BorderRadius.circular(10),
-          onTap: () {
-            final auth = context.read<AuthProvider>();
-            final cpfUsuario = auth.contaAtual?.cpf ?? '';
-            Navigator.of(context).pop();
-            if (lojaId != null) {
-              ChatService.marcarMensagensDaLojaComoLidas(lojaId!, cpfUsuario);
-            } else {
-              ChatService.marcarComoLidas(msg.conversaId, cpfUsuario);
-            }
-            Navigator.of(context).push(
-              MaterialPageRoute(
-                builder: (_) => MensageriaView(
-                  modoLoja: lojaId != null,
-                  lojaId: lojaId,
-                  conversaInicialId: msg.conversaId,
-                  mostrarBotaoVoltar: true,
-                ),
-              ),
-            );
-          },
-          child: Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: theme.backgroundColor.withValues(alpha: 0.6),
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(
-                color: theme.buttonColor.withValues(alpha: 0.4),
-              ),
-            ),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: [
-                CircleAvatar(
-                  radius: 20,
-                  backgroundColor: theme.borderColor.withValues(alpha: 0.3),
-                  backgroundImage:
-                      temFoto ? FileImage(File(fotoResolvida)) : null,
-                  child: !temFoto
-                      ? Icon(
-                          Icons.person,
-                          size: 20,
-                          color: theme.textColor,
-                        )
-                      : null,
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Row(
-                        children: [
-                          Expanded(
-                            child: TextoRolante(
-                              texto: msg.remetenteNome.isNotEmpty
-                                  ? msg.remetenteNome
-                                  : 'Mensagem',
-                              style: theme.getTextStyle(
-                                fontSize: 13,
-                                fontWeight: FontWeight.bold,
-                                color: theme.textColor,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          Text(
-                            _dataHoraCurta(msg.dataHora),
-                            style: theme.getTextStyle(
-                              fontSize: 10,
-                              color: theme.secondaryTextColor,
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 3),
-                      TextoRolante(
-                        texto: msg.texto,
-                        style: theme.getTextStyle(
-                          fontSize: 12,
-                          color: theme.secondaryTextColor,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Icon(
-                  Icons.chat_bubble_outline_rounded,
-                  size: 18,
-                  color: theme.buttonColor,
-                ),
-              ],
-            ),
-          ),
-        ),
+      child: const Icon(
+        Icons.visibility_off_outlined,
+        color: Colors.redAccent,
+        size: 20,
       ),
     );
   }
@@ -783,357 +208,329 @@ class _NotificacoesConteudo extends StatelessWidget {
         final mensagens = todasMensagens
             .where((m) => !notificacoes.estaDispensadaNaSessao('msg_${m.id}'))
             .toList();
-        final vazio = convites.isEmpty && alertasEstoque.isEmpty && mensagens.isEmpty;
+        final vazio =
+            convites.isEmpty && alertasEstoque.isEmpty && mensagens.isEmpty;
 
         return ValueListenableBuilder<AppTheme>(
           valueListenable: ThemeController.currentTheme,
           builder: (context, theme, child) {
-        return Dialog(
-          backgroundColor: theme.cardBackgroundColor,
-          insetPadding: const EdgeInsets.all(16),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-            side: BorderSide(color: theme.borderColor),
-          ),
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 500),
-            child: Padding(
-              padding: const EdgeInsets.all(20),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Row(
+            return Dialog(
+              backgroundColor: theme.cardBackgroundColor,
+              insetPadding: const EdgeInsets.all(16),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+                side: BorderSide(color: theme.borderColor),
+              ),
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 500),
+                child: Padding(
+                  padding: const EdgeInsets.all(20),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      IconButton(
-                        icon: Icon(Icons.arrow_back, color: theme.textColor),
-                        onPressed: () => Navigator.of(context).pop(),
-                      ),
-                      Expanded(
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Text(
-                              'Notificações',
-                              textAlign: TextAlign.center,
-                              style: theme.getTextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
-                                color: theme.textColor,
-                              ),
-                            ),
-                            Text(
-                              'Arraste para o lado para dispensar',
-                              textAlign: TextAlign.center,
-                              style: theme.getTextStyle(
-                                fontSize: 10,
-                                color: theme.secondaryTextColor,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      if (!vazio)
-                        IconButton(
-                          tooltip: 'Limpar todas as notificações',
-                          icon: Icon(
-                            Icons.clear_all_rounded,
-                            color: theme.buttonColor,
+                      Row(
+                        children: [
+                          IconButton(
+                            icon: Icon(Icons.arrow_back, color: theme.textColor),
+                            onPressed: () => Navigator.of(context).pop(),
                           ),
-                          onPressed: () {
-                            final ids = <String>[];
-                            for (final c in convites) {
-                              ids.add('convite_${c.id}');
-                            }
-                            for (final a in alertasEstoque) {
-                              ids.add(
-                                  'alerta_estoque_${a.lojaId}_${a.item.id}');
-                            }
-                            for (final m in mensagens) {
-                              ids.add('msg_${m.id}');
-                            }
-                            notificacoes.dispensarTodasNaSessao(ids);
-                          },
+                          Expanded(
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text(
+                                  'Notificações',
+                                  textAlign: TextAlign.center,
+                                  style: theme.getTextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.bold,
+                                    color: theme.textColor,
+                                  ),
+                                ),
+                                Text(
+                                  'Arraste para o lado para dispensar',
+                                  textAlign: TextAlign.center,
+                                  style: theme.getTextStyle(
+                                    fontSize: 10,
+                                    color: theme.secondaryTextColor,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          if (!vazio)
+                            IconButton(
+                              tooltip: 'Limpar todas as notificações',
+                              icon: Icon(
+                                Icons.clear_all_rounded,
+                                color: theme.buttonColor,
+                              ),
+                              onPressed: () {
+                                final ids = <String>[];
+                                for (final c in convites) {
+                                  ids.add('convite_${c.id}');
+                                }
+                                for (final a in alertasEstoque) {
+                                  ids.add(
+                                      'alerta_estoque_${a.lojaId}_${a.item.id}');
+                                }
+                                for (final m in mensagens) {
+                                  ids.add('msg_${m.id}');
+                                }
+                                notificacoes.dispensarTodasNaSessao(ids);
+                              },
+                            )
+                          else
+                            const SizedBox(width: 48),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      if (!vazio)
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 10),
+                          child: Center(
+                            child: OutlinedButton.icon(
+                              style: OutlinedButton.styleFrom(
+                                foregroundColor: theme.dangerColor,
+                                side: BorderSide(
+                                  color: theme.dangerColor.withValues(alpha: 0.5),
+                                ),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 16,
+                                  vertical: 8,
+                                ),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                              ),
+                              icon: Icon(
+                                Icons.clear_all_rounded,
+                                size: 18,
+                                color: theme.dangerColor,
+                              ),
+                              label: Text(
+                                'Limpar todas as notificações',
+                                style: theme.getTextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.bold,
+                                  color: theme.dangerColor,
+                                ),
+                              ),
+                              onPressed: () {
+                                final ids = <String>[];
+                                for (final c in convites) {
+                                  ids.add('convite_${c.id}');
+                                }
+                                for (final a in alertasEstoque) {
+                                  ids.add(
+                                      'alerta_estoque_${a.lojaId}_${a.item.id}');
+                                }
+                                for (final m in mensagens) {
+                                  ids.add('msg_${m.id}');
+                                }
+                                notificacoes.dispensarTodasNaSessao(ids);
+                                if (lojaId != null) {
+                                  ChatService.marcarMensagensDaLojaComoLidas(
+                                    lojaId!,
+                                    cpfUsuario,
+                                  );
+                                }
+                              },
+                            ),
+                          ),
+                        ),
+                      if (vazio)
+                        EstadoVazioContainer(
+                          theme: theme,
+                          mensagem: 'Nenhuma notificação no momento.',
                         )
                       else
-                        const SizedBox(width: 48),
+                        Flexible(
+                          child: ConstrainedBox(
+                            constraints: const BoxConstraints(maxHeight: 450),
+                            child: ListView(
+                              shrinkWrap: true,
+                              children: [
+                                if (mensagens.isNotEmpty) ...[
+                                  Padding(
+                                    padding: const EdgeInsets.only(
+                                        bottom: 8, top: 4),
+                                    child: Row(
+                                      children: [
+                                        Icon(
+                                          Icons.chat_bubble_outline_rounded,
+                                          size: 16,
+                                          color: theme.buttonColor,
+                                        ),
+                                        const SizedBox(width: 6),
+                                        Text(
+                                          'Mensagens (${mensagens.length})',
+                                          style: theme.getTextStyle(
+                                            fontSize: 12,
+                                            fontWeight: FontWeight.bold,
+                                            color: theme.textColor,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  for (final msg in mensagens)
+                                    Dismissible(
+                                      key: ValueKey('msg_${msg.id}'),
+                                      direction: DismissDirection.horizontal,
+                                      background: _buildDismissibleFundo(),
+                                      secondaryBackground:
+                                          _buildDismissibleFundoSecundario(),
+                                      onDismissed: (_) {
+                                        notificacoes
+                                            .dispensarNaSessao('msg_${msg.id}');
+                                        if (lojaId != null) {
+                                          ChatService
+                                              .marcarMensagensDaLojaComoLidas(
+                                            lojaId!,
+                                            cpfUsuario,
+                                          );
+                                        }
+                                      },
+                                      child: CardNotificacaoChat(
+                                        theme: theme,
+                                        msg: msg,
+                                        onTap: () {
+                                          Navigator.of(context).pop();
+                                          if (lojaId != null) {
+                                            ChatService
+                                                .marcarMensagensDaLojaComoLidas(
+                                              lojaId!,
+                                              cpfUsuario,
+                                            );
+                                          } else {
+                                            ChatService.marcarComoLidas(
+                                              msg.conversaId,
+                                              cpfUsuario,
+                                            );
+                                          }
+                                          Navigator.of(context).push(
+                                            MaterialPageRoute(
+                                              builder: (_) => MensageriaView(
+                                                modoLoja: lojaId != null,
+                                                lojaId: lojaId,
+                                                conversaInicialId:
+                                                    msg.conversaId,
+                                                mostrarBotaoVoltar: true,
+                                              ),
+                                            ),
+                                          );
+                                        },
+                                      ),
+                                    ),
+                                  if (convites.isNotEmpty ||
+                                      alertasEstoque.isNotEmpty)
+                                    const SizedBox(height: 8),
+                                ],
+                                if (alertasEstoque.isNotEmpty) ...[
+                                  Padding(
+                                    padding: const EdgeInsets.only(
+                                        bottom: 8, top: 4),
+                                    child: Row(
+                                      children: [
+                                        const Icon(
+                                          Icons.inventory_2_outlined,
+                                          size: 16,
+                                          color: Colors.redAccent,
+                                        ),
+                                        const SizedBox(width: 6),
+                                        Text(
+                                          'Alertas de Estoque (${alertasEstoque.length})',
+                                          style: theme.getTextStyle(
+                                            fontSize: 12,
+                                            fontWeight: FontWeight.bold,
+                                            color: Colors.redAccent,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  for (final alerta in alertasEstoque)
+                                    Dismissible(
+                                      key: ValueKey(
+                                        'alerta_estoque_${alerta.lojaId}_${alerta.item.id}',
+                                      ),
+                                      direction: DismissDirection.horizontal,
+                                      background: _buildDismissibleFundo(),
+                                      secondaryBackground:
+                                          _buildDismissibleFundoSecundario(),
+                                      onDismissed: (_) {
+                                        notificacoes.dispensarNaSessao(
+                                          'alerta_estoque_${alerta.lojaId}_${alerta.item.id}',
+                                        );
+                                      },
+                                      child: CardNotificacaoEstoque(
+                                        theme: theme,
+                                        alerta: alerta,
+                                        onTap: () =>
+                                            Navigator.of(context).pop(alerta),
+                                      ),
+                                    ),
+                                  if (convites.isNotEmpty)
+                                    const SizedBox(height: 8),
+                                ],
+                                if (convites.isNotEmpty) ...[
+                                  if (alertasEstoque.isNotEmpty ||
+                                      mensagens.isNotEmpty)
+                                    Padding(
+                                      padding: const EdgeInsets.only(bottom: 8),
+                                      child: Text(
+                                        'Convites e Solicitações (${convites.length})',
+                                        style: theme.getTextStyle(
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.bold,
+                                          color: theme.textColor,
+                                        ),
+                                      ),
+                                    ),
+                                  for (final convite in convites)
+                                    Dismissible(
+                                      key: ValueKey('convite_${convite.id}'),
+                                      direction: DismissDirection.horizontal,
+                                      background: _buildDismissibleFundo(),
+                                      secondaryBackground:
+                                          _buildDismissibleFundoSecundario(),
+                                      onDismissed: (_) {
+                                        notificacoes.dispensarNaSessao(
+                                          'convite_${convite.id}',
+                                        );
+                                      },
+                                      child: CardNotificacaoConvite(
+                                        theme: theme,
+                                        convite: convite,
+                                        onAceitar: () =>
+                                            GerenciadorAcoesNotificacao
+                                                .aceitarConvite(
+                                          context,
+                                          convite,
+                                        ),
+                                        onRecusar: () =>
+                                            GerenciadorAcoesNotificacao
+                                                .recusarConvite(
+                                          context,
+                                          convite,
+                                        ),
+                                      ),
+                                    ),
+                                ],
+                              ],
+                            ),
+                          ),
+                        ),
                     ],
                   ),
-                  const SizedBox(height: 12),
-                  if (!vazio)
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 10),
-                      child: Center(
-                        child: OutlinedButton.icon(
-                          style: OutlinedButton.styleFrom(
-                            foregroundColor: theme.dangerColor,
-                            side: BorderSide(
-                              color: theme.dangerColor.withValues(alpha: 0.5),
-                            ),
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 16,
-                              vertical: 8,
-                            ),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(10),
-                            ),
-                          ),
-                          icon: Icon(
-                            Icons.clear_all_rounded,
-                            size: 18,
-                            color: theme.dangerColor,
-                          ),
-                          label: Text(
-                            'Limpar todas as notificações',
-                            style: theme.getTextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.bold,
-                              color: theme.dangerColor,
-                            ),
-                          ),
-                          onPressed: () {
-                            final ids = <String>[];
-                            for (final c in convites) {
-                              ids.add('convite_${c.id}');
-                            }
-                            for (final a in alertasEstoque) {
-                              ids.add(
-                                  'alerta_estoque_${a.lojaId}_${a.item.id}');
-                            }
-                            for (final m in mensagens) {
-                              ids.add('msg_${m.id}');
-                            }
-                            notificacoes.dispensarTodasNaSessao(ids);
-                            if (lojaId != null) {
-                              ChatService.marcarMensagensDaLojaComoLidas(lojaId!, cpfUsuario);
-                            }
-                          },
-                        ),
-                      ),
-                    ),
-                  if (vazio)
-                    EstadoVazioContainer(
-                      theme: theme,
-                      mensagem: 'Nenhuma notificação no momento.',
-                    )
-                  else
-                    Flexible(
-                      child: ConstrainedBox(
-                        constraints: const BoxConstraints(maxHeight: 450),
-                        child: ListView(
-                          shrinkWrap: true,
-                          children: [
-                            if (mensagens.isNotEmpty) ...[
-                              Padding(
-                                padding:
-                                    const EdgeInsets.only(bottom: 8, top: 4),
-                                child: Row(
-                                  children: [
-                                    Icon(
-                                      Icons.chat_bubble_outline_rounded,
-                                      size: 16,
-                                      color: theme.buttonColor,
-                                    ),
-                                    const SizedBox(width: 6),
-                                    Text(
-                                      'Mensagens (${mensagens.length})',
-                                      style: theme.getTextStyle(
-                                        fontSize: 12,
-                                        fontWeight: FontWeight.bold,
-                                        color: theme.textColor,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              for (final msg in mensagens)
-                                Dismissible(
-                                  key: ValueKey('msg_${msg.id}'),
-                                  direction: DismissDirection.horizontal,
-                                  background: Container(
-                                    alignment: Alignment.centerLeft,
-                                    padding: const EdgeInsets.symmetric(
-                                        horizontal: 16),
-                                    margin: const EdgeInsets.only(bottom: 8),
-                                    decoration: BoxDecoration(
-                                      color: Colors.redAccent
-                                          .withValues(alpha: 0.2),
-                                      borderRadius: BorderRadius.circular(10),
-                                    ),
-                                    child: const Icon(
-                                      Icons.visibility_off_outlined,
-                                      color: Colors.redAccent,
-                                      size: 20,
-                                    ),
-                                  ),
-                                  secondaryBackground: Container(
-                                    alignment: Alignment.centerRight,
-                                    padding: const EdgeInsets.symmetric(
-                                        horizontal: 16),
-                                    margin: const EdgeInsets.only(bottom: 8),
-                                    decoration: BoxDecoration(
-                                      color: Colors.redAccent
-                                          .withValues(alpha: 0.2),
-                                      borderRadius: BorderRadius.circular(10),
-                                    ),
-                                    child: const Icon(
-                                      Icons.visibility_off_outlined,
-                                      color: Colors.redAccent,
-                                      size: 20,
-                                    ),
-                                  ),
-                                  onDismissed: (_) {
-                                    notificacoes.dispensarNaSessao('msg_${msg.id}');
-                                    if (lojaId != null) {
-                                      ChatService.marcarMensagensDaLojaComoLidas(lojaId!, cpfUsuario);
-                                    }
-                                  },
-                                  child: _linhaMensagemChat(context, theme, msg),
-                                ),
-                              if (convites.isNotEmpty || alertasEstoque.isNotEmpty)
-                                const SizedBox(height: 8),
-                            ],
-                            if (alertasEstoque.isNotEmpty) ...[
-                              Padding(
-                                padding:
-                                    const EdgeInsets.only(bottom: 8, top: 4),
-                                child: Row(
-                                  children: [
-                                    const Icon(
-                                      Icons.inventory_2_outlined,
-                                      size: 16,
-                                      color: Colors.redAccent,
-                                    ),
-                                    const SizedBox(width: 6),
-                                    Text(
-                                      'Alertas de Estoque (${alertasEstoque.length})',
-                                      style: theme.getTextStyle(
-                                        fontSize: 12,
-                                        fontWeight: FontWeight.bold,
-                                        color: Colors.redAccent,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              for (final alerta in alertasEstoque)
-                                Dismissible(
-                                  key: ValueKey(
-                                    'alerta_estoque_${alerta.lojaId}_${alerta.item.id}',
-                                  ),
-                                  direction: DismissDirection.horizontal,
-                                  background: Container(
-                                    alignment: Alignment.centerLeft,
-                                    padding: const EdgeInsets.symmetric(
-                                        horizontal: 16),
-                                    margin: const EdgeInsets.only(bottom: 8),
-                                    decoration: BoxDecoration(
-                                      color: Colors.redAccent
-                                          .withValues(alpha: 0.2),
-                                      borderRadius: BorderRadius.circular(10),
-                                    ),
-                                    child: const Icon(
-                                      Icons.visibility_off_outlined,
-                                      color: Colors.redAccent,
-                                      size: 20,
-                                    ),
-                                  ),
-                                  secondaryBackground: Container(
-                                    alignment: Alignment.centerRight,
-                                    padding: const EdgeInsets.symmetric(
-                                        horizontal: 16),
-                                    margin: const EdgeInsets.only(bottom: 8),
-                                    decoration: BoxDecoration(
-                                      color: Colors.redAccent
-                                          .withValues(alpha: 0.2),
-                                      borderRadius: BorderRadius.circular(10),
-                                    ),
-                                    child: const Icon(
-                                      Icons.visibility_off_outlined,
-                                      color: Colors.redAccent,
-                                      size: 20,
-                                    ),
-                                  ),
-                                  onDismissed: (_) {
-                                    notificacoes.dispensarNaSessao(
-                                      'alerta_estoque_${alerta.lojaId}_${alerta.item.id}',
-                                    );
-                                  },
-                                  child: _linhaAlertaEstoque(
-                                      context, theme, alerta),
-                                ),
-                              if (convites.isNotEmpty)
-                                const SizedBox(height: 8),
-                            ],
-                            if (convites.isNotEmpty) ...[
-                              if (alertasEstoque.isNotEmpty || mensagens.isNotEmpty)
-                                Padding(
-                                  padding: const EdgeInsets.only(bottom: 8),
-                                  child: Text(
-                                    'Convites e Solicitações (${convites.length})',
-                                    style: theme.getTextStyle(
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.bold,
-                                      color: theme.textColor,
-                                    ),
-                                  ),
-                                ),
-                              for (final convite in convites)
-                                Dismissible(
-                                  key: ValueKey('convite_${convite.id}'),
-                                  direction: DismissDirection.horizontal,
-                                  background: Container(
-                                    alignment: Alignment.centerLeft,
-                                    padding: const EdgeInsets.symmetric(
-                                        horizontal: 16),
-                                    margin: const EdgeInsets.only(bottom: 8),
-                                    decoration: BoxDecoration(
-                                      color: Colors.redAccent
-                                          .withValues(alpha: 0.2),
-                                      borderRadius: BorderRadius.circular(10),
-                                    ),
-                                    child: const Icon(
-                                      Icons.visibility_off_outlined,
-                                      color: Colors.redAccent,
-                                      size: 20,
-                                    ),
-                                  ),
-                                  secondaryBackground: Container(
-                                    alignment: Alignment.centerRight,
-                                    padding: const EdgeInsets.symmetric(
-                                        horizontal: 16),
-                                    margin: const EdgeInsets.only(bottom: 8),
-                                    decoration: BoxDecoration(
-                                      color: Colors.redAccent
-                                          .withValues(alpha: 0.2),
-                                      borderRadius: BorderRadius.circular(10),
-                                    ),
-                                    child: const Icon(
-                                      Icons.visibility_off_outlined,
-                                      color: Colors.redAccent,
-                                      size: 20,
-                                    ),
-                                  ),
-                                  onDismissed: (_) {
-                                    notificacoes.dispensarNaSessao(
-                                      'convite_${convite.id}',
-                                    );
-                                  },
-                                  child: _linhaConvite(context, theme, convite),
-                                ),
-                            ],
-                          ],
-                        ),
-                      ),
-                    ),
-                ],
+                ),
               ),
-            ),
-          ),
+            );
+          },
         );
       },
     );
-  },
-);
   }
 }

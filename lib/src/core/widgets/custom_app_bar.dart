@@ -238,7 +238,12 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
                       theme: currentTheme,
                       onTap: () {
                         Navigator.pop(context);
-                        SincronizacaoRedeDialog.mostrar(context);
+                        final pdv = context.read<PdvProvider>();
+                        final lojaAtual = lojaId != null ? pdv.buscarPorId(lojaId!) : null;
+                        SincronizacaoRedeDialog.mostrar(
+                          context,
+                          loja: lojaAtual,
+                        );
                       },
                     ),
                   ),
@@ -623,7 +628,7 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
 
   void _efetuarLogoutPadrao(BuildContext context) {
     try {
-      ClienteRedeLocal().desconectar();
+      ClienteRedeLocal().desconectar(manual: true);
     } catch (_) {}
     try {
       ServidorRedeLocal().parar();

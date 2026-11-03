@@ -496,6 +496,97 @@ class _StatusLojaViewState extends State<StatusLojaView> {
             '${_obterMembrosAtuais(context).length == 1 ? 'membro' : 'membros'}',
             style: theme.getTextStyle(fontSize: 13),
           ),
+          const SizedBox(height: 14),
+          Divider(color: theme.borderColor.withValues(alpha: 0.5)),
+          const SizedBox(height: 10),
+          Text(
+            'Servidor da Loja (Wi-Fi Local)',
+            style: theme.getTextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+              color: theme.textColor,
+            ),
+          ),
+          const SizedBox(height: 10),
+          ListenableBuilder(
+            listenable: Listenable.merge([
+              ServidorRedeLocal().estaAtivo,
+              ServidorRedeLocal().totalConectados,
+            ]),
+            builder: (context, _) {
+              final servidor = ServidorRedeLocal();
+              final ativo = servidor.ativo;
+              return Container(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                decoration: BoxDecoration(
+                  color: theme.backgroundColor.withValues(alpha: 0.35),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(
+                    color: ativo
+                        ? Colors.greenAccent.withValues(alpha: 0.5)
+                        : theme.borderColor.withValues(alpha: 0.5),
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      ativo ? Icons.wifi_tethering_rounded : Icons.wifi_tethering_off_rounded,
+                      color: ativo ? Colors.greenAccent : theme.secondaryTextColor,
+                      size: 20,
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            ativo ? 'Servidor Ligado' : 'Servidor Desligado',
+                            style: theme.getTextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.bold,
+                              color: theme.textColor,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            ativo
+                                ? '${servidor.ipServidor}:${servidor.porta} • ${servidor.totalConectados.value} conectados'
+                                : 'Ligue para operar celulares e outros nós no balcão',
+                            style: theme.getTextStyle(
+                              fontSize: 10,
+                              color: ativo ? Colors.greenAccent : theme.secondaryTextColor,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Switch(
+                      value: ativo,
+                      onChanged: (ligar) async {
+                        final pdv = context.read<PdvProvider>();
+                        final auth = context.read<AuthProvider>();
+                        final lojaAtual = pdv.buscarPorId(widget.lojaId) ??
+                            (pdv.lojas.isNotEmpty ? pdv.lojas.first : null);
+                        if (ligar) {
+                          if (lojaAtual != null) {
+                            await servidor.iniciar(loja: lojaAtual, pdv: pdv, auth: auth);
+                          }
+                        } else {
+                          await servidor.parar();
+                        }
+                      },
+                      activeThumbColor: theme.textColor,
+                      activeTrackColor: theme.borderColor.withValues(alpha: 0.5),
+                      inactiveThumbColor: theme.secondaryTextColor,
+                      inactiveTrackColor: Colors.transparent,
+                      trackOutlineColor: WidgetStateProperty.all(theme.borderColor),
+                    ),
+                  ],
+                ),
+              );
+            },
+          ),
           if (widget.podeSair) ...[
             const SizedBox(height: 16),
             SizedBox(

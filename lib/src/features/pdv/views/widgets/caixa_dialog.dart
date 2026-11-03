@@ -3,12 +3,14 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:nous/src/core/theme/theme_controller.dart';
 import 'package:nous/src/core/services/janela_windows_service.dart';
-import 'package:nous/src/core/widgets/themed_text_field.dart';
 import 'package:nous/src/features/pdv/models/configuracoes_impressora.dart';
 import 'package:nous/src/features/pdv/models/pedido_loja.dart';
 import 'package:nous/src/features/pdv/models/turno_caixa.dart';
 import 'package:nous/src/features/pdv/providers/pdv_provider.dart';
 import 'package:nous/src/features/pdv/services/impressao_service.dart';
+import 'package:nous/src/features/pdv/views/widgets/caixa/painel_abertura_turno.dart';
+import 'package:nous/src/features/pdv/views/widgets/caixa/painel_historico_turnos.dart';
+import 'package:nous/src/features/pdv/views/widgets/caixa/painel_turno_aberto.dart';
 import 'package:nous/src/features/pdv/views/widgets/detalhes_turno_caixa_dialog.dart';
 
 class CaixaDialog {
@@ -487,120 +489,24 @@ class _CaixaConteudoState extends State<_CaixaConteudo> {
   }
 
   Widget _blocoHistoricoTurnosFechados() {
-    final fechados = _turnosFechados;
-
-    if (fechados.isEmpty) return const SizedBox.shrink();
-
-    return Container(
-      width: double.infinity,
-      margin: const EdgeInsets.only(top: 14),
-      padding: const EdgeInsets.all(12),
-      decoration: _decoracaoBloco,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(Icons.history, size: 16, color: theme.textColor),
-              const SizedBox(width: 6),
-              Text(
-                'Últimos Turnos Fechados (${fechados.length})',
-                style: theme.getTextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.bold,
-                  color: theme.textColor,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          ConstrainedBox(
-            constraints: const BoxConstraints(maxHeight: 200),
-            child: ListView.separated(
-              shrinkWrap: true,
-              itemCount: fechados.length,
-              separatorBuilder: (context, index) => const SizedBox(height: 6),
-              itemBuilder: (context, index) {
-                final t = fechados[index];
-                return _BarraTurnoItem(
-                  theme: theme,
-                  turno: t,
-                  formatarDataHora: _formatarDataHora,
-                  formatarMoeda: _formatarMoeda,
-                  aoClicar: () => _abrirDetalhesTurno(t),
-                  aoReimprimir: () => _reimprimirFechamento(t),
-                );
-              },
-            ),
-          ),
-        ],
-      ),
+    return PainelHistoricoTurnos(
+      theme: theme,
+      decoracao: _decoracaoBloco,
+      turnosFechados: _turnosFechados,
+      formatarDataHora: _formatarDataHora,
+      formatarMoeda: _formatarMoeda,
+      aoClicarDetalhes: _abrirDetalhesTurno,
+      aoReimprimir: _reimprimirFechamento,
     );
   }
 
   Widget _blocoAbertura() {
-    return Column(
-      children: [
-        Container(
-          width: double.infinity,
-          padding: const EdgeInsets.all(14),
-          decoration: _decoracaoBloco,
-          child: Column(
-            children: [
-              Icon(Icons.lock_clock, size: 36, color: theme.textColor),
-              const SizedBox(height: 8),
-              Text(
-                'O caixa está fechado',
-                style: theme.getTextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                  color: theme.textColor,
-                ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                'Informe o valor de fundo de troco para iniciar as vendas deste turno.',
-                textAlign: TextAlign.center,
-                style: theme.getTextStyle(
-                  fontSize: 12,
-                  color: theme.secondaryTextColor,
-                ),
-              ),
-              const SizedBox(height: 16),
-              ThemedTextField(
-                theme: theme,
-                controller: _saldoInicialController,
-                label: 'Fundo de troco inicial (ex: 50,00)',
-                tipoDeTeclado: TextInputType.number,
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 16),
-        SizedBox(
-          width: double.infinity,
-          child: OutlinedButton(
-            style: OutlinedButton.styleFrom(
-              backgroundColor: theme.buttonColor,
-              foregroundColor: theme.buttonTextColor,
-              side: BorderSide(color: theme.borderColor),
-              padding: const EdgeInsets.symmetric(vertical: 14),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(10),
-              ),
-            ),
-            onPressed: _salvando ? null : _abrirCaixa,
-            child: Text(
-              _salvando ? 'Abrindo...' : 'Abrir Caixa',
-              style: theme.getTextStyle(
-                fontSize: 14,
-                color: theme.buttonTextColor,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ),
-        ),
-      ],
+    return PainelAberturaTurno(
+      theme: theme,
+      decoracao: _decoracaoBloco,
+      saldoInicialController: _saldoInicialController,
+      salvando: _salvando,
+      aoAbrirCaixa: _abrirCaixa,
     );
   }
 
@@ -631,560 +537,42 @@ class _CaixaConteudoState extends State<_CaixaConteudo> {
     );
   }
 
-  Widget _blocoMovimentacoes(TurnoCaixa turno) {
-    if (turno.movimentacoes.isEmpty) return const SizedBox.shrink();
-    return Container(
-      width: double.infinity,
-      margin: const EdgeInsets.only(top: 12),
-      padding: const EdgeInsets.all(12),
-      decoration: _decoracaoBloco,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(
-                Icons.receipt_long_outlined,
-                size: 16,
-                color: theme.textColor,
-              ),
-              const SizedBox(width: 6),
-              Text(
-                'Lançamentos do Turno (${turno.movimentacoes.length})',
-                style: theme.getTextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.bold,
-                  color: theme.textColor,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          ConstrainedBox(
-            constraints: const BoxConstraints(maxHeight: 180),
-            child: ListView.separated(
-              shrinkWrap: true,
-              itemCount: turno.movimentacoes.length,
-              separatorBuilder: (context, index) => const SizedBox(height: 6),
-              itemBuilder: (context, index) {
-                final m = turno.movimentacoes.reversed.toList()[index];
-                final ehSangria = m.tipo == TipoMovimentoCaixa.sangria;
-                return Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                  decoration: BoxDecoration(
-                    color: theme.borderColor.withValues(alpha: 0.08),
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(
-                      color: ehSangria
-                          ? Colors.redAccent.withValues(alpha: 0.4)
-                          : theme.borderColor.withValues(alpha: 0.5),
-                    ),
-                  ),
-                  child: Row(
-                    children: [
-                      Icon(
-                        ehSangria
-                            ? Icons.remove_circle_outline
-                            : Icons.add_circle_outline,
-                        size: 16,
-                        color: ehSangria ? Colors.redAccent : theme.buttonColor,
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              '${ehSangria ? "Sangria" : "Suprimento"}: ${_formatarMoeda(m.valor)}',
-                              style: theme.getTextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.bold,
-                                color: ehSangria
-                                    ? Colors.redAccent
-                                    : theme.textColor,
-                              ),
-                            ),
-                            if (m.motivo.isNotEmpty)
-                              Text(
-                                m.motivo,
-                                style: theme.getTextStyle(
-                                  fontSize: 11,
-                                  color: theme.secondaryTextColor,
-                                ),
-                              ),
-                          ],
-                        ),
-                      ),
-                      IconButton(
-                        tooltip: 'Imprimir comprovante',
-                        icon: Icon(Icons.print_outlined,
-                            size: 16, color: theme.textColor),
-                        onPressed: () => _imprimirMovimento(m),
-                      ),
-                    ],
-                  ),
-                );
-              },
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
   Widget _blocoTurnoAberto(TurnoCaixa turno) {
-    return Column(
-      children: [
-        Container(
-          width: double.infinity,
-          padding: const EdgeInsets.all(12),
-          decoration: _decoracaoBloco,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Row(
-                    children: [
-                      Container(
-                        width: 10,
-                        height: 10,
-                        decoration: BoxDecoration(
-                          color: theme.textColor,
-                          shape: BoxShape.circle,
-                        ),
-                      ),
-                      const SizedBox(width: 6),
-                      Text(
-                        'Turno Ativo',
-                        style: theme.getTextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.bold,
-                          color: theme.textColor,
-                        ),
-                      ),
-                    ],
-                  ),
-                  Text(
-                    _formatarDataHora(turno.dataAbertura),
-                    style: theme.getTextStyle(
-                      fontSize: 11,
-                      color: theme.secondaryTextColor,
-                    ),
-                  ),
-                ],
-              ),
-              if (turno.abertoPorNome.isNotEmpty) ...[
-                const SizedBox(height: 4),
-                Text(
-                  'Operador: ${turno.abertoPorNome}',
-                  style: theme.getTextStyle(
-                    fontSize: 11,
-                    color: theme.secondaryTextColor,
-                  ),
-                ),
-              ],
-              const SizedBox(height: 10),
-              Divider(color: theme.borderColor.withValues(alpha: 0.6)),
-              _linhaResumo('Fundo de troco inicial', _formatarMoeda(turno.saldoInicial)),
-              _linhaResumo('Vendas em dinheiro (+)', _formatarMoeda(_vendasDinheiro)),
-              _linhaResumo('Vendas Pix / Cartão (+)', _formatarMoeda(_vendasEletronico)),
-              if (_vendasAPrazo > 0)
-                _linhaResumo('Vendas à prazo (a receber)', _formatarMoeda(_vendasAPrazo)),
-              if (turno.totalSuprimentos > 0)
-                _linhaResumo('Suprimentos (+ troco adicionado)', _formatarMoeda(turno.totalSuprimentos)),
-              if (turno.totalSangrias > 0)
-                _linhaResumo('Sangrias (- retiradas p/ cofre)', '-${_formatarMoeda(turno.totalSangrias)}'),
-              Divider(color: theme.borderColor.withValues(alpha: 0.6)),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                decoration: BoxDecoration(
-                  color: theme.borderColor.withValues(alpha: 0.18),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      'Saldo Atual em Dinheiro:',
-                      style: theme.getTextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.bold,
-                        color: theme.textColor,
-                      ),
-                    ),
-                    Text(
-                      _formatarMoeda(_saldoEsperadoDinheiro),
-                      style: theme.getTextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.bold,
-                        color: theme.textColor,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-        _blocoMovimentacoes(turno),
-        const SizedBox(height: 12),
-        if (_modoMovimento != null) ...[
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(12),
-            decoration: _decoracaoBloco,
-            child: Column(
-              children: [
-                Text(
-                  _modoMovimento == TipoMovimentoCaixa.sangria
-                      ? 'Lançar Sangria (Retirada de Dinheiro)'
-                      : 'Lançar Suprimento (Adicionar Moedas/Troco)',
-                  style: theme.getTextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.bold,
-                    color: theme.textColor,
-                  ),
-                ),
-                const SizedBox(height: 10),
-                ThemedTextField(
-                  theme: theme,
-                  controller: _movimentoValorController,
-                  label: 'Valor (ex: 20,00)',
-                  tipoDeTeclado: TextInputType.number,
-                ),
-                const SizedBox(height: 8),
-                ThemedTextField(
-                  theme: theme,
-                  controller: _movimentoMotivoController,
-                  label: 'Motivo (ex: Troco de moedas, Pagamento de água)',
-                ),
-                const SizedBox(height: 10),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.end,
-                  children: [
-                    TextButton(
-                      onPressed: () => setState(() => _modoMovimento = null),
-                      child: Text(
-                        'Cancelar',
-                        style: theme.getTextStyle(color: theme.secondaryTextColor),
-                      ),
-                    ),
-                    const SizedBox(width: 6),
-                    OutlinedButton(
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: theme.textColor,
-                        side: BorderSide(color: theme.borderColor),
-                      ),
-                      onPressed:
-                          _salvando ? null : () => _registrarMovimento(imprimir: false),
-                      child: Text(
-                        'Confirmar',
-                        style: theme.getTextStyle(
-                          color: theme.textColor,
-                          fontSize: 12,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 6),
-                    OutlinedButton.icon(
-                      style: OutlinedButton.styleFrom(
-                        backgroundColor: theme.buttonColor,
-                        foregroundColor: theme.buttonTextColor,
-                        side: BorderSide(color: theme.borderColor),
-                      ),
-                      onPressed:
-                          _salvando ? null : () => _registrarMovimento(imprimir: true),
-                      icon: Icon(Icons.print_outlined,
-                          size: 14, color: theme.buttonTextColor),
-                      label: Text(
-                        'Confirmar e Imprimir',
-                        style: theme.getTextStyle(
-                          color: theme.buttonTextColor,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 12,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 12),
-        ] else if (_modoFechamento) ...[
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(12),
-            decoration: _decoracaoBloco,
-            child: Column(
-              children: [
-                Text(
-                  'Conferência e Fechamento de Caixa',
-                  style: theme.getTextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.bold,
-                    color: theme.textColor,
-                  ),
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  'Conte todo o dinheiro físico presente na gaveta e informe abaixo:',
-                  textAlign: TextAlign.center,
-                  style: theme.getTextStyle(
-                    fontSize: 11,
-                    color: theme.secondaryTextColor,
-                  ),
-                ),
-                const SizedBox(height: 12),
-                ThemedTextField(
-                  theme: theme,
-                  controller: _saldoFechamentoController,
-                  label: 'Valor contado na gaveta (ex: 125,50)',
-                  tipoDeTeclado: TextInputType.number,
-                  onChanged: (_) => setState(() {}),
-                ),
-                const SizedBox(height: 8),
-                ThemedTextField(
-                  theme: theme,
-                  controller: _observacaoFechamentoController,
-                  label: 'Observação do fechamento (opcional)',
-                ),
-                const SizedBox(height: 12),
-                Builder(builder: (context) {
-                  final contado = _parsearValor(_saldoFechamentoController.text);
-                  final diferenca = contado - _saldoEsperadoDinheiro;
-                  final bateu = diferenca.abs() < 0.01;
-                  return Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: theme.borderColor.withValues(alpha: 0.18),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Column(
-                      children: [
-                        _linhaResumo('Saldo Esperado:', _formatarMoeda(_saldoEsperadoDinheiro)),
-                        _linhaResumo('Valor Informado:', _formatarMoeda(contado)),
-                        const SizedBox(height: 4),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Text(
-                              bateu
-                                  ? 'Conferência exata'
-                                  : (diferenca > 0 ? 'Sobra de caixa:' : 'Quebra / Falta:'),
-                              style: theme.getTextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.bold,
-                                color: bateu
-                                    ? theme.textColor
-                                    : (diferenca < 0 ? Colors.redAccent : theme.textColor),
-                              ),
-                            ),
-                            Text(
-                              bateu ? 'R\$ 0,00' : _formatarMoeda(diferenca.abs()),
-                              style: theme.getTextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.bold,
-                                color: bateu
-                                    ? theme.textColor
-                                    : (diferenca < 0 ? Colors.redAccent : theme.textColor),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                  );
-                }),
-                const SizedBox(height: 12),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.end,
-                  children: [
-                    TextButton(
-                      onPressed: () => setState(() => _modoFechamento = false),
-                      child: Text(
-                        'Voltar',
-                        style: theme.getTextStyle(color: theme.secondaryTextColor),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    OutlinedButton.icon(
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: theme.textColor,
-                        side: BorderSide(color: theme.borderColor),
-                      ),
-                      onPressed: _salvando ? null : () => _fecharCaixa(imprimir: true),
-                      icon: Icon(Icons.print_outlined, size: 16, color: theme.textColor),
-                      label: Text(
-                        'Fechar e Imprimir',
-                        style: theme.getTextStyle(fontSize: 12),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    OutlinedButton(
-                      style: OutlinedButton.styleFrom(
-                        backgroundColor: theme.buttonColor,
-                        foregroundColor: theme.buttonTextColor,
-                        side: BorderSide(color: theme.borderColor),
-                      ),
-                      onPressed: _salvando ? null : () => _fecharCaixa(imprimir: false),
-                      child: Text(
-                        _salvando ? 'Fechando...' : 'Fechar',
-                        style: theme.getTextStyle(
-                          color: theme.buttonTextColor,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 12),
-        ] else ...[
-          Row(
-            children: [
-              Expanded(
-                child: OutlinedButton.icon(
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: theme.textColor,
-                    side: BorderSide(color: theme.borderColor),
-                    padding: const EdgeInsets.symmetric(vertical: 10),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                  ),
-                  onPressed: () => setState(() => _modoMovimento = TipoMovimentoCaixa.suprimento),
-                  icon: Icon(Icons.add_circle_outline, size: 16, color: theme.textColor),
-                  label: Text('Suprimento', style: theme.getTextStyle(fontSize: 11)),
-                ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: OutlinedButton.icon(
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: theme.textColor,
-                    side: BorderSide(color: theme.borderColor),
-                    padding: const EdgeInsets.symmetric(vertical: 10),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                  ),
-                  onPressed: () => setState(() => _modoMovimento = TipoMovimentoCaixa.sangria),
-                  icon: Icon(Icons.remove_circle_outline, size: 16, color: theme.textColor),
-                  label: Text('Sangria', style: theme.getTextStyle(fontSize: 11)),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 10),
-          SizedBox(
-            width: double.infinity,
-            child: OutlinedButton.icon(
-              style: OutlinedButton.styleFrom(
-                backgroundColor: theme.buttonColor,
-                foregroundColor: theme.buttonTextColor,
-                side: BorderSide(color: theme.borderColor),
-                padding: const EdgeInsets.symmetric(vertical: 12),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(10),
-                ),
-              ),
-              onPressed: () => setState(() => _modoFechamento = true),
-              icon: Icon(Icons.check_circle_outline, size: 18, color: theme.buttonTextColor),
-              label: Text(
-                'Fechar Caixa do Turno',
-                style: theme.getTextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.bold,
-                  color: theme.buttonTextColor,
-                ),
-              ),
-            ),
-          ),
-          const SizedBox(height: 8),
-          SizedBox(
-            width: double.infinity,
-            child: OutlinedButton.icon(
-              style: OutlinedButton.styleFrom(
-                foregroundColor: theme.textColor,
-                side: BorderSide(color: theme.borderColor),
-                padding: const EdgeInsets.symmetric(vertical: 10),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(10),
-                ),
-              ),
-              onPressed: () => _imprimirComprovante(imprimirComoFechado: false),
-              icon: Icon(Icons.print_outlined, size: 16, color: theme.textColor),
-              label: Text(
-                'Imprimir Resumo do Turno',
-                style: theme.getTextStyle(fontSize: 12),
-              ),
-            ),
-          ),
-        ],
-        if (turno.movimentacoes.isNotEmpty) ...[
-          const SizedBox(height: 14),
-          Align(
-            alignment: Alignment.centerLeft,
-            child: Text(
-              'Movimentações deste Turno',
-              style: theme.getTextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.bold,
-                color: theme.textColor,
-              ),
-            ),
-          ),
-          const SizedBox(height: 6),
-          ConstrainedBox(
-            constraints: const BoxConstraints(maxHeight: 120),
-            child: SingleChildScrollView(
-              child: Column(
-                children: [
-                  for (final m in turno.movimentacoes.reversed)
-                    Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 3),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Row(
-                            children: [
-                              Icon(
-                                m.tipo == TipoMovimentoCaixa.suprimento
-                                    ? Icons.arrow_upward
-                                    : Icons.arrow_downward,
-                                size: 14,
-                                color: theme.textColor,
-                              ),
-                              const SizedBox(width: 4),
-                              Text(
-                                '${m.tipo == TipoMovimentoCaixa.suprimento ? "Suprimento" : "Sangria"}: ${m.motivo.isEmpty ? "Sem motivo" : m.motivo}',
-                                style: theme.getTextStyle(fontSize: 11),
-                              ),
-                            ],
-                          ),
-                          Text(
-                            _formatarMoeda(m.valor),
-                            style: theme.getTextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.bold,
-                              color: theme.textColor,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                ],
-              ),
-            ),
-          ),
-        ],
-      ],
+    return PainelTurnoAberto(
+      theme: theme,
+      decoracao: _decoracaoBloco,
+      turno: turno,
+      vendasDinheiro: _vendasDinheiro,
+      vendasEletronico: _vendasEletronico,
+      vendasAPrazo: _vendasAPrazo,
+      saldoEsperadoDinheiro: _saldoEsperadoDinheiro,
+      formatarDataHora: _formatarDataHora,
+      formatarMoeda: _formatarMoeda,
+      parsearValor: _parsearValor,
+      linhaResumo: _linhaResumo,
+      modoMovimento: _modoMovimento,
+      modoFechamento: _modoFechamento,
+      salvando: _salvando,
+      movimentoValorController: _movimentoValorController,
+      movimentoMotivoController: _movimentoMotivoController,
+      saldoFechamentoController: _saldoFechamentoController,
+      observacaoFechamentoController: _observacaoFechamentoController,
+      aoImprimirMovimento: _imprimirMovimento,
+      aoIniciarSuprimento: () =>
+          setState(() => _modoMovimento = TipoMovimentoCaixa.suprimento),
+      aoIniciarSangria: () =>
+          setState(() => _modoMovimento = TipoMovimentoCaixa.sangria),
+      aoCancelarMovimento: () => setState(() => _modoMovimento = null),
+      aoConfirmarMovimento: () => _registrarMovimento(imprimir: false),
+      aoConfirmarEImprimirMovimento: () =>
+          _registrarMovimento(imprimir: true),
+      aoIniciarFechamento: () => setState(() => _modoFechamento = true),
+      aoCancelarFechamento: () => setState(() => _modoFechamento = false),
+      aoFecharCaixa: () => _fecharCaixa(imprimir: false),
+      aoFecharCaixaEImprimir: () => _fecharCaixa(imprimir: true),
+      aoImprimirResumoTurno: () =>
+          _imprimirComprovante(imprimirComoFechado: false),
+      aoAlterarTextoFechamento: () => setState(() {}),
     );
   }
 
@@ -1288,138 +676,6 @@ class _CaixaConteudoState extends State<_CaixaConteudo> {
           ),
         ),
       ],
-    );
-  }
-}
-
-class _BarraTurnoItem extends StatefulWidget {
-  final AppTheme theme;
-  final TurnoCaixa turno;
-  final String Function(DateTime) formatarDataHora;
-  final String Function(double) formatarMoeda;
-  final VoidCallback aoClicar;
-  final VoidCallback aoReimprimir;
-
-  const _BarraTurnoItem({
-    required this.theme,
-    required this.turno,
-    required this.formatarDataHora,
-    required this.formatarMoeda,
-    required this.aoClicar,
-    required this.aoReimprimir,
-  });
-
-  @override
-  State<_BarraTurnoItem> createState() => _BarraTurnoItemState();
-}
-
-class _BarraTurnoItemState extends State<_BarraTurnoItem> {
-  bool _hover = false;
-
-  @override
-  Widget build(BuildContext context) {
-    final t = widget.turno;
-    final theme = widget.theme;
-
-    return MouseRegion(
-      cursor: SystemMouseCursors.click,
-      onEnter: (_) => setState(() => _hover = true),
-      onExit: (_) => setState(() => _hover = false),
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTap: widget.aoClicar,
-        child: Tooltip(
-          message: 'Clique para ver detalhes do turno, retiradas e histórico',
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 140),
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-            decoration: BoxDecoration(
-              color: _hover
-                  ? theme.borderColor.withValues(alpha: 0.18)
-                  : theme.borderColor.withValues(alpha: 0.08),
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(
-                color: _hover
-                    ? theme.textColor
-                    : theme.borderColor.withValues(alpha: 0.4),
-                width: _hover ? 1.4 : 1.0,
-              ),
-            ),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Text(
-                            'Fechado em ${widget.formatarDataHora(t.dataFechamento ?? t.dataAbertura)}',
-                            style: theme.getTextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.bold,
-                              color: theme.textColor,
-                            ),
-                          ),
-                          if (t.movimentacoes.isNotEmpty) ...[
-                            const SizedBox(width: 6),
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 5, vertical: 1),
-                              decoration: BoxDecoration(
-                                color:
-                                    theme.borderColor.withValues(alpha: 0.15),
-                                borderRadius: BorderRadius.circular(4),
-                              ),
-                              child: Text(
-                                '${t.movimentacoes.length} mov.',
-                                style: theme.getTextStyle(
-                                  fontSize: 9,
-                                  color: theme.secondaryTextColor,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ],
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        'Saldo Final: ${widget.formatarMoeda(t.saldoFinalInformado ?? 0.0)}'
-                        '${t.fechadoPorNome.isNotEmpty ? " • Operador: ${t.fechadoPorNome}" : ""}',
-                        style: theme.getTextStyle(
-                          fontSize: 10,
-                          color: theme.secondaryTextColor,
-                        ),
-                      ),
-                      if (t.observacao.trim().isNotEmpty)
-                        Text(
-                          'Obs: ${t.observacao.trim()}',
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: theme.getTextStyle(
-                            fontSize: 10,
-                            color: theme.secondaryTextColor,
-                          ),
-                        ),
-                    ],
-                  ),
-                ),
-                IconButton(
-                  tooltip: 'Reimprimir comprovante',
-                  icon: Icon(Icons.print_outlined,
-                      size: 16, color: theme.textColor),
-                  onPressed: widget.aoReimprimir,
-                ),
-                Icon(
-                  Icons.chevron_right,
-                  size: 16,
-                  color: _hover ? theme.textColor : theme.secondaryTextColor,
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
     );
   }
 }

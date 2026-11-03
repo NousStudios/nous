@@ -1,7 +1,11 @@
 import 'dart:convert';
+import 'package:flutter/foundation.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import 'package:nous/src/core/services/banco_dados_service.dart';
 import 'package:nous/src/features/notificacoes/models/convite_loja.dart';
+import 'package:nous/src/features/pdv/models/loja.dart';
+import 'package:nous/src/features/pdv/services/rede_local/cliente_rede_local.dart';
+import 'package:nous/src/features/pdv/services/rede_local/servidor_rede_local.dart';
 
 class ConvitesService {
   ConvitesService._();
@@ -41,7 +45,12 @@ class ConvitesService {
     });
   }
 
-  static Future<void> adicionar(String cpf, ConviteLoja convite) async {
+  static Future<void> adicionar(
+    String cpf,
+    ConviteLoja convite, {
+    bool originadoDaRede = false,
+    Loja? loja,
+  }) async {
     final db = await BancoDadosService.db;
     await db.insert(
       'convites',
@@ -52,14 +61,76 @@ class ConvitesService {
       },
       conflictAlgorithm: ConflictAlgorithm.replace,
     );
+    if (!originadoDaRede) {
+      await despacharConvitePelaRede(convite, loja: loja);
+    }
   }
 
-  static Future<void> remover(String cpf, String conviteId) async {
+  static Future<void> remover(
+    String cpf,
+    String conviteId, {
+    bool originadoDaRede = false,
+  }) async {
     final db = await BancoDadosService.db;
     await db.delete(
       'convites',
       where: 'cpf_destinatario = ? AND id = ?',
       whereArgs: [cpf, conviteId],
     );
+    if (!originadoDaRede) {
+      await despacharRemocaoConvitePelaRede(cpf, conviteId);
+    }
+  }
+
+  /// Despacha o convite via rede local (WebSocket) tanto do Servidor quanto do Cliente
+  static Future<void> despacharConvitePelaRede(
+    ConviteLoja convite, {
+    Loja? loja,
+  }) async {
+    try {
+      final payload = <String, dynamic>{
+        'tipo': 'novo_convite_loja',
+        'convite': convite.toJson(),
+      };
+      if (loja != null) {
+        payload['loja'] = loja.toJson();
+      }
+
+      if (ServidorRedeLocal().ativo) {
+        ServidorRedeLocal().notificarTodos(payload);
+        debugPrint(
+          '[ConvitesService] Convite para ${convite.cpfConvidado} transmitido pelo servidor para todos os terminais.',
+        );
+      } else if (ClienteRedeLocal().conectado) {
+        ClienteRedeLocal().enviarMensagemRaw(payload);
+        debugPrint(
+          '[ConvitesService] Convite para ${convite.cpfConvidado} transmitido pelo cliente ao balcão.',
+        );
+      }
+    } catch (e) {
+      debugPrint('[ConvitesService] Erro ao despachar convite pela rede: $e');
+    }
+  }
+
+  /// Despacha a remoção/resposta do convite pela rede local
+  static Future<void> despacharRemocaoConvitePelaRede(
+    String cpf,
+    String conviteId,
+  ) async {
+    try {
+      final payload = <String, dynamic>{
+        'tipo': 'convite_loja_removido',
+        'cpf': cpf,
+        'conviteId': conviteId,
+      };
+
+      if (ServidorRedeLocal().ativo) {
+        ServidorRedeLocal().notificarTodos(payload);
+      } else if (ClienteRedeLocal().conectado) {
+        ClienteRedeLocal().enviarMensagemRaw(payload);
+      }
+    } catch (e) {
+      debugPrint('[ConvitesService] Erro ao despachar remoção de convite pela rede: $e');
+    }
   }
 }

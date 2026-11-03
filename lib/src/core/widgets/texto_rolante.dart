@@ -37,9 +37,7 @@ class _TextoRolanteState extends State<TextoRolante> {
   @override
   void didUpdateWidget(covariant TextoRolante oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.texto != widget.texto ||
-        oldWidget.style != widget.style ||
-        oldWidget.velocidadePxPorSegundo != widget.velocidadePxPorSegundo) {
+    if (oldWidget.texto != widget.texto) {
       _cicloId++;
       _animando = false;
       if (_scrollController.hasClients) {

@@ -5,17 +5,21 @@ import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import 'package:nous/src/core/services/banco_dados_service.dart';
+import 'package:nous/src/features/pdv/models/cargo_loja.dart';
 import 'package:nous/src/features/pdv/models/categoria_loja.dart';
 import 'package:nous/src/features/pdv/models/cliente.dart';
 import 'package:nous/src/features/pdv/models/fornecedor.dart';
 import 'package:nous/src/features/pdv/models/item_loja.dart';
 import 'package:nous/src/features/pdv/models/loja.dart';
+import 'package:nous/src/features/pdv/models/membro_loja.dart';
 import 'package:nous/src/features/pdv/models/mesa_loja.dart';
 import 'package:nous/src/features/pdv/models/movimento_estoque.dart';
 import 'package:nous/src/features/pdv/models/pagamento_funcionario.dart';
 import 'package:nous/src/features/pdv/models/pedido_loja.dart';
+import 'package:nous/src/features/pdv/models/pedido_programado.dart';
 import 'package:nous/src/features/pdv/models/referencia_loja.dart';
 import 'package:nous/src/features/pdv/models/registro_acao.dart';
+import 'package:nous/src/features/pdv/models/turno_caixa.dart';
 import 'package:nous/src/features/pdv/services/imagem_service.dart';
 
 class LojasService {
@@ -319,6 +323,107 @@ class LojasService {
       }
     }
 
+    // 10. Pedidos (Finanças / Vendas) - UNIÃO SOBERANA E NÃO-DESTRUTIVA
+    final pedidosMesclados = <String, PedidoLoja>{};
+    for (final p in lojaLocal.pedidosLoja) {
+      pedidosMesclados[p.id] = p;
+    }
+    for (final p in lojaNova.pedidosLoja) {
+      if (!pedidosMesclados.containsKey(p.id)) {
+        pedidosMesclados[p.id] = p;
+      } else {
+        final existente = pedidosMesclados[p.id]!;
+        if (p.dataHora.isAfter(existente.dataHora) ||
+            (existente.status == StatusPedido.novo && p.status != StatusPedido.novo)) {
+          pedidosMesclados[p.id] = p;
+        }
+      }
+    }
+    final listaPedidos = pedidosMesclados.values.toList()
+      ..sort((a, b) => b.dataHora.compareTo(a.dataHora));
+
+    // 11. Turnos de Caixa (Finanças / Fechamentos) - UNIÃO SOBERANA
+    final turnosMesclados = <String, TurnoCaixa>{};
+    for (final t in lojaLocal.turnosCaixa) {
+      turnosMesclados[t.id] = t;
+    }
+    for (final t in lojaNova.turnosCaixa) {
+      if (!turnosMesclados.containsKey(t.id)) {
+        turnosMesclados[t.id] = t;
+      } else {
+        final existente = turnosMesclados[t.id]!;
+        // Se um nó fechou o turno e o outro ainda tinha o turno aberto, preserva o turno fechado!
+        if (existente.aberto && !t.aberto) {
+          turnosMesclados[t.id] = t;
+        } else if (!existente.aberto && t.aberto) {
+          // Mantém o fechado existente
+        } else if (t.dataAbertura.isAfter(existente.dataAbertura)) {
+          turnosMesclados[t.id] = t;
+        }
+      }
+    }
+    final listaTurnos = turnosMesclados.values.toList()
+      ..sort((a, b) => a.dataAbertura.compareTo(b.dataAbertura));
+
+    // 12. Movimentos de Estoque - UNIÃO SOBERANA
+    final estoqueMesclado = <String, MovimentoEstoque>{};
+    for (final m in lojaLocal.movimentosEstoque) {
+      estoqueMesclado[m.id] = m;
+    }
+    for (final m in lojaNova.movimentosEstoque) {
+      if (!estoqueMesclado.containsKey(m.id)) {
+        estoqueMesclado[m.id] = m;
+      }
+    }
+    final listaEstoque = estoqueMesclado.values.toList()
+      ..sort((a, b) => b.dataHora.compareTo(a.dataHora));
+
+    // 13. Pagamentos de Funcionários - UNIÃO SOBERANA
+    final pagamentosMesclados = <String, PagamentoFuncionario>{};
+    for (final pg in lojaLocal.pagamentosFuncionarios) {
+      pagamentosMesclados[pg.id] = pg;
+    }
+    for (final pg in lojaNova.pagamentosFuncionarios) {
+      if (!pagamentosMesclados.containsKey(pg.id)) {
+        pagamentosMesclados[pg.id] = pg;
+      }
+    }
+    final listaPagamentos = pagamentosMesclados.values.toList()
+      ..sort((a, b) => b.dataHora.compareTo(a.dataHora));
+
+    // 14. Pedidos Programados - UNIÃO SOBERANA
+    final programadosMesclados = <String, PedidoProgramado>{};
+    for (final pp in lojaLocal.pedidosProgramados) {
+      programadosMesclados[pp.id] = pp;
+    }
+    for (final pp in lojaNova.pedidosProgramados) {
+      if (!programadosMesclados.containsKey(pp.id)) {
+        programadosMesclados[pp.id] = pp;
+      }
+    }
+    final listaProgramados = programadosMesclados.values.toList();
+
+    // 15. Membros da Loja
+    final membrosMesclados = <String, MembroLoja>{};
+    for (final m in lojaLocal.membros) {
+      membrosMesclados[m.cpf.replaceAll(RegExp(r'\D'), '')] = m;
+    }
+    for (final m in lojaNova.membros) {
+      final cpfNorm = m.cpf.replaceAll(RegExp(r'\D'), '');
+      membrosMesclados[cpfNorm] = m;
+    }
+    final listaMembros = membrosMesclados.values.toList();
+
+    // 16. Cargos Personalizados
+    final cargosMesclados = <String, CargoLoja>{};
+    for (final c in lojaLocal.cargosPersonalizados) {
+      cargosMesclados[c.id] = c;
+    }
+    for (final c in lojaNova.cargosPersonalizados) {
+      cargosMesclados[c.id] = c;
+    }
+    final listaCargos = cargosMesclados.values.toList();
+
     return lojaNova.copyWith(
       logo: logoFinal,
       categoriasLoja: categoriasConsolidadas,
@@ -332,11 +437,48 @@ class LojasService {
       arquivos: arquivosConsolidados,
       mesas: mesasConsolidadas,
       acoes: acoesMescladas,
+      pedidosLoja: listaPedidos,
+      turnosCaixa: listaTurnos,
+      movimentosEstoque: listaEstoque,
+      pagamentosFuncionarios: listaPagamentos,
+      pedidosProgramados: listaProgramados,
+      membros: listaMembros,
+      cargosPersonalizados: listaCargos,
       layoutExpandido: lojaLocal.layoutExpandido,
       tipoLayoutMaior: lojaLocal.tipoLayoutMaior.isNotEmpty
           ? lojaLocal.tipoLayoutMaior
           : lojaNova.tipoLayoutMaior,
     );
+  }
+
+  /// Verifica se um identificador, tag ou nome pertence a uma criação de host falso/temporário
+  static bool ehLojaHostFalsa(String? id, [String? tags, String? nome]) {
+    if (id != null && (id.startsWith('host_') || id.startsWith('temp_host_'))) return true;
+    if (tags != null && tags.contains('host_pessoal')) return true;
+    if (nome != null && (nome.startsWith('Host:') || nome.startsWith('Host '))) return true;
+    return false;
+  }
+
+  /// Remove quaisquer lojas artificiais ou resquícios de host pessoal criados acidentalmente.
+  static Future<void> expurgarLojasHostFalsas() async {
+    try {
+      final db = await BancoDadosService.db;
+      final lojasFalsas = await db.query(
+        'lojas',
+        where: "id LIKE 'host_%' OR tags LIKE '%host_pessoal%' OR nome LIKE 'Host:%'",
+      );
+      for (final row in lojasFalsas) {
+        final id = row['id'] as String;
+        await db.delete('pedidos', where: 'loja_id = ?', whereArgs: [id]);
+        await db.delete('movimentos_estoque', where: 'loja_id = ?', whereArgs: [id]);
+        await db.delete('pagamentos_funcionarios', where: 'loja_id = ?', whereArgs: [id]);
+        await db.delete('lojas', where: 'id = ?', whereArgs: [id]);
+        await db.delete('referencias_loja', where: 'loja_id = ?', whereArgs: [id]);
+      }
+      await db.delete('referencias_loja', where: "loja_id LIKE 'host_%'");
+    } catch (e) {
+      debugPrint('[LojasService] Erro ao expurgar lojas host falsas: $e');
+    }
   }
 
   static Future<List<Loja>> carregar(String cpf) async {
@@ -354,6 +496,10 @@ class LojasService {
       final lojaMap =
           jsonDecode(row['dados_json'] as String) as Map<String, dynamic>;
       final lojaId = row['id'] as String;
+
+      if (ehLojaHostFalsa(lojaId, lojaMap['tags'] as String?, lojaMap['nome'] as String?)) {
+        continue;
+      }
 
       final pedRows = await db.query(
         'pedidos',
@@ -401,6 +547,7 @@ class LojasService {
   }
 
   static Future<Loja?> carregarLojaPorId(String lojaId) async {
+    if (ehLojaHostFalsa(lojaId)) return null;
     final db = await BancoDadosService.db;
     final rows = await db.query(
       'lojas',
@@ -457,9 +604,12 @@ class LojasService {
 
   static Future<void> salvar(String cpf, List<Loja> lojas) async {
     final db = await BancoDadosService.db;
+    final lojasValidas = lojas
+        .where((l) => !ehLojaHostFalsa(l.id, l.tags, l.nome))
+        .toList();
 
     await db.transaction((txn) async {
-      final idsAtuais = lojas.map((l) => l.id).toList();
+      final idsAtuais = lojasValidas.map((l) => l.id).toList();
 
       if (idsAtuais.isEmpty) {
         final lojasParaDeletar = await txn.query(
@@ -500,7 +650,7 @@ class LojasService {
         );
       }
 
-      for (var loja in lojas) {
+      for (var loja in lojasValidas) {
         loja = sanitizarCaminhosImagens(loja);
         final lojaMap = loja.toJson();
         final lojaBaseMap = Map<String, dynamic>.from(lojaMap)
@@ -539,76 +689,8 @@ class LojasService {
           );
         }
 
-        if (pedidosIds.isEmpty) {
-          await txn
-              .delete('pedidos', where: 'loja_id = ?', whereArgs: [loja.id]);
-        } else {
-          final pPlaceholders = List.filled(pedidosIds.length, '?').join(',');
-          await txn.delete(
-            'pedidos',
-            where: 'loja_id = ? AND id NOT IN ($pPlaceholders)',
-            whereArgs: [loja.id, ...pedidosIds],
-          );
-        }
-
-        final estoqueIds = <String>[];
-        for (final m in loja.movimentosEstoque) {
-          estoqueIds.add(m.id);
-          await txn.insert(
-            'movimentos_estoque',
-            {
-              'id': m.id,
-              'loja_id': loja.id,
-              'item_id': m.itemId,
-              'tipo': m.tipo.name,
-              'data_hora': m.dataHora.toIso8601String(),
-              'custo_total': m.custoTotal,
-              'dados_json': jsonEncode(m.toJson()),
-            },
-            conflictAlgorithm: ConflictAlgorithm.replace,
-          );
-        }
-
-        if (estoqueIds.isEmpty) {
-          await txn.delete('movimentos_estoque',
-              where: 'loja_id = ?', whereArgs: [loja.id]);
-        } else {
-          final ePlaceholders = List.filled(estoqueIds.length, '?').join(',');
-          await txn.delete(
-            'movimentos_estoque',
-            where: 'loja_id = ? AND id NOT IN ($ePlaceholders)',
-            whereArgs: [loja.id, ...estoqueIds],
-          );
-        }
-
-        final pagamentosIds = <String>[];
-        for (final pag in loja.pagamentosFuncionarios) {
-          pagamentosIds.add(pag.id);
-          await txn.insert(
-            'pagamentos_funcionarios',
-            {
-              'id': pag.id,
-              'loja_id': loja.id,
-              'data_hora': pag.dataHora.toIso8601String(),
-              'valor': pag.valor,
-              'dados_json': jsonEncode(pag.toJson()),
-            },
-            conflictAlgorithm: ConflictAlgorithm.replace,
-          );
-        }
-
-        if (pagamentosIds.isEmpty) {
-          await txn.delete('pagamentos_funcionarios',
-              where: 'loja_id = ?', whereArgs: [loja.id]);
-        } else {
-          final pagPlaceholders =
-              List.filled(pagamentosIds.length, '?').join(',');
-          await txn.delete(
-            'pagamentos_funcionarios',
-            where: 'loja_id = ? AND id NOT IN ($pagPlaceholders)',
-            whereArgs: [loja.id, ...pagamentosIds],
-          );
-        }
+        // Proteção Soberana Local-First: nunca deleta pedidos, estoque ou pagamentos
+        // existentes no banco SQLite por omissão na lista em memória!
       }
     });
   }
@@ -641,6 +723,7 @@ class LojasService {
     return rows
         .map((r) =>
             ReferenciaLoja.fromJson(jsonDecode(r['dados_json'] as String)))
+        .where((ref) => !ehLojaHostFalsa(ref.lojaId))
         .toList();
   }
 
@@ -672,6 +755,7 @@ class LojasService {
     String cpf,
     ReferenciaLoja referencia,
   ) async {
+    if (ehLojaHostFalsa(referencia.lojaId)) return;
     final atuais = await carregarReferencias(cpf);
     final jaTem = atuais.any((r) => r.lojaId == referencia.lojaId);
     if (jaTem) return;
@@ -689,6 +773,7 @@ class LojasService {
 
   /// Salva ou atualiza uma única loja no cofre do seu dono original com proteção total contra perda de imagens
   static Future<void> salvarLojaIndividual(Loja loja) async {
+    if (ehLojaHostFalsa(loja.id, loja.tags, loja.nome)) return;
     final dono = loja.cpfDonoOriginal.isNotEmpty ? loja.cpfDonoOriginal : 'sistema';
     final cofre = await carregar(dono);
     final idx = cofre.indexWhere((l) => l.id == loja.id);

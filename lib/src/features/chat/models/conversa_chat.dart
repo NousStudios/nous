@@ -9,7 +9,9 @@ class ConversaChat {
   final String identificador; // CPF do usuário, ID da loja ou ID do grupo
   final bool ehLoja;
   final bool ehGrupo;
-  final String nomeGrupo; // Nome do grupo mantido independente do título da conversa
+  final String
+  nomeGrupo; // Nome do grupo mantido independente do título da conversa
+  final String tituloConversa; // Título/assunto da conversa, independente do nome do contato
   final String? lojaId; // ID da loja caso pertença ao escopo de uma loja
   final List<String> participantesIds;
   final String ultimaMensagem;
@@ -29,6 +31,7 @@ class ConversaChat {
     this.ehLoja = false,
     this.ehGrupo = false,
     this.nomeGrupo = '',
+    this.tituloConversa = '',
     this.lojaId,
     this.participantesIds = const [],
     this.ultimaMensagem = '',
@@ -40,6 +43,11 @@ class ConversaChat {
     this.atualizadaEm,
   });
 
+  bool get temTituloConversa =>
+      tituloConversa.trim().isNotEmpty &&
+      tituloConversa.trim().toLowerCase() != titulo.trim().toLowerCase() &&
+      tituloConversa.trim().toLowerCase() != nomeGrupo.trim().toLowerCase();
+
   ConversaChat copyWith({
     String? id,
     String? titulo,
@@ -49,6 +57,7 @@ class ConversaChat {
     bool? ehLoja,
     bool? ehGrupo,
     String? nomeGrupo,
+    String? tituloConversa,
     String? lojaId,
     List<String>? participantesIds,
     String? ultimaMensagem,
@@ -68,6 +77,7 @@ class ConversaChat {
       ehLoja: ehLoja ?? this.ehLoja,
       ehGrupo: ehGrupo ?? this.ehGrupo,
       nomeGrupo: nomeGrupo ?? this.nomeGrupo,
+      tituloConversa: tituloConversa ?? this.tituloConversa,
       lojaId: lojaId ?? this.lojaId,
       participantesIds: participantesIds ?? this.participantesIds,
       ultimaMensagem: ultimaMensagem ?? this.ultimaMensagem,
@@ -92,6 +102,8 @@ class ConversaChat {
       'ehGrupo': ehGrupo,
       'nomeGrupo': nomeGrupo,
       'nome_grupo': nomeGrupo,
+      'tituloConversa': tituloConversa,
+      'titulo_conversa': tituloConversa,
       'lojaId': lojaId ?? '',
       'participantesIds': participantesIds,
       'ultimaMensagem': ultimaMensagem,
@@ -100,7 +112,8 @@ class ConversaChat {
       'mensagens': mensagens.map((m) => m.toJson()).toList(),
       'fixada': fixada,
       'arquivada': arquivada,
-      'atualizadaEm': (atualizadaEm ?? dataHoraUltimaMensagem).toIso8601String(),
+      'atualizadaEm': (atualizadaEm ?? dataHoraUltimaMensagem)
+          .toIso8601String(),
     };
   }
 
@@ -120,34 +133,61 @@ class ConversaChat {
       } catch (_) {}
     }
 
-    final dataHoraStr = (json['dataHoraUltimaMensagem'] as String?) ??
+    final dataHoraStr =
+        (json['dataHoraUltimaMensagem'] as String?) ??
         (json['data_hora_ultima_mensagem'] as String?);
 
-    final ehG = (json['ehGrupo'] as bool?) ??
-        ((json['eh_grupo'] as int?) == 1);
+    final ehG = (json['ehGrupo'] as bool?) ?? ((json['eh_grupo'] as int?) == 1);
 
-    var nGrupo = (json['nomeGrupo'] as String?) ??
-        (json['nome_grupo'] as String?) ??
-        '';
+    var nGrupo =
+        (json['nomeGrupo'] as String?) ?? (json['nome_grupo'] as String?) ?? '';
 
-    final titOriginal = json['titulo'] as String? ?? '';
-    if (nGrupo.isEmpty && ehG && titOriginal.isNotEmpty && titOriginal != 'Conversa' && titOriginal != 'Nova Conversa') {
+    final titOriginal = (json['titulo'] as String? ?? '').trim();
+    final subOriginal = (json['subtitulo'] as String? ?? '').trim();
+    if (nGrupo.isEmpty &&
+        ehG &&
+        titOriginal.isNotEmpty &&
+        titOriginal != 'Conversa' &&
+        titOriginal != 'Nova Conversa') {
       nGrupo = titOriginal;
     }
 
+    final titValido = titOriginal.isNotEmpty &&
+        titOriginal != 'Conversa' &&
+        titOriginal != 'Nova Conversa' &&
+        titOriginal != 'Contato' &&
+        titOriginal != 'Contato Nous';
+
+    final subValido = subOriginal.isNotEmpty &&
+        subOriginal != 'Conversa' &&
+        subOriginal != 'Contato Nous';
+
+    final tituloResolvido = titValido
+        ? titOriginal
+        : (nGrupo.isNotEmpty
+            ? nGrupo
+            : (subValido
+                ? subOriginal
+                : (ehG
+                    ? (nGrupo.isNotEmpty ? nGrupo : 'Grupo')
+                    : 'Contato Nous')));
+
     return ConversaChat(
       id: json['id'] as String? ?? '',
-      titulo: titOriginal,
-      subtitulo: json['subtitulo'] as String? ?? '',
+      titulo: tituloResolvido,
+      subtitulo: subOriginal,
       foto: json['foto'] as String? ?? '',
       identificador: json['identificador'] as String? ?? '',
-      ehLoja: (json['ehLoja'] as bool?) ??
-          ((json['eh_loja'] as int?) == 1),
+      ehLoja: (json['ehLoja'] as bool?) ?? ((json['eh_loja'] as int?) == 1),
       ehGrupo: ehG,
       nomeGrupo: nGrupo,
+      tituloConversa: (json['tituloConversa'] as String?) ??
+          (json['titulo_conversa'] as String?) ??
+          '',
       lojaId: json['lojaId'] as String? ?? json['loja_id'] as String?,
       participantesIds: participantes,
-      ultimaMensagem: json['ultimaMensagem'] as String? ??
+      ultimaMensagem:
+          json['ultimaMensagem'] as String? ??
           json['ultima_mensagem'] as String? ??
           '',
       dataHoraUltimaMensagem: dataHoraStr != null
@@ -162,9 +202,8 @@ class ConversaChat {
       atualizadaEm: json['atualizadaEm'] != null
           ? DateTime.tryParse(json['atualizadaEm'] as String)
           : (json['atualizado_em'] != null
-              ? DateTime.tryParse(json['atualizado_em'] as String)
-              : null),
+                ? DateTime.tryParse(json['atualizado_em'] as String)
+                : null),
     );
   }
 }
-

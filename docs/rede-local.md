@@ -2,7 +2,7 @@
 
 Princípio: **toda a aplicação conversa como um só organismo.** Qualquer informação ou foto que falte em um aparelho e exista em outro dispositivo da mesma rede deve ser atualizada nos demais, de forma orgânica, em qualquer direção, sem importar quem é servidor ou cliente.
 
-Arquivos principais: `pdv/services/rede_local/servidor_rede_local.dart`, `pdv/services/rede_local/cliente_rede_local.dart`, `auth/providers/auth_provider.dart`, `auth/services/contas_nous_service.dart`, `pdv/services/imagem_service.dart`, `pdv/services/lojas_service.dart`, `pdv/providers/pdv_provider.dart`. Interface: `SincronizacaoRedeDialog` (ver `MAPA_DO_APP.md`, 4.1).
+Arquivos principais: `pdv/services/rede_local/servidor_rede_local.dart`, `pdv/services/rede_local/manipulador_midia_servidor.dart`, `pdv/services/rede_local/cliente_rede_local.dart`, `pdv/services/rede_local/transferencia_arquivos_rede.dart`, `pdv/services/rede_local/reconciliador_loja_rede.dart`, `pdv/services/rede_local/sincronizador_usuarios_rede.dart`, `auth/providers/auth_provider.dart`, `auth/services/contas_nous_service.dart`, `pdv/services/imagem_service.dart`, `pdv/services/lojas_service.dart`, `pdv/providers/pdv_provider.dart`. Interface: `SincronizacaoRedeDialog` (ver `MAPA_DO_APP.md`, 4.1).
 
 ## 1. Arquitetura
 
@@ -31,6 +31,7 @@ Arquivos principais: `pdv/services/rede_local/servidor_rede_local.dart`, `pdv/se
 | `GET /api/usuario?cpf=...` | Ficha do usuário (foto sanitizada se o arquivo físico não existir) |
 | `POST /api/usuario` | Atualizar ficha do usuário |
 | `POST /api/sincronizar_perfis_usuario` | Fusão pan-dispositivo de perfis/lojas do mesmo CPF |
+| `GET /api/relogio` | Sincronização de relógio da rede local (Uníssono - Algoritmo de Cristian) |
 | `GET /api/versao` | Versão e build disponíveis |
 | `GET /api/download_apk` | APK da versão atual |
 | `WS /api/ws` | Canal em tempo real |
@@ -43,8 +44,15 @@ Mensagens WebSocket:
 - `mensagem_chat`: troca de mensagens em tempo real entre atendentes e clientes com foto resolvida do remetente e autocura mútua.
 - `mensagem_entregue`: confirmação imediata quando o terminal receptor grava a mensagem, atualizando o remetente para 2 checks cinzas em tempo real.
 - `mensagens_lidas`: notificação de leitura quando a conversa é aberta pelo receptor, atualizando os checks para azul oficial WhatsApp (`#34B7F1`).
+- `chamada_iniciar`: oferta inicial de chamada de voz ou vídeo enviada ao destinatário via rede local.
+- `chamada_aceita` e `chamada_rejeitada`: resposta do receptor ao convite de ligação.
+- `chamada_sinal_sdp` e `chamada_candidato_ice`: troca de ofertas/respostas SDP e candidatos ICE locais (WebRTC P2P LAN) para handshake direto de mídia sem servidores externos.
+- `chamada_encerrada`: notificação de encerramento de ligação ativa.
 
-## 3. Autorização de terminais
+## 3. Autorização de terminais e Modos de Operação (Loja vs Usuário Nous)
+
+- **Paridade Absoluta:** O servidor de rede local (`ServidorRedeLocal`) opera tanto hospedando uma loja comercial quanto em modo pessoal/usuário Nous. Mesmo sem nenhuma loja ativa (`_lojaAtiva == null`), o servidor inclui automaticamente o host na lista de presenças ativas, permitindo que outros usuários conectados troquem mensagens, chamadas e sincronizem contatos normalmente.
+
 
 No primeiro `GET /api/loja` de um terminal novo, o servidor mostra janela modal com alerta sonoro (`_solicitarAutorizacaoTerminal`): nome do aparelho, nome do usuário, CPF e IP. **Autorizar** ou **Recusar**. Recusa ou timeout de 30 s → HTTP 403.
 

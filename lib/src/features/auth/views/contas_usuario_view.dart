@@ -65,10 +65,22 @@ class _ContasUsuarioViewState extends State<ContasUsuarioView> {
   }
 
   Future<void> _entrarComEmail(BuildContext context, [String? email]) async {
-    final auth = context.read<AuthProvider>();
-    if (email != null && email.isNotEmpty) {
-      auth.definirEmailAtivo(email);
+    final emailFinal = email?.trim();
+    if (emailFinal == null || emailFinal.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'É obrigatório cadastrar e selecionar um e-mail para prosseguir.',
+          ),
+          backgroundColor: Colors.redAccent,
+        ),
+      );
+      await _abrirAdicionarEmail(context);
+      return;
     }
+
+    final auth = context.read<AuthProvider>();
+    auth.definirEmailAtivo(emailFinal);
     final cpf = auth.cpf;
     await context.read<PdvProvider>().entrarComCpf(cpf);
 
@@ -90,12 +102,15 @@ class _ContasUsuarioViewState extends State<ContasUsuarioView> {
     );
     if (sucesso == true && context.mounted) {
       final auth = context.read<AuthProvider>();
-      await _entrarComEmail(context, auth.emailAtivo);
+      if (auth.emailAtivo != null && auth.emailAtivo!.isNotEmpty) {
+        await _entrarComEmail(context, auth.emailAtivo);
+      }
     }
   }
 
   void _voltar(BuildContext context) {
     context.read<AuthProvider>().sair();
+    context.read<PdvProvider>().limparSessao();
     Navigator.pushAndRemoveUntil(
       context,
       MaterialPageRoute(builder: (context) => const LoginView()),
@@ -264,20 +279,42 @@ class _ContasUsuarioViewState extends State<ContasUsuarioView> {
                       if (conta == null || conta.emails.isEmpty) ...[
                         EstadoVazioContainer(
                           theme: theme,
-                          mensagem: 'Nenhum e-mail associado ainda.',
+                          mensagem:
+                              'Nenhum e-mail associado ainda.\nÉ obrigatório vincular um e-mail para acessar a Conta Nous.',
                         ),
-                        const SizedBox(height: 12),
-                        TextButton(
-                          onPressed: () => _entrarComEmail(context),
-                          child: Text(
-                            'Continuar sem e-mail',
+                        const SizedBox(height: 16),
+                        ElevatedButton.icon(
+                          icon: const Icon(Icons.mail_outline, size: 18),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: theme.buttonColor,
+                            foregroundColor: theme.buttonTextColor,
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 24,
+                              vertical: 14,
+                            ),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                          ),
+                          onPressed: () => _abrirAdicionarEmail(context),
+                          label: Text(
+                            'Cadastrar e-mail obrigatório',
                             style: theme.getTextStyle(
-                              fontSize: 13,
-                              color: theme.secondaryTextColor,
+                              fontSize: 14,
+                              fontWeight: FontWeight.bold,
+                              color: theme.buttonTextColor,
                             ),
                           ),
                         ),
-                      ] else
+                      ] else ...[
+                        Text(
+                          'Toque em um e-mail para iniciar sua sessão:',
+                          style: theme.getTextStyle(
+                            fontSize: 12,
+                            color: theme.secondaryTextColor,
+                          ),
+                        ),
+                        const SizedBox(height: 10),
                         Column(
                           children: [
                             for (final email in conta.emails)
@@ -294,25 +331,26 @@ class _ContasUsuarioViewState extends State<ContasUsuarioView> {
                               ),
                           ],
                         ),
-                      const SizedBox(height: 16),
-                      OutlinedButton(
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: theme.textColor,
-                          side: BorderSide(color: theme.borderColor),
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 20,
-                            vertical: 14,
+                        const SizedBox(height: 16),
+                        OutlinedButton(
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: theme.textColor,
+                            side: BorderSide(color: theme.borderColor),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 20,
+                              vertical: 14,
+                            ),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(10),
+                            ),
                           ),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(10),
+                          onPressed: () => _abrirAdicionarEmail(context),
+                          child: Text(
+                            'Adicionar outro e-mail',
+                            style: theme.getTextStyle(fontSize: 13),
                           ),
                         ),
-                        onPressed: () => _abrirAdicionarEmail(context),
-                        child: Text(
-                          'Adicionar email',
-                          style: theme.getTextStyle(fontSize: 13),
-                        ),
-                      ),
+                      ],
                       const SizedBox(height: 12),
                       TextButton(
                         onPressed: () => _excluirConta(context),

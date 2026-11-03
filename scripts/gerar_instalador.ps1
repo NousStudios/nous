@@ -15,8 +15,8 @@ $workspace = Split-Path -Parent $PSScriptRoot
 Set-Location $workspace
 
 # Extrai a versão e build de pubspec.yaml logo no início
-$versao = "1.0.9"
-$build = 10
+$versao = "1.0.62"
+$build = 63
 if (Test-Path "pubspec.yaml") {
     $conteudo = Get-Content "pubspec.yaml"
     foreach ($linha in $conteudo) {

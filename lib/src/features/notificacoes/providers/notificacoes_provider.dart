@@ -1,12 +1,30 @@
 import 'package:flutter/foundation.dart';
 import 'package:nous/src/features/notificacoes/models/convite_loja.dart';
 import 'package:nous/src/features/notificacoes/services/convites_service.dart';
+import 'package:nous/src/features/pdv/models/loja.dart';
 
 class NotificacoesProvider extends ChangeNotifier {
+  static NotificacoesProvider? _instanciaAtiva;
+  static NotificacoesProvider? get instanciaAtiva => _instanciaAtiva;
+
   String? _cpfAtual;
   List<ConviteLoja> _convites = [];
 
   final Set<String> _notificacoesDispensadasSessao = {};
+
+  NotificacoesProvider() {
+    _instanciaAtiva = this;
+  }
+
+  @override
+  void dispose() {
+    if (_instanciaAtiva == this) {
+      _instanciaAtiva = null;
+    }
+    super.dispose();
+  }
+
+  String? get cpfAtual => _cpfAtual;
 
   List<ConviteLoja> get convites => List.unmodifiable(_convites);
 
@@ -42,14 +60,20 @@ class NotificacoesProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  Future<void> recarregarSeuCpf() async {
+    if (_cpfAtual != null && _cpfAtual!.isNotEmpty) {
+      await carregarParaCpf(_cpfAtual!);
+    }
+  }
+
   Future<void> limpar() async {
     _cpfAtual = null;
     _convites = [];
     notifyListeners();
   }
 
-  Future<void> enviarConvite(ConviteLoja convite) async {
-    await ConvitesService.adicionar(convite.cpfConvidado, convite);
+  Future<void> enviarConvite(ConviteLoja convite, {Loja? loja}) async {
+    await ConvitesService.adicionar(convite.cpfConvidado, convite, loja: loja);
     if (_cpfAtual != null &&
         _cpfAtual!.replaceAll(RegExp(r'\D'), '') ==
             convite.cpfConvidado.replaceAll(RegExp(r'\D'), '')) {
@@ -57,8 +81,8 @@ class NotificacoesProvider extends ChangeNotifier {
     }
   }
 
-  Future<void> adicionarNotificacao(ConviteLoja notificacao) async {
-    await enviarConvite(notificacao);
+  Future<void> adicionarNotificacao(ConviteLoja notificacao, {Loja? loja}) async {
+    await enviarConvite(notificacao, loja: loja);
   }
 
   Future<void> aceitar(String conviteId) async {

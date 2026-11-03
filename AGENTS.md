@@ -19,6 +19,9 @@
   - O dado (entidades soberanas e repositórios) existe antes da tela; a tela é apenas um consumidor que renderiza o estado e dispara intenções do usuário.
   - Economia de contexto sim (leitura cirúrgica, grep e edições focadas), mas com arquitetura modular, limpa, desacoplada e escalável.
   - Foco no que foi pedido; sem remendos imediatistas que criem dívida técnica.
+  - **Modularidade Estrita e Teto de Linhas:** Nenhum arquivo de código `.dart` deve ultrapassar o teto saudável de 500 a 800 linhas. Telas e componentes complexos DEVEM ser modularizados imediatamente, separando `views/` (só layout e montagem), `controllers/` (`ChangeNotifier` com lógica de negócio/estado), `widgets/` (componentes visuais e cards reutilizáveis), `dialogs/` (modais isolados) e `services/` (resolução/acesso a dados). Proibido criar ou manter arquivos monolíticos gigantes. Regra completa: `.agents/rules/modularidade_e_tamanho_arquivos.md`.
+  - **Contrato Local-First Obrigatório:** O Nous é offline-first com SQLite individual por dispositivo. NENHUM dado gravado localmente chega a outro aparelho sem passar pelos 4 elos (Persistência Origem -> Despacho WebSocket -> Recepção Destino -> Reatividade UI). Proibido usar animações infinitas em listas ou cabeçalhos dinâmicos (`TextoRolante`). Regra completa: `.agents/rules/contrato_rede_local_first.md`.
+  - **Arquitetura Hub Universal e Escalabilidade:** Desacoplamento do Big Blob de pedidos do objeto `Loja`, padrão Outbox para fila assíncrona de eventos, adaptadores para canais externos (WhatsApp, feeds sociais, nuvem soberana), IDs canônicos universais e mídias por caminhos relativos. Regra completa: `.agents/rules/arquitetura_hub_universal.md`.
 - **Não adicione pacotes ao `pubspec.yaml` sem alinhamento prévio.**
 - **Higiene Estrita de Repositório (Git Leve):** Proibido commitar arquivos binários compilados (`dist/`, `*.apk`, `*.exe`, `*.msi`, `*.aab`). Todos os artefatos de build devem permanecer no `.gitignore`. O repositório armazena estritamente código-fonte e assets essenciais.
 - **Cuidado Proativo com o Desenvolvedor Iniciante:** Por ser autodidata e iniciante, antecipe e proteja contra armadilhas técnicas que ele ainda não conhece (ex.: limites de tamanho do GitHub, arquivos temporários rastreados, flags de compilação pesadas, acoplamento de escopo). Explique os motivos com clareza antes de qualquer ação que impacte o fluxo de trabalho dele.
@@ -42,7 +45,7 @@ Após cada ciclo concluído e validado (testes e `flutter analyze`), compile os 
 
 SuperApp brasileiro, livre e de código aberto, de **Autogestão Comercial e Social**, baseado no Plataformismo Brasileiro. Hoje o núcleo é um **PDV completo** (lojas, vendas, estoque, caixa, financeiro, impressão térmica) com identidade por CPF, notificações deliberativas e sincronização local por Wi-Fi. Módulos futuros (pastas reservadas): `chat`, `timeline`, `delivery`, `banco`, `autogestao`.
 
-- Stack: Flutter/Dart, `Provider` (ChangeNotifier), SQLite local (`sqflite_common_ffi`), versão atual no `pubspec.yaml` (hoje v1.0.35+36).
+- Stack: Flutter/Dart, `Provider` (ChangeNotifier), SQLite local (`sqflite_common_ffi`), versão atual no `pubspec.yaml` (hoje v1.0.62+63).
 - Plataformas: Windows (foco principal), Android; também Web, Linux, iOS.
 - Política e filosofia completas: `docs/filosofia.md`.
 
@@ -103,6 +106,7 @@ SuperApp brasileiro, livre e de código aberto, de **Autogestão Comercial e Soc
 | Preciso de... | Leia |
 |---|---|
 | Saber o que existe em cada tela/container/botão e em qual arquivo | `MAPA_DO_APP.md` |
+| Modularidade, teto de linhas (500-800) e separação de arquivos | `.agents/rules/modularidade_e_tamanho_arquivos.md` |
 | Termos técnicos explicados / como pedir uma mudança | `GLOSSARIO.md` |
 | Rede Wi-Fi, sincronização, malha de autocura, endpoints | `docs/rede-local.md` |
 | Regras de venda, estoque, caixa, financeiro, pedidos | `docs/regras-de-negocio-pdv.md` |

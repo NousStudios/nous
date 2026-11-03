@@ -6,29 +6,28 @@ import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:nous/src/core/services/atualizacao_service.dart';
 import 'package:nous/src/core/services/changelog_service.dart';
+import 'package:nous/src/core/services/relogio_rede_service.dart';
+import 'package:nous/src/core/utils/json_isolate_utils.dart';
 import 'package:nous/src/features/auth/models/usuario_nous.dart';
 import 'package:nous/src/features/auth/providers/auth_provider.dart';
 import 'package:nous/src/features/auth/services/contas_nous_service.dart';
 import 'package:nous/src/features/chat/models/mensagem_chat.dart';
+import 'package:nous/src/features/chat/services/chamada_webrtc_service.dart';
 import 'package:nous/src/features/chat/services/chat_service.dart';
-import 'package:nous/src/features/pdv/models/categoria_loja.dart';
-import 'package:nous/src/features/pdv/models/cliente.dart';
-import 'package:nous/src/features/pdv/models/fornecedor.dart';
-import 'package:nous/src/features/pdv/models/item_loja.dart';
 import 'package:nous/src/features/pdv/models/loja.dart';
 import 'package:nous/src/features/pdv/models/membro_loja.dart';
 import 'package:nous/src/features/pdv/models/mesa_loja.dart';
 import 'package:nous/src/features/pdv/models/movimento_estoque.dart';
-import 'package:nous/src/features/pdv/models/pagamento_funcionario.dart';
 import 'package:nous/src/features/pdv/models/pedido_loja.dart';
 import 'package:nous/src/features/pdv/models/referencia_loja.dart';
-import 'package:nous/src/features/pdv/models/registro_acao.dart';
 import 'package:nous/src/features/pdv/providers/pdv_provider.dart';
-import 'package:nous/src/features/pdv/services/dados_locais_service.dart';
 import 'package:nous/src/features/pdv/services/imagem_service.dart';
 import 'package:nous/src/features/pdv/services/lojas_service.dart';
+import 'package:nous/src/features/pdv/services/rede_local/reconciliador_loja_rede.dart';
 import 'package:nous/src/features/pdv/services/rede_local/servidor_rede_local.dart';
-import 'package:path/path.dart' as p;
+import 'package:nous/src/features/pdv/services/rede_local/sincronizador_usuarios_rede.dart';
+import 'package:nous/src/features/pdv/services/rede_local/transferencia_arquivos_rede.dart';
+import 'package:nous/src/features/pdv/services/rede_local/handlers/cliente_ws_message_handler.dart';
 
 /// Informações de um servidor de loja anunciado na rede Wi-Fi local.
 class DispositivoLojaInfo {
@@ -37,6 +36,7 @@ class DispositivoLojaInfo {
   final String ip;
   final int porta;
   final DateTime vistoEm;
+  final String tipoHost;
 
   const DispositivoLojaInfo({
     required this.lojaId,
@@ -44,8 +44,10 @@ class DispositivoLojaInfo {
     required this.ip,
     required this.porta,
     required this.vistoEm,
+    this.tipoHost = 'loja',
   });
 
+  bool get ehUsuario => tipoHost == 'usuario' || lojaId.isEmpty;
   String get enderecoCompleto => '$ip:$porta';
 
   @override
@@ -90,9 +92,19 @@ class ClienteRedeLocal {
 
   bool _aplicandoAtualizacaoRemota = false;
   bool get aplicandoAtualizacaoRemota => _aplicandoAtualizacaoRemota;
-  bool _sincronizandoPerfisLojas = false;
+  final TransferenciaArquivosRede _transferencia = TransferenciaArquivosRede();
+  late final ReconciliadorLojaRede _reconciliador =
+      ReconciliadorLojaRede(transferencia: _transferencia);
+  late final SincronizadorUsuariosRede _sincronizador = SincronizadorUsuariosRede(
+    transferencia: _transferencia,
+    reconciliador: _reconciliador,
+  );
+
   Timer? _timerDebounceEnvioLoja;
-  final Map<String, String> _mapaUploadsRealizados = {};
+
+  bool _conectando = false;
+  bool get conectando => _conectando;
+  bool _usuarioDesconectouManualmente = false;
 
   bool get conectado => _ws != null && estaConectado.value;
   String? get ipServidor => _ipServidor;
@@ -101,6 +113,69 @@ class ClienteRedeLocal {
       _ipServidor != null && _portaServidor != null ? '$_ipServidor:$_portaServidor' : null;
   Loja? get lojaSincronizada => _lojaSincronizada;
   String get nomeDispositivo => _nomeDispositivo;
+
+  void vincularAuthProvider(AuthProvider auth) {
+    _authProvider = auth;
+  }
+
+  /// Atualiza ativamente a identificação do terminal móvel no balcão quando o usuário faz login ou troca de conta
+  Future<void> atualizarIdentidadeUsuario({
+    String? cpf,
+    String? nome,
+    String? apelido,
+    String? foto,
+  }) async {
+    final cpfFinal = cpf ??
+        _pdvProvider?.cpfAtual ??
+        _authProvider?.contaAtual?.cpf ??
+        _authProvider?.cpf ??
+        '';
+    String? nomeFinal = nome ?? _authProvider?.contaAtual?.nome;
+    String? apelidoFinal = apelido ?? _authProvider?.contaAtual?.apelido;
+    String? fotoFinal = foto ?? _authProvider?.contaAtual?.foto;
+
+    if (cpfFinal.isNotEmpty && (nomeFinal == null || nomeFinal.isEmpty)) {
+      final conta = await ContasNousService.buscarPorCpf(cpfFinal);
+      nomeFinal = conta?.nome;
+      apelidoFinal = conta?.apelido;
+      fotoFinal = conta?.foto;
+    }
+
+    if (_ws != null && estaConectado.value) {
+      try {
+        _ws!.add(
+          jsonEncode({
+            'tipo': 'identificacao',
+            'nomeDispositivo': _nomeDispositivo,
+            'cpf': cpfFinal,
+            'nomeUsuario': nomeFinal,
+            'apelido': apelidoFinal,
+            if (fotoFinal != null && fotoFinal.isNotEmpty) 'foto': fotoFinal,
+          }),
+        );
+        debugPrint(
+          '[ClienteRedeLocal] Identidade do usuário atualizada com sucesso no balcão via WebSocket: CPF $cpfFinal ($nomeFinal)',
+        );
+      } catch (e) {
+        debugPrint('[ClienteRedeLocal] Erro ao enviar identificação atualizada ao balcão: $e');
+      }
+    }
+  }
+
+  /// Notifica o servidor do balcão que o usuário deslogou deste terminal
+  void notificarLogout() {
+    if (_ws != null && estaConectado.value) {
+      try {
+        _ws!.add(
+          jsonEncode({
+            'tipo': 'logout',
+            'nomeDispositivo': _nomeDispositivo,
+          }),
+        );
+        debugPrint('[ClienteRedeLocal] Notificação de logout enviada ao balcão.');
+      } catch (_) {}
+    }
+  }
 
   Future<String> obterNomeDispositivo() async {
     if (_nomeCarregado) return _nomeDispositivo;
@@ -184,12 +259,15 @@ class ClienteRedeLocal {
       final json = jsonDecode(texto) as Map<String, dynamic>;
 
       if (json['assinatura'] == 'nous_loja_anuncio') {
+        final lojaIdStr = (json['lojaId'] as String?) ?? '';
+        final tipoHost = json['tipoHost'] as String? ?? (lojaIdStr.isNotEmpty ? 'loja' : 'usuario');
         final info = DispositivoLojaInfo(
-          lojaId: json['lojaId'] as String,
-          lojaNome: json['lojaNome'] as String,
+          lojaId: lojaIdStr,
+          lojaNome: (json['lojaNome'] as String?) ?? 'Usuário Nous',
           ip: json['ip'] as String,
           porta: json['porta'] as int,
           vistoEm: DateTime.now(),
+          tipoHost: tipoHost,
         );
 
         final lista = List<DispositivoLojaInfo>.from(lojasEncontradas.value);
@@ -209,8 +287,8 @@ class ClienteRedeLocal {
 
         lojasEncontradas.value = lista;
 
-        // Auto-conecta se ainda desconectado
-        if (!conectado && _pdvProvider != null) {
+        // Auto-conecta se ainda desconectado e não estiver em tentativa de conexão
+        if (!conectado && !_conectando && _pdvProvider != null) {
           conectar(ip: info.ip, porta: info.porta, pdv: _pdvProvider!, auth: _authProvider);
         }
       }
@@ -222,7 +300,7 @@ class ClienteRedeLocal {
     if (ServidorRedeLocal().ativo) return;
     _pdvProvider = pdv;
     if (auth != null) _authProvider = auth;
-    if (conectado) return;
+    if (conectado || _conectando) return;
 
     await iniciarDescoberta();
 
@@ -238,7 +316,7 @@ class ClienteRedeLocal {
     } catch (_) {}
 
     // 2. Se já encontrou servidores via UDP, conecta no primeiro disponível
-    if (lojasEncontradas.value.isNotEmpty) {
+    if (!conectado && !_conectando && lojasEncontradas.value.isNotEmpty) {
       final primeiro = lojasEncontradas.value.first;
       await conectar(ip: primeiro.ip, porta: primeiro.porta, pdv: pdv, auth: auth);
     }
@@ -255,9 +333,23 @@ class ClienteRedeLocal {
       debugPrint('[ClienteRedeLocal] Esta máquina já é o Servidor Balcão ativo. Conexão cliente ignorada.');
       return false;
     }
-    await desconectar();
+    final ipAlvo = ip.trim();
+    if (conectado && _ipServidor == ipAlvo && _portaServidor == porta) {
+      debugPrint('[ClienteRedeLocal] Conexão já ativa em $ipAlvo:$porta.');
+      return true;
+    }
+    if (_conectando) {
+      debugPrint('[ClienteRedeLocal] Conexão já em andamento para $ipAlvo:$porta. Ignorando chamada concorrente.');
+      return false;
+    }
 
-    _ipServidor = ip.trim();
+    _conectando = true;
+    _usuarioDesconectouManualmente = false;
+    _timerReconexao?.cancel();
+    _timerReconexao = null;
+    await desconectar(manual: false);
+
+    _ipServidor = ipAlvo;
     _portaServidor = porta;
     _pdvProvider = pdv;
     if (auth != null) _authProvider = auth;
@@ -307,27 +399,69 @@ class ClienteRedeLocal {
       }
 
       final body = await utf8.decodeStream(response);
-      final dados = jsonDecode(body) as Map<String, dynamic>;
+      final dados = await decodificarJsonMapaSeguro(body);
 
-      if (dados['sucesso'] == true && dados['loja'] != null) {
-        final lojaBruta = Loja.fromJson(dados['loja'] as Map<String, dynamic>);
-        final imagensAusentes = (dados['imagensAusentes'] as List<dynamic>? ?? [])
-            .map((e) => e.toString())
-            .toList();
+      if (dados['sucesso'] == true) {
+        if (dados['loja'] != null) {
+          final lojaBruta = Loja.fromJson(dados['loja'] as Map<String, dynamic>);
+          if (!LojasService.ehLojaHostFalsa(lojaBruta.id, lojaBruta.tags, lojaBruta.nome)) {
+            final imagensAusentes = (dados['imagensAusentes'] as List<dynamic>? ?? [])
+                .map((e) => e.toString())
+                .toList();
 
-        // Realiza reconciliação mútua: preenche lacunas do servidor e baixa novidades locais
-        _lojaSincronizada = await _reconciliarLojaMutua(lojaBruta, imagensAusentes);
+            // Realiza reconciliação mútua: preenche lacunas do servidor e baixa novidades locais
+            _lojaSincronizada = await _reconciliarLojaMutua(lojaBruta, imagensAusentes);
 
-        // Atualiza a loja no provedor local e no SQLite para visualização completa com imagens
-        await _pdvProvider!.adicionarOuAtualizarLoja(_lojaSincronizada!);
-        await _vincularLojaSeNecessario(_lojaSincronizada!);
+            // Atualiza a loja no provedor local e no SQLite para visualização completa com imagens
+            await _pdvProvider!.adicionarOuAtualizarLoja(_lojaSincronizada!);
+            await _vincularLojaSeNecessario(_lojaSincronizada!);
 
-        if (dados['fotosUsuariosAusentes'] != null) {
-          final ausentes = (dados['fotosUsuariosAusentes'] as List<dynamic>)
-              .map((e) => e.toString())
-              .toList();
-          _curarFotosUsuariosAusentesNoServidor(ausentes);
+            if (dados['fotosUsuariosAusentes'] != null) {
+              final ausentes = (dados['fotosUsuariosAusentes'] as List<dynamic>)
+                  .map((e) => e.toString())
+                  .toList();
+              _curarFotosUsuariosAusentesNoServidor(ausentes);
+            }
+          } else {
+            _lojaSincronizada = null;
+          }
+        } else {
+          _lojaSincronizada = null;
         }
+
+        if (dados['lojaNousColetiva'] != null && _pdvProvider != null) {
+          try {
+            final lojaNousBruta =
+                Loja.fromJson(dados['lojaNousColetiva'] as Map<String, dynamic>);
+            final lojaNousAtual =
+                _pdvProvider!.buscarPorId(PdvProvider.idLojaColetivaNous);
+            if (lojaNousAtual != null) {
+              final membrosCombinados = <String, MembroLoja>{};
+              for (final m in lojaNousAtual.membros) {
+                membrosCombinados[m.cpf.replaceAll(RegExp(r'\D'), '')] = m;
+              }
+              for (final m in lojaNousBruta.membros) {
+                final cpfNorm = m.cpf.replaceAll(RegExp(r'\D'), '');
+                membrosCombinados[cpfNorm] = m;
+              }
+              final mesclada = lojaNousAtual.copyWith(
+                membros: membrosCombinados.values.toList(),
+              );
+              await _pdvProvider!.adicionarOuAtualizarLoja(mesclada);
+            } else {
+              await _pdvProvider!.adicionarOuAtualizarLoja(lojaNousBruta);
+            }
+          } catch (_) {}
+        }
+
+        if (dados['presencas'] != null) {
+          final lista = dados['presencas'] as List<dynamic>? ?? [];
+          presencasAtivas.value = lista
+              .map((e) => TerminalConectadoInfo.fromJson(e as Map<String, dynamic>))
+              .toList();
+        }
+      } else {
+        _lojaSincronizada = null;
       }
 
       // 2. Conecta ao WebSocket para atualizações em tempo real
@@ -364,39 +498,55 @@ class ClienteRedeLocal {
         }
       });
 
+      final socketInstancia = _ws;
       _ws!.listen(
         _processarMensagemWs,
-        onDone: _aoDesconectar,
-        onError: (_) => _aoDesconectar(),
+        onDone: () {
+          debugPrint('[ClienteRedeLocal] WebSocket onDone recebido.');
+          if (_ws == socketInstancia) {
+            _aoDesconectar();
+          } else {
+            debugPrint('[ClienteRedeLocal] onDone de conexão anterior/substituída descartado.');
+          }
+        },
+        onError: (err) {
+          debugPrint('[ClienteRedeLocal] WebSocket onError recebido: $err');
+          if (_ws == socketInstancia) {
+            _aoDesconectar();
+          }
+        },
       );
 
-      // Sincroniza a identidade da conta ativa (foto e dados do usuário) a partir do balcão
-      sincronizarIdentidadeUsuario();
-
-      // Reconcilia todas as contas conhecidas deste aparelho com o balcão (autocura mútua)
-      _reconciliarTodasContasLocaisComServidor();
-
-      // Sincroniza pan-dispositivo todas as lojas e referências associadas ao CPF deste cidadão
-      sincronizarPerfisLojasComServidor();
-
-      // Sincroniza histórico de mensagens do chat com o balcão
-      ChatService.sincronizarMensagensComBalcao(
-        ipServidor: _ipServidor!,
-        portaServidor: _portaServidor!,
-        cpfUsuario: cpfLogado,
-        lojaId: _lojaSincronizada?.id,
-      );
-      ChatService.sincronizarMensagensComBalcao(
-        ipServidor: _ipServidor!,
-        portaServidor: _portaServidor!,
-        lojaId: PdvProvider.idLojaColetivaNous,
-      );
-
-      // Drena imediatamente qualquer mensagem pendente na fila offline
-      ChatService.drenarFilaDeSaida();
-
-      // Checa se o balcão possui uma versão/APK disponível para este aparelho
-      verificarAtualizacaoLocal();
+      // Orquestração sequencial e resiliente em background pós-conexão para evitar gargalos no socket e banco SQLite
+      unawaited(() async {
+        try {
+          // 0. Sincroniza o relógio em uníssono com o balcão antes de qualquer operação
+          await RelogioRedeService.instancia.sincronizarComServidor(
+            ip: _ipServidor!,
+            porta: _portaServidor!,
+          );
+          await sincronizarIdentidadeUsuario();
+          await reconciliarContasComServidor();
+          await sincronizarPerfisLojasComServidor();
+          await ChatService.sincronizarMensagensComBalcao(
+            ipServidor: _ipServidor!,
+            portaServidor: _portaServidor!,
+            cpfUsuario: cpfLogado,
+            lojaId: _lojaSincronizada?.id,
+          );
+          if (_lojaSincronizada?.id != PdvProvider.idLojaColetivaNous) {
+            await ChatService.sincronizarMensagensComBalcao(
+              ipServidor: _ipServidor!,
+              portaServidor: _portaServidor!,
+              lojaId: PdvProvider.idLojaColetivaNous,
+            );
+          }
+          await ChatService.drenarFilaDeSaida();
+          verificarAtualizacaoLocal();
+        } catch (e) {
+          debugPrint('[ClienteRedeLocal] Erro na sincronização pós-conexão: $e');
+        }
+      }());
 
       return true;
     } catch (e) {
@@ -406,226 +556,83 @@ class ClienteRedeLocal {
         ultimoErro.value = 'Não foi possível conectar ao balcão.';
       }
       return false;
+    } finally {
+      _conectando = false;
     }
   }
 
   Future<void> _processarMensagemWs(dynamic msg) async {
+    final ctx = ClienteWsContext(
+      pdvProvider: _pdvProvider,
+      authProvider: _authProvider,
+      presencasAtivas: presencasAtivas,
+      obterLojaSincronizada: () => _lojaSincronizada,
+      definirLojaSincronizada: (l) => _lojaSincronizada = l,
+      definirAplicandoAtualizacaoRemota: (v) => _aplicandoAtualizacaoRemota = v,
+      sincronizarImagensRemotas: _sincronizarImagensRemotas,
+      vincularLojaSeNecessario: _vincularLojaSeNecessario,
+      enviarLojaCuradaParaServidor: _enviarLojaCuradaParaServidor,
+      curarFotosUsuariosAusentesNoServidor: _curarFotosUsuariosAusentesNoServidor,
+      sincronizarPerfisLojasComServidor: sincronizarPerfisLojasComServidor,
+      processarSinalChamada: _processarSinalChamada,
+      baixarImagemRemota: baixarImagemRemota,
+    );
+    await ClienteWsMessageHandler.processarMensagem(msg, ctx);
+  }
+
+  void _processarSinalChamada(Map<String, dynamic> dados) {
     try {
-      final dados = jsonDecode(msg as String) as Map<String, dynamic>;
-      final tipo = dados['tipo'];
+      final tipo = dados['tipo'] as String?;
+      final meuCpf = (_authProvider?.cpf ?? _pdvProvider?.cpfAtual ?? '').replaceAll(RegExp(r'\D'), '');
 
-      if (tipo == 'pong') {
-        return;
-      }
+      if (tipo == 'chamada_iniciar') {
+        final chamadaJson = dados['chamada'] as Map<String, dynamic>?;
+        final sdp = dados['sdp'] as Map<String, dynamic>?;
+        if (chamadaJson != null && sdp != null) {
+          final destId = (chamadaJson['destinatarioId'] as String? ?? '').replaceAll(RegExp(r'\D'), '');
+          final ehGrupo = chamadaJson['ehGrupo'] as bool? ?? false;
+          final participantes = (chamadaJson['participantesIds'] as List<dynamic>?)
+                  ?.map((e) => e.toString().replaceAll(RegExp(r'\D'), ''))
+                  .toList() ??
+              [];
 
-      if (tipo == 'dados_iniciais' || tipo == 'loja_atualizada') {
-        if (dados['loja'] != null && _pdvProvider != null) {
-          _aplicandoAtualizacaoRemota = true;
-          try {
-            final lojaBruta = Loja.fromJson(dados['loja'] as Map<String, dynamic>);
-            final lojaNova = await _sincronizarImagensRemotas(lojaBruta);
-            _lojaSincronizada = lojaNova;
-            await _pdvProvider!.adicionarOuAtualizarLoja(lojaNova);
-            await _vincularLojaSeNecessario(lojaNova);
-          } finally {
-            _aplicandoAtualizacaoRemota = false;
+          if (destId == meuCpf || (ehGrupo && participantes.contains(meuCpf)) || destId.isEmpty) {
+            ChamadaWebRtcService.instancia.receberConvite(chamadaJson, sdp);
           }
         }
-        if (dados['lojaNousColetiva'] != null && _pdvProvider != null) {
-          try {
-            final lojaNousBruta =
-                Loja.fromJson(dados['lojaNousColetiva'] as Map<String, dynamic>);
-            final lojaNousAtual =
-                _pdvProvider!.buscarPorId(PdvProvider.idLojaColetivaNous);
-            if (lojaNousAtual != null) {
-              final membrosCombinados = <String, MembroLoja>{};
-              for (final m in lojaNousAtual.membros) {
-                membrosCombinados[m.cpf.replaceAll(RegExp(r'\D'), '')] = m;
-              }
-              for (final m in lojaNousBruta.membros) {
-                final cpfNorm = m.cpf.replaceAll(RegExp(r'\D'), '');
-                membrosCombinados[cpfNorm] = m;
-              }
-              final mesclada = lojaNousAtual.copyWith(
-                membros: membrosCombinados.values.toList(),
-              );
-              await _pdvProvider!.adicionarOuAtualizarLoja(mesclada);
-            } else {
-              await _pdvProvider!.adicionarOuAtualizarLoja(lojaNousBruta);
-            }
-          } catch (e) {
-            debugPrint('[ClienteRedeLocal] Erro ao sincronizar lojaNousColetiva: $e');
-          }
+      } else if (tipo == 'chamada_aceita') {
+        final sdp = dados['sdp'] as Map<String, dynamic>?;
+        if (sdp != null) {
+          ChamadaWebRtcService.instancia.receberRespostaAceita(sdp);
         }
-        if (dados['presencas'] != null) {
-          final lista = dados['presencas'] as List<dynamic>? ?? [];
-          presencasAtivas.value = lista
-              .map((e) => TerminalConectadoInfo.fromJson(e as Map<String, dynamic>))
-              .toList();
+      } else if (tipo == 'chamada_candidato_ice') {
+        final candidate = dados['candidate'] as Map<String, dynamic>?;
+        if (candidate != null) {
+          ChamadaWebRtcService.instancia.receberCandidatoIce(candidate);
         }
-        if (dados['fotosUsuariosAusentes'] != null) {
-          final ausentes = (dados['fotosUsuariosAusentes'] as List<dynamic>)
-              .map((e) => e.toString())
-              .toList();
-          _curarFotosUsuariosAusentesNoServidor(ausentes);
-        }
-      } else if (tipo == 'presencas_atualizadas') {
-        final lista = dados['presencas'] as List<dynamic>? ?? [];
-        presencasAtivas.value = lista
-            .map((e) => TerminalConectadoInfo.fromJson(e as Map<String, dynamic>))
-            .toList();
-      } else if (tipo == 'loja_excluida') {
-        final lojaId = dados['lojaId'] as String?;
-        if (lojaId != null && _pdvProvider != null) {
-          await _pdvProvider!.excluirLoja(lojaId, originadaDaRede: true);
-        }
-      } else if (tipo == 'pedido_adicionado' || tipo == 'pedido_atualizado') {
-        if (dados['pedido'] != null && _pdvProvider != null && _lojaSincronizada != null) {
-          final pedido = PedidoLoja.fromJson(dados['pedido'] as Map<String, dynamic>);
-          final lojaAtual = _pdvProvider!.buscarPorId(_lojaSincronizada!.id);
-          if (lojaAtual != null) {
-            final pedidos = List<PedidoLoja>.from(lojaAtual.pedidosLoja);
-            final idx = pedidos.indexWhere((p) => p.id == pedido.id);
-            if (idx != -1) {
-              pedidos[idx] = pedido;
-            } else {
-              pedidos.insert(0, pedido);
-            }
-            _pdvProvider!.atualizarListasLoja(lojaAtual.id, pedidos: pedidos);
-          }
-        }
-      } else if (tipo == 'estoque_atualizado') {
-        if (dados['movimento'] != null && _pdvProvider != null && _lojaSincronizada != null) {
-          final mov = MovimentoEstoque.fromJson(dados['movimento'] as Map<String, dynamic>);
-          final lojaAtual = _pdvProvider!.buscarPorId(_lojaSincronizada!.id);
-          if (lojaAtual != null) {
-            final movs = List<MovimentoEstoque>.from(lojaAtual.movimentosEstoque);
-            if (!movs.any((m) => m.id == mov.id)) {
-              movs.insert(0, mov);
-              _pdvProvider!.atualizarListasLoja(lojaAtual.id, movimentosEstoque: movs);
-            }
-          }
-        }
-      } else if (tipo == 'mesa_atualizada') {
-        if (dados['mesa'] != null && _pdvProvider != null && _lojaSincronizada != null) {
-          final mesa = MesaLoja.fromJson(dados['mesa'] as Map<String, dynamic>);
-          final lojaAtual = _pdvProvider!.buscarPorId(_lojaSincronizada!.id);
-          if (lojaAtual != null) {
-            final mesas = List<MesaLoja>.from(lojaAtual.mesas);
-            final idx = mesas.indexWhere((m) => m.id == mesa.id);
-            if (idx != -1) {
-              mesas[idx] = mesa;
-            } else {
-              mesas.add(mesa);
-            }
-            _pdvProvider!.atualizarListasLoja(lojaAtual.id, mesas: mesas);
-          }
-        }
-      } else if (tipo == 'usuario_atualizado') {
-        if (dados['usuario'] != null) {
-          try {
-            var usuarioRemoto = UsuarioNous.fromJson(
-                dados['usuario'] as Map<String, dynamic>);
-            if (usuarioRemoto.foto.isNotEmpty) {
-              final novaFotoLocal =
-                  await baixarImagemRemota(usuarioRemoto.foto);
-              usuarioRemoto = usuarioRemoto.copyWith(foto: novaFotoLocal);
-            }
-
-            // Preserva foto local se tínhamos foto válida e o remoto veio sem foto
-            final local =
-                await ContasNousService.buscarPorCpf(usuarioRemoto.cpf);
-            if (local != null &&
-                local.foto.isNotEmpty &&
-                ImagemService.existe(local.foto) &&
-                (usuarioRemoto.foto.isEmpty ||
-                    !ImagemService.existe(usuarioRemoto.foto))) {
-              usuarioRemoto = usuarioRemoto.copyWith(foto: local.foto);
-            }
-
-            await ContasNousService.salvar(usuarioRemoto);
-            _authProvider?.atualizarContaNoCache(usuarioRemoto);
-            _pdvProvider?.notificarMudanca();
-            _pdvProvider?.sincronizarFotoUsuarioEmClientes(
-                usuarioRemoto.cpf, usuarioRemoto.foto);
-
-            final cpfAtivo = _pdvProvider?.cpfAtual ??
-                _authProvider?.contaAtual?.cpf ??
-                _authProvider?.cpf;
-            if (cpfAtivo != null &&
-                cpfAtivo.replaceAll(RegExp(r'\D'), '') ==
-                    usuarioRemoto.cpf.replaceAll(RegExp(r'\D'), '')) {
-              await _authProvider?.recarregarConta();
-            }
-            debugPrint(
-              '[ClienteRedeLocal] Identidade do usuário ${usuarioRemoto.cpf} (${usuarioRemoto.nome}) atualizada via WebSocket (Foto: ${usuarioRemoto.foto})',
-            );
-          } catch (e) {
-            debugPrint(
-                '[ClienteRedeLocal] Erro ao processar usuario_atualizado via WebSocket: $e');
-          }
-        }
-      } else if (tipo == 'perfis_usuario_atualizados') {
-        final cpfAtualizado =
-            (dados['cpf'] as String? ?? '').replaceAll(RegExp(r'\D'), '');
-        final cpfAtivo = (_pdvProvider?.cpfAtual ??
-                _authProvider?.contaAtual?.cpf ??
-                _authProvider?.cpf ??
-                '')
-            .replaceAll(RegExp(r'\D'), '');
-        if (cpfAtualizado.isNotEmpty && cpfAtualizado == cpfAtivo) {
-          debugPrint(
-            '[ClienteRedeLocal] Perfis do usuário $cpfAtualizado atualizados via WebSocket. Sincronizando perfis...',
-          );
-          await sincronizarPerfisLojasComServidor();
-        }
-      } else if (tipo == 'mensagem_chat') {
-        if (dados['mensagem'] != null) {
-          final msgJson = dados['mensagem'] as Map<String, dynamic>;
-          await ChatService.processarMensagemRecebidaDaRede(msgJson);
-        }
-      } else if (tipo == 'mensagem_entregue' || tipo == 'mensagens_lidas') {
-        await ChatService.processarMensagemRecebidaDaRede(dados, emitirAlertaSonoro: false);
-      } else if (tipo == 'conversa_atualizada') {
-        if (dados['conversa'] != null) {
-          final cMap = dados['conversa'] as Map<String, dynamic>;
-          await ChatService.salvarConversaLocal(cMap);
-        }
-      } else if (tipo == 'conversa_renomeada') {
-        final convId = dados['conversaId'] as String?;
-        final novoTit = dados['novoTitulo'] as String?;
-        if (convId != null && novoTit != null) {
-          await ChatService.renomearConversa(convId, novoTit, originadoDaRede: true);
-        }
-      } else if (tipo == 'conversa_excluida') {
-        final convId = dados['conversaId'] as String?;
-        if (convId != null) {
-          await ChatService.excluirConversaLocal(convId);
-        }
-      } else if (tipo == 'grupo_criado' ||
-          tipo == 'grupo_atualizado' ||
-          tipo == 'mensagem_editada' ||
-          tipo == 'mensagem_excluida') {
-        await ChatService.processarMensagemRecebidaDaRede(dados,
-            emitirAlertaSonoro: false);
+      } else if (tipo == 'chamada_rejeitada' || tipo == 'chamada_encerrada') {
+        ChamadaWebRtcService.instancia.encerrarChamada(notificarRede: false);
       }
     } catch (e) {
-      debugPrint('[ClienteRedeLocal] Erro ao processar mensagem WebSocket: $e');
+      debugPrint('[ClienteRedeLocal] Erro ao processar sinal de chamada: $e');
     }
   }
 
   void _aoDesconectar() {
+    debugPrint('[ClienteRedeLocal] _aoDesconectar invocado.');
     estaConectado.value = false;
     presencasAtivas.value = [];
     _ws = null;
     _timerPing?.cancel();
+    RelogioRedeService.instancia.desmarcarSincronizado();
 
-    // Agenda tentativa de reconexão se o usuário não desconectou explicitamente
-    if (_ipServidor != null && _portaServidor != null) {
+    // Agenda tentativa de reconexão apenas se o usuário não desconectou explicitamente
+    if (!_usuarioDesconectouManualmente && _ipServidor != null && _portaServidor != null) {
       _timerReconexao?.cancel();
       _timerReconexao = Timer(const Duration(seconds: 4), () {
-        if (!conectado && _ipServidor != null && _portaServidor != null && _pdvProvider != null) {
-          conectar(ip: _ipServidor!, porta: _portaServidor!, pdv: _pdvProvider!);
+        if (!conectado && !_conectando && _ipServidor != null && _portaServidor != null && _pdvProvider != null) {
+          debugPrint('[ClienteRedeLocal] Reconectando automaticamente ao balcão ($_ipServidor:$_portaServidor)...');
+          conectar(ip: _ipServidor!, porta: _portaServidor!, pdv: _pdvProvider!, auth: _authProvider);
         }
       });
     }
@@ -633,15 +640,27 @@ class ClienteRedeLocal {
 
   /// Vincula a loja sincronizada aos perfis locais do usuário se ele for membro ou dono
   Future<void> _vincularLojaSeNecessario(Loja loja) async {
+    if (LojasService.ehLojaHostFalsa(loja.id, loja.tags, loja.nome)) return;
     final cpf = _pdvProvider?.cpfAtual ?? _authProvider?.contaAtual?.cpf ?? _authProvider?.cpf;
     if (cpf != null && cpf.isNotEmpty && _pdvProvider != null) {
       final cpfLimpo = cpf.replaceAll(RegExp(r'\D'), '');
       final ehDono =
           loja.cpfDonoOriginal.replaceAll(RegExp(r'\D'), '') == cpfLimpo;
+      final ehMembro = loja.membros.any(
+        (m) => m.cpf.replaceAll(RegExp(r'\D'), '') == cpfLimpo,
+      );
 
       if (ehDono) {
         // O dono nunca deve ter ReferenciaLoja para sua própria loja (já reside em minhasLojas).
         await LojasService.removerReferencia(cpf, loja.id);
+        return;
+      }
+
+      // Se o usuário logado NÃO é membro da equipe nem dono, NUNCA vincula aos seus perfis!
+      if (!ehMembro) {
+        debugPrint(
+          '[ClienteRedeLocal] Usuário $cpfLimpo não é membro nem dono da loja "${loja.nome}". Não vinculando aos perfis profissionais.',
+        );
         return;
       }
 
@@ -677,9 +696,15 @@ class ClienteRedeLocal {
     if (msg.tipo == 'imagem' && msg.caminhoAnexo.isNotEmpty) {
       final resolvida = ImagemService.resolverCaminhoExistente(msg.caminhoAnexo);
       if (resolvida != null) {
-        final anexoNoServidor = await _enviarUploadImagemParaServidor(resolvida);
-        if (anexoNoServidor.isNotEmpty) {
-          msgParaEnvio = msgParaEnvio.copyWith(caminhoAnexo: anexoNoServidor);
+        final jaTemBase64 = payloadCustomizado != null && payloadCustomizado['anexoBytesBase64'] != null;
+        if (!jaTemBase64) {
+          final anexoNoServidor = await _enviarUploadImagemParaServidor(resolvida);
+          if (anexoNoServidor.isNotEmpty) {
+            msgParaEnvio = msgParaEnvio.copyWith(caminhoAnexo: anexoNoServidor);
+          }
+        } else {
+          // Já temos o binário Base64 na carga útil; despacha upload bruto em paralelo sem bloquear tempo real
+          unawaited(_enviarUploadImagemParaServidor(resolvida));
         }
       }
     }
@@ -816,237 +841,29 @@ class ClienteRedeLocal {
     }
   }
 
-  Future<String> _enviarUploadImagemParaServidor(String caminhoLocal) async {
-    if (_ipServidor == null || _portaServidor == null) return caminhoLocal;
-    final limpo = caminhoLocal.trim();
-    if (limpo.isEmpty) return '';
-
-    for (final entry in _mapaUploadsRealizados.entries) {
-      if (entry.value == limpo) {
-        return entry.key;
-      }
-    }
-
-    final resolvido =
-        ImagemService.resolverCaminhoExistente(limpo) ?? limpo;
-    final arquivo = File(resolvido);
-    if (!arquivo.existsSync() || arquivo.lengthSync() == 0) return limpo;
-
-    try {
-      final nome = p.basename(limpo);
-      final client = HttpClient()..connectionTimeout = const Duration(seconds: 15);
-      final req = await client.postUrl(
-        Uri.parse(
-          'http://$_ipServidor:$_portaServidor/api/upload_imagem?nome=${Uri.encodeQueryComponent(nome)}',
-        ),
-      );
-      req.headers.contentType = ContentType.binary;
-      await req.addStream(arquivo.openRead());
-      final resp = await req.close();
-      if (resp.statusCode == HttpStatus.ok) {
-        final body = await utf8.decoder.bind(resp).join();
-        final json = jsonDecode(body) as Map<String, dynamic>;
-        final caminhoServidor = json['caminho'] as String?;
-        if (caminhoServidor != null && caminhoServidor.isNotEmpty) {
-          _mapaUploadsRealizados[caminhoServidor] = limpo;
-          debugPrint(
-            '[ClienteRedeLocal] Imagem enviada com sucesso ao servidor: $caminhoServidor',
-          );
-          return caminhoServidor;
-        }
-      }
-    } catch (e) {
-      debugPrint('[ClienteRedeLocal] Erro ao enviar imagem "$limpo" para o servidor: $e');
-    }
-    return limpo;
+  Future<String> _enviarUploadImagemParaServidor(String caminhoLocal) {
+    return _transferencia.enviarUploadImagemParaServidor(
+      ipServidor: _ipServidor,
+      portaServidor: _portaServidor,
+      caminhoLocal: caminhoLocal,
+    );
   }
 
-  Future<String> _enviarUploadAnexoParaServidor(
-    String caminhoLocal, {
-    String subpasta = 'musicas',
-  }) async {
-    if (_ipServidor == null || _portaServidor == null) return caminhoLocal;
-    final limpo = caminhoLocal.trim();
-    if (limpo.isEmpty) return '';
 
-    for (final entry in _mapaUploadsRealizados.entries) {
-      if (entry.value == limpo) {
-        return entry.key;
-      }
-    }
-
-    final resolvido = ImagemService.resolverCaminhoExistente(limpo) ?? limpo;
-    final arquivo = File(resolvido);
-    if (!arquivo.existsSync() || arquivo.lengthSync() == 0) return limpo;
-
-    try {
-      final nome = p.basename(limpo);
-      final client = HttpClient()..connectionTimeout = const Duration(seconds: 30);
-      final req = await client.postUrl(
-        Uri.parse(
-          'http://$_ipServidor:$_portaServidor/api/upload_anexo?nome=${Uri.encodeQueryComponent(nome)}&pasta=${Uri.encodeQueryComponent(subpasta)}',
-        ),
-      );
-      req.headers.contentType = ContentType.binary;
-      await req.addStream(arquivo.openRead());
-      final resp = await req.close();
-      if (resp.statusCode == HttpStatus.ok) {
-        final body = await utf8.decoder.bind(resp).join();
-        final json = jsonDecode(body) as Map<String, dynamic>;
-        final caminhoServidor = json['caminho'] as String?;
-        if (caminhoServidor != null && caminhoServidor.isNotEmpty) {
-          _mapaUploadsRealizados[caminhoServidor] = limpo;
-          debugPrint(
-            '[ClienteRedeLocal] Anexo ($subpasta) enviado com sucesso ao servidor: $caminhoServidor',
-          );
-          return caminhoServidor;
-        }
-      }
-    } catch (e) {
-      debugPrint('[ClienteRedeLocal] Erro ao enviar anexo "$limpo" para o servidor: $e');
-    }
-    return limpo;
+  Future<bool> _enviarLojaCuradaParaServidor(Loja lojaCurada) {
+    return _reconciliador.enviarLojaCuradaParaServidor(
+      ipServidor: _ipServidor,
+      portaServidor: _portaServidor,
+      lojaCurada: lojaCurada,
+    );
   }
 
-  Future<String> _garantirUploadParaServidor(String caminhoLocal) async {
-    return await _enviarUploadImagemParaServidor(caminhoLocal);
-  }
-
-  Future<bool> _enviarLojaCuradaParaServidor(Loja lojaCurada) async {
-    if (_ipServidor == null || _portaServidor == null) return false;
-    try {
-      final client = HttpClient()..connectionTimeout = const Duration(seconds: 15);
-      final request = await client.postUrl(
-        Uri.parse('http://$_ipServidor:$_portaServidor/api/loja/atualizar'),
-      );
-      request.headers.contentType = ContentType.json;
-      request.write(jsonEncode(lojaCurada.toJson()));
-      final response = await request.close();
-      final ok = response.statusCode == HttpStatus.ok;
-      debugPrint(
-        '[ClienteRedeLocal] Cura da loja enviada com sucesso ao servidor: $ok (HTTP ${response.statusCode})',
-      );
-      return ok;
-    } catch (e) {
-      debugPrint('[ClienteRedeLocal] Erro ao enviar cura da loja ao servidor: $e');
-      return false;
-    }
-  }
-
-  Future<Loja> _prepararLojaComUploadsParaServidor(Loja loja) async {
-    Loja lojaParaEnvio = loja;
-
-    if (lojaParaEnvio.logo.isNotEmpty && !ImagemService.ehAsset(lojaParaEnvio.logo)) {
-      final logoNoServidor = await _garantirUploadParaServidor(lojaParaEnvio.logo);
-      if (logoNoServidor != lojaParaEnvio.logo) {
-        lojaParaEnvio = lojaParaEnvio.copyWith(logo: logoNoServidor);
-      }
-    }
-
-    final categoriasAjustadas = <CategoriaLoja>[];
-    for (final cat in lojaParaEnvio.categoriasLoja) {
-      if (cat.foto.isNotEmpty && !ImagemService.ehAsset(cat.foto)) {
-        final fotoNoServidor = await _garantirUploadParaServidor(cat.foto);
-        categoriasAjustadas.add(cat.copyWith(foto: fotoNoServidor));
-      } else {
-        categoriasAjustadas.add(cat);
-      }
-    }
-    lojaParaEnvio = lojaParaEnvio.copyWith(categoriasLoja: categoriasAjustadas);
-
-    final itensAjustados = <ItemLoja>[];
-    for (final it in lojaParaEnvio.itensLoja) {
-      final imgsAjustadas = <String>[];
-      for (final img in it.imagens) {
-        if (img.isNotEmpty && !ImagemService.ehAsset(img)) {
-          imgsAjustadas.add(await _garantirUploadParaServidor(img));
-        } else {
-          imgsAjustadas.add(img);
-        }
-      }
-      itensAjustados.add(it.copyWith(imagens: imgsAjustadas));
-    }
-    lojaParaEnvio = lojaParaEnvio.copyWith(itensLoja: itensAjustados);
-
-    final clientesAjustados = <Cliente>[];
-    for (final c in lojaParaEnvio.clientesLoja) {
-      if (c.foto.isNotEmpty && !ImagemService.ehAsset(c.foto)) {
-        final fotoServidor = await _garantirUploadParaServidor(c.foto);
-        clientesAjustados.add(c.copyWith(foto: fotoServidor));
-      } else {
-        clientesAjustados.add(c);
-      }
-    }
-    lojaParaEnvio = lojaParaEnvio.copyWith(clientesLoja: clientesAjustados);
-
-    final fornecedoresAjustados = <Fornecedor>[];
-    for (final f in lojaParaEnvio.fornecedoresLoja) {
-      if (f.foto.isNotEmpty && !ImagemService.ehAsset(f.foto)) {
-        final fotoServidor = await _garantirUploadParaServidor(f.foto);
-        fornecedoresAjustados.add(f.copyWith(foto: fotoServidor));
-      } else {
-        fornecedoresAjustados.add(f);
-      }
-    }
-    lojaParaEnvio = lojaParaEnvio.copyWith(fornecedoresLoja: fornecedoresAjustados);
-
-    final galeriaAjustada = <String>[];
-    for (final g in lojaParaEnvio.galeria) {
-      if (g.isNotEmpty) {
-        galeriaAjustada.add(await _garantirUploadParaServidor(g));
-      } else {
-        galeriaAjustada.add(g);
-      }
-    }
-    lojaParaEnvio = lojaParaEnvio.copyWith(galeria: galeriaAjustada);
-
-    final musicasAjustadas = <String>[];
-    for (final m in lojaParaEnvio.musicas) {
-      if (m.isNotEmpty) {
-        musicasAjustadas.add(
-          await _enviarUploadAnexoParaServidor(m, subpasta: 'musicas'),
-        );
-      } else {
-        musicasAjustadas.add(m);
-      }
-    }
-    lojaParaEnvio = lojaParaEnvio.copyWith(musicas: musicasAjustadas);
-
-    final audiosAjustados = <String>[];
-    for (final a in lojaParaEnvio.arquivosAudio) {
-      if (a.isNotEmpty) {
-        audiosAjustados.add(
-          await _enviarUploadAnexoParaServidor(a, subpasta: 'arquivosAudio'),
-        );
-      } else {
-        audiosAjustados.add(a);
-      }
-    }
-    lojaParaEnvio = lojaParaEnvio.copyWith(arquivosAudio: audiosAjustados);
-
-    final videosAjustados = <String>[];
-    for (final v in lojaParaEnvio.videos) {
-      if (v.isNotEmpty) {
-        videosAjustados.add(
-          await _enviarUploadAnexoParaServidor(v, subpasta: 'videos'),
-        );
-      } else {
-        videosAjustados.add(v);
-      }
-    }
-    lojaParaEnvio = lojaParaEnvio.copyWith(videos: videosAjustados);
-
-    final arquivosAjustados = <String>[];
-    for (final arq in lojaParaEnvio.arquivos) {
-      if (arq.isNotEmpty) {
-        arquivosAjustados.add(
-          await _enviarUploadAnexoParaServidor(arq, subpasta: 'arquivos'),
-        );
-      } else {
-        arquivosAjustados.add(arq);
-      }
-    }
-    return lojaParaEnvio.copyWith(arquivos: arquivosAjustados);
+  Future<Loja> _prepararLojaComUploadsParaServidor(Loja loja) {
+    return _reconciliador.prepararLojaComUploadsParaServidor(
+      ipServidor: _ipServidor,
+      portaServidor: _portaServidor,
+      loja: loja,
+    );
   }
 
   /// Envia a atualização completa da loja realizada neste terminal móvel para o servidor central (balcão)
@@ -1091,584 +908,80 @@ class ClienteRedeLocal {
     return completer.future;
   }
 
-  /// Desconecta do servidor
-  Future<void> desconectar() async {
+  /// Desconecta do servidor e encerra todas as conexões e sessões pendentes
+  Future<void> desconectar({bool manual = false}) async {
+    if (manual) {
+      _usuarioDesconectouManualmente = true;
+    }
     _timerReconexao?.cancel();
     _timerReconexao = null;
     _timerPing?.cancel();
     _timerPing = null;
+    _timerDebounceEnvioLoja?.cancel();
+    _timerDebounceEnvioLoja = null;
 
-    try {
-      await _ws?.close();
-    } catch (_) {}
+    final wsAntigo = _ws;
     _ws = null;
+    try {
+      await wsAntigo?.close();
+    } catch (_) {}
 
     _ipServidor = null;
     _portaServidor = null;
+    _lojaSincronizada = null;
     estaConectado.value = false;
     presencasAtivas.value = [];
+    pararDescoberta();
   }
 
   /// Realiza a reconciliação mútua e bidirecional de dados e imagens entre o Servidor e este Cliente
   Future<Loja> _reconciliarLojaMutua(
     Loja lojaRemota,
     List<String> imagensAusentesNoServidor,
-  ) async {
-    // 1. Carrega o estado da loja gravado localmente neste dispositivo
-    Loja? lojaLocal = _pdvProvider?.buscarPorId(lojaRemota.id);
-    if (lojaLocal == null) {
-      try {
-        lojaLocal = await LojasService.carregarLojaPorId(lojaRemota.id);
-      } catch (e) {
-        debugPrint('[ClienteRedeLocal] Erro ao carregar loja local para reconciliação: $e');
-      }
-    }
-
-    // Se este dispositivo nunca teve dados prévios desta loja, apenas baixa do servidor normalmente
-    if (lojaLocal == null) {
-      return await _sincronizarImagensRemotas(lojaRemota);
-    }
-
-    debugPrint(
-      '[ClienteRedeLocal] Iniciando reconciliação mútua. Servidor reportou ${imagensAusentesNoServidor.length} lacunas de imagem.',
+  ) {
+    return _reconciliador.reconciliarLojaMutua(
+      ipServidor: _ipServidor,
+      portaServidor: _portaServidor,
+      lojaRemota: lojaRemota,
+      imagensAusentesNoServidor: imagensAusentesNoServidor,
+      pdvProvider: _pdvProvider,
+      lojaSincronizada: _lojaSincronizada,
     );
-
-    var houveCuraNoServidor = false;
-    Loja lojaParaServidor = lojaRemota;
-
-    // A. Logo da Loja
-    final precisaLogoNoServidor = imagensAusentesNoServidor.contains('logo') ||
-        lojaRemota.logo.trim().isEmpty;
-    if (precisaLogoNoServidor && lojaLocal.logo.trim().isNotEmpty) {
-      final logoLocalResolvida = ImagemService.resolverCaminhoExistente(lojaLocal.logo);
-      if (logoLocalResolvida != null && File(logoLocalResolvida).existsSync()) {
-        final logoNoServidor = await _enviarUploadImagemParaServidor(logoLocalResolvida);
-        if (logoNoServidor.isNotEmpty && logoNoServidor != logoLocalResolvida) {
-          lojaParaServidor = lojaParaServidor.copyWith(logo: logoNoServidor);
-          houveCuraNoServidor = true;
-          debugPrint('[ClienteRedeLocal] Logo restaurada no servidor: $logoNoServidor');
-        }
-      }
-    }
-
-    // B. Categorias da Loja
-    final novasCategoriasServidor = <CategoriaLoja>[];
-    for (final catRemota in lojaRemota.categoriasLoja) {
-      final precisaFoto = imagensAusentesNoServidor.contains('categoria_${catRemota.id}') ||
-          catRemota.foto.trim().isEmpty;
-      if (precisaFoto) {
-        CategoriaLoja? catLocal;
-        for (final cl in lojaLocal.categoriasLoja) {
-          if (cl.id == catRemota.id || cl.nome.trim().toLowerCase() == catRemota.nome.trim().toLowerCase()) {
-            catLocal = cl;
-            break;
-          }
-        }
-        if (catLocal != null && catLocal.foto.trim().isNotEmpty) {
-          final fotoLocalResolvida = ImagemService.resolverCaminhoExistente(catLocal.foto);
-          if (fotoLocalResolvida != null && File(fotoLocalResolvida).existsSync()) {
-            final fotoNoServidor = await _enviarUploadImagemParaServidor(fotoLocalResolvida);
-            if (fotoNoServidor.isNotEmpty && fotoNoServidor != fotoLocalResolvida) {
-              novasCategoriasServidor.add(catRemota.copyWith(foto: fotoNoServidor));
-              houveCuraNoServidor = true;
-              debugPrint('[ClienteRedeLocal] Foto da categoria "${catRemota.nome}" restaurada no servidor: $fotoNoServidor');
-              continue;
-            }
-          }
-        }
-      }
-      novasCategoriasServidor.add(catRemota);
-    }
-
-    for (final catLocal in lojaLocal.categoriasLoja) {
-      final jaExiste = novasCategoriasServidor.any(
-        (c) => c.id == catLocal.id || c.nome.trim().toLowerCase() == catLocal.nome.trim().toLowerCase(),
-      );
-      if (!jaExiste) {
-        String fotoServidor = '';
-        if (catLocal.foto.trim().isNotEmpty) {
-          final fotoResolvida = ImagemService.resolverCaminhoExistente(catLocal.foto);
-          if (fotoResolvida != null && File(fotoResolvida).existsSync()) {
-            fotoServidor = await _enviarUploadImagemParaServidor(fotoResolvida);
-          }
-        }
-        novasCategoriasServidor.add(catLocal.copyWith(foto: fotoServidor));
-        houveCuraNoServidor = true;
-        debugPrint('[ClienteRedeLocal] Categoria "${catLocal.nome}" restaurada no servidor');
-      }
-    }
-    lojaParaServidor = lojaParaServidor.copyWith(categoriasLoja: novasCategoriasServidor);
-
-    // C. Itens da Loja
-    final novosItensServidor = <ItemLoja>[];
-    for (final itemRemoto in lojaRemota.itensLoja) {
-      final precisaImagens = imagensAusentesNoServidor.contains('item_${itemRemoto.id}') ||
-          itemRemoto.imagens.isEmpty;
-      if (precisaImagens) {
-        ItemLoja? itemLocal;
-        for (final il in lojaLocal.itensLoja) {
-          if (il.id == itemRemoto.id || il.nome.trim().toLowerCase() == itemRemoto.nome.trim().toLowerCase()) {
-            itemLocal = il;
-            break;
-          }
-        }
-        if (itemLocal != null && itemLocal.imagens.isNotEmpty) {
-          final novasImagensNoServidor = <String>[];
-          for (final img in itemLocal.imagens) {
-            final imgResolvida = ImagemService.resolverCaminhoExistente(img);
-            if (imgResolvida != null && File(imgResolvida).existsSync()) {
-              final imgServidor = await _enviarUploadImagemParaServidor(imgResolvida);
-              if (imgServidor.isNotEmpty && imgServidor != imgResolvida) {
-                novasImagensNoServidor.add(imgServidor);
-              }
-            }
-          }
-          if (novasImagensNoServidor.isNotEmpty) {
-            novosItensServidor.add(itemRemoto.copyWith(imagens: novasImagensNoServidor));
-            houveCuraNoServidor = true;
-            debugPrint('[ClienteRedeLocal] Imagens do produto "${itemRemoto.nome}" restauradas no servidor (${novasImagensNoServidor.length})');
-            continue;
-          }
-        }
-      }
-      novosItensServidor.add(itemRemoto);
-    }
-
-    for (final itemLocal in lojaLocal.itensLoja) {
-      final jaExiste = novosItensServidor.any(
-        (i) => i.id == itemLocal.id || i.nome.trim().toLowerCase() == itemLocal.nome.trim().toLowerCase(),
-      );
-      if (!jaExiste) {
-        final novasImagensServidor = <String>[];
-        for (final img in itemLocal.imagens) {
-          final imgResolvida = ImagemService.resolverCaminhoExistente(img);
-          if (imgResolvida != null && File(imgResolvida).existsSync()) {
-            final imgServidor = await _enviarUploadImagemParaServidor(imgResolvida);
-            if (imgServidor.isNotEmpty && imgServidor != imgResolvida) {
-              novasImagensServidor.add(imgServidor);
-            }
-          }
-        }
-        novosItensServidor.add(itemLocal.copyWith(imagens: novasImagensServidor));
-        houveCuraNoServidor = true;
-        debugPrint('[ClienteRedeLocal] Produto "${itemLocal.nome}" restaurado no servidor');
-      }
-    }
-    lojaParaServidor = lojaParaServidor.copyWith(itensLoja: novosItensServidor);
-
-    // D. Clientes da Loja
-    final novosClientesServidor = <Cliente>[];
-    for (final cliRemoto in lojaRemota.clientesLoja) {
-      final precisaFoto = imagensAusentesNoServidor.contains('cliente_${cliRemoto.id}') ||
-          cliRemoto.foto.trim().isEmpty;
-      if (precisaFoto) {
-        Cliente? cliLocal;
-        for (final cl in lojaLocal.clientesLoja) {
-          if (cl.id == cliRemoto.id || (cl.cnpj.isNotEmpty && cl.cnpj == cliRemoto.cnpj)) {
-            cliLocal = cl;
-            break;
-          }
-        }
-        if (cliLocal != null && cliLocal.foto.trim().isNotEmpty) {
-          final fotoResolvida = ImagemService.resolverCaminhoExistente(cliLocal.foto);
-          if (fotoResolvida != null && File(fotoResolvida).existsSync()) {
-            final fotoServidor = await _enviarUploadImagemParaServidor(fotoResolvida);
-            if (fotoServidor.isNotEmpty && fotoServidor != fotoResolvida) {
-              novosClientesServidor.add(cliRemoto.copyWith(foto: fotoServidor));
-              houveCuraNoServidor = true;
-              continue;
-            }
-          }
-        }
-      }
-      novosClientesServidor.add(cliRemoto);
-    }
-    for (final cLocal in lojaLocal.clientesLoja) {
-      if (!novosClientesServidor.any((c) => c.id == cLocal.id)) {
-        novosClientesServidor.add(cLocal);
-        houveCuraNoServidor = true;
-      }
-    }
-    lojaParaServidor = lojaParaServidor.copyWith(clientesLoja: novosClientesServidor);
-
-    // E. Fornecedores da Loja
-    final novosFornecedoresServidor = <Fornecedor>[];
-    for (final fornRemoto in lojaRemota.fornecedoresLoja) {
-      final precisaFoto = imagensAusentesNoServidor.contains('fornecedor_${fornRemoto.id}') ||
-          fornRemoto.foto.trim().isEmpty;
-      if (precisaFoto) {
-        Fornecedor? fornLocal;
-        for (final fl in lojaLocal.fornecedoresLoja) {
-          if (fl.id == fornRemoto.id || (fl.cnpj.isNotEmpty && fl.cnpj == fornRemoto.cnpj)) {
-            fornLocal = fl;
-            break;
-          }
-        }
-        if (fornLocal != null && fornLocal.foto.trim().isNotEmpty) {
-          final fotoResolvida = ImagemService.resolverCaminhoExistente(fornLocal.foto);
-          if (fotoResolvida != null && File(fotoResolvida).existsSync()) {
-            final fotoServidor = await _enviarUploadImagemParaServidor(fotoResolvida);
-            if (fotoServidor.isNotEmpty && fotoServidor != fotoResolvida) {
-              novosFornecedoresServidor.add(fornRemoto.copyWith(foto: fotoServidor));
-              houveCuraNoServidor = true;
-              continue;
-            }
-          }
-        }
-      }
-      novosFornecedoresServidor.add(fornRemoto);
-    }
-    for (final fLocal in lojaLocal.fornecedoresLoja) {
-      if (!novosFornecedoresServidor.any((f) => f.id == fLocal.id)) {
-        novosFornecedoresServidor.add(fLocal);
-        houveCuraNoServidor = true;
-      }
-    }
-    lojaParaServidor = lojaParaServidor.copyWith(fornecedoresLoja: novosFornecedoresServidor);
-
-    // F. Mesas
-    final mesasMescladas = List<MesaLoja>.from(lojaParaServidor.mesas);
-    for (final mLocal in lojaLocal.mesas) {
-      if (!mesasMescladas.any((m) => m.id == mLocal.id)) {
-        mesasMescladas.add(mLocal);
-        houveCuraNoServidor = true;
-      }
-    }
-    lojaParaServidor = lojaParaServidor.copyWith(mesas: mesasMescladas);
-
-    // G. Histórico de Auditoria (Ações)
-    final acoesMescladas = List<RegistroAcao>.from(lojaParaServidor.acoes);
-    for (final aLocal in lojaLocal.acoes) {
-      if (!acoesMescladas.any((a) => a.id == aLocal.id)) {
-        acoesMescladas.add(aLocal);
-        houveCuraNoServidor = true;
-      }
-    }
-    lojaParaServidor = lojaParaServidor.copyWith(acoes: acoesMescladas);
-
-    // H. Pedidos, Movimentos de Estoque e Pagamentos
-    final pedidosMesclados = List<PedidoLoja>.from(lojaParaServidor.pedidosLoja);
-    for (final pLocal in lojaLocal.pedidosLoja) {
-      if (!pedidosMesclados.any((p) => p.id == pLocal.id)) {
-        pedidosMesclados.add(pLocal);
-        houveCuraNoServidor = true;
-      }
-    }
-    final movimentosMesclados = List<MovimentoEstoque>.from(lojaParaServidor.movimentosEstoque);
-    for (final mLocal in lojaLocal.movimentosEstoque) {
-      if (!movimentosMesclados.any((m) => m.id == mLocal.id)) {
-        movimentosMesclados.add(mLocal);
-        houveCuraNoServidor = true;
-      }
-    }
-    final pagamentosMesclados = List<PagamentoFuncionario>.from(lojaParaServidor.pagamentosFuncionarios);
-    for (final pgLocal in lojaLocal.pagamentosFuncionarios) {
-      if (!pagamentosMesclados.any((pg) => pg.id == pgLocal.id)) {
-        pagamentosMesclados.add(pgLocal);
-        houveCuraNoServidor = true;
-      }
-    }
-    lojaParaServidor = lojaParaServidor.copyWith(
-      pedidosLoja: pedidosMesclados,
-      movimentosEstoque: movimentosMesclados,
-      pagamentosFuncionarios: pagamentosMesclados,
-    );
-
-    // Se houve alguma cura ou restauração necessária no servidor, envia o estado curado ao balcão
-    if (houveCuraNoServidor) {
-      debugPrint('[ClienteRedeLocal] Enviando cura consolidada da loja ao servidor balcão...');
-      await _enviarLojaCuradaParaServidor(lojaParaServidor);
-    }
-
-    // Finalmente, este cliente sincroniza e baixa todas as imagens do servidor para si mesmo
-    return await _sincronizarImagensRemotas(lojaParaServidor);
   }
 
   /// Baixa imagens remotas do servidor que não existem no armazenamento local
   /// e regrava os caminhos locais atualizados para que fiquem 100% visíveis no celular.
-  Future<Loja> _sincronizarImagensRemotas(Loja lojaRemota) async {
-    if (_ipServidor == null || _portaServidor == null) return lojaRemota;
-
-    try {
-      final dirBase = await ImagemService.obterDiretorioBase();
-      final pastaImagens = Directory('${dirBase.path}/imagens');
-      if (!await pastaImagens.exists()) {
-        await pastaImagens.create(recursive: true);
-      }
-
-      final clienteHttp = HttpClient()..connectionTimeout = const Duration(seconds: 4);
-      final Map<String, String> mapaCaminhos = {};
-
-      Future<String> resolverCaminhoImagem(String? caminhoRemoto) async {
-        if (caminhoRemoto == null || caminhoRemoto.trim().isEmpty) return '';
-        final caminhoLimpo = caminhoRemoto.trim();
-        if (ImagemService.ehAsset(caminhoLimpo)) return caminhoLimpo;
-
-        // Se o caminho já aponta para um arquivo existente localmente neste dispositivo, mantém
-        if (File(caminhoLimpo).existsSync()) {
-          return caminhoLimpo;
-        }
-
-        // Se esta imagem foi enviada deste dispositivo para o servidor, reaproveita o arquivo local original
-        if (_mapaUploadsRealizados.containsKey(caminhoLimpo)) {
-          final original = _mapaUploadsRealizados[caminhoLimpo]!;
-          if (File(original).existsSync()) {
-            return original;
-          }
-        }
-
-        // Se já foi mapeado nesta execução em memória
-        if (mapaCaminhos.containsKey(caminhoLimpo)) {
-          return mapaCaminhos[caminhoLimpo]!;
-        }
-
-        final localExistente = ImagemService.resolverCaminhoExistente(caminhoLimpo);
-        if (localExistente != null && File(localExistente).existsSync()) {
-          mapaCaminhos[caminhoLimpo] = localExistente;
-          return localExistente;
-        }
-
-        final ext = caminhoLimpo.split('.').last.toLowerCase();
-        final extensaoFinal = ImagemService.extensoesImagem.contains(ext) ? ext : 'jpg';
-        final nomeArquivoLocal = 'remota_${caminhoLimpo.hashCode.abs()}.$extensaoFinal';
-        final arquivoLocal = File('${pastaImagens.path}/$nomeArquivoLocal');
-
-        // Se a imagem já foi baixada anteriormente e está íntegra no disco, reutiliza instantaneamente
-        if (arquivoLocal.existsSync() && arquivoLocal.lengthSync() > 0) {
-          mapaCaminhos[caminhoLimpo] = arquivoLocal.path;
-          return arquivoLocal.path;
-        }
-
-        try {
-          final uri = Uri.parse(
-            'http://$_ipServidor:$_portaServidor/api/imagem?caminho=${Uri.encodeQueryComponent(caminhoLimpo)}',
-          );
-          final req = await clienteHttp.getUrl(uri);
-          final resp = await req.close();
-
-          if (resp.statusCode == HttpStatus.ok) {
-            final bytes = await resp.fold<List<int>>([], (acc, chunk) => acc..addAll(chunk));
-            await arquivoLocal.writeAsBytes(bytes);
-
-            if (await arquivoLocal.exists() && arquivoLocal.lengthSync() > 0) {
-              mapaCaminhos[caminhoLimpo] = arquivoLocal.path;
-              return arquivoLocal.path;
-            }
-          }
-        } catch (e) {
-          debugPrint('[ClienteRedeLocal] Erro ao baixar imagem "$caminhoLimpo": $e');
-        }
-
-        if (localExistente != null && File(localExistente).existsSync()) {
-          return localExistente;
-        }
-
-        return caminhoLimpo;
-      }
-
-      // 1. Logo da loja
-      String novaLogo = lojaRemota.logo;
-      if (novaLogo.isNotEmpty) {
-        novaLogo = await resolverCaminhoImagem(novaLogo);
-      }
-
-      // 2. Itens da loja
-      final novosItens = <ItemLoja>[];
-      for (final item in lojaRemota.itensLoja) {
-        if (item.imagens.isNotEmpty) {
-          final novasImgs = <String>[];
-          for (final img in item.imagens) {
-            novasImgs.add(await resolverCaminhoImagem(img));
-          }
-          novosItens.add(item.copyWith(imagens: novasImgs));
-        } else {
-          novosItens.add(item);
-        }
-      }
-
-      // 3. Categorias da loja
-      final novasCategorias = <CategoriaLoja>[];
-      for (final cat in lojaRemota.categoriasLoja) {
-        if (cat.foto.isNotEmpty) {
-          final local = await resolverCaminhoImagem(cat.foto);
-          novasCategorias.add(cat.copyWith(foto: local));
-        } else {
-          novasCategorias.add(cat);
-        }
-      }
-
-      // 4. Clientes da loja
-      final novosClientes = <Cliente>[];
-      for (final cli in lojaRemota.clientesLoja) {
-        if (cli.foto.isNotEmpty) {
-          final local = await resolverCaminhoImagem(cli.foto);
-          novosClientes.add(cli.copyWith(foto: local));
-        } else {
-          novosClientes.add(cli);
-        }
-      }
-
-      // 5. Fornecedores da loja
-      final novosFornecedores = <Fornecedor>[];
-      for (final forn in lojaRemota.fornecedoresLoja) {
-        if (forn.foto.isNotEmpty) {
-          final local = await resolverCaminhoImagem(forn.foto);
-          novosFornecedores.add(forn.copyWith(foto: local));
-        } else {
-          novosFornecedores.add(forn);
-        }
-      }
-
-      // 6. Galeria da loja
-      final novaGaleria = <String>[];
-      for (final g in lojaRemota.galeria) {
-        novaGaleria.add(await resolverCaminhoImagem(g));
-      }
-
-      // 7. Músicas da loja (mantém caminhos e agenda download em background sem bloquear o handshake)
-      final novasMusicas = <String>[];
-      for (final m in lojaRemota.musicas) {
-        final local = ImagemService.resolverCaminhoExistente(m);
-        if (local != null) {
-          novasMusicas.add(local);
-        } else {
-          novasMusicas.add(m);
-          baixarAudioRemoto(m).then((baixado) {
-            if (baixado != m && _pdvProvider != null && _lojaSincronizada != null) {
-              final lojaAtual = _pdvProvider!.buscarPorId(_lojaSincronizada!.id);
-              if (lojaAtual != null) {
-                final musicasAtualizadas =
-                    lojaAtual.musicas.map((x) => x == m ? baixado : x).toList();
-                _pdvProvider!.adicionarOuAtualizarLoja(
-                  lojaAtual.copyWith(musicas: musicasAtualizadas),
-                );
-              }
-            }
-          });
-        }
-      }
-
-      // 8. Arquivos de áudio da loja
-      final novosAudios = <String>[];
-      for (final a in lojaRemota.arquivosAudio) {
-        final local = ImagemService.resolverCaminhoExistente(a);
-        if (local != null) {
-          novosAudios.add(local);
-        } else {
-          novosAudios.add(a);
-          baixarAudioRemoto(a).then((baixado) {
-            if (baixado != a && _pdvProvider != null && _lojaSincronizada != null) {
-              final lojaAtual = _pdvProvider!.buscarPorId(_lojaSincronizada!.id);
-              if (lojaAtual != null) {
-                final audiosAtualizados =
-                    lojaAtual.arquivosAudio.map((x) => x == a ? baixado : x).toList();
-                _pdvProvider!.adicionarOuAtualizarLoja(
-                  lojaAtual.copyWith(arquivosAudio: audiosAtualizados),
-                );
-              }
-            }
-          });
-        }
-      }
-
-      return lojaRemota.copyWith(
-        logo: novaLogo,
-        itensLoja: novosItens,
-        categoriasLoja: novasCategorias,
-        clientesLoja: novosClientes,
-        fornecedoresLoja: novosFornecedores,
-        galeria: novaGaleria,
-        musicas: novasMusicas,
-        arquivosAudio: novosAudios,
-      );
-    } catch (e) {
-      debugPrint('[ClienteRedeLocal] Erro ao sincronizar imagens: $e');
-      return lojaRemota;
-    }
+  Future<Loja> _sincronizarImagensRemotas(Loja lojaRemota) {
+    return _reconciliador.sincronizarImagensRemotas(
+      ipServidor: _ipServidor,
+      portaServidor: _portaServidor,
+      lojaRemota: lojaRemota,
+      pdvProvider: _pdvProvider,
+      lojaSincronizada: _lojaSincronizada,
+    );
   }
 
   /// Sincroniza a Identidade do Usuário (dados cadastrais e foto) a partir do balcão (autocura mútua)
-  Future<void> sincronizarIdentidadeUsuario({AuthProvider? auth}) async {
-    final authInstancia = auth ?? _authProvider;
-    final cpf = _pdvProvider?.cpfAtual ?? authInstancia?.contaAtual?.cpf ?? authInstancia?.cpf;
-    if (cpf == null || cpf.isEmpty || _ipServidor == null || _portaServidor == null) return;
-
-    try {
-      final contaLocal = await ContasNousService.buscarPorCpf(cpf);
-      final fotoLocalExiste = contaLocal != null &&
-          ImagemService.resolverCaminhoExistente(contaLocal.foto) != null;
-
-      final client = HttpClient()..connectionTimeout = const Duration(seconds: 4);
-      final uri = Uri.parse(
-        'http://$_ipServidor:$_portaServidor/api/usuario?cpf=${Uri.encodeQueryComponent(cpf)}',
-      );
-      final req = await client.getUrl(uri);
-      final resp = await req.close();
-
-      if (resp.statusCode == HttpStatus.ok) {
-        final body = await utf8.decodeStream(resp);
-        final dados = jsonDecode(body) as Map<String, dynamic>;
-        if (dados['sucesso'] == true && dados['usuario'] != null) {
-          var usuarioRemoto =
-              UsuarioNous.fromJson(dados['usuario'] as Map<String, dynamic>);
-
-          final temFotoRemota = usuarioRemoto.foto.isNotEmpty;
-
-          // Se a conta remota tem foto, baixa a foto e regrava o caminho local
-          if (temFotoRemota) {
-            final novaFotoLocal = await baixarImagemRemota(usuarioRemoto.foto);
-            usuarioRemoto = usuarioRemoto.copyWith(foto: novaFotoLocal);
-          }
-
-          final UsuarioNous contaFinal;
-          if (contaLocal != null) {
-            contaFinal = _mesclarUsuarios(contaLocal, usuarioRemoto);
-          } else {
-            contaFinal = usuarioRemoto;
-          }
-
-          await ContasNousService.salvar(contaFinal);
-          if (authInstancia != null) {
-            await authInstancia.recarregarConta();
-          }
-          debugPrint(
-            '[ClienteRedeLocal] Identidade do usuário sincronizada com sucesso para o CPF: $cpf (Nome: ${contaFinal.nome}, Username: ${contaFinal.nomeDeUsuario}, Foto: ${contaFinal.foto})',
-          );
-
-          if (fotoLocalExiste && !temFotoRemota) {
-            // Servidor não tem foto, mas nós temos a foto física localmente!
-            // Envia a foto local para o servidor para autocura mútua
-            debugPrint(
-              '[ClienteRedeLocal] Servidor sem foto para $cpf, enviando foto local para completar no balcão...',
-            );
-            await enviarUsuario(contaFinal);
-          }
-        }
-      } else if (resp.statusCode == HttpStatus.notFound && contaLocal != null) {
-        // Servidor não possui registro deste usuário: envia para o balcão
-        await enviarUsuario(contaLocal);
-      }
-    } catch (e) {
-      debugPrint('[ClienteRedeLocal] Erro ao sincronizar identidade do usuário: $e');
-    }
+  Future<void> sincronizarIdentidadeUsuario({AuthProvider? auth}) {
+    return _sincronizador.sincronizarIdentidadeUsuario(
+      ipServidor: _ipServidor,
+      portaServidor: _portaServidor,
+      auth: auth ?? _authProvider,
+      pdvProvider: _pdvProvider,
+    );
   }
 
   /// Consulta o servidor balcão na rede Wi-Fi local para obter a ficha unificada da conta pelo CPF
   Future<UsuarioNous?> buscarUsuarioRemoto(String cpf) async {
-    final cpfLimpo = cpf.replaceAll(RegExp(r'\D'), '');
-    if (cpfLimpo.isEmpty) return null;
-
     String? ip = _ipServidor;
     int porta = _portaServidor ?? ServidorRedeLocal.portaPadraoHttp;
 
-    // Se ainda não temos IP do servidor, tenta usar as lojas encontradas via UDP
     if (ip == null && lojasEncontradas.value.isNotEmpty) {
       ip = lojasEncontradas.value.first.ip;
       porta = lojasEncontradas.value.first.porta;
     }
 
     var iniciouDescobertaAqui = false;
-    // Se ainda não descobriu, inicia escuta UDP rápida de 1.5 segundos
     if (ip == null) {
       iniciouDescobertaAqui = true;
       await iniciarDescoberta();
@@ -1683,53 +996,13 @@ class ClienteRedeLocal {
       pararDescoberta();
     }
 
-    if (ip == null) return null;
-
-    try {
-      final client = HttpClient()
-        ..connectionTimeout = const Duration(seconds: 3);
-      final uri = Uri.parse(
-        'http://$ip:$porta/api/usuario?cpf=${Uri.encodeQueryComponent(cpf)}',
-      );
-      final req = await client.getUrl(uri);
-      final resp = await req.close();
-
-      if (resp.statusCode == HttpStatus.ok) {
-        final body = await utf8.decodeStream(resp);
-        final dados = jsonDecode(body) as Map<String, dynamic>;
-        if (dados['sucesso'] == true && dados['usuario'] != null) {
-          var usuarioRemoto =
-              UsuarioNous.fromJson(dados['usuario'] as Map<String, dynamic>);
-
-          if (usuarioRemoto.foto.isNotEmpty) {
-            final novaFotoLocal = await baixarImagemRemota(usuarioRemoto.foto);
-            usuarioRemoto = usuarioRemoto.copyWith(foto: novaFotoLocal);
-          } else {
-            // Se o servidor retornou sem foto, mas nós já temos foto válida local, preserva!
-            final local = await ContasNousService.buscarPorCpf(cpfLimpo);
-            if (local != null &&
-                local.foto.isNotEmpty &&
-                ImagemService.existe(local.foto)) {
-              usuarioRemoto = usuarioRemoto.copyWith(foto: local.foto);
-            }
-          }
-
-          final local = await ContasNousService.buscarPorCpf(cpfLimpo);
-          final finalSalvar = local != null
-              ? _mesclarUsuarios(local, usuarioRemoto)
-              : usuarioRemoto;
-
-          await ContasNousService.salvar(finalSalvar);
-          debugPrint(
-            '[ClienteRedeLocal] Ficha unificada do CPF $cpf recuperada do balcão ($ip:$porta) com sucesso! Username: ${finalSalvar.nomeDeUsuario}',
-          );
-          return finalSalvar;
-        }
-      }
-    } catch (e) {
-      debugPrint('[ClienteRedeLocal] Falha ao consultar usuário remoto: $e');
-    }
-    return null;
+    return _sincronizador.buscarUsuarioRemoto(
+      ipServidor: ip,
+      portaServidor: porta,
+      cpf: cpf,
+      authProvider: _authProvider,
+      pdvProvider: _pdvProvider,
+    );
   }
 
   /// Verifica se o balcão possui atualizações do sistema ou APK disponível para download
@@ -1801,525 +1074,71 @@ class ClienteRedeLocal {
   }
 
   /// Baixa uma imagem remota individual do balcão e salva no armazenamento local
-  Future<String> baixarImagemRemota(String caminhoRemoto) async {
-    String? ip = _ipServidor;
-    int? porta = _portaServidor;
-
-    if (ip == null && lojasEncontradas.value.isNotEmpty) {
-      ip = lojasEncontradas.value.first.ip;
-      porta = lojasEncontradas.value.first.porta;
-    }
-    if (ip == null) {
-      try {
-        final prefs = await SharedPreferences.getInstance();
-        ip = prefs.getString('nous_ultimo_ip_balcao');
-        porta = prefs.getInt('nous_ultima_porta_balcao') ?? ServidorRedeLocal.portaPadraoHttp;
-      } catch (_) {}
-    }
-
-    if (ip == null || porta == null) return caminhoRemoto;
-    final caminhoLimpo = caminhoRemoto.trim();
-    if (caminhoLimpo.isEmpty) return '';
-
-    final resolvido = ImagemService.resolverCaminhoExistente(caminhoLimpo);
-    if (resolvido != null && File(resolvido).existsSync()) {
-      return resolvido;
-    }
-
-    try {
-      final dirBase = await ImagemService.obterDiretorioBase();
-      final pastaImagens = Directory('${dirBase.path}/imagens');
-      if (!await pastaImagens.exists()) {
-        await pastaImagens.create(recursive: true);
-      }
-
-      final ext = caminhoLimpo.split('.').last.toLowerCase();
-      final extensaoFinal = ImagemService.extensoesImagem.contains(ext) ? ext : 'jpg';
-      final nomeBase = p.basename(caminhoLimpo);
-      final nomeHash = 'remota_${caminhoLimpo.hashCode.abs()}.$extensaoFinal';
-
-      final arquivoHash = File('${pastaImagens.path}/$nomeHash');
-      if (arquivoHash.existsSync() && arquivoHash.lengthSync() > 0) {
-        return arquivoHash.path;
-      }
-      if (nomeBase.isNotEmpty) {
-        final arquivoNome = File('${pastaImagens.path}/$nomeBase');
-        if (arquivoNome.existsSync() && arquivoNome.lengthSync() > 0) {
-          return arquivoNome.path;
-        }
-      }
-
-      final clienteHttp = HttpClient()..connectionTimeout = const Duration(seconds: 4);
-      final uri = Uri.parse(
-        'http://$ip:$porta/api/imagem?caminho=${Uri.encodeQueryComponent(caminhoLimpo)}',
-      );
-      final req = await clienteHttp.getUrl(uri);
-      final resp = await req.close();
-
-      if (resp.statusCode == HttpStatus.ok) {
-        final bytes = await resp.fold<List<int>>([], (acc, chunk) => acc..addAll(chunk));
-        await arquivoHash.writeAsBytes(bytes);
-        if (nomeBase.isNotEmpty && nomeBase != nomeHash) {
-          final arquivoNome = File('${pastaImagens.path}/$nomeBase');
-          try {
-            await arquivoNome.writeAsBytes(bytes);
-          } catch (_) {}
-        }
-
-        if (await arquivoHash.exists() && arquivoHash.lengthSync() > 0) {
-          return arquivoHash.path;
-        }
-      }
-    } catch (e) {
-      debugPrint('[ClienteRedeLocal] Erro ao baixar imagem remota: $e');
-    }
-
-    return caminhoLimpo;
-  }
-
-  /// Baixa um arquivo de áudio/música remoto do balcão e salva no armazenamento local
-  Future<String> baixarAudioRemoto(String caminhoRemoto) async {
-    if (_ipServidor == null || _portaServidor == null) return caminhoRemoto;
-    final caminhoLimpo = caminhoRemoto.trim();
-    if (caminhoLimpo.isEmpty) return '';
-
-    final caminhoExistente = ImagemService.resolverCaminhoExistente(caminhoLimpo);
-    if (caminhoExistente != null) {
-      return caminhoExistente;
-    }
-
-    try {
-      final dirBase = await ImagemService.obterDiretorioBase();
-      final pastaAudios = Directory('${dirBase.path}/audios');
-      if (!await pastaAudios.exists()) {
-        await pastaAudios.create(recursive: true);
-      }
-
-      final ext = caminhoLimpo.split('.').last.toLowerCase();
-      final extensaoFinal = (ext.isNotEmpty && ext.length <= 5) ? ext : 'mp3';
-      final nomeArquivoLocal = 'remoto_audio_${caminhoLimpo.hashCode.abs()}.$extensaoFinal';
-      final arquivoLocal = File('${pastaAudios.path}/$nomeArquivoLocal');
-
-      if (arquivoLocal.existsSync() && arquivoLocal.lengthSync() > 0) {
-        return arquivoLocal.path;
-      }
-
-      final clienteHttp = HttpClient()..connectionTimeout = const Duration(seconds: 15);
-      final uri = Uri.parse(
-        'http://$_ipServidor:$_portaServidor/api/audio?caminho=${Uri.encodeQueryComponent(caminhoLimpo)}',
-      );
-      final req = await clienteHttp.getUrl(uri);
-      final resp = await req.close();
-
-      if (resp.statusCode == HttpStatus.ok) {
-        final sink = arquivoLocal.openWrite();
-        await resp.pipe(sink);
-
-        if (await arquivoLocal.exists() && arquivoLocal.lengthSync() > 0) {
-          return arquivoLocal.path;
-        } else {
-          try {
-            if (await arquivoLocal.exists()) await arquivoLocal.delete();
-          } catch (_) {}
-        }
-      }
-    } catch (e) {
-      debugPrint('[ClienteRedeLocal] Erro ao baixar áudio remoto: $e');
-    }
-
-    return caminhoLimpo;
-  }
-
-  /// Envia a Identidade do Usuário (dados cadastrais, apelido e foto) atualizada para o servidor balcão
-  Future<bool> enviarUsuario(UsuarioNous usuario) async {
-    if (_ipServidor == null || _portaServidor == null) return false;
-    try {
-      var usuarioParaEnvio = usuario;
-
-      // Se possui foto local no dispositivo, envia o arquivo físico primeiro para o servidor
-      if (usuario.foto.isNotEmpty) {
-        final fotoResolvida =
-            ImagemService.resolverCaminhoExistente(usuario.foto);
-        if (fotoResolvida != null) {
-          final fotoNoServidor =
-              await _enviarUploadImagemParaServidor(fotoResolvida);
-          if (fotoNoServidor.isNotEmpty) {
-            usuarioParaEnvio = usuario.copyWith(foto: fotoNoServidor);
-          }
-        }
-      }
-
-      final client = HttpClient()..connectionTimeout = const Duration(seconds: 15);
-      final request = await client.postUrl(
-        Uri.parse('http://$_ipServidor:$_portaServidor/api/usuario'),
-      );
-      request.headers.contentType = ContentType.json;
-      request.write(jsonEncode(usuarioParaEnvio.toJson()));
-      final response = await request.close();
-      return response.statusCode == HttpStatus.ok;
-    } catch (e) {
-      debugPrint('[ClienteRedeLocal] Erro ao enviar usuário ao servidor: $e');
-      return false;
-    }
-  }
-
-  /// Obtém o caminho físico existente e válido de uma foto local para um CPF específico
-  /// pesquisando em ContasLocais, Clientes da Loja ou DadosLocaisService
-  Future<String?> _obterFotoLocalValidaPorCpf(String cpf) async {
-    final cpfLimpo = cpf.replaceAll(RegExp(r'\D'), '');
-    if (cpfLimpo.isEmpty) return null;
-
-    // 1. Tenta no banco de contas local
-    final conta = await ContasNousService.buscarPorCpf(cpfLimpo);
-    if (conta != null && conta.foto.isNotEmpty) {
-      final resolvida = ImagemService.resolverCaminhoExistente(conta.foto);
-      if (resolvida != null) return resolvida;
-    }
-
-    // 2. Tenta nos clientes da loja
-    final fotoCli = _pdvProvider?.buscarFotoClientePorCpf(cpfLimpo);
-    if (fotoCli != null && fotoCli.isNotEmpty) {
-      final resolvida = ImagemService.resolverCaminhoExistente(fotoCli);
-      if (resolvida != null) return resolvida;
-    }
-
-    // 3. Tenta em DadosLocaisService
-    try {
-      final dadosAuto = await DadosLocaisService.buscarPorDocumento(cpfLimpo);
-      if (dadosAuto != null && dadosAuto.foto.isNotEmpty) {
-        final resolvida = ImagemService.resolverCaminhoExistente(dadosAuto.foto);
-        if (resolvida != null) return resolvida;
-      }
-    } catch (_) {}
-
-    return null;
-  }
-
-  /// Cura ativamente lacunas de fotos de membros/usuários reportadas pelo servidor balcão
-  Future<void> _curarFotosUsuariosAusentesNoServidor(
-      List<String> cpfsAusentes) async {
-    if (_ipServidor == null || _portaServidor == null || cpfsAusentes.isEmpty) {
-      return;
-    }
-
-    for (final cpfBruto in cpfsAusentes) {
-      final cpfLimpo = cpfBruto.replaceAll(RegExp(r'\D'), '');
-      if (cpfLimpo.isEmpty) continue;
-
-      final fotoFisicaLocal = await _obterFotoLocalValidaPorCpf(cpfLimpo);
-      if (fotoFisicaLocal != null) {
-        debugPrint(
-          '[ClienteRedeLocal] Autocura mútua: servidor balcão reportou ausência de foto física para CPF $cpfLimpo. Enviando foto local...',
-        );
-        var conta = await ContasNousService.buscarPorCpf(cpfLimpo);
-        if (conta == null) {
-          final dadosAuto =
-              await DadosLocaisService.buscarPorDocumento(cpfLimpo);
-          conta = UsuarioNous(
-            cpf: cpfLimpo,
-            nome: dadosAuto?.nome ?? 'Usuário',
-            apelido: dadosAuto?.apelido ?? '',
-            dataNascimento: dadosAuto?.dataNascimento ?? '',
-            foto: fotoFisicaLocal,
-          );
-        } else {
-          conta = conta.copyWith(foto: fotoFisicaLocal);
-        }
-        await enviarUsuario(conta);
-      }
-    }
-  }
-
-  /// Reconcilia todas as contas cadastradas neste dispositivo com o servidor balcão,
-  /// garantindo que informações faltantes (especialmente fotos de perfil) sejam
-  /// transferidas mutuamente entre o celular e o servidor (autocura mútua orgânica).
-  Future<void> _reconciliarTodasContasLocaisComServidor() async {
-    if (_ipServidor == null || _portaServidor == null) return;
-    try {
-      final cpfsAExaminar = <String>{};
-
-      // 0. Consulta todos os usuários disponíveis no servidor balcão
-      try {
-        final clientUsuarios = HttpClient()..connectionTimeout = const Duration(seconds: 4);
-        final uriUsuarios = Uri.parse('http://$_ipServidor:$_portaServidor/api/usuarios');
-        final reqUsuarios = await clientUsuarios.getUrl(uriUsuarios);
-        final respUsuarios = await reqUsuarios.close();
-        if (respUsuarios.statusCode == HttpStatus.ok) {
-          final bodyUsuarios = await utf8.decodeStream(respUsuarios);
-          final dadosUsuarios = jsonDecode(bodyUsuarios) as Map<String, dynamic>;
-          final listaUsuarios = (dadosUsuarios['usuarios'] as List<dynamic>?) ?? [];
-          for (final uJson in listaUsuarios) {
-            if (uJson is Map<String, dynamic>) {
-              final u = UsuarioNous.fromJson(uJson);
-              final cpfLimpo = u.cpf.replaceAll(RegExp(r'\D'), '');
-              if (cpfLimpo.length == 11 && u.nome.toLowerCase() != 'blackview') {
-                cpfsAExaminar.add(u.cpf);
-                final existente = await ContasNousService.buscarPorCpf(u.cpf);
-                if (existente == null) {
-                  await ContasNousService.salvar(u);
-                } else {
-                  final mesclada = _mesclarUsuarios(existente, u);
-                  await ContasNousService.salvar(mesclada);
-                }
-              }
-            }
-          }
-        }
-      } catch (e) {
-        debugPrint('[ClienteRedeLocal] Erro ao sincronizar catálogo de usuários do servidor: $e');
-      }
-
-      // 1. Todas as contas conhecidas no cofre local (limpando qualquer entrada espúria antiga)
-      final contasLocais = await ContasNousService.carregarTodas();
-      for (final c in contasLocais) {
-        if (c.nome.trim().toLowerCase() == 'blackview') {
-          // Remove resquício de conta espúria
-          await ContasNousService.excluir(c.cpf);
-          continue;
-        }
-        cpfsAExaminar.add(c.cpf);
-      }
-
-      // 2. Membros e clientes da loja sincronizada
-      if (_lojaSincronizada != null) {
-        for (final m in _lojaSincronizada!.membros) {
-          if (m.cpf.isNotEmpty) cpfsAExaminar.add(m.cpf);
-        }
-        for (final cli in _lojaSincronizada!.clientesLoja) {
-          final doc = cli.cnpj.replaceAll(RegExp(r'\D'), '');
-          if (doc.length == 11) cpfsAExaminar.add(cli.cnpj);
-        }
-      }
-
-      for (final cpfBruto in cpfsAExaminar) {
-        final cpfLimpo = cpfBruto.replaceAll(RegExp(r'\D'), '');
-        if (cpfLimpo.isEmpty) continue;
-
-        final fotoFisicaLocal = await _obterFotoLocalValidaPorCpf(cpfLimpo);
-        final temFotoLocal = fotoFisicaLocal != null;
-
+  Future<String> baixarImagemRemota(String caminhoRemoto, {String? cpf}) {
+    return _transferencia.baixarImagemRemota(
+      caminhoRemoto: caminhoRemoto,
+      ipServidor: _ipServidor,
+      portaServidor: _portaServidor,
+      cpf: cpf,
+      onFotoUsuarioBaixada: (cpfLimpo, pathFinal) async {
         try {
-          final client = HttpClient()
-            ..connectionTimeout = const Duration(seconds: 3);
-          final uri = Uri.parse(
-            'http://$_ipServidor:$_portaServidor/api/usuario?cpf=${Uri.encodeQueryComponent(cpfLimpo)}',
-          );
-          final req = await client.getUrl(uri);
-          final resp = await req.close();
-
-          if (resp.statusCode == HttpStatus.ok) {
-            final body = await utf8.decodeStream(resp);
-            final dados = jsonDecode(body) as Map<String, dynamic>;
-            if (dados['sucesso'] == true && dados['usuario'] != null) {
-              var usuarioRemoto = UsuarioNous.fromJson(
-                  dados['usuario'] as Map<String, dynamic>);
-              final temFotoRemota = usuarioRemoto.foto.isNotEmpty;
-              final contaLocal = await ContasNousService.buscarPorCpf(cpfLimpo);
-
-              var contaMesclada = contaLocal != null
-                  ? _mesclarUsuarios(contaLocal, usuarioRemoto)
-                  : usuarioRemoto;
-
-              if (!temFotoRemota && temFotoLocal) {
-                debugPrint(
-                  '[ClienteRedeLocal] Autocura mútua: enviando foto e dados locais de $cpfLimpo (${contaMesclada.nome}) para o servidor balcão...',
-                );
-                contaMesclada = contaMesclada.copyWith(foto: fotoFisicaLocal);
-                await enviarUsuario(contaMesclada);
-              } else if (temFotoRemota && !temFotoLocal) {
-                debugPrint(
-                  '[ClienteRedeLocal] Autocura mútua: baixando foto remota de $cpfLimpo (${usuarioRemoto.nome}) do balcão...',
-                );
-                final novaFotoLocal =
-                    await baixarImagemRemota(usuarioRemoto.foto);
-                contaMesclada = contaMesclada.copyWith(foto: novaFotoLocal);
-                await ContasNousService.salvar(contaMesclada);
-                _pdvProvider?.sincronizarFotoUsuarioEmClientes(
-                    contaMesclada.cpf, contaMesclada.foto);
-                if (_authProvider?.contaAtual?.cpf.replaceAll(RegExp(r'\D'), '') == cpfLimpo ||
-                    _authProvider?.cpf.replaceAll(RegExp(r'\D'), '') == cpfLimpo) {
-                  await _authProvider?.recarregarConta();
-                }
-              } else {
-                await ContasNousService.salvar(contaMesclada);
-                if (_authProvider?.contaAtual?.cpf.replaceAll(RegExp(r'\D'), '') == cpfLimpo ||
-                    _authProvider?.cpf.replaceAll(RegExp(r'\D'), '') == cpfLimpo) {
-                  await _authProvider?.recarregarConta();
-                }
-              }
-            }
-          } else if (resp.statusCode == HttpStatus.notFound) {
-            final contaLocal = await ContasNousService.buscarPorCpf(cpfLimpo);
-            if (contaLocal != null) {
-              debugPrint(
-                '[ClienteRedeLocal] Autocura mútua: servidor não conhece conta ${contaLocal.cpf} (${contaLocal.nome}). Enviando ao balcão...',
-              );
-              await enviarUsuario(contaLocal);
-            }
+          final c = await ContasNousService.buscarPorCpf(cpfLimpo);
+          if (c != null) {
+            final atualizada = c.copyWith(foto: pathFinal);
+            await ContasNousService.salvar(atualizada);
+            _authProvider?.atualizarContaNoCache(atualizada);
+            _pdvProvider?.sincronizarFotoUsuarioEmClientes(cpfLimpo, pathFinal);
           }
-        } catch (e) {
-          debugPrint(
-            '[ClienteRedeLocal] Erro ao reconciliar conta $cpfLimpo com servidor: $e',
-          );
-        }
-      }
-    } catch (e) {
-      debugPrint(
-        '[ClienteRedeLocal] Erro na reconciliação universal de contas: $e',
-      );
-    }
-  }
-
-  /// Mescla duas fichas de usuário preservando dados preenchidos de ambas as pontas
-  UsuarioNous _mesclarUsuarios(UsuarioNous local, UsuarioNous remoto) {
-    return UsuarioNous(
-      cpf: local.cpf.isNotEmpty ? local.cpf : remoto.cpf,
-      nome: (local.nome.isNotEmpty && local.nome.toLowerCase() != 'blackview')
-          ? local.nome
-          : remoto.nome,
-      apelido: local.apelido.isNotEmpty ? local.apelido : remoto.apelido,
-      nomeDeUsuario: local.nomeDeUsuario.isNotEmpty
-          ? local.nomeDeUsuario
-          : remoto.nomeDeUsuario,
-      dataNascimento: local.dataNascimento.isNotEmpty
-          ? local.dataNascimento
-          : remoto.dataNascimento,
-      emails: {...local.emails, ...remoto.emails}.toList(),
-      foto: local.foto.isNotEmpty && ImagemService.existe(local.foto)
-          ? local.foto
-          : remoto.foto,
-      nomePai: local.nomePai.isNotEmpty ? local.nomePai : remoto.nomePai,
-      nomeMae: local.nomeMae.isNotEmpty ? local.nomeMae : remoto.nomeMae,
-      localNascimento: local.localNascimento.isNotEmpty
-          ? local.localNascimento
-          : remoto.localNascimento,
-      tipoSanguineo: local.tipoSanguineo.isNotEmpty
-          ? local.tipoSanguineo
-          : remoto.tipoSanguineo,
-      estadoCivil: local.estadoCivil.isNotEmpty
-          ? local.estadoCivil
-          : remoto.estadoCivil,
-      biografia: local.biografia.isNotEmpty ? local.biografia : remoto.biografia,
-      nomePublico: local.nomePublico.isNotEmpty ? local.nomePublico : remoto.nomePublico,
-      apelidoPublico: local.apelidoPublico.isNotEmpty ? local.apelidoPublico : remoto.apelidoPublico,
-      fotoPublica: local.fotoPublica.isNotEmpty ? local.fotoPublica : remoto.fotoPublica,
-      dadosPrivados: local.dadosPrivados.isNotEmpty ? local.dadosPrivados : remoto.dadosPrivados,
-      dadosAutorizadosPorCpf: {...local.dadosAutorizadosPorCpf, ...remoto.dadosAutorizadosPorCpf}.toList(),
-      seguindo: {...local.seguindo, ...remoto.seguindo}.toList(),
-      seguidores: {...local.seguidores, ...remoto.seguidores}.toList(),
+        } catch (_) {}
+      },
     );
   }
 
-  /// Sincroniza pan-dispositivo todas as lojas e referências associadas ao CPF ativo
-  /// entre este terminal e o servidor balcão, garantindo que perfis profissionais
-  /// acessados no trabalho ou em outros dispositivos apareçam imediatamente neste aparelho.
-  Future<void> sincronizarPerfisLojasComServidor() async {
-    if (_ipServidor == null || _portaServidor == null) return;
-    if (_sincronizandoPerfisLojas) return;
-    final cpf = (_pdvProvider?.cpfAtual ?? _authProvider?.cpf ?? '')
-        .replaceAll(RegExp(r'\D'), '');
-    if (cpf.isEmpty) return;
+  /// Baixa um arquivo de áudio/música remoto do balcão e salva no armazenamento local
+  Future<String> baixarAudioRemoto(String caminhoRemoto) {
+    return _transferencia.baixarAudioRemoto(
+      caminhoRemoto: caminhoRemoto,
+      ipServidor: _ipServidor,
+      portaServidor: _portaServidor,
+    );
+  }
 
-    _sincronizandoPerfisLojas = true;
-    try {
-      final referenciasLocais = await LojasService.carregarReferencias(cpf);
-      final lojasAEnviar = <Map<String, dynamic>>[];
+  /// Envia a Identidade do Usuário (dados cadastrais, apelido e foto) atualizada para o servidor balcão
+  Future<bool> enviarUsuario(UsuarioNous usuario) {
+    return _sincronizador.enviarUsuario(
+      ipServidor: _ipServidor,
+      portaServidor: _portaServidor,
+      usuario: usuario,
+    );
+  }
 
-      // Coleta lojas referenciadas conhecidas com garantia de upload de fotos para o servidor
-      for (final ref in referenciasLocais) {
-        final loja = await LojasService.carregarLojaPorId(ref.lojaId);
-        if (loja != null) {
-          final lojaPronta = await _prepararLojaComUploadsParaServidor(loja);
-          lojasAEnviar.add(LojasService.sanitizarCaminhosImagens(lojaPronta).toJson());
-        }
-      }
+  Future<void> _curarFotosUsuariosAusentesNoServidor(List<String> cpfsAusentes) {
+    return _sincronizador.curarFotosUsuariosAusentesNoServidor(
+      ipServidor: _ipServidor,
+      portaServidor: _portaServidor,
+      cpfsAusentes: cpfsAusentes,
+      pdvProvider: _pdvProvider,
+    );
+  }
 
-      // Coleta lojas onde este CPF é dono com garantia de upload de fotos para o servidor
-      final lojasProprias = await LojasService.carregar(cpf);
-      for (final lp in lojasProprias) {
-        if (!lojasAEnviar.any((m) => m['id'] == lp.id)) {
-          final lpPronta = await _prepararLojaComUploadsParaServidor(lp);
-          lojasAEnviar.add(LojasService.sanitizarCaminhosImagens(lpPronta).toJson());
-        }
-      }
-
-      final client = HttpClient()
-        ..connectionTimeout = const Duration(seconds: 5);
-      final uri = Uri.parse(
-        'http://$_ipServidor:$_portaServidor/api/sincronizar_perfis_usuario',
+  /// Método público para forçar a sincronização e reconciliação mútua de contas e usuários com o balcão
+  Future<void> reconciliarContasComServidor() =>
+      _sincronizador.reconciliarTodasContasLocaisComServidor(
+        ipServidor: _ipServidor,
+        portaServidor: _portaServidor,
+        authProvider: _authProvider,
+        pdvProvider: _pdvProvider,
       );
-      final req = await client.postUrl(uri);
-      req.headers.contentType = ContentType.json;
 
-      final payload = {
-        'cpf': cpf,
-        'referencias': referenciasLocais.map((r) => r.toJson()).toList(),
-        'lojas': lojasAEnviar,
-      };
-
-      req.write(jsonEncode(payload));
-      final resp = await req.close();
-
-      if (resp.statusCode == HttpStatus.ok) {
-        final body = await utf8.decodeStream(resp);
-        final dados = jsonDecode(body) as Map<String, dynamic>;
-
-        if (dados['sucesso'] == true) {
-          final referenciasRecebidas =
-              dados['referencias'] as List<dynamic>? ?? [];
-          final lojasRecebidas = dados['lojas'] as List<dynamic>? ?? [];
-          var houveAlteracao = false;
-
-          // Salva lojas recebidas após baixar suas fotos (logo, itens, categorias) e consolidar
-          for (final lJson in lojasRecebidas) {
-            try {
-              final loja = Loja.fromJson(lJson as Map<String, dynamic>);
-              final lojaComImagens = await _sincronizarImagensRemotas(loja);
-              final lojaExistente = await LojasService.carregarLojaPorId(loja.id);
-              final lojaConsolidada = LojasService.consolidarLojaComImagensLocais(lojaComImagens, lojaExistente);
-              await LojasService.salvarLojaIndividual(lojaConsolidada);
-              houveAlteracao = true;
-            } catch (_) {}
-          }
-
-          // Salva referências válidas recebidas
-          for (final rJson in referenciasRecebidas) {
-            try {
-              final ref =
-                  ReferenciaLoja.fromJson(rJson as Map<String, dynamic>);
-              final jaTem = referenciasLocais.any((r) => r.lojaId == ref.lojaId);
-              if (!jaTem) {
-                await LojasService.adicionarReferencia(cpf, ref);
-                houveAlteracao = true;
-              }
-            } catch (_) {}
-          }
-
-          // Limpa referências locais que o servidor balcão não possui mais (ex.: usuário saiu da loja)
-          final idsValidosServidor = referenciasRecebidas
-              .map((r) => (r as Map<String, dynamic>)['lojaId'] as String? ?? '')
-              .where((id) => id.isNotEmpty)
-              .toSet();
-          for (final rLocal in referenciasLocais) {
-            if (!idsValidosServidor.contains(rLocal.lojaId)) {
-              await LojasService.removerReferencia(cpf, rLocal.lojaId);
-              houveAlteracao = true;
-            }
-          }
-
-          if (houveAlteracao) {
-            debugPrint(
-              '[ClienteRedeLocal] Sincronização Pan-Dispositivo: perfis de lojas sincronizados para o CPF $cpf. Recarregando PdvProvider...',
-            );
-            await _pdvProvider?.entrarComCpf(cpf);
-          }
-        }
-      }
-    } catch (e) {
-      debugPrint('[ClienteRedeLocal] Erro ao sincronizar perfis de lojas com servidor: $e');
-    } finally {
-      _sincronizandoPerfisLojas = false;
-    }
+  /// Sincroniza pan-dispositivo todas as lojas e referências associadas ao CPF ativo
+  Future<void> sincronizarPerfisLojasComServidor() {
+    return _sincronizador.sincronizarPerfisLojasComServidor(
+      ipServidor: _ipServidor,
+      portaServidor: _portaServidor,
+      authProvider: _authProvider,
+      pdvProvider: _pdvProvider,
+      lojaSincronizada: _lojaSincronizada,
+    );
   }
 
   /// Notifica o servidor balcão que o membro saiu da loja para desvinculação imediata
@@ -2348,5 +1167,22 @@ class ClienteRedeLocal {
         debugPrint('[ClienteRedeLocal] Erro ao enviar mensagem raw via WebSocket: $e');
       }
     }
+  }
+
+  /// Sincroniza o relógio deste dispositivo com o balcão da rede local sob demanda
+  Future<bool> sincronizarRelogio() async {
+    String? ip = _ipServidor;
+    int? porta = _portaServidor;
+    if (ip == null && lojasEncontradas.value.isNotEmpty) {
+      ip = lojasEncontradas.value.first.ip;
+      porta = lojasEncontradas.value.first.porta;
+    }
+    if (ip != null && porta != null) {
+      return await RelogioRedeService.instancia.sincronizarComServidor(
+        ip: ip,
+        porta: porta,
+      );
+    }
+    return false;
   }
 }

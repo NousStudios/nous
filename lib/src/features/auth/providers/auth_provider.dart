@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:nous/src/core/theme/theme_controller.dart';
@@ -14,6 +15,8 @@ class AuthProvider extends ChangeNotifier {
 
   AuthProvider() {
     carregarCacheContas();
+    ClienteRedeLocal().vincularAuthProvider(this);
+    ServidorRedeLocal().vincularAuthProvider(this);
   }
 
   String _cpf = '';
@@ -118,12 +121,26 @@ class AuthProvider extends ChangeNotifier {
   }
 
   String buscarFotoPorCpf(String cpf) {
-    if (_contaAtual != null &&
-        _contaAtual!.cpf == cpf &&
-        _contaAtual!.fotoExibicao.trim().isNotEmpty) {
-      return _contaAtual!.fotoExibicao.trim();
+    final cpfLimpo = cpf.replaceAll(RegExp(r'\D'), '');
+    if (_contaAtual != null) {
+      final meuCpfLimpo = _contaAtual!.cpf.replaceAll(RegExp(r'\D'), '');
+      if ((_contaAtual!.cpf == cpf || (cpfLimpo.isNotEmpty && meuCpfLimpo == cpfLimpo)) &&
+          _contaAtual!.fotoExibicao.trim().isNotEmpty) {
+        return _contaAtual!.fotoExibicao.trim();
+      }
     }
-    return _fotosPorCpf[cpf] ?? '';
+    if (_fotosPorCpf.containsKey(cpf) && _fotosPorCpf[cpf]!.isNotEmpty) {
+      return _fotosPorCpf[cpf]!;
+    }
+    if (cpfLimpo.isNotEmpty) {
+      for (final entry in _fotosPorCpf.entries) {
+        if (entry.key.replaceAll(RegExp(r'\D'), '') == cpfLimpo &&
+            entry.value.isNotEmpty) {
+          return entry.value;
+        }
+      }
+    }
+    return '';
   }
 
   void updateCpf(String rawInput) {
@@ -169,38 +186,72 @@ class AuthProvider extends ChangeNotifier {
       }
     }
 
-    // 2. Consulta o balcão via rede Wi-Fi local para enriquecer os dados (inclusive nomeDeUsuario soberano, foto e dados cadastrais)
+    // Se a conta já existe localmente, define imediatamente para a UI responder com fluidez total (sem gargalo)
+    if (conta != null) {
+      _contaAtual = conta;
+      _emailAtivo = conta.emails.isNotEmpty ? conta.emails.first : null;
+      await ThemeController.carregarTemaDoUsuario(conta.cpf);
+      await carregarDadosReveladosDono(conta.cpf);
+      ClienteRedeLocal().atualizarIdentidadeUsuario(
+        cpf: conta.cpf,
+        nome: conta.nome,
+        apelido: conta.apelido,
+        foto: conta.foto,
+      );
+      ServidorRedeLocal().atualizarOperadorBalcao(conta);
+      _carregando = false;
+      notifyListeners();
+
+      // Enriquecimento e sincronização em background com o balcão via rede Wi-Fi local
+      unawaited(() async {
+        try {
+          final remoto = await ClienteRedeLocal().buscarUsuarioRemoto(_cpf);
+          if (remoto != null && _contaAtual != null && _contaAtual!.cpf == _cpf) {
+            final contaAtualizada = _contaAtual!.copyWith(
+              nome: (_contaAtual!.nome.isEmpty || _contaAtual!.nome.toLowerCase() == 'blackview')
+                  ? remoto.nome
+                  : _contaAtual!.nome,
+              apelido: _contaAtual!.apelido.isNotEmpty ? _contaAtual!.apelido : remoto.apelido,
+              nomeDeUsuario: _contaAtual!.nomeDeUsuario.isNotEmpty
+                  ? _contaAtual!.nomeDeUsuario
+                  : remoto.nomeDeUsuario,
+              foto: (_contaAtual!.foto.isNotEmpty && ImagemService.existe(_contaAtual!.foto))
+                  ? _contaAtual!.foto
+                  : remoto.foto,
+              emails: {..._contaAtual!.emails, ...remoto.emails}.toList(),
+              biografia: _contaAtual!.biografia.isNotEmpty ? _contaAtual!.biografia : remoto.biografia,
+              nomePublico: _contaAtual!.nomePublico.isNotEmpty ? _contaAtual!.nomePublico : remoto.nomePublico,
+              apelidoPublico: _contaAtual!.apelidoPublico.isNotEmpty ? _contaAtual!.apelidoPublico : remoto.apelidoPublico,
+              fotoPublica: _contaAtual!.fotoPublica.isNotEmpty ? _contaAtual!.fotoPublica : remoto.fotoPublica,
+              dadosPrivados: _contaAtual!.dadosPrivados.isNotEmpty ? _contaAtual!.dadosPrivados : remoto.dadosPrivados,
+              dadosAutorizadosPorCpf: {..._contaAtual!.dadosAutorizadosPorCpf, ...remoto.dadosAutorizadosPorCpf}.toList(),
+              seguindo: {..._contaAtual!.seguindo, ...remoto.seguindo}.toList(),
+              seguidores: {..._contaAtual!.seguidores, ...remoto.seguidores}.toList(),
+            );
+            await ContasNousService.salvar(contaAtualizada);
+            _contaAtual = contaAtualizada;
+            ClienteRedeLocal().atualizarIdentidadeUsuario(
+              cpf: contaAtualizada.cpf,
+              nome: contaAtualizada.nome,
+              apelido: contaAtualizada.apelido,
+              foto: contaAtualizada.foto,
+            );
+            notifyListeners();
+          }
+        } catch (_) {}
+      }());
+
+      return true;
+    }
+
+    // Se a conta não existe localmente, consulta o balcão via rede Wi-Fi local para enriquecer
     try {
       final remoto = await ClienteRedeLocal().buscarUsuarioRemoto(_cpf);
       if (remoto != null) {
-        if (conta == null) {
-          conta = remoto;
-        } else {
-          conta = conta.copyWith(
-            nome: (conta.nome.isEmpty || conta.nome.toLowerCase() == 'blackview')
-                ? remoto.nome
-                : conta.nome,
-            apelido: conta.apelido.isNotEmpty ? conta.apelido : remoto.apelido,
-            nomeDeUsuario: conta.nomeDeUsuario.isNotEmpty
-                ? conta.nomeDeUsuario
-                : remoto.nomeDeUsuario,
-            foto: (conta.foto.isNotEmpty && ImagemService.existe(conta.foto))
-                ? conta.foto
-                : remoto.foto,
-            emails: {...conta.emails, ...remoto.emails}.toList(),
-            biografia: conta.biografia.isNotEmpty ? conta.biografia : remoto.biografia,
-            nomePublico: conta.nomePublico.isNotEmpty ? conta.nomePublico : remoto.nomePublico,
-            apelidoPublico: conta.apelidoPublico.isNotEmpty ? conta.apelidoPublico : remoto.apelidoPublico,
-            fotoPublica: conta.fotoPublica.isNotEmpty ? conta.fotoPublica : remoto.fotoPublica,
-            dadosPrivados: conta.dadosPrivados.isNotEmpty ? conta.dadosPrivados : remoto.dadosPrivados,
-            dadosAutorizadosPorCpf: {...conta.dadosAutorizadosPorCpf, ...remoto.dadosAutorizadosPorCpf}.toList(),
-            seguindo: {...conta.seguindo, ...remoto.seguindo}.toList(),
-            seguidores: {...conta.seguidores, ...remoto.seguidores}.toList(),
-          );
-        }
+        conta = remoto;
         await ContasNousService.salvar(conta);
         debugPrint(
-          '[AuthProvider] Conta recuperada/enriquecida do balcão Wi-Fi para CPF $_cpf (${conta.nome}, username: ${conta.nomeDeUsuario})',
+          '[AuthProvider] Conta recuperada do balcão Wi-Fi para CPF $_cpf (${conta.nome})',
         );
       }
     } catch (e) {
@@ -215,6 +266,13 @@ class AuthProvider extends ChangeNotifier {
     if (conta != null) {
       await ThemeController.carregarTemaDoUsuario(conta.cpf);
       await carregarDadosReveladosDono(conta.cpf);
+      ClienteRedeLocal().atualizarIdentidadeUsuario(
+        cpf: conta.cpf,
+        nome: conta.nome,
+        apelido: conta.apelido,
+        foto: conta.foto,
+      );
+      ServidorRedeLocal().atualizarOperadorBalcao(conta);
     }
 
     _carregando = false;
@@ -262,6 +320,13 @@ class AuthProvider extends ChangeNotifier {
     _emailAtivo = null;
     await ThemeController.carregarTemaDoUsuario(_cpf);
     await carregarDadosReveladosDono(_cpf);
+    ClienteRedeLocal().atualizarIdentidadeUsuario(
+      cpf: conta.cpf,
+      nome: conta.nome,
+      apelido: conta.apelido,
+      foto: conta.foto,
+    );
+    ServidorRedeLocal().atualizarOperadorBalcao(conta);
     _propagarUsuarioAtualizado(conta);
     notifyListeners();
   }
@@ -555,6 +620,10 @@ class AuthProvider extends ChangeNotifier {
     _emailAtivo = null;
     _dadosReveladosDono = {};
     ThemeController.desvincularUsuario();
+    ClienteRedeLocal().notificarLogout();
+    unawaited(ClienteRedeLocal().desconectar(manual: true));
+    ClienteRedeLocal().pararDescoberta();
+    ServidorRedeLocal().atualizarOperadorBalcao(null);
     notifyListeners();
   }
 }

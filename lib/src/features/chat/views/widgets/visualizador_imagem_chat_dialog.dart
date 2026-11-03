@@ -26,11 +26,14 @@ class VisualizadorImagemChatDialog extends StatefulWidget {
     required String caminho,
     required AppTheme theme,
   }) async {
-    final resolvido = ImagemService.resolverCaminhoExistente(caminho) ?? caminho;
+    final resolvido =
+        ImagemService.resolverCaminhoExistente(caminho) ?? caminho;
     final file = File(resolvido);
     if (!file.existsSync()) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Arquivo de imagem não encontrado no disco local.')),
+        const SnackBar(
+          content: Text('Arquivo de imagem não encontrado no disco local.'),
+        ),
       );
       return;
     }
@@ -38,18 +41,18 @@ class VisualizadorImagemChatDialog extends StatefulWidget {
     await showDialog(
       context: context,
       barrierColor: Colors.black.withValues(alpha: 0.85),
-      builder: (_) => VisualizadorImagemChatDialog(
-        caminhoImagem: resolvido,
-        theme: theme,
-      ),
+      builder: (_) =>
+          VisualizadorImagemChatDialog(caminhoImagem: resolvido, theme: theme),
     );
   }
 
   @override
-  State<VisualizadorImagemChatDialog> createState() => _VisualizadorImagemChatDialogState();
+  State<VisualizadorImagemChatDialog> createState() =>
+      _VisualizadorImagemChatDialogState();
 }
 
-class _VisualizadorImagemChatDialogState extends State<VisualizadorImagemChatDialog> {
+class _VisualizadorImagemChatDialogState
+    extends State<VisualizadorImagemChatDialog> {
   bool _salvando = false;
 
   Future<void> _baixarImagem() async {
@@ -69,7 +72,8 @@ class _VisualizadorImagemChatDialogState extends State<VisualizadorImagemChatDia
 
       final ext = p.extension(widget.caminhoImagem).replaceAll('.', '');
       final extFinal = ext.isNotEmpty ? ext : 'jpg';
-      final nomeSugerido = 'nous_img_${DateTime.now().millisecondsSinceEpoch}.$extFinal';
+      final nomeSugerido =
+          'nous_img_${DateTime.now().millisecondsSinceEpoch}.$extFinal';
 
       String? caminhoSalvo;
 
@@ -116,9 +120,9 @@ class _VisualizadorImagemChatDialogState extends State<VisualizadorImagemChatDia
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Erro ao salvar imagem: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Erro ao salvar imagem: $e')));
       }
     } finally {
       if (mounted) setState(() => _salvando = false);
@@ -163,9 +167,18 @@ class _VisualizadorImagemChatDialogState extends State<VisualizadorImagemChatDia
                     errorBuilder: (_, _, _) => Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Icon(Icons.broken_image_rounded, size: 64, color: theme.secondaryTextColor),
+                        Icon(
+                          Icons.broken_image_rounded,
+                          size: 64,
+                          color: theme.secondaryTextColor,
+                        ),
                         const SizedBox(height: 8),
-                        Text('Não foi possível carregar a imagem', style: theme.getTextStyle(color: theme.secondaryTextColor)),
+                        Text(
+                          'Não foi possível carregar a imagem',
+                          style: theme.getTextStyle(
+                            color: theme.secondaryTextColor,
+                          ),
+                        ),
                       ],
                     ),
                   ),
@@ -189,7 +202,11 @@ class _VisualizadorImagemChatDialogState extends State<VisualizadorImagemChatDia
               child: Row(
                 children: [
                   IconButton(
-                    icon: const Icon(Icons.arrow_back_rounded, color: Colors.white, size: 22),
+                    icon: const Icon(
+                      Icons.arrow_back_rounded,
+                      color: Colors.white,
+                      size: 22,
+                    ),
                     tooltip: 'Voltar',
                     onPressed: () => Navigator.pop(context),
                   ),
@@ -199,14 +216,25 @@ class _VisualizadorImagemChatDialogState extends State<VisualizadorImagemChatDia
                         ? const SizedBox(
                             width: 18,
                             height: 18,
-                            child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Colors.white,
+                            ),
                           )
-                        : const Icon(Icons.file_download_outlined, color: Colors.white, size: 22),
+                        : const Icon(
+                            Icons.file_download_outlined,
+                            color: Colors.white,
+                            size: 22,
+                          ),
                     tooltip: 'Baixar imagem',
                     onPressed: _salvando ? null : _baixarImagem,
                   ),
                   IconButton(
-                    icon: const Icon(Icons.reply_rounded, color: Colors.white, size: 22),
+                    icon: const Icon(
+                      Icons.reply_rounded,
+                      color: Colors.white,
+                      size: 22,
+                    ),
                     tooltip: 'Encaminhar imagem',
                     onPressed: _abrirDialogEncaminhar,
                   ),
@@ -295,7 +323,9 @@ class _ModalEncaminharImagemState extends State<_ModalEncaminharImagem> {
         Navigator.pop(context); // Fecha modal encaminhar
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Imagem encaminhada para ${conversa.titulo} com sucesso!'),
+            content: Text(
+              'Imagem encaminhada para ${conversa.titulo} com sucesso!',
+            ),
             backgroundColor: const Color(0xFF4CAF50),
           ),
         );
@@ -349,7 +379,11 @@ class _ModalEncaminharImagemState extends State<_ModalEncaminharImagem> {
                 ),
                 const Spacer(),
                 IconButton(
-                  icon: Icon(Icons.close, color: theme.secondaryTextColor, size: 20),
+                  icon: Icon(
+                    Icons.close,
+                    color: theme.secondaryTextColor,
+                    size: 20,
+                  ),
                   onPressed: () => Navigator.pop(context),
                 ),
               ],
@@ -361,8 +395,15 @@ class _ModalEncaminharImagemState extends State<_ModalEncaminharImagem> {
               style: theme.getTextStyle(color: theme.textColor, fontSize: 13),
               decoration: InputDecoration(
                 hintText: 'Pesquisar conversa ou contato...',
-                hintStyle: theme.getTextStyle(color: theme.secondaryTextColor, fontSize: 12),
-                prefixIcon: Icon(Icons.search, size: 18, color: theme.secondaryTextColor),
+                hintStyle: theme.getTextStyle(
+                  color: theme.secondaryTextColor,
+                  fontSize: 12,
+                ),
+                prefixIcon: Icon(
+                  Icons.search,
+                  size: 18,
+                  color: theme.secondaryTextColor,
+                ),
                 filled: true,
                 fillColor: theme.backgroundColor,
                 border: OutlineInputBorder(
@@ -374,7 +415,12 @@ class _ModalEncaminharImagemState extends State<_ModalEncaminharImagem> {
             ),
             const SizedBox(height: 12),
             if (_carregando)
-              const Center(child: Padding(padding: EdgeInsets.all(24), child: CircularProgressIndicator()))
+              const Center(
+                child: Padding(
+                  padding: EdgeInsets.all(24),
+                  child: CircularProgressIndicator(),
+                ),
+              )
             else if (filtradas.isEmpty)
               Center(
                 child: Padding(
@@ -397,13 +443,20 @@ class _ModalEncaminharImagemState extends State<_ModalEncaminharImagem> {
                   itemBuilder: (ctx, index) {
                     final c = filtradas[index];
                     return ListTile(
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 4,
+                        vertical: 2,
+                      ),
                       leading: CircleAvatar(
-                        backgroundColor: theme.buttonColor.withValues(alpha: 0.15),
+                        backgroundColor: theme.buttonColor.withValues(
+                          alpha: 0.15,
+                        ),
                         child: Icon(
                           c.ehGrupo
                               ? Icons.groups_outlined
-                              : (c.ehLoja ? Icons.storefront_outlined : Icons.person_outline),
+                              : (c.ehLoja
+                                    ? Icons.storefront_outlined
+                                    : Icons.person_outline),
                           color: theme.textColor,
                           size: 18,
                         ),
@@ -423,7 +476,11 @@ class _ModalEncaminharImagemState extends State<_ModalEncaminharImagem> {
                           color: theme.secondaryTextColor,
                         ),
                       ),
-                      trailing: Icon(Icons.send_rounded, color: theme.buttonColor, size: 18),
+                      trailing: Icon(
+                        Icons.send_rounded,
+                        color: theme.buttonColor,
+                        size: 18,
+                      ),
                       onTap: () => _encaminharPara(c),
                     );
                   },

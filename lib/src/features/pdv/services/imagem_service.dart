@@ -11,6 +11,7 @@ class ImagemService {
   static const Set<String> extensoesImagem = {'jpg', 'jpeg', 'png', 'webp', 'gif', 'bmp'};
 
   static Directory? _diretorioBaseCache;
+  static final Map<String, String?> _cacheResolucaoCaminhos = {};
 
   static Future<void> inicializar() async {
     await obterDiretorioBase();
@@ -108,49 +109,67 @@ class ImagemService {
     if (caminhoOriginal == null || caminhoOriginal.trim().isEmpty) return null;
     final limpo = caminhoOriginal.trim();
 
+    if (_cacheResolucaoCaminhos.containsKey(limpo)) {
+      return _cacheResolucaoCaminhos[limpo];
+    }
+
+    String? resolvido;
+
     // 1. Verifica no caminho exato fornecido
     try {
       final arqExato = File(limpo);
       if (arqExato.existsSync() && arqExato.lengthSync() > 0) {
-        return arqExato.path;
+        resolvido = arqExato.path;
       }
     } catch (_) {}
 
     // 2. Normaliza separadores e tenta novamente
-    try {
-      final normalizado = p.normalize(limpo);
-      final arqNorm = File(normalizado);
-      if (arqNorm.existsSync() && arqNorm.lengthSync() > 0) {
-        return arqNorm.path;
-      }
-    } catch (_) {}
-
-    // 3. Procura pelo nome do arquivo ou hash em todas as pastas possíveis de dados
-    final nomeArquivo = p.basename(limpo);
-    if (nomeArquivo.isEmpty) return null;
-
-    final ext = p.extension(limpo).replaceAll('.', '').toLowerCase();
-    final extFinal = ext.isNotEmpty ? ext : 'jpg';
-    final candidatosNomes = [
-      nomeArquivo,
-      'remota_${limpo.hashCode.abs()}.$extFinal',
-      'remota_${nomeArquivo.hashCode.abs()}.$extFinal',
-    ];
-
-    final possiveis = obterDiretoriosPossiveisSync();
-    for (final dir in possiveis) {
+    if (resolvido == null) {
       try {
-        if (!dir.existsSync()) continue;
-        for (final n in candidatosNomes) {
-          final candidato = File(p.join(dir.path, n));
-          if (candidato.existsSync() && candidato.lengthSync() > 0) {
-            return candidato.path;
-          }
+        final normalizado = p.normalize(limpo);
+        final arqNorm = File(normalizado);
+        if (arqNorm.existsSync() && arqNorm.lengthSync() > 0) {
+          resolvido = arqNorm.path;
         }
       } catch (_) {}
     }
 
-    return null;
+    // 3. Procura pelo nome do arquivo ou hash em todas as pastas possíveis de dados
+    if (resolvido == null) {
+      final limpoFormatado = limpo.replaceAll('\\', '/');
+      final nomeArquivo = p.basename(limpoFormatado);
+      if (nomeArquivo.isNotEmpty) {
+        final ext = p.extension(limpoFormatado).replaceAll('.', '').toLowerCase();
+        final extFinal = ext.isNotEmpty ? ext : 'jpg';
+        final candidatosNomes = [
+          nomeArquivo,
+          'remota_${limpo.hashCode.abs()}.$extFinal',
+          'remota_${limpoFormatado.hashCode.abs()}.$extFinal',
+          'remota_${nomeArquivo.hashCode.abs()}.$extFinal',
+        ];
+
+        final possiveis = obterDiretoriosPossiveisSync();
+        for (final dir in possiveis) {
+          try {
+            if (!dir.existsSync()) continue;
+            for (final n in candidatosNomes) {
+              final candidato = File(p.join(dir.path, n));
+              if (candidato.existsSync() && candidato.lengthSync() > 0) {
+                resolvido = candidato.path;
+                break;
+              }
+            }
+            if (resolvido != null) break;
+          } catch (_) {}
+        }
+      }
+    }
+
+    if (_cacheResolucaoCaminhos.length > 500) {
+      _cacheResolucaoCaminhos.clear();
+    }
+    _cacheResolucaoCaminhos[limpo] = resolvido;
+    return resolvido;
   }
 
   /// Retorna true se o caminho se refere a um asset embutido no aplicativo (ex.: assets/images/logo.png)

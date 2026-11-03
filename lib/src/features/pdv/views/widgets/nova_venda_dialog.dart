@@ -1,12 +1,9 @@
-import 'dart:io';
-
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:nous/src/core/services/som_service.dart';
 import 'package:nous/src/core/services/janela_windows_service.dart';
 import 'package:nous/src/core/theme/theme_controller.dart';
-import 'package:nous/src/core/widgets/texto_rolante.dart';
 import 'package:nous/src/features/pdv/providers/pdv_provider.dart';
 import 'package:nous/src/features/pdv/models/categoria_loja.dart';
 import 'package:nous/src/features/pdv/models/cliente.dart';
@@ -15,10 +12,18 @@ import 'package:nous/src/features/pdv/models/grupo_componentes_loja.dart';
 import 'package:nous/src/features/pdv/models/item_loja.dart';
 import 'package:nous/src/features/pdv/models/movimento_estoque.dart';
 import 'package:nous/src/features/pdv/models/pedido_loja.dart';
-import 'package:nous/src/features/pdv/services/imagem_service.dart';
-import 'package:nous/src/features/pdv/views/widgets/baixa_estoque_dialog.dart';
+import 'package:nous/src/features/pdv/services/gerador_comprovante_venda.dart';
 import 'package:nous/src/features/pdv/views/widgets/novo_item_dialog.dart';
-import 'package:nous/src/features/pdv/views/widgets/venda_concluida_dialog.dart';
+import 'package:nous/src/features/pdv/models/modelos_nova_venda.dart';
+import 'package:nous/src/features/pdv/views/dialogs/dialog_escolher_variante_item.dart';
+import 'package:nous/src/features/pdv/views/dialogs/dialog_editar_acompanhamentos.dart';
+import 'package:nous/src/features/pdv/views/dialogs/dialog_seletor_item_categoria.dart';
+import 'package:nous/src/features/pdv/views/widgets/nova_venda/bloco_produtos_nova_venda_widget.dart';
+import 'package:nous/src/features/pdv/views/widgets/nova_venda/cliente_seletor_nova_venda_widget.dart';
+import 'package:nous/src/features/pdv/views/widgets/nova_venda/comanda_resumo_nova_venda_widget.dart';
+import 'package:nous/src/features/pdv/views/widgets/nova_venda/pagamento_nova_venda_widget.dart';
+import 'package:nous/src/features/pdv/views/widgets/nova_venda/finalizador_nova_venda.dart';
+
 import 'package:nous/src/core/utils/texto_utils.dart';
 
 const List<String> _formasDePagamento = [
@@ -50,50 +55,8 @@ String _dataHoraCompleta(DateTime d) =>
     '${_doisDigitos(d.day)}/${_doisDigitos(d.month)}/${d.year} '
     '${_doisDigitos(d.hour)}:${_doisDigitos(d.minute)}';
 
-class _ItemRascunho {
-  final String chave;
-  final String itemId;
-  final String? categoriaId;
-  final String varianteNome;
-  final String precoVariante;
-  final int quantidade;
-  final Map<String, int> acompanhamentos;
-  final String observacao;
-
-  const _ItemRascunho({
-    required this.chave,
-    required this.itemId,
-    this.categoriaId,
-    this.varianteNome = '',
-    this.precoVariante = '',
-    required this.quantidade,
-    required this.acompanhamentos,
-    required this.observacao,
-  });
-}
-
-class _RascunhoVenda {
-  final List<_ItemRascunho> itens;
-  final List<({String forma, String valor})> pagamentos;
-  final String? clienteId;
-  final String clienteNomeDigitado;
-  final String frete;
-  final String desconto;
-  final String acrescimo;
-
-  const _RascunhoVenda({
-    required this.itens,
-    required this.pagamentos,
-    this.clienteId,
-    this.clienteNomeDigitado = '',
-    required this.frete,
-    required this.desconto,
-    required this.acrescimo,
-  });
-}
-
 class NovaVendaDialog {
-  static final Map<String, _RascunhoVenda> _rascunhosPorLoja = {};
+  static final Map<String, RascunhoVenda> _rascunhosPorLoja = {};
 
   static void limparRascunho(String? lojaId) {
     _rascunhosPorLoja.remove(lojaId ?? '');
@@ -224,44 +187,6 @@ class _NovaVendaConteudo extends StatefulWidget {
   State<_NovaVendaConteudo> createState() => _NovaVendaConteudoState();
 }
 
-class _LinhaCarrinho {
-  final String chave;
-  final String itemId;
-  final String? categoriaId;
-  final String varianteNome;
-  final String precoVariante;
-  int quantidade;
-  final Map<String, int> acompanhamentosPorItemId;
-  final TextEditingController observacaoController;
-
-  _LinhaCarrinho({
-    required this.chave,
-    required this.itemId,
-    this.categoriaId,
-    this.varianteNome = '',
-    this.precoVariante = '',
-    Map<String, int>? acompanhamentos,
-  })  : quantidade = 1,
-        acompanhamentosPorItemId = acompanhamentos ?? {},
-        observacaoController = TextEditingController();
-
-  void dispose() {
-    observacaoController.dispose();
-  }
-}
-
-class _LinhaPagamento {
-  final String forma;
-  final TextEditingController controller;
-
-  _LinhaPagamento({required this.forma, String valorInicial = ''})
-      : controller = TextEditingController(text: valorInicial);
-
-  void dispose() {
-    controller.dispose();
-  }
-}
-
 class _NovaVendaConteudoState extends State<_NovaVendaConteudo> {
   final _clienteController = TextEditingController();
   final _buscaController = TextEditingController();
@@ -273,8 +198,8 @@ class _NovaVendaConteudoState extends State<_NovaVendaConteudo> {
   final _buscaFocusNode = FocusNode();
   final _clienteFocusNode = FocusNode();
 
-  final List<_LinhaCarrinho> _carrinho = [];
-  final List<_LinhaPagamento> _pagamentos = [];
+  final List<LinhaCarrinho> _carrinho = [];
+  final List<LinhaPagamento> _pagamentos = [];
   Cliente? _clienteSelecionado;
   String? _aviso;
   late final DateTime _dataHora;
@@ -321,7 +246,7 @@ class _NovaVendaConteudoState extends State<_NovaVendaConteudo> {
     _acrescimoController.text = rascunho.acrescimo;
 
     for (final item in rascunho.itens) {
-      final linha = _LinhaCarrinho(
+      final linha = LinhaCarrinho(
         chave: item.chave,
         itemId: item.itemId,
         categoriaId: item.categoriaId,
@@ -335,7 +260,7 @@ class _NovaVendaConteudoState extends State<_NovaVendaConteudo> {
     }
 
     for (final pag in rascunho.pagamentos) {
-      _pagamentos.add(_LinhaPagamento(
+      _pagamentos.add(LinhaPagamento(
         forma: pag.forma,
         valorInicial: pag.valor,
       ));
@@ -353,9 +278,9 @@ class _NovaVendaConteudoState extends State<_NovaVendaConteudo> {
 
     final chaveLoja = widget.lojaId ?? '';
     if (temDados) {
-      NovaVendaDialog._rascunhosPorLoja[chaveLoja] = _RascunhoVenda(
+      NovaVendaDialog._rascunhosPorLoja[chaveLoja] = RascunhoVenda(
         itens: _carrinho.map((linha) {
-          return _ItemRascunho(
+          return ItemRascunho(
             chave: linha.chave,
             itemId: linha.itemId,
             categoriaId: linha.categoriaId,
@@ -479,7 +404,7 @@ class _NovaVendaConteudoState extends State<_NovaVendaConteudo> {
     return base;
   }
 
-  List<GrupoComponentesLoja> _gruposDaCategoria(_LinhaCarrinho linha) {
+  List<GrupoComponentesLoja> _gruposDaCategoria(LinhaCarrinho linha) {
     final categoriaId = linha.categoriaId;
     if (categoriaId == null) return [];
     final categoria = _buscarCategoria(categoriaId);
@@ -490,7 +415,7 @@ class _NovaVendaConteudoState extends State<_NovaVendaConteudo> {
         .toList();
   }
 
-  double _precoDosAcompanhamentosPorUnidade(_LinhaCarrinho linha) {
+  double _precoDosAcompanhamentosPorUnidade(LinhaCarrinho linha) {
     var soma = 0.0;
     linha.acompanhamentosPorItemId.forEach((itemId, quantidade) {
       final item = _buscarItem(itemId);
@@ -500,7 +425,7 @@ class _NovaVendaConteudoState extends State<_NovaVendaConteudo> {
     return soma;
   }
 
-  double _precoBaseUnitarioDaLinha(_LinhaCarrinho linha) {
+  double _precoBaseUnitarioDaLinha(LinhaCarrinho linha) {
     final item = _buscarItem(linha.itemId);
     if (item == null) return 0;
     final precoItem = linha.precoVariante.trim().isNotEmpty
@@ -514,15 +439,15 @@ class _NovaVendaConteudoState extends State<_NovaVendaConteudo> {
     return soma;
   }
 
-  double _precoUnitarioDaLinha(_LinhaCarrinho linha) {
+  double _precoUnitarioDaLinha(LinhaCarrinho linha) {
     return _precoBaseUnitarioDaLinha(linha) +
         _precoDosAcompanhamentosPorUnidade(linha);
   }
 
-  double _subtotalBaseDaLinha(_LinhaCarrinho linha) =>
+  double _subtotalBaseDaLinha(LinhaCarrinho linha) =>
       _precoBaseUnitarioDaLinha(linha) * linha.quantidade;
 
-  double _subtotalDaLinha(_LinhaCarrinho linha) =>
+  double _subtotalDaLinha(LinhaCarrinho linha) =>
       _precoUnitarioDaLinha(linha) * linha.quantidade;
 
   double get _subtotalDosItens {
@@ -593,7 +518,7 @@ class _NovaVendaConteudoState extends State<_NovaVendaConteudo> {
     return t < 0 ? 0.0 : t;
   }
 
-  String _nomeExibicaoDaLinha(_LinhaCarrinho linha) {
+  String _nomeExibicaoDaLinha(LinhaCarrinho linha) {
     final item = _buscarItem(linha.itemId);
     if (item == null) return 'Item removido';
     final base = linha.categoriaId == null
@@ -605,7 +530,7 @@ class _NovaVendaConteudoState extends State<_NovaVendaConteudo> {
     return base;
   }
 
-  _LinhaCarrinho? _linhaPorChave(String chave) {
+  LinhaCarrinho? _linhaPorChave(String chave) {
     for (final linha in _carrinho) {
       if (linha.chave == chave) return linha;
     }
@@ -666,9 +591,6 @@ class _NovaVendaConteudoState extends State<_NovaVendaConteudo> {
     }
   }
 
-  bool get _temResultadoDeBusca =>
-      _categoriasEncontradas.isNotEmpty || _itensEncontrados.isNotEmpty;
-
   List<Cliente> get _sugestoesDeCliente {
     final termo = _clienteController.text.trim();
     final todos = widget.obterClientes();
@@ -693,121 +615,30 @@ class _NovaVendaConteudoState extends State<_NovaVendaConteudo> {
   }
 
   String _montarComanda() {
-    const colunas = 40;
-    const duplo = '========================================';
-    const simples = '----------------------------------------';
-
-    String linha(String esquerda, String direita) {
-      final espaco = colunas - direita.length;
-      if (esquerda.length >= espaco) {
-        return '${esquerda.substring(0, espaco - 1)} $direita';
-      }
-      return '${esquerda.padRight(espaco)}$direita';
-    }
-
-    final buffer = StringBuffer();
-    buffer.writeln(duplo);
-    buffer.writeln(
-      widget.nomeVendedor.isEmpty ? 'Nome do vendedor' : widget.nomeVendedor,
+    return GeradorComprovanteVenda.montarComandaTexto(
+      nomeVendedor: widget.nomeVendedor,
+      cnpjVendedor: widget.cnpjVendedor,
+      numeroPedido: widget.proximoNumero,
+      dataHora: _dataHora,
+      nomeClienteDigitado: _clienteController.text,
+      clienteSelecionado: _clienteSelecionado,
+      deveMostrarCampoCliente: _deveMostrarCampoCliente,
+      carrinho: _carrinho,
+      nomeExibicaoLinha: _nomeExibicaoDaLinha,
+      subtotalBaseLinha: _subtotalBaseDaLinha,
+      buscarItem: _buscarItem,
+      precoComoNumero: _precoComoNumero,
+      valorComVirgula: _valorComVirgula,
+      subtotalDosItens: _subtotalDosItens,
+      frete: _frete,
+      desconto: _desconto,
+      rotuloDesconto: _rotuloDesconto,
+      acrescimo: _acrescimo,
+      rotuloAcrescimo: _rotuloAcrescimo,
+      total: _total,
+      pagamentos: _pagamentos,
+      troco: _troco,
     );
-    buffer.writeln('CNPJ: ${widget.cnpjVendedor}');
-    buffer.writeln(duplo);
-    buffer.writeln('Pedido #${widget.proximoNumero.toString().padLeft(4, '0')}');
-    buffer.writeln('Data: ${_dataHoraCompleta(_dataHora)}');
-    buffer.writeln(simples);
-    buffer.writeln('Cliente: ${_clienteController.text.trim()}');
-    final c = _clienteSelecionado;
-    if (c != null) {
-      if (_deveMostrarCampoCliente('cnpj') && c.cnpj.trim().isNotEmpty) {
-        buffer.writeln('CNPJ: ${c.cnpj.trim()}');
-      }
-      if (_deveMostrarCampoCliente('telefone') && c.telefone.trim().isNotEmpty) {
-        buffer.writeln('Telefone: ${c.telefone.trim()}');
-      }
-      if (_deveMostrarCampoCliente('endereco')) {
-        final endereco = c.endereco.trim();
-        final numero = c.numero.trim();
-        if (endereco.isNotEmpty) {
-          final completo = numero.isEmpty ? endereco : '$endereco, $numero';
-          buffer.writeln('Endereco: $completo');
-        } else if (numero.isNotEmpty) {
-          buffer.writeln('Numero: $numero');
-        }
-      }
-      if (_deveMostrarCampoCliente('email') && c.email.trim().isNotEmpty) {
-        buffer.writeln('Email: ${c.email.trim()}');
-      }
-      if (_deveMostrarCampoCliente('redesSociais') && c.redesSociais.trim().isNotEmpty) {
-        buffer.writeln('Redes sociais: ${c.redesSociais.trim()}');
-      }
-      if (_deveMostrarCampoCliente('descricao') && c.descricao.trim().isNotEmpty) {
-        buffer.writeln('Descricao: ${c.descricao.trim()}');
-      }
-    }
-    buffer.writeln(simples);
-    buffer.writeln('ITENS');
-    buffer.writeln('');
-
-    for (final linhaCarrinho in _carrinho) {
-      final nome = _nomeExibicaoDaLinha(linhaCarrinho);
-      final subtotalBase = _subtotalBaseDaLinha(linhaCarrinho);
-      buffer.writeln(
-        linha(
-          '${linhaCarrinho.quantidade}x $nome',
-          _valorComVirgula(subtotalBase),
-        ),
-      );
-      linhaCarrinho.acompanhamentosPorItemId.forEach((itemId, quantidade) {
-        final acompanhamento = _buscarItem(itemId);
-        if (acompanhamento == null || quantidade <= 0) return;
-        final totalAcompanhamento = _precoComoNumero(acompanhamento.preco) *
-            quantidade *
-            linhaCarrinho.quantidade;
-        buffer.writeln(
-          linha(
-            '   ${quantidade}x ${acompanhamento.nome} por unidade',
-            _valorComVirgula(totalAcompanhamento),
-          ),
-        );
-      });
-      final obs = linhaCarrinho.observacaoController.text.trim();
-      if (obs.isNotEmpty) {
-        buffer.writeln('   Obs: $obs');
-      }
-      buffer.writeln('');
-    }
-
-    buffer.writeln(simples);
-    buffer.writeln(
-      linha('Subtotal', _valorComVirgula(_subtotalDosItens)),
-    );
-    buffer.writeln(linha('Frete', _valorComVirgula(_frete)));
-    if (_desconto > 0) {
-      buffer.writeln(
-        linha(_rotuloDesconto, '-${_valorComVirgula(_desconto)}'),
-      );
-    }
-    if (_acrescimo > 0) {
-      buffer.writeln(linha(_rotuloAcrescimo, _valorComVirgula(_acrescimo)));
-    }
-    buffer.writeln(linha('TOTAL', _valorComVirgula(_total)));
-    if (_pagamentos.isNotEmpty) {
-      buffer.writeln('Pagamentos:');
-      for (final p in _pagamentos) {
-        final v = _precoComoNumero(p.controller.text);
-        buffer.writeln(
-          linha('  ${p.forma}', _valorComVirgula(v)),
-        );
-      }
-      if (_troco > 0) {
-        buffer.writeln(linha('Troco', _valorComVirgula(_troco)));
-      }
-    }
-    buffer.writeln(duplo);
-    buffer.writeln('linktr.ee/nous72');
-    buffer.write(duplo);
-
-    return buffer.toString();
   }
 
   void _adicionarLinhaAoCarrinho({
@@ -826,7 +657,7 @@ class _NovaVendaConteudoState extends State<_NovaVendaConteudo> {
       if (existente != null) {
         existente.quantidade++;
       } else {
-        _carrinho.add(_LinhaCarrinho(
+        _carrinho.add(LinhaCarrinho(
           chave: chave,
           itemId: itemId,
           categoriaId: categoriaId,
@@ -868,103 +699,10 @@ class _NovaVendaConteudoState extends State<_NovaVendaConteudo> {
   }
 
   Future<VarianteItem?> _selecionarVarianteDialog(ItemLoja item) {
-    return showDialog<VarianteItem>(
-      context: context,
-      builder: (dialogCtx) => AlertDialog(
-        backgroundColor: theme.cardBackgroundColor,
-        surfaceTintColor: Colors.transparent,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-          side: BorderSide(color: theme.borderColor),
-        ),
-        title: Text(
-          'Escolha a Variante\n${item.nome}',
-          textAlign: TextAlign.center,
-          style: theme.getTextStyle(
-            fontSize: 15,
-            fontWeight: FontWeight.bold,
-            color: theme.textColor,
-          ),
-        ),
-        content: SizedBox(
-          width: 320,
-          child: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                ListTile(
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 12),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(10),
-                    side: BorderSide(
-                      color: theme.borderColor.withValues(alpha: 0.5),
-                    ),
-                  ),
-                  title: Text(
-                    'Padrão',
-                    style: theme.getTextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.bold,
-                      color: theme.textColor,
-                    ),
-                  ),
-                  trailing: Text(
-                    'R\$ ${item.preco}',
-                    style: theme.getTextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.bold,
-                      color: theme.textColor,
-                    ),
-                  ),
-                  onTap: () => Navigator.of(dialogCtx).pop(
-                    VarianteItem(nome: '', preco: item.preco),
-                  ),
-                ),
-                const SizedBox(height: 8),
-                for (final v in item.variantes) ...[
-                  ListTile(
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 12),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10),
-                      side: BorderSide(
-                        color: theme.borderColor.withValues(alpha: 0.5),
-                      ),
-                    ),
-                    title: Text(
-                      v.nome,
-                      style: theme.getTextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.bold,
-                        color: theme.textColor,
-                      ),
-                    ),
-                    trailing: Text(
-                      'R\$ ${v.preco.isNotEmpty ? v.preco : item.preco}',
-                      style: theme.getTextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.bold,
-                        color: theme.textColor,
-                      ),
-                    ),
-                    onTap: () => Navigator.of(dialogCtx).pop(v),
-                  ),
-                  const SizedBox(height: 8),
-                ],
-              ],
-            ),
-          ),
-        ),
-        actionsAlignment: MainAxisAlignment.center,
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(dialogCtx).pop(null),
-            child: Text(
-              'Cancelar',
-              style: theme.getTextStyle(color: theme.secondaryTextColor),
-            ),
-          ),
-        ],
-      ),
+    return DialogEscolherVarianteItem.mostrar(
+      context,
+      theme: theme,
+      item: item,
     );
   }
 
@@ -983,7 +721,7 @@ class _NovaVendaConteudoState extends State<_NovaVendaConteudo> {
     });
   }
 
-  void _editarAcompanhamentosDaLinha(String chave) {
+  Future<void> _editarAcompanhamentosDaLinha(String chave) async {
     final linha = _linhaPorChave(chave);
     if (linha == null) return;
 
@@ -996,148 +734,21 @@ class _NovaVendaConteudoState extends State<_NovaVendaConteudo> {
       return;
     }
 
-    showDialog<void>(
-      context: context,
-      builder: (dialogContext) {
-        final selecionados = Map<String, int>.of(linha.acompanhamentosPorItemId);
-        return StatefulBuilder(
-          builder: (dialogContext, setDialogState) {
-            return AlertDialog(
-              backgroundColor: theme.cardBackgroundColor,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(16.0),
-                side: BorderSide(color: theme.borderColor),
-              ),
-              title: Text(
-                'Acompanhamentos',
-                textAlign: TextAlign.center,
-                style: theme.getTextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                  color: theme.textColor,
-                ),
-              ),
-              content: SizedBox(
-                width: 320,
-                child: SingleChildScrollView(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      for (final grupo in grupos) ...[
-                        Padding(
-                          padding: const EdgeInsets.only(top: 6, bottom: 6),
-                          child: Text(
-                            grupo.nome,
-                            textAlign: TextAlign.center,
-                            style: theme.getTextStyle(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w600,
-                              color: theme.textColor,
-                            ),
-                          ),
-                        ),
-                        for (final itemId in grupo.itemIds)
-                          Builder(builder: (context) {
-                            final item = _buscarItem(itemId);
-                            if (item == null) return const SizedBox.shrink();
-                            final quantidade = selecionados[itemId] ?? 0;
-                            return Padding(
-                              padding: const EdgeInsets.symmetric(vertical: 4),
-                              child: Row(
-                                children: [
-                                  Expanded(
-                                    child: Text(
-                                      item.nome,
-                                      style: theme.getTextStyle(fontSize: 12),
-                                    ),
-                                  ),
-                                  Text(
-                                    'R\$ ${item.preco}',
-                                    style: theme.getTextStyle(fontSize: 11),
-                                  ),
-                                  const SizedBox(width: 6),
-                                  IconButton(
-                                    padding: EdgeInsets.zero,
-                                    visualDensity: VisualDensity.compact,
-                                    constraints: const BoxConstraints(
-                                        minWidth: 30, minHeight: 30),
-                                    icon: Icon(Icons.remove,
-                                        size: 16, color: theme.textColor),
-                                    onPressed: () {
-                                      setDialogState(() {
-                                        final atual = selecionados[itemId] ?? 0;
-                                        if (atual <= 1) {
-                                          selecionados.remove(itemId);
-                                        } else {
-                                          selecionados[itemId] = atual - 1;
-                                        }
-                                      });
-                                    },
-                                  ),
-                                  SizedBox(
-                                    width: 18,
-                                    child: Text(
-                                      '$quantidade',
-                                      textAlign: TextAlign.center,
-                                      style: theme.getTextStyle(fontSize: 12),
-                                    ),
-                                  ),
-                                  IconButton(
-                                    padding: EdgeInsets.zero,
-                                    visualDensity: VisualDensity.compact,
-                                    constraints: const BoxConstraints(
-                                        minWidth: 30, minHeight: 30),
-                                    icon: Icon(Icons.add,
-                                        size: 16, color: theme.textColor),
-                                    onPressed: () {
-                                      setDialogState(() {
-                                        selecionados[itemId] =
-                                            (selecionados[itemId] ?? 0) + 1;
-                                      });
-                                    },
-                                  ),
-                                ],
-                              ),
-                            );
-                          }),
-                        Divider(
-                            color:
-                                theme.borderColor.withValues(alpha: 0.6)),
-                      ],
-                    ],
-                  ),
-                ),
-              ),
-              actionsAlignment: MainAxisAlignment.center,
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.of(dialogContext).pop(),
-                  child: Text(
-                    'Cancelar',
-                    style: theme.getTextStyle(color: theme.secondaryTextColor),
-                  ),
-                ),
-                TextButton(
-                  onPressed: () {
-                    setState(() {
-                      linha.acompanhamentosPorItemId
-                        ..clear()
-                        ..addAll(selecionados);
-                    });
-                    Navigator.of(dialogContext).pop();
-                  },
-                  child: Text(
-                    'Concluir',
-                    style: theme.getTextStyle(color: theme.textColor),
-                  ),
-                ),
-              ],
-            );
-          },
-        );
-      },
+    final selecionados = await DialogEditarAcompanhamentos.mostrar(
+      context,
+      theme: theme,
+      grupos: grupos,
+      selecionadosIniciais: linha.acompanhamentosPorItemId,
+      buscarItem: _buscarItem,
     );
+
+    if (selecionados != null && mounted) {
+      setState(() {
+        linha.acompanhamentosPorItemId
+          ..clear()
+          ..addAll(selecionados);
+      });
+    }
   }
 
   void _aoDigitarCliente(String texto) {
@@ -1212,7 +823,7 @@ class _NovaVendaConteudoState extends State<_NovaVendaConteudo> {
     setState(() {
       if (forma == _formaAPrazo) {
         final novoPagamento =
-            _LinhaPagamento(forma: forma, valorInicial: '0,00');
+            LinhaPagamento(forma: forma, valorInicial: '0,00');
         novoPagamento.controller.selection = TextSelection(
           baseOffset: 0,
           extentOffset: novoPagamento.controller.text.length,
@@ -1225,7 +836,7 @@ class _NovaVendaConteudoState extends State<_NovaVendaConteudo> {
                 0.0, (s, p) => s + _precoComoNumero(p.controller.text));
         final restante = _total - outras;
         final valor = restante < 0 ? 0.0 : restante;
-        final novoPagamento = _LinhaPagamento(
+        final novoPagamento = LinhaPagamento(
           forma: forma,
           valorInicial: _valorComVirgula(valor),
         );
@@ -1245,69 +856,16 @@ class _NovaVendaConteudoState extends State<_NovaVendaConteudo> {
   }
 
   void _abrirSeletorDeItemDaCategoria(CategoriaLoja categoria) {
-    final theme = widget.theme;
-    final itens = categoria.itemIds
-        .map((id) => _buscarItem(id))
-        .whereType<ItemLoja>()
-        .toList();
-
-    showDialog<void>(
-      context: context,
-      builder: (dialogContext) {
-        return AlertDialog(
-          backgroundColor: theme.cardBackgroundColor,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16.0),
-            side: BorderSide(color: theme.borderColor),
-          ),
-          title: Text(
-            categoria.nome,
-            textAlign: TextAlign.center,
-            style: theme.getTextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.bold,
-              color: theme.textColor,
-            ),
-          ),
-          content: SizedBox(
-            width: 280,
-            child: itens.isEmpty
-                ? Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                    child: Text(
-                      'Nenhum item nesta categoria ainda.',
-                      textAlign: TextAlign.center,
-                      style: theme.getTextStyle(
-                        fontSize: 13,
-                        color: theme.secondaryTextColor,
-                      ),
-                    ),
-                  )
-                : SingleChildScrollView(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        for (final item in itens)
-                          ListTile(
-                            title: Text(item.nome,
-                                style: theme.getTextStyle()),
-                            trailing: Text(
-                              'R\$ ${_valorComVirgula(_precoComoNumero(item.preco) + _precoComoNumero(categoria.preco))}',
-                              style: theme.getTextStyle(fontSize: 11),
-                            ),
-                            onTap: () {
-                              _buscaController.clear();
-                              Navigator.of(dialogContext).pop();
-                              _processarAdicaoItemAoCarrinho(
-                                itemId: item.id,
-                                categoriaId: categoria.id,
-                              );
-                            },
-                          ),
-                      ],
-                    ),
-                  ),
-          ),
+    DialogSeletorItemCategoria.mostrar(
+      context,
+      theme: theme,
+      categoria: categoria,
+      buscarItem: _buscarItem,
+      onSelecionarItem: (item) {
+        _buscaController.clear();
+        _processarAdicaoItemAoCarrinho(
+          itemId: item.id,
+          categoriaId: categoria.id,
         );
       },
     );
@@ -1336,155 +894,39 @@ class _NovaVendaConteudoState extends State<_NovaVendaConteudo> {
   }
 
   Future<void> _concluir() async {
-    if (_carrinho.isEmpty) {
-      _mostrarAviso('Adicione ao menos um produto.');
-      return;
-    }
-
-    if (_pagamentos.isEmpty) {
-      _mostrarAviso('Escolha ao menos uma forma de pagamento.');
-      return;
-    }
-
-    if (_temAPrazo && _clienteSelecionado == null) {
-      _mostrarAviso('Selecione um cliente cadastrado para vender a prazo.');
-      return;
-    }
-
-    if (_falta > 0.005) {
-      _mostrarAviso(
-        'Faltam R\$ ${_valorComVirgula(_falta)} para completar o pagamento.',
-      );
-      return;
-    }
-
-    if (_temAPrazo && _troco > 0.005) {
-      _mostrarAviso(
-        'Não pode haver troco numa venda com pagamento à prazo.',
-      );
-      return;
-    }
-
-    final itensVendidos = <ItemVendido>[];
-    for (final linha in _carrinho) {
-      final item = _buscarItem(linha.itemId);
-      if (item == null) continue;
-      final categoria = linha.categoriaId == null
-          ? null
-          : _buscarCategoria(linha.categoriaId!);
-      final acompanhamentos = <AcompanhamentoEscolhido>[];
-      linha.acompanhamentosPorItemId.forEach((itemId, quantidade) {
-        if (quantidade <= 0) return;
-        final acompanhamento = _buscarItem(itemId);
-        if (acompanhamento == null) return;
-        acompanhamentos.add(AcompanhamentoEscolhido(
-          itemId: acompanhamento.id,
-          nomeItem: acompanhamento.nome,
-          precoItem: _precoComoNumero(acompanhamento.preco),
-          quantidadePorUnidade: quantidade,
-        ));
-      });
-      final precoItem = linha.precoVariante.trim().isNotEmpty
-          ? _precoComoNumero(linha.precoVariante)
-          : _precoComoNumero(item.preco);
-
-      itensVendidos.add(ItemVendido(
-        itemId: item.id,
-        nomeItem: item.nome,
-        foto: item.imagens.isNotEmpty ? item.imagens.first : '',
-        categoriaId: categoria?.id,
-        nomeCategoria: categoria?.nome,
-        varianteNome: linha.varianteNome,
-        precoItem: precoItem,
-        precoCategoria:
-            categoria == null ? 0 : _precoComoNumero(categoria.preco),
-        quantidade: linha.quantidade,
-        acompanhamentos: acompanhamentos,
-        observacao: linha.observacaoController.text.trim(),
-      ));
-    }
-
-    final nomes = itensVendidos.map((i) => i.nomeExibicao).toList();
-    final resumo = nomes.length > 1
-        ? '${nomes.first} +${nomes.length - 1}'
-        : (nomes.isEmpty ? 'Venda' : nomes.first);
-    final cliente = _clienteController.text.trim();
-
-    final pagamentosPedido = _pagamentos
-        .map((p) => PagamentoParcial(
-              forma: p.forma,
-              valor: _precoComoNumero(p.controller.text),
-            ))
-        .toList();
-
-    final formaUnica =
-        pagamentosPedido.length == 1 ? pagamentosPedido.first.forma : '';
-
-    final valorPagoNaoPrazo = pagamentosPedido
-        .where((p) => p.forma != _formaAPrazo)
-        .fold<double>(0.0, (s, p) => s + p.valor);
-
-    final totalPagamentos =
-        pagamentosPedido.fold<double>(0.0, (s, p) => s + p.valor);
-    final trocoCalculado = totalPagamentos - _total;
-    final trocoFinal = trocoCalculado > 0.005 ? trocoCalculado : 0.0;
-    final temPrazo = pagamentosPedido.any((p) => p.forma == _formaAPrazo);
-    final valorEntradaAVista =
-        (valorPagoNaoPrazo - trocoFinal).clamp(0.0, _total);
-
-    final pedido = PedidoLoja(
-      id: DateTime.now().millisecondsSinceEpoch.toString(),
-      numero: widget.proximoNumero,
-      clienteId: _clienteSelecionado?.id,
-      clienteNome: cliente.isEmpty ? 'Cliente' : cliente,
-      produtoNome: resumo,
-      dataHora: _dataHora,
-      valor: _total,
-      status: StatusPedido.aceito,
-      comanda: _montarComanda(),
-      formaPagamento: formaUnica,
-      pagamentosExtras:
-          pagamentosPedido.length > 1 ? pagamentosPedido : const [],
-      valorRecebido: valorPagoNaoPrazo,
-      troco: trocoFinal,
-      quitado: !temPrazo || valorEntradaAVista >= _total,
-      valorPago: !temPrazo ? _total : valorEntradaAVista,
-      itens: itensVendidos,
+    await FinalizadorNovaVenda.executar(
+      context: context,
+      theme: theme,
+      lojaId: widget.lojaId,
+      carrinho: _carrinho,
+      pagamentos: _pagamentos,
+      clienteSelecionado: _clienteSelecionado,
+      clienteNomeDigitado: _clienteController.text,
+      subtotalDosItens: _subtotalDosItens,
       frete: _frete,
       desconto: _desconto,
       acrescimo: _acrescimo,
+      total: _total,
+      falta: _falta,
+      troco: _troco,
+      temAPrazo: _temAPrazo,
+      montarComanda: _montarComanda,
+      buscarItem: _buscarItem,
+      buscarCategoria: _buscarCategoria,
       nomeVendedor: widget.nomeVendedor,
       cnpjVendedor: widget.cnpjVendedor,
-    );
-
-    final movimentosSugeridos = await BaixaEstoqueDialog.mostrar(
-      context,
-      theme: theme,
-      itensDisponiveis: widget.itensDisponiveis,
-      pedido: pedido,
+      proximoNumero: widget.proximoNumero,
       cpfAutor: widget.cpfAutor,
       nomeAutor: widget.nomeAutor,
-    );
-
-    if (!mounted) return;
-    if (movimentosSugeridos == null) return;
-
-    final confirmou = await VendaConcluidaDialog.mostrar(
-      context,
-      theme: theme,
-      pedido: pedido,
       configuracoesImpressora: widget.configuracoesImpressora,
-      cliente: _clienteSelecionado,
+      itensDisponiveis: widget.itensDisponiveis,
+      onMostrarAviso: _mostrarAviso,
+      onConcluir: widget.onConcluir,
+      onVendaFinalizadaComSucesso: () {
+        _vendaConcluida = true;
+        NovaVendaDialog.limparRascunho(widget.lojaId);
+      },
     );
-
-    if (!mounted) return;
-
-    if (confirmou) {
-      _vendaConcluida = true;
-      NovaVendaDialog.limparRascunho(widget.lojaId);
-      Navigator.of(context).pop();
-      widget.onConcluir(pedido, movimentosSugeridos);
-    }
   }
 
   BoxDecoration get _decoracaoDoBloco => BoxDecoration(
@@ -1565,293 +1007,28 @@ class _NovaVendaConteudoState extends State<_NovaVendaConteudo> {
     return '';
   }
 
-  Widget _linhaDeCliente(Cliente cliente) {
-    final infoSecundaria = _obterDadoPrioritarioCliente(cliente);
-
-    return InkWell(
-      borderRadius: BorderRadius.circular(8),
-      onTap: () => _selecionarCliente(cliente),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-        child: Row(
-          children: [
-            Expanded(
-              flex: 5,
-              child: Text(
-                cliente.nome,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: theme.getTextStyle(fontSize: 12, color: theme.textColor),
-              ),
-            ),
-            if (infoSecundaria.isNotEmpty) ...[
-              const SizedBox(width: 8),
-              Expanded(
-                flex: 5,
-                child: Align(
-                  alignment: Alignment.centerRight,
-                  child: TextoRolante(
-                    texto: infoSecundaria,
-                    style: theme.getTextStyle(
-                      fontSize: 11,
-                      color: theme.secondaryTextColor,
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ],
-        ),
-      ),
-    );
-  }
-
   Widget _blocoCliente() {
-    final mostrarSugestoes = _clienteFocado ||
-        (_clienteController.text.trim().isNotEmpty &&
-            _clienteSelecionado == null);
-    final sugestoes = mostrarSugestoes ? _sugestoesDeCliente : <Cliente>[];
-    return TapRegion(
-      groupId: 'busca_cliente',
-      onTapOutside: (_) {
-        if (_clienteFocado) {
-          setState(() => _clienteFocado = false);
-        }
-      },
-      child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.all(12),
-        decoration: _decoracaoDoBloco,
-        child: Column(
-          children: [
-            _tituloDoBloco('Nome do Cliente'),
-            Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: _clienteController,
-                    focusNode: _clienteFocusNode,
-                    cursorColor: theme.textColor,
-                    style: theme.getTextStyle(fontSize: 12),
-                    decoration: _decoracaoCampo('Nome do cliente'),
-                    onTap: () {
-                      setState(() {
-                        _clienteFocado = true;
-                        if (_clienteController.text.isNotEmpty) {
-                          _clienteController.selection = TextSelection(
-                            baseOffset: 0,
-                            extentOffset: _clienteController.text.length,
-                          );
-                        }
-                      });
-                    },
-                    onChanged: _aoDigitarCliente,
-                  ),
-                ),
-                const SizedBox(width: 8),
-                _botaoPequeno('Novo Cliente', _abrirClientes),
-              ],
-            ),
-            if (mostrarSugestoes) ...[
-              const SizedBox(height: 8),
-              if (sugestoes.isEmpty)
-                Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 6),
-                  child: Text(
-                    widget.obterClientes().isEmpty
-                        ? 'Nenhum cliente cadastrado ainda.'
-                        : 'Nenhum resultado.',
-                    style: theme.getTextStyle(fontSize: 11),
-                  ),
-                )
-              else
-                ConstrainedBox(
-                  constraints: const BoxConstraints(maxHeight: 180),
-                  child: SingleChildScrollView(
-                    child: Column(
-                      children: [
-                        for (final cliente in sugestoes)
-                          _linhaDeCliente(cliente),
-                      ],
-                    ),
-                  ),
-                ),
-            ],
-            if (_clienteSelecionado != null) ...[
-              const SizedBox(height: 8),
-              Builder(
-                builder: (context) {
-                  final info =
-                      _obterDadoPrioritarioCliente(_clienteSelecionado!);
-                  return Row(
-                    children: [
-                      Text(
-                        'Cliente selecionado: ',
-                        style: theme.getTextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      if (info.isNotEmpty)
-                        Expanded(
-                          child: TextoRolante(
-                            texto: info,
-                            style: theme.getTextStyle(
-                              fontSize: 11,
-                              color: theme.secondaryTextColor,
-                            ),
-                          ),
-                        ),
-                    ],
-                  );
-                },
-              ),
-            ],
-          ],
-        ),
-      ),
+    return ClienteSeletorNovaVendaWidget(
+      theme: theme,
+      clienteController: _clienteController,
+      clienteFocusNode: _clienteFocusNode,
+      clienteSelecionado: _clienteSelecionado,
+      clienteFocado: _clienteFocado,
+      sugestoes: _sugestoesDeCliente,
+      todosClientes: widget.obterClientes(),
+      onClienteFocadoChanged: (focado) => setState(() => _clienteFocado = focado),
+      onDigitarCliente: _aoDigitarCliente,
+      onSelecionarCliente: _selecionarCliente,
+      onNovoCliente: _abrirClientes,
+      obterDadoPrioritario: _obterDadoPrioritarioCliente,
+      decoracaoDoBloco: _decoracaoDoBloco,
+      decoracaoCampo: _decoracaoCampo,
+      tituloDoBloco: _tituloDoBloco,
+      botaoPequeno: _botaoPequeno,
     );
   }
 
-  Widget _linhaDeCategoriaNaBusca(CategoriaLoja categoria) {
-    return InkWell(
-      borderRadius: BorderRadius.circular(8),
-      onTap: () => _abrirSeletorDeItemDaCategoria(categoria),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-        child: Row(
-          children: [
-            if (ImagemService.resolverCaminhoExistente(categoria.foto) != null)
-              ClipRRect(
-                borderRadius: BorderRadius.circular(4),
-                child: Image.file(
-                  File(ImagemService.resolverCaminhoExistente(categoria.foto)!),
-                  width: 18,
-                  height: 18,
-                  fit: BoxFit.cover,
-                  errorBuilder: (context, error, stackTrace) => Icon(
-                    Icons.category_outlined,
-                    size: 16,
-                    color: theme.secondaryTextColor,
-                  ),
-                ),
-              )
-            else
-              Icon(Icons.category_outlined,
-                  size: 16, color: theme.secondaryTextColor),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Text(
-                'Categoria: ${categoria.nome}',
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: theme.getTextStyle(fontSize: 12, color: theme.textColor),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _linhaDeResultado(ItemLoja item) {
-    final fotoResolvida = item.imagens.isNotEmpty
-        ? ImagemService.resolverCaminhoExistente(item.imagens.first)
-        : null;
-    final temFoto = fotoResolvida != null;
-    return InkWell(
-      onTap: () {
-        _buscaController.clear();
-        _processarAdicaoItemAoCarrinho(itemId: item.id);
-      },
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-        child: Row(
-          children: [
-            temFoto
-                ? ClipRRect(
-                    borderRadius: BorderRadius.circular(4),
-                    child: Image.file(
-                      File(fotoResolvida),
-                      width: 18,
-                      height: 18,
-                      fit: BoxFit.cover,
-                      errorBuilder:
-                          (context, error, stackTrace) => Icon(
-                        Icons.inventory_2_outlined,
-                        size: 16,
-                        color: theme.secondaryTextColor,
-                      ),
-                    ),
-                  )
-                : Icon(
-                    Icons.inventory_2_outlined,
-                    size: 16,
-                    color: theme.secondaryTextColor,
-                  ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    item.nome,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: theme.getTextStyle(fontSize: 12, color: theme.textColor),
-                  ),
-                  Wrap(
-                    spacing: 6,
-                    crossAxisAlignment: WrapCrossAlignment.center,
-                    children: [
-                      if (item.codigoBarras.trim().isNotEmpty)
-                        Text(
-                          'Cód: ${item.codigoBarras.trim()}',
-                          style: theme.getTextStyle(
-                            fontSize: 10,
-                            color: theme.secondaryTextColor,
-                          ),
-                        ),
-                      if (item.tipo != TipoItemLoja.servico)
-                        Builder(
-                          builder: (context) {
-                            final saldo = _saldoDoItem(item.id);
-                            final unidade = item.unidadeBase.name;
-                            return Text(
-                              saldo <= 0
-                                  ? 'Esgotado'
-                                  : 'Est: ${saldo.toStringAsFixed(saldo % 1 == 0 ? 0 : 2)} $unidade',
-                              style: theme.getTextStyle(
-                                fontSize: 10,
-                                color: saldo <= 0
-                                    ? Colors.redAccent
-                                    : (saldo < 10
-                                        ? Colors.orangeAccent
-                                        : theme.secondaryTextColor),
-                                fontWeight: saldo <= 0
-                                    ? FontWeight.bold
-                                    : FontWeight.normal,
-                              ),
-                            );
-                          },
-                        ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-            Text(
-              'R\$ ${_valorComVirgula(_precoComoNumero(item.preco))}',
-              style: theme.getTextStyle(fontSize: 12),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  String _resumoAcompanhamentos(_LinhaCarrinho linha) {
+  String _resumoAcompanhamentos(LinhaCarrinho linha) {
     final partes = <String>[];
     linha.acompanhamentosPorItemId.forEach((itemId, quantidade) {
       final item = _buscarItem(itemId);
@@ -1863,743 +1040,109 @@ class _NovaVendaConteudoState extends State<_NovaVendaConteudo> {
     return partes.join(', ');
   }
 
-  Widget _linhaDoItemSelecionado(_LinhaCarrinho linha) {
-    final grupos = _gruposDaCategoria(linha);
-    final temGrupos = grupos.isNotEmpty;
-    final acompanhamentos = linha.acompanhamentosPorItemId;
-    final subtotalBase = _subtotalBaseDaLinha(linha);
-    final precoBase = _precoBaseUnitarioDaLinha(linha);
-
-    final itemOriginal = _buscarItem(linha.itemId);
-    final fotoResolvida = (itemOriginal != null && itemOriginal.imagens.isNotEmpty)
-        ? ImagemService.resolverCaminhoExistente(itemOriginal.imagens.first)
-        : null;
-    final temFoto = fotoResolvida != null;
-
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              if (temFoto) ...[
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(4),
-                  child: Image.file(
-                    File(fotoResolvida),
-                    width: 20,
-                    height: 20,
-                    fit: BoxFit.cover,
-                    errorBuilder: (context, error, stackTrace) =>
-                        const SizedBox.shrink(),
-                  ),
-                ),
-                const SizedBox(width: 8),
-              ],
-              Expanded(
-                child: Text(
-                  _nomeExibicaoDaLinha(linha),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: theme.getTextStyle(
-                    fontSize: 12,
-                    color: theme.textColor,
-                  ),
-                ),
-              ),
-              Text(
-                'R\$ ${_valorComVirgula(precoBase)}',
-                style: theme.getTextStyle(fontSize: 11),
-              ),
-              const SizedBox(width: 6),
-              IconButton(
-                padding: EdgeInsets.zero,
-                visualDensity: VisualDensity.compact,
-                constraints:
-                    const BoxConstraints(minWidth: 32, minHeight: 32),
-                icon: Icon(Icons.remove, size: 18, color: theme.textColor),
-                onPressed: () => _alterarQuantidade(linha.chave, -1),
-              ),
-              Text('${linha.quantidade}',
-                  style: theme.getTextStyle(fontSize: 12)),
-              IconButton(
-                padding: EdgeInsets.zero,
-                visualDensity: VisualDensity.compact,
-                constraints:
-                    const BoxConstraints(minWidth: 32, minHeight: 32),
-                icon: Icon(Icons.add, size: 18, color: theme.textColor),
-                onPressed: () => _alterarQuantidade(linha.chave, 1),
-              ),
-              ConstrainedBox(
-                constraints: const BoxConstraints(minWidth: 60),
-                child: Text(
-                  'R\$ ${_valorComVirgula(subtotalBase)}',
-                  textAlign: TextAlign.right,
-                  style: theme.getTextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                      color: theme.textColor),
-                ),
-              ),
-            ],
-          ),
-          Padding(
-            padding: const EdgeInsets.only(left: 4, top: 2),
-            child: Row(
-              children: [
-                Expanded(
-                  child: acompanhamentos.isEmpty
-                      ? Text(
-                          temGrupos ? 'sem acompanhamentos' : '',
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: theme.getTextStyle(
-                            fontSize: 10,
-                            color: theme.secondaryTextColor,
-                          ),
-                        )
-                      : Text(
-                          _resumoAcompanhamentos(linha),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: theme.getTextStyle(
-                            fontSize: 10,
-                            color: theme.secondaryTextColor,
-                          ),
-                        ),
-                ),
-                if (temGrupos)
-                  TextButton(
-                    onPressed: () => _editarAcompanhamentosDaLinha(linha.chave),
-                    style: TextButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(horizontal: 8),
-                      minimumSize: const Size(0, 28),
-                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                    ),
-                    child: Text(
-                      'Editar acompanhamentos',
-                      style: theme.getTextStyle(fontSize: 10),
-                    ),
-                  ),
-              ],
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.only(left: 4, top: 4, right: 4),
-            child: TextField(
-              controller: linha.observacaoController,
-              cursorColor: theme.textColor,
-              style: theme.getTextStyle(fontSize: 11),
-              decoration: _decoracaoCampo('Observação do item'),
-              onChanged: (_) => setState(() {}),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
   Widget _blocoProduto() {
-    final categorias = _categoriasEncontradas;
-    final itens = _itensEncontrados;
-    final buscando = _buscaController.text.trim().isNotEmpty;
-    final mostrarResultados = _buscaFocada || buscando;
-
-    return TapRegion(
-      groupId: 'busca_produto',
-      onTapOutside: (_) {
-        if (_buscaFocada) {
-          setState(() => _buscaFocada = false);
-        }
+    return BlocoProdutosNovaVendaWidget(
+      theme: theme,
+      buscaController: _buscaController,
+      buscaFocusNode: _buscaFocusNode,
+      buscaFocada: _buscaFocada,
+      onBuscaFocadaChanged: (focada) => setState(() => _buscaFocada = focada),
+      onSubmeterBusca: _aoSubmeterBusca,
+      onAbrirNovoProduto: _abrirNovoProduto,
+      categoriasEncontradas: _categoriasEncontradas,
+      itensEncontrados: _itensEncontrados,
+      todasCategorias: widget.categoriasDisponiveis,
+      todosItens: widget.itensDisponiveis,
+      carrinho: _carrinho,
+      saldoDoItem: _saldoDoItem,
+      nomeExibicaoLinha: _nomeExibicaoDaLinha,
+      precoBaseUnitarioDaLinha: _precoBaseUnitarioDaLinha,
+      subtotalBaseDaLinha: _subtotalBaseDaLinha,
+      resumoAcompanhamentos: _resumoAcompanhamentos,
+      gruposDaCategoria: _gruposDaCategoria,
+      buscarItem: _buscarItem,
+      onSelecionarCategoriaNaBusca: _abrirSeletorDeItemDaCategoria,
+      onSelecionarItemNaBusca: (item) {
+        _buscaController.clear();
+        _processarAdicaoItemAoCarrinho(itemId: item.id);
       },
-      child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.all(12),
-        decoration: _decoracaoDoBloco,
-        child: Column(
-          children: [
-            _tituloDoBloco('Produto Solicitado'),
-            Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: _buscaController,
-                    focusNode: _buscaFocusNode,
-                    cursorColor: theme.textColor,
-                    style: theme.getTextStyle(fontSize: 12),
-                    decoration: _decoracaoCampo(
-                        'Pesquisar nome ou bipar código de barras'),
-                    onTap: () => setState(() => _buscaFocada = true),
-                    onChanged: (_) => setState(() {}),
-                    onSubmitted: _aoSubmeterBusca,
-                  ),
-                ),
-                const SizedBox(width: 8),
-                _botaoPequeno('Novo Produto', _abrirNovoProduto),
-              ],
-            ),
-            if (mostrarResultados) ...[
-              if (buscando) ...[
-                const SizedBox(height: 8),
-                if (!_temResultadoDeBusca)
-                  Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 6),
-                    child: Text(
-                      widget.itensDisponiveis.isEmpty &&
-                              widget.categoriasDisponiveis.isEmpty
-                          ? 'Nenhum item ou categoria criado na aba Loja ainda.'
-                          : 'Nenhum resultado.',
-                      style: theme.getTextStyle(fontSize: 11),
-                    ),
-                  )
-                else
-                  ConstrainedBox(
-                    constraints: const BoxConstraints(maxHeight: 220),
-                    child: SingleChildScrollView(
-                      child: Column(
-                        children: [
-                          for (final categoria in categorias)
-                            _linhaDeCategoriaNaBusca(categoria),
-                          for (final item in itens) _linhaDeResultado(item),
-                        ],
-                      ),
-                    ),
-                  ),
-              ] else if (widget.categoriasDisponiveis.isNotEmpty) ...[
-                const SizedBox(height: 8),
-                ConstrainedBox(
-                  constraints: const BoxConstraints(maxHeight: 220),
-                  child: SingleChildScrollView(
-                    child: Column(
-                      children: [
-                        for (final categoria in widget.categoriasDisponiveis)
-                          _linhaDeCategoriaNaBusca(categoria),
-                      ],
-                    ),
-                  ),
-                ),
-              ],
-            ],
-            if (_carrinho.isNotEmpty) ...[
-              const SizedBox(height: 8),
-              Divider(color: theme.borderColor.withValues(alpha: 0.6)),
-              for (final linha in _carrinho) _linhaDoItemSelecionado(linha),
-            ],
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _linhaComanda(String esquerda, String direita,
-      {bool destaque = false}) {
-    final ehPreco = direita.trim().startsWith('R\$');
-
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          if (ehPreco)
-            Expanded(
-              child: Text(
-                esquerda,
-                softWrap: true,
-                style: theme.getTextStyle(
-                  fontSize: 12,
-                  color: destaque ? theme.textColor : theme.secondaryTextColor,
-                  fontWeight: destaque ? FontWeight.bold : FontWeight.normal,
-                ),
-              ),
-            )
-          else
-            Text(
-              esquerda,
-              style: theme.getTextStyle(
-                fontSize: 12,
-                color: destaque ? theme.textColor : theme.secondaryTextColor,
-                fontWeight: destaque ? FontWeight.bold : FontWeight.normal,
-              ),
-            ),
-          const SizedBox(width: 8),
-          if (ehPreco)
-            Text(
-              direita,
-              textAlign: TextAlign.right,
-              softWrap: false,
-              style: theme.getTextStyle(
-                fontSize: 12,
-                color: destaque ? theme.textColor : theme.secondaryTextColor,
-                fontWeight: destaque ? FontWeight.bold : FontWeight.normal,
-              ),
-            )
-          else
-            Expanded(
-              child: Text(
-                direita,
-                textAlign: TextAlign.right,
-                softWrap: true,
-                style: theme.getTextStyle(
-                  fontSize: 12,
-                  color: destaque ? theme.textColor : theme.secondaryTextColor,
-                  fontWeight: destaque ? FontWeight.bold : FontWeight.normal,
-                ),
-              ),
-            ),
-        ],
-      ),
+      onAlterarQuantidade: _alterarQuantidade,
+      onEditarAcompanhamentos: _editarAcompanhamentosDaLinha,
+      decoracaoDoBloco: _decoracaoDoBloco,
+      decoracaoCampo: _decoracaoCampo,
+      tituloDoBloco: _tituloDoBloco,
+      botaoPequeno: _botaoPequeno,
+      valorComVirgula: _valorComVirgula,
+      precoComoNumero: _precoComoNumero,
     );
   }
 
   Widget _blocoComanda() {
-    final totalLinhas = _carrinho.length;
-
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(12),
-      decoration: _decoracaoDoBloco,
-      child: Column(
-        children: [
-          _tituloDoBloco('Comanda'),
-          ConstrainedBox(
-            constraints: const BoxConstraints(minHeight: 160, maxHeight: 350),
-            child: SingleChildScrollView(
-              controller: _comandaScrollController,
-              child: Center(
-                child: Container(
-                  width: _larguraComanda,
-                  constraints: const BoxConstraints(maxWidth: 340),
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 16, vertical: 16),
-                  decoration: BoxDecoration(
-                    color: theme.backgroundColor.withValues(alpha: 0.4),
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(
-                      color: theme.borderColor.withValues(alpha: 0.6),
-                    ),
-                  ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        Center(
-                          child: Text(
-                            widget.nomeVendedor.isEmpty
-                                ? 'Nome do vendedor'
-                                : widget.nomeVendedor,
-                            textAlign: TextAlign.center,
-                            style: theme.getTextStyle(
-                                fontSize: 12, color: theme.textColor),
-                          ),
-                        ),
-                        Center(
-                          child: Text(
-                            'CNPJ: ${widget.cnpjVendedor}',
-                            textAlign: TextAlign.center,
-                            style: theme.getTextStyle(
-                                fontSize: 11,
-                                color: theme.secondaryTextColor),
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        Center(
-                          child: Text(
-                            'Pedido #${widget.proximoNumero.toString().padLeft(4, '0')}',
-                            textAlign: TextAlign.center,
-                            style: theme.getTextStyle(
-                                fontSize: 12, color: theme.textColor),
-                          ),
-                        ),
-                        Center(
-                          child: Text(
-                            'Data: ${_dataHoraCompleta(_dataHora)}',
-                            textAlign: TextAlign.center,
-                            style: theme.getTextStyle(
-                                fontSize: 11,
-                                color: theme.secondaryTextColor),
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        _linhaComanda('Cliente',
-                            _clienteController.text.trim().isEmpty
-                                ? '-'
-                                : _clienteController.text.trim()),
-                        if (_clienteSelecionado != null) ...[
-                          if (_deveMostrarCampoCliente('cnpj') &&
-                              _clienteSelecionado!.cnpj.trim().isNotEmpty)
-                            _linhaComanda(
-                                'CNPJ', _clienteSelecionado!.cnpj.trim()),
-                          if (_deveMostrarCampoCliente('telefone') &&
-                              _clienteSelecionado!.telefone.trim().isNotEmpty)
-                            _linhaComanda('Telefone',
-                                _clienteSelecionado!.telefone.trim()),
-                          if (_deveMostrarCampoCliente('endereco')) ...[
-                            if (_clienteSelecionado!.endereco.trim().isNotEmpty)
-                              _linhaComanda(
-                                'Endereço',
-                                _clienteSelecionado!.numero.trim().isEmpty
-                                    ? _clienteSelecionado!.endereco.trim()
-                                    : '${_clienteSelecionado!.endereco.trim()}, '
-                                        '${_clienteSelecionado!.numero.trim()}',
-                              )
-                            else if (_clienteSelecionado!.numero.trim().isNotEmpty)
-                              _linhaComanda(
-                                'Número',
-                                _clienteSelecionado!.numero.trim(),
-                              ),
-                          ],
-                          if (_deveMostrarCampoCliente('email') &&
-                              _clienteSelecionado!.email.trim().isNotEmpty)
-                            _linhaComanda(
-                                'Email', _clienteSelecionado!.email.trim()),
-                          if (_deveMostrarCampoCliente('redesSociais') &&
-                              _clienteSelecionado!.redesSociais.trim().isNotEmpty)
-                            _linhaComanda('Redes sociais',
-                                _clienteSelecionado!.redesSociais.trim()),
-                          if (_deveMostrarCampoCliente('descricao') &&
-                              _clienteSelecionado!.descricao.trim().isNotEmpty)
-                            _linhaComanda('Descrição',
-                                _clienteSelecionado!.descricao.trim()),
-                        ],
-                        const SizedBox(height: 8),
-                        Center(
-                          child: Text(
-                            'ITENS',
-                            style: theme.getTextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w600,
-                                color: theme.textColor),
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        if (totalLinhas == 0)
-                          Padding(
-                            padding: const EdgeInsets.symmetric(vertical: 8),
-                            child: Text(
-                              'Nenhum item adicionado.',
-                              textAlign: TextAlign.center,
-                              style: theme.getTextStyle(
-                                  fontSize: 11,
-                                  color: theme.secondaryTextColor),
-                            ),
-                          )
-                        else
-                          for (final linha in _carrinho)
-                            Padding(
-                              padding:
-                                  const EdgeInsets.symmetric(vertical: 8),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.stretch,
-                                children: [
-                                  _linhaComanda(
-                                    '${linha.quantidade}x ${_nomeExibicaoDaLinha(linha)}',
-                                    'R\$ ${_valorComVirgula(_subtotalBaseDaLinha(linha))}',
-                                  ),
-                                  for (final entrada
-                                      in linha.acompanhamentosPorItemId.entries)
-                                    Builder(builder: (context) {
-                                      final item = _buscarItem(entrada.key);
-                                      if (item == null || entrada.value <= 0) {
-                                        return const SizedBox.shrink();
-                                      }
-                                      final total =
-                                          _precoComoNumero(item.preco) *
-                                              entrada.value *
-                                              linha.quantidade;
-                                      return _linhaComanda(
-                                        '   ${entrada.value}x ${item.nome} por unidade',
-                                        'R\$ ${_valorComVirgula(total)}',
-                                      );
-                                    }),
-                                  if (linha.observacaoController.text
-                                      .trim()
-                                      .isNotEmpty)
-                                    Padding(
-                                      padding: const EdgeInsets.only(top: 3),
-                                      child: Text(
-                                        'Obs: ${linha.observacaoController.text.trim()}',
-                                        style: theme.getTextStyle(
-                                            fontSize: 11,
-                                            color: theme.secondaryTextColor),
-                                      ),
-                                    ),
-                                ],
-                              ),
-                            ),
-                        const SizedBox(height: 8),
-                        Divider(
-                            color: theme.borderColor.withValues(alpha: 0.6)),
-                        _linhaComanda('Subtotal',
-                            'R\$ ${_valorComVirgula(_subtotalDosItens)}'),
-                        _linhaComanda(
-                            'Frete', 'R\$ ${_valorComVirgula(_frete)}'),
-                        if (_desconto > 0)
-                          _linhaComanda(_rotuloDesconto,
-                              '-R\$ ${_valorComVirgula(_desconto)}'),
-                        if (_acrescimo > 0)
-                          _linhaComanda(_rotuloAcrescimo,
-                              'R\$ ${_valorComVirgula(_acrescimo)}'),
-                        _linhaComanda(
-                            'TOTAL', 'R\$ ${_valorComVirgula(_total)}',
-                            destaque: true),
-                        const SizedBox(height: 4),
-                        if (_pagamentos.isEmpty)
-                          _linhaComanda('Pagamento', '-')
-                        else
-                          for (final p in _pagamentos)
-                            _linhaComanda(
-                              p.forma,
-                              'R\$ ${_valorComVirgula(_precoComoNumero(p.controller.text))}',
-                            ),
-                        if (_troco > 0)
-                          _linhaComanda('Troco',
-                              'R\$ ${_valorComVirgula(_troco)}',
-                              destaque: true),
-                        const SizedBox(height: 12),
-                        Center(
-                          child: Text(
-                            'linktr.ee/nous72',
-                            textAlign: TextAlign.center,
-                            style: theme.getTextStyle(
-                                fontSize: 11,
-                                color: theme.secondaryTextColor),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-            ),
-        ],
-      ),
-    );
-  }
-
-  Widget _campoValor({
-    required TextEditingController controller,
-    required String rotulo,
-    TextInputType keyboardType =
-        const TextInputType.numberWithOptions(decimal: true),
-  }) {
-    return Expanded(
-      child: TextField(
-        controller: controller,
-        keyboardType: keyboardType,
-        cursorColor: theme.textColor,
-        style: theme.getTextStyle(fontSize: 12),
-        decoration: _decoracaoCampo(rotulo),
-        onTap: () {
-          if (controller.text.isNotEmpty) {
-            controller.selection = TextSelection(
-              baseOffset: 0,
-              extentOffset: controller.text.length,
-            );
-          }
-        },
-        onChanged: (_) => setState(_recalcularPrazo),
-      ),
+    return ComandaResumoNovaVendaWidget(
+      theme: theme,
+      scrollController: _comandaScrollController,
+      larguraComanda: _larguraComanda,
+      nomeVendedor: widget.nomeVendedor,
+      cnpjVendedor: widget.cnpjVendedor,
+      proximoNumero: widget.proximoNumero,
+      dataHoraFormatada: _dataHoraCompleta(_dataHora),
+      nomeClienteDigitado: _clienteController.text,
+      clienteSelecionado: _clienteSelecionado,
+      deveMostrarCampoCliente: _deveMostrarCampoCliente,
+      carrinho: _carrinho,
+      nomeExibicaoLinha: _nomeExibicaoDaLinha,
+      subtotalBaseLinha: _subtotalBaseDaLinha,
+      buscarItem: _buscarItem,
+      precoComoNumero: _precoComoNumero,
+      valorComVirgula: _valorComVirgula,
+      subtotalDosItens: _subtotalDosItens,
+      frete: _frete,
+      desconto: _desconto,
+      rotuloDesconto: _rotuloDesconto,
+      acrescimo: _acrescimo,
+      rotuloAcrescimo: _rotuloAcrescimo,
+      total: _total,
+      pagamentos: _pagamentos,
+      troco: _troco,
+      decoracaoDoBloco: _decoracaoDoBloco,
+      tituloDoBloco: _tituloDoBloco,
     );
   }
 
   Widget _blocoAjustes() {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(12),
-      decoration: _decoracaoDoBloco,
-      child: Column(
-        children: [
-          _tituloDoBloco('Frete, Desconto e Acréscimo'),
-          LayoutBuilder(
-            builder: (context, constraints) {
-              if (constraints.maxWidth < 280) {
-                return Column(
-                  children: [
-                    Row(
-                      children: [
-                        _campoValor(
-                          controller: _freteController,
-                          rotulo: 'Frete',
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-                    Row(
-                      children: [
-                        _campoValor(
-                          controller: _descontoController,
-                          rotulo: 'Desconto',
-                          keyboardType: TextInputType.text,
-                        ),
-                        const SizedBox(width: 8),
-                        _campoValor(
-                          controller: _acrescimoController,
-                          rotulo: 'Acréscimo',
-                          keyboardType: TextInputType.text,
-                        ),
-                      ],
-                    ),
-                  ],
-                );
-              }
-              return Row(
-                children: [
-                  _campoValor(
-                    controller: _freteController,
-                    rotulo: 'Frete',
-                  ),
-                  const SizedBox(width: 8),
-                  _campoValor(
-                    controller: _descontoController,
-                    rotulo: 'Desconto (R\$ ou %)',
-                    keyboardType: TextInputType.text,
-                  ),
-                  const SizedBox(width: 8),
-                  _campoValor(
-                    controller: _acrescimoController,
-                    rotulo: 'Acréscimo (R\$ ou %)',
-                    keyboardType: TextInputType.text,
-                  ),
-                ],
-              );
-            },
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _linhaDePagamento(_LinhaPagamento p) {
-    final ehPrazo = p.forma == _formaAPrazo;
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
-      child: Row(
-        children: [
-          ConstrainedBox(
-            constraints: const BoxConstraints(minWidth: 80, maxWidth: 115),
-            child: Text(
-              p.forma,
-              style: theme.getTextStyle(fontSize: 12, color: theme.textColor),
-            ),
-          ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: TextField(
-              controller: p.controller,
-              readOnly: ehPrazo,
-              keyboardType:
-                  const TextInputType.numberWithOptions(decimal: true),
-              cursorColor: theme.textColor,
-              style: theme.getTextStyle(fontSize: 12),
-              decoration: _decoracaoCampo('Valor'),
-              onTap: () {
-                if (!ehPrazo && p.controller.text.isNotEmpty) {
-                  p.controller.selection = TextSelection(
-                    baseOffset: 0,
-                    extentOffset: p.controller.text.length,
-                  );
-                }
-              },
-              onChanged: (_) => setState(_recalcularPrazo),
-            ),
-          ),
-          IconButton(
-            padding: EdgeInsets.zero,
-            visualDensity: VisualDensity.compact,
-            constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
-            icon: Icon(Icons.close, size: 16, color: theme.secondaryTextColor),
-            onPressed: () {
-              setState(() {
-                _removerForma(p.forma);
-                _recalcularPrazo();
-              });
-            },
-          ),
-        ],
-      ),
+    return BlocoAjustesNovaVendaWidget(
+      theme: theme,
+      freteController: _freteController,
+      descontoController: _descontoController,
+      acrescimoController: _acrescimoController,
+      onRecalcularPrazo: () => setState(_recalcularPrazo),
+      decoracaoDoBloco: _decoracaoDoBloco,
+      decoracaoCampo: _decoracaoCampo,
+      tituloDoBloco: _tituloDoBloco,
     );
   }
 
   Widget _blocoPagamento() {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(12),
-      decoration: _decoracaoDoBloco,
-      child: Column(
-        children: [
-          _tituloDoBloco('Formas de Pagamento'),
-          SingleChildScrollView(
-            controller: _pagamentoScrollController,
-            scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.only(bottom: 8),
-            child: Row(
-              children: [
-                for (final forma in _formasDePagamento)
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 3),
-                    child: ConstrainedBox(
-                      constraints: const BoxConstraints(minWidth: 84),
-                      child: _botaoDeForma(forma),
-                    ),
-                  ),
-              ],
-            ),
-          ),
-          if (_pagamentos.isNotEmpty) ...[
-            const SizedBox(height: 8),
-            for (final p in _pagamentos) _linhaDePagamento(p),
-          ],
-          const SizedBox(height: 8),
-          if (_pagamentos.isEmpty)
-            Text(
-              'Escolha uma forma acima.',
-              style: theme.getTextStyle(
-                fontSize: 12,
-                color: theme.secondaryTextColor,
-              ),
-            )
-          else if (_falta > 0.005)
-            Text(
-              'Faltam R\$ ${_valorComVirgula(_falta)} para completar.',
-              textAlign: TextAlign.center,
-              style: theme.getTextStyle(
-                fontSize: 12,
-                color: Colors.redAccent,
-                fontWeight: FontWeight.w600,
-              ),
-            )
-          else if (_troco > 0.005)
-            Text(
-              'Troco: R\$ ${_valorComVirgula(_troco)}',
-              textAlign: TextAlign.center,
-              style: theme.getTextStyle(
-                fontSize: 12,
-                color: theme.textColor,
-                fontWeight: FontWeight.w600,
-              ),
-            )
-          else
-            Text(
-              'Pagamento completo.',
-              textAlign: TextAlign.center,
-              style: theme.getTextStyle(
-                fontSize: 12,
-                color: theme.textColor,
-              ),
-            ),
-        ],
-      ),
-    );
-  }
-
-  Widget _botaoDeForma(String forma) {
-    final selecionada = _pagamentos.any((p) => p.forma == forma);
-    return _BotaoHoverForma(
+    return BlocoPagamentoNovaVendaWidget(
       theme: theme,
-      rotulo: forma,
-      selecionada: selecionada,
-      aoClicar: () => _escolherForma(forma),
+      scrollController: _pagamentoScrollController,
+      formasDePagamento: _formasDePagamento,
+      formaAPrazo: _formaAPrazo,
+      pagamentos: _pagamentos,
+      falta: _falta,
+      troco: _troco,
+      onEscolherForma: _escolherForma,
+      onRemoverForma: (forma) {
+        setState(() {
+          _removerForma(forma);
+          _recalcularPrazo();
+        });
+      },
+      onRecalcularPrazo: () => setState(_recalcularPrazo),
+      decoracaoDoBloco: _decoracaoDoBloco,
+      decoracaoCampo: _decoracaoCampo,
+      tituloDoBloco: _tituloDoBloco,
+      valorComVirgula: _valorComVirgula,
     );
   }
 
@@ -2774,84 +1317,3 @@ class _NovaVendaConteudoState extends State<_NovaVendaConteudo> {
   }
 }
 
-class _BotaoHoverForma extends StatefulWidget {
-  final AppTheme theme;
-  final String rotulo;
-  final bool selecionada;
-  final VoidCallback aoClicar;
-
-  const _BotaoHoverForma({
-    required this.theme,
-    required this.rotulo,
-    required this.selecionada,
-    required this.aoClicar,
-  });
-
-  @override
-  State<_BotaoHoverForma> createState() => _BotaoHoverFormaState();
-}
-
-class _BotaoHoverFormaState extends State<_BotaoHoverForma> {
-  bool _hover = false;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = widget.theme;
-    final ativo = widget.selecionada;
-    final corAtiva = theme.buttonColor != Colors.transparent
-        ? theme.buttonColor
-        : theme.borderColor.withValues(alpha: 0.25);
-
-    final corFundo = ativo
-        ? (_hover ? corAtiva.withValues(alpha: 0.35) : corAtiva)
-        : (_hover
-            ? theme.borderColor.withValues(alpha: 0.12)
-            : Colors.transparent);
-
-    final corBorda = ativo
-        ? theme.textColor
-        : (_hover
-            ? theme.borderColor
-            : theme.borderColor.withValues(alpha: 0.6));
-
-    final corTexto = ativo
-        ? (theme.buttonColor != Colors.transparent
-            ? theme.buttonTextColor
-            : theme.textColor)
-        : theme.textColor;
-
-    return MouseRegion(
-      cursor: SystemMouseCursors.click,
-      onEnter: (_) => setState(() => _hover = true),
-      onExit: (_) => setState(() => _hover = false),
-      child: GestureDetector(
-        onTap: widget.aoClicar,
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 140),
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
-          decoration: BoxDecoration(
-            color: corFundo,
-            borderRadius: BorderRadius.circular(10),
-            border: Border.all(
-              color: corBorda,
-              width: ativo ? 1.6 : 1.0,
-            ),
-          ),
-          child: Center(
-            child: FittedBox(
-              fit: BoxFit.scaleDown,
-              child: Text(
-                widget.rotulo,
-                style: theme.getTextStyle(
-                  fontSize: 11,
-                  fontWeight: ativo ? FontWeight.bold : FontWeight.normal,
-                  color: corTexto,
-                ),
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}

@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:flutter/foundation.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -10,6 +11,11 @@ class BancoDadosService {
   BancoDadosService._();
 
   static Database? _db;
+
+  @visibleForTesting
+  static void resetDbInstanciaParaTestes() {
+    _db = null;
+  }
 
   static Future<Database> get db async {
     if (_db != null) return _db!;

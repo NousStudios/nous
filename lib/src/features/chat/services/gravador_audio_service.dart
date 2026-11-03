@@ -14,8 +14,9 @@ class GravadorAudioService {
   DateTime? _inicioGravacao;
 
   final ValueNotifier<bool> gravandoNotifier = ValueNotifier<bool>(false);
-  final ValueNotifier<Duration> duracaoNotifier =
-      ValueNotifier<Duration>(Duration.zero);
+  final ValueNotifier<Duration> duracaoNotifier = ValueNotifier<Duration>(
+    Duration.zero,
+  );
 
   bool get estaGravando => gravandoNotifier.value;
   Duration get duracaoAtual => duracaoNotifier.value;
@@ -56,8 +57,7 @@ class GravadorAudioService {
       _timer?.cancel();
       _timer = Timer.periodic(const Duration(milliseconds: 200), (_) {
         if (_inicioGravacao != null) {
-          duracaoNotifier.value =
-              DateTime.now().difference(_inicioGravacao!);
+          duracaoNotifier.value = DateTime.now().difference(_inicioGravacao!);
         }
       });
 

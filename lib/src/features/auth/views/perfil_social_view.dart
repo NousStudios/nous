@@ -8,9 +8,12 @@ import 'package:nous/src/core/widgets/floating_bottom_nav_bar.dart';
 import 'package:nous/src/core/widgets/texto_rolante.dart';
 import 'package:nous/src/features/auth/models/usuario_nous.dart';
 import 'package:nous/src/features/auth/providers/auth_provider.dart';
+import 'package:nous/src/features/auth/services/contas_nous_service.dart';
 import 'package:nous/src/features/auth/views/widgets/editar_perfil_dialog.dart';
+import 'package:nous/src/features/chat/services/resolvedor_foto_chat.dart';
 import 'package:nous/src/features/chat/views/mensageria_view.dart';
 import 'package:nous/src/features/pdv/services/imagem_service.dart';
+import 'package:nous/src/features/pdv/services/rede_local/cliente_rede_local.dart';
 
 class PerfilSocialView extends StatefulWidget {
   final UsuarioNous? usuarioAlvo;
@@ -29,6 +32,102 @@ class PerfilSocialView extends StatefulWidget {
 class _PerfilSocialViewState extends State<PerfilSocialView> {
   static const double _larguraMaximaConteudo = 600;
   int _abaConteudoSelecionada = 0; // 0: Grade, 1: Vídeo, 2: Documento, 3: Música
+  UsuarioNous? _contaAlvoAtualizada;
+  String? _fotoLocalResolvida;
+  bool _baixandoFoto = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _contaAlvoAtualizada = widget.usuarioAlvo;
+    _inicializarEAutocurarPerfil();
+  }
+
+  @override
+  void didUpdateWidget(covariant PerfilSocialView oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.usuarioAlvo != widget.usuarioAlvo) {
+      _contaAlvoAtualizada = widget.usuarioAlvo;
+      _fotoLocalResolvida = null;
+      _inicializarEAutocurarPerfil();
+    }
+  }
+
+  Future<void> _inicializarEAutocurarPerfil() async {
+    final alvo = _contaAlvoAtualizada;
+    if (alvo == null) return;
+
+    final cpfLimpo = alvo.cpf.replaceAll(RegExp(r'\D'), '');
+
+    // 1. Tenta resolver no cache do chat primeiro
+    if (cpfLimpo.isNotEmpty) {
+      final cacheFoto = ResolvedorFotoChat.instancia.obterFotoEmCache(cpfLimpo);
+      if (cacheFoto.isNotEmpty) {
+        final resolvido = ImagemService.resolverCaminhoExistente(cacheFoto);
+        if (resolvido != null && File(resolvido).existsSync()) {
+          _fotoLocalResolvida = resolvido;
+        }
+      }
+    }
+
+    // 2. Se a foto do objeto atual já for válida fisicamente em disco, utiliza
+    if (_fotoLocalResolvida == null && alvo.fotoExibicao.isNotEmpty) {
+      final resolvido = ImagemService.resolverCaminhoExistente(alvo.fotoExibicao);
+      if (resolvido != null && File(resolvido).existsSync()) {
+        _fotoLocalResolvida = resolvido;
+        if (cpfLimpo.isNotEmpty) {
+          ResolvedorFotoChat.instancia.registrarFoto(cpfLimpo, resolvido);
+        }
+      }
+    }
+
+    if (mounted) setState(() {});
+
+    // 3. Autocura assíncrona: harmoniza com o SQLite local e balcão na rede local
+    if (cpfLimpo.length == 11) {
+      try {
+        final contaDb = await ContasNousService.buscarPorCpf(cpfLimpo);
+        if (contaDb != null && mounted) {
+          _contaAlvoAtualizada = contaDb;
+          if (_fotoLocalResolvida == null && contaDb.fotoExibicao.isNotEmpty) {
+            final res = ImagemService.resolverCaminhoExistente(contaDb.fotoExibicao);
+            if (res != null && File(res).existsSync()) {
+              _fotoLocalResolvida = res;
+              ResolvedorFotoChat.instancia.registrarFoto(cpfLimpo, res);
+            }
+          }
+          setState(() {});
+        }
+      } catch (_) {}
+
+      // Se ainda não temos a foto física resolvida, baixa do balcão pela rede
+      if (_fotoLocalResolvida == null && !_baixandoFoto && ClienteRedeLocal().conectado) {
+        _baixandoFoto = true;
+        try {
+          final usuarioBalcao = await ClienteRedeLocal().buscarUsuarioRemoto(cpfLimpo);
+          if (usuarioBalcao != null && mounted) {
+            _contaAlvoAtualizada = usuarioBalcao;
+          }
+
+          final fotoParaBaixar = _contaAlvoAtualizada?.fotoExibicao ?? alvo.fotoExibicao;
+          if (fotoParaBaixar.isNotEmpty || cpfLimpo.length == 11) {
+            final baixado = await ClienteRedeLocal().baixarImagemRemota(
+              fotoParaBaixar,
+              cpf: cpfLimpo,
+            );
+
+            if (baixado.isNotEmpty && File(baixado).existsSync() && mounted) {
+              _fotoLocalResolvida = baixado;
+              ResolvedorFotoChat.instancia.registrarFoto(cpfLimpo, baixado);
+              setState(() {});
+            }
+          }
+        } catch (_) {} finally {
+          _baixandoFoto = false;
+        }
+      }
+    }
+  }
 
   Future<void> _abrirEdicaoPerfil(
     BuildContext context,
@@ -195,7 +294,8 @@ class _PerfilSocialViewState extends State<PerfilSocialView> {
   Widget build(BuildContext context) {
     final auth = context.watch<AuthProvider>();
     final contaPropria = auth.contaAtual;
-    final conta = widget.usuarioAlvo ??
+    final conta = _contaAlvoAtualizada ??
+        widget.usuarioAlvo ??
         contaPropria ??
         const UsuarioNous(
           cpf: '',
@@ -209,9 +309,12 @@ class _PerfilSocialViewState extends State<PerfilSocialView> {
             contaPropria.cpf.replaceAll(RegExp(r'\D'), '') ==
                 conta.cpf.replaceAll(RegExp(r'\D'), ''));
 
-    final fotoResolvida =
+    final fotoResolvida = _fotoLocalResolvida ??
         ImagemService.resolverCaminhoExistente(conta.fotoExibicao);
-    final temFoto = fotoResolvida != null;
+    final temFoto = fotoResolvida != null && File(fotoResolvida).existsSync();
+    final providerFoto = temFoto
+        ? ImagemService.obterImageProvider(fotoResolvida)
+        : null;
 
     final apelidoExibicao = conta.usernameExibicao;
 
@@ -237,21 +340,28 @@ class _PerfilSocialViewState extends State<PerfilSocialView> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      // Cabeçalho Social Centralizado
+                      // Cabeçalho Social Centralizado com Imagem Unificada e Autocura
                       Center(
                         child: CircleAvatar(
                           radius: 50,
                           backgroundColor:
                               theme.borderColor.withValues(alpha: 0.3),
-                          backgroundImage: temFoto
-                              ? FileImage(File(fotoResolvida))
-                              : null,
+                          backgroundImage: providerFoto,
                           child: !temFoto
-                              ? Icon(
-                                  Icons.person,
-                                  size: 52,
-                                  color: theme.textColor,
-                                )
+                              ? (_baixandoFoto
+                                  ? SizedBox(
+                                      width: 32,
+                                      height: 32,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2.5,
+                                        color: theme.textColor,
+                                      ),
+                                    )
+                                  : Icon(
+                                      Icons.person,
+                                      size: 52,
+                                      color: theme.textColor,
+                                    ))
                               : null,
                         ),
                       ),

@@ -25,6 +25,11 @@ import 'package:nous/src/features/pdv/services/lojas_service.dart';
 import 'package:nous/src/features/pdv/services/rede_local/cliente_rede_local.dart';
 import 'package:nous/src/features/pdv/services/rede_local/servidor_rede_local.dart';
 import 'package:nous/src/features/chat/services/chat_service.dart';
+import 'package:nous/src/features/pdv/providers/helpers/pdv_permissoes_helper.dart';
+import 'package:nous/src/features/pdv/providers/helpers/pdv_caixa_helper.dart';
+import 'package:nous/src/features/pdv/providers/helpers/pdv_pedidos_programados_helper.dart';
+import 'package:nous/src/features/pdv/providers/helpers/pdv_membros_cargos_helper.dart';
+import 'package:nous/src/features/pdv/providers/helpers/pdv_estoque_financeiro_helper.dart';
 
 class PdvProvider extends ChangeNotifier {
   final List<Loja> _lojas = [];
@@ -234,139 +239,44 @@ class PdvProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  MembroLoja? meuMembro(String lojaId) {
-    final cpf = _cpfAtual;
-    if (cpf == null) return null;
-    final loja = buscarPorId(lojaId);
-    if (loja == null) return null;
-    for (final m in loja.membros) {
-      if (_mesmoCpf(m.cpf, cpf)) return m;
-    }
-    if (loja.cpfDonoOriginal.isNotEmpty && _mesmoCpf(loja.cpfDonoOriginal, cpf)) {
-      return MembroLoja(
-        cpf: cpf,
-        nome: 'Dono',
-        papel: PapelMembro.dono,
-        desde: DateTime.now(),
-      );
-    }
-    return null;
-  }
+  MembroLoja? meuMembro(String lojaId) =>
+      PdvPermissoesHelper.resolverMeuMembro(buscarPorId(lojaId), _cpfAtual);
 
-  PapelMembro? meuPapel(String lojaId) {
-    return meuMembro(lojaId)?.papel;
-  }
+  PapelMembro? meuPapel(String lojaId) => meuMembro(lojaId)?.papel;
 
   CargoLoja? meuCargoPersonalizado(String lojaId) {
-    final membro = meuMembro(lojaId);
-    if (membro?.cargoPersonalizadoId == null) return null;
     final loja = buscarPorId(lojaId);
-    return loja?.cargosPersonalizados
-        .where((c) => c.id == membro!.cargoPersonalizadoId)
-        .firstOrNull;
+    final m = PdvPermissoesHelper.resolverMeuMembro(loja, _cpfAtual);
+    return PdvPermissoesHelper.resolverMeuCargoPersonalizado(loja, m);
   }
 
-  bool possoEditarAbaLoja(String lojaId) {
-    final m = meuMembro(lojaId);
-    if (m == null) return false;
-    if (m.papel == PapelMembro.dono || m.papel == PapelMembro.socio) return true;
-    final cargo = meuCargoPersonalizado(lojaId);
-    if (cargo != null) {
-      return cargo.temPermissao(PermissaoLojaConst.editarAbaLoja);
-    }
-    final loja = buscarPorId(lojaId);
-    return loja?.temPermissaoPapel(m.papel.name, PermissaoLojaConst.editarAbaLoja) ??
-        (m.papel != PapelMembro.funcionario);
-  }
+  bool possoEditarAbaLoja(String lojaId) =>
+      PdvPermissoesHelper.podeEditarAbaLoja(buscarPorId(lojaId), _cpfAtual);
 
-  bool possoUsarImpressora(String lojaId) {
-    final m = meuMembro(lojaId);
-    if (m == null) return false;
-    if (m.papel == PapelMembro.dono || m.papel == PapelMembro.socio) return true;
-    final cargo = meuCargoPersonalizado(lojaId);
-    if (cargo != null) {
-      return cargo.temPermissao(PermissaoLojaConst.usarImpressora);
-    }
-    final loja = buscarPorId(lojaId);
-    return loja?.temPermissaoPapel(m.papel.name, PermissaoLojaConst.usarImpressora) ??
-        (m.papel != PapelMembro.funcionario);
-  }
+  bool possoUsarImpressora(String lojaId) =>
+      PdvPermissoesHelper.podeUsarImpressora(buscarPorId(lojaId), _cpfAtual);
 
-  bool possoEditarDadosLoja(String lojaId) {
-    final m = meuMembro(lojaId);
-    if (m == null) return false;
-    if (m.papel == PapelMembro.dono || m.papel == PapelMembro.socio) return true;
-    final cargo = meuCargoPersonalizado(lojaId);
-    if (cargo != null) {
-      return cargo.temPermissao(PermissaoLojaConst.editarDadosLoja);
-    }
-    final loja = buscarPorId(lojaId);
-    return loja?.temPermissaoPapel(m.papel.name, PermissaoLojaConst.editarDadosLoja) ?? false;
-  }
+  bool possoEditarDadosLoja(String lojaId) =>
+      PdvPermissoesHelper.podeEditarDadosLoja(buscarPorId(lojaId), _cpfAtual);
 
-  bool possoUsarFinanceiro(String lojaId) {
-    final m = meuMembro(lojaId);
-    if (m == null) return false;
-    if (m.papel == PapelMembro.dono || m.papel == PapelMembro.socio) return true;
-    final cargo = meuCargoPersonalizado(lojaId);
-    if (cargo != null) {
-      return cargo.temPermissao(PermissaoLojaConst.usarFinanceiro);
-    }
-    final loja = buscarPorId(lojaId);
-    return loja?.temPermissaoPapel(m.papel.name, PermissaoLojaConst.usarFinanceiro) ?? true;
-  }
+  bool possoUsarFinanceiro(String lojaId) =>
+      PdvPermissoesHelper.podeUsarFinanceiro(buscarPorId(lojaId), _cpfAtual);
 
-  bool possoRegistrarPagamento(String lojaId) {
-    final m = meuMembro(lojaId);
-    if (m == null) return false;
-    if (m.papel == PapelMembro.dono || m.papel == PapelMembro.socio) return true;
-    final cargo = meuCargoPersonalizado(lojaId);
-    if (cargo != null) {
-      return cargo.temPermissao(PermissaoLojaConst.registrarPagamento);
-    }
-    final loja = buscarPorId(lojaId);
-    return loja?.temPermissaoPapel(m.papel.name, PermissaoLojaConst.registrarPagamento) ??
-        (m.papel == PapelMembro.admin);
-  }
+  bool possoRegistrarPagamento(String lojaId) =>
+      PdvPermissoesHelper.podeRegistrarPagamento(buscarPorId(lojaId), _cpfAtual);
 
-  bool possoGerenciarMembros(String lojaId) {
-    final m = meuMembro(lojaId);
-    if (m == null) return false;
-    if (m.papel == PapelMembro.dono || m.papel == PapelMembro.socio) return true;
-    final cargo = meuCargoPersonalizado(lojaId);
-    if (cargo != null) {
-      return cargo.temPermissao(PermissaoLojaConst.gerenciarMembros);
-    }
-    final loja = buscarPorId(lojaId);
-    return loja?.temPermissaoPapel(m.papel.name, PermissaoLojaConst.gerenciarMembros) ?? false;
-  }
+  bool possoGerenciarMembros(String lojaId) =>
+      PdvPermissoesHelper.podeGerenciarMembros(buscarPorId(lojaId), _cpfAtual);
 
-  bool possoResetarTransacoes(String lojaId) {
-    final m = meuMembro(lojaId);
-    if (m == null) return false;
-    if (m.papel == PapelMembro.dono || m.papel == PapelMembro.socio) return true;
-    final cargo = meuCargoPersonalizado(lojaId);
-    if (cargo != null) {
-      return cargo.temPermissao(PermissaoLojaConst.resetarTransacoes);
-    }
-    final loja = buscarPorId(lojaId);
-    return loja?.temPermissaoPapel(m.papel.name, PermissaoLojaConst.resetarTransacoes) ?? false;
-  }
+  bool possoResetarTransacoes(String lojaId) =>
+      PdvPermissoesHelper.podeResetarTransacoes(buscarPorId(lojaId), _cpfAtual);
 
-  bool possoExcluirLoja(String lojaId) {
-    final m = meuMembro(lojaId);
-    if (m == null) return false;
-    if (m.papel == PapelMembro.dono || m.papel == PapelMembro.socio) return true;
-    final cargo = meuCargoPersonalizado(lojaId);
-    if (cargo != null) {
-      return cargo.temPermissao(PermissaoLojaConst.excluirLoja);
-    }
-    final loja = buscarPorId(lojaId);
-    return loja?.temPermissaoPapel(m.papel.name, PermissaoLojaConst.excluirLoja) ?? false;
-  }
+  bool possoExcluirLoja(String lojaId) =>
+      PdvPermissoesHelper.podeExcluirLoja(buscarPorId(lojaId), _cpfAtual);
 
   Future<void> entrarComCpf(String cpf) async {
     _cpfAtual = cpf;
+    await LojasService.expurgarLojasHostFalsas();
 
     final minhasLojasBrutas = await LojasService.carregar(cpf);
     final minhasLojasDesduplicadas =
@@ -419,9 +329,10 @@ class PdvProvider extends ChangeNotifier {
 
     _lojas
       ..clear()
-      ..addAll(minhasLojas);
+      ..addAll(minhasLojas.where((l) => !LojasService.ehLojaHostFalsa(l.id, l.tags, l.nome)));
     for (final refLoja in lojasReferenciadas) {
-      if (!_lojas.any((l) => l.id == refLoja.id)) {
+      if (!LojasService.ehLojaHostFalsa(refLoja.id, refLoja.tags, refLoja.nome) &&
+          !_lojas.any((l) => l.id == refLoja.id)) {
         _lojas.add(refLoja);
       }
     }
@@ -556,6 +467,10 @@ class PdvProvider extends ChangeNotifier {
   }
 
   void entrarComoVisitante() {
+    limparSessao();
+  }
+
+  void limparSessao() {
     _cpfAtual = null;
     _lojas.clear();
     notifyListeners();
@@ -579,6 +494,15 @@ class PdvProvider extends ChangeNotifier {
       if (ClienteRedeLocal().lojaSincronizada?.id == loja.id) {
         ClienteRedeLocal().enviarLojaAtualizada(loja);
       }
+    }
+  }
+
+  Future<void> _salvarEAtualizar(Loja atualizada) async {
+    final indice = _lojas.indexWhere((l) => l.id == atualizada.id);
+    if (indice != -1) {
+      _lojas[indice] = atualizada;
+      notifyListeners();
+      await _salvarLojaNoCofreCorreto(atualizada);
     }
   }
 
@@ -616,6 +540,7 @@ class PdvProvider extends ChangeNotifier {
   }
 
   Future<void> adicionarOuAtualizarLoja(Loja loja) async {
+    if (LojasService.ehLojaHostFalsa(loja.id, loja.tags, loja.nome)) return;
     final indice = _lojas.indexWhere((l) => l.id == loja.id);
     final lojaConsolidada = LojasService.consolidarLojaComImagensLocais(
       loja,
@@ -911,63 +836,15 @@ class PdvProvider extends ChangeNotifier {
     String autorNome = '',
     String autorEmail = '',
   }) async {
-    final indice = _lojas.indexWhere((l) => l.id == lojaId);
-    if (indice == -1) return;
-    final loja = _lojas[indice];
-
-    final novaAcao = RegistroAcao(
-      id: DateTime.now().millisecondsSinceEpoch.toString(),
-      dataHora: DateTime.now(),
-      tipo: TipoAcao.transacoesResetadas,
-      descricao:
-          'Registros de transações da loja (vendas, caixas e pagamentos) resetados.',
-      cpfAutor: autorCpf,
-      nomeAutor: autorNome,
-      emailAutor: autorEmail,
+    final loja = buscarPorId(lojaId);
+    if (loja == null) return;
+    final atualizada = PdvEstoqueFinanceiroHelper.resetarTransacoes(
+      loja,
+      autorCpf: autorCpf,
+      autorNome: autorNome,
+      autorEmail: autorEmail,
     );
-
-    // Consolidar saldo de estoque de cada item com custo financeiro zero,
-    // preservando rigorosamente a contagem física atual de produtos sem deixar resquícios de compras financeiras.
-    final saldosPorItem = <String, double>{};
-    for (final m in loja.movimentosEstoque) {
-      saldosPorItem[m.itemId] =
-          (saldosPorItem[m.itemId] ?? 0.0) + m.quantidadeComSinal;
-    }
-
-    final agora = DateTime.now();
-    final novosMovimentosEstoque = <MovimentoEstoque>[];
-    saldosPorItem.forEach((itemId, saldo) {
-      if (saldo != 0.0) {
-        novosMovimentosEstoque.add(
-          MovimentoEstoque(
-            id: '${agora.millisecondsSinceEpoch}_$itemId',
-            itemId: itemId,
-            tipo: saldo >= 0
-                ? TipoMovimentoEstoque.entrada
-                : TipoMovimentoEstoque.saida,
-            quantidade: saldo.abs(),
-            custoUnitario: 0.0,
-            dataHora: agora,
-            motivo: 'Saldo preservado pós-reset financeiro',
-            cpfAutor: autorCpf,
-            nomeAutor: autorNome,
-            categoria: CategoriaMovimentoEstoque.ajuste,
-          ),
-        );
-      }
-    });
-
-    final atualizada = loja.copyWith(
-      pedidosLoja: const [],
-      turnosCaixa: const [],
-      pagamentosFuncionarios: const [],
-      movimentosEstoque: novosMovimentosEstoque,
-      acoes: [novaAcao, ...loja.acoes],
-    );
-
-    _lojas[indice] = atualizada;
-    notifyListeners();
-    await _salvarLojaNoCofreCorreto(atualizada);
+    await _salvarEAtualizar(atualizada);
   }
 
   void quitarPedidoLoja(
@@ -978,32 +855,20 @@ class PdvProvider extends ChangeNotifier {
     String autorNome = '',
     String autorEmail = '',
   }) {
-    final indice = _lojas.indexWhere((l) => l.id == lojaId);
-    if (indice == -1) return;
-    final loja = _lojas[indice];
-    final pedidos = List<PedidoLoja>.from(loja.pedidosLoja);
-    final idxPed = pedidos.indexWhere((p) => p.id == pedidoId);
-    if (idxPed == -1) return;
-    final pedido = pedidos[idxPed];
-    final valorQuitado = pedido.valorRestante;
+    final loja = buscarPorId(lojaId);
+    if (loja == null) return;
+    final res = PdvEstoqueFinanceiroHelper.quitarPedido(loja, pedidoId);
+    if (res == null) return;
 
-    pedidos[idxPed] = pedido.copyWith(
-      quitado: true,
-      valorPago: pedido.valor,
-    );
-
-    final atualizada = _lojas[indice].copyWith(pedidosLoja: pedidos);
-    _lojas[indice] = atualizada;
-    notifyListeners();
-    _salvarLojaNoCofreCorreto(atualizada);
+    _salvarEAtualizar(res.loja);
 
     if (formaRecebimento.trim().toLowerCase() == 'dinheiro' &&
-        valorQuitado > 0) {
+        res.valorQuitado > 0) {
       registrarMovimentoCaixa(
         lojaId,
         tipo: TipoMovimentoCaixa.suprimento,
-        valor: valorQuitado,
-        motivo: 'Recebimento de prazo - Pedido #${pedido.numero}',
+        valor: res.valorQuitado,
+        motivo: 'Recebimento de prazo - Pedido #${res.pedidoQuitado?.numero}',
         cpf: autorCpf,
         nome: autorNome,
       );
@@ -1016,7 +881,7 @@ class PdvProvider extends ChangeNotifier {
         dataHora: DateTime.now(),
         tipo: TipoAcao.pagamentoPrazoRecebido,
         descricao:
-            'Pedido #${pedido.numero} quitado ($formaRecebimento) - R\$ ${valorQuitado.toStringAsFixed(2).replaceAll('.', ',')}',
+            'Pedido #${res.pedidoQuitado?.numero} quitado ($formaRecebimento) - R\$ ${res.valorQuitado.toStringAsFixed(2).replaceAll('.', ',')}',
         cpfAutor: autorCpf,
         nomeAutor: autorNome,
         emailAutor: autorEmail,
@@ -1079,79 +944,32 @@ class PdvProvider extends ChangeNotifier {
     _salvarLojaNoCofreCorreto(atualizada);
   }
 
-  void adicionarMovimentoEstoque(
-    String lojaId,
-    MovimentoEstoque movimento,
-  ) {
-    final indice = _lojas.indexWhere((loja) => loja.id == lojaId);
-    if (indice == -1) return;
-
-    final atual = _lojas[indice].movimentosEstoque;
-    var itensLoja = _lojas[indice].itensLoja;
-    if (movimento.ehEntrada && movimento.custoUnitario > 0) {
-      final idxItem = itensLoja.indexWhere((i) => i.id == movimento.itemId);
-      if (idxItem != -1) {
-        final itemAtual = itensLoja[idxItem];
-        final novoCusto =
-            movimento.custoUnitario.toStringAsFixed(2).replaceAll('.', ',');
-        if (itemAtual.precoCusto != novoCusto) {
-          final novosItens = List<ItemLoja>.from(itensLoja);
-          novosItens[idxItem] = itemAtual.copyWith(precoCusto: novoCusto);
-          itensLoja = novosItens;
-        }
-      }
-    }
-    final atualizada = _lojas[indice].copyWith(
-      movimentosEstoque: [movimento, ...atual],
-      itensLoja: itensLoja,
-    );
-    _lojas[indice] = atualizada;
-    notifyListeners();
-    _salvarLojaNoCofreCorreto(atualizada);
+  void adicionarMovimentoEstoque(String lojaId, MovimentoEstoque movimento) {
+    final loja = buscarPorId(lojaId);
+    if (loja == null) return;
+    final atualizada = PdvEstoqueFinanceiroHelper.adicionarMovimentoEstoque(loja, movimento);
+    _salvarEAtualizar(atualizada);
   }
 
   void removerMovimentoEstoque(String lojaId, String movimentoId) {
-    final indice = _lojas.indexWhere((loja) => loja.id == lojaId);
-    if (indice == -1) return;
-
-    final atual = _lojas[indice].movimentosEstoque;
-    final atualizada = _lojas[indice].copyWith(
-      movimentosEstoque:
-          atual.where((m) => m.id != movimentoId).toList(),
-    );
-    _lojas[indice] = atualizada;
-    notifyListeners();
-    _salvarLojaNoCofreCorreto(atualizada);
+    final loja = buscarPorId(lojaId);
+    if (loja == null) return;
+    final atualizada = PdvEstoqueFinanceiroHelper.removerMovimentoEstoque(loja, movimentoId);
+    _salvarEAtualizar(atualizada);
   }
 
-  void adicionarPagamentoFuncionario(
-    String lojaId,
-    PagamentoFuncionario pagamento,
-  ) {
-    final indice = _lojas.indexWhere((loja) => loja.id == lojaId);
-    if (indice == -1) return;
-
-    final atual = _lojas[indice].pagamentosFuncionarios;
-    final atualizada = _lojas[indice].copyWith(
-      pagamentosFuncionarios: [pagamento, ...atual],
-    );
-    _lojas[indice] = atualizada;
-    notifyListeners();
-    _salvarLojaNoCofreCorreto(atualizada);
+  void adicionarPagamentoFuncionario(String lojaId, PagamentoFuncionario pagamento) {
+    final loja = buscarPorId(lojaId);
+    if (loja == null) return;
+    final atualizada = PdvEstoqueFinanceiroHelper.adicionarPagamentoFuncionario(loja, pagamento);
+    _salvarEAtualizar(atualizada);
   }
 
   void removerPagamentoFuncionario(String lojaId, String pagamentoId) {
-    final indice = _lojas.indexWhere((loja) => loja.id == lojaId);
-    if (indice == -1) return;
-
-    final atual = _lojas[indice].pagamentosFuncionarios;
-    final atualizada = _lojas[indice].copyWith(
-      pagamentosFuncionarios:
-          atual.where((p) => p.id != pagamentoId).toList(),
-    );
-    _lojas[indice] = atualizada;
-    notifyListeners();
-    _salvarLojaNoCofreCorreto(atualizada);
+    final loja = buscarPorId(lojaId);
+    if (loja == null) return;
+    final atualizada = PdvEstoqueFinanceiroHelper.removerPagamentoFuncionario(loja, pagamentoId);
+    _salvarEAtualizar(atualizada);
   }
 
   void garantirDono(
@@ -1159,62 +977,28 @@ class PdvProvider extends ChangeNotifier {
     required String cpf,
     required String nome,
   }) {
-    final indice = _lojas.indexWhere((loja) => loja.id == lojaId);
-    if (indice == -1) return;
-    final loja = _lojas[indice];
-
-    final precisaDefinirDonoOriginal = loja.cpfDonoOriginal.isEmpty;
-    final precisaAdicionarMembro = loja.membros.isEmpty;
-
-    if (!precisaDefinirDonoOriginal && !precisaAdicionarMembro) return;
-
-    final donoOriginal =
-        precisaDefinirDonoOriginal ? cpf : loja.cpfDonoOriginal;
-    final membros = precisaAdicionarMembro
-        ? [
-            MembroLoja(
-              cpf: cpf,
-              nome: nome,
-              papel: PapelMembro.dono,
-              desde: DateTime.now(),
-            ),
-          ]
-        : loja.membros;
-
-    final atualizada = loja.copyWith(
-      cpfDonoOriginal: donoOriginal,
-      membros: membros,
-    );
-    _lojas[indice] = atualizada;
-    notifyListeners();
-    _salvarLojaNoCofreCorreto(atualizada);
+    final loja = buscarPorId(lojaId);
+    if (loja == null) return;
+    final atualizada = PdvMembrosCargosHelper.garantirDono(loja, cpf: cpf, nome: nome);
+    if (atualizada != null) {
+      _salvarEAtualizar(atualizada);
+    }
   }
 
   void adicionarMembro(String lojaId, MembroLoja membro) {
-    final indice = _lojas.indexWhere((loja) => loja.id == lojaId);
-    if (indice == -1) return;
-    final loja = _lojas[indice];
-    if (loja.membros.any((m) => m.cpf == membro.cpf)) return;
-
-    final atualizada =
-        loja.copyWith(membros: [...loja.membros, membro]);
-    _lojas[indice] = atualizada;
-    notifyListeners();
-    _salvarLojaNoCofreCorreto(atualizada);
+    final loja = buscarPorId(lojaId);
+    if (loja == null) return;
+    final atualizada = PdvMembrosCargosHelper.adicionarMembro(loja, membro);
+    if (atualizada != null) {
+      _salvarEAtualizar(atualizada);
+    }
   }
 
   Future<void> removerMembro(String lojaId, String cpfMembro) async {
-    final indice = _lojas.indexWhere((loja) => loja.id == lojaId);
-    if (indice == -1) return;
-    final loja = _lojas[indice];
-
-    final restantes =
-        loja.membros.where((m) => m.cpf != cpfMembro).toList();
-    final atualizada = loja.copyWith(membros: restantes);
-    _lojas[indice] = atualizada;
-    notifyListeners();
-
-    await _salvarLojaNoCofreCorreto(atualizada);
+    final loja = buscarPorId(lojaId);
+    if (loja == null) return;
+    final atualizada = PdvMembrosCargosHelper.removerMembro(loja, cpfMembro);
+    await _salvarEAtualizar(atualizada);
     await LojasService.removerReferencia(cpfMembro, lojaId);
   }
 
@@ -1223,63 +1007,31 @@ class PdvProvider extends ChangeNotifier {
     String cpf,
     PapelMembro papel,
   ) async {
-    final indice = _lojas.indexWhere((loja) => loja.id == lojaId);
-    if (indice == -1) return;
-    final loja = _lojas[indice];
-
-    final novos = loja.membros
-        .map((m) => m.cpf == cpf ? m.copyWith(papel: papel) : m)
-        .toList();
-    final atualizada = loja.copyWith(membros: novos);
-    _lojas[indice] = atualizada;
-    notifyListeners();
-
-    await _salvarLojaNoCofreCorreto(atualizada);
+    final loja = buscarPorId(lojaId);
+    if (loja == null) return;
+    final atualizada = PdvMembrosCargosHelper.atualizarPapelMembro(loja, cpf, papel);
+    await _salvarEAtualizar(atualizada);
   }
 
   Future<void> adicionarCargoLoja(String lojaId, CargoLoja cargo) async {
-    final indice = _lojas.indexWhere((l) => l.id == lojaId);
-    if (indice == -1) return;
-    final loja = _lojas[indice];
-    final novos = [...loja.cargosPersonalizados, cargo];
-    final atualizada = loja.copyWith(cargosPersonalizados: novos);
-    _lojas[indice] = atualizada;
-    notifyListeners();
-    await _salvarLojaNoCofreCorreto(atualizada);
+    final loja = buscarPorId(lojaId);
+    if (loja == null) return;
+    final atualizada = PdvMembrosCargosHelper.adicionarCargoLoja(loja, cargo);
+    await _salvarEAtualizar(atualizada);
   }
 
   Future<void> atualizarCargoLoja(String lojaId, CargoLoja cargo) async {
-    final indice = _lojas.indexWhere((l) => l.id == lojaId);
-    if (indice == -1) return;
-    final loja = _lojas[indice];
-    final novos = loja.cargosPersonalizados
-        .map((c) => c.id == cargo.id ? cargo : c)
-        .toList();
-    final atualizada = loja.copyWith(cargosPersonalizados: novos);
-    _lojas[indice] = atualizada;
-    notifyListeners();
-    await _salvarLojaNoCofreCorreto(atualizada);
+    final loja = buscarPorId(lojaId);
+    if (loja == null) return;
+    final atualizada = PdvMembrosCargosHelper.atualizarCargoLoja(loja, cargo);
+    await _salvarEAtualizar(atualizada);
   }
 
   Future<void> removerCargoLoja(String lojaId, String cargoId) async {
-    final indice = _lojas.indexWhere((l) => l.id == lojaId);
-    if (indice == -1) return;
-    final loja = _lojas[indice];
-    final novos =
-        loja.cargosPersonalizados.where((c) => c.id != cargoId).toList();
-    final membrosAtualizados = loja.membros.map((m) {
-      if (m.cargoPersonalizadoId == cargoId) {
-        return m.copyWith(cargoPersonalizadoId: null);
-      }
-      return m;
-    }).toList();
-    final atualizada = loja.copyWith(
-      cargosPersonalizados: novos,
-      membros: membrosAtualizados,
-    );
-    _lojas[indice] = atualizada;
-    notifyListeners();
-    await _salvarLojaNoCofreCorreto(atualizada);
+    final loja = buscarPorId(lojaId);
+    if (loja == null) return;
+    final atualizada = PdvMembrosCargosHelper.removerCargoLoja(loja, cargoId);
+    await _salvarEAtualizar(atualizada);
   }
 
   Future<void> vincularCargoAoMembro(
@@ -1287,21 +1039,10 @@ class PdvProvider extends ChangeNotifier {
     String cpf,
     String? cargoId,
   ) async {
-    final indice = _lojas.indexWhere((loja) => loja.id == lojaId);
-    if (indice == -1) return;
-    final loja = _lojas[indice];
-    final novos = loja.membros
-        .map((m) => m.cpf == cpf
-            ? m.copyWith(
-                cargoPersonalizadoId: cargoId,
-                limparCargoPersonalizado: cargoId == null || cargoId.isEmpty,
-              )
-            : m)
-        .toList();
-    final atualizada = loja.copyWith(membros: novos);
-    _lojas[indice] = atualizada;
-    notifyListeners();
-    await _salvarLojaNoCofreCorreto(atualizada);
+    final loja = buscarPorId(lojaId);
+    if (loja == null) return;
+    final atualizada = PdvMembrosCargosHelper.vincularCargoAoMembro(loja, cpf, cargoId);
+    await _salvarEAtualizar(atualizada);
   }
 
   Future<void> atualizarPermissoesCargoNativo(
@@ -1309,16 +1050,10 @@ class PdvProvider extends ChangeNotifier {
     String papel,
     Map<String, bool> permissoes,
   ) async {
-    final indice = _lojas.indexWhere((loja) => loja.id == lojaId);
-    if (indice == -1) return;
-    final loja = _lojas[indice];
-    final novoMapa =
-        Map<String, Map<String, bool>>.from(loja.permissoesCargosNativos);
-    novoMapa[papel] = permissoes;
-    final atualizada = loja.copyWith(permissoesCargosNativos: novoMapa);
-    _lojas[indice] = atualizada;
-    notifyListeners();
-    await _salvarLojaNoCofreCorreto(atualizada);
+    final loja = buscarPorId(lojaId);
+    if (loja == null) return;
+    final atualizada = PdvMembrosCargosHelper.atualizarPermissoesCargoNativo(loja, papel, permissoes);
+    await _salvarEAtualizar(atualizada);
   }
 
   Future<void> sairDaLoja(String lojaId) async {
@@ -1409,10 +1144,8 @@ class PdvProvider extends ChangeNotifier {
     }
   }
 
-  TurnoCaixa? turnoCaixaAberto(String lojaId) {
-    final loja = buscarPorId(lojaId);
-    return loja?.turnoCaixaAberto;
-  }
+  TurnoCaixa? turnoCaixaAberto(String lojaId) =>
+      buscarPorId(lojaId)?.turnoCaixaAberto;
 
   Future<void> abrirCaixa(
     String lojaId,
@@ -1422,22 +1155,13 @@ class PdvProvider extends ChangeNotifier {
   }) async {
     final loja = buscarPorId(lojaId);
     if (loja == null) return;
-
-    final novoTurno = TurnoCaixa.abrir(
+    final atualizada = PdvCaixaHelper.abrirCaixa(
+      loja,
       saldoInicial: saldoInicial,
-      abertoPorCpf: cpf,
-      abertoPorNome: nome,
+      cpf: cpf,
+      nome: nome,
     );
-
-    final novosTurnos = [...loja.turnosCaixa, novoTurno];
-    final atualizada = loja.copyWith(turnosCaixa: novosTurnos);
-
-    final indice = _lojas.indexWhere((l) => l.id == lojaId);
-    if (indice != -1) {
-      _lojas[indice] = atualizada;
-      await _salvarLojaNoCofreCorreto(atualizada);
-      notifyListeners();
-    }
+    await _salvarEAtualizar(atualizada);
   }
 
   Future<void> registrarMovimentoCaixa(
@@ -1450,31 +1174,16 @@ class PdvProvider extends ChangeNotifier {
   }) async {
     final loja = buscarPorId(lojaId);
     if (loja == null) return;
-    final aberto = loja.turnoCaixaAberto;
-    if (aberto == null) return;
-
-    final mov = MovimentoCaixa.novo(
+    final atualizada = PdvCaixaHelper.registrarMovimentoCaixa(
+      loja,
       tipo: tipo,
       valor: valor,
       motivo: motivo,
-      autorCpf: cpf,
-      autorNome: nome,
+      cpf: cpf,
+      nome: nome,
     );
-
-    final turnoAtualizado = aberto.copyWith(
-      movimentacoes: [...aberto.movimentacoes, mov],
-    );
-
-    final novosTurnos = loja.turnosCaixa
-        .map((t) => t.id == turnoAtualizado.id ? turnoAtualizado : t)
-        .toList();
-
-    final atualizada = loja.copyWith(turnosCaixa: novosTurnos);
-    final indice = _lojas.indexWhere((l) => l.id == lojaId);
-    if (indice != -1) {
-      _lojas[indice] = atualizada;
-      await _salvarLojaNoCofreCorreto(atualizada);
-      notifyListeners();
+    if (atualizada != null) {
+      await _salvarEAtualizar(atualizada);
     }
   }
 
@@ -1487,171 +1196,63 @@ class PdvProvider extends ChangeNotifier {
   }) async {
     final loja = buscarPorId(lojaId);
     if (loja == null) return;
-    final aberto = loja.turnoCaixaAberto;
-    if (aberto == null) return;
-
-    final turnoFechado = aberto.copyWith(
-      status: StatusTurnoCaixa.fechado,
-      dataFechamento: DateTime.now(),
-      fechadoPorCpf: cpf,
-      fechadoPorNome: nome,
-      saldoFinalInformado: saldoInformado,
+    final atualizada = PdvCaixaHelper.fecharCaixa(
+      loja,
+      saldoInformado: saldoInformado,
+      cpf: cpf,
+      nome: nome,
       observacao: observacao,
     );
-
-    final novosTurnos = loja.turnosCaixa
-        .map((t) => t.id == turnoFechado.id ? turnoFechado : t)
-        .toList();
-
-    final atualizada = loja.copyWith(turnosCaixa: novosTurnos);
-    final indice = _lojas.indexWhere((l) => l.id == lojaId);
-    if (indice != -1) {
-      _lojas[indice] = atualizada;
-      await _salvarLojaNoCofreCorreto(atualizada);
-      notifyListeners();
+    if (atualizada != null) {
+      await _salvarEAtualizar(atualizada);
     }
   }
 
   Future<void> excluirTurnoCaixa(String lojaId, String turnoId) async {
     final loja = buscarPorId(lojaId);
     if (loja == null) return;
-
-    final novosTurnos = loja.turnosCaixa.where((t) => t.id != turnoId).toList();
-    final atualizada = loja.copyWith(turnosCaixa: novosTurnos);
-    final indice = _lojas.indexWhere((l) => l.id == lojaId);
-    if (indice != -1) {
-      _lojas[indice] = atualizada;
-      await _salvarLojaNoCofreCorreto(atualizada);
-      notifyListeners();
-    }
+    final atualizada = PdvCaixaHelper.excluirTurnoCaixa(loja, turnoId);
+    await _salvarEAtualizar(atualizada);
   }
 
-  List<PedidoProgramado> pedidosProgramadosDoDia(String lojaId, [DateTime? data]) {
-    final loja = buscarPorId(lojaId);
-    if (loja == null) return const [];
-    final dia = data ?? DateTime.now();
-    return loja.pedidosProgramados.where((p) => p.coincideComData(dia)).toList();
-  }
+  List<PedidoProgramado> pedidosProgramadosDoDia(String lojaId, [DateTime? data]) =>
+      PdvPedidosProgramadosHelper.pedidosProgramadosDoDia(buscarPorId(lojaId), data);
 
   Future<void> adicionarPedidoProgramado(
     String lojaId,
     PedidoProgramado pedido,
   ) async {
-    final indice = _lojas.indexWhere((l) => l.id == lojaId);
-    if (indice == -1) return;
-    final loja = _lojas[indice];
-
-    final atualizada = loja.copyWith(
-      pedidosProgramados: [pedido, ...loja.pedidosProgramados],
-    );
-    _lojas[indice] = atualizada;
-    await _salvarLojaNoCofreCorreto(atualizada);
-    notifyListeners();
-
+    final loja = buscarPorId(lojaId);
+    if (loja == null) return;
+    final atualizada = PdvPedidosProgramadosHelper.adicionarPedidoProgramado(loja, pedido);
+    await _salvarEAtualizar(atualizada);
     await verificarEGerarPedidosProgramados(lojaId);
   }
 
   Future<void> removerPedidoProgramado(String lojaId, String pedidoId) async {
-    final indice = _lojas.indexWhere((l) => l.id == lojaId);
-    if (indice == -1) return;
-    final loja = _lojas[indice];
-
-    final atualizada = loja.copyWith(
-      pedidosProgramados:
-          loja.pedidosProgramados.where((p) => p.id != pedidoId).toList(),
-    );
-    _lojas[indice] = atualizada;
-    await _salvarLojaNoCofreCorreto(atualizada);
-    notifyListeners();
+    final loja = buscarPorId(lojaId);
+    if (loja == null) return;
+    final atualizada = PdvPedidosProgramadosHelper.removerPedidoProgramado(loja, pedidoId);
+    await _salvarEAtualizar(atualizada);
   }
 
   Future<void> alternarAtivoPedidoProgramado(
     String lojaId,
     String pedidoId,
   ) async {
-    final indice = _lojas.indexWhere((l) => l.id == lojaId);
-    if (indice == -1) return;
-    final loja = _lojas[indice];
-
-    final atualizada = loja.copyWith(
-      pedidosProgramados: loja.pedidosProgramados.map((p) {
-        if (p.id == pedidoId) {
-          return p.copyWith(ativo: !p.ativo);
-        }
-        return p;
-      }).toList(),
-    );
-    _lojas[indice] = atualizada;
-    await _salvarLojaNoCofreCorreto(atualizada);
-    notifyListeners();
-
+    final loja = buscarPorId(lojaId);
+    if (loja == null) return;
+    final atualizada = PdvPedidosProgramadosHelper.alternarAtivoPedidoProgramado(loja, pedidoId);
+    await _salvarEAtualizar(atualizada);
     await verificarEGerarPedidosProgramados(lojaId);
   }
 
   Future<void> verificarEGerarPedidosProgramados(String lojaId) async {
-    final indice = _lojas.indexWhere((l) => l.id == lojaId);
-    if (indice == -1) return;
-    final loja = _lojas[indice];
-
-    final agora = DateTime.now();
-
-    bool mesmoDia(DateTime? a, DateTime b) {
-      if (a == null) return false;
-      return a.year == b.year && a.month == b.month && a.day == b.day;
-    }
-
-    var alterou = false;
-    final novosPedidosLoja = List<PedidoLoja>.from(loja.pedidosLoja);
-    final novosProgramados = <PedidoProgramado>[];
-
-    var maiorNumero = 0;
-    for (final p in novosPedidosLoja) {
-      if (p.numero > maiorNumero) maiorNumero = p.numero;
-    }
-
-    for (final prog in loja.pedidosProgramados) {
-      if (prog.ativo && prog.coincideComData(agora)) {
-        final diaStr = agora.day.toString().padLeft(2, '0');
-        final mesStr = agora.month.toString().padLeft(2, '0');
-        final idEsperadoHoje = 'prog_${prog.id}_${agora.year}_${mesStr}_$diaStr';
-
-        final jaExisteHoje = novosPedidosLoja.any((p) {
-          if (p.id == idEsperadoHoje) return true;
-          if (p.id.startsWith('prog_${prog.id}_') && mesmoDia(p.dataHora, agora)) return true;
-          return false;
-        });
-
-        if (!jaExisteHoje &&
-            (prog.ultimaDataGerado == null || !mesmoDia(prog.ultimaDataGerado, agora))) {
-          maiorNumero++;
-          final novoPedido = prog.toPedidoLoja(
-            numero: maiorNumero,
-            dataHora: agora,
-            nomeVendedor: loja.nome,
-            cnpjVendedor: loja.cnpj,
-          );
-          novosPedidosLoja.insert(0, novoPedido);
-          novosProgramados.add(prog.copyWith(ultimaDataGerado: agora));
-          alterou = true;
-          continue;
-        } else if (jaExisteHoje &&
-            (prog.ultimaDataGerado == null || !mesmoDia(prog.ultimaDataGerado, agora))) {
-          novosProgramados.add(prog.copyWith(ultimaDataGerado: agora));
-          alterou = true;
-          continue;
-        }
-      }
-      novosProgramados.add(prog);
-    }
-
-    if (alterou) {
-      final atualizada = loja.copyWith(
-        pedidosLoja: novosPedidosLoja,
-        pedidosProgramados: novosProgramados,
-      );
-      _lojas[indice] = atualizada;
-      await _salvarLojaNoCofreCorreto(atualizada);
-      notifyListeners();
+    final loja = buscarPorId(lojaId);
+    if (loja == null) return;
+    final res = PdvPedidosProgramadosHelper.verificarEGerar(loja);
+    if (res.alterou) {
+      await _salvarEAtualizar(res.loja);
     }
   }
 }
