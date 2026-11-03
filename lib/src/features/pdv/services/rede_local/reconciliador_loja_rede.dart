@@ -302,14 +302,15 @@ class ReconciliadorLojaRede {
       novasCategoriasServidor.add(catRemota);
     }
 
+    final idsCats = novasCategoriasServidor.map((c) => c.id).toSet();
+    final nomesCats = novasCategoriasServidor
+        .map((c) => c.nome.trim().toLowerCase())
+        .toSet();
+
     for (final catLocal in lojaLocal.categoriasLoja) {
-      final jaExiste = novasCategoriasServidor.any(
-        (c) =>
-            c.id == catLocal.id ||
-            c.nome.trim().toLowerCase() ==
-                catLocal.nome.trim().toLowerCase(),
-      );
-      if (!jaExiste) {
+      final id = catLocal.id;
+      final nome = catLocal.nome.trim().toLowerCase();
+      if (!idsCats.contains(id) && !nomesCats.contains(nome)) {
         String fotoServidor = '';
         if (catLocal.foto.trim().isNotEmpty) {
           final fotoResolvida =
@@ -318,7 +319,10 @@ class ReconciliadorLojaRede {
             fotoServidor = await enviarUpload(fotoResolvida);
           }
         }
-        novasCategoriasServidor.add(catLocal.copyWith(foto: fotoServidor));
+        final catAdicionada = catLocal.copyWith(foto: fotoServidor);
+        novasCategoriasServidor.add(catAdicionada);
+        idsCats.add(id);
+        nomesCats.add(nome);
         houveCuraNoServidor = true;
         debugPrint(
           '[ReconciliadorLojaRede] Categoria "${catLocal.nome}" restaurada no servidor',
@@ -370,14 +374,14 @@ class ReconciliadorLojaRede {
       novosItensServidor.add(itemRemoto);
     }
 
+    final idsItens = novosItensServidor.map((i) => i.id).toSet();
+    final nomesItens =
+        novosItensServidor.map((i) => i.nome.trim().toLowerCase()).toSet();
+
     for (final itemLocal in lojaLocal.itensLoja) {
-      final jaExiste = novosItensServidor.any(
-        (i) =>
-            i.id == itemLocal.id ||
-            i.nome.trim().toLowerCase() ==
-                itemLocal.nome.trim().toLowerCase(),
-      );
-      if (!jaExiste) {
+      final id = itemLocal.id;
+      final nome = itemLocal.nome.trim().toLowerCase();
+      if (!idsItens.contains(id) && !nomesItens.contains(nome)) {
         final novasImagensServidor = <String>[];
         for (final img in itemLocal.imagens) {
           final imgResolvida = ImagemService.resolverCaminhoExistente(img);
@@ -388,8 +392,11 @@ class ReconciliadorLojaRede {
             }
           }
         }
-        novosItensServidor
-            .add(itemLocal.copyWith(imagens: novasImagensServidor));
+        final itemAdicionado =
+            itemLocal.copyWith(imagens: novasImagensServidor);
+        novosItensServidor.add(itemAdicionado);
+        idsItens.add(id);
+        nomesItens.add(nome);
         houveCuraNoServidor = true;
         debugPrint(
           '[ReconciliadorLojaRede] Produto "${itemLocal.nome}" restaurado no servidor',
@@ -429,8 +436,9 @@ class ReconciliadorLojaRede {
       }
       novosClientesServidor.add(cliRemoto);
     }
+    final idsClientes = novosClientesServidor.map((c) => c.id).toSet();
     for (final cLocal in lojaLocal.clientesLoja) {
-      if (!novosClientesServidor.any((c) => c.id == cLocal.id)) {
+      if (idsClientes.add(cLocal.id)) {
         novosClientesServidor.add(cLocal);
         houveCuraNoServidor = true;
       }
@@ -469,8 +477,9 @@ class ReconciliadorLojaRede {
       }
       novosFornecedoresServidor.add(fornRemoto);
     }
+    final idsFornecedores = novosFornecedoresServidor.map((f) => f.id).toSet();
     for (final fLocal in lojaLocal.fornecedoresLoja) {
-      if (!novosFornecedoresServidor.any((f) => f.id == fLocal.id)) {
+      if (idsFornecedores.add(fLocal.id)) {
         novosFornecedoresServidor.add(fLocal);
         houveCuraNoServidor = true;
       }
@@ -480,83 +489,104 @@ class ReconciliadorLojaRede {
 
     // F. Mesas
     final mesasMescladas = List<MesaLoja>.from(lojaParaServidor.mesas);
+    final idsMesas = mesasMescladas.map((m) => m.id).toSet();
     for (final mLocal in lojaLocal.mesas) {
-      if (!mesasMescladas.any((m) => m.id == mLocal.id)) {
+      if (idsMesas.add(mLocal.id)) {
         mesasMescladas.add(mLocal);
         houveCuraNoServidor = true;
       }
     }
     lojaParaServidor = lojaParaServidor.copyWith(mesas: mesasMescladas);
 
-    // G. Histórico de Auditoria (Ações)
+    // G. Histórico de Auditoria (Ações) - Com janela de retenção de 2.000 itens para evitar OOM
     final acoesMescladas = List<RegistroAcao>.from(lojaParaServidor.acoes);
+    final idsAcoes = acoesMescladas.map((a) => a.id).toSet();
     for (final aLocal in lojaLocal.acoes) {
-      if (!acoesMescladas.any((a) => a.id == aLocal.id)) {
+      if (idsAcoes.add(aLocal.id)) {
         acoesMescladas.add(aLocal);
         houveCuraNoServidor = true;
       }
     }
-    lojaParaServidor = lojaParaServidor.copyWith(acoes: acoesMescladas);
+    acoesMescladas.sort((a, b) => b.dataHora.compareTo(a.dataHora));
+    final acoesLimitadas = acoesMescladas.length > 2000
+        ? acoesMescladas.sublist(0, 2000)
+        : acoesMescladas;
+    lojaParaServidor = lojaParaServidor.copyWith(acoes: acoesLimitadas);
 
-    // H. Pedidos, Movimentos de Estoque e Pagamentos
+    // H. Pedidos, Movimentos de Estoque e Pagamentos - Indexação O(1)
     final pedidosMesclados =
         List<PedidoLoja>.from(lojaParaServidor.pedidosLoja);
+    final idsPedidos = pedidosMesclados.map((p) => p.id).toSet();
     for (final pLocal in lojaLocal.pedidosLoja) {
-      if (!pedidosMesclados.any((p) => p.id == pLocal.id)) {
+      if (idsPedidos.add(pLocal.id)) {
         pedidosMesclados.add(pLocal);
         houveCuraNoServidor = true;
       }
     }
+
     final movimentosMesclados =
         List<MovimentoEstoque>.from(lojaParaServidor.movimentosEstoque);
+    final idsMovimentos = movimentosMesclados.map((m) => m.id).toSet();
     for (final mLocal in lojaLocal.movimentosEstoque) {
-      if (!movimentosMesclados.any((m) => m.id == mLocal.id)) {
+      if (idsMovimentos.add(mLocal.id)) {
         movimentosMesclados.add(mLocal);
         houveCuraNoServidor = true;
       }
     }
+    movimentosMesclados.sort((a, b) => b.dataHora.compareTo(a.dataHora));
+    final movimentosLimitados = movimentosMesclados.length > 2000
+        ? movimentosMesclados.sublist(0, 2000)
+        : movimentosMesclados;
+
     final pagamentosMesclados = List<PagamentoFuncionario>.from(
       lojaParaServidor.pagamentosFuncionarios,
     );
+    final idsPagamentos = pagamentosMesclados.map((pg) => pg.id).toSet();
     for (final pgLocal in lojaLocal.pagamentosFuncionarios) {
-      if (!pagamentosMesclados.any((pg) => pg.id == pgLocal.id)) {
+      if (idsPagamentos.add(pgLocal.id)) {
         pagamentosMesclados.add(pgLocal);
         houveCuraNoServidor = true;
       }
     }
+    pagamentosMesclados.sort((a, b) => b.dataHora.compareTo(a.dataHora));
+    final pagamentosLimitados = pagamentosMesclados.length > 1000
+        ? pagamentosMesclados.sublist(0, 1000)
+        : pagamentosMesclados;
 
-    // I. Turnos de Caixa (Finanças e Fechamento)
-    final turnosMesclados =
-        List<TurnoCaixa>.from(lojaParaServidor.turnosCaixa);
+    // I. Turnos de Caixa (Finanças e Fechamento) - Map O(1)
+    final mapaTurnos = <String, TurnoCaixa>{
+      for (final t in lojaParaServidor.turnosCaixa) t.id: t,
+    };
     for (final tLocal in lojaLocal.turnosCaixa) {
-      final idx = turnosMesclados.indexWhere((t) => t.id == tLocal.id);
-      if (idx == -1) {
-        turnosMesclados.add(tLocal);
+      final tExistente = mapaTurnos[tLocal.id];
+      if (tExistente == null) {
+        mapaTurnos[tLocal.id] = tLocal;
         houveCuraNoServidor = true;
-      } else {
-        final tExistente = turnosMesclados[idx];
-        if (tExistente.aberto && !tLocal.aberto) {
-          turnosMesclados[idx] = tLocal;
-          houveCuraNoServidor = true;
-        }
+      } else if (tExistente.aberto && !tLocal.aberto) {
+        mapaTurnos[tLocal.id] = tLocal;
+        houveCuraNoServidor = true;
       }
     }
+    final turnosMesclados = mapaTurnos.values.toList()
+      ..sort((a, b) => b.dataAbertura.compareTo(a.dataAbertura));
 
-    // J. Pedidos Programados
+    // J. Pedidos Programados - Set O(1)
     final programadosMesclados =
         List<PedidoProgramado>.from(lojaParaServidor.pedidosProgramados);
+    final idsProgramados = programadosMesclados.map((pp) => pp.id).toSet();
     for (final ppLocal in lojaLocal.pedidosProgramados) {
-      if (!programadosMesclados.any((pp) => pp.id == ppLocal.id)) {
+      if (idsProgramados.add(ppLocal.id)) {
         programadosMesclados.add(ppLocal);
         houveCuraNoServidor = true;
       }
     }
 
-    // K. Cargos Personalizados
+    // K. Cargos Personalizados - Set O(1)
     final cargosMesclados =
         List<CargoLoja>.from(lojaParaServidor.cargosPersonalizados);
+    final idsCargos = cargosMesclados.map((c) => c.id).toSet();
     for (final cLocal in lojaLocal.cargosPersonalizados) {
-      if (!cargosMesclados.any((c) => c.id == cLocal.id)) {
+      if (idsCargos.add(cLocal.id)) {
         cargosMesclados.add(cLocal);
         houveCuraNoServidor = true;
       }
@@ -564,8 +594,8 @@ class ReconciliadorLojaRede {
 
     lojaParaServidor = lojaParaServidor.copyWith(
       pedidosLoja: pedidosMesclados,
-      movimentosEstoque: movimentosMesclados,
-      pagamentosFuncionarios: pagamentosMesclados,
+      movimentosEstoque: movimentosLimitados,
+      pagamentosFuncionarios: pagamentosLimitados,
       turnosCaixa: turnosMesclados,
       pedidosProgramados: programadosMesclados,
       cargosPersonalizados: cargosMesclados,

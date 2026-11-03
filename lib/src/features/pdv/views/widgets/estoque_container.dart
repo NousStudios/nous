@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:nous/src/core/theme/theme_controller.dart';
+import 'package:nous/src/core/utils/texto_utils.dart';
 import 'package:nous/src/features/pdv/models/item_loja.dart';
 import 'package:nous/src/features/pdv/models/movimento_estoque.dart';
 import 'package:nous/src/features/pdv/views/widgets/estado_vazio_container.dart';
-import 'package:nous/src/core/utils/texto_utils.dart';
+import 'estoque/ficha_kardex_dialog.dart';
+import 'estoque/linha_movimento_widget.dart';
 
 class EstoqueContainer extends StatefulWidget {
   final AppTheme theme;
@@ -34,7 +36,9 @@ class EstoqueContainer extends StatefulWidget {
 }
 
 class _EstoqueContainerState extends State<EstoqueContainer> {
+  static const int _passoPaginacao = 50;
   final _pesquisaController = TextEditingController();
+  int _limiteExibicao = _passoPaginacao;
 
   AppTheme get theme => widget.theme;
 
@@ -44,13 +48,13 @@ class _EstoqueContainerState extends State<EstoqueContainer> {
     super.dispose();
   }
 
-  double _saldoDoItem(String itemId) {
-    var saldo = 0.0;
+  /// Calcula o mapa de saldos em O(M) uma única vez, blindando contra engasgos de CPU.
+  Map<String, double> _calcularMapaSaldos() {
+    final mapa = <String, double>{};
     for (final m in widget.movimentos) {
-      if (m.itemId != itemId) continue;
-      saldo += m.quantidadeComSinal;
+      mapa[m.itemId] = (mapa[m.itemId] ?? 0.0) + m.quantidadeComSinal;
     }
-    return saldo;
+    return mapa;
   }
 
   double _estoqueMinimoDe(ItemLoja item) {
@@ -94,256 +98,19 @@ class _EstoqueContainerState extends State<EstoqueContainer> {
     );
   }
 
-  String _formatarQuantidade(double v, UnidadeItemLoja unidade) {
-    String numero;
-    if (v == v.truncateToDouble()) {
-      numero = v.toInt().toString();
-    } else {
-      numero = v.toStringAsFixed(2).replaceAll('.', ',');
-    }
-    switch (unidade) {
-      case UnidadeItemLoja.un:
-        return numero;
-      case UnidadeItemLoja.g:
-        return '$numero g';
-      case UnidadeItemLoja.ml:
-        return '$numero ml';
-    }
-  }
-
-  void _abrirHistorico(ItemLoja item) {
+  void _abrirHistorico(ItemLoja item, double saldo) {
     final movimentos = _movimentosDoItem(item.id);
-    final saldo = _saldoDoItem(item.id);
 
     showDialog<void>(
       context: context,
       builder: (dialogContext) {
-        return Dialog(
-          backgroundColor: theme.cardBackgroundColor,
-          insetPadding: const EdgeInsets.all(16),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-            side: BorderSide(color: theme.borderColor),
-          ),
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 500),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(4, 8, 4, 8),
-                  child: Row(
-                    children: [
-                      IconButton(
-                        icon: Icon(Icons.arrow_back, color: theme.textColor),
-                        onPressed: () => Navigator.of(dialogContext).pop(),
-                      ),
-                      Expanded(
-                        child: Column(
-                          children: [
-                            Text(
-                              item.nome.isEmpty ? 'Ficha Kardex' : 'Ficha Kardex: ${item.nome}',
-                              textAlign: TextAlign.center,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: theme.getTextStyle(
-                                fontSize: 15,
-                                fontWeight: FontWeight.bold,
-                                color: theme.textColor,
-                              ),
-                            ),
-                            Text(
-                              'Histórico e Movimentação Cronológica',
-                              textAlign: TextAlign.center,
-                              style: theme.getTextStyle(
-                                fontSize: 10,
-                                color: theme.secondaryTextColor,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(width: 48),
-                    ],
-                  ),
-                ),
-                Flexible(
-                  child: SingleChildScrollView(
-                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.all(12),
-                          decoration: BoxDecoration(
-                            color: theme.backgroundColor.withValues(alpha: 0.4),
-                            borderRadius: BorderRadius.circular(10),
-                            border: Border.all(
-                              color: theme.borderColor.withValues(alpha: 0.5),
-                            ),
-                          ),
-                          child: Column(
-                            children: [
-                              Row(
-                                mainAxisAlignment:
-                                    MainAxisAlignment.spaceBetween,
-                                children: [
-                                  Text(
-                                    'Saldo em Estoque:',
-                                    style: theme.getTextStyle(
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.bold,
-                                      color: theme.textColor,
-                                    ),
-                                  ),
-                                  Text(
-                                    _formatarQuantidade(saldo, item.unidadeBase),
-                                    style: theme.getTextStyle(
-                                      fontSize: 13,
-                                      fontWeight: FontWeight.bold,
-                                      color: saldo <= 0
-                                          ? Colors.redAccent
-                                          : theme.textColor,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 6),
-                              Row(
-                                mainAxisAlignment:
-                                    MainAxisAlignment.spaceBetween,
-                                children: [
-                                  Text(
-                                    'Preço de Venda:',
-                                    style: theme.getTextStyle(
-                                      fontSize: 11,
-                                      color: theme.secondaryTextColor,
-                                    ),
-                                  ),
-                                  Text(
-                                    item.preco.trim().startsWith('R\$')
-                                        ? item.preco.trim()
-                                        : 'R\$ ${item.preco.trim()}',
-                                    style: theme.getTextStyle(
-                                      fontSize: 11,
-                                      color: theme.textColor,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              if (item.precoCusto.trim().isNotEmpty) ...[
-                                const SizedBox(height: 4),
-                                Row(
-                                  mainAxisAlignment:
-                                      MainAxisAlignment.spaceBetween,
-                                  children: [
-                                    Text(
-                                      'Preço de Custo:',
-                                      style: theme.getTextStyle(
-                                        fontSize: 11,
-                                        color: theme.secondaryTextColor,
-                                      ),
-                                    ),
-                                    Text(
-                                      item.precoCusto.trim().startsWith('R\$')
-                                          ? item.precoCusto.trim()
-                                          : 'R\$ ${item.precoCusto.trim()}',
-                                      style: theme.getTextStyle(
-                                        fontSize: 11,
-                                        color: theme.textColor,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ],
-                              if (item.estoqueMinimo.trim().isNotEmpty) ...[
-                                const SizedBox(height: 4),
-                                Row(
-                                  mainAxisAlignment:
-                                      MainAxisAlignment.spaceBetween,
-                                  children: [
-                                    Text(
-                                      'Estoque Mínimo:',
-                                      style: theme.getTextStyle(
-                                        fontSize: 11,
-                                        color: theme.secondaryTextColor,
-                                      ),
-                                    ),
-                                    Text(
-                                      '${item.estoqueMinimo} ${item.unidadeBase.name}',
-                                      style: theme.getTextStyle(
-                                        fontSize: 11,
-                                        color: theme.textColor,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ],
-                              if (item.codigoBarras.trim().isNotEmpty) ...[
-                                const SizedBox(height: 4),
-                                Row(
-                                  mainAxisAlignment:
-                                      MainAxisAlignment.spaceBetween,
-                                  children: [
-                                    Text(
-                                      'Código de Barras:',
-                                      style: theme.getTextStyle(
-                                        fontSize: 11,
-                                        color: theme.secondaryTextColor,
-                                      ),
-                                    ),
-                                    Text(
-                                      item.codigoBarras,
-                                      style: theme.getTextStyle(
-                                        fontSize: 11,
-                                        color: theme.textColor,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ],
-                            ],
-                          ),
-                        ),
-                        const SizedBox(height: 12),
-                        if (movimentos.isEmpty)
-                          EstadoVazioContainer(
-                            theme: theme,
-                            mensagem: 'Nenhum movimento registrado ainda.',
-                          )
-                        else ...[
-                          Padding(
-                            padding: const EdgeInsets.only(bottom: 8),
-                            child: Text(
-                              'Movimentações Registradas (${movimentos.length})',
-                              style: theme.getTextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.bold,
-                                color: theme.textColor,
-                              ),
-                            ),
-                          ),
-                          for (final m in movimentos)
-                            Padding(
-                              padding: const EdgeInsets.only(bottom: 8),
-                              child: _LinhaMovimento(
-                                theme: theme,
-                                movimento: m,
-                                unidade: item.unidadeBase,
-                                podeExcluir: widget.podeEditar,
-                                onExcluir: () {
-                                  widget.onRemoverMovimento(m);
-                                },
-                              ),
-                            ),
-                        ],
-                      ],
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
+        return FichaKardexDialog(
+          theme: theme,
+          item: item,
+          saldo: saldo,
+          movimentos: movimentos,
+          podeEditar: widget.podeEditar,
+          onRemoverMovimento: widget.onRemoverMovimento,
         );
       },
     );
@@ -408,7 +175,9 @@ class _EstoqueContainerState extends State<EstoqueContainer> {
       padding: const EdgeInsets.only(bottom: 12),
       child: TextField(
         controller: _pesquisaController,
-        onChanged: (_) => setState(() {}),
+        onChanged: (_) => setState(() {
+          _limiteExibicao = _passoPaginacao;
+        }),
         cursorColor: theme.textColor,
         style: theme.getTextStyle(fontSize: 12),
         decoration: _decoracaoPesquisa('Pesquisar itens...'),
@@ -416,15 +185,14 @@ class _EstoqueContainerState extends State<EstoqueContainer> {
     );
   }
 
-  Widget _linhaDoItem(ItemLoja item) {
-    final saldo = _saldoDoItem(item.id);
+  Widget _linhaDoItem(ItemLoja item, double saldo) {
     final minimo = _estoqueMinimoDe(item);
     final abaixoDoMinimo = minimo > 0 && saldo < minimo;
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
       child: _LinhaComHover(
-        aoClicar: () => _abrirHistorico(item),
+        aoClicar: () => _abrirHistorico(item, saldo),
         builder: (hover) => Container(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
           decoration: BoxDecoration(
@@ -461,7 +229,7 @@ class _EstoqueContainerState extends State<EstoqueContainer> {
                     ),
                     if (minimo > 0)
                       Text(
-                        'mínimo ${_formatarQuantidade(minimo, item.unidadeBase)}',
+                        'mínimo ${formatarQuantidadeEstoque(minimo, item.unidadeBase)}',
                         style: theme.getTextStyle(
                           fontSize: 10,
                           color: theme.secondaryTextColor,
@@ -472,7 +240,7 @@ class _EstoqueContainerState extends State<EstoqueContainer> {
               ),
               const SizedBox(width: 8),
               Text(
-                _formatarQuantidade(saldo, item.unidadeBase),
+                formatarQuantidadeEstoque(saldo, item.unidadeBase),
                 style: theme.getTextStyle(
                   fontSize: 14,
                   fontWeight: FontWeight.bold,
@@ -494,6 +262,10 @@ class _EstoqueContainerState extends State<EstoqueContainer> {
             .where((i) => TextoUtils.contemIgnorandoAcentos(i.nome, termo))
             .toList();
 
+    final saldos = _calcularMapaSaldos();
+    final totalFiltrados = filtrados.length;
+    final exibidos = filtrados.take(_limiteExibicao).toList();
+
     return Column(
       children: [
         if (widget.onAbrirFornecedores != null) ...[
@@ -510,13 +282,37 @@ class _EstoqueContainerState extends State<EstoqueContainer> {
             theme: theme,
             mensagem: 'Nenhum item cadastrado ainda.',
           )
-        else if (filtrados.isEmpty)
+        else if (totalFiltrados == 0)
           EstadoVazioContainer(
             theme: theme,
             mensagem: 'Nenhum item encontrado.',
           )
-        else
-          for (final item in filtrados) _linhaDoItem(item),
+        else ...[
+          for (final item in exibidos)
+            _linhaDoItem(item, saldos[item.id] ?? 0.0),
+          if (_limiteExibicao < totalFiltrados)
+            Padding(
+              padding: const EdgeInsets.only(top: 4, bottom: 8),
+              child: TextButton.icon(
+                style: TextButton.styleFrom(
+                  foregroundColor: theme.textColor,
+                ),
+                onPressed: () {
+                  setState(() {
+                    _limiteExibicao += _passoPaginacao;
+                  });
+                },
+                icon: const Icon(Icons.expand_more, size: 16),
+                label: Text(
+                  'Carregar mais itens (${totalFiltrados - exibidos.length} restantes)',
+                  style: theme.getTextStyle(
+                    fontSize: 11,
+                    color: theme.secondaryTextColor,
+                  ),
+                ),
+              ),
+            ),
+        ],
       ],
     );
   }
@@ -547,168 +343,6 @@ class _EstoqueContainerState extends State<EstoqueContainer> {
           ),
           _conteudo(),
         ],
-      ),
-    );
-  }
-}
-
-class _LinhaMovimento extends StatefulWidget {
-  final AppTheme theme;
-  final MovimentoEstoque movimento;
-  final UnidadeItemLoja unidade;
-  final bool podeExcluir;
-  final VoidCallback onExcluir;
-
-  const _LinhaMovimento({
-    required this.theme,
-    required this.movimento,
-    required this.unidade,
-    required this.podeExcluir,
-    required this.onExcluir,
-  });
-
-  @override
-  State<_LinhaMovimento> createState() => _LinhaMovimentoState();
-}
-
-class _LinhaMovimentoState extends State<_LinhaMovimento> {
-  bool _hover = false;
-
-  AppTheme get theme => widget.theme;
-
-  String _dataHora(DateTime d) {
-    String dois(int n) => n.toString().padLeft(2, '0');
-    return '${dois(d.day)}/${dois(d.month)}/${d.year} '
-        '${dois(d.hour)}:${dois(d.minute)}';
-  }
-
-  String _valor(double v) =>
-      'R\$ ${v.toStringAsFixed(2).replaceAll('.', ',')}';
-
-  String _formatarQuantidade(double v) {
-    String numero;
-    if (v == v.truncateToDouble()) {
-      numero = v.toInt().toString();
-    } else {
-      numero = v.toStringAsFixed(2).replaceAll('.', ',');
-    }
-    switch (widget.unidade) {
-      case UnidadeItemLoja.un:
-        return numero;
-      case UnidadeItemLoja.g:
-        return '$numero g';
-      case UnidadeItemLoja.ml:
-        return '$numero ml';
-    }
-  }
-
-  String _rotuloCategoria(CategoriaMovimentoEstoque c) {
-    switch (c) {
-      case CategoriaMovimentoEstoque.compra:
-        return 'Compra';
-      case CategoriaMovimentoEstoque.venda:
-        return 'Venda';
-      case CategoriaMovimentoEstoque.ajuste:
-        return 'Ajuste';
-      case CategoriaMovimentoEstoque.perda:
-        return 'Perda';
-      case CategoriaMovimentoEstoque.producao:
-        return 'Produção';
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final m = widget.movimento;
-    final ehEntrada = m.ehEntrada;
-
-    final sinal = ehEntrada ? '+' : '-';
-    final sufixoCusto =
-        m.custoUnitario > 0 ? ' • ${_valor(m.custoUnitario)}/un' : '';
-    final linha1 =
-        '$sinal${_formatarQuantidade(m.quantidade)}$sufixoCusto';
-
-    final sufixoAutor =
-        m.nomeAutor.isNotEmpty ? ' • ${m.nomeAutor}' : '';
-    final categoria = _rotuloCategoria(m.categoria);
-    final linha2 = '${_dataHora(m.dataHora)} • $categoria$sufixoAutor';
-
-    final sufixoFornecedor =
-        m.fornecedorNome.isNotEmpty ? ' • ${m.fornecedorNome}' : '';
-
-    return MouseRegion(
-      onEnter: (_) => setState(() => _hover = true),
-      onExit: (_) => setState(() => _hover = false),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-        decoration: BoxDecoration(
-          color: _hover
-              ? theme.borderColor.withValues(alpha: 0.18)
-              : Colors.transparent,
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(
-            color: _hover ? theme.textColor : theme.borderColor,
-          ),
-        ),
-        child: Row(
-          children: [
-            Icon(
-              ehEntrada ? Icons.arrow_downward : Icons.arrow_upward,
-              size: 18,
-              color: ehEntrada ? theme.textColor : Colors.redAccent,
-            ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    linha1,
-                    style: theme.getTextStyle(
-                      fontSize: 12,
-                      color: theme.textColor,
-                    ),
-                  ),
-                  Text(
-                    linha2,
-                    style: theme.getTextStyle(
-                      fontSize: 10,
-                      color: theme.secondaryTextColor,
-                    ),
-                  ),
-                  if (sufixoFornecedor.isNotEmpty)
-                    Text(
-                      'Fornecedor$sufixoFornecedor',
-                      style: theme.getTextStyle(
-                        fontSize: 10,
-                        color: theme.secondaryTextColor,
-                      ),
-                    ),
-                  if (m.motivo.trim().isNotEmpty)
-                    Text(
-                      m.motivo.trim(),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: theme.getTextStyle(
-                        fontSize: 10,
-                        color: theme.secondaryTextColor,
-                      ),
-                    ),
-                ],
-              ),
-            ),
-            if (widget.podeExcluir)
-              IconButton(
-                padding: EdgeInsets.zero,
-                visualDensity: VisualDensity.compact,
-                constraints:
-                    const BoxConstraints(minWidth: 32, minHeight: 32),
-                icon: Icon(Icons.delete_outline,
-                    size: 18, color: theme.secondaryTextColor),
-                onPressed: widget.onExcluir,
-              ),
-          ],
-        ),
       ),
     );
   }

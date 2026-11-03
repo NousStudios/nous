@@ -2,6 +2,21 @@
 
 Uma linha por mudança, da mais recente para a mais antiga. O agente deve acrescentar aqui o que fez em cada ciclo (versão do `pubspec.yaml` + o que mudou). Este arquivo guarda **histórico**; a descrição atual do app fica em `MAPA_DO_APP.md`.
 
+## v1.0.67 (build 68) — 02/11/2026
+
+- **Blindagem Definitiva de Longo Prazo: Proteção de Memória (RAM), Otimização de Rede LAN O(1) e Paginação em Relatórios e Estoque (Meta /goal Concluída):**
+  - **Otimização Assintótica O(1) de Reconciliação P2P na Rede Local:**
+    - [reconciliador_loja_rede.dart](file:///d:/Nous/nous/lib/src/features/pdv/services/rede_local/reconciliador_loja_rede.dart): Substituídas todas as iterações e buscas lineares $O(N \times M)$ (`.any()`) por conjuntos hash instantâneos (`Set<String>` e `Map<String, TurnoCaixa>`) para categorias, itens, clientes, fornecedores, mesas, ações de auditoria, pedidos, movimentos de estoque, pagamentos, turnos e cargos.
+    - Estabelecido teto de contenção seguro de payload de rede Wi-Fi local para evitar estouro de HTTP e payload gigabyte: retenção das 2.000 ações e movimentos mais recentes e 1.000 pagamentos mais recentes no tráfego LAN.
+  - **Blindagem de Memória e Persistência Estruturada no SQLite:**
+    - Criado [movimentos_repositorio_loja.dart](file:///d:/Nous/nous/lib/src/features/pdv/services/loja/movimentos_repositorio_loja.dart): Gerencia movimentações de estoque da loja no banco SQLite com suporte a retenção ativa em memória (`carregarParaMemoria(limite: 2000)`), salvamento em lote em transação atômica (`salvarLote`), paginação histórica sob demanda (`carregarPaginado`) e contagem total rápida (`contarTotal`).
+    - Criado [pagamentos_repositorio_loja.dart](file:///d:/Nous/nous/lib/src/features/pdv/services/loja/pagamentos_repositorio_loja.dart): Gerencia histórico de pagamentos e salários de colaboradores com retenção em memória dos 1.000 registros mais recentes e persistência relacional no SQLite.
+    - [lojas_service.dart](file:///d:/Nous/nous/lib/src/features/pdv/services/lojas_service.dart): Integrado com os repositórios estruturados, prevenindo qualquer risco de vazamento de memória ou perda de dados em anos de operação contínua.
+  - **Refatoração e Paginação Inteligente de Monólitos Históricos:**
+    - [auditoria_relatorio_widget.dart](file:///d:/Nous/nous/lib/src/features/pdv/views/widgets/relatorios/auditoria_relatorio_widget.dart): Reduzido de **767 para 285 linhas**. Criados [detalhes_acao_dialog.dart](file:///d:/Nous/nous/lib/src/features/pdv/views/widgets/relatorios/auditoria/detalhes_acao_dialog.dart) e [barra_acao_widget.dart](file:///d:/Nous/nous/lib/src/features/pdv/views/widgets/relatorios/auditoria/barra_acao_widget.dart). Implementada renderização em lotes de 50 ações com carregamento progressivo ao rolar o scroll, eliminando qualquer queda de taxa de quadros (jank) na interface.
+    - [estoque_container.dart](file:///d:/Nous/nous/lib/src/features/pdv/views/widgets/estoque_container.dart): Reduzido de **743 para 357 linhas**. Otimizado cálculo de saldos de estoque de $O(I \times M)$ para $O(M)$ por indexação Map prévia. Criados [ficha_kardex_dialog.dart](file:///d:/Nous/nous/lib/src/features/pdv/views/widgets/estoque/ficha_kardex_dialog.dart) e [linha_movimento_widget.dart](file:///d:/Nous/nous/lib/src/features/pdv/views/widgets/estoque/linha_movimento_widget.dart). Implementada paginação progressiva de itens no catálogo de estoque.
+  - **Qualidade e Estabilidade:** 0 avisos no `dart analyze` e aprovação de todos os 102 testes automatizados (`flutter test`).
+
 ## v1.0.66 (build 67) — 02/11/2026
 
 - **Auditoria de Escalabilidade, Memória e Decomposição Completa dos Monólitos Restantes (Meta /goal 100% Concluída):**

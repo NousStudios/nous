@@ -509,6 +509,17 @@ Todas abrem centralizadas, aceitam **F11** e, no desktop expandido, ficam em **d
 - **Resumo Operacional e Fornecedores**: Telas `StatusLojaView` e `FornecedoresDialog` estruturadas em subcomponentes reutilizáveis de formulário, importação e listagem.
 - **Auditoria de Memória**: `PedidosRepositorioLoja` com retenção inteligente de pedidos e `ImagemService` com política LRU (cota de 500 MB) para sanitização automática de cache.
 
+### 7.16 Blindagem de Longo Prazo, Persistência Estruturada e Otimização Assintótica (v1.0.67)
+- **Reconciliação Instantânea em O(1) na Rede Local P2P (`ReconciliadorLojaRede`)**:
+  - Eliminação de pesquisas lineares e aninhadas ($O(N \times M)$) por indexações em hash sets (`Set<String>`) e mapas diretos para mesclagem instantânea sem jank ao receber dados via Wi-Fi.
+  - Teto de retenção de tráfego de rede: protege a largura de banda LAN limitando transferências de histórico a 2.000 ações e movimentos mais recentes e 1.000 pagamentos mais recentes.
+- **Persistência Estruturada e Retenção em Memória no SQLite**:
+  - 📄 `pdv/services/loja/movimentos_repositorio_loja.dart`: Repositório dedicado de movimentações de estoque, gravando em lotes atômicos e mantendo apenas a janela recente em RAM com consultas paginadas sob demanda.
+  - 📄 `pdv/services/loja/pagamentos_repositorio_loja.dart`: Repositório dedicado de pagamentos e salários de funcionários, garantindo integridade de balanço plurianual.
+- **Refatoração com Paginação Progressiva**:
+  - 📄 `pdv/views/widgets/relatorios/auditoria_relatorio_widget.dart`: Reduzido para 285 linhas, com renderização de lotes progressivos (50 itens por página) via rolagem infinita. Detalhes desacoplados em `detalhes_acao_dialog.dart` e `barra_acao_widget.dart`.
+  - 📄 `pdv/views/widgets/estoque_container.dart`: Reduzido para 357 linhas. Cálculo de saldos otimizado de $O(I \times M)$ para $O(M)$ por pré-computação em mapa hash. Subcomponentes `ficha_kardex_dialog.dart` e `linha_movimento_widget.dart` extraídos para `views/widgets/estoque/`.
+
 ---
 
 ## 8. Atalhos de teclado (resumo)

@@ -6,14 +6,14 @@ import 'package:path_provider/path_provider.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import 'package:nous/src/core/services/banco_dados_service.dart';
 import 'package:nous/src/features/pdv/models/loja.dart';
-import 'package:nous/src/features/pdv/models/movimento_estoque.dart';
-import 'package:nous/src/features/pdv/models/pagamento_funcionario.dart';
 import 'package:nous/src/features/pdv/models/pedido_loja.dart';
 import 'package:nous/src/features/pdv/models/referencia_loja.dart';
 import 'package:nous/src/features/pdv/services/imagem_service.dart';
 import 'package:nous/src/features/pdv/services/loja/sanitizador_imagens_loja.dart';
 import 'package:nous/src/features/pdv/services/loja/consolidador_loja_local.dart';
 import 'package:nous/src/features/pdv/services/loja/pedidos_repositorio_loja.dart';
+import 'package:nous/src/features/pdv/services/loja/movimentos_repositorio_loja.dart';
+import 'package:nous/src/features/pdv/services/loja/pagamentos_repositorio_loja.dart';
 
 class LojasService {
   LojasService._();
@@ -90,27 +90,15 @@ class LojasService {
         executor: db,
       );
 
-      final estRows = await db.query(
-        'movimentos_estoque',
-        where: 'loja_id = ?',
-        whereArgs: [lojaId],
-        orderBy: 'data_hora DESC',
+      final movimentos = await MovimentosRepositorioLoja.carregarParaMemoria(
+        lojaId,
+        executor: db,
       );
-      final movimentos = estRows
-          .map((r) =>
-              MovimentoEstoque.fromJson(jsonDecode(r['dados_json'] as String)))
-          .toList();
 
-      final pagRows = await db.query(
-        'pagamentos_funcionarios',
-        where: 'loja_id = ?',
-        whereArgs: [lojaId],
-        orderBy: 'data_hora DESC',
+      final pagamentos = await PagamentosRepositorioLoja.carregarParaMemoria(
+        lojaId,
+        executor: db,
       );
-      final pagamentos = pagRows
-          .map((r) => PagamentoFuncionario.fromJson(
-              jsonDecode(r['dados_json'] as String)))
-          .toList();
 
       final lojaBruta = Loja.fromJson(lojaMap).copyWith(
         pedidosLoja: pedidos,
@@ -145,27 +133,15 @@ class LojasService {
       executor: db,
     );
 
-    final estRows = await db.query(
-      'movimentos_estoque',
-      where: 'loja_id = ?',
-      whereArgs: [lojaId],
-      orderBy: 'data_hora DESC',
+    final movimentos = await MovimentosRepositorioLoja.carregarParaMemoria(
+      lojaId,
+      executor: db,
     );
-    final movimentos = estRows
-        .map((r) =>
-            MovimentoEstoque.fromJson(jsonDecode(r['dados_json'] as String)))
-        .toList();
 
-    final pagRows = await db.query(
-      'pagamentos_funcionarios',
-      where: 'loja_id = ?',
-      whereArgs: [lojaId],
-      orderBy: 'data_hora DESC',
+    final pagamentos = await PagamentosRepositorioLoja.carregarParaMemoria(
+      lojaId,
+      executor: db,
     );
-    final pagamentos = pagRows
-        .map((r) => PagamentoFuncionario.fromJson(
-            jsonDecode(r['dados_json'] as String)))
-        .toList();
 
     final lojaBruta = Loja.fromJson(lojaMap).copyWith(
       pedidosLoja: pedidos,
@@ -247,6 +223,18 @@ class LojasService {
           txn,
           loja.id,
           loja.pedidosLoja,
+        );
+
+        await MovimentosRepositorioLoja.salvarLote(
+          txn,
+          loja.id,
+          loja.movimentosEstoque,
+        );
+
+        await PagamentosRepositorioLoja.salvarLote(
+          txn,
+          loja.id,
+          loja.pagamentosFuncionarios,
         );
 
         // Proteção Soberana Local-First: nunca deleta pedidos, estoque ou pagamentos
