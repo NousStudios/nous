@@ -275,12 +275,13 @@ class CuradorConversasChat {
           (cpfLogadoNorm.isNotEmpty && idNorm == cpfLogadoNorm && !modoLoja)) {
         idNorm = ChatService.extrairOutroCpf(c.id, cpfLogadoNorm);
       }
+      final idLojaNorm = (c.lojaId ?? c.identificador).replaceFirst('loja_', '');
       final chave = c.ehGrupo
           ? 'grupo_${c.id}'
           : (modoLoja
-                ? 'loja_conversa_${c.id}'
+                ? 'loja_cliente_${idNorm.isNotEmpty ? idNorm : c.id}'
                 : (c.ehLoja
-                      ? 'loja_${c.lojaId ?? c.identificador}'
+                      ? 'loja_$idLojaNorm'
                       : 'user_${idNorm.isNotEmpty ? idNorm : c.id}'));
 
       if (!listaDesduplicada.containsKey(chave)) {
@@ -304,18 +305,42 @@ class CuradorConversasChat {
                 c.subtitulo != 'Conversa' &&
                 c.subtitulo != 'Contato Nous')
             ? c.subtitulo
-            : existente.subtitulo;
+                : existente.subtitulo;
 
         final maisRecente =
             c.dataHoraUltimaMensagem.isAfter(existente.dataHoraUltimaMensagem)
             ? c
             : existente;
+
+        // Desduplicar mensagens por id e ordenar cronologicamente
+        final msgsMap = <String, MensagemChat>{};
+        for (final m in [...existente.mensagens, ...c.mensagens]) {
+          msgsMap[m.id] = m;
+        }
+        final msgsOrdenadas = msgsMap.values.toList()
+          ..sort((m1, m2) {
+            final comp = m1.dataHora.compareTo(m2.dataHora);
+            if (comp != 0) return comp;
+            return m1.id.compareTo(m2.id);
+          });
+
+        final ultimaMsg = msgsOrdenadas.isNotEmpty ? msgsOrdenadas.last : null;
+        final dataUltima = ultimaMsg?.dataHora ??
+            (c.dataHoraUltimaMensagem.isAfter(existente.dataHoraUltimaMensagem)
+                ? c.dataHoraUltimaMensagem
+                : existente.dataHoraUltimaMensagem);
+        final resumoUltima = ultimaMsg != null
+            ? MontadorConversasChat.resumoMensagem(ultimaMsg)
+            : maisRecente.ultimaMensagem;
+
         listaDesduplicada[chave] = maisRecente.copyWith(
           titulo: melhorTitulo,
           foto: melhorFoto,
           subtitulo: melhorSubtitulo,
           identificador: idNorm.isNotEmpty ? idNorm : maisRecente.identificador,
-          mensagens: [...existente.mensagens, ...c.mensagens],
+          mensagens: msgsOrdenadas,
+          ultimaMensagem: resumoUltima,
+          dataHoraUltimaMensagem: dataUltima,
         );
       }
     }

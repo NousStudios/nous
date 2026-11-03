@@ -7,6 +7,7 @@ import 'package:nous/src/features/auth/services/contas_nous_service.dart';
 import 'package:nous/src/features/auth/services/cpf_validator.dart';
 import 'package:nous/src/features/pdv/services/dados_locais_service.dart';
 import 'package:nous/src/features/pdv/services/imagem_service.dart';
+import 'package:nous/src/features/pdv/services/lojas_service.dart';
 import 'package:nous/src/features/pdv/services/rede_local/cliente_rede_local.dart';
 import 'package:nous/src/features/pdv/services/rede_local/servidor_rede_local.dart';
 
@@ -188,17 +189,32 @@ class AuthProvider extends ChangeNotifier {
 
     // Se a conta já existe localmente, define imediatamente para a UI responder com fluidez total (sem gargalo)
     if (conta != null) {
-      _contaAtual = conta;
-      _emailAtivo = conta.emails.isNotEmpty ? conta.emails.first : null;
-      await ThemeController.carregarTemaDoUsuario(conta.cpf);
-      await carregarDadosReveladosDono(conta.cpf);
+      var contaSegura = conta;
+      if (contaSegura.foto.isNotEmpty) {
+        try {
+          final lojasDoUsuario = await LojasService.carregar(_cpf);
+          final logos = lojasDoUsuario
+              .map((l) => l.logo.trim())
+              .where((logo) => logo.isNotEmpty)
+              .toSet();
+          if (logos.contains(contaSegura.foto.trim())) {
+            contaSegura = contaSegura.copyWith(foto: '');
+            await ContasNousService.salvar(contaSegura);
+          }
+        } catch (_) {}
+      }
+
+      _contaAtual = contaSegura;
+      _emailAtivo = contaSegura.emails.isNotEmpty ? contaSegura.emails.first : null;
+      await ThemeController.carregarTemaDoUsuario(contaSegura.cpf);
+      await carregarDadosReveladosDono(contaSegura.cpf);
       ClienteRedeLocal().atualizarIdentidadeUsuario(
-        cpf: conta.cpf,
-        nome: conta.nome,
-        apelido: conta.apelido,
-        foto: conta.foto,
+        cpf: contaSegura.cpf,
+        nome: contaSegura.nome,
+        apelido: contaSegura.apelido,
+        foto: contaSegura.foto,
       );
-      ServidorRedeLocal().atualizarOperadorBalcao(conta);
+      ServidorRedeLocal().atualizarOperadorBalcao(contaSegura);
       _carregando = false;
       notifyListeners();
 

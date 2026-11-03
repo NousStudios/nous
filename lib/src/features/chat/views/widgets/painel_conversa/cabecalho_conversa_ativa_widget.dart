@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:nous/src/core/theme/theme_controller.dart';
+import 'package:nous/src/core/widgets/texto_rolante.dart';
 import 'package:nous/src/features/auth/providers/auth_provider.dart';
 import 'package:nous/src/features/chat/models/chamada_sessao.dart';
 import 'package:nous/src/features/chat/models/conversa_chat.dart';
@@ -73,6 +74,35 @@ class CabecalhoConversaAtivaWidget extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final tituloTexto = conversa.ehGrupo
+        ? (conversa.nomeGrupo.isNotEmpty ? conversa.nomeGrupo : conversa.titulo)
+        : (conversa.titulo.isNotEmpty &&
+                conversa.titulo != 'Conversa' &&
+                conversa.titulo != 'Nova Conversa' &&
+                conversa.titulo != 'Contato' &&
+                conversa.titulo != 'Contato Nous'
+            ? conversa.titulo
+            : (conversa.subtitulo.isNotEmpty &&
+                    conversa.subtitulo != 'Conversa' &&
+                    conversa.subtitulo != 'Contato Nous'
+                ? conversa.subtitulo
+                : 'Contato Nous'));
+
+    final subtituloTexto = conversa.ehGrupo
+        ? 'Grupo • ${conversa.participantesIds.length} participantes'
+        : (conversa.subtitulo.isNotEmpty &&
+                conversa.subtitulo != conversa.titulo &&
+                conversa.subtitulo != 'Conversa' &&
+                conversa.subtitulo != 'Contato Nous'
+            ? conversa.subtitulo
+            : (conversa.ehLoja ? 'Loja Nous' : 'Usuário Nous'));
+
+    final paddingBotao = desktop
+        ? const EdgeInsets.all(6)
+        : const EdgeInsets.symmetric(horizontal: 2, vertical: 4);
+
+    final espacamentoEntreBotoes = desktop ? const SizedBox(width: 3) : const SizedBox(width: 1);
+
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
       decoration: BoxDecoration(
@@ -93,8 +123,9 @@ class CabecalhoConversaAtivaWidget extends StatelessWidget {
                 color: theme.textColor,
               ),
               tooltip: 'Voltar',
-              padding: const EdgeInsets.all(8),
+              padding: const EdgeInsets.all(6),
               constraints: const BoxConstraints(),
+              visualDensity: VisualDensity.compact,
               onPressed: onVoltarMobile,
             ),
           if (!desktop) const SizedBox(width: 2),
@@ -106,8 +137,8 @@ class CabecalhoConversaAtivaWidget extends StatelessWidget {
               borderRadius: BorderRadius.circular(10),
               child: Padding(
                 padding: const EdgeInsets.symmetric(
-                  horizontal: 6,
-                  vertical: 4,
+                  horizontal: 4,
+                  vertical: 3,
                 ),
                 child: Row(
                   children: [
@@ -117,30 +148,14 @@ class CabecalhoConversaAtivaWidget extends StatelessWidget {
                       conversa: conversa,
                       raio: 18,
                     ),
-                    const SizedBox(width: 10),
+                    const SizedBox(width: 8),
                     Expanded(
                       child: Column(
                         mainAxisSize: MainAxisSize.min,
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(
-                            conversa.ehGrupo
-                                ? (conversa.nomeGrupo.isNotEmpty
-                                      ? conversa.nomeGrupo
-                                      : conversa.titulo)
-                                : (conversa.titulo.isNotEmpty &&
-                                          conversa.titulo != 'Conversa' &&
-                                          conversa.titulo != 'Nova Conversa' &&
-                                          conversa.titulo != 'Contato' &&
-                                          conversa.titulo != 'Contato Nous'
-                                      ? conversa.titulo
-                                      : (conversa.subtitulo.isNotEmpty &&
-                                                conversa.subtitulo != 'Conversa' &&
-                                                conversa.subtitulo != 'Contato Nous'
-                                            ? conversa.subtitulo
-                                            : 'Contato Nous')),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
+                          TextoRolante(
+                            texto: tituloTexto,
                             style: theme.getTextStyle(
                               fontSize: 15,
                               fontWeight: FontWeight.bold,
@@ -148,19 +163,8 @@ class CabecalhoConversaAtivaWidget extends StatelessWidget {
                             ),
                           ),
                           const SizedBox(height: 2),
-                          Text(
-                            conversa.ehGrupo
-                                ? 'Grupo • ${conversa.participantesIds.length} participantes'
-                                : (conversa.subtitulo.isNotEmpty &&
-                                          conversa.subtitulo != conversa.titulo &&
-                                          conversa.subtitulo != 'Conversa' &&
-                                          conversa.subtitulo != 'Contato Nous'
-                                      ? conversa.subtitulo
-                                      : (conversa.ehLoja
-                                            ? 'Loja Nous'
-                                            : 'Usuário Nous')),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
+                          TextoRolante(
+                            texto: subtituloTexto,
                             style: theme.getTextStyle(
                               fontSize: 12,
                               color: theme.secondaryTextColor,
@@ -175,7 +179,7 @@ class CabecalhoConversaAtivaWidget extends StatelessWidget {
             ),
           ),
 
-          // Botões de Ação do Lado Direito (Ligações de vídeo/voz, edição e 3 pontos)
+          // Botões de Ação do Lado Direito (Ligações de vídeo/voz, edição e 3 pontos juntos e compactos)
           Row(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -187,51 +191,55 @@ class CabecalhoConversaAtivaWidget extends StatelessWidget {
                 IconButton(
                   icon: Icon(
                     Icons.videocam_rounded,
-                    size: 22,
+                    size: 21,
                     color: theme.textColor,
                   ),
                   tooltip: 'Chamada de Vídeo',
-                  padding: const EdgeInsets.all(8),
-                  constraints: const BoxConstraints(),
+                  padding: paddingBotao,
+                  constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                  visualDensity: VisualDensity.compact,
                   onPressed: () =>
                       _iniciarChamada(context, conversa, TipoChamada.video),
                 ),
-                const SizedBox(width: 4),
+                espacamentoEntreBotoes,
                 IconButton(
                   icon: Icon(
                     Icons.call_rounded,
-                    size: 20,
+                    size: 19,
                     color: theme.textColor,
                   ),
                   tooltip: 'Chamada de Voz',
-                  padding: const EdgeInsets.all(8),
-                  constraints: const BoxConstraints(),
+                  padding: paddingBotao,
+                  constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                  visualDensity: VisualDensity.compact,
                   onPressed: () =>
                       _iniciarChamada(context, conversa, TipoChamada.voz),
                 ),
-                const SizedBox(width: 4),
+                espacamentoEntreBotoes,
               ],
               IconButton(
                 icon: Icon(
                   Icons.edit_outlined,
-                  size: 19,
+                  size: 18,
                   color: theme.secondaryTextColor,
                 ),
                 tooltip: 'Renomear conversa',
-                padding: const EdgeInsets.all(8),
-                constraints: const BoxConstraints(),
+                padding: paddingBotao,
+                constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                visualDensity: VisualDensity.compact,
                 onPressed: () => onRenomearConversa(conversa),
               ),
-              const SizedBox(width: 2),
+              espacamentoEntreBotoes,
               IconButton(
                 icon: Icon(
                   Icons.more_vert,
-                  size: 21,
+                  size: 20,
                   color: theme.secondaryTextColor,
                 ),
                 tooltip: 'Mais opções / Detalhes',
-                padding: const EdgeInsets.all(8),
-                constraints: const BoxConstraints(),
+                padding: paddingBotao,
+                constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                visualDensity: VisualDensity.compact,
                 onPressed: () => onAbrirDetalhes(conversa),
               ),
             ],

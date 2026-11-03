@@ -250,8 +250,10 @@ class ServidorWsMessageHandler {
         final fotoResolvida = ImagemService.resolverCaminhoExistente(foto);
         if (fotoResolvida != null) {
           final c = await ContasNousService.buscarPorCpf(cpf.trim());
-          if (c != null && (c.foto.isEmpty || !ImagemService.existe(c.foto))) {
-            await ContasNousService.salvar(c.copyWith(foto: fotoResolvida));
+          if (c != null && (c.foto.isEmpty || !ImagemService.existe(c.foto) || c.foto != fotoResolvida)) {
+            final atualizado = c.copyWith(foto: fotoResolvida);
+            await ContasNousService.salvar(atualizado);
+            ctx.authProvider?.atualizarContaNoCache(atualizado);
           }
         }
       }
@@ -295,8 +297,10 @@ class ServidorWsMessageHandler {
         final fotoResolvida = ImagemService.resolverCaminhoExistente(msg.remetenteFoto);
         if (fotoResolvida != null) {
           final c = await ContasNousService.buscarPorCpf(cpfRemetente);
-          if (c != null && (c.foto.isEmpty || !ImagemService.existe(c.foto))) {
-            await ContasNousService.salvar(c.copyWith(foto: fotoResolvida));
+          if (c != null && (c.foto.isEmpty || !ImagemService.existe(c.foto) || c.foto != fotoResolvida)) {
+            final atualizado = c.copyWith(foto: fotoResolvida);
+            await ContasNousService.salvar(atualizado);
+            ctx.authProvider?.atualizarContaNoCache(atualizado);
           }
         }
       }

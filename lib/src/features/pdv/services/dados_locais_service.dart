@@ -171,7 +171,7 @@ class DadosLocaisService {
             if (redesSociais.isEmpty && loja.redesSociais.isNotEmpty) {
               redesSociais = loja.redesSociais;
             }
-            if (foto.isEmpty && loja.logo.isNotEmpty) {
+            if (digitos.length == 14 && foto.isEmpty && loja.logo.isNotEmpty) {
               foto = loja.logo;
             }
             if (origem.isEmpty) origem = 'Loja local "${loja.nome}"';

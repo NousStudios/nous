@@ -22,11 +22,20 @@ class ChatConversasService {
 
     List<Map<String, dynamic>> rows;
     if (lojaId != null && lojaId.isNotEmpty) {
+      final lojaIdLimpo =
+          lojaId.startsWith('loja_') ? lojaId.substring(5) : lojaId;
+      final lojaIdComPrefixo =
+          lojaId.startsWith('loja_') ? lojaId : 'loja_$lojaId';
       rows = await db.query(
         'conversas_chat',
         where:
-            'loja_id = ? ${incluirArquivadas ? "" : "AND (arquivada IS NULL OR arquivada = 0)"}',
-        whereArgs: [lojaId],
+            '(loja_id = ? OR loja_id = ? OR id LIKE ? OR id LIKE ?) ${incluirArquivadas ? "" : "AND (arquivada IS NULL OR arquivada = 0)"}',
+        whereArgs: [
+          lojaIdComPrefixo,
+          lojaIdLimpo,
+          '${lojaIdComPrefixo}_%',
+          'loja_${lojaIdLimpo}_%',
+        ],
         orderBy:
             'fixada DESC, COALESCE(data_hora_ultima_mensagem, atualizado_em, criado_em) DESC',
       );

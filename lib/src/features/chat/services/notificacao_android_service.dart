@@ -6,6 +6,7 @@ import 'package:nous/src/core/theme/theme_controller.dart';
 import 'package:nous/src/features/auth/services/contas_nous_service.dart';
 import 'package:nous/src/features/chat/models/mensagem_chat.dart';
 import 'package:nous/src/features/chat/services/chat_service.dart';
+import 'package:nous/src/features/pdv/services/imagem_service.dart';
 
 class NotificacaoAndroidService {
   NotificacaoAndroidService._();
@@ -98,16 +99,72 @@ class NotificacaoAndroidService {
     }
   }
 
-  /// Exibe notificação nativa no Android com a Logo do Nous, na cor da aplicação e resposta rápida (estilo WhatsApp)
+  static final Set<String> _mensagensNotificadas = <String>{};
+
+  /// Cancela notificações pendentes de uma conversa específica (ex.: quando aberta pelo usuário)
+  static Future<void> cancelarNotificacaoConversa(String conversaId) async {
+    if (!kIsWeb && !Platform.isAndroid) return;
+    try {
+      final notificacaoId = conversaId.hashCode.abs() % 100000;
+      await _notificationsPlugin.cancel(id: notificacaoId);
+    } catch (_) {}
+  }
+
+  /// Exibe notificação nativa no Android com a Logo do Nous, foto real do remetente, na cor da aplicação e resposta rápida (estilo WhatsApp)
   static Future<void> exibirNotificacaoMensagem(MensagemChat mensagem) async {
     if (!kIsWeb && !Platform.isAndroid) return;
     if (!_inicializado) {
       await inicializar();
     }
 
+    // Blindagem rigorosa contra loops contínuos de notificação para a mesma mensagem
+    if (mensagem.id.isNotEmpty) {
+      if (_mensagensNotificadas.contains(mensagem.id)) {
+        return;
+      }
+      _mensagensNotificadas.add(mensagem.id);
+      if (_mensagensNotificadas.length > 300) {
+        _mensagensNotificadas.remove(_mensagensNotificadas.first);
+      }
+    }
+
     try {
       final temaAtual = ThemeController.currentTheme.value;
       final corApp = temaAtual.buttonColor;
+
+      // Resolução soberana da foto do remetente para avatar grande na notificação
+      AndroidBitmap<Object>? avatarBitmap;
+      AndroidIcon<Object>? avatarIcon;
+      String fotoCaminho = mensagem.remetenteFoto.trim();
+      if (fotoCaminho.isEmpty) {
+        final cpfRemNorm = ChatService.normalizarCpf(mensagem.remetenteId);
+        if (cpfRemNorm.length == 11) {
+          final conta = await ContasNousService.buscarPorCpf(cpfRemNorm);
+          if (conta != null && conta.fotoExibicao.isNotEmpty) {
+            fotoCaminho = conta.fotoExibicao.trim();
+          }
+        }
+      }
+
+      if (fotoCaminho.isNotEmpty) {
+        final fotoFisica = ImagemService.resolverCaminhoExistente(fotoCaminho);
+        if (fotoFisica != null && File(fotoFisica).existsSync()) {
+          try {
+            avatarBitmap = FilePathAndroidBitmap(fotoFisica);
+            avatarIcon = BitmapFilePathAndroidIcon(fotoFisica);
+          } catch (_) {}
+        }
+      }
+      avatarBitmap ??= const DrawableResourceAndroidBitmap('@mipmap/ic_launcher');
+      avatarIcon ??= const DrawableResourceAndroidIcon('@mipmap/ic_launcher');
+
+      final personRemetente = Person(
+        name: mensagem.remetenteNome.isNotEmpty
+            ? mensagem.remetenteNome
+            : 'Usuário',
+        key: mensagem.remetenteId,
+        icon: avatarIcon,
+      );
 
       final androidDetails = AndroidNotificationDetails(
         canalId,
@@ -117,7 +174,7 @@ class NotificacaoAndroidService {
         priority: Priority.high,
         showWhen: true,
         icon: '@mipmap/ic_launcher',
-        largeIcon: const DrawableResourceAndroidBitmap('@mipmap/ic_launcher'),
+        largeIcon: avatarBitmap,
         color: corApp,
         colorized: true,
         category: AndroidNotificationCategory.message,
@@ -134,12 +191,7 @@ class NotificacaoAndroidService {
             Message(
               mensagem.texto,
               mensagem.dataHora,
-              Person(
-                name: mensagem.remetenteNome.isNotEmpty
-                    ? mensagem.remetenteNome
-                    : 'Usuário',
-                key: mensagem.remetenteId,
-              ),
+              personRemetente,
             ),
           ],
         ),

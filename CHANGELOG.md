@@ -2,6 +2,23 @@
 
 Uma linha por mudança, da mais recente para a mais antiga. O agente deve acrescentar aqui o que fez em cada ciclo (versão do `pubspec.yaml` + o que mudou). Este arquivo guarda **histórico**; a descrição atual do app fica em `MAPA_DO_APP.md`.
 
+## v1.0.69 (build 70) — 03/11/2026
+
+- **Sincronização Pan-Dispositivo Robusta no Chat (Celular/Desktop), Isolamento de Perfil Nous vs Logo de Loja, Notificações Android e Otimização da Barra do Chat:**
+  - **Sincronização e Resolução de Mensagens no Chat Loja/Cliente:**
+    - [chat_mensagens_service.dart](file:///d:/Nous/nous/lib/src/features/chat/services/chat_mensagens_service.dart): Diferenciação inteligente de nó balcão ao receber mensagens enviadas pelo próprio dono em modo cliente; despacho imediato dos ACKs de entrega (`mensagem_entregue`) e leitura (`mensagem_lida`), eliminando mensagens presas como pendentes e retransmissões redundantes em fila.
+    - [chat_mensagens_service.dart](file:///d:/Nous/nous/lib/src/features/chat/services/chat_mensagens_service.dart): Tolerância estrita a pequenas dessincronizações de relógio local entre desktop e celular, garantindo ordem monotônica de timestamps (+5ms) e atualização segura de `atualizado_em` da conversa.
+    - [chat_conversas_service.dart](file:///d:/Nous/nous/lib/src/features/chat/services/chat_conversas_service.dart) & [montador_conversas_modo_loja.dart](file:///d:/Nous/nous/lib/src/features/chat/services/montador/montador_conversas_modo_loja.dart): Resolução flexibilizada de identificadores de loja (com e sem prefixo `loja_`), eliminando qualquer oscilação ou desaparecimento temporário da conversa ao alternar telas ou sincronizar.
+    - [curador_conversas_chat.dart](file:///d:/Nous/nous/lib/src/features/chat/services/montador/curador_conversas_chat.dart): Desduplicação canônica por cliente no balcão da loja e unificação cronológica das mensagens por ID sem repetição.
+  - **Isolamento de Identidade do Perfil Nous vs Logo Comercial:**
+    - [dados_locais_service.dart](file:///d:/Nous/nous/lib/src/features/pdv/services/dados_locais_service.dart): Restrição rigorosa da atribuição de `foto = loja.logo` exclusivamente para documentos de 14 dígitos (CNPJ), impedindo que buscas por CPF (11 dígitos) substituam a foto pessoal do dono pela logo da loja.
+    - [auth_provider.dart](file:///d:/Nous/nous/lib/src/features/auth/providers/auth_provider.dart): Autocura profilática no carregamento de conta; se a foto do perfil coincidir com a logo de qualquer loja do usuário, a foto é sanitizada para restauração da imagem civil correta.
+    - [servidor_ws_message_handler.dart](file:///d:/Nous/nous/lib/src/features/pdv/services/rede_local/handlers/servidor_ws_message_handler.dart): Persistência imediata e atualização no cofre de identidade da foto recebida via terminal remoto.
+  - **Experiência do Usuário e Notificações Android:**
+    - [notificacao_android_service.dart](file:///d:/Nous/nous/lib/src/features/chat/services/notificacao_android_service.dart): Cache de controle contra loops de notificações locais (`_mensagensNotificadas`), cancelamento automático de alertas da conversa ativa e exibição da foto real do remetente e do ícone oficial Nous no Android.
+    - [cabecalho_conversa_ativa_widget.dart](file:///d:/Nous/nous/lib/src/features/chat/views/widgets/painel_conversa/cabecalho_conversa_ativa_widget.dart): Botões de ação (vídeo, voz, edição e opções) compactados à direita com `VisualDensity.compact`, ampliando a visibilidade do nome e ativando `TextoRolante` para rolagem suave de títulos e subtítulos extensos.
+  - **Qualidade e Estabilidade:** 0 avisos no `dart analyze` e 103 testes passando com sucesso no `flutter test`.
+
 ## v1.0.68 (build 69) — 02/11/2026
 
 - **Concorrência Aditiva em Mesas na Rede Local, Manutenção Preventiva de Banco SQLite (VACUUM/Integrity Check) e Desacoplamento do PdvProvider (Meta /goal Concluída):**

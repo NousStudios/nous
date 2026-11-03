@@ -136,7 +136,10 @@ class MontadorConversasModoLoja {
       final cU = ChatService.normalizarCpf(u.cpf);
       if (cU.length != 11) continue;
       final convIdLoja = ChatService.conversaIdLojaUsuario(loja.id, cU);
-      final temConversaAberta = persistidasMap.containsKey(convIdLoja);
+      final idLimpo = loja.id.startsWith('loja_') ? loja.id.substring(5) : loja.id;
+      final convIdAlt = 'loja_${idLimpo}_usuario_$cU';
+      final temConversaAberta =
+          persistidasMap.containsKey(convIdLoja) || persistidasMap.containsKey(convIdAlt);
       if (cU == cpfLogadoNorm && !temConversaAberta && !contatosUnificados.containsKey(cU)) {
         continue;
       }
@@ -176,7 +179,15 @@ class MontadorConversasModoLoja {
           ? ChatService.conversaIdLojaUsuario(loja.id, c.cpfNormalizado)
           : 'loja_${loja.id}_cliente_${c.identificador}';
 
-      final persistida = persistidasMap[convId];
+      var persistida = persistidasMap[convId];
+      if (persistida == null && c.cpfNormalizado.isNotEmpty) {
+        final idLimpo = loja.id.startsWith('loja_') ? loja.id.substring(5) : loja.id;
+        final convIdAlt = 'loja_${idLimpo}_usuario_${c.cpfNormalizado}';
+        persistida = persistidasMap[convIdAlt];
+        if (persistida != null) {
+          persistidasMap.remove(convIdAlt);
+        }
+      }
       final estaSelecionada = conversaSelecionada?.id == convId;
 
       List<MensagemChat> msgs = [];

@@ -119,4 +119,33 @@ void main() {
     expect(resultado.redesSociais, equals('@taddeoleonardo'));
     expect(resultado.descricao, equals('anarquismo plataformista'));
   });
+
+  test('Busca por CPF (11 dígitos) não contamina foto do usuário com a logo da loja', () async {
+    const cpfDono = '12345678901';
+    final lojaComLogo = Loja(
+      id: 'loja_teste_logo',
+      cpfDonoOriginal: cpfDono,
+      nome: 'Loja com Logo',
+      cnpj: '11.222.333/0001-44',
+      telefone: '11999999999',
+      endereco: 'Rua Teste',
+      numero: '100',
+      email: 'loja@teste.com',
+      categorias: 'Geral',
+      tags: 'teste',
+      logo: '/caminhos/logo_da_loja.png',
+    );
+    await LojasService.salvar(cpfDono, [lojaComLogo]);
+
+    final resultado = await DadosLocaisService.buscarPorDocumento(cpfDono);
+    expect(resultado, isNotNull);
+    // Foto deve permanecer vazia, sem herdar a logo da loja quando o documento é CPF
+    expect(resultado!.foto, isEmpty);
+
+    // Já a busca pelo CNPJ da loja herda a logo normalmente
+    final resultadoCnpj = await DadosLocaisService.buscarPorDocumento('11.222.333/0001-44');
+    expect(resultadoCnpj, isNotNull);
+    expect(resultadoCnpj!.foto, equals('/caminhos/logo_da_loja.png'));
+  });
 }
+
