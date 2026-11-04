@@ -96,6 +96,7 @@ class _ProgramarPedidoDialogState extends State<ProgramarPedidoDialog> {
     'Pix',
     'Débito',
     'Crédito',
+    'Voucher',
     'À Prazo',
   ];
 

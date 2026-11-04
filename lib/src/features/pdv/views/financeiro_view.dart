@@ -328,6 +328,12 @@ class _FinanceiroViewState extends State<FinanceiroView> {
             final vendasConcluidas = _vendasConcluidas;
             final totalEntradas =
                 FinanceiroOperacoesHelper.calcularTotalEntradas(vendasConcluidas);
+
+            final gastosDoPeriodo = (loja?.gastosDiarios ?? []).where((g) {
+              if (desde != null && g.dataHora.isBefore(desde)) return false;
+              if (ate != null && g.dataHora.isAfter(ate)) return false;
+              return true;
+            }).toList();
             final saidaEstoque =
                 FinanceiroOperacoesHelper.obterSaidaEstoqueDoPeriodo(
                     loja: loja, desde: desde, ate: ate);
@@ -388,6 +394,7 @@ class _FinanceiroViewState extends State<FinanceiroView> {
                 entradasPorForma: (f) =>
                     FinanceiroOperacoesHelper.calcularEntradasPorForma(
                         vendasConcluidas, f),
+                gastosDiarios: gastosDoPeriodo,
               ),
               const SizedBox(height: 16),
               BlocoEntradasFinanceiroWidget(
@@ -443,6 +450,17 @@ class _FinanceiroViewState extends State<FinanceiroView> {
                 unidadeDoItem: (lj, id) =>
                     FinanceiroOperacoesHelper.unidadeDoItem(lj, id),
                 onChangedPesquisa: () => setState(() {}),
+                gastosDiarios: gastosDoPeriodo,
+                onAdicionarGasto: (novo) {
+                  context
+                      .read<PdvProvider>()
+                      .adicionarGastoDiario(widget.lojaId, novo);
+                },
+                onRemoverGasto: (idGasto) {
+                  context
+                      .read<PdvProvider>()
+                      .removerGastoDiario(widget.lojaId, idGasto);
+                },
               ),
               const SizedBox(height: 16),
               BlocoVendasFinanceiroWidget(

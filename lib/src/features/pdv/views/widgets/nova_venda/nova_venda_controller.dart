@@ -31,6 +31,7 @@ class NovaVendaController extends ChangeNotifier {
     'Dinheiro',
     'Débito',
     'Crédito',
+    'Voucher',
     'À Prazo',
   ];
 
@@ -671,6 +672,10 @@ class NovaVendaController extends ChangeNotifier {
     clienteController.text = cliente.nome;
     clienteFocado = false;
     aviso = null;
+    if (cliente.fretePadrao > 0) {
+      freteController.text =
+          cliente.fretePadrao.toStringAsFixed(2).replaceAll('.', ',');
+    }
     notifyListeners();
   }
 

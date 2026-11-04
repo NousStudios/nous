@@ -11,6 +11,7 @@ class Cliente {
   final String redesSociais;
   final String descricao;
   final String foto;
+  final double fretePadrao;
 
   const Cliente({
     required this.id,
@@ -23,6 +24,7 @@ class Cliente {
     this.redesSociais = '',
     this.descricao = '',
     this.foto = '',
+    this.fretePadrao = 0.0,
   });
 
   Cliente copyWith({
@@ -35,6 +37,7 @@ class Cliente {
     String? redesSociais,
     String? descricao,
     String? foto,
+    double? fretePadrao,
   }) {
     return Cliente(
       id: id,
@@ -47,6 +50,7 @@ class Cliente {
       redesSociais: redesSociais ?? this.redesSociais,
       descricao: descricao ?? this.descricao,
       foto: foto ?? this.foto,
+      fretePadrao: fretePadrao ?? this.fretePadrao,
     );
   }
 
@@ -62,6 +66,7 @@ class Cliente {
       'redesSociais': redesSociais,
       'descricao': descricao,
       'foto': foto,
+      'fretePadrao': fretePadrao,
     };
   }
 
@@ -77,6 +82,7 @@ class Cliente {
       redesSociais: json['redesSociais'] as String? ?? '',
       descricao: json['descricao'] as String? ?? '',
       foto: json['foto'] as String? ?? '',
+      fretePadrao: (json['fretePadrao'] as num?)?.toDouble() ?? 0.0,
     );
   }
 

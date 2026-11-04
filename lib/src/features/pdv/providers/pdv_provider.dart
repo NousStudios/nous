@@ -6,6 +6,7 @@ import 'package:nous/src/features/pdv/models/categoria_loja.dart';
 import 'package:nous/src/features/pdv/models/cliente.dart';
 import 'package:nous/src/features/pdv/models/configuracoes_impressora.dart';
 import 'package:nous/src/features/pdv/models/fornecedor.dart';
+import 'package:nous/src/features/pdv/models/gasto_diario.dart';
 import 'package:nous/src/features/pdv/models/grupo_componentes_loja.dart';
 import 'package:nous/src/features/pdv/models/item_loja.dart';
 import 'package:nous/src/features/pdv/models/loja.dart';
@@ -935,6 +936,23 @@ class PdvProvider extends ChangeNotifier {
     }
 
     notifyListeners();
+  }
+
+  void adicionarGastoDiario(String lojaId, GastoDiario gasto) {
+    final loja = buscarPorId(lojaId);
+    if (loja == null) return;
+    final novosGastos = [gasto, ...loja.gastosDiarios];
+    final atualizada = loja.copyWith(gastosDiarios: novosGastos);
+    _salvarEAtualizar(atualizada);
+  }
+
+  void removerGastoDiario(String lojaId, String gastoId) {
+    final loja = buscarPorId(lojaId);
+    if (loja == null) return;
+    final novosGastos =
+        loja.gastosDiarios.where((g) => g.id != gastoId).toList();
+    final atualizada = loja.copyWith(gastosDiarios: novosGastos);
+    _salvarEAtualizar(atualizada);
   }
 
   void adicionarMovimentoEstoque(String lojaId, MovimentoEstoque movimento) {

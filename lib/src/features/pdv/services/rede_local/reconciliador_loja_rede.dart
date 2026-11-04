@@ -7,6 +7,7 @@ import 'package:nous/src/features/pdv/models/cargo_loja.dart';
 import 'package:nous/src/features/pdv/models/categoria_loja.dart';
 import 'package:nous/src/features/pdv/models/cliente.dart';
 import 'package:nous/src/features/pdv/models/fornecedor.dart';
+import 'package:nous/src/features/pdv/models/gasto_diario.dart';
 import 'package:nous/src/features/pdv/models/item_loja.dart';
 import 'package:nous/src/features/pdv/models/loja.dart';
 import 'package:nous/src/features/pdv/models/mesa_loja.dart';
@@ -659,6 +660,17 @@ class ReconciliadorLojaRede {
       }
     }
 
+    // L. Gastos Diários Operacionais - Set O(1)
+    final gastosMesclados =
+        List<GastoDiario>.from(lojaParaServidor.gastosDiarios);
+    final idsGastos = gastosMesclados.map((g) => g.id).toSet();
+    for (final gLocal in lojaLocal.gastosDiarios) {
+      if (idsGastos.add(gLocal.id)) {
+        gastosMesclados.add(gLocal);
+        houveCuraNoServidor = true;
+      }
+    }
+
     lojaParaServidor = lojaParaServidor.copyWith(
       pedidosLoja: pedidosMesclados,
       movimentosEstoque: movimentosLimitados,
@@ -666,6 +678,7 @@ class ReconciliadorLojaRede {
       turnosCaixa: turnosMesclados,
       pedidosProgramados: programadosMesclados,
       cargosPersonalizados: cargosMesclados,
+      gastosDiarios: gastosMesclados,
     );
 
     // Se houve alguma cura ou restauração necessária no servidor, envia o estado curado ao balcão

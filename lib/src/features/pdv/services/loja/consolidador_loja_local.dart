@@ -4,6 +4,7 @@ import 'package:nous/src/features/pdv/models/cargo_loja.dart';
 import 'package:nous/src/features/pdv/models/categoria_loja.dart';
 import 'package:nous/src/features/pdv/models/cliente.dart';
 import 'package:nous/src/features/pdv/models/fornecedor.dart';
+import 'package:nous/src/features/pdv/models/gasto_diario.dart';
 import 'package:nous/src/features/pdv/models/item_loja.dart';
 import 'package:nous/src/features/pdv/models/loja.dart';
 import 'package:nous/src/features/pdv/models/membro_loja.dart';
@@ -364,6 +365,17 @@ class ConsolidadorLojaLocal {
     }
     final listaCargos = cargosMesclados.values.toList();
 
+    // 17. Gastos Diários Operacionais
+    final gastosMesclados = <String, GastoDiario>{};
+    for (final g in lojaLocal.gastosDiarios) {
+      gastosMesclados[g.id] = g;
+    }
+    for (final g in lojaNova.gastosDiarios) {
+      gastosMesclados[g.id] = g;
+    }
+    final listaGastos = gastosMesclados.values.toList()
+      ..sort((a, b) => b.dataHora.compareTo(a.dataHora));
+
     final impressoraNovaTemHardware =
         lojaNova.configuracoesImpressora.nomeImpressora.trim().isNotEmpty ||
             lojaNova.configuracoesImpressora.enderecoRede.trim().isNotEmpty;
@@ -395,6 +407,7 @@ class ConsolidadorLojaLocal {
       pedidosProgramados: listaProgramados,
       membros: listaMembros,
       cargosPersonalizados: listaCargos,
+      gastosDiarios: listaGastos,
       configuracoesImpressora: configuracoesImpressoraFinal,
       layoutExpandido: lojaLocal.layoutExpandido,
       tipoLayoutMaior: lojaLocal.tipoLayoutMaior.isNotEmpty

@@ -12,6 +12,7 @@ const List<String> kFormasDePagamento = [
   'Dinheiro',
   'Débito',
   'Crédito',
+  'Voucher',
   'À Prazo',
 ];
 

@@ -12,6 +12,7 @@ class ExportadorPdfExtratoCliente {
     required Loja loja,
     required Cliente cliente,
     required List<PedidoLoja> pedidos,
+    String? filtroDescricao,
   }) async {
     final doc = pw.Document();
 
@@ -85,6 +86,14 @@ class ExportadorPdfExtratoCliente {
                   children: [
                     pw.Text('EXTRATO DE COMPRAS', style: estiloSecao),
                     pw.SizedBox(height: 4),
+                    if (filtroDescricao != null &&
+                        filtroDescricao.trim().isNotEmpty) ...[
+                      pw.Text(
+                        'Filtro: ${filtroDescricao.trim()}',
+                        style: estiloMiudo,
+                      ),
+                      pw.SizedBox(height: 2),
+                    ],
                     pw.Text(
                       'Emissão: ${PdfFormatacaoUtil.dataHora(DateTime.now())}',
                       style: estiloMiudo,

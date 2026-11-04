@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:nous/src/core/theme/theme_controller.dart';
+import 'package:nous/src/features/pdv/models/gasto_diario.dart';
 import 'package:nous/src/features/pdv/models/loja.dart';
 import 'package:nous/src/features/pdv/models/movimento_estoque.dart';
 import 'package:nous/src/features/pdv/views/widgets/estado_vazio_container.dart';
 import 'package:nous/src/features/pdv/views/widgets/financeiro/item_linha_financeira.dart';
+import 'package:nous/src/features/pdv/views/widgets/financeiro/subcontainer_gastos_do_dia_widget.dart';
 
 /// Bloco que lista as compras de estoque no período, separadas por fornecedor
 /// e detalhadas em lista rolável com busca interativa.
@@ -21,6 +23,9 @@ class BlocoComprasFinanceiroWidget extends StatelessWidget {
   final String Function(Loja? loja, MovimentoEstoque m) nomeDoItem;
   final String Function(Loja? loja, String itemId) unidadeDoItem;
   final VoidCallback onChangedPesquisa;
+  final List<GastoDiario> gastosDiarios;
+  final ValueChanged<GastoDiario>? onAdicionarGasto;
+  final ValueChanged<String>? onRemoverGasto;
 
   const BlocoComprasFinanceiroWidget({
     super.key,
@@ -37,10 +42,26 @@ class BlocoComprasFinanceiroWidget extends StatelessWidget {
     required this.nomeDoItem,
     required this.unidadeDoItem,
     required this.onChangedPesquisa,
+    this.gastosDiarios = const [],
+    this.onAdicionarGasto,
+    this.onRemoverGasto,
   });
 
   @override
   Widget build(BuildContext context) {
+    final subcontainerGastos = (onAdicionarGasto != null && onRemoverGasto != null)
+        ? Padding(
+            padding: const EdgeInsets.only(top: 14),
+            child: SubcontainerGastosDoDiaWidget(
+              theme: theme,
+              gastos: gastosDiarios,
+              onAdicionarGasto: onAdicionarGasto!,
+              onRemoverGasto: onRemoverGasto!,
+              formatarMoeda: valorFormatado,
+            ),
+          )
+        : const SizedBox.shrink();
+
     if (porFornecedor.isEmpty && compras.isEmpty) {
       return Container(
         width: 320,
@@ -53,6 +74,7 @@ class BlocoComprasFinanceiroWidget extends StatelessWidget {
               theme: theme,
               mensagem: 'Nenhuma compra com custo registrado no período.',
             ),
+            subcontainerGastos,
           ],
         ),
       );
@@ -194,6 +216,7 @@ class BlocoComprasFinanceiroWidget extends StatelessWidget {
                 ),
               ),
             ),
+          subcontainerGastos,
         ],
       ),
     );

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:nous/src/core/theme/theme_controller.dart';
+import 'package:nous/src/features/pdv/models/gasto_diario.dart';
 import 'package:nous/src/features/pdv/models/loja.dart';
 import 'package:nous/src/features/pdv/models/pedido_loja.dart';
 import 'package:nous/src/features/pdv/views/widgets/financeiro/seletor_periodo_financeiro_widget.dart';
@@ -17,6 +18,7 @@ class BlocoResumoOperacionalWidget extends StatelessWidget {
   final BoxDecoration decoracaoBloco;
   final String Function(double v) valorFormatado;
   final double Function(String forma) entradasPorForma;
+  final List<GastoDiario> gastosDiarios;
 
   const BlocoResumoOperacionalWidget({
     super.key,
@@ -30,6 +32,7 @@ class BlocoResumoOperacionalWidget extends StatelessWidget {
     required this.decoracaoBloco,
     required this.valorFormatado,
     required this.entradasPorForma,
+    this.gastosDiarios = const [],
   });
 
   Widget _itemMetricaResumo({
@@ -117,6 +120,9 @@ class BlocoResumoOperacionalWidget extends StatelessWidget {
       (soma, p) => soma + p.valor,
     );
     final ticketMedio = totalVendas == 0 ? 0.0 : faturamento / totalVendas;
+    final totalGastosDeclarados =
+        gastosDiarios.fold<double>(0.0, (soma, g) => soma + g.valor);
+    final saldoOperacional = faturamento - totalGastosDeclarados;
 
     final String tituloBloco;
     final String rotuloVendas;
@@ -318,6 +324,30 @@ class BlocoResumoOperacionalWidget extends StatelessWidget {
               ),
             ],
           ),
+          if (totalGastosDeclarados > 0) ...[
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                Expanded(
+                  child: _itemMetricaResumo(
+                    icone: Icons.shopping_basket_outlined,
+                    rotulo: 'Gastos Declarados',
+                    valor: valorFormatado(totalGastosDeclarados),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: _itemMetricaResumo(
+                    icone: Icons.balance_outlined,
+                    rotulo: 'Saldo Operacional',
+                    valor:
+                        '${saldoOperacional >= 0 ? "+" : ""}${valorFormatado(saldoOperacional)}',
+                    destaque: true,
+                  ),
+                ),
+              ],
+            ),
+          ],
           if (pedidosPeriodoEmAberto.isNotEmpty) ...[
             const SizedBox(height: 10),
             Text(

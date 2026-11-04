@@ -354,8 +354,8 @@ Todas abrem centralizadas, aceitam **F11** e, no desktop expandido, ficam em **d
   - **Exibição completa na barra do cliente (Endereço + Telefone + Dívida)**: na lista de sugestões e no card de cliente selecionado, a barra exibe simultaneamente o **Endereço completo** (rua + número) e o **Telefone** (`Rua X, 123 • (11) 99999-0000`), além de um selo vermelho (`Deve R$ XX,XX` em `theme.dangerColor`) caso o cliente possua saldo em aberto de vendas À Prazo.
 - **Leitor de código de barras**: digitar/bipar o código exato + Enter adiciona ao carrinho e limpa o campo.
 - **Variantes**: ao escolher produto com variantes, abre seletor (Padrão + variantes com preço).
-- **Frete, Desconto, Acréscimo**: aceitam R$ ou `%` (ex.: `10%`). Ao tocar, o valor inteiro fica selecionado. Em telas estreitas, quebra em linhas separadas para evitar qualquer estouro visual.
-- **Pagamento**: Dinheiro, Pix, Débito, Crédito, À Prazo; pode combinar várias formas. Troco = excesso real sobre o total.
+- **Frete, Desconto, Acréscimo**: aceitam R$ ou `%` (ex.: `10%`). Ao tocar, o valor inteiro fica selecionado. Em telas estreitas, quebra em linhas separadas para evitar qualquer estouro visual. Ao selecionar um cliente com taxa de frete cadastrada, o valor do frete é preenchido automaticamente na comanda.
+- **Pagamento**: Dinheiro, Pix, Débito, Crédito, Voucher, À Prazo; pode combinar várias formas. Troco = excesso real sobre o total.
 - **Rascunho**: se a janela for fechada sem querer (Esc, voltar, clique fora), tudo é guardado e volta ao reabrir. Botão **lixeira** "Limpar campos da venda". Venda concluída limpa o rascunho.
 - Cada item mostra saldo (`Est: X un`) ou "Esgotado".
 - Cadastro rápido de produto aqui com estoque inicial gera o movimento de estoque automaticamente.
@@ -365,7 +365,7 @@ Todas abrem centralizadas, aceitam **F11** e, no desktop expandido, ficam em **d
 📄 `modo_balcao_widget.dart` · submódulos modulares em `pdv/views/widgets/modo_balcao/` (`barra_superior_balcao_widget.dart`, `campo_bipador_balcao_widget.dart`, `catalogo_balcao_widget.dart`, `visor_ultimo_produto_widget.dart`, `cliente_ajustes_balcao_widget.dart`, `comanda_balcao_widget.dart`, `dialogo_variante_balcao.dart`, `dialogo_componentes_balcao.dart`) · abre pela barra lateral ("Modo Balcão") ou pelo botão equivalente; **Esc** volta.
 - **Esquerda (Operador)**: campo de bipador sempre focado; visor do último produto (foto, quantidade, nome, valor); catálogo por categorias com badges de saldo; busca de cliente com painel flutuante (avatar, CPF/CNPJ, telefone, endereço e selo vermelho **`Deve R$ XX,XX`** se houver débito em aberto) e chip do cliente selecionado com selo de dívida e botão de desvincular.
 - **Direita (Comanda ampliada)**: cada item com nome completo (categoria e variante), preço, **+ / − / remover**, resumo dos adicionais, observação em itálico (`Obs: ...`) e botões **+ Componentes** e **+ Observação / Editar Obs**.
-- Campos **Frete** (acima de **Acrésc:**), **Desconto**, **Acréscimo**; **TOTAL GERAL** gigante; formas de pagamento com valor recebido e **troco em verde**.
+- Campos **Frete** (acima de **Acrésc:**, preenchido automaticamente ao selecionar cliente com frete cadastrado), **Desconto**, **Acréscimo**; **TOTAL GERAL** gigante; formas de pagamento (Dinheiro, Pix, Débito, Crédito, Voucher, À Prazo) com valor recebido e **troco em verde**.
 - **FINALIZAR VENDA (ENTER)**: baixa estoque (item principal e acompanhamentos via `EstoqueBaixaService`) e abre o cupom.
 - **À Prazo** exige cliente: sem cliente, abre a busca; finalizar sem cliente é bloqueado. Se o cliente for desmarcado, volta para "Dinheiro".
 - Venda avulsa em "Todos" cobra o preço puro do item; o preço da categoria só soma se a categoria estiver selecionada.
@@ -377,7 +377,7 @@ Todas abrem centralizadas, aceitam **F11** e, no desktop expandido, ficam em **d
 - Campo **"CNPJ ou CPF"** com máscara automática (até 11 dígitos = CPF, 12 a 14 = CNPJ).
 - **Autopreenchimento**: ao completar o documento, busca em contas Nous, lojas e cadastros prévios e preenche nome, telefone, endereço, e-mail, redes e foto.
 - Altura da lista de clientes: 490 px no desktop expandido; 200 px no compacto.
-- Ao tocar num cliente: valor total já gasto, histórico, **Exportar Extrato PDF**, **Programar Pedido** (📄 `programar_pedido_dialog.dart` com `dialogs/dialog_digitar_horario.dart` e `widgets/programar_pedido/calendario_programacao_widget.dart`), **Pedidos Programados** (ver, pausar/ativar, excluir) e quitação.
+- Ao tocar num cliente: valor total já gasto, container **"Frete"** (definição da taxa de entrega padrão do cliente com aplicação automática na comanda de vendas), container **"A Prazo"** (quitação de débitos), **Histórico de Compras** (com filtros por período de data e forma de pagamento, e **Exportar Extrato PDF** refletindo os filtros aplicados), **Programar Pedido** (📄 `programar_pedido_dialog.dart` com `dialogs/dialog_digitar_horario.dart` e `widgets/programar_pedido/calendario_programacao_widget.dart`), **Pedidos Programados** (ver, pausar/ativar, excluir) e quitação.
 - **Quitar valor / Quitar tudo**: abre confirmação mostrando cliente, valor, dívida atual e saldo restante. Escolhe a forma (Dinheiro, Pix, Cartão). Se for dinheiro e o caixa estiver aberto, registra um **suprimento** no turno.
 - **Excluir Cliente**: em vermelho, com confirmação; avisa se houver débito a prazo. O histórico de pedidos é preservado.
 
@@ -411,12 +411,12 @@ Todas abrem centralizadas, aceitam **F11** e, no desktop expandido, ficam em **d
 - Cada mesa tem status (**livre/ocupada**), número, descrição/capacidade, cliente e atendente.
 - Lançar item: seleção visual desacoplada em `ConfiguracaoItemMesaWidget` (variantes, complementos, quantidades e observações); remover item gera auditoria. **Imprimir conferência** (pré-fechamento).
 - **Transferir / Unir** comandas.
-- **Fechar conta**: pagamento único ou **dividido** em várias formas com saldo restante; botão de **10% de atendimento**; desconto. Se faltar quitar ou sobrar pagamento, **bloqueia**. Forma "À Prazo" exige cliente; se não existir, abre `CadastroClienteRapidoMesaDialog` desacoplado (nome obrigatório, endereço, telefone).
+- **Fechar conta**: pagamento único ou **dividido** em várias formas (Dinheiro, Pix, Cartão de Crédito/Débito, Voucher, À Prazo) com saldo restante; botão de **10% de atendimento**; desconto. Se faltar quitar ou sobrar pagamento, **bloqueia**. Forma "À Prazo" exige cliente; se não existir, abre `CadastroClienteRapidoMesaDialog` desacoplado (nome obrigatório, endereço, telefone).
 - Cabeçalho "Mesas" com `TextoRolante`, sem colidir com **+ Nova Mesa**.
 
 ### 7.9 Financeiro
 📄 `pdv/views/financeiro_view.dart` · widgets em `pdv/views/widgets/financeiro/`: `barra_acoes_financeiro_widget.dart`, `seletor_periodo_financeiro_widget.dart`, `bloco_resumo_operacional_widget.dart`, `bloco_entradas_financeiro_widget.dart`, `bloco_balanco_financeiro_widget.dart`, `bloco_compras_financeiro_widget.dart`, `bloco_vendas_financeiro_widget.dart`, `bloco_funcionarios_financeiro_widget.dart`, `item_linha_financeira.dart`
-- Ordem dos containers: **Resumo Operacional do Dia/Contexto** (primeiro, logo abaixo do filtro de período) → período e balanço → **Compras do Período** → **Vendas do Período** (busca, filtros por forma de pagamento, lista de vendas) → trabalhadores.
+- Ordem dos containers: **Resumo Operacional do Dia/Contexto** (primeiro, logo abaixo do filtro de período, com Faturamento, Ticket Médio, Saldo do Caixa, Gastos Declarados do Dia e Saldo Operacional) → período e balanço → **Compras do Período** (com subcontainer **"Gastos do dia"** para registro rápido de compras avulsas e mercadorias para abrir o dia, além de compras de estoque separadas por fornecedor) → **Vendas do Período** (busca, filtros por forma de pagamento incluindo Voucher, lista de vendas) → trabalhadores.
 - **Período**: Hoje, Semana, Mês, Tudo, ou **De / Até** (um dia só, ou intervalo). Botões `<` `>` e calendário. Digitar uma data desmarca o botão ativo; botão `x` limpa.
 - **Entradas por forma de pagamento**: inclui **À Prazo** com o valor real.
 - **Sugestão de divisão igualitária** entre trabalhadores. Botão **Registrar Pagamento** (`registrar_pagamento_dialog.dart`, com foto de cada trabalhador) registra a ação com a diferença para a sugestão.

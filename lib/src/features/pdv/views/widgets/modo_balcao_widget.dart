@@ -29,6 +29,7 @@ const List<String> _formasBalcao = [
   'Pix',
   'Débito',
   'Crédito',
+  'Voucher',
   'À Prazo',
 ];
 
@@ -676,6 +677,11 @@ class _ModoBalcaoWidgetState extends State<ModoBalcaoWidget> {
                                   _clienteSelecionado = c;
                                   _clienteController.text = c.nome;
                                   _mostrarSugestoesCliente = false;
+                                  if (c.fretePadrao > 0) {
+                                    _freteController.text = c.fretePadrao
+                                        .toStringAsFixed(2)
+                                        .replaceAll('.', ',');
+                                  }
                                 });
                               },
                               onRemoverCliente: () {

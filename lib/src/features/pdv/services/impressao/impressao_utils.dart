@@ -21,6 +21,7 @@ const List<String> kFormasDePagamentoImpressao = [
   'Dinheiro',
   'Débito',
   'Crédito',
+  'Voucher',
   'À Prazo',
 ];
 

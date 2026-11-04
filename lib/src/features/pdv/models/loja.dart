@@ -4,6 +4,7 @@ import 'package:nous/src/features/pdv/models/categoria_loja.dart';
 import 'package:nous/src/features/pdv/models/cliente.dart';
 import 'package:nous/src/features/pdv/models/configuracoes_impressora.dart';
 import 'package:nous/src/features/pdv/models/fornecedor.dart';
+import 'package:nous/src/features/pdv/models/gasto_diario.dart';
 import 'package:nous/src/features/pdv/models/grupo_componentes_loja.dart';
 import 'package:nous/src/features/pdv/models/item_loja.dart';
 import 'package:nous/src/features/pdv/models/membro_loja.dart';
@@ -45,6 +46,7 @@ class Loja {
   final List<PagamentoFuncionario> pagamentosFuncionarios;
   final List<TurnoCaixa> turnosCaixa;
   final List<PedidoProgramado> pedidosProgramados;
+  final List<GastoDiario> gastosDiarios;
 
   final List<String> galeria;
   final List<String> arquivos;
@@ -99,6 +101,7 @@ class Loja {
     this.pagamentosFuncionarios = const [],
     this.turnosCaixa = const [],
     this.pedidosProgramados = const [],
+    this.gastosDiarios = const [],
     this.galeria = const [],
     this.arquivos = const [],
     this.musicas = const [],
@@ -141,6 +144,7 @@ class Loja {
     List<PagamentoFuncionario>? pagamentosFuncionarios,
     List<TurnoCaixa>? turnosCaixa,
     List<PedidoProgramado>? pedidosProgramados,
+    List<GastoDiario>? gastosDiarios,
     List<String>? galeria,
     List<String>? arquivos,
     List<String>? musicas,
@@ -186,6 +190,7 @@ class Loja {
           pagamentosFuncionarios ?? this.pagamentosFuncionarios,
       turnosCaixa: turnosCaixa ?? this.turnosCaixa,
       pedidosProgramados: pedidosProgramados ?? this.pedidosProgramados,
+      gastosDiarios: gastosDiarios ?? this.gastosDiarios,
       galeria: galeria ?? this.galeria,
       arquivos: arquivos ?? this.arquivos,
       musicas: musicas ?? this.musicas,
@@ -241,6 +246,7 @@ class Loja {
       'turnosCaixa': turnosCaixa.map((t) => t.toJson()).toList(),
       'pedidosProgramados':
           pedidosProgramados.map((p) => p.toJson()).toList(),
+      'gastosDiarios': gastosDiarios.map((g) => g.toJson()).toList(),
       'galeria': galeria,
       'arquivos': arquivos,
       'musicas': musicas,
@@ -334,6 +340,9 @@ class Loja {
               .map((item) =>
                   PedidoProgramado.fromJson(item as Map<String, dynamic>))
               .toList(),
+      gastosDiarios: (json['gastosDiarios'] as List<dynamic>? ?? const [])
+          .map((item) => GastoDiario.fromJson(item as Map<String, dynamic>))
+          .toList(),
       galeria: (json['galeria'] as List<dynamic>? ?? const [])
           .map((item) => item.toString())
           .toList(),

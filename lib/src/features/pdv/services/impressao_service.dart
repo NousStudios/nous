@@ -240,10 +240,12 @@ class ImpressaoService {
     required Loja loja,
     required Cliente cliente,
     required List<PedidoLoja> pedidos,
+    String? filtroDescricao,
   }) =>
       RelatoriosPdfService.exportarExtratoClientePDF(
         loja: loja,
         cliente: cliente,
         pedidos: pedidos,
+        filtroDescricao: filtroDescricao,
       );
 }

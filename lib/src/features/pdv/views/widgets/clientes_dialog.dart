@@ -10,6 +10,7 @@ import 'package:nous/src/features/pdv/providers/pdv_provider.dart';
 import 'package:nous/src/features/pdv/services/dados_locais_service.dart';
 import 'package:nous/src/features/pdv/views/widgets/clientes/divida_cliente_widget.dart';
 import 'package:nous/src/features/pdv/views/widgets/clientes/formulario_cliente_widget.dart';
+import 'package:nous/src/features/pdv/views/widgets/clientes/frete_cliente_widget.dart';
 import 'package:nous/src/features/pdv/views/widgets/clientes/historico_compras_cliente_widget.dart';
 import 'package:nous/src/features/pdv/views/widgets/clientes/lista_pesquisa_clientes_widget.dart';
 import 'package:nous/src/features/pdv/views/widgets/clientes/pedidos_programados_cliente_widget.dart';
@@ -441,6 +442,20 @@ class _ClientesConteudoState extends State<_ClientesConteudo> {
     });
   }
 
+  void _salvarFreteCliente(Cliente cliente, double novoFrete) {
+    final atualizado = cliente.copyWith(fretePadrao: novoFrete);
+    widget.onSalvar(atualizado);
+    setState(() {
+      final idx = _clientes.indexWhere((c) => c.id == cliente.id);
+      if (idx != -1) {
+        _clientes[idx] = atualizado;
+      }
+      if (_editando?.id == cliente.id) {
+        _editando = atualizado;
+      }
+    });
+  }
+
   double _devido(String clienteId, {String? nome}) {
     var soma = 0.0;
     final nomeAlvo = nome?.trim().toLowerCase() ?? '';
@@ -544,6 +559,13 @@ class _ClientesConteudoState extends State<_ClientesConteudo> {
                               children: [
                                 widgetFormulario,
                                 const SizedBox(height: 12),
+                                FreteClienteWidget(
+                                  theme: theme,
+                                  cliente: editando,
+                                  onSalvarFrete: (valor) =>
+                                      _salvarFreteCliente(editando, valor),
+                                ),
+                                const SizedBox(height: 12),
                                 DividaClienteWidget(
                                   theme: theme,
                                   cliente: editando,
@@ -606,6 +628,13 @@ class _ClientesConteudoState extends State<_ClientesConteudo> {
                     children: [
                       if (editando != null) ...[
                         widgetFormulario,
+                        const SizedBox(height: 12),
+                        FreteClienteWidget(
+                          theme: theme,
+                          cliente: editando,
+                          onSalvarFrete: (valor) =>
+                              _salvarFreteCliente(editando, valor),
+                        ),
                         const SizedBox(height: 12),
                         DividaClienteWidget(
                           theme: theme,

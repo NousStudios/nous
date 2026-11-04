@@ -16,6 +16,7 @@ const List<String> _formasDePagamento = [
   'Pix',
   'Cartão de Crédito',
   'Cartão de Débito',
+  'Voucher',
   'À Prazo',
 ];
 

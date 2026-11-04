@@ -20,6 +20,7 @@ class FinanceiroOperacoesHelper {
     'Dinheiro',
     'Débito',
     'Crédito',
+    'Voucher',
     'À Prazo',
   ];
 

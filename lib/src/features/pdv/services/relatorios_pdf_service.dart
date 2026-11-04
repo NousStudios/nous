@@ -83,10 +83,12 @@ class RelatoriosPdfService {
     required Loja loja,
     required Cliente cliente,
     required List<PedidoLoja> pedidos,
+    String? filtroDescricao,
   }) =>
       ExportadorPdfExtratoCliente.exportar(
         loja: loja,
         cliente: cliente,
         pedidos: pedidos,
+        filtroDescricao: filtroDescricao,
       );
 }
