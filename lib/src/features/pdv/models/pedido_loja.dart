@@ -230,6 +230,7 @@ class PedidoLoja {
   final String canceladoPorCpf;
   final String canceladoPorNome;
   final bool estoqueEstornado;
+  final String lojaId;
 
   const PedidoLoja({
     required this.id,
@@ -264,6 +265,7 @@ class PedidoLoja {
     this.canceladoPorCpf = '',
     this.canceladoPorNome = '',
     this.estoqueEstornado = false,
+    this.lojaId = '',
   });
 
   List<PagamentoParcial> get todosPagamentos {
@@ -304,6 +306,7 @@ class PedidoLoja {
     bool? estoqueEstornado,
     String? nomeVendedor,
     String? cnpjVendedor,
+    String? lojaId,
   }) {
     return PedidoLoja(
       id: id,
@@ -338,6 +341,7 @@ class PedidoLoja {
       canceladoPorCpf: canceladoPorCpf ?? this.canceladoPorCpf,
       canceladoPorNome: canceladoPorNome ?? this.canceladoPorNome,
       estoqueEstornado: estoqueEstornado ?? this.estoqueEstornado,
+      lojaId: lojaId ?? this.lojaId,
     );
   }
 
@@ -375,6 +379,7 @@ class PedidoLoja {
       'canceladoPorCpf': canceladoPorCpf,
       'canceladoPorNome': canceladoPorNome,
       'estoqueEstornado': estoqueEstornado,
+      'lojaId': lojaId,
     };
   }
 
@@ -426,6 +431,7 @@ class PedidoLoja {
       canceladoPorCpf: json['canceladoPorCpf'] as String? ?? '',
       canceladoPorNome: json['canceladoPorNome'] as String? ?? '',
       estoqueEstornado: json['estoqueEstornado'] as bool? ?? false,
+      lojaId: json['lojaId'] as String? ?? '',
     );
   }
 }

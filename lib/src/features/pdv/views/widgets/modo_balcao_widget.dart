@@ -522,6 +522,7 @@ class _ModoBalcaoWidgetState extends State<ModoBalcaoWidget> {
       acrescimo: _acrescimoValor,
       nomeVendedor: widget.nomeAutor,
       cnpjVendedor: widget.cpfAutor,
+      lojaId: widget.lojaId,
     );
 
     // Gera baixas automáticas proporcionais de estoque

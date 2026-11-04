@@ -147,7 +147,7 @@ class PedidosRepositorioLoja {
         'pedidos',
         {
           'id': p.id,
-          'loja_id': lojaId,
+          'loja_id': p.lojaId.isNotEmpty ? p.lojaId : lojaId,
           'numero': p.numero,
           'data_hora': p.dataHora.toIso8601String(),
           'status': p.status.name,

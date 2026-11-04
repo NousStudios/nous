@@ -674,11 +674,22 @@ class ServidorRedeLocal {
             'porta': _porta,
           });
           final bytes = utf8.encode(pacote);
-          _socketUdp!.send(
-            bytes,
-            InternetAddress('255.255.255.255'),
-            portaUdpAnuncio,
-          );
+          final destinos = <String>{'255.255.255.255'};
+          if (_ipServidor != null && _ipServidor!.contains('.')) {
+            final partes = _ipServidor!.split('.');
+            if (partes.length == 4) {
+              destinos.add('${partes[0]}.${partes[1]}.${partes[2]}.255');
+            }
+          }
+          for (final dest in destinos) {
+            try {
+              _socketUdp!.send(
+                bytes,
+                InternetAddress(dest),
+                portaUdpAnuncio,
+              );
+            } catch (_) {}
+          }
         } catch (_) {}
       });
     } catch (e) {

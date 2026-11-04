@@ -2,6 +2,25 @@
 
 Uma linha por mudança, da mais recente para a mais antiga. O agente deve acrescentar aqui o que fez em cada ciclo (versão do `pubspec.yaml` + o que mudou). Este arquivo guarda **histórico**; a descrição atual do app fica em `MAPA_DO_APP.md`.
 
+## v1.0.74 (build 75) — 03/11/2026
+
+- **Isolamento Absoluto de Pedidos por Loja, Correção Crítica de Mensageria e Notificações Android:**
+  - [pedido_loja.dart](file:///d:/Nous/nous/lib/src/features/pdv/models/pedido_loja.dart): Inclusão do campo estrutural soberano `lojaId` em `PedidoLoja`, garantindo rastreabilidade e pertencimento invariante do pedido à loja de origem através de todo o ciclo de vida e trânsito em rede local.
+  - [roteador_loja_pedidos.dart](file:///d:/Nous/nous/lib/src/features/pdv/services/rede_local/handlers/roteador_loja_pedidos.dart) & [servidor_ws_message_handler.dart](file:///d:/Nous/nous/lib/src/features/pdv/services/rede_local/handlers/servidor_ws_message_handler.dart): Blindagem no roteamento e persistência de pedidos e lojas. O endpoint `/api/loja/atualizar` e a rota de pedidos agora salvam no cofre individual da loja correspondente ao `lojaId`, sem jamais descartar dados de lojas secundárias ou sobrescrever dados da loja ativa balcão (resolvendo o sumiço dos dados da loja Berenice e a mistura com outras lojas).
+  - [banco_dados_service.dart](file:///d:/Nous/nous/lib/src/core/services/banco_dados_service.dart) & [chat_repositorio_sqlite.dart](file:///d:/Nous/nous/lib/src/features/chat/services/chat_repositorio_sqlite.dart): Rotina de autocura no SQLite: expurgo retroativo de mensagens corrompidas/fantasmas (payloads de controle de entrega/leitura gravados indevidamente no banco) e realocação do pedido extraviado para a loja correta.
+  - [servidor_ws_message_handler.dart](file:///d:/Nous/nous/lib/src/features/pdv/services/rede_local/handlers/servidor_ws_message_handler.dart), [cliente_ws_message_handler.dart](file:///d:/Nous/nous/lib/src/features/pdv/services/rede_local/handlers/cliente_ws_message_handler.dart) & [chat_mensagens_service.dart](file:///d:/Nous/nous/lib/src/features/chat/services/chat_mensagens_service.dart): Eventos `mensagem_entregue` e `mensagens_lidas` agora são tratados como eventos de protocolo sem geração de mensagens espúrias no chat; resolução do crash de notificações Android e do bug onde o sino de notificações ficava aceso eternamente.
+  - [resolvedor_conversa_info_service.dart](file:///d:/Nous/nous/lib/src/features/chat/services/resolvedor_conversa_info_service.dart) & [resolvedor_foto_chat.dart](file:///d:/Nous/nous/lib/src/features/chat/services/resolvedor_foto_chat.dart): Identificação fidedigna do interlocutor loja vs. cliente, garantindo que o cabeçalho da loja sempre renderize a logo da loja e nunca a foto do próprio usuário logado.
+  - [AndroidManifest.xml](file:///d:/Nous/nous/android/app/src/main/AndroidManifest.xml) & [auth_provider.dart](file:///d:/Nous/nous/lib/src/features/auth/providers/auth_provider.dart): Configuração `android:alwaysRetainTaskState="true"` e restauração automática de sessão (`tentarRestaurarSessao`), evitando deslogar ao minimizar o aplicativo.
+  - **Instaladores Atualizados (v1.0.74 • Build 75):** Compilação para Windows e Android na pasta `dist/`.
+
+## v1.0.73 (build 74) — 03/11/2026
+
+- **Regras de Firewall Automáticas, Broadcast UDP Multi-Interface e Timeout Ágil de Conexão:**
+  - [windows/installer.iss](file:///d:/Nous/nous/windows/installer.iss): Adicionadas regras automáticas no instalador Windows com permissão de administrador (`PrivilegesRequired=admin`) para liberar o `nous.exe`, a porta TCP 8080 (Servidor Balcão) e a porta UDP 45454 (Descoberta Wi-Fi) no Windows Defender Firewall em qualquer perfil de rede (`profile=any`).
+  - [servidor_rede_local.dart](file:///d:/Nous/nous/lib/src/features/pdv/services/rede_local/servidor_rede_local.dart): Broadcast UDP expandido para enviar datagramas para `255.255.255.255` e diretamente para o broadcast de sub-rede (`192.168.0.255`), contornando o bloqueio de roteadores comerciais entre o cabo Ethernet e o rádio Wi-Fi.
+  - [cliente_rede_local.dart](file:///d:/Nous/nous/lib/src/features/pdv/services/rede_local/cliente_rede_local.dart): Timeout de conexão TCP (`connectionTimeout`) reduzido para 4 segundos, evitando congelamento da interface e permitindo troca ágil entre IPs de balcão.
+  - **Instaladores Atualizados (v1.0.73 • Build 74):** Compilação para Windows e Android na pasta `dist/`.
+
 ## v1.0.72 (build 73) — 03/11/2026
 
 - **Checagem Imediata de Atualização, Mascaramento Universal de CPF, Manutenção de Sessão no Android e Correções de UI/Mensageria:**

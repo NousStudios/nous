@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:nous/src/core/services/navigator_key_service.dart';
 import 'package:nous/src/core/services/som_service.dart';
 import 'package:nous/src/core/theme/theme_controller.dart';
+import 'package:nous/src/features/auth/services/cpf_validator.dart';
 import 'package:nous/src/features/pdv/models/terminal_conectado_info.dart';
 
 /// Diálogo exibido no servidor balcão para autorizar a conexão de novos terminais Wi-Fi.
@@ -85,7 +86,7 @@ class DialogAutorizacaoTerminal {
                             ],
                             if (cpf != null && cpf.trim().isNotEmpty) ...[
                               const SizedBox(height: 6),
-                              _itemInfo(theme, 'CPF:', cpf.trim(), Icons.badge_outlined),
+                              _itemInfo(theme, 'CPF:', CpfValidator.formatProtegido(cpf.trim()), Icons.badge_outlined),
                             ],
                             const SizedBox(height: 6),
                             _itemInfo(theme, 'Endereço IP:', ip, Icons.wifi_rounded),

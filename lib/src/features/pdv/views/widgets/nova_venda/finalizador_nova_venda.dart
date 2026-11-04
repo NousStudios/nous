@@ -172,6 +172,7 @@ class FinalizadorNovaVenda {
       acrescimo: acrescimo,
       nomeVendedor: nomeVendedor,
       cnpjVendedor: cnpjVendedor,
+      lojaId: lojaId ?? '',
     );
 
     final movimentosSugeridos = await BaixaEstoqueDialog.mostrar(

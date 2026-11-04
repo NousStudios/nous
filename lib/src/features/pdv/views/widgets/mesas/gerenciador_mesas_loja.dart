@@ -377,6 +377,7 @@ class GerenciadorMesasLoja {
       status: StatusPedido.concluido,
       nomeVendedor: lojaAtual?.nome ?? '',
       cnpjVendedor: lojaAtual?.cnpj ?? '',
+      lojaId: lojaId,
       comentario: 'Mesa ${mesa.numero} atendida por ${mesa.atendenteNome}',
     );
 

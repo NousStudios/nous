@@ -23,7 +23,8 @@ AppUpdatesURL={#MyAppURL}
 DefaultDirName={autopf}\{#MyAppName}
 DefaultGroupName={#MyAppName}
 AllowNoIcons=yes
-; Permite instalação tanto por usuário comum quanto por administrador
+; Exige elevação de administrador para configurar permissões no Firewall do Windows
+PrivilegesRequired=admin
 PrivilegesRequiredOverridesAllowed=commandline dialog
 OutputDir=..\dist
 OutputBaseFilename=Nous_Instalador_v{#MyAppVersion}_Versao_Teste
@@ -56,4 +57,13 @@ Name: "{autoprograms}\{#MyAppName}\{cm:UninstallProgram,{#MyAppName}}"; Filename
 Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: desktopicon
 
 [Run]
+; Regras automáticas no Windows Defender Firewall (libera servidor balcão e descoberta Wi-Fi)
+Filename: "{sys}\netsh.exe"; Parameters: "advfirewall firewall add rule name=""Nous Servidor Balcao"" dir=in action=allow program=""{app}\{#MyAppExeName}"" enable=yes profile=any"; Flags: runhidden
+Filename: "{sys}\netsh.exe"; Parameters: "advfirewall firewall add rule name=""Nous Porta Balcao 8080"" dir=in action=allow protocol=TCP localport=8080 enable=yes profile=any"; Flags: runhidden
+Filename: "{sys}\netsh.exe"; Parameters: "advfirewall firewall add rule name=""Nous Descoberta UDP 45454"" dir=in action=allow protocol=UDP localport=45454 enable=yes profile=any"; Flags: runhidden
 Filename: "{app}\{#MyAppExeName}"; Description: "{cm:LaunchProgram,{#StringChange(MyAppName, '&', '&&')}}"; Flags: nowait postinstall skipifsilent
+
+[UninstallRun]
+Filename: "{sys}\netsh.exe"; Parameters: "advfirewall firewall delete rule name=""Nous Servidor Balcao"""; Flags: runhidden
+Filename: "{sys}\netsh.exe"; Parameters: "advfirewall firewall delete rule name=""Nous Porta Balcao 8080"""; Flags: runhidden
+Filename: "{sys}\netsh.exe"; Parameters: "advfirewall firewall delete rule name=""Nous Descoberta UDP 45454"""; Flags: runhidden

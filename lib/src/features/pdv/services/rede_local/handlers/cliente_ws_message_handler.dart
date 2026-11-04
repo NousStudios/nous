@@ -116,11 +116,17 @@ class ClienteWsMessageHandler {
         return;
       }
 
-      if (tipo == 'mensagem_entregue' || tipo == 'mensagens_lidas') {
-        await ChatService.processarMensagemRecebidaDaRede(
-          dados,
-          emitirAlertaSonoro: false,
-        );
+      if (tipo == 'mensagem_entregue') {
+        final msgId = dados['id'] as String? ?? dados['mensagemId'] as String? ?? '';
+        final convId = dados['conversaId'] as String?;
+        await ChatService.processarMensagemEntregueDaRede(msgId, conversaId: convId);
+        return;
+      }
+
+      if (tipo == 'mensagens_lidas') {
+        final convId = dados['conversaId'] as String? ?? '';
+        final idLeitor = dados['idLeitor'] as String? ?? '';
+        await ChatService.processarMensagensLidasDaRede(convId, idLeitor);
         return;
       }
 
@@ -280,10 +286,15 @@ class ClienteWsMessageHandler {
   }
 
   static void _processarPedido(Map<String, dynamic> dados, ClienteWsContext ctx) {
-    final lojaSinc = ctx.obterLojaSincronizada();
-    if (dados['pedido'] != null && ctx.pdvProvider != null && lojaSinc != null) {
+    if (dados['pedido'] != null && ctx.pdvProvider != null) {
       final pedido = PedidoLoja.fromJson(dados['pedido'] as Map<String, dynamic>);
-      final lojaAtual = ctx.pdvProvider!.buscarPorId(lojaSinc.id);
+      final lojaSinc = ctx.obterLojaSincronizada();
+      final lojaIdAlvo = pedido.lojaId.isNotEmpty
+          ? pedido.lojaId
+          : (dados['lojaId'] as String? ?? lojaSinc?.id ?? '');
+      if (lojaIdAlvo.isEmpty) return;
+
+      final lojaAtual = ctx.pdvProvider!.buscarPorId(lojaIdAlvo);
       if (lojaAtual != null) {
         final pedidos = List<PedidoLoja>.from(lojaAtual.pedidosLoja);
         final idx = pedidos.indexWhere((p) => p.id == pedido.id);

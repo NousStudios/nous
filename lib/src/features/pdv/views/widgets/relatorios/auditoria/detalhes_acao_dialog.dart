@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:nous/src/core/theme/theme_controller.dart';
+import 'package:nous/src/features/auth/services/cpf_validator.dart';
 import 'package:nous/src/features/pdv/models/cliente.dart';
 import 'package:nous/src/features/pdv/models/pedido_loja.dart';
 import 'package:nous/src/features/pdv/models/registro_acao.dart';
@@ -12,11 +13,7 @@ String _dataHoraCurta(DateTime d) =>
 
 String _numeroCurto(int n) => '#${n.toString().padLeft(4, '0')}';
 
-String formatarCpfAuditoria(String cpf) {
-  if (cpf.length != 11) return cpf;
-  return '${cpf.substring(0, 3)}.${cpf.substring(3, 6)}.'
-      '${cpf.substring(6, 9)}-${cpf.substring(9, 11)}';
-}
+String formatarCpfAuditoria(String cpf) => CpfValidator.formatProtegido(cpf);
 
 /// Modal que exibe os detalhes completos de uma ação registrada na auditoria.
 class DetalhesAcaoDialog extends StatelessWidget {

@@ -190,12 +190,15 @@ class ResolvedorFotoChat {
 
     String? fotoUsar = conversa.foto;
     if (ehContatoLoja) {
-      // Conversa com loja: JAMAIS exibe a foto pessoal civil do usuário logado!
-      if (fotoUsar.isEmpty ||
-          (minhaFoto.isNotEmpty && fotoUsar == minhaFoto) ||
-          (minhaFotoBase.isNotEmpty && fotoUsar == minhaFotoBase)) {
-        fotoUsar = logoLoja.isNotEmpty ? logoLoja : null;
-      }
+      // Conversa com loja: O avatar é EXCLUSIVAMENTE a logo da loja (ou fallback de loja), NUNCA foto civil de pessoa física!
+      fotoUsar = (logoLoja.isNotEmpty && ImagemService.existe(logoLoja))
+          ? logoLoja
+          : (conversa.foto.isNotEmpty &&
+                  ImagemService.existe(conversa.foto) &&
+                  conversa.foto != minhaFoto &&
+                  conversa.foto != minhaFotoBase
+              ? conversa.foto
+              : null);
     } else if (!conversa.ehGrupo) {
       if (ehProprioUsuario) {
         // Se a conversa for com o próprio usuário logado (ex.: dono abrindo seu próprio contato

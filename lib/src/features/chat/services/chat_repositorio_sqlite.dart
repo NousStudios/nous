@@ -82,6 +82,16 @@ class ChatRepositorioSqlite {
         } catch (_) {}
       }
 
+      try {
+        await db.execute('''
+          DELETE FROM mensagens_chat 
+          WHERE tipo IN ('mensagem_entregue', 'mensagens_lidas')
+             OR id = '' 
+             OR remetente_id = ''
+             OR (tipo = 'texto' AND TRIM(texto) = '' AND (caminho_anexo IS NULL OR caminho_anexo = '') AND (pedido_id IS NULL OR pedido_id = ''));
+        ''');
+      } catch (_) {}
+
       await db.execute('''
         CREATE TABLE IF NOT EXISTS conversas_chat (
           id TEXT PRIMARY KEY,
@@ -327,7 +337,7 @@ class ChatRepositorioSqlite {
       'mensagens_chat',
       columns: ['id'],
       where:
-          '(destinatario_id = ? OR conversa_id LIKE ?) AND remetente_id NOT IN (?, ?) AND lida = 0$condicaoAtiva',
+          '(destinatario_id = ? OR conversa_id LIKE ?) AND remetente_id NOT IN (?, ?) AND remetente_id != \'\' AND tipo NOT IN (\'mensagem_entregue\', \'mensagens_lidas\') AND lida = 0$condicaoAtiva',
       whereArgs: args,
       limit: 1,
     );
@@ -358,7 +368,7 @@ class ChatRepositorioSqlite {
       'mensagens_chat',
       columns: ['id'],
       where:
-          '(destinatario_id = ? OR conversa_id LIKE ? OR conversa_id LIKE ?) AND remetente_id NOT IN (?, ?, ?) AND lida = 0$condicaoAtiva',
+          '(destinatario_id = ? OR conversa_id LIKE ? OR conversa_id LIKE ?) AND remetente_id NOT IN (?, ?, ?) AND remetente_id != \'\' AND tipo NOT IN (\'mensagem_entregue\', \'mensagens_lidas\') AND lida = 0$condicaoAtiva',
       whereArgs: args,
       limit: 1,
     );

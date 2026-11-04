@@ -71,6 +71,7 @@ class PdvPedidosProgramadosHelper {
             dataHora: agora,
             nomeVendedor: loja.nome,
             cnpjVendedor: loja.cnpj,
+            lojaId: loja.id,
           );
           novosPedidosLoja.insert(0, novoPedido);
           novosProgramados.add(prog.copyWith(ultimaDataGerado: agora));

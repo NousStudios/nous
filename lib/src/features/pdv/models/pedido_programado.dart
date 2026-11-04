@@ -151,6 +151,7 @@ class PedidoProgramado {
     DateTime? dataHora,
     String nomeVendedor = '',
     String cnpjVendedor = '',
+    String? lojaId,
   }) {
     final momento = dataHora ?? DateTime.now();
     final diaStr = momento.day.toString().padLeft(2, '0');
@@ -173,6 +174,7 @@ class PedidoProgramado {
       troco: 0,
       nomeVendedor: nomeVendedor,
       cnpjVendedor: cnpjVendedor,
+      lojaId: lojaId ?? this.lojaId,
     );
   }
 

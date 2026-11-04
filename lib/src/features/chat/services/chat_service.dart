@@ -194,6 +194,50 @@ class ChatService {
         emitirAlertaSonoro: emitirAlertaSonoro,
       );
 
+  /// Processa evento de entrega de mensagem recebido da rede local (2 checks cinzas)
+  static Future<void> processarMensagemEntregueDaRede(
+    String msgId, {
+    String? conversaId,
+  }) async {
+    if (msgId.isEmpty) return;
+    try {
+      final db = await ChatRepositorioSqlite.obterDb();
+      final alterou = await db.update(
+        'mensagens_chat',
+        {'status_envio': 'entregue', 'entregue': 1},
+        where: 'id = ? AND status_envio != "lida"',
+        whereArgs: [msgId],
+      );
+      if (alterou > 0) {
+        notificarAlteracao();
+      }
+    } catch (e) {
+      debugPrint('[ChatService] Erro ao processar mensagem entregue da rede: $e');
+    }
+  }
+
+  /// Processa confirmação de mensagens lidas recebida da rede local (2 checks azuis)
+  static Future<void> processarMensagensLidasDaRede(
+    String conversaId,
+    String idLeitor,
+  ) async {
+    if (conversaId.isEmpty) return;
+    try {
+      final db = await ChatRepositorioSqlite.obterDb();
+      final alterou = await db.update(
+        'mensagens_chat',
+        {'status_envio': 'lida', 'lida': 1},
+        where: 'conversa_id = ? AND status_envio != "lida"',
+        whereArgs: [conversaId],
+      );
+      if (alterou > 0) {
+        notificarAlteracao();
+      }
+    } catch (e) {
+      debugPrint('[ChatService] Erro ao processar mensagens lidas da rede: $e');
+    }
+  }
+
   static void despacharConfirmacaoLida(String convId, String idLeitor) =>
       ChatSincronizacaoService.despacharConfirmacaoLida(convId, idLeitor);
 
@@ -252,11 +296,11 @@ class ChatService {
     String idLeitor, {
     bool notificar = true,
   }) async {
-    final alterou = await ChatRepositorioSqlite.marcarComoLidas(
+    await ChatRepositorioSqlite.marcarComoLidas(
       conversaId,
       idLeitor,
     );
-    if (alterou && notificar) {
+    if (notificar) {
       notificarAlteracao();
     }
     despacharConfirmacaoLida(conversaId, idLeitor);

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:nous/src/core/theme/theme_controller.dart';
+import 'package:nous/src/core/widgets/texto_rolante.dart';
 import 'package:nous/src/features/auth/models/usuario_nous.dart';
 import 'package:nous/src/features/auth/providers/auth_provider.dart';
 
@@ -74,8 +75,8 @@ class LinhaInfoUsuario extends StatelessWidget {
           ),
           const SizedBox(width: 8),
           Flexible(
-            child: Text(
-              censurado ? '••••••••' : (valor.isEmpty ? '—' : valor),
+            child: TextoRolante(
+              texto: censurado ? '••••••••' : (valor.isEmpty ? '—' : valor),
               textAlign: TextAlign.right,
               style: theme.getTextStyle(
                 fontSize: 12,

@@ -87,11 +87,18 @@ class ServidorWsMessageHandler {
         return;
       }
 
-      if (tipo == 'mensagem_entregue' || tipo == 'mensagens_lidas') {
-        await ChatService.processarMensagemRecebidaDaRede(
-          dados,
-          emitirAlertaSonoro: false,
-        );
+      if (tipo == 'mensagem_entregue') {
+        final msgId = dados['id'] as String? ?? dados['mensagemId'] as String? ?? '';
+        final convId = dados['conversaId'] as String?;
+        await ChatService.processarMensagemEntregueDaRede(msgId, conversaId: convId);
+        ctx.retransmitirParaOutros(jsonEncode(dados), exceto: ws);
+        return;
+      }
+
+      if (tipo == 'mensagens_lidas') {
+        final convId = dados['conversaId'] as String? ?? '';
+        final idLeitor = dados['idLeitor'] as String? ?? '';
+        await ChatService.processarMensagensLidasDaRede(convId, idLeitor);
         ctx.retransmitirParaOutros(jsonEncode(dados), exceto: ws);
         return;
       }
@@ -346,10 +353,15 @@ class ServidorWsMessageHandler {
     Map<String, dynamic> dados,
     ServidorWsContext ctx,
   ) {
-    final lojaAtiva = ctx.obterLojaAtiva();
-    if (dados['pedido'] != null && ctx.pdvProvider != null && lojaAtiva != null) {
+    if (dados['pedido'] != null && ctx.pdvProvider != null) {
       final pedido = PedidoLoja.fromJson(dados['pedido'] as Map<String, dynamic>);
-      final lojaAtual = ctx.pdvProvider!.buscarPorId(lojaAtiva.id);
+      final lojaAtiva = ctx.obterLojaAtiva();
+      final lojaIdAlvo = pedido.lojaId.isNotEmpty
+          ? pedido.lojaId
+          : (dados['lojaId'] as String? ?? lojaAtiva?.id ?? '');
+      if (lojaIdAlvo.isEmpty) return;
+
+      final lojaAtual = ctx.pdvProvider!.buscarPorId(lojaIdAlvo);
       if (lojaAtual != null) {
         final pedidos = List<PedidoLoja>.from(lojaAtual.pedidosLoja);
         final idx = pedidos.indexWhere((p) => p.id == pedido.id);

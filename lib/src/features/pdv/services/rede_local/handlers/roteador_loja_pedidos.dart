@@ -236,45 +236,54 @@ class RoteadorLojaPedidos {
         final dados = await decodificarJsonMapaSeguro(body);
         final lojaRemota = Loja.fromJson(dados);
 
-        if (servidor.pdvProvider != null &&
-            servidor.lojaAtiva != null &&
-            servidor.lojaAtiva!.id == lojaRemota.id) {
-          final lojaAtual =
-              servidor.pdvProvider!.buscarPorId(servidor.lojaAtiva!.id) ??
-                  servidor.lojaAtiva!;
+        if (servidor.pdvProvider != null) {
+          final lojaAtual = servidor.pdvProvider!.buscarPorId(lojaRemota.id) ??
+              (servidor.lojaAtiva?.id == lojaRemota.id ? servidor.lojaAtiva : null);
 
-          for (final m in lojaAtual.membros) {
-            final aindaExiste =
-                lojaRemota.membros.any((rm) => rm.cpf == m.cpf);
-            if (!aindaExiste) {
-              await LojasService.removerReferencia(m.cpf, lojaAtual.id);
-              debugPrint(
-                '[ServidorRedeLocal] Membro ${m.nome} (${m.cpf}) removido via sincronização do terminal móvel',
-              );
+          if (lojaAtual != null) {
+            for (final m in lojaAtual.membros) {
+              final aindaExiste =
+                  lojaRemota.membros.any((rm) => rm.cpf == m.cpf);
+              if (!aindaExiste) {
+                await LojasService.removerReferencia(m.cpf, lojaAtual.id);
+                debugPrint(
+                  '[ServidorRedeLocal] Membro ${m.nome} (${m.cpf}) removido via sincronização do terminal móvel',
+                );
+              }
             }
-          }
 
-          final acoesMescladas = List<RegistroAcao>.from(lojaAtual.acoes);
-          for (final acao in lojaRemota.acoes) {
-            if (!acoesMescladas.any((a) => a.id == acao.id)) {
-              acoesMescladas.add(acao);
+            final acoesMescladas = List<RegistroAcao>.from(lojaAtual.acoes);
+            for (final acao in lojaRemota.acoes) {
+              if (!acoesMescladas.any((a) => a.id == acao.id)) {
+                acoesMescladas.add(acao);
+              }
             }
+
+            final lojaConsolidada =
+                LojasService.consolidarLojaComImagensLocais(
+              lojaRemota.copyWith(acoes: acoesMescladas),
+              lojaAtual,
+              manterItensAusentes: false,
+            );
+
+            if (servidor.lojaAtiva?.id == lojaConsolidada.id) {
+              servidor.lojaAtiva = lojaConsolidada;
+            }
+            await LojasService.salvarLojaIndividual(lojaConsolidada);
+            await servidor.pdvProvider!.adicionarOuAtualizarLoja(lojaConsolidada);
+
+            servidor.notificarTodos({
+              'tipo': 'loja_atualizada',
+              'loja': lojaConsolidada.toJson(),
+            });
+          } else {
+            await LojasService.salvarLojaIndividual(lojaRemota);
+            await servidor.pdvProvider!.adicionarOuAtualizarLoja(lojaRemota);
+            servidor.notificarTodos({
+              'tipo': 'loja_atualizada',
+              'loja': lojaRemota.toJson(),
+            });
           }
-
-          final lojaConsolidada =
-              LojasService.consolidarLojaComImagensLocais(
-            lojaRemota.copyWith(acoes: acoesMescladas),
-            lojaAtual,
-            manterItensAusentes: false,
-          );
-
-          servidor.lojaAtiva = lojaConsolidada;
-          await servidor.pdvProvider!.adicionarOuAtualizarLoja(lojaConsolidada);
-
-          servidor.notificarTodos({
-            'tipo': 'loja_atualizada',
-            'loja': lojaConsolidada.toJson(),
-          });
         }
 
         ServidorRedeLocal.responderJson(request, {'sucesso': true});
@@ -295,10 +304,12 @@ class RoteadorLojaPedidos {
         final body = await utf8.decodeStream(request);
         final dados = await decodificarJsonMapaSeguro(body);
         final pedido = PedidoLoja.fromJson(dados);
+        final lojaIdAlvo = pedido.lojaId.isNotEmpty
+            ? pedido.lojaId
+            : (dados['lojaId'] as String? ?? servidor.lojaAtiva?.id ?? '');
 
-        if (servidor.pdvProvider != null && servidor.lojaAtiva != null) {
-          final lojaAtual =
-              servidor.pdvProvider!.buscarPorId(servidor.lojaAtiva!.id);
+        if (servidor.pdvProvider != null && lojaIdAlvo.isNotEmpty) {
+          final lojaAtual = servidor.pdvProvider!.buscarPorId(lojaIdAlvo);
           if (lojaAtual != null) {
             final pedidos = List<PedidoLoja>.from(lojaAtual.pedidosLoja);
             final idx = pedidos.indexWhere((p) => p.id == pedido.id);

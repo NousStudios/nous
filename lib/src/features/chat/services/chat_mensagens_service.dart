@@ -144,7 +144,11 @@ class ChatMensagensService {
     );
 
     if (count == 0) {
-      final info = await ResolvedorConversaInfoService.resolverMetadadosParaMensagem(mensagem);
+      final cpfLogado = ChatRepositorioSqlite.normalizarCpf(mensagem.remetenteId);
+      final info = await ResolvedorConversaInfoService.resolverMetadadosParaMensagem(
+        mensagem,
+        cpfLogado: cpfLogado,
+      );
 
       await db.insert('conversas_chat', {
         'id': mensagem.conversaId,
@@ -359,7 +363,25 @@ class ChatMensagensService {
     required VoidCallback aoNotificar,
   }) async {
     try {
+      final tipoEvento = payloadMensagem['tipo'] as String? ?? 'texto';
+      if (tipoEvento == 'mensagem_entregue' || tipoEvento == 'mensagens_lidas') {
+        return;
+      }
+      final msgIdBruto = payloadMensagem['id'] as String? ?? '';
+      if (msgIdBruto.trim().isEmpty) {
+        return;
+      }
+
       var mensagem = MensagemChat.fromJson(payloadMensagem);
+      if (mensagem.id.trim().isEmpty) {
+        return;
+      }
+      if (mensagem.tipo == 'texto' &&
+          mensagem.texto.trim().isEmpty &&
+          mensagem.caminhoAnexo.trim().isEmpty &&
+          mensagem.pedidoId.trim().isEmpty) {
+        return;
+      }
 
       if (mensagem.tipo == 'imagem' && mensagem.caminhoAnexo.isNotEmpty) {
         final caminhoAjustado =

@@ -369,8 +369,8 @@ class ClienteRedeLocal {
       }
 
       // 1. Baixa o snapshot atualizado da Loja via REST, passando os dados de identidade para auto-associação
-      // Timeout aumentado para 35 segundos para dar tempo ao operador balcão de autorizar a conexão
-      final client = HttpClient()..connectionTimeout = const Duration(seconds: 35);
+      // Timeout de conexão rápido (4s) para falhar ágil se o IP estiver inacessível; timeout de resposta de 35s para autorização humana
+      final client = HttpClient()..connectionTimeout = const Duration(seconds: 4);
       final uriLoja = Uri(
         scheme: 'http',
         host: _ipServidor,

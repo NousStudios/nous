@@ -23,9 +23,10 @@ class IdentidadeAtivaCardWidget extends StatelessWidget {
     final nome = conta?.nome ?? 'Usuário Nous';
     final apelidoBruto = conta?.apelido.trim() ?? '';
     final temApelido = apelidoBruto.isNotEmpty;
-    final apelidoFormatado = apelidoBruto.startsWith('@')
-        ? '($apelidoBruto)'
-        : '(@$apelidoBruto)';
+    final apelidoLimpo =
+        apelidoBruto.replaceAll(RegExp(r'^[(@\s]+|[)\s]+$'), '');
+    final apelidoFormatado =
+        apelidoLimpo.isNotEmpty ? '(@$apelidoLimpo)' : '';
     final temFoto = ImagemService.existe(conta?.foto);
 
     return Container(

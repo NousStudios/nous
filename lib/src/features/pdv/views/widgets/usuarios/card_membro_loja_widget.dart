@@ -2,17 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:nous/src/core/theme/theme_controller.dart';
 import 'package:nous/src/features/auth/providers/auth_provider.dart';
+import 'package:nous/src/features/auth/services/cpf_validator.dart';
 import 'package:nous/src/features/pdv/models/cargo_loja.dart';
 import 'package:nous/src/features/pdv/models/membro_loja.dart';
 import 'package:nous/src/features/pdv/providers/pdv_provider.dart';
 import 'package:nous/src/features/pdv/services/imagem_service.dart';
-
-String _formatarCpf(String cpf) {
-  final digitos = cpf.replaceAll(RegExp(r'[^0-9]'), '');
-  if (digitos.length != 11) return cpf;
-  return '${digitos.substring(0, 3)}.${digitos.substring(3, 6)}.'
-      '${digitos.substring(6, 9)}-${digitos.substring(9, 11)}';
-}
 
 String _rotuloPapel(PapelMembro papel) {
   switch (papel) {
@@ -111,7 +105,6 @@ class _CardMembroLojaWidgetState extends State<CardMembroLojaWidget> {
 
     final contaMembro = auth.buscarContaPorCpf(membro.cpf);
     final nomePrivado = contaMembro?.dadoEstaPrivado('nome') ?? false;
-    final cpfPrivado = contaMembro?.dadoEstaPrivado('cpf') ?? false;
 
     String nomeExibido = membro.nome.isEmpty ? 'Sem nome' : membro.nome;
     bool olhoNomeAberto = false;
@@ -134,17 +127,24 @@ class _CardMembroLojaWidgetState extends State<CardMembroLojaWidget> {
       }
     }
 
-    String cpfExibido = _formatarCpf(membro.cpf);
-    if (cpfPrivado && contaMembro != null) {
-      if (ehVoce) {
-        final revelado = auth.dadoEstaReveladoParaDono('cpf');
-        cpfExibido = revelado ? _formatarCpf(membro.cpf) : '•••.•••.•••-••';
-      } else {
-        final autorizado = contaMembro.dadoAutorizadoPara('cpf', widget.cpfLogado);
-        if (!autorizado) {
-          cpfExibido = '•••.•••.•••-••';
-        }
+    String cpfExibido;
+    bool olhoCpfAberto = false;
+    VoidCallback? aoClicarOlhoCpf;
+
+    if (ehVoce) {
+      final revelado = auth.dadoEstaReveladoParaDono('cpf');
+      olhoCpfAberto = revelado;
+      aoClicarOlhoCpf = () => auth.alternarRevelacaoParaDono('cpf');
+      cpfExibido = CpfValidator.formatProtegido(membro.cpf, revelado: revelado);
+    } else {
+      final privado = contaMembro?.dadoEstaPrivado('cpf') ?? true;
+      final autorizado = contaMembro?.dadoAutorizadoPara('cpf', widget.cpfLogado) ?? false;
+      final revelado = !privado || autorizado;
+      olhoCpfAberto = revelado;
+      if (!revelado) {
+        aoClicarOlhoCpf = () => widget.onSolicitarAcessoAoDado('CPF', 'cpf');
       }
+      cpfExibido = CpfValidator.formatProtegido(membro.cpf, revelado: revelado);
     }
 
     return MouseRegion(
@@ -248,15 +248,38 @@ class _CardMembroLojaWidgetState extends State<CardMembroLojaWidget> {
                               ? '${_rotuloPapel(membro.papel)} ($cargoNome)'
                               : _rotuloPapel(membro.papel);
                         }
-                        return Text(
-                          '$rotuloCargo • $cpfExibido'
-                          ' • desde ${_dataCurta(membro.desde)}',
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: theme.getTextStyle(
-                            fontSize: 10,
-                            color: theme.secondaryTextColor,
-                          ),
+                        return Row(
+                          children: [
+                            Flexible(
+                              child: Text(
+                                '$rotuloCargo • $cpfExibido'
+                                ' • desde ${_dataCurta(membro.desde)}',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: theme.getTextStyle(
+                                  fontSize: 10,
+                                  color: theme.secondaryTextColor,
+                                ),
+                              ),
+                            ),
+                            if (aoClicarOlhoCpf != null) ...[
+                              const SizedBox(width: 4),
+                              InkWell(
+                                onTap: aoClicarOlhoCpf,
+                                borderRadius: BorderRadius.circular(8),
+                                child: Padding(
+                                  padding: const EdgeInsets.all(2.0),
+                                  child: Icon(
+                                    olhoCpfAberto
+                                        ? Icons.visibility_outlined
+                                        : Icons.visibility_off_outlined,
+                                    size: 13,
+                                    color: theme.secondaryTextColor,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ],
                         );
                       },
                     ),

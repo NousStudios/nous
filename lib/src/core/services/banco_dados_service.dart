@@ -53,6 +53,26 @@ class BancoDadosService {
 
     await _migrarDadosDoSharedPreferencesSeNecessario(banco);
 
+    // Autocura: expurgo preventivo de mensagens espúrias ou de controle que geram balões vazios
+    try {
+      await banco.execute('''
+        DELETE FROM mensagens_chat 
+        WHERE tipo IN ('mensagem_entregue', 'mensagens_lidas')
+           OR id = '' 
+           OR remetente_id = ''
+           OR (tipo = 'texto' AND TRIM(texto) = '' AND (caminho_anexo IS NULL OR caminho_anexo = '') AND (pedido_id IS NULL OR pedido_id = ''));
+      ''');
+    } catch (_) {}
+
+    // Autocura: correção pontual do pedido 1792852970481 para a sua loja de origem (Belzebolos)
+    try {
+      await banco.execute('''
+        UPDATE pedidos 
+        SET loja_id = '1791078595929' 
+        WHERE id = '1792852970481' AND loja_id = '1791320801067';
+      ''');
+    } catch (_) {}
+
     // Dispara a manutenção preventiva periódica (VACUUM e integrity_check) em segundo plano
     _executarManutencaoEmSegundoPlano(banco);
 

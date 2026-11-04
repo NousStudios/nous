@@ -1,10 +1,15 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'package:nous/src/core/theme/theme_controller.dart';
+import 'package:nous/src/features/auth/providers/auth_provider.dart';
 import 'package:nous/src/features/auth/views/widgets/cpf_input_widget.dart';
 import 'package:nous/src/features/auth/views/widgets/login_buttons_widget.dart';
 import 'package:nous/src/features/auth/views/widgets/logo_widget.dart';
 import 'package:nous/src/features/auth/views/terms_view.dart';
+import 'package:nous/src/features/notificacoes/providers/notificacoes_provider.dart';
+import 'package:nous/src/features/pdv/providers/pdv_provider.dart';
+import 'package:nous/src/features/pdv/views/perfis_pdv_view.dart';
 
 class LoginView extends StatefulWidget {
   const LoginView({super.key});
@@ -35,6 +40,25 @@ class _LoginViewState extends State<LoginView> {
         setState(() {
           _indiceFrase = (_indiceFrase + 1) % _frases.length;
         });
+      }
+    });
+
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (!mounted) return;
+      final auth = context.read<AuthProvider>();
+      final restaurou = await auth.tentarRestaurarSessao();
+      if (restaurou && mounted) {
+        final pdv = context.read<PdvProvider>();
+        final notificacoes = context.read<NotificacoesProvider>();
+        await notificacoes.carregarParaCpf(auth.cpf);
+        await pdv.entrarComCpf(auth.cpf);
+        if (mounted) {
+          Navigator.pushAndRemoveUntil(
+            context,
+            MaterialPageRoute(builder: (context) => const PerfisPdvView()),
+            (route) => false,
+          );
+        }
       }
     });
   }

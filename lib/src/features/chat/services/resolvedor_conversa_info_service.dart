@@ -1,6 +1,7 @@
 import 'package:nous/src/features/auth/services/contas_nous_service.dart';
 import 'package:nous/src/features/chat/models/mensagem_chat.dart';
 import 'package:nous/src/features/chat/services/chat_repositorio_sqlite.dart';
+import 'package:nous/src/features/pdv/services/lojas_service.dart';
 
 /// Metadados consolidados e validados de uma conversa para exibição e persistência.
 class MetadadosConversaInfo {
@@ -28,8 +29,9 @@ class MetadadosConversaInfo {
 class ResolvedorConversaInfoService {
   /// Resolve com segurança os metadados cadastrais de uma conversa a partir de uma mensagem.
   static Future<MetadadosConversaInfo> resolverMetadadosParaMensagem(
-    MensagemChat mensagem,
-  ) async {
+    MensagemChat mensagem, {
+    String? cpfLogado,
+  }) async {
     final ehLoja = mensagem.conversaId.startsWith('loja_');
     final ehGrupo = mensagem.conversaId.startsWith('grupo_');
     String? lojaId;
@@ -77,7 +79,23 @@ class ResolvedorConversaInfoService {
         );
       }
 
-      if (cpfUsuario.length == 11) {
+      final meuCpfNorm = cpfLogado != null
+          ? ChatRepositorioSqlite.normalizarCpf(cpfLogado)
+          : '';
+      final usuarioLogadoEhOCliente =
+          meuCpfNorm.isNotEmpty && meuCpfNorm == cpfUsuario;
+
+      if (usuarioLogadoEhOCliente && lojaId != null) {
+        // O usuário logado é o CLIENTE falando com a Loja: o interlocutor exibido é a LOJA!
+        final loja = await LojasService.carregarLojaPorId(lojaId);
+        if (loja != null) {
+          tituloConversa = loja.nome;
+          subtituloConversa = 'Loja';
+          fotoConversa = loja.logo;
+          identificadorConversa = loja.id;
+        }
+      } else if (cpfUsuario.length == 11) {
+        // O usuário logado é o lojista/atendente falando com o CLIENTE: o interlocutor exibido é o CLIENTE!
         identificadorConversa = cpfUsuario;
         final conta = await ContasNousService.buscarPorCpf(cpfUsuario);
         if (conta != null) {

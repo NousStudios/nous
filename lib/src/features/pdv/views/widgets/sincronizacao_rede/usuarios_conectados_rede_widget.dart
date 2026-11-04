@@ -72,7 +72,7 @@ class _UsuariosConectadosRedeWidgetState
                   Icon(Icons.hub_rounded, size: 18, color: theme.textColor),
                   const SizedBox(width: 8),
                   Text(
-                    'UsuÃ¡rios Conectados na Rede:',
+                    'Usuários Conectados na Rede:',
                     style: theme.getTextStyle(
                       fontSize: 13,
                       fontWeight: FontWeight.bold,
@@ -171,8 +171,8 @@ class _UsuariosConectadosRedeWidgetState
                   ),
                   child: Text(
                     presencas.isEmpty
-                        ? 'Nenhum outro usuÃ¡rio detectado na rede atÃ© o momento.'
-                        : 'Nenhum usuÃ¡rio encontrado para a busca "$termo".',
+                        ? 'Nenhum outro usuário detectado na rede até o momento.'
+                        : 'Nenhum usuário encontrado para a busca "$termo".',
                     textAlign: TextAlign.center,
                     style: theme.getTextStyle(
                       fontSize: 11,
@@ -285,7 +285,7 @@ class _UsuariosConectadosRedeWidgetState
                           const SizedBox(width: 8),
                           if (temCpf)
                             IconButton(
-                              tooltip: 'Ver Ficha do UsuÃ¡rio',
+                              tooltip: 'Ver Ficha do Usuário',
                               icon: Icon(Icons.info_outline_rounded,
                                   size: 16, color: theme.secondaryTextColor),
                               padding: EdgeInsets.zero,
