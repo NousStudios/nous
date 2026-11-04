@@ -26,6 +26,7 @@ class ConsolidadorLojaLocal {
     Loja lojaNova,
     Loja? lojaLocal, {
     bool manterItensAusentes = false,
+    bool mesclarColecoesRemotas = true,
   }) {
     if (lojaLocal == null) {
       return SanitizadorImagensLoja.sanitizar(lojaNova);
@@ -208,9 +209,11 @@ class ConsolidadorLojaLocal {
 
     // 7. Mesas da loja
     final mesasConsolidadas = List<MesaLoja>.from(lojaNova.mesas);
-    for (final mLocal in lojaLocal.mesas) {
-      if (!mesasConsolidadas.any((m) => m.id == mLocal.id)) {
-        mesasConsolidadas.add(mLocal);
+    if (mesclarColecoesRemotas) {
+      for (final mLocal in lojaLocal.mesas) {
+        if (!mesasConsolidadas.any((m) => m.id == mLocal.id)) {
+          mesasConsolidadas.add(mLocal);
+        }
       }
     }
 
@@ -241,6 +244,24 @@ class ConsolidadorLojaLocal {
     final videosConsolidados = consolidarAnexos(lojaNova.videos, lojaLocal.videos);
     final arquivosConsolidados = consolidarAnexos(lojaNova.arquivos, lojaLocal.arquivos);
 
+    if (!mesclarColecoesRemotas) {
+      return SanitizadorImagensLoja.sanitizar(
+        lojaNova.copyWith(
+          logo: logoFinal,
+          categoriasLoja: categoriasConsolidadas,
+          itensLoja: itensConsolidados,
+          clientesLoja: clientesConsolidados,
+          fornecedoresLoja: fornecedoresConsolidados,
+          galeria: galeriaConsolidada,
+          musicas: musicasConsolidadas,
+          arquivosAudio: audiosConsolidados,
+          videos: videosConsolidados,
+          arquivos: arquivosConsolidados,
+          mesas: mesasConsolidadas,
+        ),
+      );
+    }
+
     // 9. Histórico de Ações
     final acoesMescladas = List<RegistroAcao>.from(lojaLocal.acoes);
     for (final a in lojaNova.acoes) {
@@ -265,7 +286,7 @@ class ConsolidadorLojaLocal {
     final listaPedidos = pedidosMesclados.values.toList()
       ..sort((a, b) => b.dataHora.compareTo(a.dataHora));
 
-    // 11. Turnos de Caixa - UNIÃO SOBERANA
+    // 11. Turnos de Caixa - UNIÃO SOBERANA (preserva movimentações de suprimento/sangria no turno aberto)
     final turnosMesclados = <String, TurnoCaixa>{};
     for (final t in lojaLocal.turnosCaixa) {
       turnosMesclados[t.id] = t;
@@ -275,13 +296,7 @@ class ConsolidadorLojaLocal {
         turnosMesclados[t.id] = t;
       } else {
         final existente = turnosMesclados[t.id]!;
-        if (existente.aberto && !t.aberto) {
-          turnosMesclados[t.id] = t;
-        } else if (!existente.aberto && t.aberto) {
-          // Mantém o fechado
-        } else if (t.dataAbertura.isAfter(existente.dataAbertura)) {
-          turnosMesclados[t.id] = t;
-        }
+        turnosMesclados[t.id] = mesclarDoisTurnosCaixa(existente, t);
       }
     }
     final listaTurnos = turnosMesclados.values.toList()
@@ -313,17 +328,20 @@ class ConsolidadorLojaLocal {
     final listaPagamentos = pagamentosMesclados.values.toList()
       ..sort((a, b) => b.dataHora.compareTo(a.dataHora));
 
-    // 14. Pedidos Programados
-    final programadosMesclados = <String, PedidoProgramado>{};
-    for (final pp in lojaLocal.pedidosProgramados) {
-      programadosMesclados[pp.id] = pp;
-    }
-    for (final pp in lojaNova.pedidosProgramados) {
-      if (!programadosMesclados.containsKey(pp.id)) {
-        programadosMesclados[pp.id] = pp;
+    // 14. Pedidos Programados (lojaNova é soberana para refletir exclusões, pausas e edições)
+    final mapaProgramadosLocais = <String, PedidoProgramado>{
+      for (final pp in lojaLocal.pedidosProgramados) pp.id: pp,
+    };
+    final listaProgramados = lojaNova.pedidosProgramados.map((ppNovo) {
+      final ppLocal = mapaProgramadosLocais[ppNovo.id];
+      if (ppLocal != null && ppLocal.ultimaDataGerado != null) {
+        if (ppNovo.ultimaDataGerado == null ||
+            ppLocal.ultimaDataGerado!.isAfter(ppNovo.ultimaDataGerado!)) {
+          return ppNovo.copyWith(ultimaDataGerado: ppLocal.ultimaDataGerado);
+        }
       }
-    }
-    final listaProgramados = programadosMesclados.values.toList();
+      return ppNovo;
+    }).toList();
 
     // 15. Membros da Loja
     final membrosMesclados = <String, MembroLoja>{};
@@ -346,6 +364,17 @@ class ConsolidadorLojaLocal {
     }
     final listaCargos = cargosMesclados.values.toList();
 
+    final impressoraNovaTemHardware =
+        lojaNova.configuracoesImpressora.nomeImpressora.trim().isNotEmpty ||
+            lojaNova.configuracoesImpressora.enderecoRede.trim().isNotEmpty;
+    final impressoraLocalTemHardware =
+        lojaLocal.configuracoesImpressora.nomeImpressora.trim().isNotEmpty ||
+            lojaLocal.configuracoesImpressora.enderecoRede.trim().isNotEmpty;
+    final configuracoesImpressoraFinal =
+        (!impressoraNovaTemHardware && impressoraLocalTemHardware)
+            ? lojaLocal.configuracoesImpressora
+            : lojaNova.configuracoesImpressora;
+
     return lojaNova.copyWith(
       logo: logoFinal,
       categoriasLoja: categoriasConsolidadas,
@@ -366,6 +395,7 @@ class ConsolidadorLojaLocal {
       pedidosProgramados: listaProgramados,
       membros: listaMembros,
       cargosPersonalizados: listaCargos,
+      configuracoesImpressora: configuracoesImpressoraFinal,
       layoutExpandido: lojaLocal.layoutExpandido,
       tipoLayoutMaior: lojaLocal.tipoLayoutMaior.isNotEmpty
           ? lojaLocal.tipoLayoutMaior
@@ -444,5 +474,29 @@ class ConsolidadorLojaLocal {
       comentarioAutorEmail: emailAutorFinal,
       comentarioDataHora: dataHoraComentarioFinal,
     );
+  }
+
+  /// Mescla soberana de dois turnos de caixa com o mesmo ID, preservando todas as
+  /// movimentações (sangrias e suprimentos) de ambos os nós e priorizando o estado fechado.
+  static TurnoCaixa mesclarDoisTurnosCaixa(TurnoCaixa a, TurnoCaixa b) {
+    final mapaMovs = <String, MovimentoCaixa>{
+      for (final m in a.movimentacoes) m.id: m,
+    };
+    for (final m in b.movimentacoes) {
+      mapaMovs[m.id] = m;
+    }
+    final movsMescladas = mapaMovs.values.toList()
+      ..sort((x, y) => x.dataHora.compareTo(y.dataHora));
+
+    final TurnoCaixa base;
+    if (a.aberto && !b.aberto) {
+      base = b;
+    } else if (!a.aberto && b.aberto) {
+      base = a;
+    } else {
+      base = b;
+    }
+
+    return base.copyWith(movimentacoes: movsMescladas);
   }
 }

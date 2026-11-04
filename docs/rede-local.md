@@ -23,8 +23,8 @@ Arquivos principais: `pdv/services/rede_local/servidor_rede_local.dart`, `pdv/se
 | `POST /api/loja/atualizar` | Envio de qualquer alteração da loja feita no terminal |
 | `POST /api/loja/sair` | Notificação imediata de saída voluntária de membro da loja |
 | `POST /api/pedido` | Criação ou atualização de pedidos (se o pedido já existe, atualiza status, valores e notas) |
-| `POST /api/movimento_estoque` | Movimento de estoque |
-| `POST /api/mesa` | Mesas e comandas |
+| `POST /api/movimento_estoque` | Movimento de estoque (com `lojaId` explícito para isolamento multi-loja) |
+| `POST /api/mesa` | Mesas e comandas (com `lojaId` explícito para isolamento multi-loja) |
 | `GET /api/imagem?caminho=...` | Baixar foto/mídia |
 | `POST /api/upload_imagem` | Subir bytes de imagem para o servidor |
 | `GET /api/audio?caminho=...` | Streaming de áudio com `Accept-Ranges: bytes` |

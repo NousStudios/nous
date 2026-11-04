@@ -28,6 +28,7 @@ class GeradorBobinaComanda {
         pageFormat: pageFormat,
         build: (context) {
           return pw.Column(
+            mainAxisSize: pw.MainAxisSize.min,
             crossAxisAlignment: pw.CrossAxisAlignment.stretch,
             children: [
               pw.Center(
@@ -44,7 +45,7 @@ class GeradorBobinaComanda {
                 ),
               ),
               pw.SizedBox(height: 6),
-              pw.Divider(thickness: 0.5),
+              pw.Divider(height: 6, thickness: 0.5),
               pw.Padding(
                 padding: const pw.EdgeInsets.symmetric(vertical: 2),
                 child: pw.Row(
@@ -63,7 +64,7 @@ class GeradorBobinaComanda {
                   ],
                 ),
               ),
-              pw.Divider(thickness: 0.5),
+              pw.Divider(height: 6, thickness: 0.5),
               pw.SizedBox(height: 6),
               pw.Align(
                 alignment: pw.Alignment.centerLeft,
@@ -91,7 +92,7 @@ class GeradorBobinaComanda {
       bytes: bytes,
       nomeImpressora: config.nomeImpressora,
       jobName: 'TesteNous',
-      format: pageFormat,
+      format: ImpressaoUtils.formatoResolvidoDoDocumento(doc, pageFormat),
     );
   }
 
@@ -158,6 +159,7 @@ class GeradorBobinaComanda {
         pageFormat: pageFormat,
         build: (context) {
           return pw.Column(
+            mainAxisSize: pw.MainAxisSize.min,
             crossAxisAlignment: pw.CrossAxisAlignment.stretch,
             children: [
               pw.Center(
@@ -174,7 +176,7 @@ class GeradorBobinaComanda {
                 ),
               ),
               pw.SizedBox(height: 6),
-              pw.Divider(thickness: 0.5),
+              pw.Divider(height: 6, thickness: 0.5),
               pw.Center(
                 child: pw.Text(
                   'CLIENTE',
@@ -193,7 +195,7 @@ class GeradorBobinaComanda {
                 linhaDado('Redes', redesSociais),
               if (descricao != null && descricao.isNotEmpty)
                 linhaDado('Descrição', descricao),
-              pw.Divider(thickness: 0.5),
+              pw.Divider(height: 6, thickness: 0.5),
               pw.SizedBox(height: 4),
               pw.Center(
                 child: pw.Text(
@@ -204,7 +206,7 @@ class GeradorBobinaComanda {
               pw.SizedBox(height: 2),
               for (final item in itens)
                 linhaDupla(item.key, ImpressaoUtils.valor(item.value)),
-              pw.Divider(thickness: 0.5),
+              pw.Divider(height: 6, thickness: 0.5),
               pw.SizedBox(height: 2),
               linhaDupla('TOTAL', ImpressaoUtils.valor(total), negrito: true),
               pw.SizedBox(height: 2),
@@ -229,7 +231,7 @@ class GeradorBobinaComanda {
       bytes: bytes,
       nomeImpressora: config.nomeImpressora,
       jobName: 'ExemploComandaNous',
-      format: pageFormat,
+      format: ImpressaoUtils.formatoResolvidoDoDocumento(doc, pageFormat),
     );
   }
 
@@ -270,6 +272,7 @@ class GeradorBobinaComanda {
         pageFormat: pageFormat,
         build: (context) {
           return pw.Column(
+            mainAxisSize: pw.MainAxisSize.min,
             crossAxisAlignment: pw.CrossAxisAlignment.stretch,
             children: [
               if (pedido.nomeVendedor.isNotEmpty)
@@ -293,20 +296,13 @@ class GeradorBobinaComanda {
                   style: estilo(negrito: true, tamanhoCustom: tamanho + 2),
                 ),
               ),
-              if (pedido.comanda.isNotEmpty)
-                pw.Center(
-                  child: pw.Text(
-                    'Ref: ${pedido.comanda}',
-                    style: estilo(negrito: true, tamanhoCustom: tamanho + 1),
-                  ),
-                ),
               pw.Center(
                 child: pw.Text(
                   ImpressaoUtils.dataHora(pedido.dataHora),
                   style: estilo(tamanhoCustom: tamanho - 2),
                 ),
               ),
-              pw.Divider(thickness: 0.5),
+              pw.Divider(height: 6, thickness: 0.5),
               pw.SizedBox(height: 2),
               if (pedido.clienteNome.isNotEmpty)
                 pw.Padding(
@@ -355,7 +351,7 @@ class GeradorBobinaComanda {
                     style: estilo(negrito: true),
                   ),
                 ),
-              pw.Divider(thickness: 0.5),
+              pw.Divider(height: 6, thickness: 0.5),
               pw.SizedBox(height: 4),
               pw.Center(
                 child: pw.Text('ITENS', style: estilo(negrito: true)),
@@ -396,7 +392,7 @@ class GeradorBobinaComanda {
                     ),
                 ],
               pw.SizedBox(height: 8),
-              pw.Divider(),
+              pw.Divider(height: 6, thickness: 0.5),
               linhaDupla('Subtotal', ImpressaoUtils.valor(subtotal)),
               linhaDupla('Frete', ImpressaoUtils.valor(pedido.frete)),
               if (pedido.desconto > 0)
@@ -432,7 +428,7 @@ class GeradorBobinaComanda {
       bytes: bytes,
       nomeImpressora: config.nomeImpressora,
       jobName: 'ComandaNous-${pedido.numero}',
-      format: pageFormat,
+      format: ImpressaoUtils.formatoResolvidoDoDocumento(doc, pageFormat),
     );
   }
 }

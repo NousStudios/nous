@@ -497,13 +497,21 @@ class ReconciliadorLojaRede {
       if (mExistente == null) {
         mapaMesas[mLocal.id] = mLocal;
         houveCuraNoServidor = true;
-      } else {
-        // Ambas as pontas possuem a mesma mesa: mesclar itens de comanda por ID do item
+      } else if (mExistente.status == StatusMesa.ocupada &&
+          mLocal.status == StatusMesa.ocupada) {
+        // Ambas as pontas estão ocupadas na mesma sessão: mesclar itens de comanda por ID do item,
+        // sem ressuscitar mesas já liberadas/fechadas no balcão.
+        final aberturaMinima = mExistente.dataHoraAbertura
+            ?.subtract(const Duration(seconds: 5));
         final mapaItens = <String, ItemComandaMesa>{
           for (final it in mExistente.itens) it.id: it,
         };
         var itensAdicionados = false;
         for (final itLocal in mLocal.itens) {
+          if (aberturaMinima != null &&
+              itLocal.dataHora.isBefore(aberturaMinima)) {
+            continue;
+          }
           if (!mapaItens.containsKey(itLocal.id)) {
             mapaItens[itLocal.id] = itLocal;
             itensAdicionados = true;
@@ -512,12 +520,6 @@ class ReconciliadorLojaRede {
         if (itensAdicionados) {
           final todosItens = mapaItens.values.toList()
             ..sort((a, b) => a.dataHora.compareTo(b.dataHora));
-          final statusEfetivo = todosItens.isNotEmpty
-              ? StatusMesa.ocupada
-              : (mExistente.status == StatusMesa.ocupada ||
-                      mLocal.status == StatusMesa.ocupada
-                  ? StatusMesa.ocupada
-                  : StatusMesa.livre);
           final clienteEfetivo = mExistente.clienteNome.isNotEmpty
               ? mExistente.clienteNome
               : mLocal.clienteNome;
@@ -527,7 +529,7 @@ class ReconciliadorLojaRede {
 
           mapaMesas[mLocal.id] = mExistente.copyWith(
             itens: todosItens,
-            status: statusEfetivo,
+            status: StatusMesa.ocupada,
             clienteNome: clienteEfetivo,
             observacoes: obsEfetiva,
           );
@@ -606,7 +608,7 @@ class ReconciliadorLojaRede {
         ? pagamentosMesclados.sublist(0, 1000)
         : pagamentosMesclados;
 
-    // I. Turnos de Caixa (Finanças e Fechamento) - Map O(1)
+    // I. Turnos de Caixa (Finanças e Fechamento) - Map O(1) com união de movimentações
     final mapaTurnos = <String, TurnoCaixa>{
       for (final t in lojaParaServidor.turnosCaixa) t.id: t,
     };
@@ -615,24 +617,36 @@ class ReconciliadorLojaRede {
       if (tExistente == null) {
         mapaTurnos[tLocal.id] = tLocal;
         houveCuraNoServidor = true;
-      } else if (tExistente.aberto && !tLocal.aberto) {
-        mapaTurnos[tLocal.id] = tLocal;
-        houveCuraNoServidor = true;
+      } else {
+        final mesclado =
+            ConsolidadorLojaLocal.mesclarDoisTurnosCaixa(tExistente, tLocal);
+        if (mesclado.aberto != tExistente.aberto ||
+            mesclado.movimentacoes.length != tExistente.movimentacoes.length) {
+          mapaTurnos[tLocal.id] = mesclado;
+          houveCuraNoServidor = true;
+        }
       }
     }
     final turnosMesclados = mapaTurnos.values.toList()
       ..sort((a, b) => b.dataAbertura.compareTo(a.dataAbertura));
 
-    // J. Pedidos Programados - Set O(1)
+    // J. Pedidos Programados - O servidor balcão é soberano na lista ativa (evita ressuscitar excluídos),
+    // preservando apenas ultimaDataGerado mais recente caso tenha sido gerado antes.
+    final mapaProgramadosLocal = <String, PedidoProgramado>{
+      for (final pp in lojaLocal.pedidosProgramados) pp.id: pp,
+    };
     final programadosMesclados =
-        List<PedidoProgramado>.from(lojaParaServidor.pedidosProgramados);
-    final idsProgramados = programadosMesclados.map((pp) => pp.id).toSet();
-    for (final ppLocal in lojaLocal.pedidosProgramados) {
-      if (idsProgramados.add(ppLocal.id)) {
-        programadosMesclados.add(ppLocal);
-        houveCuraNoServidor = true;
+        lojaParaServidor.pedidosProgramados.map((ppRemoto) {
+      final ppLocal = mapaProgramadosLocal[ppRemoto.id];
+      if (ppLocal != null && ppLocal.ultimaDataGerado != null) {
+        if (ppRemoto.ultimaDataGerado == null ||
+            ppLocal.ultimaDataGerado!.isAfter(ppRemoto.ultimaDataGerado!)) {
+          houveCuraNoServidor = true;
+          return ppRemoto.copyWith(ultimaDataGerado: ppLocal.ultimaDataGerado);
+        }
       }
-    }
+      return ppRemoto;
+    }).toList();
 
     // K. Cargos Personalizados - Set O(1)
     final cargosMesclados =

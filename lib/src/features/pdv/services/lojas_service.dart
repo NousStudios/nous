@@ -27,11 +27,13 @@ class LojasService {
     Loja lojaNova,
     Loja? lojaLocal, {
     bool manterItensAusentes = false,
+    bool mesclarColecoesRemotas = true,
   }) =>
       ConsolidadorLojaLocal.consolidar(
         lojaNova,
         lojaLocal,
         manterItensAusentes: manterItensAusentes,
+        mesclarColecoesRemotas: mesclarColecoesRemotas,
       );
 
 
@@ -352,19 +354,89 @@ class LojasService {
     );
   }
 
-  /// Salva ou atualiza uma única loja no cofre do seu dono original com proteção total contra perda de imagens
-  static Future<void> salvarLojaIndividual(Loja loja) async {
+  /// Salva ou atualiza uma única loja de forma atômica e isolada no SQLite,
+  /// sem recarregar nem tocar nas demais lojas do mesmo CPF dono.
+  static Future<void> salvarLojaIndividual(
+    Loja loja, {
+    bool mesclarColecoesRemotas = false,
+  }) async {
     if (ehLojaHostFalsa(loja.id, loja.tags, loja.nome)) return;
-    final dono = loja.cpfDonoOriginal.isNotEmpty ? loja.cpfDonoOriginal : 'sistema';
-    final cofre = await carregar(dono);
-    final idx = cofre.indexWhere((l) => l.id == loja.id);
-    if (idx == -1) {
-      final existente = await carregarLojaPorId(loja.id);
-      cofre.add(consolidarLojaComImagensLocais(loja, existente));
-    } else {
-      cofre[idx] = consolidarLojaComImagensLocais(loja, cofre[idx]);
-    }
-    await salvar(dono, cofre);
+    final dono =
+        loja.cpfDonoOriginal.isNotEmpty ? loja.cpfDonoOriginal : 'sistema';
+    final existente = await carregarLojaPorId(loja.id);
+    var lojaConsolidada = consolidarLojaComImagensLocais(
+      loja.copyWith(cpfDonoOriginal: dono),
+      existente,
+      mesclarColecoesRemotas: mesclarColecoesRemotas,
+    );
+    lojaConsolidada = sanitizarCaminhosImagens(lojaConsolidada);
+
+    final db = await BancoDadosService.db;
+    await db.transaction((txn) async {
+      final lojaMap = lojaConsolidada.toJson();
+      final lojaBaseMap = Map<String, dynamic>.from(lojaMap)
+        ..['pedidosLoja'] = const []
+        ..['movimentosEstoque'] = const []
+        ..['pagamentosFuncionarios'] = const [];
+
+      await txn.insert(
+        'lojas',
+        {
+          'id': lojaConsolidada.id,
+          'cpf_dono': dono,
+          'nome': lojaConsolidada.nome,
+          'dados_json': jsonEncode(lojaBaseMap),
+        },
+        conflictAlgorithm: ConflictAlgorithm.replace,
+      );
+
+      await PedidosRepositorioLoja.salvarLote(
+        txn,
+        lojaConsolidada.id,
+        lojaConsolidada.pedidosLoja,
+      );
+
+      await MovimentosRepositorioLoja.salvarLote(
+        txn,
+        lojaConsolidada.id,
+        lojaConsolidada.movimentosEstoque,
+      );
+
+      await PagamentosRepositorioLoja.salvarLote(
+        txn,
+        lojaConsolidada.id,
+        lojaConsolidada.pagamentosFuncionarios,
+      );
+    });
+  }
+
+  static Future<void> excluirPedidoIndividual(
+    String lojaId,
+    String pedidoId,
+  ) =>
+      PedidosRepositorioLoja.excluirPorId(lojaId, pedidoId);
+
+  static Future<void> excluirMovimentoEstoqueIndividual(
+    String lojaId,
+    String movimentoId,
+  ) =>
+      MovimentosRepositorioLoja.excluirPorId(lojaId, movimentoId);
+
+  static Future<void> excluirPagamentoFuncionarioIndividual(
+    String lojaId,
+    String pagamentoId,
+  ) =>
+      PagamentosRepositorioLoja.excluirPorId(lojaId, pagamentoId);
+
+  /// Remove fisicamente pedidos, movimentos de estoque e pagamentos de funcionários
+  /// de uma loja específica durante o reset de transações financeiras.
+  static Future<void> limparTransacoesBancoLoja(String lojaId) async {
+    final db = await BancoDadosService.db;
+    await db.transaction((txn) async {
+      await PedidosRepositorioLoja.excluirTodosDaLoja(lojaId, executor: txn);
+      await MovimentosRepositorioLoja.excluirTodosDaLoja(lojaId, executor: txn);
+      await PagamentosRepositorioLoja.excluirTodosDaLoja(lojaId, executor: txn);
+    });
   }
 
   /// Executa uma verificação proativa de integridade nas lojas salvas no SQLite.

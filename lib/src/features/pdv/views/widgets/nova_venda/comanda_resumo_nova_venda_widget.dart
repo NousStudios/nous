@@ -33,6 +33,7 @@ class ComandaResumoNovaVendaWidget extends StatelessWidget {
   final double troco;
   final BoxDecoration decoracaoDoBloco;
   final Widget Function(String) tituloDoBloco;
+  final bool expandirAltura;
 
   const ComandaResumoNovaVendaWidget({
     super.key,
@@ -63,6 +64,7 @@ class ComandaResumoNovaVendaWidget extends StatelessWidget {
     required this.troco,
     required this.decoracaoDoBloco,
     required this.tituloDoBloco,
+    this.expandirAltura = false,
   });
 
   Widget _linhaComanda(String esquerda, String direita, {bool destaque = false}) {
@@ -130,33 +132,21 @@ class ComandaResumoNovaVendaWidget extends StatelessWidget {
   Widget build(BuildContext context) {
     final totalLinhas = carrinho.length;
 
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(12),
-      decoration: decoracaoDoBloco,
-      child: Column(
-        children: [
-          tituloDoBloco('Comanda'),
-          ConstrainedBox(
-            constraints: const BoxConstraints(minHeight: 160, maxHeight: 350),
-            child: SingleChildScrollView(
-              controller: scrollController,
-              child: Center(
-                child: Container(
-                  width: larguraComanda,
-                  constraints: const BoxConstraints(maxWidth: 340),
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 16, vertical: 16),
-                  decoration: BoxDecoration(
-                    color: theme.backgroundColor.withValues(alpha: 0.4),
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(
-                      color: theme.borderColor.withValues(alpha: 0.6),
-                    ),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
+    final papelComanda = Center(
+      child: Container(
+        width: larguraComanda,
+        constraints: const BoxConstraints(maxWidth: 340, minHeight: 160),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+        decoration: BoxDecoration(
+          color: theme.backgroundColor.withValues(alpha: 0.4),
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(
+            color: theme.borderColor.withValues(alpha: 0.6),
+          ),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
                       Center(
                         child: Text(
                           nomeVendedor.isEmpty
@@ -344,9 +334,25 @@ class ComandaResumoNovaVendaWidget extends StatelessWidget {
                     ],
                   ),
                 ),
+              );
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: decoracaoDoBloco,
+      child: Column(
+        children: [
+          tituloDoBloco('Comanda'),
+          if (expandirAltura)
+            papelComanda
+          else
+            ConstrainedBox(
+              constraints: const BoxConstraints(minHeight: 160, maxHeight: 350),
+              child: SingleChildScrollView(
+                controller: scrollController,
+                child: papelComanda,
               ),
             ),
-          ),
         ],
       ),
     );

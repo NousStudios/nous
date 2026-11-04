@@ -347,11 +347,11 @@ Primeiro item: botão de **Sincronização em Rede Wi-Fi** (abre 4.1). Depois:
 Todas abrem centralizadas, aceitam **F11** e, no desktop expandido, ficam em **duas colunas** (~1050 px).
 
 ### 7.1 Nova Venda
-📄 `nova_venda_dialog.dart` · subwidgets modulares: `widgets/nova_venda/cliente_seletor_nova_venda_widget.dart`, `widgets/nova_venda/comanda_resumo_nova_venda_widget.dart`, `widgets/nova_venda/pagamento_nova_venda_widget.dart`, `widgets/nova_venda/botao_hover_forma.dart`
-- **Layout Adaptativo e Responsivo**: no modo desktop/notebook, distribui dinamicamente os containers em 2 colunas equilibradas (Esquerda: Produto Solicitado, Comanda e Ajustes de Frete/Desconto; Direita: Nome do Cliente, Formas de Pagamento e botão Concluir Venda), permitindo concluir vendas sem necessidade de rolagem de mouse em notebooks; se a largura for reduzida para menos de 780px, adapta fluentemente para coluna única sem erros de layout ou overflow.
-- **Estado inicial limpo.** Campo de busca em branco com foco → mostra **só as categorias**. Produtos soltos só aparecem ao pesquisar ou bipar (busca insensível a acentuação).
-- **Nome do Cliente**: com foco e vazio, lista **todos os clientes**; filtra ao digitar ignorando acentos (nome, rua, número, CPF/CNPJ, telefone, e-mail, redes, descrição).
-  - **Hierarquia de exibição de dados do cliente com `TextoRolante`**: na lista de sugestões e no card de cliente selecionado, a informação secundária à direita do nome prioriza estritamente: 1º **Endereço cadastrado** (com número), 2º **Telefone**, 3º **Descrição do cliente**, e demais dados até esgotar, com texto rolante animado contínuo caso o tamanho exceda o espaço disponível.
+📄 `nova_venda_dialog.dart` · subwidgets modulares: `widgets/nova_venda/nova_venda_controller.dart`, `widgets/nova_venda/cliente_seletor_nova_venda_widget.dart`, `widgets/nova_venda/bloco_produtos_nova_venda_widget.dart`, `widgets/nova_venda/comanda_resumo_nova_venda_widget.dart`, `widgets/nova_venda/pagamento_nova_venda_widget.dart`, `widgets/nova_venda/botao_hover_forma.dart`
+- **Layout Adaptativo e Responsivo**: no modo desktop/notebook, distribui dinamicamente os containers em 2 colunas (Esquerda: Nome do Cliente, Produto Solicitado, Frete/Desconto/Acréscimo, Formas de Pagamento e botão Concluir Venda; Direita: Comanda completa com altura expandida sem corte de 350 px), permitindo visualizar a comanda inteira de uma só vez; se a largura for reduzida para menos de 780px, adapta fluentemente para coluna única sem erros de layout ou overflow.
+- **Estado inicial limpo e busca instantânea.** Campo de busca em branco com foco → mostra **só as categorias**. Produtos soltos aparecem imediatamente a cada tecla digitada ou bipada (busca insensível a acentuação).
+- **Nome do Cliente**: com foco e vazio, lista os clientes com virtualização (`ListView.builder`); filtra instantaneamente a cada tecla digitada ignorando acentos (nome, rua, número, CPF/CNPJ, telefone, e-mail, redes, descrição).
+  - **Exibição completa na barra do cliente (Endereço + Telefone + Dívida)**: na lista de sugestões e no card de cliente selecionado, a barra exibe simultaneamente o **Endereço completo** (rua + número) e o **Telefone** (`Rua X, 123 • (11) 99999-0000`), além de um selo vermelho (`Deve R$ XX,XX` em `theme.dangerColor`) caso o cliente possua saldo em aberto de vendas À Prazo.
 - **Leitor de código de barras**: digitar/bipar o código exato + Enter adiciona ao carrinho e limpa o campo.
 - **Variantes**: ao escolher produto com variantes, abre seletor (Padrão + variantes com preço).
 - **Frete, Desconto, Acréscimo**: aceitam R$ ou `%` (ex.: `10%`). Ao tocar, o valor inteiro fica selecionado. Em telas estreitas, quebra em linhas separadas para evitar qualquer estouro visual.
@@ -363,16 +363,16 @@ Todas abrem centralizadas, aceitam **F11** e, no desktop expandido, ficam em **d
 
 ### 7.2 Modo Balcão (frente de caixa)
 📄 `modo_balcao_widget.dart` · submódulos modulares em `pdv/views/widgets/modo_balcao/` (`barra_superior_balcao_widget.dart`, `campo_bipador_balcao_widget.dart`, `catalogo_balcao_widget.dart`, `visor_ultimo_produto_widget.dart`, `cliente_ajustes_balcao_widget.dart`, `comanda_balcao_widget.dart`, `dialogo_variante_balcao.dart`, `dialogo_componentes_balcao.dart`) · abre pela barra lateral ("Modo Balcão") ou pelo botão equivalente; **Esc** volta.
-- **Esquerda (Operador)**: campo de bipador sempre focado; visor do último produto (foto, quantidade, nome, valor); catálogo por categorias com badges de saldo; busca de cliente com painel flutuante (avatar, CPF/CNPJ, telefone, endereço) e chip do cliente selecionado com botão de desvincular.
+- **Esquerda (Operador)**: campo de bipador sempre focado; visor do último produto (foto, quantidade, nome, valor); catálogo por categorias com badges de saldo; busca de cliente com painel flutuante (avatar, CPF/CNPJ, telefone, endereço e selo vermelho **`Deve R$ XX,XX`** se houver débito em aberto) e chip do cliente selecionado com selo de dívida e botão de desvincular.
 - **Direita (Comanda ampliada)**: cada item com nome completo (categoria e variante), preço, **+ / − / remover**, resumo dos adicionais, observação em itálico (`Obs: ...`) e botões **+ Componentes** e **+ Observação / Editar Obs**.
 - Campos **Frete** (acima de **Acrésc:**), **Desconto**, **Acréscimo**; **TOTAL GERAL** gigante; formas de pagamento com valor recebido e **troco em verde**.
-- **FINALIZAR VENDA (ENTER)**: baixa estoque e abre o cupom.
+- **FINALIZAR VENDA (ENTER)**: baixa estoque (item principal e acompanhamentos via `EstoqueBaixaService`) e abre o cupom.
 - **À Prazo** exige cliente: sem cliente, abre a busca; finalizar sem cliente é bloqueado. Se o cliente for desmarcado, volta para "Dinheiro".
 - Venda avulsa em "Todos" cobra o preço puro do item; o preço da categoria só soma se a categoria estiver selecionada.
 
 ### 7.3 Clientes
-📄 `clientes_dialog.dart` · submódulos modulares em `pdv/views/widgets/clientes/` (`painel_lista_clientes_widget.dart`, `formulario_cadastro_cliente_widget.dart`, `dialog_acoes_cliente.dart`, `dialog_quitacao_debito_cliente.dart`)
-- Lista com **busca insensível a acentuação** e formulário de cadastro.
+📄 `clientes_dialog.dart` · submódulos modulares em `pdv/views/widgets/clientes/` (`painel_lista_clientes_widget.dart`, `lista_pesquisa_clientes_widget.dart`, `formulario_cadastro_cliente_widget.dart`, `dialog_acoes_cliente.dart`, `dialog_quitacao_debito_cliente.dart`)
+- Lista com **busca insensível a acentuação** e formulário de cadastro; cada barra de cliente exibe nome, **endereço + telefone** e selo vermelho **`Deve R$ XX,XX`** (`theme.dangerColor`) quando o cliente possui débitos em aberto.
 - **Nome do Cliente e Endereço**: formatado automaticamente com `PrimeiraLetraMaiusculaFormatter` (a primeira letra de cada palavra digitada é convertida automaticamente em maiúscula em tempo real, permitindo minúsculas intencionais caso o usuário apague e digite em minúsculo).
 - Campo **"CNPJ ou CPF"** com máscara automática (até 11 dígitos = CPF, 12 a 14 = CNPJ).
 - **Autopreenchimento**: ao completar o documento, busca em contas Nous, lojas e cadastros prévios e preenche nome, telefone, endereço, e-mail, redes e foto.
@@ -400,10 +400,11 @@ Todas abrem centralizadas, aceitam **F11** e, no desktop expandido, ficam em **d
 - **Ações** (auditoria): cada barra abre `_DetalhesAcaoDialog` com data/hora, autor (CPF e e-mail) e descrição, com atalho **"Ver Perfil de [Cliente]"** ou **"Ver Comanda do Pedido #N"** quando ainda existem.
 
 ### 7.7 Impressora e Exportação Documental PDF
-📄 `impressora_dialog.dart` · submódulos de interface em `pdv/views/widgets/impressora/` (`coluna_configuracao_hardware_widget.dart`, `coluna_automacao_recibo_widget.dart`, `painel_previa_comanda_widget.dart`) · suíte de impressão térmica ESC/POS modularizada em `pdv/services/impressao/` (`gerador_escpos_service.dart`, `comunicador_socket_impressora.dart`, `comunicador_windows_spooler.dart` com fachada em `impressao_service.dart`) · suíte modular de relatórios documentais PDF em `pdv/services/relatorios/` (`exportador_pdf_comanda.dart`, `exportador_pdf_financeiro.dart`, `exportador_pdf_dre.dart`, `exportador_pdf_extrato_cliente.dart`, `pdf_formatacao_util.dart` com fachada retrocompatível em `pdv/services/relatorios_pdf_service.dart`)
+📄 `impressora_dialog.dart` · submódulos de interface em `pdv/views/widgets/impressora/` (`coluna_configuracao_hardware_widget.dart`, `coluna_automacao_recibo_widget.dart`, `painel_previa_comanda_widget.dart`) · suíte de impressão térmica em `pdv/services/impressao/` (`impressao_utils.dart`, `gerador_bobina_comanda.dart`, `gerador_bobina_caixa.dart`, `gerador_bobina_mesa.dart`, `gerador_bobina_financeiro.dart`, `gerador_escpos_service.dart`, `comunicador_socket_impressora.dart`, `comunicador_windows_spooler.dart` com fachada em `impressao_service.dart`) · suíte modular de relatórios documentais PDF em `pdv/services/relatorios/` (`exportador_pdf_comanda.dart`, `exportador_pdf_financeiro.dart`, `exportador_pdf_dre.dart`, `exportador_pdf_extrato_cliente.dart`, `pdf_formatacao_util.dart` com fachada retrocompatível em `pdv/services/relatorios_pdf_service.dart`)
 - Coluna 1: conexão, **largura da bobina (58 / 80 mm)**, **Tipografia da Comanda** (lista de 11 fontes com prévia), **Calibração Bilateral** (margem esquerda padrão 5 mm e direita padrão 3 mm, passos de 0,5 mm).
 - Coluna 2: dados da loja/cliente no recibo, automações (**impressão automática ao concluir venda**), rodapé, **testar** e **salvar**.
-- **Prévia viva** da comanda dentro da calibração, com um dos 10 perfis históricos (sorteado), e botão de impressora para imprimir o exemplo.
+- **Impressão em Bobina Contínua Sem Cortes e Fiel ao Container da Comanda**: os geradores de bobina realizam o layout com altura ilimitada (`double.infinity`) e extraem a dimensão vertical exata resolvida pelo documento (`ImpressaoUtils.formatoResolvidoDoDocumento`) antes de enviar ao spooler do Windows (`Printing.directPrintPdf`), garantindo que comandas longas com múltiplos marmitex, acompanhamentos, observações, endereço e rodapé sejam impressas integralmente do início ao fim sem truncamento e sem textos extras como `Ref:`. Além disso, a calibração física da impressora da estação (fonte, recuo esquerdo/direito, largura de bobina e impressora selecionada) é herdada automaticamente entre as lojas locais do mesmo terminal.
+- **Prévia viva** da comanda dentro da calibração, com um dos 10 perfis históricos (sorteado), e botão de impressora para imprimir o exemplo respeitando a largura configurada (58 / 80 mm).
 
 ### 7.8 Mesas e Comandas (Restaurante)
 📄 pasta `pdv/views/widgets/mesas/` — `mesas_container.dart`, `criar_mesa_dialog.dart`, `comanda_mesa_dialog.dart`, `adicionar_item_mesa_dialog.dart`, `configuracao_item_mesa_widget.dart`, `fechar_conta_mesa_dialog.dart`, `cadastro_cliente_rapido_mesa_dialog.dart`, `transferir_mesa_dialog.dart`
@@ -430,12 +431,12 @@ Todas abrem centralizadas, aceitam **F11** e, no desktop expandido, ficam em **d
 - Desktop expandido: duas colunas.
 
 ### 7.11 Programar Pedido
-📄 `programar_pedido_dialog.dart` · `pedidos_programados_dialog.dart`
-- Acesso: ficha do cliente e comandas.
-- Itens: **avulso** (preço base) ou **por categoria** (soma preço da categoria e mostra grupos de adicionais com `+`/`−`); variantes **nascem Desativadas** (opção "Desativado" pode ser religada); observações.
+📄 `programar_pedido_dialog.dart` · `pedidos_programados_dialog.dart` · `widgets/clientes/pedidos_programados_cliente_widget.dart` · `widgets/relatorios/pedidos_programados_relatorio_widget.dart`
+- Acesso: ficha do cliente, relatórios e aviso de agendados do dia. Suporta **criação e edição completa** de programações existentes (`pedidoExistente`).
+- Itens: **avulso** (preço base) ou **por categoria** (soma preço da categoria e mostra grupos de adicionais com `+`/`−`); variantes **nascem Desativadas** (opção "Desativado" pode ser religada); observações copiadas automaticamente para o `comentario` da comanda gerada.
 - Dois modos: **Contrato / Dias da Semana** (Seg a Dom, com atalhos Dias Úteis, Fim de Semana, Todos os Dias) e **Calendário Visual** mensal com várias datas.
-- **Horário**: digitável (`HH:mm`), rodinha do mouse (±1 min), botões `−1m`/`+1m`, e janela **"Digite o Horário"** (atalhos ±5/±10 min, Salvar/Enter).
-- Entra sozinho em **Novos** no dia certo, sem duplicar.
+- **Horário**: digitável (`HH:mm`), rodinha do mouse (±1 min), botões `−1m`/`+1m`, e janela **"Digite o Horário"** (atalhos ±5/±10 min, Salvar/Enter). Nos cards de listagem, o badge exibe o horário (`[12:00]`) ao lado de `descricaoFrequenciaCurta` (`Seg a Sex`) sem repetição redundante.
+- Entra sozinho em **Novos** no dia certo (com número sequencial real `#00XX`, resolução garantida de telefone/endereço do cliente e transmissão imediata na rede local), sem duplicar e sem ressuscitar ao pausar ou excluir.
 
 ### 7.12 Item e Estoque
 - **Novo/Editar Item** 📄 `novo_item_dialog.dart` (submódulos modulares em `pdv/views/widgets/novo_item/`: `seletor_midia_item_widget.dart`, `campos_basicos_item_widget.dart`, `seletor_taxonomia_item_widget.dart`, `gestao_variantes_item_widget.dart`, `gestao_estoque_custo_widget.dart`) — ordem dos campos: Foto → Nome → Descrição (minimizada) → Tipo (Produto/Serviço) → Preço de Venda → Categorias e Grupos → Variantes → Código de Barras → Unidades (`un`, `g`, `ml`) → Consumo por Venda → **Estoque e Preço de Custo** (saldo, ajuste/inicial, mínimo, **Lançar Movimento Detalhado**, custo unitário da última compra, margem estimada) → Delivery. Largura: ~740 px (2 colunas) no expandido, ~380 px (1 coluna) no compacto.

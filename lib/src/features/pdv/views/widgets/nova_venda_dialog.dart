@@ -29,6 +29,7 @@ class NovaVendaDialog {
     required List<CategoriaLoja> categoriasDisponiveis,
     required List<GrupoComponentesLoja> gruposDisponiveis,
     required List<Cliente> Function() obterClientes,
+    List<PedidoLoja> Function()? obterPedidos,
     required Future<void> Function() aoAbrirClientes,
     required String nomeVendedor,
     required String cnpjVendedor,
@@ -79,6 +80,12 @@ class NovaVendaDialog {
                     categoriasDisponiveis: categoriasDisponiveis,
                     gruposDisponiveis: gruposDisponiveis,
                     obterClientes: obterClientes,
+                    obterPedidos: obterPedidos ??
+                        () =>
+                            (lojaId != null
+                                ? pdv.buscarPorId(lojaId)?.pedidosLoja
+                                : null) ??
+                            const <PedidoLoja>[],
                     aoAbrirClientes: aoAbrirClientes,
                     nomeVendedor: nomeVendedor,
                     cnpjVendedor: cnpjVendedor,
@@ -107,6 +114,7 @@ class _NovaVendaConteudo extends StatefulWidget {
   final List<CategoriaLoja> categoriasDisponiveis;
   final List<GrupoComponentesLoja> gruposDisponiveis;
   final List<Cliente> Function() obterClientes;
+  final List<PedidoLoja> Function()? obterPedidos;
   final Future<void> Function() aoAbrirClientes;
   final String nomeVendedor;
   final String cnpjVendedor;
@@ -131,6 +139,7 @@ class _NovaVendaConteudo extends StatefulWidget {
     required this.categoriasDisponiveis,
     required this.gruposDisponiveis,
     required this.obterClientes,
+    this.obterPedidos,
     required this.aoAbrirClientes,
     required this.nomeVendedor,
     required this.cnpjVendedor,
@@ -161,6 +170,7 @@ class _NovaVendaConteudoState extends State<_NovaVendaConteudo> {
       categoriasDisponiveis: widget.categoriasDisponiveis,
       gruposDisponiveis: widget.gruposDisponiveis,
       obterClientes: widget.obterClientes,
+      obterPedidos: widget.obterPedidos,
       aoAbrirClientes: widget.aoAbrirClientes,
       nomeVendedor: widget.nomeVendedor,
       cnpjVendedor: widget.cnpjVendedor,
@@ -246,6 +256,7 @@ class _NovaVendaConteudoState extends State<_NovaVendaConteudo> {
       onSelecionarCliente: _c.selecionarCliente,
       onNovoCliente: _c.abrirClientes,
       obterDadoPrioritario: _c.obterDadoPrioritarioCliente,
+      obterDividaCliente: _c.dividaDoCliente,
       decoracaoDoBloco: _decoracaoDoBloco,
       decoracaoCampo: _decoracaoCampo,
       tituloDoBloco: _tituloDoBloco,
@@ -290,7 +301,7 @@ class _NovaVendaConteudoState extends State<_NovaVendaConteudo> {
     );
   }
 
-  Widget _blocoComanda() {
+  Widget _blocoComanda({bool expandirAltura = false}) {
     return ComandaResumoNovaVendaWidget(
       theme: theme,
       scrollController: _c.comandaScrollController,
@@ -319,6 +330,7 @@ class _NovaVendaConteudoState extends State<_NovaVendaConteudo> {
       troco: _c.troco,
       decoracaoDoBloco: _decoracaoDoBloco,
       tituloDoBloco: _tituloDoBloco,
+      expandirAltura: expandirAltura,
     );
   }
 
@@ -462,20 +474,11 @@ class _NovaVendaConteudoState extends State<_NovaVendaConteudo> {
                             flex: 6,
                             child: Column(
                               children: [
+                                _blocoCliente(),
+                                const SizedBox(height: 12),
                                 _blocoProduto(),
                                 const SizedBox(height: 12),
-                                _blocoComanda(),
-                                const SizedBox(height: 12),
                                 _blocoAjustes(),
-                              ],
-                            ),
-                          ),
-                          const SizedBox(width: 16),
-                          Expanded(
-                            flex: 5,
-                            child: Column(
-                              children: [
-                                _blocoCliente(),
                                 const SizedBox(height: 12),
                                 _blocoPagamento(),
                                 const SizedBox(height: 12),
@@ -490,6 +493,11 @@ class _NovaVendaConteudoState extends State<_NovaVendaConteudo> {
                                 _botaoConcluir(),
                               ],
                             ),
+                          ),
+                          const SizedBox(width: 16),
+                          Expanded(
+                            flex: 5,
+                            child: _blocoComanda(expandirAltura: true),
                           ),
                         ],
                       ),

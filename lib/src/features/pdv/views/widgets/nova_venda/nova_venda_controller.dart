@@ -46,6 +46,7 @@ class NovaVendaController extends ChangeNotifier {
   final List<CategoriaLoja> categoriasDisponiveis;
   final List<GrupoComponentesLoja> gruposDisponiveis;
   final List<Cliente> Function() obterClientes;
+  final List<PedidoLoja> Function()? obterPedidos;
   final Future<void> Function() aoAbrirClientes;
   final String nomeVendedor;
   final String cnpjVendedor;
@@ -84,6 +85,7 @@ class NovaVendaController extends ChangeNotifier {
     required this.categoriasDisponiveis,
     required this.gruposDisponiveis,
     required this.obterClientes,
+    this.obterPedidos,
     required this.aoAbrirClientes,
     required this.nomeVendedor,
     required this.cnpjVendedor,
@@ -111,7 +113,22 @@ class NovaVendaController extends ChangeNotifier {
       }
     });
 
+    buscaController.addListener(_aoAlterarTextoBusca);
+
     _restaurarRascunhoSeHouver();
+  }
+
+  void _aoAlterarTextoBusca() {
+    if (buscaFocusNode.hasFocus) {
+      buscaFocadoOuDigitando();
+    } else {
+      notifyListeners();
+    }
+  }
+
+  void buscaFocadoOuDigitando() {
+    buscaFocada = true;
+    notifyListeners();
   }
 
   static double precoComoNumero(String texto) {
@@ -640,12 +657,13 @@ class NovaVendaController extends ChangeNotifier {
   }
 
   void aoDigitarCliente(String texto) {
+    clienteFocado = true;
     final selecionado = clienteSelecionado;
     if (selecionado != null && selecionado.nome != texto) {
       clienteSelecionado = null;
       if (temAPrazo) removerForma(formaAPrazo);
-      notifyListeners();
     }
+    notifyListeners();
   }
 
   void selecionarCliente(Cliente cliente) {
@@ -823,15 +841,39 @@ class NovaVendaController extends ChangeNotifier {
     return partes.join(', ');
   }
 
+  double dividaDoCliente(Cliente cliente) {
+    final pedidos = obterPedidos?.call() ?? const <PedidoLoja>[];
+    if (pedidos.isEmpty) return 0.0;
+    var soma = 0.0;
+    final nomeAlvo = cliente.nome.trim().toLowerCase();
+    for (final p in pedidos) {
+      final ehDesteCliente = p.clienteId == cliente.id ||
+          (nomeAlvo.isNotEmpty &&
+              p.clienteNome.trim().toLowerCase() == nomeAlvo);
+      if (ehDesteCliente && p.aPrazoEmAberto) {
+        soma += p.valorRestante;
+      }
+    }
+    return soma;
+  }
+
   String obterDadoPrioritarioCliente(Cliente cliente) {
     final end = cliente.endereco.trim();
     final num = cliente.numero.trim();
-    if (end.isNotEmpty) {
-      return num.isNotEmpty ? '$end, $num' : end;
+    final tel = cliente.telefone.trim();
+
+    final enderecoCompleto = end.isNotEmpty
+        ? (num.isNotEmpty ? '$end, $num' : end)
+        : (num.isNotEmpty ? 'nº $num' : '');
+
+    final partes = <String>[
+      if (enderecoCompleto.isNotEmpty) enderecoCompleto,
+      if (tel.isNotEmpty) tel,
+    ];
+    if (partes.isNotEmpty) {
+      return partes.join(' • ');
     }
-    if (cliente.telefone.trim().isNotEmpty) {
-      return cliente.telefone.trim();
-    }
+
     if (cliente.descricao.trim().isNotEmpty) {
       return cliente.descricao.trim();
     }
@@ -849,6 +891,7 @@ class NovaVendaController extends ChangeNotifier {
 
   @override
   void dispose() {
+    buscaController.removeListener(_aoAlterarTextoBusca);
     if (!vendaConcluida) {
       salvarRascunhoAtual();
     }

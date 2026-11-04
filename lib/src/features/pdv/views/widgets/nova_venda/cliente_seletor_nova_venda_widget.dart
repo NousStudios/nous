@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import '../../../../../core/theme/theme_controller.dart';
-import '../../../../../core/widgets/texto_rolante.dart';
 import '../../../models/cliente.dart';
 
 /// Widget responsável pela seleção e busca de clientes no diálogo de Nova Venda.
@@ -17,6 +16,7 @@ class ClienteSeletorNovaVendaWidget extends StatelessWidget {
   final ValueChanged<Cliente> onSelecionarCliente;
   final VoidCallback onNovoCliente;
   final String Function(Cliente) obterDadoPrioritario;
+  final double Function(Cliente)? obterDividaCliente;
   final BoxDecoration decoracaoDoBloco;
   final InputDecoration Function(String) decoracaoCampo;
   final Widget Function(String) tituloDoBloco;
@@ -36,14 +36,41 @@ class ClienteSeletorNovaVendaWidget extends StatelessWidget {
     required this.onSelecionarCliente,
     required this.onNovoCliente,
     required this.obterDadoPrioritario,
+    this.obterDividaCliente,
     required this.decoracaoDoBloco,
     required this.decoracaoCampo,
     required this.tituloDoBloco,
     required this.botaoPequeno,
   });
 
+  String _formatarMoeda(double v) =>
+      'R\$ ${v.toStringAsFixed(2).replaceAll('.', ',')}';
+
+  Widget _badgeDivida(double divida) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: theme.dangerColor.withValues(alpha: 0.15),
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(
+          color: theme.dangerColor.withValues(alpha: 0.5),
+        ),
+      ),
+      child: Text(
+        'Deve ${_formatarMoeda(divida)}',
+        style: theme.getTextStyle(
+          fontSize: 10,
+          fontWeight: FontWeight.bold,
+          color: theme.dangerColor,
+        ),
+      ),
+    );
+  }
+
   Widget _linhaDeCliente(Cliente cliente) {
     final infoSecundaria = obterDadoPrioritario(cliente);
+    final divida = obterDividaCliente?.call(cliente) ?? 0.0;
+    final temDivida = divida > 0.005;
 
     return InkWell(
       borderRadius: BorderRadius.circular(8),
@@ -53,27 +80,37 @@ class ClienteSeletorNovaVendaWidget extends StatelessWidget {
         child: Row(
           children: [
             Expanded(
-              flex: 5,
-              child: TextoRolante(
-                texto: cliente.nome,
-                style: theme.getTextStyle(fontSize: 12, color: theme.textColor),
+              flex: 4,
+              child: Text(
+                cliente.nome,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: theme.getTextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: theme.textColor,
+                ),
               ),
             ),
             if (infoSecundaria.isNotEmpty) ...[
               const SizedBox(width: 8),
               Expanded(
-                flex: 5,
-                child: Align(
-                  alignment: Alignment.centerRight,
-                  child: TextoRolante(
-                    texto: infoSecundaria,
-                    style: theme.getTextStyle(
-                      fontSize: 11,
-                      color: theme.secondaryTextColor,
-                    ),
+                flex: 6,
+                child: Text(
+                  infoSecundaria,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.right,
+                  style: theme.getTextStyle(
+                    fontSize: 11,
+                    color: theme.secondaryTextColor,
                   ),
                 ),
               ),
+            ],
+            if (temDivida) ...[
+              const SizedBox(width: 8),
+              _badgeDivida(divida),
             ],
           ],
         ),
@@ -142,13 +179,11 @@ class ClienteSeletorNovaVendaWidget extends StatelessWidget {
               else
                 ConstrainedBox(
                   constraints: const BoxConstraints(maxHeight: 180),
-                  child: SingleChildScrollView(
-                    child: Column(
-                      children: [
-                        for (final cliente in listaSugestoes)
-                          _linhaDeCliente(cliente),
-                      ],
-                    ),
+                  child: ListView.builder(
+                    shrinkWrap: true,
+                    itemCount: listaSugestoes.length,
+                    itemBuilder: (context, index) =>
+                        _linhaDeCliente(listaSugestoes[index]),
                   ),
                 ),
             ],
@@ -157,6 +192,9 @@ class ClienteSeletorNovaVendaWidget extends StatelessWidget {
               Builder(
                 builder: (context) {
                   final info = obterDadoPrioritario(clienteSelecionado!);
+                  final divida =
+                      obterDividaCliente?.call(clienteSelecionado!) ?? 0.0;
+                  final temDivida = divida > 0.005;
                   return Row(
                     children: [
                       Text(
@@ -168,14 +206,22 @@ class ClienteSeletorNovaVendaWidget extends StatelessWidget {
                       ),
                       if (info.isNotEmpty)
                         Expanded(
-                          child: TextoRolante(
-                            texto: info,
+                          child: Text(
+                            info,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
                             style: theme.getTextStyle(
                               fontSize: 11,
                               color: theme.secondaryTextColor,
                             ),
                           ),
-                        ),
+                        )
+                      else
+                        const Spacer(),
+                      if (temDivida) ...[
+                        const SizedBox(width: 8),
+                        _badgeDivida(divida),
+                      ],
                     ],
                   );
                 },

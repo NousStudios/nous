@@ -226,11 +226,26 @@ class ChatRepositorioSqlite {
 
     final listaMsgs = rows.map((r) {
       final remetente = r['remetente_id'] as String? ?? '';
-      final enviadaPorMim =
-          idVisualizador != null &&
-          (remetente == idVisualizador ||
-              (normalizarCpf(remetente).isNotEmpty &&
-                  normalizarCpf(remetente) == normalizarCpf(idVisualizador)));
+      final bool enviadaPorMim;
+      if (idVisualizador != null &&
+          (idVisualizador.startsWith('loja_') ||
+              (conversaId.startsWith('loja_') &&
+                  !idVisualizador.contains(RegExp(r'^\d{11}$'))))) {
+        final idLimpo = idVisualizador.startsWith('loja_')
+            ? idVisualizador.substring(5)
+            : idVisualizador;
+        final remLimpo = remetente.startsWith('loja_')
+            ? remetente.substring(5)
+            : remetente;
+        enviadaPorMim = idLimpo.isNotEmpty && remLimpo == idLimpo;
+      } else if (idVisualizador != null && idVisualizador.isNotEmpty) {
+        final ehLoja = remetente.startsWith('loja_');
+        final visNorm = normalizarCpf(idVisualizador);
+        final remNorm = normalizarCpf(remetente);
+        enviadaPorMim = !ehLoja && visNorm.isNotEmpty && remNorm == visNorm;
+      } else {
+        enviadaPorMim = false;
+      }
       final lida = (r['lida'] as int? ?? 0) == 1;
       final entregue = (r['entregue'] as int? ?? 0) == 1;
       final statusEnvio =

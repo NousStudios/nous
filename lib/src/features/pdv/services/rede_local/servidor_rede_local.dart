@@ -636,14 +636,14 @@ class ServidorRedeLocal {
     if (!ativo) return;
     if (_lojaAtiva == null || _lojaAtiva!.id == loja.id) {
       _lojaAtiva = loja;
-      notificarTodos({
-        'tipo': 'loja_atualizada',
-        'loja': loja.toJson(),
-      });
-      debugPrint(
-        '[ServidorRedeLocal] Transmitida atualização da loja "${loja.nome}" para ${_clientesWs.length} terminais',
-      );
     }
+    notificarTodos({
+      'tipo': 'loja_atualizada',
+      'loja': loja.toJson(),
+    });
+    debugPrint(
+      '[ServidorRedeLocal] Transmitida atualização da loja "${loja.nome}" para ${_clientesWs.length} terminais',
+    );
   }
 
   /// Dispara anúncio UDP contínuo (broadcast) na rede local para descoberta automática

@@ -1,4 +1,5 @@
 import 'package:nous/src/core/services/gerador_id.dart';
+import 'package:nous/src/features/pdv/models/cliente.dart';
 import 'package:nous/src/features/pdv/models/pedido_loja.dart';
 
 class PedidoProgramado {
@@ -107,10 +108,24 @@ class PedidoProgramado {
     return false;
   }
 
-  String get descricaoFrequencia {
+  String get descricaoFrequenciaCurta {
     if (modoProgramacao == 'dias_semana' || recorrente) {
       if (diasSemana.isEmpty || diasSemana.length == 7) {
-        return 'Todos os dias às $horario';
+        return 'Todos os dias';
+      }
+      final diasOrdenados = List<int>.from(diasSemana)..sort();
+      if (diasOrdenados.length == 5 &&
+          diasOrdenados[0] == 1 &&
+          diasOrdenados[1] == 2 &&
+          diasOrdenados[2] == 3 &&
+          diasOrdenados[3] == 4 &&
+          diasOrdenados[4] == 5) {
+        return 'Seg a Sex';
+      }
+      if (diasOrdenados.length == 2 &&
+          diasOrdenados[0] == 6 &&
+          diasOrdenados[1] == 7) {
+        return 'Sáb e Dom';
       }
       const nomes = {
         1: 'Seg',
@@ -121,9 +136,7 @@ class PedidoProgramado {
         6: 'Sáb',
         7: 'Dom',
       };
-      final diasOrdenados = List<int>.from(diasSemana)..sort();
-      final formatados = diasOrdenados.map((d) => nomes[d] ?? '$d').join(', ');
-      return '$formatados às $horario';
+      return diasOrdenados.map((d) => nomes[d] ?? '$d').join(', ');
     }
 
     if (datasEspecificas.isNotEmpty) {
@@ -131,20 +144,22 @@ class PedidoProgramado {
         final d = datasEspecificas.first;
         final diaStr = d.day.toString().padLeft(2, '0');
         final mesStr = d.month.toString().padLeft(2, '0');
-        return '$diaStr/$mesStr/${d.year} às $horario';
+        return '$diaStr/$mesStr/${d.year}';
       }
-      return '${datasEspecificas.length} datas programadas às $horario';
+      return '${datasEspecificas.length} datas programadas';
     }
 
     if (dataProgramada != null) {
       final d = dataProgramada!;
       final diaStr = d.day.toString().padLeft(2, '0');
       final mesStr = d.month.toString().padLeft(2, '0');
-      return '$diaStr/$mesStr/${d.year} às $horario';
+      return '$diaStr/$mesStr/${d.year}';
     }
 
-    return 'Horário: $horario';
+    return 'Agendado';
   }
+
+  String get descricaoFrequencia => '$descricaoFrequenciaCurta às $horario';
 
   PedidoLoja toPedidoLoja({
     required int numero,
@@ -165,13 +180,82 @@ class PedidoProgramado {
       dataHora: momento,
       valor: valorTotal,
       status: StatusPedido.novo,
-      comanda: 'Programado: $descricaoFrequencia',
+      comanda: '',
+      comentario: observacao.trim(),
       formaPagamento: formaPagamento,
       itens: itens,
       quitado: false,
       valorPago: 0,
       valorRecebido: 0,
       troco: 0,
+      nomeVendedor: nomeVendedor,
+      cnpjVendedor: cnpjVendedor,
+      lojaId: lojaId ?? this.lojaId,
+    );
+  }
+
+  /// Resolve o cliente correspondente na lista de clientes da loja ou cria um
+  /// objeto com os dados de telefone/endereço salvos na programação.
+  Cliente resolverCliente(List<Cliente> clientesCadastrados) {
+    final cadastrado = clientesCadastrados
+        .where((c) =>
+            (clienteId.isNotEmpty && c.id == clienteId) ||
+            (clienteNome.trim().isNotEmpty &&
+                c.nome.trim().toLowerCase() ==
+                    clienteNome.trim().toLowerCase()))
+        .firstOrNull;
+    if (cadastrado != null) {
+      return cadastrado.copyWith(
+        telefone: cadastrado.telefone.trim().isNotEmpty
+            ? cadastrado.telefone
+            : clienteTelefone,
+        endereco: cadastrado.endereco.trim().isNotEmpty
+            ? cadastrado.endereco
+            : clienteEndereco,
+      );
+    }
+    return Cliente(
+      id: clienteId.isNotEmpty ? clienteId : 'cli_prog_$id',
+      nome: clienteNome,
+      cnpj: '',
+      telefone: clienteTelefone,
+      endereco: clienteEndereco,
+      numero: '',
+      email: '',
+    );
+  }
+
+  /// Retorna o [PedidoLoja] já gerado para a [data] se existir em [pedidosExistentes],
+  /// preservando o número real (#00XX) e status, ou gera uma prévia se ainda não existir.
+  PedidoLoja resolverPedidoDoDia({
+    required List<PedidoLoja> pedidosExistentes,
+    DateTime? data,
+    String nomeVendedor = '',
+    String cnpjVendedor = '',
+    String? lojaId,
+  }) {
+    final alvo = data ?? DateTime.now();
+    final diaStr = alvo.day.toString().padLeft(2, '0');
+    final mesStr = alvo.month.toString().padLeft(2, '0');
+    final idEsperado = 'prog_${id}_${alvo.year}_${mesStr}_$diaStr';
+    final existente = pedidosExistentes.where((p) {
+      if (p.id == idEsperado) return true;
+      if (p.id.startsWith('prog_${id}_') &&
+          p.dataHora.year == alvo.year &&
+          p.dataHora.month == alvo.month &&
+          p.dataHora.day == alvo.day) {
+        return true;
+      }
+      return false;
+    }).firstOrNull;
+
+    if (existente != null) {
+      return existente;
+    }
+
+    return toPedidoLoja(
+      numero: 0,
+      dataHora: alvo,
       nomeVendedor: nomeVendedor,
       cnpjVendedor: cnpjVendedor,
       lojaId: lojaId ?? this.lojaId,

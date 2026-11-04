@@ -253,8 +253,9 @@ class MontadorConversasModoLoja {
 
       final conversa = ConversaChat(
         id: convId,
-        titulo: titulosCustomizados[convId] ?? nomeResolvido,
+        titulo: nomeResolvido,
         subtitulo: c.subtitulo,
+        tituloConversa: titulosCustomizados[convId] ?? (persistida?.tituloConversa ?? ''),
         foto: c.foto,
         identificador: c.identificador,
         ehLoja: false,

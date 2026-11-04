@@ -44,6 +44,7 @@ class GeradorBobinaCaixa {
         pageFormat: pageFormat,
         build: (context) {
           return pw.Column(
+            mainAxisSize: pw.MainAxisSize.min,
             crossAxisAlignment: pw.CrossAxisAlignment.stretch,
             children: [
               if (lojaNome.isNotEmpty)
@@ -67,7 +68,7 @@ class GeradorBobinaCaixa {
                   style: estilo(negrito: true, tamanhoCustom: tamanho + 1),
                 ),
               ),
-              pw.Divider(thickness: 0.5),
+              pw.Divider(height: 6, thickness: 0.5),
               linhaDupla(
                   'Abertura', ImpressaoUtils.dataHora(turno.dataAbertura)),
               if (turno.dataFechamento != null)
@@ -75,7 +76,7 @@ class GeradorBobinaCaixa {
                     ImpressaoUtils.dataHora(turno.dataFechamento!)),
               if (turno.abertoPorNome.isNotEmpty)
                 linhaDupla('Operador', turno.abertoPorNome),
-              pw.Divider(thickness: 0.5),
+              pw.Divider(height: 6, thickness: 0.5),
               linhaDupla(
                   'Fundo Inicial', ImpressaoUtils.valor(turno.saldoInicial)),
               linhaDupla('Vendas Dinheiro (+)',
@@ -91,7 +92,7 @@ class GeradorBobinaCaixa {
               if (turno.totalSangrias > 0)
                 linhaDupla('Sangrias (-)',
                     '-${ImpressaoUtils.valor(turno.totalSangrias)}'),
-              pw.Divider(thickness: 0.5),
+              pw.Divider(height: 6, thickness: 0.5),
               linhaDupla('Dinheiro Esperado',
                   ImpressaoUtils.valor(saldoEsperado),
                   negrito: true),
@@ -135,7 +136,7 @@ class GeradorBobinaCaixa {
       bytes: bytes,
       nomeImpressora: config.nomeImpressora,
       jobName: 'FechamentoCaixa-${turno.id}',
-      format: pageFormat,
+      format: ImpressaoUtils.formatoResolvidoDoDocumento(doc, pageFormat),
     );
   }
 
@@ -185,6 +186,7 @@ class GeradorBobinaCaixa {
         pageFormat: pageFormat,
         build: (context) {
           return pw.Column(
+            mainAxisSize: pw.MainAxisSize.min,
             crossAxisAlignment: pw.CrossAxisAlignment.stretch,
             children: [
               if (lojaNome.isNotEmpty)
@@ -214,7 +216,7 @@ class GeradorBobinaCaixa {
                   style: estilo(tamanhoCustom: tamanho - 2),
                 ),
               ),
-              pw.Divider(thickness: 0.5),
+              pw.Divider(height: 6, thickness: 0.5),
               linhaDupla('Data/Hora:', dataHoraStr),
               if (operadorNome.isNotEmpty)
                 linhaDupla('Operador:', operadorNome),
@@ -228,7 +230,7 @@ class GeradorBobinaCaixa {
                   child: pw.Text(motivo, style: estilo()),
                 ),
               ],
-              pw.Divider(thickness: 0.5),
+              pw.Divider(height: 6, thickness: 0.5),
               pw.SizedBox(height: 20),
               pw.Center(
                 child: pw.Container(
@@ -267,7 +269,7 @@ class GeradorBobinaCaixa {
       bytes: bytes,
       nomeImpressora: config.nomeImpressora,
       jobName: 'Caixa-$titulo',
-      format: pageFormat,
+      format: ImpressaoUtils.formatoResolvidoDoDocumento(doc, pageFormat),
     );
   }
 }

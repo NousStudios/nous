@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:nous/src/core/theme/theme_controller.dart';
 import 'package:nous/src/features/pdv/models/cliente.dart';
+import 'package:nous/src/features/pdv/models/pedido_programado.dart';
 import 'package:nous/src/features/pdv/providers/pdv_provider.dart';
 import 'package:nous/src/features/pdv/views/widgets/comanda_pedido_dialog.dart';
 import 'package:nous/src/features/pdv/views/widgets/estado_vazio_container.dart';
@@ -21,6 +22,63 @@ class PedidosProgramadosClienteWidget extends StatelessWidget {
 
   static String _valor(double v) =>
       'R\$ ${v.toStringAsFixed(2).replaceAll('.', ',')}';
+
+  Future<void> _confirmarExclusao(
+    BuildContext context,
+    PdvProvider pdv,
+    PedidoProgramado prog,
+  ) async {
+    final confirmar = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: theme.cardBackgroundColor,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+          side: BorderSide(color: theme.borderColor),
+        ),
+        title: Text(
+          'Excluir Pedido Programado',
+          textAlign: TextAlign.center,
+          style: theme.getTextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.bold,
+            color: theme.textColor,
+          ),
+        ),
+        content: Text(
+          'Deseja excluir a programação (${prog.descricaoFrequencia}) de ${prog.clienteNome}?',
+          textAlign: TextAlign.center,
+          style: theme.getTextStyle(
+            fontSize: 13,
+            color: theme.secondaryTextColor,
+          ),
+        ),
+        actionsAlignment: MainAxisAlignment.center,
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: Text(
+              'Cancelar',
+              style: theme.getTextStyle(color: theme.secondaryTextColor),
+            ),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: Text(
+              'Excluir',
+              style: theme.getTextStyle(
+                color: theme.dangerColor,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+    if (confirmar == true) {
+      await pdv.removerPedidoProgramado(lojaId, prog.id);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -114,7 +172,7 @@ class PedidosProgramadosClienteWidget extends StatelessWidget {
                 separatorBuilder: (context, index) => const SizedBox(height: 6),
                 itemBuilder: (context, index) {
                   final p = programados[index];
-                  final dataTexto = p.descricaoFrequencia;
+                  final dataTexto = p.descricaoFrequenciaCurta;
 
                   return Container(
                     padding:
@@ -140,12 +198,38 @@ class PedidosProgramadosClienteWidget extends StatelessWidget {
                             children: [
                               Row(
                                 children: [
-                                  Text(
-                                    dataTexto,
-                                    style: theme.getTextStyle(
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.bold,
-                                      color: theme.textColor,
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 5, vertical: 1),
+                                    decoration: BoxDecoration(
+                                      color: theme.textColor
+                                          .withValues(alpha: 0.14),
+                                      borderRadius: BorderRadius.circular(5),
+                                      border: Border.all(
+                                        color: theme.borderColor
+                                            .withValues(alpha: 0.5),
+                                      ),
+                                    ),
+                                    child: Text(
+                                      p.horario,
+                                      style: theme.getTextStyle(
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.bold,
+                                        color: theme.textColor,
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 6),
+                                  Flexible(
+                                    child: Text(
+                                      dataTexto,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: theme.getTextStyle(
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.bold,
+                                        color: theme.textColor,
+                                      ),
                                     ),
                                   ),
                                   if (!p.ativo) ...[
@@ -154,7 +238,7 @@ class PedidosProgramadosClienteWidget extends StatelessWidget {
                                       padding: const EdgeInsets.symmetric(
                                           horizontal: 4, vertical: 1),
                                       decoration: BoxDecoration(
-                                        color: Colors.redAccent
+                                        color: theme.dangerColor
                                             .withValues(alpha: 0.2),
                                         borderRadius: BorderRadius.circular(4),
                                       ),
@@ -162,7 +246,7 @@ class PedidosProgramadosClienteWidget extends StatelessWidget {
                                         'Pausado',
                                         style: theme.getTextStyle(
                                           fontSize: 9,
-                                          color: Colors.redAccent,
+                                          color: theme.dangerColor,
                                         ),
                                       ),
                                     ),
@@ -182,6 +266,18 @@ class PedidosProgramadosClienteWidget extends StatelessWidget {
                                   color: theme.secondaryTextColor,
                                 ),
                               ),
+                              if (p.observacao.trim().isNotEmpty) ...[
+                                const SizedBox(height: 1),
+                                Text(
+                                  'Obs: ${p.observacao.trim()}',
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: theme.getTextStyle(
+                                    fontSize: 10,
+                                    color: theme.secondaryTextColor,
+                                  ),
+                                ),
+                              ],
                               const SizedBox(height: 2),
                               Text(
                                 '${_valor(p.valorTotal)} • ${p.formaPagamento}',
@@ -198,13 +294,37 @@ class PedidosProgramadosClienteWidget extends StatelessWidget {
                           icon: Icon(Icons.receipt_long,
                               size: 18, color: theme.textColor),
                           tooltip: 'Ver Comanda',
+                          visualDensity: VisualDensity.compact,
                           onPressed: () {
-                            final pedidoLoja = p.toPedidoLoja(numero: 0);
+                            final pedidoLoja = p.resolverPedidoDoDia(
+                              pedidosExistentes:
+                                  loja?.pedidosLoja ?? const [],
+                              nomeVendedor: loja?.nome ?? '',
+                              cnpjVendedor: loja?.cnpj ?? '',
+                              lojaId: lojaId,
+                            );
+                            final clienteResolvido = p.resolverCliente(
+                              loja?.clientesLoja ?? [cliente],
+                            );
                             ComandaPedidoDialog.mostrar(
                               context,
                               lojaId: lojaId,
                               pedido: pedidoLoja,
+                              cliente: clienteResolvido,
+                            );
+                          },
+                        ),
+                        IconButton(
+                          icon: Icon(Icons.edit_outlined,
+                              size: 18, color: theme.textColor),
+                          tooltip: 'Editar Programação',
+                          visualDensity: VisualDensity.compact,
+                          onPressed: () {
+                            ProgramarPedidoDialog.mostrar(
+                              context,
+                              lojaId: lojaId,
                               cliente: cliente,
+                              pedidoExistente: p,
                             );
                           },
                         ),
@@ -217,17 +337,18 @@ class PedidosProgramadosClienteWidget extends StatelessWidget {
                             color: theme.textColor,
                           ),
                           tooltip: p.ativo ? 'Pausar' : 'Ativar',
+                          visualDensity: VisualDensity.compact,
                           onPressed: () {
                             pdv.alternarAtivoPedidoProgramado(lojaId, p.id);
                           },
                         ),
                         IconButton(
-                          icon: const Icon(Icons.delete_outline,
-                              size: 18, color: Colors.redAccent),
+                          icon: Icon(Icons.delete_outline,
+                              size: 18, color: theme.dangerColor),
                           tooltip: 'Excluir',
-                          onPressed: () {
-                            pdv.removerPedidoProgramado(lojaId, p.id);
-                          },
+                          visualDensity: VisualDensity.compact,
+                          onPressed: () =>
+                              _confirmarExclusao(context, pdv, p),
                         ),
                       ],
                     ),

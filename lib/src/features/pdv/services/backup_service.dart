@@ -239,8 +239,7 @@ class BackupService {
 
       for (final nova in lojasNovas) {
         final indice = lojasMescladas.indexWhere((l) {
-          if (l.id == nova.id) return true;
-          return mesmoDocumento(l.cnpj, nova.cnpj);
+          return _ehMesmaLojaParaDesduplicar(l, nova);
         });
 
         if (indice == -1) {
@@ -314,6 +313,27 @@ class BackupService {
     return dA.isNotEmpty && dB.isNotEmpty && dA == dB;
   }
 
+  static bool _ehDocumentoPlaceholder(String? doc) {
+    if (doc == null) return true;
+    final digitos = doc.replaceAll(RegExp(r'\D'), '');
+    if (digitos.isEmpty) return true;
+    if (digitos == '00000000000100' || digitos == '00000000000000') {
+      return true;
+    }
+    final primeiro = digitos[0];
+    return digitos.split('').every((c) => c == primeiro);
+  }
+
+  static bool _ehMesmaLojaParaDesduplicar(Loja a, Loja b) {
+    if (a.id == b.id) return true;
+    if (!mesmoDocumento(a.cnpj, b.cnpj) || _ehDocumentoPlaceholder(a.cnpj)) {
+      return false;
+    }
+    final nomeA = a.nome.trim().toLowerCase();
+    final nomeB = b.nome.trim().toLowerCase();
+    return nomeA.isNotEmpty && nomeA == nomeB;
+  }
+
   static List<Loja> desduplicarLojas(List<Loja> lista) {
     if (lista.length <= 1) return lista;
 
@@ -328,10 +348,7 @@ class BackupService {
         if (processadas.contains(j)) continue;
         final comparada = lista[j];
 
-        final mesmoDoc = mesmoDocumento(base.cnpj, comparada.cnpj);
-        final mesmoId = base.id == comparada.id;
-
-        if (mesmoDoc || mesmoId) {
+        if (_ehMesmaLojaParaDesduplicar(base, comparada)) {
           processadas.add(j);
           final baseEhRestaurante =
               base.categorias.toLowerCase().contains('restaurante');

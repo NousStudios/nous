@@ -3,6 +3,7 @@ import 'package:nous/src/core/theme/theme_controller.dart';
 import 'package:nous/src/features/chat/controllers/mensageria_controller.dart';
 import 'package:nous/src/features/chat/models/conversa_chat.dart';
 import 'package:nous/src/features/chat/models/mensagem_chat.dart';
+import 'package:nous/src/features/chat/services/chat_service.dart';
 import 'package:nous/src/features/chat/views/widgets/balao_mensagem_widget.dart';
 import 'package:nous/src/features/chat/views/widgets/painel_conversa/banner_titulo_conversa_widget.dart';
 import 'package:nous/src/features/chat/views/widgets/painel_conversa/barra_envio_mensagem_widget.dart';
@@ -183,14 +184,27 @@ class _PainelConversaAtivaWidgetState extends State<PainelConversaAtivaWidget> {
                         }
                         final msg =
                             mensagensValidas[mensagensValidas.length - 1 - index];
-                        final enviadaPorMim =
-                            msg.enviadaPorMim ||
-                            (widget.controller.usuarioCpf != null &&
-                                (msg.remetenteId == widget.controller.usuarioCpf ||
-                                    msg.cpfAtendente ==
-                                        widget.controller.usuarioCpf)) ||
-                            (widget.controller.modoLoja &&
-                                msg.remetenteId == widget.controller.lojaId);
+                        final bool enviadaPorMim;
+                        if (widget.controller.modoLoja) {
+                          final lojaIdAtiva = widget.controller.lojaId ?? '';
+                          final lojaIdLimpo = lojaIdAtiva.startsWith('loja_')
+                              ? lojaIdAtiva.substring(5)
+                              : lojaIdAtiva;
+                          final remLimpo = msg.remetenteId.startsWith('loja_')
+                              ? msg.remetenteId.substring(5)
+                              : msg.remetenteId;
+                          enviadaPorMim = lojaIdLimpo.isNotEmpty && remLimpo == lojaIdLimpo;
+                        } else {
+                          final meuCpfNorm = ChatService.normalizarCpf(
+                            widget.controller.usuarioCpf ?? '',
+                          );
+                          final remNorm = ChatService.normalizarCpf(msg.remetenteId);
+                          final ehMensagemDeLoja = msg.remetenteId.startsWith('loja_') ||
+                              (conversa.ehLoja && msg.remetenteId == conversa.lojaId);
+                          enviadaPorMim = !ehMensagemDeLoja &&
+                              meuCpfNorm.isNotEmpty &&
+                              remNorm == meuCpfNorm;
+                        }
 
                         return BalaoMensagemWidget(
                           msg: msg,

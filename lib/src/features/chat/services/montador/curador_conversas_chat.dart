@@ -64,7 +64,7 @@ class CuradorConversasChat {
             tituloRem == 'Contato' ||
             tituloRem == 'Contato Nous' ||
             ehNomeDoUsuarioLogado(tituloRem)) {
-          tituloRem = titulosCustomizados[rem.id] ?? uConta.nomeExibicao;
+          tituloRem = uConta.nomeExibicao;
         }
         if (fotoRem.isEmpty || !ImagemService.existe(fotoRem) || ehFotoDoUsuarioLogado(fotoRem)) {
           fotoRem = uConta.fotoExibicao;
@@ -142,8 +142,9 @@ class CuradorConversasChat {
           todosDisponiveis.add(
             ConversaChat(
               id: convId,
-              titulo: titulosCustomizados[convId] ?? nomeContato,
+              titulo: nomeContato,
               subtitulo: subtituloContato,
+              tituloConversa: titulosCustomizados[convId] ?? '',
               identificador: u.cpf,
               foto: u.fotoExibicao,
               ehLoja: false,
@@ -175,9 +176,8 @@ class CuradorConversasChat {
               precisaAtualizarFoto ||
               precisaAtualizarSub) {
             todosDisponiveis[indexDisponivel] = ant.copyWith(
-              titulo: precisaAtualizarTitulo
-                  ? (titulosCustomizados[convId] ?? nomeContato)
-                  : ant.titulo,
+              titulo: precisaAtualizarTitulo ? nomeContato : ant.titulo,
+              tituloConversa: titulosCustomizados[convId] ?? ant.tituloConversa,
               foto: precisaAtualizarFoto ? u.fotoExibicao : ant.foto,
               subtitulo: precisaAtualizarSub ? subtituloContato : ant.subtitulo,
               identificador:

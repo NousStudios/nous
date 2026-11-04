@@ -39,6 +39,7 @@ class GeradorBobinaMesa {
               '${agora.day.toString().padLeft(2, '0')}/${agora.month.toString().padLeft(2, '0')} ${agora.hour.toString().padLeft(2, '0')}:${agora.minute.toString().padLeft(2, '0')}';
 
           return pw.Column(
+            mainAxisSize: pw.MainAxisSize.min,
             crossAxisAlignment: pw.CrossAxisAlignment.stretch,
             children: [
               pw.Center(
@@ -53,7 +54,7 @@ class GeradorBobinaMesa {
                   style: estilo(negrito: true),
                 ),
               ),
-              pw.Divider(thickness: 0.5),
+              pw.Divider(height: 6, thickness: 0.5),
               linhaDupla('Mesa:', mesa.numero, negrito: true),
               if (mesa.descricao.isNotEmpty)
                 linhaDupla('Local:', mesa.descricao),
@@ -62,7 +63,7 @@ class GeradorBobinaMesa {
               if (mesa.atendenteNome.isNotEmpty)
                 linhaDupla('Atendente:', mesa.atendenteNome),
               linhaDupla('Emissão:', dataHoraStr),
-              pw.Divider(thickness: 0.5),
+              pw.Divider(height: 6, thickness: 0.5),
               pw.Text('ITENS CONSUMIDOS', style: estilo(negrito: true)),
               pw.SizedBox(height: 2),
               for (final itemMesa in mesa.itens) ...[
@@ -86,13 +87,13 @@ class GeradorBobinaMesa {
                     ),
                   ),
               ],
-              pw.Divider(thickness: 0.5),
+              pw.Divider(height: 6, thickness: 0.5),
               linhaDupla(
                 'TOTAL:',
                 ImpressaoUtils.valor(mesa.totalAcumulado),
                 negrito: true,
               ),
-              pw.Divider(thickness: 0.5),
+              pw.Divider(height: 6, thickness: 0.5),
               pw.Center(
                 child: pw.Text(
                   '* Conferência não fiscal *',
@@ -110,7 +111,7 @@ class GeradorBobinaMesa {
       bytes: bytes,
       nomeImpressora: config.nomeImpressora,
       jobName: 'ConferenciaMesa-${mesa.numero}',
-      format: pageFormat,
+      format: ImpressaoUtils.formatoResolvidoDoDocumento(doc, pageFormat),
     );
   }
 }

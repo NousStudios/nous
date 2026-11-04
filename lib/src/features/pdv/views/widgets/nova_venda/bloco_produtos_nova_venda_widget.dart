@@ -1,7 +1,6 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:nous/src/core/theme/theme_controller.dart';
-import 'package:nous/src/core/widgets/texto_rolante.dart';
 import 'package:nous/src/features/pdv/models/categoria_loja.dart';
 import 'package:nous/src/features/pdv/models/grupo_componentes_loja.dart';
 import 'package:nous/src/features/pdv/models/item_loja.dart';
@@ -103,8 +102,10 @@ class BlocoProdutosNovaVendaWidget extends StatelessWidget {
                   size: 16, color: theme.secondaryTextColor),
             const SizedBox(width: 8),
             Expanded(
-              child: TextoRolante(
-                texto: 'Categoria: ${categoria.nome}',
+              child: Text(
+                'Categoria: ${categoria.nome}',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
                 style: theme.getTextStyle(fontSize: 12, color: theme.textColor),
               ),
             ),
@@ -151,8 +152,10 @@ class BlocoProdutosNovaVendaWidget extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  TextoRolante(
-                    texto: item.nome,
+                  Text(
+                    item.nome,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                     style: theme.getTextStyle(fontSize: 12, color: theme.textColor),
                   ),
                   Wrap(
@@ -179,10 +182,8 @@ class BlocoProdutosNovaVendaWidget extends StatelessWidget {
                               style: theme.getTextStyle(
                                 fontSize: 10,
                                 color: saldo <= 0
-                                    ? Colors.redAccent
-                                    : (saldo < 10
-                                        ? Colors.orangeAccent
-                                        : theme.secondaryTextColor),
+                                    ? theme.dangerColor
+                                    : theme.secondaryTextColor,
                                 fontWeight: saldo <= 0
                                     ? FontWeight.bold
                                     : FontWeight.normal,
@@ -242,8 +243,10 @@ class BlocoProdutosNovaVendaWidget extends StatelessWidget {
                 const SizedBox(width: 8),
               ],
               Expanded(
-                child: TextoRolante(
-                  texto: nomeExibicaoLinha(linha),
+                child: Text(
+                  nomeExibicaoLinha(linha),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                   style: theme.getTextStyle(
                     fontSize: 12,
                     color: theme.textColor,
@@ -301,8 +304,10 @@ class BlocoProdutosNovaVendaWidget extends StatelessWidget {
                               ),
                             )
                           : const SizedBox.shrink())
-                      : TextoRolante(
-                          texto: resumoAcompanhamentos(linha),
+                      : Text(
+                          resumoAcompanhamentos(linha),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                           style: theme.getTextStyle(
                             fontSize: 10,
                             color: theme.secondaryTextColor,

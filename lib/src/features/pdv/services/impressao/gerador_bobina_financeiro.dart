@@ -113,7 +113,7 @@ class GeradorBobinaFinanceiro {
       ..sort((a, b) => b.dataHora.compareTo(a.dataHora));
 
     doc.addPage(
-      pw.MultiPage(
+      pw.Page(
         pageFormat: pageFormat,
         build: (context) {
           final blocos = <pw.Widget>[];
@@ -354,7 +354,11 @@ class GeradorBobinaFinanceiro {
             }
           }
 
-          return blocos;
+          return pw.Column(
+            mainAxisSize: pw.MainAxisSize.min,
+            crossAxisAlignment: pw.CrossAxisAlignment.stretch,
+            children: blocos,
+          );
         },
       ),
     );
@@ -364,7 +368,7 @@ class GeradorBobinaFinanceiro {
       bytes: bytes,
       nomeImpressora: config.nomeImpressora,
       jobName: 'FinanceiroNous-${DateTime.now().millisecondsSinceEpoch}',
-      format: pageFormat,
+      format: ImpressaoUtils.formatoResolvidoDoDocumento(doc, pageFormat),
     );
   }
 }

@@ -103,18 +103,23 @@ class MesaLoja {
     String? atendenteCpf,
     String? atendenteNome,
     DateTime? dataHoraAbertura,
+    bool limparDataHoraAbertura = false,
     List<ItemComandaMesa>? itens,
     String? observacoes,
   }) {
+    final statusFinal = status ?? this.status;
+    final limparAbertura =
+        limparDataHoraAbertura || statusFinal == StatusMesa.livre;
     return MesaLoja(
       id: id ?? this.id,
       numero: numero ?? this.numero,
       descricao: descricao ?? this.descricao,
-      status: status ?? this.status,
+      status: statusFinal,
       clienteNome: clienteNome ?? this.clienteNome,
       atendenteCpf: atendenteCpf ?? this.atendenteCpf,
       atendenteNome: atendenteNome ?? this.atendenteNome,
-      dataHoraAbertura: dataHoraAbertura ?? this.dataHoraAbertura,
+      dataHoraAbertura:
+          limparAbertura ? null : (dataHoraAbertura ?? this.dataHoraAbertura),
       itens: itens ?? this.itens,
       observacoes: observacoes ?? this.observacoes,
     );

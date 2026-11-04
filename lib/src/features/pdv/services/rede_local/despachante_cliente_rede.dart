@@ -40,6 +40,7 @@ class DespachanteClienteRede {
     required String? ipServidor,
     required int? portaServidor,
     required MovimentoEstoque mov,
+    String? lojaId,
   }) async {
     if (ipServidor == null || portaServidor == null) return false;
     try {
@@ -48,7 +49,11 @@ class DespachanteClienteRede {
         Uri.parse('http://$ipServidor:$portaServidor/api/movimento_estoque'),
       );
       request.headers.contentType = ContentType.json;
-      request.write(jsonEncode(mov.toJson()));
+      final payload = mov.toJson();
+      if (lojaId != null && lojaId.isNotEmpty) {
+        payload['lojaId'] = lojaId;
+      }
+      request.write(jsonEncode(payload));
       final response = await request.close();
       return response.statusCode == HttpStatus.ok;
     } catch (e) {
@@ -62,6 +67,7 @@ class DespachanteClienteRede {
     required String? ipServidor,
     required int? portaServidor,
     required MesaLoja mesa,
+    String? lojaId,
   }) async {
     if (ipServidor == null || portaServidor == null) return false;
     try {
@@ -70,7 +76,11 @@ class DespachanteClienteRede {
         Uri.parse('http://$ipServidor:$portaServidor/api/mesa'),
       );
       request.headers.contentType = ContentType.json;
-      request.write(jsonEncode(mesa.toJson()));
+      final payload = mesa.toJson();
+      if (lojaId != null && lojaId.isNotEmpty) {
+        payload['lojaId'] = lojaId;
+      }
+      request.write(jsonEncode(payload));
       final response = await request.close();
       return response.statusCode == HttpStatus.ok;
     } catch (e) {

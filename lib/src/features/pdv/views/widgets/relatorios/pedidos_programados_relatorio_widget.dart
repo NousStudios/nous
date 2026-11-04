@@ -2,9 +2,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:nous/src/core/theme/theme_controller.dart';
-import 'package:nous/src/core/widgets/texto_rolante.dart';
 import 'package:nous/src/features/auth/providers/auth_provider.dart';
-import 'package:nous/src/features/pdv/models/cliente.dart';
 import 'package:nous/src/features/pdv/providers/pdv_provider.dart';
 import 'package:nous/src/features/pdv/services/imagem_service.dart';
 import 'package:nous/src/features/pdv/views/widgets/comanda_pedido_dialog.dart';
@@ -74,21 +72,13 @@ class PedidosProgramadosRelatorioWidget extends StatelessWidget {
                     const SizedBox(height: 8),
                 itemBuilder: (context, index) {
                   final prog = programados[index];
-                  Cliente? cliente;
-                  if (loja != null) {
-                    cliente = loja.clientesLoja
-                        .where((c) =>
-                            c.id == prog.clienteId ||
-                            (c.nome.trim().toLowerCase() ==
-                                prog.clienteNome.trim().toLowerCase()))
-                        .firstOrNull;
-                  }
+                  final cliente = prog.resolverCliente(
+                    loja?.clientesLoja ?? const [],
+                  );
 
                   final auth = context.read<AuthProvider>();
-                  String foto = cliente?.foto ?? '';
-                  if (foto.isEmpty &&
-                      cliente != null &&
-                      cliente.cnpj.isNotEmpty) {
+                  String foto = cliente.foto;
+                  if (foto.isEmpty && cliente.cnpj.isNotEmpty) {
                     foto = auth.buscarFotoPorCpf(cliente.cnpj);
                     if (foto.isEmpty) {
                       foto = pdv.buscarFotoClientePorCpf(cliente.cnpj) ?? '';
@@ -96,18 +86,20 @@ class PedidosProgramadosRelatorioWidget extends StatelessWidget {
                   }
                   final fotoResolvida = ImagemService.resolverCaminhoExistente(foto);
                   final temFoto = fotoResolvida != null;
+                  final pedidoDoDia = prog.resolverPedidoDoDia(
+                    pedidosExistentes: loja?.pedidosLoja ?? const [],
+                    data: diaAlvo,
+                    nomeVendedor: loja?.nome ?? '',
+                    cnpjVendedor: loja?.cnpj ?? '',
+                    lojaId: lojaId,
+                  );
 
                   return _LinhaComHover(
                     aoClicar: () {
-                      final pedidoLoja = prog.toPedidoLoja(
-                        numero: 0,
-                        nomeVendedor: loja?.nome ?? '',
-                        cnpjVendedor: loja?.cnpj ?? '',
-                      );
                       ComandaPedidoDialog.mostrar(
                         context,
                         lojaId: lojaId,
-                        pedido: pedidoLoja,
+                        pedido: pedidoDoDia,
                         cliente: cliente,
                       );
                     },
@@ -147,9 +139,10 @@ class PedidosProgramadosRelatorioWidget extends StatelessWidget {
                                 Row(
                                   children: [
                                     Flexible(
-                                      child: TextoRolante(
-                                        texto: prog.clienteNome,
-                                        textAlign: TextAlign.start,
+                                      child: Text(
+                                        prog.clienteNome,
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
                                         style: theme.getTextStyle(
                                           fontSize: 12,
                                           fontWeight: FontWeight.bold,
@@ -181,9 +174,10 @@ class PedidosProgramadosRelatorioWidget extends StatelessWidget {
                                     ),
                                     const SizedBox(width: 4),
                                     Flexible(
-                                      child: TextoRolante(
-                                        texto: '• ${prog.descricaoFrequencia}',
-                                        textAlign: TextAlign.start,
+                                      child: Text(
+                                        '• ${prog.descricaoFrequenciaCurta}',
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
                                         style: theme.getTextStyle(
                                           fontSize: 10,
                                           color: theme.secondaryTextColor,
@@ -193,12 +187,13 @@ class PedidosProgramadosRelatorioWidget extends StatelessWidget {
                                   ],
                                 ),
                                 const SizedBox(height: 2),
-                                TextoRolante(
-                                  texto: prog.itens
+                                Text(
+                                  prog.itens
                                       .map((i) =>
                                           '${i.quantidade}x ${i.nomeExibicao}')
                                       .join(', '),
-                                  textAlign: TextAlign.start,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
                                   style: theme.getTextStyle(
                                     fontSize: 10,
                                     color: theme.secondaryTextColor,

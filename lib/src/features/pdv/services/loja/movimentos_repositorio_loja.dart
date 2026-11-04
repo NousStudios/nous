@@ -40,12 +40,40 @@ class MovimentosRepositorioLoja {
         {
           'id': mov.id,
           'loja_id': lojaId,
+          'item_id': mov.itemId,
+          'tipo': mov.tipo.name,
           'data_hora': mov.dataHora.toIso8601String(),
+          'custo_total': mov.custoTotal,
           'dados_json': dadosJson,
         },
         conflictAlgorithm: ConflictAlgorithm.replace,
       );
     }
+  }
+
+  static Future<void> excluirPorId(
+    String lojaId,
+    String movimentoId, {
+    DatabaseExecutor? executor,
+  }) async {
+    final db = executor ?? await BancoDadosService.db;
+    await db.delete(
+      'movimentos_estoque',
+      where: 'loja_id = ? AND id = ?',
+      whereArgs: [lojaId, movimentoId],
+    );
+  }
+
+  static Future<void> excluirTodosDaLoja(
+    String lojaId, {
+    DatabaseExecutor? executor,
+  }) async {
+    final db = executor ?? await BancoDadosService.db;
+    await db.delete(
+      'movimentos_estoque',
+      where: 'loja_id = ?',
+      whereArgs: [lojaId],
+    );
   }
 
   static Future<List<MovimentoEstoque>> carregarPaginado({

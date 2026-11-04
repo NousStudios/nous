@@ -63,13 +63,14 @@ you. Nous inverts that logic on purpose:
 Nous is in **active development**, built by a self-taught Brazilian developer — contributions, code review, and honest criticism from experienced developers are genuinely welcome; this project is too large, by design, for one person alone.
 
 The currently operating core includes:
-- **Citizen Identity & Granular Privacy (`features/auth`)**: Real identity tied to the citizen's CPF (Brazilian tax ID), multiple authenticated accounts on the same machine, comprehensive citizen profile data, sovereign credential management, and granular privacy controls allowing the citizen to privatize sensitive data (with permanent local reveal for the owner, censor masking with `••••••••` for third parties, and deliberative permission request notifications).
-- **Public Social Profile & Universal Navigation (`features/auth` & `core/widgets`)**: Separation between official civil identity (`FichaUsuarioDialog`) and public social profile (`PerfilSocialView`, `EditarPerfilDialog`), sovereign `@username` handle, fluid vertical double-mode bottom navigation bar (`FloatingBottomNavBar`), regional Discovery & Map screen (`BuscaMapaView`), and mutual profile following.
+- **Citizen Identity & Granular Privacy (`features/auth`)**: Real identity tied to the citizen's CPF (Brazilian tax ID), universal privacy masking (`123.•••.•••-••`) with an interactive eye toggle across login (`CpfInputWidget`), identity cards, worker lists, and local network panels (protecting against accidental screenshots), multiple authenticated accounts on the same machine with full login/logout sovereignty, comprehensive citizen profile data, sovereign credential management, and granular privacy controls allowing the citizen to privatize sensitive data (with permanent local reveal for the owner, censor masking with `••••••••` for third parties, and deliberative permission request notifications).
+- **Public Social Profile & Universal Navigation (`features/auth`, `features/busca` & `core/widgets`)**: Separation between official civil identity (`FichaUsuarioDialog`) and public social profile (`PerfilSocialView`, `EditarPerfilDialog`), sovereign `@username` handle, fluid vertical double-mode bottom navigation bar (`FloatingBottomNavBar`), regional Discovery & Map screen (`BuscaMapaView`), and mutual profile following.
 - **WhatsApp-Style Messaging & Internal Chat (`features/chat`)**:
-  - High-performance, real-time messaging running directly on local SQLite and WebSockets with zero lag.
-  - Natural chronological message flow with auto-scroll to latest updates.
+  - High-performance, real-time messaging running directly on local SQLite and WebSockets with 0ms optimistic dispatch and an offline outbox queue with automatic retries.
+  - Strict scope isolation between Store Mode (customer service & store operations) and Personal Social Mode, with bilateral left/right message alignment (store vs. customer/citizen) even when an operator tests or chats with their own store, and a centered custom conversation subject banner (`tituloConversa`) that never overwrites the real store or contact name in the header.
+  - Natural chronological message flow with auto-scroll to latest updates, conversation pinning, and archiving.
   - Contextual message actions: text copying, forwarding to any contact/conversation, message editing (exclusive to the author, with full version history available via `(editada)` badge), and author-only message deletion strictly limited to 60 seconds after sending.
-  - WhatsApp official blue double-check read receipts (`#34B7F1`).
+  - 4-stage visual delivery & read receipts: pending clock, 1 gray check (sent), 2 gray checks (delivered on network), and 2 WhatsApp official blue checks (`#34B7F1`, read).
   - Multimedia & document attachments: photos with automatic peer-to-peer self-healing sync and fullscreen view, generic files/PDFs, and interactive PDV sales ticket cards with one-click view in `ComandaPedidoDialog`.
   - Direct camera photo capture from the message input bar.
   - Dynamic contact details with "Media, Links & Docs", JSON conversation backup export, and deliberative mutual-consent chat deletion.
@@ -102,8 +103,8 @@ The currently operating core includes:
   - Thermal receipt printing (supporting both 58mm and 80mm rolls) with roll width selector, universal bilateral margin calibration (independent left/right mm fine-tuning preventing edge cuts across hardware brands like Knup, B&G, Elgin), unified typography architecture (`FontesApp`) with 11 industry-standard free fonts (Arial/Helvetica for sharp thermal paper clarity without ink bleeding, Courier monospace for column alignment, Open Sans, Roboto, Roboto Mono, Inter, Lato, Poppins, Montserrat, Times New Roman, and Belleza), dropdown selection identical to appearance settings, live in-dialog receipt preview, direct sample printing, and PDF exports.
 - **Deliberative Notifications & Governance (`features/notificacoes`)**: Direct collective governance for store members with stock-alert aggregation, direct tap-to-replenish stock workflow syncing live balances, persisting transparent action audit logs, and horizontal swipe-to-dismiss gesture per session (reappearing on next launch if unresolved). Anti-despotic rules: owners cannot unilaterally remove other owners without explicit consent; partners cannot alter another partner's role without prior acceptance.
 - **Local-First, High-Performance Architecture**: Entirely offline and self-contained with a high-performance local SQLite relational engine (`sqflite_common_ffi` with ACID atomic transactions), automatic migration from legacy store vaults, single-file universal JSON backup/restore (`file_selector`) with non-destructive intelligent merging, active profile deduplication by CNPJ/tax ID, category preservation, and silent automatic daily local backups to `%APPDATA%\Nous\backups`.
-- **Desktop Distribution & Single-Instance Protection**: Standalone Inno Setup Windows installer (`Nous_Instalador_v1.0.68_Versao_Teste.exe`) and Android mobile package (`Nous_Android_v1.0.68_Versao_Teste.apk`) with branded multi-resolution app icon, native Win32 Named Mutex single-instance protection preventing duplicate process conflicts, and offline-tolerant update notification mechanism (`AtualizacaoService`).
-- **Local-First Wi-Fi Synchronization & Self-Healing Mesh (`servidor_rede_local.dart` & `cliente_rede_local.dart`)**: Real-time zero-internet local network synchronization connecting PC Cashier Counter and Mobile Phones (Android) on the same Wi-Fi, featuring automatic peer discovery via UDP broadcast, bidirectional WebSocket data streaming, **Universal Bidirectional Self-Healing Mesh** (servers actively report missing or corrupted media/data on their storage, and connected clients automatically heal the server via streaming uploads and consolidate catalogs, tables, actions, orders, images, and user identity profile photos symmetrically regardless of who is host or client, auto-updating connected terminals in real time), instant real-time role & custom permission broadcasting, active profile deduplication preventing duplicated store entries across multi-device owner logins, deterministic persistent image and audio/music caching (`remota_<hash>` and `remoto_audio_<hash>`) eliminating repetitive download storms and mobile freezing, on-demand streaming audio playback for phones, real-time store Open/Closed status synchronization, lightweight in-memory sync without destructive widget rebuilding, sovereign physical download of media directly to phone storage, automatic User Identity & avatar synchronization by CPF, and local-first in-network software updates directly from the counter PC.
+- **Desktop Distribution & Single-Instance Protection**: Standalone Inno Setup Windows installer (`Nous_Instalador_v1.0.76_Versao_Teste.exe`) with automatic Windows Defender Firewall rules (releasing TCP port 8080 and UDP port 45454 across all network profiles) and Android mobile package (`Nous_Android_v1.0.76_Versao_Teste.apk`) with branded multi-resolution app icon, native Android task state preservation (`singleTask` + `alwaysRetainTaskState`), native Win32 Named Mutex single-instance protection preventing duplicate process conflicts, and immediate background update check (`AtualizacaoService`).
+- **Local-First Wi-Fi Synchronization & Self-Healing Mesh (`servidor_rede_local.dart` & `cliente_rede_local.dart`)**: Real-time zero-internet local network synchronization connecting PC Cashier Counter and Mobile Phones (Android) on the same Wi-Fi, featuring multi-interface UDP broadcast discovery (`255.255.255.255` + subnet broadcast to bridge wired Ethernet and Wi-Fi routers), fast 4-second TCP connection timeout, bidirectional WebSocket data streaming, strict per-store vault routing (`PedidoLoja.lojaId`) preventing cross-store data collisions, **Universal Bidirectional Self-Healing Mesh** (servers actively report missing or corrupted media/data on their storage, and connected clients automatically heal the server via streaming uploads and consolidate catalogs, tables, actions, orders, images, and user identity profile photos symmetrically regardless of who is host or client, auto-updating connected terminals in real time), instant real-time role & custom permission broadcasting, active profile deduplication preventing duplicated store entries across multi-device owner logins, deterministic persistent image and audio/music caching (`remota_<hash>` and `remoto_audio_<hash>`) eliminating repetitive download storms and mobile freezing, on-demand streaming audio playback for phones, real-time store Open/Closed status synchronization, lightweight in-memory sync without destructive widget rebuilding, sovereign physical download of media directly to phone storage, automatic User Identity & avatar synchronization by CPF, and local-first in-network software updates directly from the counter PC.
 
 Upcoming modules — autonomous delivery network, community banking, and direct-democracy self-management — are planned and organized in the architectural roadmap.
 
@@ -120,10 +121,10 @@ other's feet.
 ### Feature-first, not layer-first
 
 The codebase is organized by **business feature**, not by technical layer.
-Each folder under `lib/src/features/` (`auth`, `notificacoes`, `pdv`, `chat`, and planned
+Each folder under `lib/src/features/` (`auth`, `busca`, `chat`, `notificacoes`, `pdv`, and planned
 modules: `autogestao`, `banco`, `delivery`, `timeline`) is a self-contained
-module, with its own `models/`, `providers/`, `services/`, and `views/`
-inside it. Shared building blocks (theme, generic widgets, core services)
+module, with its own `controllers/`, `models/`, `providers/`, `services/`, and `views/`
+inside it. Shared building blocks (theme, generic widgets, core services, utilities)
 live in `lib/src/core/` instead of being duplicated per feature.
 
 ### Strict Modularity & Anti-Monolith Architecture
@@ -174,32 +175,30 @@ lib/
 ├── main.dart
 └── src/
     ├── core/                 # Shared across all features
-    │   ├── constants/
-    │   ├── routes/
-    │   ├── services/
-    │   ├── theme/            # AppTheme, ThemeController, theme customizer
-    │   └── widgets/          # Generic shared widgets (app bar, empty states...)
+    │   ├── services/         # SQLite engine (BancoDadosService), sounds, updates...
+    │   ├── theme/            # AppTheme, ThemeController & theme customizer widgets
+    │   ├── utils/            # Shared formatting & helper utilities
+    │   ├── views/            # Core shell & shared navigation views
+    │   └── widgets/          # Generic shared widgets (app bar, FloatingBottomNavBar, TextoRolante...)
     │
     └── features/
-        ├── auth/             # Citizen identity, CPF anchoring, profile & privacy
-        ├── chat/             # High-performance WhatsApp-style internal chat & media
-        ├── notificacoes/     # Deliberative governance, invites, consent requests
-        ├── pdv/              # Complete point of sale, inventory, finance & printing
-        ├── autogestao/       # Direct democracy, cooperative ballots & ledger (planned)
-        ├── banco/            # Community bank & mutual credit (planned)
-        ├── delivery/         # Autonomous delivery network (planned)
-        └── timeline/         # Social timeline (planned)
+        ├── auth/             # Citizen identity, CPF anchoring, social profile & granular privacy
+        ├── busca/            # Regional discovery & interactive map (BuscaMapaView)
+        ├── chat/             # High-performance WhatsApp-style chat, outbox & media sync
+        ├── notificacoes/     # Deliberative governance, store-isolated alerts & consent requests
+        └── pdv/              # Complete point of sale, inventory, finance, thermal printing & Wi-Fi mesh
 ```
 
-Each feature folder follows the same internal shape as it grows:
-`models/`, `providers/`, `services/`, `views/` (with `views/widgets/` for
-screen-specific components).
+*(Planned feature modules in the architectural roadmap: `autogestao/`, `banco/`, `delivery/`, and `timeline/`).*
+
+Each feature folder follows a strict modular internal structure as it grows:
+`controllers/`, `models/`, `providers/` (with `providers/helpers/`), `services/` (with domain sub-packages such as `impressao/`, `loja/`, `rede_local/handlers/`, `relatorios/`, `montador/`), and `views/` (split into `views/dialogs/` and `views/widgets/`).
 
 ## Roadmap
 
-1. **PDV & Governance Core** — fully functional and continuously evolving. Complete point of sale, USB barcode scanning, shift & cash drawer control (`TurnoCaixa`), multi-unit inventory (`un`/`g`/`ml`), sovereign auto-fill, egalitarian financial module, 58mm/80mm thermal printing with bilateral calibration, automatic daily backup, and consent-based collective governance.
-2. **Internal Chat & Messaging (`features/chat`)** — fully functional. WhatsApp-style messaging, real-time WebSockets, media/order sharing, read receipts, editing with history, author-only 60s deletion, camera integration, and deliberative mutual-consent chat deletion.
-3. **Citizen Social Profile & Privacy (`features/auth`)** — fully functional. Sovereign `@username`, granular data privacy with permanent owner reveal and deliberative third-party permission requests, and regional discovery.
+1. **PDV & Governance Core** — fully functional and continuously evolving. Complete point of sale, local-first Wi-Fi mesh synchronization with Radical Transparency, multi-store order isolation (`PedidoLoja.lojaId`), USB barcode scanning, shift & cash drawer control (`TurnoCaixa`), multi-unit inventory (`un`/`g`/`ml`), sovereign auto-fill, egalitarian financial module, 58mm/80mm thermal printing with bilateral calibration, automatic daily backup, consent-based collective governance, official Windows installer (`dist/Nous_Instalador_v1.0.76_Versao_Teste.exe`), and Android APK (`dist/Nous_Android_v1.0.76_Versao_Teste.apk`).
+2. **Sovereign Messaging & Internal Chat (`features/chat`)** — fully functional. 0ms optimistic sending, offline outbox queue with automatic retries, 4-stage visual delivery/read receipts (pending clock, 1 gray check, 2 gray checks, and `#34B7F1` blue double-check), conversation pinning & archiving, strict isolation between personal and store chats with bilateral left/right message alignment, centered conversation subject banner, real-time WebSockets, media/order sharing, editing with history, author-only 60s deletion, camera integration, JSON backup, and deliberative mutual-consent chat deletion.
+3. **Citizen Social Profile, Privacy & Discovery (`features/auth` & `features/busca`)** — fully functional. Sovereign `@username`, universal CPF privacy masking (`123.•••.•••-••`) with interactive eye toggle, granular data privacy with permanent owner reveal and deliberative third-party permission requests, and regional discovery & map.
 4. **Social Timeline (`features/timeline`)** — planned.
 5. **Autonomous Delivery Network (`features/delivery`)** — planned, with driver-negotiated route pricing and direct dispatch.
 6. **Community Bank & Mutual Credit (`features/banco`)** — planned, including platform-managed public accounts.
@@ -307,13 +306,14 @@ propósito:
 O Nous está em **desenvolvimento ativo**, construído por um desenvolvedor autodidata brasileiro — contribuições, revisão de código e críticas honestas de desenvolvedores experientes são muito bem-vindas; este projeto é grande demais, de propósito, para uma pessoa só.
 
 O núcleo atualmente funcional reúne:
-- **Identidade Cidadã e Privacidade Granular (`features/auth`)**: Identidade real ancorada no CPF do cidadão, suporte a múltiplas contas no mesmo dispositivo, perfil civil completo, soberania local sem dependência de autenticação de Big Techs e privacidade granular (o próprio titular revela de forma permanente clicando no olho; terceiros veem censurado `••••••••` e pedem permissão deliberativa via notificação).
-- **Perfil Social Público e Navegação Universal (`features/auth` e `core/widgets`)**: Separação soberana entre Identidade Civil (`FichaUsuarioDialog`) e Perfil Social Público (`PerfilSocialView`, `EditarPerfilDialog`), identificador soberano único `@username`, barra flutuante universal dupla com transição vertical suave (`FloatingBottomNavBar`), tela de Busca e Mapa regional (`BuscaMapaView`) e sistema mútuo de "Seguir" / "Seguindo".
+- **Identidade Cidadã e Privacidade Granular (`features/auth`)**: Identidade real ancorada no CPF do cidadão, mascaramento universal de CPF (`123.•••.•••-••`) com botão de olho aberto/fechado tanto no login (`CpfInputWidget`) quanto em cards de identidade, listas de trabalhadores e rede local (ideal para proteção em capturas de tela), suporte a múltiplas contas no mesmo dispositivo com soberania total de login e logout, perfil civil completo, soberania local sem dependência de autenticação de Big Techs e privacidade granular (o próprio titular revela de forma permanente clicando no olho; terceiros veem censurado `••••••••` e pedem permissão deliberativa via notificação).
+- **Perfil Social Público e Navegação Universal (`features/auth`, `features/busca` e `core/widgets`)**: Separação soberana entre Identidade Civil (`FichaUsuarioDialog`) e Perfil Social Público (`PerfilSocialView`, `EditarPerfilDialog`), identificador soberano único `@username`, barra flutuante universal dupla com transição vertical suave (`FloatingBottomNavBar`), tela de Busca e Mapa regional (`BuscaMapaView`) e sistema mútuo de "Seguir" / "Seguindo".
 - **Mensageria e Chat Interno estilo WhatsApp (`features/chat`)**:
-  - Arquitetura de alta performance com persistência SQLite local e comunicação WebSocket em tempo real, garantindo velocidade instantânea (60 fps) e fluidez de rede social.
-  - Ordem cronológica direta natural com rolagem suave automática para a mensagem mais recente.
+  - Arquitetura de alta performance com persistência SQLite local, envio otimista em 0ms, fila de saída offline (*outbox*) com retentativas automáticas e comunicação WebSocket em tempo real, garantindo velocidade instantânea (60 fps) e fluidez de rede social.
+  - Isolamento rigoroso de escopo entre Modo Loja (atendimento comercial) e Modo Social Pessoal, com intercalação bilateral perfeita (esquerda/direita) mesmo quando o operador conversa com a própria loja, e banner centralizado para o assunto personalizado da conversa (`tituloConversa`), preservando sempre o Nome Real da Loja ou Contato no cabeçalho superior.
+  - Ordem cronológica direta natural com rolagem suave automática para a mensagem mais recente, fixação e arquivamento de conversas.
   - Menu contextual de mensagens: cópia de texto, encaminhamento para outras conversas, edição (exclusiva do autor, com selo `(editada)` e histórico de versões acessível) e exclusão para todos (exclusiva do autor e estritamente limitada aos primeiros 60 segundos após envio).
-  - Confirmação de leitura em duplo check no azul oficial WhatsApp (`#34B7F1`).
+  - Confirmação visual completa em 4 estágios: relógio pendente, 1 check cinza (enviada), 2 checks cinzas (entregue na rede) e duplo check no azul oficial WhatsApp (`#34B7F1`, lida).
   - Anexos e mídias: fotos com transmissão direta e autocura peer-to-peer em tempo real com visualizador em tela cheia, arquivos/PDFs genéricos e envio interativo de comandas de pedidos com abertura direta em `ComandaPedidoDialog`.
   - Captura e envio instantâneo de fotos pela câmera direto da barra de envio.
   - Detalhes do contato com abas dinâmicas de Mídias, Links e Docs, exportação de backup da conversa em JSON e exclusão deliberativa com consentimento mútuo entre as partes.
@@ -351,8 +351,8 @@ O núcleo atualmente funcional reúne:
   - **Ação em Massa "Limpar Todas as Notificações"**: Botão dedicado no cabeçalho de `NotificacoesDialog` para dispensar todos os avisos e alertas visíveis com um único clique (`dispensarTodasNaSessao`).
   - Autogestão participativa para membros de lojas com resolução interativa de alertas de estoque crítico diretamente ao tocar no card da notificação, repondo saldo no cofre, gerando auditoria transparente em Ações e sincronizando a tela do PDV em tempo real. Regras anti-despóticas: donos não podem excluir outros donos sem consentimento mútuo; sócios não podem alterar o papel de outros sócios sem aceite explícito.
 - **Soberano, Local-First e de Alta Performance**: 100% autônomo e offline, impulsionado por um banco relacional local SQLite de alta performance (`sqflite_common_ffi` com transações atômicas ACID), migração automática transparente, exportação/importação de backup completo em arquivo JSON único (`file_selector`) com mesclagem inteligente não-destrutiva, desduplicação ativa de perfis por CNPJ, preservação de categoria e backup diário automático silencioso mantido em `%APPDATA%\Nous\backups`.
-- **Distribuição Desktop e Android**: Instalador oficial para Windows (Inno Setup 6) em arquivo `.exe` único ultra-comprimido (`Nous_Instalador_v1.0.68_Versao_Teste.exe`) e pacote móvel APK (`Nous_Android_v1.0.68_Versao_Teste.apk`), proteção nativa Win32 C++ contra múltiplas janelas abertas simultaneamente (evitando concorrência no SQLite) e sistema de verificação de atualizações local-first discreto (`AtualizacaoService`).
-- **Sincronização em Rede Wi-Fi Local e Autocura Mútua em Malha Distribuída (`servidor_rede_local.dart` e `cliente_rede_local.dart`)**: Operação simultânea e orgânica entre computador balcão e smartphones na mesma rede Wi-Fi local sem internet. Toda a aplicação conversa como um organismo unificado: qualquer informação ou foto de perfil/identidade faltante em qualquer nó é curada automaticamente pelo dispositivo que a possui. Validação física e soberana de mídias no host eliminando caminhos fantasmas, propagação instantânea via WebSocket (`usuario_atualizado`), download físico soberano de fotos (`remota_<hash>`), recarga reativa em tempo real da interface em todos os nós pareados, auto-associação de membros e distribuição local-first de instaladores e APKs sem dependência de nuvem.
+- **Distribuição Desktop e Android**: Instalador oficial para Windows (Inno Setup 6) em arquivo `.exe` único ultra-comprimido (`Nous_Instalador_v1.0.76_Versao_Teste.exe`) com regras automáticas de liberação no Windows Defender Firewall (portas TCP 8080 e UDP 45454) e pacote móvel APK (`Nous_Android_v1.0.76_Versao_Teste.apk`) com preservação nativa do estado da tarefa em memória no Android (`singleTask` + `alwaysRetainTaskState`), proteção nativa Win32 C++ contra múltiplas janelas abertas simultaneamente (evitando concorrência no SQLite) e sistema prioritário de verificação de atualizações local-first em background (`AtualizacaoService`).
+- **Sincronização em Rede Wi-Fi Local e Autocura Mútua em Malha Distribuída (`servidor_rede_local.dart` e `cliente_rede_local.dart`)**: Operação simultânea e orgânica entre computador balcão e smartphones na mesma rede Wi-Fi local sem internet, com descoberta automática via broadcast UDP multi-interface (`255.255.255.255` e broadcast de sub-rede para unir cabo Ethernet e rádio Wi-Fi), timeout ágil de conexão (4s) e isolamento absoluto de cofres e pedidos por loja (`PedidoLoja.lojaId`). Toda a aplicação conversa como um organismo unificado: qualquer informação ou foto de perfil/identidade faltante em qualquer nó é curada automaticamente pelo dispositivo que a possui. Validação física e soberana de mídias no host eliminando caminhos fantasmas, propagação instantânea via WebSocket (`usuario_atualizado`), download físico soberano de fotos (`remota_<hash>`), recarga reativa em tempo real da interface em todos os nós pareados, auto-associação de membros e distribuição local-first de instaladores e APKs sem dependência de nuvem.
 
 Os módulos futuros — rede autônoma de entregadores, banco comunitário e autogestão deliberativa — estão planejados e estruturados no roteiro.
 
@@ -369,11 +369,11 @@ trabalhar neste código sem atropelar o trabalho umas das outras.
 ### Organização por Feature, não por camada
 
 O código é organizado por **assunto de negócio (feature)**, não por camada
-técnica. Cada pasta dentro de `lib/src/features/` (`auth`, `notificacoes`, `pdv`,
-`chat`, e módulos planejados: `autogestao`, `banco`, `delivery`, `timeline`) funciona
-como um módulo independente, com seus próprios `models/`, `providers/`,
+técnica. Cada pasta dentro de `lib/src/features/` (`auth`, `busca`, `chat`, `notificacoes`, `pdv`,
+e módulos planejados: `autogestao`, `banco`, `delivery`, `timeline`) funciona
+como um módulo independente, com seus próprios `controllers/`, `models/`, `providers/`,
 `services/` e `views/` dentro dela. As peças compartilhadas (tema, widgets
-genéricos, serviços centrais) ficam em `lib/src/core/`, em vez de serem
+genéricos, serviços centrais, utilitários) ficam em `lib/src/core/`, em vez de serem
 duplicadas em cada feature.
 
 ### Modularidade Estrita e Fim dos Monólitos
@@ -428,32 +428,30 @@ lib/
 ├── main.dart
 └── src/
     ├── core/                 # Compartilhado entre todas as features
-    │   ├── constants/
-    │   ├── routes/
-    │   ├── services/
-    │   ├── theme/            # AppTheme, ThemeController, customizador de tema
-    │   └── widgets/          # Widgets genéricos compartilhados (app bar, empty states...)
+    │   ├── services/         # Motor SQLite (BancoDadosService), sons, atualizações...
+    │   ├── theme/            # AppTheme, ThemeController e widgets customizadores de tema
+    │   ├── utils/            # Utilitários e formatadores compartilhados
+    │   ├── views/            # Views centrais e casca de navegação compartilhada
+    │   └── widgets/          # Widgets genéricos (app bar, FloatingBottomNavBar, TextoRolante...)
     │
     └── features/
-        ├── auth/             # Identidade cidadã, ancoragem em CPF, perfil & privacidade
-        ├── chat/             # Mensageria e chat interno estilo WhatsApp em alta performance
-        ├── notificacoes/     # Governança deliberativa, convites, pedidos de consentimento
-        ├── pdv/              # PDV completo, estoque, finanças & impressão térmica
-        ├── autogestao/       # Ferramentas de autogestão, votações e ledger (planejado)
-        ├── banco/            # Banco comunitário e crédito mútuo (planejado)
-        ├── delivery/         # Rede autônoma de entregadores (planejado)
-        └── timeline/         # Timeline social (planejado)
+        ├── auth/             # Identidade cidadã, ancoragem em CPF, perfil social & privacidade
+        ├── busca/            # Descoberta regional e mapa interativo (BuscaMapaView)
+        ├── chat/             # Mensageria estilo WhatsApp, fila outbox & sincronia de mídias
+        ├── notificacoes/     # Governança deliberativa, alertas isolados por loja & consentimento
+        └── pdv/              # PDV completo, estoque, finanças, impressão térmica & malha Wi-Fi
 ```
 
-Cada pasta de feature segue o mesmo formato interno conforme cresce:
-`models/`, `providers/`, `services/`, `views/` (com `views/widgets/` para
-componentes específicos daquela tela).
+*(Módulos planejados no roteiro arquitetural: `autogestao/`, `banco/`, `delivery/` e `timeline/`).*
+
+Cada pasta de feature segue uma estrutura interna estritamente modular conforme cresce:
+`controllers/`, `models/`, `providers/` (com `providers/helpers/`), `services/` (com subpastas de domínio como `impressao/`, `loja/`, `rede_local/handlers/`, `relatorios/`, `montador/`) e `views/` (dividido em `views/dialogs/` e `views/widgets/`).
 
 ## Roteiro (Roadmap)
 
-1. **Núcleo de PDV e Governança** — totalmente funcional e em evolução contínua. Ponto de venda completo, sincronização Wi-Fi local-first com Transparência Radical, proteção anti-sobrescrita de imagens em rede local, leitor de código de barras USB (bipador), controle de turno de caixa (`TurnoCaixa`), estoque multivariado (`un`/`g`/`ml`), clientes e fornecedores com autopreenchimento local soberano, financeiro cooperativo com base estável de divisão igualitária, impressão térmica de 58mm e 80mm universal com calibração bilateral de recuo, backup diário automático silencioso, instalador oficial Windows (`dist/Nous_Instalador_v1.0.69_Versao_Teste.exe`) e pacote APK Android (`dist/Nous_Android_v1.0.69_Versao_Teste.apk`).
-2. **Mensageria Soberana e Chat Interno (`features/chat`)** — totalmente funcional. Envio instantâneo otimista em 0ms, fila de saída offline (*outbox*) com retentativas automáticas, confirmação visual completa em 4 estágios (relógio pendente, 1 check cinza de envio, 2 checks cinzas de entrega e double check azul `#34B7F1` para mensagens lidas), fixação e arquivamento de conversas, isolamento estrito entre chats pessoais e de loja, WebSockets em tempo real, envio de fotos, arquivos e comandas interativas de vendas, histórico de edições, exclusão em até 60 segundos, captura rápida com câmera, backup em JSON e exclusão deliberativa mútua.
-3. **Perfil Social Cidadão e Privacidade Granular (`features/auth`)** — totalmente funcional. Identificador soberano `@username`, privacidade granular com revelação local permanente para o titular e solicitação deliberativa para terceiros, tela de Busca & Mapa regional.
+1. **Núcleo de PDV e Governança** — totalmente funcional e em evolução contínua. Ponto de venda completo, sincronização Wi-Fi local-first com Transparência Radical, isolamento estrutural de pedidos por loja (`PedidoLoja.lojaId`), proteção anti-sobrescrita de imagens em rede local, leitor de código de barras USB (bipador), controle de turno de caixa (`TurnoCaixa`), estoque multivariado (`un`/`g`/`ml`), clientes e fornecedores com autopreenchimento local soberano, financeiro cooperativo com base estável de divisão igualitária, impressão térmica de 58mm e 80mm universal com calibração bilateral de recuo, backup diário automático silencioso, instalador oficial Windows (`dist/Nous_Instalador_v1.0.76_Versao_Teste.exe`) e pacote APK Android (`dist/Nous_Android_v1.0.76_Versao_Teste.apk`).
+2. **Mensageria Soberana e Chat Interno (`features/chat`)** — totalmente funcional. Envio instantâneo otimista em 0ms, fila de saída offline (*outbox*) com retentativas automáticas, confirmação visual completa em 4 estágios (relógio pendente, 1 check cinza de envio, 2 checks cinzas de entrega e double check azul `#34B7F1` para mensagens lidas), fixação e arquivamento de conversas, isolamento estrito entre chats pessoais e de loja com intercalação bilateral de lados (esquerda/direita) e título de assunto centralizado, WebSockets em tempo real, envio de fotos, arquivos e comandas interativas de vendas, histórico de edições, exclusão em até 60 segundos, captura rápida com câmera, backup em JSON e exclusão deliberativa mútua.
+3. **Perfil Social Cidadão, Privacidade e Descoberta (`features/auth` e `features/busca`)** — totalmente funcional. Identificador soberano `@username`, mascaramento universal de CPF (`123.•••.•••-••`) com botão de olho dinâmico, privacidade granular com revelação local permanente para o titular e solicitação deliberativa para terceiros, tela de Busca & Mapa regional.
 4. **Timeline Social (`features/timeline`)** — planejado.
 5. **Rede autônoma de entregadores (`features/delivery`)** — planejado, com negociação de rotas pelo próprio trabalhador.
 6. **Banco comunitário e crédito mútuo (`features/banco`)** — planejado, incluindo contas públicas geridas pela plataforma.

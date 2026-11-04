@@ -4,12 +4,12 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:nous/src/core/theme/theme_controller.dart';
 import 'package:nous/src/features/auth/providers/auth_provider.dart';
-import 'package:nous/src/features/pdv/models/cliente.dart';
+import 'package:nous/src/features/pdv/models/pedido_loja.dart';
 import 'package:nous/src/features/pdv/models/pedido_programado.dart';
 import 'package:nous/src/features/pdv/providers/pdv_provider.dart';
 import 'package:nous/src/features/pdv/services/imagem_service.dart';
 import 'package:nous/src/features/pdv/views/widgets/comanda_pedido_dialog.dart';
-import 'package:nous/src/core/widgets/texto_rolante.dart';
+import 'package:nous/src/features/pdv/views/widgets/programar_pedido_dialog.dart';
 
 class PedidosProgramadosDialog extends StatelessWidget {
   final String lojaId;
@@ -46,8 +46,38 @@ class PedidosProgramadosDialog extends StatelessWidget {
       valueListenable: ThemeController.currentTheme,
       builder: (context, theme, _) {
         final auth = context.read<AuthProvider>();
-        final pdv = context.read<PdvProvider>();
+        final pdv = context.watch<PdvProvider>();
         final loja = pdv.buscarPorId(lojaId);
+        final agora = DateTime.now();
+        final diaStr = agora.day.toString().padLeft(2, '0');
+        final mesStr = agora.month.toString().padLeft(2, '0');
+
+        final idsIniciais = pedidos.map((p) => p.id).toSet();
+        final listaAtiva = loja != null
+            ? pdv.pedidosProgramadosDoDia(lojaId).where((prog) {
+                if (!idsIniciais.contains(prog.id) &&
+                    !prog.coincideComData(agora)) {
+                  return false;
+                }
+                final idEsperadoHoje =
+                    'prog_${prog.id}_${agora.year}_${mesStr}_$diaStr';
+                final pedidoExistente = loja.pedidosLoja.where((p) {
+                  if (p.id == idEsperadoHoje) return true;
+                  if (p.id.startsWith('prog_${prog.id}_') &&
+                      p.dataHora.year == agora.year &&
+                      p.dataHora.month == agora.month &&
+                      p.dataHora.day == agora.day) {
+                    return true;
+                  }
+                  return false;
+                }).firstOrNull;
+                if (pedidoExistente != null &&
+                    pedidoExistente.status != StatusPedido.novo) {
+                  return false;
+                }
+                return true;
+              }).toList()
+            : pedidos;
 
         return Dialog(
           backgroundColor: theme.cardBackgroundColor,
@@ -71,9 +101,10 @@ class PedidosProgramadosDialog extends StatelessWidget {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            TextoRolante(
-                              texto: 'Pedidos Programados de Hoje',
-                              textAlign: TextAlign.start,
+                            Text(
+                              'Pedidos Programados de Hoje',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
                               style: theme.getTextStyle(
                                 fontSize: 15,
                                 fontWeight: FontWeight.bold,
@@ -81,7 +112,7 @@ class PedidosProgramadosDialog extends StatelessWidget {
                               ),
                             ),
                             Text(
-                              '${pedidos.length} pedido(s) agendado(s) para hoje',
+                              '${listaAtiva.length} pedido(s) agendado(s) para hoje',
                               style: theme.getTextStyle(
                                 fontSize: 11,
                                 color: theme.secondaryTextColor,
@@ -100,22 +131,16 @@ class PedidosProgramadosDialog extends StatelessWidget {
                   Flexible(
                     child: ListView.separated(
                       shrinkWrap: true,
-                      itemCount: pedidos.length,
+                      itemCount: listaAtiva.length,
                       separatorBuilder: (context, index) => const SizedBox(height: 8),
                       itemBuilder: (context, index) {
-                        final prog = pedidos[index];
-                        Cliente? cliente;
-                        if (loja != null) {
-                          cliente = loja.clientesLoja
-                              .where((c) =>
-                                  c.id == prog.clienteId ||
-                                  (c.nome.trim().toLowerCase() ==
-                                      prog.clienteNome.trim().toLowerCase()))
-                              .firstOrNull;
-                        }
+                        final prog = listaAtiva[index];
+                        final cliente = prog.resolverCliente(
+                          loja?.clientesLoja ?? const [],
+                        );
 
-                        String foto = cliente?.foto ?? '';
-                        if (foto.isEmpty && cliente != null && cliente.cnpj.isNotEmpty) {
+                        String foto = cliente.foto;
+                        if (foto.isEmpty && cliente.cnpj.isNotEmpty) {
                           foto = auth.buscarFotoPorCpf(cliente.cnpj);
                           if (foto.isEmpty) {
                             foto = pdv.buscarFotoClientePorCpf(cliente.cnpj) ?? '';
@@ -123,6 +148,12 @@ class PedidosProgramadosDialog extends StatelessWidget {
                         }
                         final fotoResolvida = ImagemService.resolverCaminhoExistente(foto);
                         final temFoto = fotoResolvida != null;
+                        final pedidoDoDia = prog.resolverPedidoDoDia(
+                          pedidosExistentes: loja?.pedidosLoja ?? const [],
+                          nomeVendedor: loja?.nome ?? '',
+                          cnpjVendedor: loja?.cnpj ?? '',
+                          lojaId: lojaId,
+                        );
 
                         return Container(
                           padding: const EdgeInsets.all(10),
@@ -157,9 +188,10 @@ class PedidosProgramadosDialog extends StatelessWidget {
                                     Row(
                                       children: [
                                         Expanded(
-                                          child: TextoRolante(
-                                            texto: prog.clienteNome,
-                                            textAlign: TextAlign.start,
+                                          child: Text(
+                                            prog.clienteNome,
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
                                             style: theme.getTextStyle(
                                               fontSize: 13,
                                               fontWeight: FontWeight.bold,
@@ -190,7 +222,7 @@ class PedidosProgramadosDialog extends StatelessWidget {
                                         const SizedBox(width: 4),
                                         Flexible(
                                           child: Text(
-                                            '• ${prog.descricaoFrequencia}',
+                                            '• ${prog.descricaoFrequenciaCurta}',
                                             maxLines: 1,
                                             overflow: TextOverflow.ellipsis,
                                             style: theme.getTextStyle(
@@ -202,9 +234,10 @@ class PedidosProgramadosDialog extends StatelessWidget {
                                       ],
                                     ),
                                     const SizedBox(height: 2),
-                                    TextoRolante(
-                                      texto: prog.itens.map((i) => '${i.quantidade}x ${i.nomeExibicao}').join(', '),
-                                      textAlign: TextAlign.start,
+                                    Text(
+                                      prog.itens.map((i) => '${i.quantidade}x ${i.nomeExibicao}').join(', '),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
                                       style: theme.getTextStyle(
                                         fontSize: 11,
                                         color: theme.secondaryTextColor,
@@ -212,7 +245,8 @@ class PedidosProgramadosDialog extends StatelessWidget {
                                     ),
                                     const SizedBox(height: 2),
                                     Text(
-                                      'Valor: ${_formatarValor(prog.valorTotal)} • ${prog.formaPagamento}',
+                                      'Valor: ${_formatarValor(prog.valorTotal)} • ${prog.formaPagamento}'
+                                      '${pedidoDoDia.numero > 0 ? " • #${pedidoDoDia.numero.toString().padLeft(4, '0')}" : ""}',
                                       style: theme.getTextStyle(
                                         fontSize: 11,
                                         fontWeight: FontWeight.w600,
@@ -223,19 +257,29 @@ class PedidosProgramadosDialog extends StatelessWidget {
                                 ),
                               ),
                               IconButton(
+                                icon: Icon(Icons.edit_outlined,
+                                    color: theme.textColor, size: 18),
+                                tooltip: 'Editar Programação',
+                                visualDensity: VisualDensity.compact,
+                                onPressed: () {
+                                  ProgramarPedidoDialog.mostrar(
+                                    context,
+                                    lojaId: lojaId,
+                                    cliente: cliente,
+                                    pedidoExistente: prog,
+                                  );
+                                },
+                              ),
+                              IconButton(
                                 icon: Icon(Icons.receipt_long,
                                     color: theme.textColor, size: 20),
                                 tooltip: 'Ver Comanda',
+                                visualDensity: VisualDensity.compact,
                                 onPressed: () {
-                                  final pedidoLoja = prog.toPedidoLoja(
-                                    numero: 0,
-                                    nomeVendedor: loja?.nome ?? '',
-                                    cnpjVendedor: loja?.cnpj ?? '',
-                                  );
                                   ComandaPedidoDialog.mostrar(
                                     context,
                                     lojaId: lojaId,
-                                    pedido: pedidoLoja,
+                                    pedido: pedidoDoDia,
                                     cliente: cliente,
                                   );
                                 },

@@ -278,7 +278,89 @@ class PdvProvider extends ChangeNotifier {
     _lojas
       ..clear()
       ..addAll(lojasCompletas);
+    await _herdarCalibracaoImpressoraEntreLojasLocais();
     notifyListeners();
+  }
+
+  static bool _temCalibracaoTipografiaOuMargem(ConfiguracoesImpressora c) {
+    return c.modeloFonte != 'belleza' ||
+        c.margemEsquerdaMm != 5.0 ||
+        c.margemDireitaMm != 3.0 ||
+        c.tamanhoFonte != 'normal' ||
+        c.larguraPapelMm != 58.0;
+  }
+
+  /// Garante que todas as lojas do mesmo terminal compartilhem a calibração
+  /// física da impressora térmica (fonte, recuos esquerdo/direito, largura da
+  /// bobina, impressora selecionada e campos da comanda) quando uma loja nova
+  /// ou secundária ainda está nos padrões de fábrica não calibrados.
+  Future<void> _herdarCalibracaoImpressoraEntreLojasLocais() async {
+    Loja? referenciaCalibrada;
+    for (final l in _lojas) {
+      if (l.id == idLojaColetivaNous) continue;
+      final c = l.configuracoesImpressora;
+      if (_temCalibracaoTipografiaOuMargem(c) ||
+          c.camposClientePersonalizados) {
+        referenciaCalibrada = l;
+        break;
+      }
+    }
+    referenciaCalibrada ??= _lojas
+        .where((l) =>
+            l.id != idLojaColetivaNous &&
+            l.configuracoesImpressora.nomeImpressora.isNotEmpty)
+        .firstOrNull;
+
+    if (referenciaCalibrada == null) return;
+    final ref = referenciaCalibrada.configuracoesImpressora;
+
+    for (int i = 0; i < _lojas.length; i++) {
+      final loja = _lojas[i];
+      if (loja.id == idLojaColetivaNous ||
+          loja.id == referenciaCalibrada.id) {
+        continue;
+      }
+      final atual = loja.configuracoesImpressora;
+      final semCalibracaoFisica = !_temCalibracaoTipografiaOuMargem(atual);
+      final semImpressoraDefinida =
+          atual.nomeImpressora.isEmpty && ref.nomeImpressora.isNotEmpty;
+      final semCamposPersonalizados =
+          !atual.camposClientePersonalizados && ref.camposClientePersonalizados;
+
+      if (semCalibracaoFisica ||
+          semImpressoraDefinida ||
+          semCamposPersonalizados) {
+        final novaConfig = atual.copyWith(
+          larguraPapelMm:
+              semCalibracaoFisica ? ref.larguraPapelMm : atual.larguraPapelMm,
+          tamanhoFonte:
+              semCalibracaoFisica ? ref.tamanhoFonte : atual.tamanhoFonte,
+          modeloFonte:
+              semCalibracaoFisica ? ref.modeloFonte : atual.modeloFonte,
+          margemEsquerdaMm: semCalibracaoFisica
+              ? ref.margemEsquerdaMm
+              : atual.margemEsquerdaMm,
+          margemDireitaMm:
+              semCalibracaoFisica ? ref.margemDireitaMm : atual.margemDireitaMm,
+          nomeImpressora:
+              atual.nomeImpressora.isEmpty ? ref.nomeImpressora : atual.nomeImpressora,
+          tipoConexao:
+              atual.nomeImpressora.isEmpty ? ref.tipoConexao : atual.tipoConexao,
+          enderecoRede:
+              atual.enderecoRede.isEmpty ? ref.enderecoRede : atual.enderecoRede,
+          camposClienteComanda: semCamposPersonalizados
+              ? List<String>.from(ref.camposClienteComanda)
+              : atual.camposClienteComanda,
+          camposClientePersonalizados: semCamposPersonalizados
+              ? ref.camposClientePersonalizados
+              : atual.camposClientePersonalizados,
+        );
+        final lojaAtualizada =
+            loja.copyWith(configuracoesImpressora: novaConfig);
+        _lojas[i] = lojaAtualizada;
+        await _salvarLojaNoCofreCorreto(lojaAtualizada);
+      }
+    }
   }
 
 
@@ -341,9 +423,7 @@ class PdvProvider extends ChangeNotifier {
 
     // Se este terminal estiver conectado como cliente ao balcão e não estiver aplicando atualização da rede
     if (ClienteRedeLocal().conectado && !ClienteRedeLocal().aplicandoAtualizacaoRemota) {
-      if (ClienteRedeLocal().lojaSincronizada?.id == loja.id) {
-        ClienteRedeLocal().enviarLojaAtualizada(loja);
-      }
+      ClienteRedeLocal().enviarLojaAtualizada(loja);
     }
   }
 
@@ -385,8 +465,9 @@ class PdvProvider extends ChangeNotifier {
     );
 
     _lojas.add(novaLoja);
+    _herdarCalibracaoImpressoraEntreLojasLocais();
     notifyListeners();
-    _salvarLojaNoCofreCorreto(novaLoja);
+    _salvarLojaNoCofreCorreto(_lojas.last);
   }
 
   Future<void> adicionarOuAtualizarLoja(Loja loja) async {
@@ -728,6 +809,7 @@ class PdvProvider extends ChangeNotifier {
       autorNome: autorNome,
       autorEmail: autorEmail,
     );
+    await LojasService.limparTransacoesBancoLoja(lojaId);
     await _salvarEAtualizar(atualizada);
   }
 
@@ -824,8 +906,35 @@ class PdvProvider extends ChangeNotifier {
     final atualizada =
         _lojas[indice].copyWith(configuracoesImpressora: configuracoes);
     _lojas[indice] = atualizada;
-    notifyListeners();
     _salvarLojaNoCofreCorreto(atualizada);
+
+    // Propaga a calibração física da impressora da estação para as demais lojas locais
+    for (int i = 0; i < _lojas.length; i++) {
+      final outra = _lojas[i];
+      if (outra.id == id || outra.id == idLojaColetivaNous) continue;
+      final configOutra = outra.configuracoesImpressora.copyWith(
+        larguraPapelMm: configuracoes.larguraPapelMm,
+        tamanhoFonte: configuracoes.tamanhoFonte,
+        modeloFonte: configuracoes.modeloFonte,
+        margemEsquerdaMm: configuracoes.margemEsquerdaMm,
+        margemDireitaMm: configuracoes.margemDireitaMm,
+        tipoConexao: configuracoes.tipoConexao,
+        enderecoRede: configuracoes.enderecoRede,
+        nomeImpressora: configuracoes.nomeImpressora,
+        camposClienteComanda: !outra.configuracoesImpressora.camposClientePersonalizados
+            ? List<String>.from(configuracoes.camposClienteComanda)
+            : outra.configuracoesImpressora.camposClienteComanda,
+        camposClientePersonalizados:
+            outra.configuracoesImpressora.camposClientePersonalizados ||
+                configuracoes.camposClientePersonalizados,
+      );
+      final outraAtualizada =
+          outra.copyWith(configuracoesImpressora: configOutra);
+      _lojas[i] = outraAtualizada;
+      _salvarLojaNoCofreCorreto(outraAtualizada);
+    }
+
+    notifyListeners();
   }
 
   void adicionarMovimentoEstoque(String lojaId, MovimentoEstoque movimento) {
@@ -839,6 +948,7 @@ class PdvProvider extends ChangeNotifier {
     final loja = buscarPorId(lojaId);
     if (loja == null) return;
     final atualizada = PdvEstoqueFinanceiroHelper.removerMovimentoEstoque(loja, movimentoId);
+    LojasService.excluirMovimentoEstoqueIndividual(lojaId, movimentoId);
     _salvarEAtualizar(atualizada);
   }
 
@@ -853,6 +963,7 @@ class PdvProvider extends ChangeNotifier {
     final loja = buscarPorId(lojaId);
     if (loja == null) return;
     final atualizada = PdvEstoqueFinanceiroHelper.removerPagamentoFuncionario(loja, pagamentoId);
+    LojasService.excluirPagamentoFuncionarioIndividual(lojaId, pagamentoId);
     _salvarEAtualizar(atualizada);
   }
 
@@ -1036,14 +1147,35 @@ class PdvProvider extends ChangeNotifier {
     if (loja == null) return;
     final atualizada = PdvPedidosProgramadosHelper.adicionarPedidoProgramado(loja, pedido);
     await _salvarEAtualizar(atualizada);
-    await verificarEGerarPedidosProgramados(lojaId);
+    if (!ClienteRedeLocal().conectado) {
+      await verificarEGerarPedidosProgramados(lojaId);
+    }
+  }
+
+  Future<void> atualizarPedidoProgramado(
+    String lojaId,
+    PedidoProgramado pedido,
+  ) async {
+    final loja = buscarPorId(lojaId);
+    if (loja == null) return;
+    final res = PdvPedidosProgramadosHelper.atualizarPedidoProgramado(loja, pedido);
+    for (final pid in res.idsPedidosRemovidos) {
+      await LojasService.excluirPedidoIndividual(lojaId, pid);
+    }
+    await _salvarEAtualizar(res.loja);
+    if (!ClienteRedeLocal().conectado) {
+      await verificarEGerarPedidosProgramados(lojaId);
+    }
   }
 
   Future<void> removerPedidoProgramado(String lojaId, String pedidoId) async {
     final loja = buscarPorId(lojaId);
     if (loja == null) return;
-    final atualizada = PdvPedidosProgramadosHelper.removerPedidoProgramado(loja, pedidoId);
-    await _salvarEAtualizar(atualizada);
+    final res = PdvPedidosProgramadosHelper.removerPedidoProgramado(loja, pedidoId);
+    for (final pid in res.idsPedidosRemovidos) {
+      await LojasService.excluirPedidoIndividual(lojaId, pid);
+    }
+    await _salvarEAtualizar(res.loja);
   }
 
   Future<void> alternarAtivoPedidoProgramado(
@@ -1052,17 +1184,36 @@ class PdvProvider extends ChangeNotifier {
   ) async {
     final loja = buscarPorId(lojaId);
     if (loja == null) return;
-    final atualizada = PdvPedidosProgramadosHelper.alternarAtivoPedidoProgramado(loja, pedidoId);
-    await _salvarEAtualizar(atualizada);
-    await verificarEGerarPedidosProgramados(lojaId);
+    final res = PdvPedidosProgramadosHelper.alternarAtivoPedidoProgramado(loja, pedidoId);
+    for (final pid in res.idsPedidosRemovidos) {
+      await LojasService.excluirPedidoIndividual(lojaId, pid);
+    }
+    await _salvarEAtualizar(res.loja);
+    if (!ClienteRedeLocal().conectado) {
+      await verificarEGerarPedidosProgramados(lojaId);
+    }
   }
 
-  Future<void> verificarEGerarPedidosProgramados(String lojaId) async {
+  Future<bool> verificarEGerarPedidosProgramados(String lojaId) async {
     final loja = buscarPorId(lojaId);
-    if (loja == null) return;
+    if (loja == null) return false;
     final res = PdvPedidosProgramadosHelper.verificarEGerar(loja);
     if (res.alterou) {
       await _salvarEAtualizar(res.loja);
+      for (final novo in res.pedidosGerados) {
+        if (ServidorRedeLocal().ativo) {
+          ServidorRedeLocal().notificarTodos({
+            'tipo': 'pedido_adicionado',
+            'lojaId': lojaId,
+            'pedido': novo.toJson(),
+          });
+        }
+        if (ClienteRedeLocal().conectado) {
+          ClienteRedeLocal().enviarPedido(novo);
+        }
+      }
+      return res.pedidosGerados.isNotEmpty;
     }
+    return false;
   }
 }

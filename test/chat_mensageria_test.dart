@@ -838,6 +838,57 @@ void main() {
       expect(conversaClienteDono.foto, isNot(equals(logoLoja)));
       expect(conversaClienteDono.identificador, equals(cpfDono));
     });
+
+    test('Intercalação de lados: conversa com a própria loja separa lado da loja e do cliente', () async {
+      final lojaId = 'loja_berenice_123';
+      final cpfLeonardo = '47192956813';
+      final convId = 'loja_${lojaId}_usuario_$cpfLeonardo';
+
+      // 1. Mensagem enviada pelo celular do Leonardo como Cliente
+      final msgCliente = MensagemChat(
+        id: 'msg_cli_1',
+        conversaId: convId,
+        remetenteId: cpfLeonardo,
+        remetenteNome: 'Leonardo',
+        destinatarioId: lojaId,
+        texto: 'Olá, tem marmita disponível?',
+        dataHora: DateTime.now(),
+        cpfAtendente: '',
+      );
+
+      // 2. Mensagem respondida pelo computador balcão pela Loja Berenice com Leonardo atendendo
+      final msgLoja = MensagemChat(
+        id: 'msg_loja_1',
+        conversaId: convId,
+        remetenteId: lojaId,
+        remetenteNome: 'Berenice',
+        destinatarioId: cpfLeonardo,
+        texto: 'Temos sim, marmita média saindo agora!',
+        dataHora: DateTime.now().add(const Duration(seconds: 1)),
+        cpfAtendente: cpfLeonardo,
+      );
+
+      await ChatService.salvarMensagem(msgCliente);
+      await ChatService.salvarMensagem(msgLoja);
+
+      // Ponto de vista do CELULAR (Modo Usuário / idVisualizador: cpfLeonardo):
+      final msgsNoCelular = await ChatService.carregarMensagens(convId, idVisualizador: cpfLeonardo);
+      final mCliNoCelular = msgsNoCelular.firstWhere((m) => m.id == 'msg_cli_1');
+      final mLojaNoCelular = msgsNoCelular.firstWhere((m) => m.id == 'msg_loja_1');
+      // No celular: mensagem enviada pelo cliente é enviadaPorMim=true (direita)
+      expect(mCliNoCelular.enviadaPorMim, isTrue);
+      // No celular: mensagem da loja é enviadaPorMim=false (esquerda), mesmo com cpfAtendente igual
+      expect(mLojaNoCelular.enviadaPorMim, isFalse);
+
+      // Ponto de vista do BALCÃO (Modo Loja / idVisualizador: lojaId):
+      final msgsNoBalcao = await ChatService.carregarMensagens(convId, idVisualizador: lojaId);
+      final mCliNoBalcao = msgsNoBalcao.firstWhere((m) => m.id == 'msg_cli_1');
+      final mLojaNoBalcao = msgsNoBalcao.firstWhere((m) => m.id == 'msg_loja_1');
+      // No balcão: mensagem enviada pelo cliente é enviadaPorMim=false (esquerda)
+      expect(mCliNoBalcao.enviadaPorMim, isFalse);
+      // No balcão: resposta da loja é enviadaPorMim=true (direita)
+      expect(mLojaNoBalcao.enviadaPorMim, isTrue);
+    });
   });
 }
 

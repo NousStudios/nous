@@ -173,9 +173,9 @@ class ComandaNovoPedidoDialog extends StatelessWidget {
                       Expanded(
                         child: OutlinedButton.icon(
                           style: OutlinedButton.styleFrom(
-                            foregroundColor: Colors.redAccent,
+                            foregroundColor: theme.dangerColor,
                             side: BorderSide(
-                              color: Colors.redAccent.withValues(alpha: 0.8),
+                              color: theme.dangerColor.withValues(alpha: 0.8),
                             ),
                             padding: const EdgeInsets.symmetric(vertical: 12),
                             shape: RoundedRectangleBorder(
@@ -188,7 +188,7 @@ class ComandaNovoPedidoDialog extends StatelessWidget {
                             style: theme.getTextStyle(
                               fontSize: 12,
                               fontWeight: FontWeight.bold,
-                              color: Colors.redAccent,
+                              color: theme.dangerColor,
                             ),
                           ),
                           onPressed: () => Navigator.of(context)

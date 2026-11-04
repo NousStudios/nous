@@ -41,11 +41,37 @@ class PagamentosRepositorioLoja {
           'id': pag.id,
           'loja_id': lojaId,
           'data_hora': pag.dataHora.toIso8601String(),
+          'valor': pag.valor,
           'dados_json': dadosJson,
         },
         conflictAlgorithm: ConflictAlgorithm.replace,
       );
     }
+  }
+
+  static Future<void> excluirPorId(
+    String lojaId,
+    String pagamentoId, {
+    DatabaseExecutor? executor,
+  }) async {
+    final db = executor ?? await BancoDadosService.db;
+    await db.delete(
+      'pagamentos_funcionarios',
+      where: 'loja_id = ? AND id = ?',
+      whereArgs: [lojaId, pagamentoId],
+    );
+  }
+
+  static Future<void> excluirTodosDaLoja(
+    String lojaId, {
+    DatabaseExecutor? executor,
+  }) async {
+    final db = executor ?? await BancoDadosService.db;
+    await db.delete(
+      'pagamentos_funcionarios',
+      where: 'loja_id = ?',
+      whereArgs: [lojaId],
+    );
   }
 
   static Future<List<PagamentoFuncionario>> carregarPaginado({

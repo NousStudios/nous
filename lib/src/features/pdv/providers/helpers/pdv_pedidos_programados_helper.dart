@@ -16,25 +16,183 @@ class PdvPedidosProgramadosHelper {
     );
   }
 
-  static Loja removerPedidoProgramado(Loja loja, String pedidoId) {
-    return loja.copyWith(
-      pedidosProgramados:
-          loja.pedidosProgramados.where((p) => p.id != pedidoId).toList(),
-    );
-  }
+  static ({Loja loja, List<String> idsPedidosRemovidos}) atualizarPedidoProgramado(
+    Loja loja,
+    PedidoProgramado pedido,
+  ) {
+    final agora = DateTime.now();
+    bool mesmoDia(DateTime? a, DateTime b) {
+      if (a == null) return false;
+      return a.year == b.year && a.month == b.month && a.day == b.day;
+    }
 
-  static Loja alternarAtivoPedidoProgramado(Loja loja, String pedidoId) {
-    return loja.copyWith(
-      pedidosProgramados: loja.pedidosProgramados.map((p) {
-        if (p.id == pedidoId) {
-          return p.copyWith(ativo: !p.ativo);
+    final diaStr = agora.day.toString().padLeft(2, '0');
+    final mesStr = agora.month.toString().padLeft(2, '0');
+    final idEsperadoHoje = 'prog_${pedido.id}_${agora.year}_${mesStr}_$diaStr';
+
+    final idsRemovidos = <String>[];
+    final novosPedidosLoja = <PedidoLoja>[];
+    var temPedidoHoje = false;
+
+    for (final p in loja.pedidosLoja) {
+      final ehDesteProgHoje = p.id == idEsperadoHoje ||
+          (p.id.startsWith('prog_${pedido.id}_') && mesmoDia(p.dataHora, agora));
+      if (ehDesteProgHoje) {
+        if (!pedido.coincideComData(agora) && p.status == StatusPedido.novo) {
+          idsRemovidos.add(p.id);
+          continue;
         }
-        return p;
-      }).toList(),
+        temPedidoHoje = true;
+        if (p.status == StatusPedido.novo) {
+          novosPedidosLoja.add(
+            pedido.toPedidoLoja(
+              numero: p.numero,
+              dataHora: p.dataHora,
+              nomeVendedor: p.nomeVendedor,
+              cnpjVendedor: p.cnpjVendedor,
+              lojaId: p.lojaId,
+            ),
+          );
+          continue;
+        }
+      }
+      novosPedidosLoja.add(p);
+    }
+
+    final pedidoAjustado = (!temPedidoHoje &&
+            pedido.coincideComData(agora) &&
+            mesmoDia(pedido.ultimaDataGerado, agora))
+        ? PedidoProgramado(
+            id: pedido.id,
+            lojaId: pedido.lojaId,
+            clienteId: pedido.clienteId,
+            clienteNome: pedido.clienteNome,
+            clienteTelefone: pedido.clienteTelefone,
+            clienteEndereco: pedido.clienteEndereco,
+            itens: pedido.itens,
+            valorTotal: pedido.valorTotal,
+            formaPagamento: pedido.formaPagamento,
+            horario: pedido.horario,
+            recorrente: pedido.recorrente,
+            modoProgramacao: pedido.modoProgramacao,
+            diasSemana: pedido.diasSemana,
+            datasEspecificas: pedido.datasEspecificas,
+            dataProgramada: pedido.dataProgramada,
+            ativo: pedido.ativo,
+            dataCriacao: pedido.dataCriacao,
+            ultimaDataGerado: null,
+            observacao: pedido.observacao,
+          )
+        : pedido;
+
+    final existe = loja.pedidosProgramados.any((p) => p.id == pedidoAjustado.id);
+    final novosProgramados = existe
+        ? loja.pedidosProgramados
+            .map((p) => p.id == pedidoAjustado.id ? pedidoAjustado : p)
+            .toList()
+        : [pedidoAjustado, ...loja.pedidosProgramados];
+
+    return (
+      loja: loja.copyWith(
+        pedidosProgramados: novosProgramados,
+        pedidosLoja: novosPedidosLoja,
+      ),
+      idsPedidosRemovidos: idsRemovidos,
     );
   }
 
-  static ({bool alterou, Loja loja}) verificarEGerar(Loja loja) {
+  static ({Loja loja, List<String> idsPedidosRemovidos}) removerPedidoProgramado(
+    Loja loja,
+    String pedidoId,
+  ) {
+    final idsRemovidos = <String>[];
+    final novosPedidosLoja = <PedidoLoja>[];
+    for (final p in loja.pedidosLoja) {
+      if (p.id.startsWith('prog_${pedidoId}_') &&
+          p.status == StatusPedido.novo) {
+        idsRemovidos.add(p.id);
+        continue;
+      }
+      novosPedidosLoja.add(p);
+    }
+    return (
+      loja: loja.copyWith(
+        pedidosProgramados:
+            loja.pedidosProgramados.where((p) => p.id != pedidoId).toList(),
+        pedidosLoja: novosPedidosLoja,
+      ),
+      idsPedidosRemovidos: idsRemovidos,
+    );
+  }
+
+  static ({Loja loja, List<String> idsPedidosRemovidos}) alternarAtivoPedidoProgramado(
+    Loja loja,
+    String pedidoId,
+  ) {
+    final agora = DateTime.now();
+    bool mesmoDia(DateTime? a, DateTime b) {
+      if (a == null) return false;
+      return a.year == b.year && a.month == b.month && a.day == b.day;
+    }
+
+    var ficouAtivo = true;
+    final novosProgramados = loja.pedidosProgramados.map((p) {
+      if (p.id == pedidoId) {
+        ficouAtivo = !p.ativo;
+        final temPedidoHoje = loja.pedidosLoja.any((ped) =>
+            ped.id.startsWith('prog_${p.id}_') && mesmoDia(ped.dataHora, agora));
+        if (ficouAtivo && !temPedidoHoje && mesmoDia(p.ultimaDataGerado, agora)) {
+          return PedidoProgramado(
+            id: p.id,
+            lojaId: p.lojaId,
+            clienteId: p.clienteId,
+            clienteNome: p.clienteNome,
+            clienteTelefone: p.clienteTelefone,
+            clienteEndereco: p.clienteEndereco,
+            itens: p.itens,
+            valorTotal: p.valorTotal,
+            formaPagamento: p.formaPagamento,
+            horario: p.horario,
+            recorrente: p.recorrente,
+            modoProgramacao: p.modoProgramacao,
+            diasSemana: p.diasSemana,
+            datasEspecificas: p.datasEspecificas,
+            dataProgramada: p.dataProgramada,
+            ativo: true,
+            dataCriacao: p.dataCriacao,
+            ultimaDataGerado: null,
+            observacao: p.observacao,
+          );
+        }
+        return p.copyWith(ativo: ficouAtivo);
+      }
+      return p;
+    }).toList();
+
+    final idsRemovidos = <String>[];
+    final novosPedidosLoja = <PedidoLoja>[];
+    for (final p in loja.pedidosLoja) {
+      if (!ficouAtivo &&
+          p.id.startsWith('prog_${pedidoId}_') &&
+          p.status == StatusPedido.novo) {
+        idsRemovidos.add(p.id);
+        continue;
+      }
+      novosPedidosLoja.add(p);
+    }
+
+    return (
+      loja: loja.copyWith(
+        pedidosProgramados: novosProgramados,
+        pedidosLoja: novosPedidosLoja,
+      ),
+      idsPedidosRemovidos: idsRemovidos,
+    );
+  }
+
+  static ({bool alterou, Loja loja, List<PedidoLoja> pedidosGerados}) verificarEGerar(
+    Loja loja,
+  ) {
     final agora = DateTime.now();
 
     bool mesmoDia(DateTime? a, DateTime b) {
@@ -45,6 +203,7 @@ class PdvPedidosProgramadosHelper {
     var alterou = false;
     final novosPedidosLoja = List<PedidoLoja>.from(loja.pedidosLoja);
     final novosProgramados = <PedidoProgramado>[];
+    final pedidosGerados = <PedidoLoja>[];
 
     var maiorNumero = 0;
     for (final p in novosPedidosLoja) {
@@ -74,6 +233,7 @@ class PdvPedidosProgramadosHelper {
             lojaId: loja.id,
           );
           novosPedidosLoja.insert(0, novoPedido);
+          pedidosGerados.add(novoPedido);
           novosProgramados.add(prog.copyWith(ultimaDataGerado: agora));
           alterou = true;
           continue;
@@ -92,9 +252,17 @@ class PdvPedidosProgramadosHelper {
         pedidosLoja: novosPedidosLoja,
         pedidosProgramados: novosProgramados,
       );
-      return (alterou: true, loja: atualizada);
+      return (
+        alterou: true,
+        loja: atualizada,
+        pedidosGerados: pedidosGerados,
+      );
     }
 
-    return (alterou: false, loja: loja);
+    return (
+      alterou: false,
+      loja: loja,
+      pedidosGerados: const [],
+    );
   }
 }

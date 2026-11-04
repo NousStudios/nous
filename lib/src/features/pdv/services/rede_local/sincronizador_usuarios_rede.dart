@@ -539,6 +539,7 @@ class SincronizadorUsuariosRede {
                   LojasService.consolidarLojaComImagensLocais(
                 lojaComImagens,
                 lojaExistente,
+                manterItensAusentes: true,
               );
               await LojasService.salvarLojaIndividual(lojaConsolidada);
               if (pdvProvider != null) {

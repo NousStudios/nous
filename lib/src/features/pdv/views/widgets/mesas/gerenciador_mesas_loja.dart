@@ -100,7 +100,14 @@ class GerenciadorMesasLoja {
         setState(() => mesas[indice] = mesaAtualizada);
         aoPersistir();
         if (ClienteRedeLocal().conectado) {
-          ClienteRedeLocal().enviarMesa(mesaAtualizada);
+          ClienteRedeLocal().enviarMesa(mesaAtualizada, lojaId: lojaId);
+        }
+        if (ServidorRedeLocal().ativo) {
+          ServidorRedeLocal().notificarTodos({
+            'tipo': 'mesa_atualizada',
+            'lojaId': lojaId,
+            'mesa': mesaAtualizada.toJson(),
+          });
         }
 
         if (statusMudou && mesaAtualizada.status == StatusMesa.ocupada) {
@@ -190,6 +197,22 @@ class GerenciadorMesasLoja {
         mesas[idxOrigem] = origemLiberada;
       });
       aoPersistir();
+      if (ClienteRedeLocal().conectado) {
+        ClienteRedeLocal().enviarMesa(destinoAtualizada, lojaId: lojaId);
+        ClienteRedeLocal().enviarMesa(origemLiberada, lojaId: lojaId);
+      }
+      if (ServidorRedeLocal().ativo) {
+        ServidorRedeLocal().notificarTodos({
+          'tipo': 'mesa_atualizada',
+          'lojaId': lojaId,
+          'mesa': destinoAtualizada.toJson(),
+        });
+        ServidorRedeLocal().notificarTodos({
+          'tipo': 'mesa_atualizada',
+          'lojaId': lojaId,
+          'mesa': origemLiberada.toJson(),
+        });
+      }
 
       registrarAcao(
         TipoAcao.mesaTransferida,
@@ -226,8 +249,20 @@ class GerenciadorMesasLoja {
       });
       aoPersistir();
       if (ClienteRedeLocal().conectado) {
-        ClienteRedeLocal().enviarMesa(destinoAtualizada);
-        ClienteRedeLocal().enviarMesa(origemLiberada);
+        ClienteRedeLocal().enviarMesa(destinoAtualizada, lojaId: lojaId);
+        ClienteRedeLocal().enviarMesa(origemLiberada, lojaId: lojaId);
+      }
+      if (ServidorRedeLocal().ativo) {
+        ServidorRedeLocal().notificarTodos({
+          'tipo': 'mesa_atualizada',
+          'lojaId': lojaId,
+          'mesa': destinoAtualizada.toJson(),
+        });
+        ServidorRedeLocal().notificarTodos({
+          'tipo': 'mesa_atualizada',
+          'lojaId': lojaId,
+          'mesa': origemLiberada.toJson(),
+        });
       }
 
       registrarAcao(
@@ -259,7 +294,14 @@ class GerenciadorMesasLoja {
         setState(() => mesas[indice] = mesaEditada);
         aoPersistir();
         if (ClienteRedeLocal().conectado) {
-          ClienteRedeLocal().enviarMesa(mesaEditada);
+          ClienteRedeLocal().enviarMesa(mesaEditada, lojaId: lojaId);
+        }
+        if (ServidorRedeLocal().ativo) {
+          ServidorRedeLocal().notificarTodos({
+            'tipo': 'mesa_atualizada',
+            'lojaId': lojaId,
+            'mesa': mesaEditada.toJson(),
+          });
         }
       },
       aoExcluir: mesas[indice].status == StatusMesa.livre
@@ -418,24 +460,27 @@ class GerenciadorMesasLoja {
 
     // Sincronização em Rede Wi-Fi
     if (ClienteRedeLocal().conectado) {
-      ClienteRedeLocal().enviarMesa(mesas[indice]);
+      ClienteRedeLocal().enviarMesa(mesas[indice], lojaId: lojaId);
       ClienteRedeLocal().enviarPedido(pedido);
       for (final m in novosMovimentos) {
-        ClienteRedeLocal().enviarMovimentoEstoque(m);
+        ClienteRedeLocal().enviarMovimentoEstoque(m, lojaId: lojaId);
       }
     }
     if (ServidorRedeLocal().ativo) {
       ServidorRedeLocal().notificarTodos({
         'tipo': 'mesa_atualizada',
+        'lojaId': lojaId,
         'mesa': mesas[indice].toJson(),
       });
       ServidorRedeLocal().notificarTodos({
         'tipo': 'pedido_adicionado',
+        'lojaId': lojaId,
         'pedido': pedido.toJson(),
       });
       for (final m in novosMovimentos) {
         ServidorRedeLocal().notificarTodos({
           'tipo': 'estoque_atualizado',
+          'lojaId': lojaId,
           'movimento': m.toJson(),
         });
       }

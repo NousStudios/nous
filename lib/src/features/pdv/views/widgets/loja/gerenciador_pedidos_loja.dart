@@ -11,6 +11,8 @@ import 'package:nous/src/features/pdv/models/pedido_loja.dart';
 import 'package:nous/src/features/pdv/models/registro_acao.dart';
 import 'package:nous/src/features/pdv/providers/pdv_provider.dart';
 import 'package:nous/src/features/pdv/services/estoque_baixa_service.dart';
+import 'package:nous/src/features/pdv/services/impressao_service.dart';
+import 'package:nous/src/features/pdv/services/lojas_service.dart';
 import 'package:nous/src/features/pdv/services/rede_local/cliente_rede_local.dart';
 import 'package:nous/src/features/pdv/services/rede_local/servidor_rede_local.dart';
 import 'package:nous/src/features/pdv/views/dialogs/dialog_conclusao_pedido_tempo.dart';
@@ -42,6 +44,7 @@ class GerenciadorPedidosLoja {
   final void Function(AbaPedidos) definirAbaPedidos;
 
   Timer? _timerVerificacaoPedidos;
+  bool _processandoFilaNovosPedidos = false;
   final Set<String> _pedidosPerguntados = {};
   static final Set<String> _avisosMostradosNaSessao = {};
 
@@ -67,14 +70,36 @@ class GerenciadorPedidosLoja {
 
   BuildContext get context => obterContext();
 
+  void _sincronizarPedidosLocaisComPdv() {
+    if (!estaMontado()) return;
+    final lojaAtual = context.read<PdvProvider>().buscarPorId(lojaId);
+    if (lojaAtual == null) return;
+    final pedidosLocais = obterPedidos();
+    final idsLocais = pedidosLocais.map((p) => p.id).toSet();
+    final faltantes = lojaAtual.pedidosLoja
+        .where((p) => !idsLocais.contains(p.id))
+        .toList();
+    if (faltantes.isNotEmpty) {
+      setState(() {
+        pedidosLocais.insertAll(0, faltantes);
+      });
+    }
+  }
+
   void iniciarTimerVerificacaoPedidos() {
     _timerVerificacaoPedidos?.cancel();
     _timerVerificacaoPedidos =
-        Timer.periodic(const Duration(seconds: 15), (_) {
+        Timer.periodic(const Duration(seconds: 15), (_) async {
       verificarPedidosTempoConclusao();
       if (estaMontado()) {
         if (!ClienteRedeLocal().estaConectado.value) {
-          context.read<PdvProvider>().verificarEGerarPedidosProgramados(lojaId);
+          final gerou = await context
+              .read<PdvProvider>()
+              .verificarEGerarPedidosProgramados(lojaId);
+          if (gerou && estaMontado()) {
+            _sincronizarPedidosLocaisComPdv();
+            await processarFilaNovosPedidos();
+          }
         }
       }
     });
@@ -137,24 +162,60 @@ class GerenciadorPedidosLoja {
 
   void alterarStatusPedido(String id, StatusPedido novoStatus) {
     final pedidos = obterPedidos();
-    final indice = pedidos.indexWhere((p) => p.id == id);
+    var indice = pedidos.indexWhere((p) => p.id == id);
+    if (indice == -1 && estaMontado()) {
+      _sincronizarPedidosLocaisComPdv();
+      indice = pedidos.indexWhere((p) => p.id == id);
+    }
     if (indice == -1) return;
     final pedido = pedidos[indice];
+    final eraNovoEAceitou =
+        pedido.status == StatusPedido.novo && novoStatus == StatusPedido.aceito;
     final pedidoAtualizado = pedido.copyWith(status: novoStatus);
+
+    final itens = obterItens();
+    final movimentos = obterMovimentos();
+    final movimentosBaixa = <MovimentoEstoque>[];
+
+    if (eraNovoEAceitou && pedido.itens.isNotEmpty) {
+      movimentosBaixa.addAll(
+        EstoqueBaixaService.calcularMovimentosBaixa(
+          itensVendidos: pedido.itens,
+          itensCadastrados: itens,
+          motivo: 'Pedido ${formatarNumeroPedido(pedido.numero)} aceito',
+          cpfAutor: obterCpfLogado(),
+          nomeAutor: obterNomeLogado(),
+        ),
+      );
+    }
 
     setState(() {
       pedidos[indice] = pedidoAtualizado;
+      if (movimentosBaixa.isNotEmpty) {
+        movimentos.addAll(movimentosBaixa);
+      }
     });
     aoPersistir();
 
     if (ClienteRedeLocal().conectado) {
       ClienteRedeLocal().enviarPedido(pedidoAtualizado);
+      for (final m in movimentosBaixa) {
+        ClienteRedeLocal().enviarMovimentoEstoque(m, lojaId: lojaId);
+      }
     }
     if (ServidorRedeLocal().ativo) {
       ServidorRedeLocal().notificarTodos({
         'tipo': 'pedido_atualizado',
+        'lojaId': lojaId,
         'pedido': pedidoAtualizado.toJson(),
       });
+      for (final m in movimentosBaixa) {
+        ServidorRedeLocal().notificarTodos({
+          'tipo': 'estoque_atualizado',
+          'lojaId': lojaId,
+          'movimento': m.toJson(),
+        });
+      }
     }
 
     if (novoStatus == StatusPedido.aceito) {
@@ -163,6 +224,19 @@ class GerenciadorPedidosLoja {
         'Pedido ${formatarNumeroPedido(pedido.numero)} aceito '
             '(${formatarValor(pedido.valor)})',
       );
+      for (final movimento in movimentosBaixa) {
+        final item = itens.firstWhere(
+          (i) => i.id == movimento.itemId,
+          orElse: () => const ItemLoja(id: '', nome: ''),
+        );
+        final quantidade = formatarQuantidade(movimento.quantidade);
+        final unidade = rotuloUnidadeCurto(item.unidadeBase);
+        registrarAcao(
+          TipoAcao.movimentoEstoqueRegistrado,
+          'Baixa automática de $quantidade $unidade de '
+              '"${item.nome}" pelo aceite do pedido ${formatarNumeroPedido(pedido.numero)}',
+        );
+      }
     } else if (novoStatus == StatusPedido.concluido) {
       registrarAcao(
         TipoAcao.pedidoConcluido,
@@ -196,6 +270,7 @@ class GerenciadorPedidosLoja {
     if (ServidorRedeLocal().ativo) {
       ServidorRedeLocal().notificarTodos({
         'tipo': 'pedido_atualizado',
+        'lojaId': lojaId,
         'pedido': pedidoAtualizado.toJson(),
       });
     }
@@ -248,11 +323,12 @@ class GerenciadorPedidosLoja {
         for (final mov in movimentosEstorno) {
           movimentos.add(mov);
           if (ClienteRedeLocal().conectado) {
-            ClienteRedeLocal().enviarMovimentoEstoque(mov);
+            ClienteRedeLocal().enviarMovimentoEstoque(mov, lojaId: lojaId);
           }
           if (ServidorRedeLocal().ativo) {
             ServidorRedeLocal().notificarTodos({
               'tipo': 'estoque_atualizado',
+              'lojaId': lojaId,
               'movimento': mov.toJson(),
             });
           }
@@ -268,6 +344,7 @@ class GerenciadorPedidosLoja {
     if (ServidorRedeLocal().ativo) {
       ServidorRedeLocal().notificarTodos({
         'tipo': 'pedido_atualizado',
+        'lojaId': lojaId,
         'pedido': pedidoCancelado.toJson(),
       });
     }
@@ -292,11 +369,16 @@ class GerenciadorPedidosLoja {
 
   void recusarPedido(String id) {
     final pedidos = obterPedidos();
-    final indice = pedidos.indexWhere((p) => p.id == id);
+    var indice = pedidos.indexWhere((p) => p.id == id);
+    if (indice == -1 && estaMontado()) {
+      _sincronizarPedidosLocaisComPdv();
+      indice = pedidos.indexWhere((p) => p.id == id);
+    }
     if (indice == -1) return;
     final pedido = pedidos[indice];
 
     setState(() => pedidos.removeAt(indice));
+    LojasService.excluirPedidoIndividual(lojaId, id);
     aoPersistir();
 
     registrarAcao(
@@ -328,21 +410,38 @@ class GerenciadorPedidosLoja {
 
     if (!estaMontado()) return;
 
+    final movimentosEstorno = <MovimentoEstoque>[];
     setState(() {
       pedidos.removeWhere((p) => p.id == id);
       if (devolverEstoque) {
-        final movimentosEstorno = EstoqueBaixaService.calcularMovimentosEstorno(
-          itensVendidos: pedido.itens,
-          itensCadastrados: itens,
-          motivo:
-              'Estorno por exclusão do Pedido ${formatarNumeroPedido(pedido.numero)}',
-          cpfAutor: obterCpfLogado(),
-          nomeAutor: obterNomeLogado(),
+        movimentosEstorno.addAll(
+          EstoqueBaixaService.calcularMovimentosEstorno(
+            itensVendidos: pedido.itens,
+            itensCadastrados: itens,
+            motivo:
+                'Estorno por exclusão do Pedido ${formatarNumeroPedido(pedido.numero)}',
+            cpfAutor: obterCpfLogado(),
+            nomeAutor: obterNomeLogado(),
+          ),
         );
         movimentos.addAll(movimentosEstorno);
       }
     });
+    await LojasService.excluirPedidoIndividual(lojaId, id);
     aoPersistir();
+
+    for (final mov in movimentosEstorno) {
+      if (ClienteRedeLocal().conectado) {
+        ClienteRedeLocal().enviarMovimentoEstoque(mov, lojaId: lojaId);
+      }
+      if (ServidorRedeLocal().ativo) {
+        ServidorRedeLocal().notificarTodos({
+          'tipo': 'estoque_atualizado',
+          'lojaId': lojaId,
+          'movimento': mov.toJson(),
+        });
+      }
+    }
 
     registrarAcao(
       TipoAcao.pedidoExcluido,
@@ -382,17 +481,19 @@ class GerenciadorPedidosLoja {
     if (ClienteRedeLocal().conectado) {
       ClienteRedeLocal().enviarPedido(pedido);
       for (final m in movimentosEstoque) {
-        ClienteRedeLocal().enviarMovimentoEstoque(m);
+        ClienteRedeLocal().enviarMovimentoEstoque(m, lojaId: lojaId);
       }
     }
     if (ServidorRedeLocal().ativo) {
       ServidorRedeLocal().notificarTodos({
         'tipo': 'pedido_adicionado',
+        'lojaId': lojaId,
         'pedido': pedido.toJson(),
       });
       for (final m in movimentosEstoque) {
         ServidorRedeLocal().notificarTodos({
           'tipo': 'estoque_atualizado',
+          'lojaId': lojaId,
           'movimento': m.toJson(),
         });
       }
@@ -429,6 +530,7 @@ class GerenciadorPedidosLoja {
     final pdv = ctx.read<PdvProvider>();
     if (!ClienteRedeLocal().estaConectado.value) {
       await pdv.verificarEGerarPedidosProgramados(lojaId);
+      _sincronizarPedidosLocaisComPdv();
     }
     if (!estaMontado() || !ctx.mounted) return;
 
@@ -485,44 +587,73 @@ class GerenciadorPedidosLoja {
   }
 
   Future<void> processarFilaNovosPedidos() async {
-    if (!estaMontado()) return;
+    if (!estaMontado() || _processandoFilaNovosPedidos) return;
     final ctx = context;
     if (!ctx.mounted) return;
     final pdv = ctx.read<PdvProvider>();
+    _processandoFilaNovosPedidos = true;
 
-    while (estaMontado() && ctx.mounted) {
-      final lojaAtual = pdv.buscarPorId(lojaId);
-      if (lojaAtual == null) break;
+    try {
+      while (estaMontado() && ctx.mounted) {
+        final lojaAtual = pdv.buscarPorId(lojaId);
+        if (lojaAtual == null) break;
 
-      final novosPedidos = lojaAtual.pedidosLoja
-          .where((p) => p.status == StatusPedido.novo)
-          .toList();
-      if (novosPedidos.isEmpty) break;
+        final novosPedidos = lojaAtual.pedidosLoja
+            .where((p) => p.status == StatusPedido.novo)
+            .toList();
+        if (novosPedidos.isEmpty) break;
 
-      SomService.tocarEvento(SomService.eventoNovoPedido, loja: lojaAtual);
+        SomService.tocarEvento(SomService.eventoNovoPedido, loja: lojaAtual);
 
-      final pedidoAtual = novosPedidos.first;
-      final cliente = lojaAtual.clientesLoja
-          .where((c) => c.id == pedidoAtual.clienteId)
-          .firstOrNull;
+        final pedidoAtual = novosPedidos.first;
+        var cliente = lojaAtual.clientesLoja
+            .where((c) =>
+                (pedidoAtual.clienteId != null &&
+                    pedidoAtual.clienteId!.isNotEmpty &&
+                    c.id == pedidoAtual.clienteId) ||
+                (pedidoAtual.clienteNome.trim().isNotEmpty &&
+                    c.nome.trim().toLowerCase() ==
+                        pedidoAtual.clienteNome.trim().toLowerCase()))
+            .firstOrNull;
 
-      final acao = await ComandaNovoPedidoDialog.mostrar(
-        ctx,
-        lojaId: lojaId,
-        pedido: pedidoAtual,
-        cliente: cliente,
-        totalRestantes: novosPedidos.length,
-      );
+        if (pedidoAtual.id.startsWith('prog_')) {
+          final prog = lojaAtual.pedidosProgramados
+              .where((p) => pedidoAtual.id.startsWith('prog_${p.id}_'))
+              .firstOrNull;
+          if (prog != null) {
+            cliente = prog.resolverCliente(lojaAtual.clientesLoja);
+          }
+        }
 
-      if (!estaMontado() || !ctx.mounted) break;
+        final acao = await ComandaNovoPedidoDialog.mostrar(
+          ctx,
+          lojaId: lojaId,
+          pedido: pedidoAtual,
+          cliente: cliente,
+          totalRestantes: novosPedidos.length,
+        );
 
-      if (acao == AcaoComandaNovoPedido.aceitar) {
-        alterarStatusPedido(pedidoAtual.id, StatusPedido.aceito);
-      } else if (acao == AcaoComandaNovoPedido.recusar) {
-        recusarPedido(pedidoAtual.id);
-      } else {
-        break;
+        if (!estaMontado() || !ctx.mounted) break;
+
+        if (acao == AcaoComandaNovoPedido.aceitar) {
+          alterarStatusPedido(pedidoAtual.id, StatusPedido.aceito);
+          if (lojaAtual.configuracoesImpressora.imprimirAutomaticoAoConcluir) {
+            unawaited(
+              ImpressaoService.imprimirComanda(
+                config: lojaAtual.configuracoesImpressora,
+                pedido: pedidoAtual.copyWith(status: StatusPedido.aceito),
+                cliente: cliente,
+              ),
+            );
+          }
+        } else if (acao == AcaoComandaNovoPedido.recusar) {
+          recusarPedido(pedidoAtual.id);
+        } else {
+          break;
+        }
       }
+    } finally {
+      _processandoFilaNovosPedidos = false;
     }
   }
 }

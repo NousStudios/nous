@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'dart:typed_data';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
@@ -8,11 +9,11 @@ import 'package:nous/src/features/pdv/models/configuracoes_impressora.dart';
 
 const PdfPageFormat kPapel58mmPadrao = PdfPageFormat(
   58 * PdfPageFormat.mm,
-  200 * PdfPageFormat.mm,
+  double.infinity,
   marginLeft: 5.0 * PdfPageFormat.mm,
   marginRight: 3.0 * PdfPageFormat.mm,
   marginTop: 2 * PdfPageFormat.mm,
-  marginBottom: 2 * PdfPageFormat.mm,
+  marginBottom: 4 * PdfPageFormat.mm,
 );
 
 const List<String> kFormasDePagamentoImpressao = [
@@ -46,11 +47,43 @@ class ImpressaoUtils {
         : 58.0;
     return PdfPageFormat(
       larguraMm * PdfPageFormat.mm,
-      200 * PdfPageFormat.mm,
+      double.infinity,
       marginLeft: margemEsquerda,
       marginRight: margemDireita,
       marginTop: 2 * PdfPageFormat.mm,
-      marginBottom: 2 * PdfPageFormat.mm,
+      marginBottom: 4 * PdfPageFormat.mm,
+    );
+  }
+
+  /// Extrai o formato final calculado pelo [pw.Document] após `doc.save()`,
+  /// garantindo altura finita suficiente para todo o conteúdo e sempre maior
+  /// que a largura da bobina (evitando rotação para paisagem no spooler Windows).
+  static PdfPageFormat formatoResolvidoDoDocumento(
+    pw.Document doc,
+    PdfPageFormat baseFormat,
+  ) {
+    final largura = baseFormat.width.isFinite && baseFormat.width > 0
+        ? baseFormat.width
+        : 58 * PdfPageFormat.mm;
+    double alturaTotal = 0;
+    for (final p in doc.document.pdfPageList.pages) {
+      final h = p.pageFormat.height;
+      if (h.isFinite && h > 0) {
+        alturaTotal += h;
+      }
+    }
+    final alturaMinimaSegura = largura + (25 * PdfPageFormat.mm);
+    final alturaFinal = alturaTotal > 0
+        ? math.max(alturaTotal + (6 * PdfPageFormat.mm), alturaMinimaSegura)
+        : 200 * PdfPageFormat.mm;
+
+    return PdfPageFormat(
+      largura,
+      alturaFinal,
+      marginLeft: baseFormat.marginLeft,
+      marginRight: baseFormat.marginRight,
+      marginTop: baseFormat.marginTop,
+      marginBottom: baseFormat.marginBottom,
     );
   }
 
@@ -172,7 +205,20 @@ class ImpressaoUtils {
     required String jobName,
     PdfPageFormat? format,
   }) async {
-    final formatoFinal = format ?? kPapel58mmPadrao;
+    var formatoFinal = format ?? kPapel58mmPadrao;
+    if (!formatoFinal.height.isFinite || formatoFinal.height <= 0) {
+      formatoFinal = PdfPageFormat(
+        formatoFinal.width.isFinite && formatoFinal.width > 0
+            ? formatoFinal.width
+            : 58 * PdfPageFormat.mm,
+        300 * PdfPageFormat.mm,
+        marginLeft: formatoFinal.marginLeft,
+        marginRight: formatoFinal.marginRight,
+        marginTop: formatoFinal.marginTop,
+        marginBottom: formatoFinal.marginBottom,
+      );
+    }
+
     if (nomeImpressora.isEmpty) {
       await Printing.layoutPdf(
         onLayout: (f) async => bytes,

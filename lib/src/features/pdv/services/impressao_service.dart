@@ -63,26 +63,28 @@ class ImpressaoService {
     required ConfiguracoesImpressora config,
     required PedidoLoja pedido,
     Cliente? cliente,
-    List<String> camposClienteComanda = kCamposClienteComandaPadrao,
+    List<String>? camposClienteComanda,
   }) =>
       GeradorBobinaComanda.imprimirComandaPedido(
         config: config,
         pedido: pedido,
         cliente: cliente,
-        camposClienteComanda: camposClienteComanda,
+        camposClienteComanda:
+            camposClienteComanda ?? config.camposClienteComanda,
       );
 
   static Future<void> imprimirComanda({
     required ConfiguracoesImpressora config,
     required PedidoLoja pedido,
     Cliente? cliente,
-    List<String> camposClienteComanda = kCamposClienteComandaPadrao,
+    List<String>? camposClienteComanda,
   }) =>
       imprimirComandaPedido(
         config: config,
         pedido: pedido,
         cliente: cliente,
-        camposClienteComanda: camposClienteComanda,
+        camposClienteComanda:
+            camposClienteComanda ?? config.camposClienteComanda,
       );
 
   static Future<void> imprimirFechamentoCaixa({

@@ -366,20 +366,26 @@ class RoteadorLojaPedidos {
         final body = await utf8.decodeStream(request);
         final dados = await decodificarJsonMapaSeguro(body);
         final mov = MovimentoEstoque.fromJson(dados);
+        final lojaIdParam = (dados['lojaId'] as String?)?.trim() ?? '';
+        final lojaIdAlvo = lojaIdParam.isNotEmpty
+            ? lojaIdParam
+            : (servidor.lojaAtiva?.id ?? '');
 
-        if (servidor.pdvProvider != null && servidor.lojaAtiva != null) {
-          final lojaAtual =
-              servidor.pdvProvider!.buscarPorId(servidor.lojaAtiva!.id);
+        if (servidor.pdvProvider != null && lojaIdAlvo.isNotEmpty) {
+          final lojaAtual = servidor.pdvProvider!.buscarPorId(lojaIdAlvo);
           if (lojaAtual != null) {
             final movs =
                 List<MovimentoEstoque>.from(lojaAtual.movimentosEstoque);
-            movs.insert(0, mov);
-            servidor.pdvProvider!.atualizarListasLoja(
-              lojaAtual.id,
-              movimentosEstoque: movs,
-            );
+            if (!movs.any((m) => m.id == mov.id)) {
+              movs.insert(0, mov);
+              servidor.pdvProvider!.atualizarListasLoja(
+                lojaAtual.id,
+                movimentosEstoque: movs,
+              );
+            }
             servidor.notificarTodos({
               'tipo': 'estoque_atualizado',
+              'lojaId': lojaAtual.id,
               'movimento': mov.toJson(),
             });
           }
@@ -406,10 +412,13 @@ class RoteadorLojaPedidos {
         final body = await utf8.decodeStream(request);
         final dados = await decodificarJsonMapaSeguro(body);
         final mesa = MesaLoja.fromJson(dados);
+        final lojaIdParam = (dados['lojaId'] as String?)?.trim() ?? '';
+        final lojaIdAlvo = lojaIdParam.isNotEmpty
+            ? lojaIdParam
+            : (servidor.lojaAtiva?.id ?? '');
 
-        if (servidor.pdvProvider != null && servidor.lojaAtiva != null) {
-          final lojaAtual =
-              servidor.pdvProvider!.buscarPorId(servidor.lojaAtiva!.id);
+        if (servidor.pdvProvider != null && lojaIdAlvo.isNotEmpty) {
+          final lojaAtual = servidor.pdvProvider!.buscarPorId(lojaIdAlvo);
           if (lojaAtual != null) {
             final mesas = List<MesaLoja>.from(lojaAtual.mesas);
             final idx = mesas.indexWhere((m) => m.id == mesa.id);
@@ -444,6 +453,7 @@ class RoteadorLojaPedidos {
             );
             servidor.notificarTodos({
               'tipo': 'mesa_atualizada',
+              'lojaId': lojaAtual.id,
               'mesa': mesaEfetiva.toJson(),
             });
           }

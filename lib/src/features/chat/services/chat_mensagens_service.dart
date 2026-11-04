@@ -473,8 +473,6 @@ class ChatMensagensService {
       final meuCpf = await obterCpfLogadoLocal();
       final remetenteCpf =
           ChatRepositorioSqlite.normalizarCpf(mensagem.remetenteId);
-      final cpfAtendente =
-          ChatRepositorioSqlite.normalizarCpf(mensagem.cpfAtendente);
 
       // Verifica se a mensagem já foi criada/enviada localmente neste próprio aparelho
       final msgsExistentes = await db.query(
@@ -496,12 +494,19 @@ class ChatMensagensService {
       if (jaFoiEnviadaPorMim) {
         ehMinhaPropriaMensagem = true;
       } else if (receptorEhLojaBalcao) {
-        // No balcão da loja, quem enviou foi o cliente. A loja é a receptora.
-        ehMinhaPropriaMensagem = false;
+        final remLimpo = mensagem.remetenteId.startsWith('loja_')
+            ? mensagem.remetenteId.substring(5)
+            : mensagem.remetenteId;
+        final lojaBalcaoId = ServidorRedeLocal().lojaAtiva?.id ?? '';
+        ehMinhaPropriaMensagem = lojaBalcaoId.isNotEmpty && remLimpo == lojaBalcaoId;
       } else {
-        ehMinhaPropriaMensagem =
-            meuCpf.isNotEmpty &&
-                (remetenteCpf == meuCpf || cpfAtendente == meuCpf);
+        final remEhLoja = mensagem.remetenteId.startsWith('loja_') ||
+            (ehConversaLoja && mensagem.remetenteId != meuCpf);
+        if (remEhLoja) {
+          ehMinhaPropriaMensagem = false;
+        } else {
+          ehMinhaPropriaMensagem = meuCpf.isNotEmpty && remetenteCpf == meuCpf;
+        }
       }
 
       if (ehMinhaPropriaMensagem) {

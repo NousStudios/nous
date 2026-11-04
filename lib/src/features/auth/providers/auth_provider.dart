@@ -16,14 +16,6 @@ class AuthProvider extends ChangeNotifier {
   static const String _chaveSessaoCpf = 'nous_sessao_cpf';
   static const String _chaveSessaoEmail = 'nous_sessao_email';
 
-  static Future<void> salvarSessao(String cpf, String email) async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setString(_chaveSessaoCpf, cpf.replaceAll(RegExp(r'\D'), ''));
-      await prefs.setString(_chaveSessaoEmail, email.trim());
-    } catch (_) {}
-  }
-
   static Future<void> limparSessao() async {
     try {
       final prefs = await SharedPreferences.getInstance();
@@ -32,38 +24,8 @@ class AuthProvider extends ChangeNotifier {
     } catch (_) {}
   }
 
-  Future<bool> tentarRestaurarSessao() async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final cpf = prefs.getString(_chaveSessaoCpf);
-      final email = prefs.getString(_chaveSessaoEmail);
-      if (cpf == null || cpf.length != 11 || email == null || email.isEmpty) {
-        return false;
-      }
-      final conta = await ContasNousService.buscarPorCpf(cpf);
-      if (conta == null) return false;
-
-      _cpf = cpf;
-      _contaAtual = conta;
-      _emailAtivo = email;
-      if (conta.foto.isNotEmpty) {
-        _fotosPorCpf[conta.cpf] = conta.foto;
-      }
-      await carregarDadosReveladosDono(conta.cpf);
-      ClienteRedeLocal().atualizarIdentidadeUsuario(
-        cpf: conta.cpf,
-        nome: conta.nomeExibicao,
-        apelido: conta.apelido,
-        foto: conta.fotoExibicao,
-      );
-      notifyListeners();
-      return true;
-    } catch (_) {
-      return false;
-    }
-  }
-
   AuthProvider() {
+    limparSessao();
     carregarCacheContas();
     ClienteRedeLocal().vincularAuthProvider(this);
     ServidorRedeLocal().vincularAuthProvider(this);
@@ -456,9 +418,6 @@ class AuthProvider extends ChangeNotifier {
 
   void definirEmailAtivo(String? email) {
     _emailAtivo = email;
-    if (email != null && email.isNotEmpty && _cpf.isNotEmpty) {
-      salvarSessao(_cpf, email);
-    }
     notifyListeners();
   }
 

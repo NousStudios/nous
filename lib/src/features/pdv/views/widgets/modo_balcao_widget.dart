@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:provider/provider.dart';
 import 'package:nous/src/core/services/janela_windows_service.dart';
 import 'package:nous/src/core/services/som_service.dart';
 import 'package:nous/src/core/theme/theme_controller.dart';
+import 'package:nous/src/core/utils/texto_utils.dart';
 import 'package:nous/src/features/pdv/models/categoria_loja.dart';
 import 'package:nous/src/features/pdv/models/cliente.dart';
 import 'package:nous/src/features/pdv/models/configuracoes_impressora.dart';
@@ -10,6 +12,8 @@ import 'package:nous/src/features/pdv/models/grupo_componentes_loja.dart';
 import 'package:nous/src/features/pdv/models/item_loja.dart';
 import 'package:nous/src/features/pdv/models/movimento_estoque.dart';
 import 'package:nous/src/features/pdv/models/pedido_loja.dart';
+import 'package:nous/src/features/pdv/providers/pdv_provider.dart';
+import 'package:nous/src/features/pdv/services/estoque_baixa_service.dart';
 import 'package:nous/src/features/pdv/views/widgets/modo_balcao/barra_superior_balcao_widget.dart';
 import 'package:nous/src/features/pdv/views/widgets/modo_balcao/campo_bipador_balcao_widget.dart';
 import 'package:nous/src/features/pdv/views/widgets/modo_balcao/catalogo_balcao_widget.dart';
@@ -134,6 +138,27 @@ class _ModoBalcaoWidgetState extends State<ModoBalcaoWidget> {
     final termo = _clienteController.text.trim();
     if (termo.isEmpty) return widget.clientes;
     return widget.clientes.where((c) => c.correspondeABusca(termo)).toList();
+  }
+
+  double _dividaDoCliente(Cliente cliente) {
+    final loja = context.read<PdvProvider>().buscarPorId(widget.lojaId);
+    final pedidos = loja?.pedidosLoja ?? const <PedidoLoja>[];
+    if (pedidos.isEmpty) return 0.0;
+    final nomeNorm = TextoUtils.normalizarParaBusca(cliente.nome);
+    var total = 0.0;
+    for (final p in pedidos) {
+      if (!p.aPrazoEmAberto) continue;
+      final mesmoId = p.clienteId != null &&
+          p.clienteId!.isNotEmpty &&
+          p.clienteId == cliente.id;
+      final mesmoNome = (p.clienteId == null || p.clienteId!.isEmpty) &&
+          nomeNorm.isNotEmpty &&
+          TextoUtils.normalizarParaBusca(p.clienteNome) == nomeNorm;
+      if (mesmoId || mesmoNome) {
+        total += p.valorRestante;
+      }
+    }
+    return total;
   }
 
   CategoriaLoja? _obterCategoriaDoItem(ItemLoja item) {
@@ -498,6 +523,7 @@ class _ModoBalcaoWidgetState extends State<ModoBalcaoWidget> {
       return;
     }
 
+    final lojaAtual = context.read<PdvProvider>().buscarPorId(widget.lojaId);
     final pedido = PedidoLoja(
       id: agora.millisecondsSinceEpoch.toString(),
       numero: widget.proximoNumero,
@@ -520,33 +546,20 @@ class _ModoBalcaoWidgetState extends State<ModoBalcaoWidget> {
       frete: _freteValor,
       desconto: _descontoValor,
       acrescimo: _acrescimoValor,
-      nomeVendedor: widget.nomeAutor,
-      cnpjVendedor: widget.cpfAutor,
+      nomeVendedor: lojaAtual?.nome ?? widget.nomeLoja,
+      cnpjVendedor: lojaAtual?.cnpj ?? '',
       lojaId: widget.lojaId,
     );
 
-    // Gera baixas automáticas proporcionais de estoque
-    final baixas = <MovimentoEstoque>[];
-    for (final it in _carrinho) {
-      final itemLoja = widget.itens.where((i) => i.id == it.itemId).firstOrNull;
-      final consumo = (itemLoja?.consumoPorVenda ?? 1.0) * it.quantidade;
-      final custoUnit = double.tryParse(
-              (itemLoja?.precoCusto ?? '').replaceAll(',', '.')) ??
-          0.0;
-      baixas.add(
-        MovimentoEstoque.novo(
-          itemId: it.itemId,
-          tipo: TipoMovimentoEstoque.saida,
-          quantidade: consumo,
-          custoUnitario: custoUnit,
-          motivo:
-              'Venda #${pedido.numero.toString().padLeft(4, '0')} no Modo Balcão',
-          cpfAutor: widget.cpfAutor,
-          nomeAutor: widget.nomeAutor,
-          categoria: CategoriaMovimentoEstoque.venda,
-        ),
-      );
-    }
+    // Gera baixas automáticas proporcionais de estoque (incluindo acompanhamentos)
+    final baixas = EstoqueBaixaService.calcularMovimentosBaixa(
+      itensVendidos: _carrinho,
+      itensCadastrados: widget.itens,
+      motivo:
+          'Venda #${pedido.numero.toString().padLeft(4, '0')} no Modo Balcão',
+      cpfAutor: widget.cpfAutor,
+      nomeAutor: widget.nomeAutor,
+    );
 
     // Diálogo com opção de impressão de cupom térmico
     final confirmou = await VendaConcluidaDialog.mostrar(
@@ -657,6 +670,7 @@ class _ModoBalcaoWidgetState extends State<ModoBalcaoWidget> {
                               descontoController: _descontoController,
                               freteController: _freteController,
                               acrescimoController: _acrescimoController,
+                              obterDividaCliente: _dividaDoCliente,
                               onSelecionarCliente: (c) {
                                 setState(() {
                                   _clienteSelecionado = c;

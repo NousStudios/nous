@@ -199,6 +199,7 @@ class _ImpressoraConteudoState extends State<_ImpressoraConteudo> {
     try {
       await ImpressaoService.imprimirTeste(
         config: ConfiguracoesImpressora(
+          larguraPapelMm: _larguraPapelMm,
           rodape: _rodapeController.text.trim(),
           tamanhoFonte: _tamanhoFonte,
           modeloFonte: _modeloFonte,
@@ -246,6 +247,7 @@ class _ImpressoraConteudoState extends State<_ImpressoraConteudo> {
     try {
       await ImpressaoService.imprimirExemploComanda(
         config: ConfiguracoesImpressora(
+          larguraPapelMm: _larguraPapelMm,
           rodape: _rodapeController.text.trim(),
           tamanhoFonte: _tamanhoFonte,
           modeloFonte: _modeloFonte,

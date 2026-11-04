@@ -17,7 +17,9 @@ import 'package:nous/src/features/pdv/models/pedido_loja.dart';
 import 'package:nous/src/features/pdv/models/registro_acao.dart';
 import 'package:nous/src/features/pdv/models/turno_caixa.dart';
 import 'package:nous/src/features/pdv/providers/pdv_provider.dart';
+import 'package:nous/src/features/pdv/services/lojas_service.dart';
 import 'package:nous/src/features/pdv/services/rede_local/cliente_rede_local.dart';
+import 'package:nous/src/features/pdv/services/rede_local/servidor_rede_local.dart';
 import 'package:nous/src/features/pdv/views/dialogs/estoque_dialog.dart';
 import 'package:nous/src/features/pdv/views/financeiro_view.dart';
 import 'package:nous/src/features/pdv/views/perfis_pdv_view.dart';
@@ -313,7 +315,14 @@ class GerenciadorDialogsLoja {
         setState(() => obterMesas().add(novaMesa));
         persistirListasLoja();
         if (ClienteRedeLocal().conectado) {
-          ClienteRedeLocal().enviarMesa(novaMesa);
+          ClienteRedeLocal().enviarMesa(novaMesa, lojaId: lojaId);
+        }
+        if (ServidorRedeLocal().ativo) {
+          ServidorRedeLocal().notificarTodos({
+            'tipo': 'mesa_atualizada',
+            'lojaId': lojaId,
+            'mesa': novaMesa.toJson(),
+          });
         }
         registrarAcao(
           TipoAcao.mesaCriada,
@@ -363,6 +372,7 @@ class GerenciadorDialogsLoja {
       categoriasDisponiveis: obterCategorias(),
       gruposDisponiveis: obterGruposComponentes(),
       obterClientes: obterClientes,
+      obterPedidos: obterPedidos,
       aoAbrirClientes: abrirPopupClientes,
       nomeVendedor: loja?.nome ?? '',
       cnpjVendedor: loja?.cnpj ?? '',
@@ -426,6 +436,17 @@ class GerenciadorDialogsLoja {
     });
     persistirListasLoja();
 
+    if (ClienteRedeLocal().conectado) {
+      ClienteRedeLocal().enviarMovimentoEstoque(movimento, lojaId: lojaId);
+    }
+    if (ServidorRedeLocal().ativo) {
+      ServidorRedeLocal().notificarTodos({
+        'tipo': 'estoque_atualizado',
+        'lojaId': lojaId,
+        'movimento': movimento.toJson(),
+      });
+    }
+
     final item = obterItens().firstWhere(
       (i) => i.id == movimento.itemId,
       orElse: () => const ItemLoja(id: '', nome: ''),
@@ -457,6 +478,7 @@ class GerenciadorDialogsLoja {
     setState(() {
       obterMovimentosEstoque().removeWhere((m) => m.id == movimento.id);
     });
+    LojasService.excluirMovimentoEstoqueIndividual(lojaId, movimento.id);
     persistirListasLoja();
 
     registrarAcao(

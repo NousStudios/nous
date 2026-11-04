@@ -159,4 +159,29 @@ class PedidosRepositorioLoja {
       );
     }
   }
+
+  static Future<void> excluirPorId(
+    String lojaId,
+    String pedidoId, {
+    DatabaseExecutor? executor,
+  }) async {
+    final db = executor ?? await BancoDadosService.db;
+    await db.delete(
+      'pedidos',
+      where: 'loja_id = ? AND id = ?',
+      whereArgs: [lojaId, pedidoId],
+    );
+  }
+
+  static Future<void> excluirTodosDaLoja(
+    String lojaId, {
+    DatabaseExecutor? executor,
+  }) async {
+    final db = executor ?? await BancoDadosService.db;
+    await db.delete(
+      'pedidos',
+      where: 'loja_id = ?',
+      whereArgs: [lojaId],
+    );
+  }
 }

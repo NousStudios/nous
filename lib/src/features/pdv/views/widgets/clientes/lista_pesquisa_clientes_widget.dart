@@ -1,7 +1,6 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:nous/src/core/theme/theme_controller.dart';
-import 'package:nous/src/core/widgets/texto_rolante.dart';
 import 'package:nous/src/features/pdv/models/cliente.dart';
 import 'package:nous/src/features/pdv/services/imagem_service.dart';
 import 'package:nous/src/features/pdv/views/widgets/estado_vazio_container.dart';
@@ -13,6 +12,7 @@ class ListaPesquisaClientesWidget extends StatelessWidget {
   final TextEditingController pesquisaController;
   final ValueChanged<Cliente> onSelecionarCliente;
   final VoidCallback onPesquisaAlterada;
+  final double Function(Cliente)? obterDividaCliente;
 
   const ListaPesquisaClientesWidget({
     super.key,
@@ -22,7 +22,11 @@ class ListaPesquisaClientesWidget extends StatelessWidget {
     required this.pesquisaController,
     required this.onSelecionarCliente,
     required this.onPesquisaAlterada,
+    this.obterDividaCliente,
   });
+
+  String _formatarMoeda(double v) =>
+      'R\$ ${v.toStringAsFixed(2).replaceAll('.', ',')}';
 
   InputDecoration _decoracaoPesquisa(String dica) {
     OutlineInputBorder borda(Color cor) => OutlineInputBorder(
@@ -113,6 +117,8 @@ class ListaPesquisaClientesWidget extends StatelessWidget {
                     if (cliente.endereco.isNotEmpty) cliente.endereco,
                     if (cliente.numero.isNotEmpty) 'nº ${cliente.numero}',
                   ].join(', ');
+                  final divida = obterDividaCliente?.call(cliente) ?? 0.0;
+                  final temDivida = divida > 0.005;
 
                   return _LinhaClienteHover(
                     aoClicar: () => onSelecionarCliente(cliente),
@@ -159,9 +165,10 @@ class ListaPesquisaClientesWidget extends StatelessWidget {
                               crossAxisAlignment: CrossAxisAlignment.start,
                               mainAxisSize: MainAxisSize.min,
                               children: [
-                                TextoRolante(
-                                  texto: cliente.nome,
-                                  textAlign: TextAlign.start,
+                                Text(
+                                  cliente.nome,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
                                   style: theme.getTextStyle(
                                     fontSize: 12,
                                     fontWeight: FontWeight.w600,
@@ -169,9 +176,10 @@ class ListaPesquisaClientesWidget extends StatelessWidget {
                                   ),
                                 ),
                                 if (temEndereco)
-                                  TextoRolante(
-                                    texto: enderecoTexto,
-                                    textAlign: TextAlign.start,
+                                  Text(
+                                    enderecoTexto,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
                                     style: theme.getTextStyle(
                                       fontSize: 10,
                                       color: theme.secondaryTextColor,
@@ -184,10 +192,36 @@ class ListaPesquisaClientesWidget extends StatelessWidget {
                             const SizedBox(width: 6),
                             ConstrainedBox(
                               constraints: const BoxConstraints(maxWidth: 110),
-                              child: TextoRolante(
-                                texto: cliente.telefone,
+                              child: Text(
+                                cliente.telefone,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
                                 textAlign: TextAlign.end,
                                 style: theme.getTextStyle(fontSize: 11),
+                              ),
+                            ),
+                          ],
+                          if (temDivida) ...[
+                            const SizedBox(width: 6),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 6,
+                                vertical: 2,
+                              ),
+                              decoration: BoxDecoration(
+                                color: theme.dangerColor.withValues(alpha: 0.15),
+                                borderRadius: BorderRadius.circular(6),
+                                border: Border.all(
+                                  color: theme.dangerColor.withValues(alpha: 0.5),
+                                ),
+                              ),
+                              child: Text(
+                                'Deve ${_formatarMoeda(divida)}',
+                                style: theme.getTextStyle(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.bold,
+                                  color: theme.dangerColor,
+                                ),
                               ),
                             ),
                           ],

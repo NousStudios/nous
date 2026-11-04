@@ -501,6 +501,7 @@ class _ClientesConteudoState extends State<_ClientesConteudo> {
       pesquisaController: _pesquisaController,
       onSelecionarCliente: _abrirEdicao,
       onPesquisaAlterada: () => setState(() {}),
+      obterDividaCliente: (c) => _devido(c.id, nome: c.nome),
     );
 
     return Column(

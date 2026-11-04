@@ -214,7 +214,12 @@ class ClienteWsMessageHandler {
           manterItensAusentes: true,
         );
 
-        ctx.definirLojaSincronizada(lojaConsolidada);
+        final lojaSincAtual = ctx.obterLojaSincronizada();
+        if (dados['tipo'] == 'dados_iniciais' ||
+            lojaSincAtual == null ||
+            lojaSincAtual.id == lojaConsolidada.id) {
+          ctx.definirLojaSincronizada(lojaConsolidada);
+        }
         await ctx.pdvProvider!.adicionarOuAtualizarLoja(lojaConsolidada);
         await ctx.vincularLojaSeNecessario(lojaConsolidada);
 
@@ -309,10 +314,18 @@ class ClienteWsMessageHandler {
   }
 
   static void _processarEstoque(Map<String, dynamic> dados, ClienteWsContext ctx) {
-    final lojaSinc = ctx.obterLojaSincronizada();
-    if (dados['movimento'] != null && ctx.pdvProvider != null && lojaSinc != null) {
-      final mov = MovimentoEstoque.fromJson(dados['movimento'] as Map<String, dynamic>);
-      final lojaAtual = ctx.pdvProvider!.buscarPorId(lojaSinc.id);
+    if (dados['movimento'] != null && ctx.pdvProvider != null) {
+      final movMap = dados['movimento'] as Map<String, dynamic>;
+      final mov = MovimentoEstoque.fromJson(movMap);
+      final lojaSinc = ctx.obterLojaSincronizada();
+      final lojaIdDireto = (dados['lojaId'] as String?)?.trim() ?? '';
+      final lojaIdMov = (movMap['lojaId'] as String?)?.trim() ?? '';
+      final lojaIdAlvo = lojaIdDireto.isNotEmpty
+          ? lojaIdDireto
+          : (lojaIdMov.isNotEmpty ? lojaIdMov : (lojaSinc?.id ?? ''));
+      if (lojaIdAlvo.isEmpty) return;
+
+      final lojaAtual = ctx.pdvProvider!.buscarPorId(lojaIdAlvo);
       if (lojaAtual != null) {
         final movs = List<MovimentoEstoque>.from(lojaAtual.movimentosEstoque);
         if (!movs.any((m) => m.id == mov.id)) {
@@ -324,10 +337,18 @@ class ClienteWsMessageHandler {
   }
 
   static void _processarMesa(Map<String, dynamic> dados, ClienteWsContext ctx) {
-    final lojaSinc = ctx.obterLojaSincronizada();
-    if (dados['mesa'] != null && ctx.pdvProvider != null && lojaSinc != null) {
-      final mesa = MesaLoja.fromJson(dados['mesa'] as Map<String, dynamic>);
-      final lojaAtual = ctx.pdvProvider!.buscarPorId(lojaSinc.id);
+    if (dados['mesa'] != null && ctx.pdvProvider != null) {
+      final mesaMap = dados['mesa'] as Map<String, dynamic>;
+      final mesa = MesaLoja.fromJson(mesaMap);
+      final lojaSinc = ctx.obterLojaSincronizada();
+      final lojaIdDireto = (dados['lojaId'] as String?)?.trim() ?? '';
+      final lojaIdMesa = (mesaMap['lojaId'] as String?)?.trim() ?? '';
+      final lojaIdAlvo = lojaIdDireto.isNotEmpty
+          ? lojaIdDireto
+          : (lojaIdMesa.isNotEmpty ? lojaIdMesa : (lojaSinc?.id ?? ''));
+      if (lojaIdAlvo.isEmpty) return;
+
+      final lojaAtual = ctx.pdvProvider!.buscarPorId(lojaIdAlvo);
       if (lojaAtual != null) {
         final mesas = List<MesaLoja>.from(lojaAtual.mesas);
         final idx = mesas.indexWhere((m) => m.id == mesa.id);

@@ -15,6 +15,7 @@ class ClienteAjustesBalcaoWidget extends StatelessWidget {
   final TextEditingController descontoController;
   final TextEditingController freteController;
   final TextEditingController acrescimoController;
+  final double Function(Cliente)? obterDividaCliente;
   final ValueChanged<Cliente> onSelecionarCliente;
   final VoidCallback onRemoverCliente;
   final ValueChanged<bool> onAlterarVisibilidadeSugestoes;
@@ -33,12 +34,35 @@ class ClienteAjustesBalcaoWidget extends StatelessWidget {
     required this.descontoController,
     required this.freteController,
     required this.acrescimoController,
+    this.obterDividaCliente,
     required this.onSelecionarCliente,
     required this.onRemoverCliente,
     required this.onAlterarVisibilidadeSugestoes,
     required this.onGarantirFocoBipador,
     required this.onAjusteAlterado,
   });
+
+  Widget _badgeDivida(double divida) {
+    final textoValor = divida.toStringAsFixed(2).replaceAll('.', ',');
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: theme.dangerColor.withValues(alpha: 0.14),
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(
+          color: theme.dangerColor.withValues(alpha: 0.55),
+        ),
+      ),
+      child: Text(
+        'Deve R\$ $textoValor',
+        style: theme.getTextStyle(
+          fontSize: 10,
+          fontWeight: FontWeight.w700,
+          color: theme.dangerColor,
+        ),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -71,7 +95,7 @@ class ClienteAjustesBalcaoWidget extends StatelessWidget {
         border: Border.all(color: theme.borderColor),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.25),
+            color: theme.borderColor.withValues(alpha: 0.25),
             blurRadius: 8,
             offset: const Offset(0, 4),
           ),
@@ -107,6 +131,7 @@ class ClienteAjustesBalcaoWidget extends StatelessWidget {
                 final end = c.endereco.isNotEmpty
                     ? '${c.endereco}${c.numero.isNotEmpty ? ', nº ${c.numero}' : ''}'
                     : '';
+                final divida = obterDividaCliente?.call(c) ?? 0.0;
 
                 return InkWell(
                   onTap: () {
@@ -166,6 +191,11 @@ class ClienteAjustesBalcaoWidget extends StatelessWidget {
                             ],
                           ),
                         ),
+                        if (divida > 0.005) ...[
+                          const SizedBox(width: 8),
+                          _badgeDivida(divida),
+                        ],
+                        const SizedBox(width: 6),
                         Icon(Icons.add_circle_outline,
                             size: 18, color: theme.secondaryTextColor),
                       ],
@@ -233,6 +263,15 @@ class ClienteAjustesBalcaoWidget extends StatelessWidget {
                             ),
                           ),
                         ),
+                        if ((obterDividaCliente?.call(clienteSelecionado!) ??
+                                0.0) >
+                            0.005) ...[
+                          const SizedBox(width: 4),
+                          _badgeDivida(
+                            obterDividaCliente!.call(clienteSelecionado!),
+                          ),
+                        ],
+                        const SizedBox(width: 4),
                         InkWell(
                           onTap: () {
                             onRemoverCliente();

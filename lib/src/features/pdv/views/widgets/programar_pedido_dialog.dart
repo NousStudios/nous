@@ -26,17 +26,20 @@ String _valorFormatado(double valor) =>
 class ProgramarPedidoDialog extends StatefulWidget {
   final String lojaId;
   final Cliente cliente;
+  final PedidoProgramado? pedidoExistente;
 
   const ProgramarPedidoDialog({
     super.key,
     required this.lojaId,
     required this.cliente,
+    this.pedidoExistente,
   });
 
   static Future<bool?> mostrar(
     BuildContext context, {
     required String lojaId,
     required Cliente cliente,
+    PedidoProgramado? pedidoExistente,
   }) {
     return showDialog<bool>(
       context: context,
@@ -44,6 +47,7 @@ class ProgramarPedidoDialog extends StatefulWidget {
       builder: (_) => ProgramarPedidoDialog(
         lojaId: lojaId,
         cliente: cliente,
+        pedidoExistente: pedidoExistente,
       ),
     );
   }
@@ -98,6 +102,46 @@ class _ProgramarPedidoDialogState extends State<ProgramarPedidoDialog> {
   @override
   void initState() {
     super.initState();
+    final existente = widget.pedidoExistente;
+    if (existente != null) {
+      final ehCalendario = existente.modoProgramacao == 'calendario' ||
+          existente.modoProgramacao == 'datas_especificas' ||
+          (!existente.recorrente && existente.datasEspecificas.isNotEmpty);
+      _modoProgramacao = ehCalendario ? 'calendario' : 'dias_semana';
+      if (existente.diasSemana.isNotEmpty) {
+        _diasSemanaSelecionados
+          ..clear()
+          ..addAll(existente.diasSemana);
+      }
+      if (existente.datasEspecificas.isNotEmpty) {
+        _datasEspecificasSelecionadas
+          ..clear()
+          ..addAll(existente.datasEspecificas
+              .map((d) => DateTime(d.year, d.month, d.day)));
+        final primeira = _datasEspecificasSelecionadas.first;
+        _mesCalendario = DateTime(primeira.year, primeira.month, 1);
+      } else if (existente.dataProgramada != null) {
+        final d = existente.dataProgramada!;
+        _datasEspecificasSelecionadas
+          ..clear()
+          ..add(DateTime(d.year, d.month, d.day));
+        _mesCalendario = DateTime(d.year, d.month, 1);
+      }
+      final partes = existente.horario.trim().split(':');
+      if (partes.length == 2) {
+        final h = int.tryParse(partes[0]);
+        final m = int.tryParse(partes[1]);
+        if (h != null && h >= 0 && h < 24 && m != null && m >= 0 && m < 60) {
+          _horarioSelecionado = TimeOfDay(hour: h, minute: m);
+        }
+      }
+      _itensAdicionados.addAll(existente.itens);
+      if (_formas.contains(existente.formaPagamento)) {
+        _formaPagamento = existente.formaPagamento;
+      }
+      _obsGeralController.text = existente.observacao;
+    }
+
     _horarioController = TextEditingController(
       text: _formatarHora(_horarioSelecionado),
     );
@@ -294,25 +338,53 @@ class _ProgramarPedidoDialogState extends State<ProgramarPedidoDialog> {
     final diasSemanaList = _diasSemanaSelecionados.toList()..sort();
     final datasList = _datasEspecificasSelecionadas.toList()..sort();
 
-    final pedido = PedidoProgramado.novo(
-      lojaId: widget.lojaId,
-      clienteId: widget.cliente.id,
-      clienteNome: widget.cliente.nome,
-      clienteTelefone: widget.cliente.telefone,
-      clienteEndereco: enderecoCompleto,
-      itens: _itensAdicionados,
-      valorTotal: _totalGeralPedido,
-      formaPagamento: _formaPagamento,
-      horario: _formatarHora(_horarioSelecionado),
-      recorrente: _modoProgramacao == 'dias_semana',
-      modoProgramacao: _modoProgramacao,
-      diasSemana: diasSemanaList,
-      datasEspecificas: datasList,
-      dataProgramada: datasList.isNotEmpty ? datasList.first : null,
-      observacao: _obsGeralController.text.trim(),
-    );
-
-    await context.read<PdvProvider>().adicionarPedidoProgramado(widget.lojaId, pedido);
+    final existente = widget.pedidoExistente;
+    if (existente != null) {
+      final atualizado = existente.copyWith(
+        clienteId: widget.cliente.id,
+        clienteNome: widget.cliente.nome,
+        clienteTelefone: widget.cliente.telefone.trim().isNotEmpty
+            ? widget.cliente.telefone
+            : existente.clienteTelefone,
+        clienteEndereco: enderecoCompleto.isNotEmpty
+            ? enderecoCompleto
+            : existente.clienteEndereco,
+        itens: _itensAdicionados,
+        valorTotal: _totalGeralPedido,
+        formaPagamento: _formaPagamento,
+        horario: _formatarHora(_horarioSelecionado),
+        recorrente: _modoProgramacao == 'dias_semana',
+        modoProgramacao: _modoProgramacao,
+        diasSemana: diasSemanaList,
+        datasEspecificas: datasList,
+        dataProgramada: datasList.isNotEmpty ? datasList.first : null,
+        observacao: _obsGeralController.text.trim(),
+      );
+      await context
+          .read<PdvProvider>()
+          .atualizarPedidoProgramado(widget.lojaId, atualizado);
+    } else {
+      final pedido = PedidoProgramado.novo(
+        lojaId: widget.lojaId,
+        clienteId: widget.cliente.id,
+        clienteNome: widget.cliente.nome,
+        clienteTelefone: widget.cliente.telefone,
+        clienteEndereco: enderecoCompleto,
+        itens: _itensAdicionados,
+        valorTotal: _totalGeralPedido,
+        formaPagamento: _formaPagamento,
+        horario: _formatarHora(_horarioSelecionado),
+        recorrente: _modoProgramacao == 'dias_semana',
+        modoProgramacao: _modoProgramacao,
+        diasSemana: diasSemanaList,
+        datasEspecificas: datasList,
+        dataProgramada: datasList.isNotEmpty ? datasList.first : null,
+        observacao: _obsGeralController.text.trim(),
+      );
+      await context
+          .read<PdvProvider>()
+          .adicionarPedidoProgramado(widget.lojaId, pedido);
+    }
 
     if (mounted) {
       Navigator.of(context).pop(true);
@@ -368,7 +440,9 @@ class _ProgramarPedidoDialogState extends State<ProgramarPedidoDialog> {
                                   const SizedBox(width: 8),
                                   Flexible(
                                     child: Text(
-                                      'Programar Pedido do Cliente',
+                                      widget.pedidoExistente != null
+                                          ? 'Editar Pedido Programado'
+                                          : 'Programar Pedido do Cliente',
                                       textAlign: TextAlign.center,
                                       style: theme.getTextStyle(
                                         fontSize: 16,

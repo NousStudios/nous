@@ -7,6 +7,8 @@ import 'package:nous/src/features/pdv/models/pedido_loja.dart';
 import 'package:nous/src/features/pdv/models/registro_acao.dart';
 import 'package:nous/src/features/pdv/models/turno_caixa.dart';
 import 'package:nous/src/features/pdv/providers/pdv_provider.dart';
+import 'package:nous/src/features/pdv/services/rede_local/cliente_rede_local.dart';
+import 'package:nous/src/features/pdv/services/rede_local/servidor_rede_local.dart';
 
 class GerenciadorClientesFornecedoresLoja {
   final BuildContext Function() obterContext;
@@ -79,6 +81,10 @@ class GerenciadorClientesFornecedoresLoja {
     final nomeCliente =
         indiceCliente == -1 ? '' : clientes[indiceCliente].nome;
 
+    final anterioresPorId = <String, PedidoLoja>{
+      for (final p in pedidos) p.id: p,
+    };
+
     final atualizados = aplicarPagamentoAPrazo(
       pedidos,
       clienteId,
@@ -90,7 +96,6 @@ class GerenciadorClientesFornecedoresLoja {
         ..clear()
         ..addAll(atualizados);
     });
-    persistirListasLoja();
 
     final context = obterContext();
     if (formaPagamento.trim().toLowerCase() == 'dinheiro') {
@@ -102,6 +107,26 @@ class GerenciadorClientesFornecedoresLoja {
             cpf: obterCpfLogado(),
             nome: obterNomeLogado(),
           );
+    }
+
+    persistirListasLoja();
+
+    for (final p in atualizados) {
+      final anterior = anterioresPorId[p.id];
+      if (anterior != null &&
+          (anterior.quitado != p.quitado ||
+              (anterior.valorPago - p.valorPago).abs() > 0.001)) {
+        if (ClienteRedeLocal().conectado) {
+          ClienteRedeLocal().enviarPedido(p);
+        }
+        if (ServidorRedeLocal().ativo) {
+          ServidorRedeLocal().notificarTodos({
+            'tipo': 'pedido_atualizado',
+            'lojaId': lojaId,
+            'pedido': p.toJson(),
+          });
+        }
+      }
     }
 
     registrarAcao(

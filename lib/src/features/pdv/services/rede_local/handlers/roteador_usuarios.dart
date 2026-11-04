@@ -241,6 +241,7 @@ class RoteadorUsuarios {
                   LojasService.consolidarLojaComImagensLocais(
                 loja,
                 lojaExistente,
+                manterItensAusentes: true,
               );
               await LojasService.salvarLojaIndividual(lojaConsolidada);
             } catch (e) {

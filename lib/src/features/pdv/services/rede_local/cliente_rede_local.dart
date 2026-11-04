@@ -828,19 +828,27 @@ class ClienteRedeLocal {
   }
 
   /// Envia uma movimentação de estoque realizada no celular para o servidor
-  Future<bool> enviarMovimentoEstoque(MovimentoEstoque mov) =>
+  Future<bool> enviarMovimentoEstoque(
+    MovimentoEstoque mov, {
+    String? lojaId,
+  }) =>
       _despachante.enviarMovimentoEstoque(
         ipServidor: _ipServidor,
         portaServidor: _portaServidor,
         mov: mov,
+        lojaId: lojaId ?? _lojaSincronizada?.id,
       );
 
   /// Envia atualização de mesa para o servidor central
-  Future<bool> enviarMesa(MesaLoja mesa) =>
+  Future<bool> enviarMesa(
+    MesaLoja mesa, {
+    String? lojaId,
+  }) =>
       _despachante.enviarMesa(
         ipServidor: _ipServidor,
         portaServidor: _portaServidor,
         mesa: mesa,
+        lojaId: lojaId ?? _lojaSincronizada?.id,
       );
 
   Future<String> _enviarUploadImagemParaServidor(String caminhoLocal) {
