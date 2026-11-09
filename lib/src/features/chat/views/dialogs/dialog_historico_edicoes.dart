@@ -53,7 +53,7 @@ class DialogHistoricoEdicoes {
                       final textoAnterior =
                           item['textoAnterior']?.toString() ?? '';
                       final dataStr = item['dataHoraEdicao']?.toString() ?? '';
-                      DateTime? dt = DateTime.tryParse(dataStr);
+                      DateTime? dt = DateTime.tryParse(dataStr)?.toLocal();
                       final horaFormatada = dt != null
                           ? '${dt.day.toString().padLeft(2, '0')}/${dt.month.toString().padLeft(2, '0')} ${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}'
                           : dataStr;

@@ -5,6 +5,10 @@ import 'package:nous/src/features/pdv/models/categoria_loja.dart';
 import 'package:nous/src/features/pdv/models/cliente.dart';
 import 'package:nous/src/features/pdv/models/fornecedor.dart';
 import 'package:nous/src/features/pdv/models/gasto_diario.dart';
+import 'package:nous/src/features/pdv/models/gasto_fixo.dart';
+import 'package:nous/src/features/pdv/models/contrato_trabalho_membro.dart';
+import 'package:nous/src/features/pdv/models/registro_ponto_membro.dart';
+import 'package:nous/src/features/pdv/models/escala_trabalho_membro.dart';
 import 'package:nous/src/features/pdv/models/item_loja.dart';
 import 'package:nous/src/features/pdv/models/loja.dart';
 import 'package:nous/src/features/pdv/models/membro_loja.dart';
@@ -272,11 +276,25 @@ class ConsolidadorLojaLocal {
     }
 
     // 10. Pedidos (Finanças / Vendas) - UNIÃO SOBERANA E NÃO-DESTRUTIVA
+    final agora = DateTime.now();
+    bool mesmoDia(DateTime? a, DateTime b) {
+      if (a == null) return false;
+      return a.year == b.year && a.month == b.month && a.day == b.day;
+    }
+
     final pedidosMesclados = <String, PedidoLoja>{};
     for (final p in lojaLocal.pedidosLoja) {
+      // Expurgo profilático: pedidos com status 'novo' de dias anteriores são zumbis
+      // e não devem ser mantidos vivos na memória nem na lista ativa da loja.
+      if (p.status == StatusPedido.novo && !mesmoDia(p.dataHora, agora)) {
+        continue;
+      }
       pedidosMesclados[p.id] = p;
     }
     for (final p in lojaNova.pedidosLoja) {
+      if (p.status == StatusPedido.novo && !mesmoDia(p.dataHora, agora)) {
+        continue;
+      }
       if (!pedidosMesclados.containsKey(p.id)) {
         pedidosMesclados[p.id] = p;
       } else {
@@ -376,6 +394,47 @@ class ConsolidadorLojaLocal {
     final listaGastos = gastosMesclados.values.toList()
       ..sort((a, b) => b.dataHora.compareTo(a.dataHora));
 
+    // 18. Gastos Fixos Recorrentes
+    final gastosFixosMesclados = <String, GastoFixo>{};
+    for (final g in lojaLocal.gastosFixos) {
+      gastosFixosMesclados[g.id] = g;
+    }
+    for (final g in lojaNova.gastosFixos) {
+      gastosFixosMesclados[g.id] = g;
+    }
+    final listaGastosFixos = gastosFixosMesclados.values.toList();
+
+    // 19. Contratos de Trabalho
+    final contratosMesclados = <String, ContratoTrabalhoMembro>{};
+    for (final c in lojaLocal.contratosTrabalho) {
+      contratosMesclados[c.cpf] = c;
+    }
+    for (final c in lojaNova.contratosTrabalho) {
+      contratosMesclados[c.cpf] = c;
+    }
+    final listaContratos = contratosMesclados.values.toList();
+
+    // 20. Registros de Ponto
+    final pontosMesclados = <String, RegistroPontoMembro>{};
+    for (final p in lojaLocal.registrosPonto) {
+      pontosMesclados[p.id] = p;
+    }
+    for (final p in lojaNova.registrosPonto) {
+      pontosMesclados[p.id] = p;
+    }
+    final listaPontos = pontosMesclados.values.toList()
+      ..sort((a, b) => b.dataHoraEntrada.compareTo(a.dataHoraEntrada));
+
+    // 21. Escalas de Trabalho
+    final escalasMescladas = <String, EscalaTrabalhoMembro>{};
+    for (final e in lojaLocal.escalasTrabalho) {
+      escalasMescladas[e.cpf] = e;
+    }
+    for (final e in lojaNova.escalasTrabalho) {
+      escalasMescladas[e.cpf] = e;
+    }
+    final listaEscalas = escalasMescladas.values.toList();
+
     final impressoraNovaTemHardware =
         lojaNova.configuracoesImpressora.nomeImpressora.trim().isNotEmpty ||
             lojaNova.configuracoesImpressora.enderecoRede.trim().isNotEmpty;
@@ -408,6 +467,10 @@ class ConsolidadorLojaLocal {
       membros: listaMembros,
       cargosPersonalizados: listaCargos,
       gastosDiarios: listaGastos,
+      gastosFixos: listaGastosFixos,
+      contratosTrabalho: listaContratos,
+      registrosPonto: listaPontos,
+      escalasTrabalho: listaEscalas,
       configuracoesImpressora: configuracoesImpressoraFinal,
       layoutExpandido: lojaLocal.layoutExpandido,
       tipoLayoutMaior: lojaLocal.tipoLayoutMaior.isNotEmpty

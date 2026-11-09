@@ -103,6 +103,31 @@ class ServidorWsMessageHandler {
         return;
       }
 
+      if (tipo == 'mensagens_lidas_loja') {
+        final lojaId = dados['lojaId'] as String? ?? '';
+        final idLeitor = dados['idLeitor'] as String? ?? '';
+        await ChatService.processarMensagensLidasDaLojaDaRede(lojaId, idLeitor);
+        ctx.retransmitirParaOutros(jsonEncode(dados), exceto: ws);
+        return;
+      }
+
+      if (tipo == 'notificacoes_loja_limpas') {
+        final lojaId = dados['lojaId'] as String? ?? '';
+        final ids = (dados['ids'] as List<dynamic>? ?? const [])
+            .map((e) => e.toString())
+            .toList();
+        if (lojaId.isNotEmpty && ids.isNotEmpty) {
+          NotificacoesProvider.instanciaAtiva?.dispensarNotificacoesLoja(
+            lojaId,
+            ids,
+            originadoDaRede: true,
+          );
+          await ChatService.processarMensagensLidasDaLojaDaRede(lojaId, '');
+        }
+        ctx.retransmitirParaOutros(jsonEncode(dados), exceto: ws);
+        return;
+      }
+
       if (tipo == 'conversa_atualizada') {
         if (dados['conversa'] != null) {
           final cMap = dados['conversa'] as Map<String, dynamic>;
@@ -283,6 +308,9 @@ class ServidorWsMessageHandler {
           debugPrint('[ServidorRedeLocal] Erro ao sincronizar convites com terminal: $e');
         }
       }
+
+      // Drena quaisquer mensagens que estavam retidas na fila aguardando a conexão deste terminal
+      ChatService.drenarFilaDeSaida();
     }
   }
 

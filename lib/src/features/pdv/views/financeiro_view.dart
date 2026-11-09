@@ -451,6 +451,8 @@ class _FinanceiroViewState extends State<FinanceiroView> {
                     FinanceiroOperacoesHelper.unidadeDoItem(lj, id),
                 onChangedPesquisa: () => setState(() {}),
                 gastosDiarios: gastosDoPeriodo,
+                gastosFixos: loja?.gastosFixos ?? const [],
+                membros: loja?.membros ?? const [],
                 onAdicionarGasto: (novo) {
                   context
                       .read<PdvProvider>()
@@ -460,6 +462,21 @@ class _FinanceiroViewState extends State<FinanceiroView> {
                   context
                       .read<PdvProvider>()
                       .removerGastoDiario(widget.lojaId, idGasto);
+                },
+                onAdicionarGastoFixo: (gf) {
+                  context
+                      .read<PdvProvider>()
+                      .adicionarGastoFixo(widget.lojaId, gf);
+                },
+                onRemoverGastoFixo: (idGf) {
+                  context
+                      .read<PdvProvider>()
+                      .removerGastoFixo(widget.lojaId, idGf);
+                },
+                onAlternarAtivoGastoFixo: (idGf) {
+                  context
+                      .read<PdvProvider>()
+                      .alternarAtivoGastoFixo(widget.lojaId, idGf);
                 },
               ),
               const SizedBox(height: 16),
@@ -485,6 +502,7 @@ class _FinanceiroViewState extends State<FinanceiroView> {
                 theme: theme,
                 loja: loja,
                 pagamentos: pagamentos,
+                cpfLogado: context.read<AuthProvider>().contaAtual?.cpf ?? '',
                 podeRegistrar: context
                     .read<PdvProvider>()
                     .possoRegistrarPagamento(widget.lojaId),

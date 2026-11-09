@@ -17,6 +17,8 @@ class MovimentoEstoque {
   final String fornecedorId;
   final String fornecedorNome;
   final CategoriaMovimentoEstoque categoria;
+  final String formaPagamento;
+  final bool pago;
 
   const MovimentoEstoque({
     required this.id,
@@ -31,6 +33,8 @@ class MovimentoEstoque {
     this.fornecedorId = '',
     this.fornecedorNome = '',
     this.categoria = CategoriaMovimentoEstoque.ajuste,
+    this.formaPagamento = '',
+    this.pago = true,
   });
 
   factory MovimentoEstoque.novo({
@@ -44,6 +48,8 @@ class MovimentoEstoque {
     String fornecedorId = '',
     String fornecedorNome = '',
     CategoriaMovimentoEstoque categoria = CategoriaMovimentoEstoque.ajuste,
+    String formaPagamento = '',
+    bool pago = true,
   }) {
     return MovimentoEstoque(
       id: gerarIdUnico(),
@@ -58,6 +64,42 @@ class MovimentoEstoque {
       fornecedorId: fornecedorId,
       fornecedorNome: fornecedorNome,
       categoria: categoria,
+      formaPagamento: formaPagamento,
+      pago: pago,
+    );
+  }
+
+  MovimentoEstoque copyWith({
+    String? id,
+    String? itemId,
+    TipoMovimentoEstoque? tipo,
+    double? quantidade,
+    double? custoUnitario,
+    DateTime? dataHora,
+    String? motivo,
+    String? cpfAutor,
+    String? nomeAutor,
+    String? fornecedorId,
+    String? fornecedorNome,
+    CategoriaMovimentoEstoque? categoria,
+    String? formaPagamento,
+    bool? pago,
+  }) {
+    return MovimentoEstoque(
+      id: id ?? this.id,
+      itemId: itemId ?? this.itemId,
+      tipo: tipo ?? this.tipo,
+      quantidade: quantidade ?? this.quantidade,
+      custoUnitario: custoUnitario ?? this.custoUnitario,
+      dataHora: dataHora ?? this.dataHora,
+      motivo: motivo ?? this.motivo,
+      cpfAutor: cpfAutor ?? this.cpfAutor,
+      nomeAutor: nomeAutor ?? this.nomeAutor,
+      fornecedorId: fornecedorId ?? this.fornecedorId,
+      fornecedorNome: fornecedorNome ?? this.fornecedorNome,
+      categoria: categoria ?? this.categoria,
+      formaPagamento: formaPagamento ?? this.formaPagamento,
+      pago: pago ?? this.pago,
     );
   }
 
@@ -81,6 +123,8 @@ class MovimentoEstoque {
       'fornecedorId': fornecedorId,
       'fornecedorNome': fornecedorNome,
       'categoria': categoria.name,
+      'formaPagamento': formaPagamento,
+      'pago': pago,
     };
   }
 
@@ -93,18 +137,22 @@ class MovimentoEstoque {
             orElse: () => CategoriaMovimentoEstoque.ajuste,
           );
     return MovimentoEstoque(
-      id: json['id'] as String,
-      itemId: json['itemId'] as String,
-      tipo: TipoMovimentoEstoque.values.byName(json['tipo'] as String),
+      id: json['id'] as String? ?? '',
+      itemId: json['itemId'] as String? ?? '',
+      tipo: TipoMovimentoEstoque.values.byName(json['tipo'] as String? ?? 'entrada'),
       quantidade: (json['quantidade'] as num?)?.toDouble() ?? 0,
       custoUnitario: (json['custoUnitario'] as num?)?.toDouble() ?? 0,
-      dataHora: DateTime.parse(json['dataHora'] as String),
+      dataHora: json['dataHora'] != null
+          ? DateTime.tryParse(json['dataHora'] as String) ?? DateTime.now()
+          : DateTime.now(),
       motivo: json['motivo'] as String? ?? '',
       cpfAutor: json['cpfAutor'] as String? ?? '',
       nomeAutor: json['nomeAutor'] as String? ?? '',
       fornecedorId: json['fornecedorId'] as String? ?? '',
       fornecedorNome: json['fornecedorNome'] as String? ?? '',
       categoria: categoria,
+      formaPagamento: json['formaPagamento'] as String? ?? '',
+      pago: json['pago'] as bool? ?? true,
     );
   }
 }

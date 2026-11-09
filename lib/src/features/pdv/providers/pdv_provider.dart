@@ -1,12 +1,18 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:nous/src/features/pdv/models/cargo_loja.dart';
 import 'package:nous/src/features/pdv/models/categoria_loja.dart';
 import 'package:nous/src/features/pdv/models/cliente.dart';
 import 'package:nous/src/features/pdv/models/configuracoes_impressora.dart';
 import 'package:nous/src/features/pdv/models/fornecedor.dart';
 import 'package:nous/src/features/pdv/models/gasto_diario.dart';
+import 'package:nous/src/features/pdv/models/gasto_fixo.dart';
+import 'package:nous/src/features/pdv/models/contrato_trabalho_membro.dart';
+import 'package:nous/src/features/pdv/models/registro_ponto_membro.dart';
+import 'package:nous/src/features/pdv/models/escala_trabalho_membro.dart';
 import 'package:nous/src/features/pdv/models/grupo_componentes_loja.dart';
 import 'package:nous/src/features/pdv/models/item_loja.dart';
 import 'package:nous/src/features/pdv/models/loja.dart';
@@ -22,6 +28,7 @@ import 'package:nous/src/features/pdv/services/lojas_service.dart';
 import 'package:nous/src/features/pdv/services/rede_local/cliente_rede_local.dart';
 import 'package:nous/src/features/pdv/services/rede_local/servidor_rede_local.dart';
 import 'package:nous/src/features/chat/services/chat_service.dart';
+import 'package:nous/src/features/auth/models/usuario_nous.dart';
 import 'package:nous/src/features/pdv/providers/helpers/pdv_permissoes_helper.dart';
 import 'package:nous/src/features/pdv/providers/helpers/pdv_caixa_helper.dart';
 import 'package:nous/src/features/pdv/providers/helpers/pdv_pedidos_programados_helper.dart';
@@ -238,6 +245,70 @@ class PdvProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  void sincronizarDadosUsuarioEmLojas(UsuarioNous usuario) {
+    final digitos = usuario.cpf.replaceAll(RegExp(r'[^0-9]'), '');
+    if (digitos.isEmpty) return;
+    final nomeValido = usuario.nome.trim();
+    final ehNomeSpurio = nomeValido.isEmpty ||
+        nomeValido.toLowerCase() == 'blackview' ||
+        nomeValido.toLowerCase() == 'celular';
+
+    for (int i = 0; i < _lojas.length; i++) {
+      final loja = _lojas[i];
+      var alterou = false;
+
+      final novosMembros = loja.membros.map((m) {
+        final mDigits = m.cpf.replaceAll(RegExp(r'[^0-9]'), '');
+        if (mDigits == digitos) {
+          if (!ehNomeSpurio && m.nome != nomeValido) {
+            alterou = true;
+            return m.copyWith(nome: nomeValido);
+          }
+        }
+        return m;
+      }).toList();
+
+      final novosClientes = loja.clientesLoja.map((c) {
+        final cDigits = c.cnpj.replaceAll(RegExp(r'[^0-9]'), '');
+        if (cDigits == digitos) {
+          var clienteAtualizado = c;
+          if (usuario.foto.isNotEmpty && c.foto != usuario.foto) {
+            alterou = true;
+            clienteAtualizado = clienteAtualizado.copyWith(foto: usuario.foto);
+          }
+          if (!ehNomeSpurio && c.nome != nomeValido) {
+            alterou = true;
+            clienteAtualizado = clienteAtualizado.copyWith(nome: nomeValido);
+          }
+          return clienteAtualizado;
+        }
+        return c;
+      }).toList();
+
+      final novosFornecedores = loja.fornecedoresLoja.map((f) {
+        final fDigits = f.cnpj.replaceAll(RegExp(r'[^0-9]'), '');
+        if (fDigits == digitos &&
+            usuario.foto.isNotEmpty &&
+            f.foto != usuario.foto) {
+          alterou = true;
+          return f.copyWith(foto: usuario.foto);
+        }
+        return f;
+      }).toList();
+
+      if (alterou) {
+        final atualizada = loja.copyWith(
+          membros: novosMembros,
+          clientesLoja: novosClientes,
+          fornecedoresLoja: novosFornecedores,
+        );
+        _lojas[i] = atualizada;
+        _salvarLojaNoCofreCorreto(atualizada);
+      }
+    }
+    notifyListeners();
+  }
+
   MembroLoja? meuMembro(String lojaId) =>
       PdvPermissoesHelper.resolverMeuMembro(buscarPorId(lojaId), _cpfAtual);
 
@@ -281,6 +352,18 @@ class PdvProvider extends ChangeNotifier {
       ..addAll(lojasCompletas);
     await _herdarCalibracaoImpressoraEntreLojasLocais();
     notifyListeners();
+
+    unawaited(() async {
+      try {
+        if (!ServidorRedeLocal().ativo) {
+          final prefs = await SharedPreferences.getInstance();
+          final ultimoIp = prefs.getString('nous_ultimo_ip_balcao');
+          if (ultimoIp != null && ultimoIp.isNotEmpty) {
+            await ClienteRedeLocal().tentarAutoConectarSeDisponivel(this);
+          }
+        }
+      } catch (_) {}
+    }());
   }
 
   static bool _temCalibracaoTipografiaOuMargem(ConfiguracoesImpressora c) {
@@ -952,6 +1035,113 @@ class PdvProvider extends ChangeNotifier {
     final novosGastos =
         loja.gastosDiarios.where((g) => g.id != gastoId).toList();
     final atualizada = loja.copyWith(gastosDiarios: novosGastos);
+    _salvarEAtualizar(atualizada);
+  }
+
+  void quitarGastoDiario(String lojaId, String gastoId) {
+    final loja = buscarPorId(lojaId);
+    if (loja == null) return;
+    final novosGastos = loja.gastosDiarios.map((g) {
+      if (g.id == gastoId) {
+        return g.copyWith(pago: true);
+      }
+      return g;
+    }).toList();
+    final atualizada = loja.copyWith(gastosDiarios: novosGastos);
+    _salvarEAtualizar(atualizada);
+  }
+
+  void adicionarGastoFixo(String lojaId, GastoFixo gasto) {
+    final loja = buscarPorId(lojaId);
+    if (loja == null) return;
+    final novos = [gasto, ...loja.gastosFixos];
+    final atualizada = loja.copyWith(gastosFixos: novos);
+    _salvarEAtualizar(atualizada);
+  }
+
+  void removerGastoFixo(String lojaId, String gastoId) {
+    final loja = buscarPorId(lojaId);
+    if (loja == null) return;
+    final novos = loja.gastosFixos.where((g) => g.id != gastoId).toList();
+    final atualizada = loja.copyWith(gastosFixos: novos);
+    _salvarEAtualizar(atualizada);
+  }
+
+  void alternarAtivoGastoFixo(String lojaId, String gastoId) {
+    final loja = buscarPorId(lojaId);
+    if (loja == null) return;
+    final novos = loja.gastosFixos.map((g) {
+      if (g.id == gastoId) {
+        return g.copyWith(ativo: !g.ativo);
+      }
+      return g;
+    }).toList();
+    final atualizada = loja.copyWith(gastosFixos: novos);
+    _salvarEAtualizar(atualizada);
+  }
+
+  void salvarContratoTrabalho(String lojaId, ContratoTrabalhoMembro contrato) {
+    final loja = buscarPorId(lojaId);
+    if (loja == null) return;
+    final outros = loja.contratosTrabalho.where((c) => c.cpf != contrato.cpf).toList();
+    final novos = [contrato, ...outros];
+    final atualizada = loja.copyWith(contratosTrabalho: novos);
+    _salvarEAtualizar(atualizada);
+  }
+
+  void registrarPonto(String lojaId, RegistroPontoMembro ponto) {
+    final loja = buscarPorId(lojaId);
+    if (loja == null) return;
+    final novos = [ponto, ...loja.registrosPonto];
+    final atualizada = loja.copyWith(registrosPonto: novos);
+    _salvarEAtualizar(atualizada);
+  }
+
+  void finalizarPonto(String lojaId, String pontoId, DateTime dataHoraSaida) {
+    final loja = buscarPorId(lojaId);
+    if (loja == null) return;
+    final novos = loja.registrosPonto.map((p) {
+      if (p.id == pontoId) {
+        return p.copyWith(dataHoraSaida: dataHoraSaida);
+      }
+      return p;
+    }).toList();
+    final atualizada = loja.copyWith(registrosPonto: novos);
+    _salvarEAtualizar(atualizada);
+  }
+
+  void salvarEscalaTrabalho(String lojaId, EscalaTrabalhoMembro escala) {
+    final loja = buscarPorId(lojaId);
+    if (loja == null) return;
+    final outros = loja.escalasTrabalho.where((e) => e.cpf != escala.cpf).toList();
+    final novos = [escala, ...outros];
+    final atualizada = loja.copyWith(escalasTrabalho: novos);
+    _salvarEAtualizar(atualizada);
+  }
+
+  void quitarPagamentoFuncionario(String lojaId, String pagamentoId) {
+    final loja = buscarPorId(lojaId);
+    if (loja == null) return;
+    final novos = loja.pagamentosFuncionarios.map((p) {
+      if (p.id == pagamentoId) {
+        return p.copyWith(pago: true);
+      }
+      return p;
+    }).toList();
+    final atualizada = loja.copyWith(pagamentosFuncionarios: novos);
+    _salvarEAtualizar(atualizada);
+  }
+
+  void quitarCompraEstoque(String lojaId, String movimentoId) {
+    final loja = buscarPorId(lojaId);
+    if (loja == null) return;
+    final novos = loja.movimentosEstoque.map((m) {
+      if (m.id == movimentoId) {
+        return m.copyWith(pago: true);
+      }
+      return m;
+    }).toList();
+    final atualizada = loja.copyWith(movimentosEstoque: novos);
     _salvarEAtualizar(atualizada);
   }
 

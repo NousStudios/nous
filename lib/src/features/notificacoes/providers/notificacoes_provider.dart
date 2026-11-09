@@ -1,7 +1,10 @@
 import 'package:flutter/foundation.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:nous/src/features/notificacoes/models/convite_loja.dart';
 import 'package:nous/src/features/notificacoes/services/convites_service.dart';
 import 'package:nous/src/features/pdv/models/loja.dart';
+import 'package:nous/src/features/pdv/services/rede_local/cliente_rede_local.dart';
+import 'package:nous/src/features/pdv/services/rede_local/servidor_rede_local.dart';
 
 class NotificacoesProvider extends ChangeNotifier {
   static NotificacoesProvider? _instanciaAtiva;
@@ -11,6 +14,7 @@ class NotificacoesProvider extends ChangeNotifier {
   List<ConviteLoja> _convites = [];
 
   final Set<String> _notificacoesDispensadasSessao = {};
+  final Map<String, Set<String>> _notificacoesDispensadasPorLoja = {};
 
   NotificacoesProvider() {
     _instanciaAtiva = this;
@@ -39,6 +43,65 @@ class NotificacoesProvider extends ChangeNotifier {
   bool estaDispensadaNaSessao(String id) =>
       _notificacoesDispensadasSessao.contains(id);
 
+  bool estaDispensadaNaLoja(String lojaId, String id) {
+    if (_notificacoesDispensadasSessao.contains(id)) return true;
+    final setLoja = _notificacoesDispensadasPorLoja[lojaId];
+    return setLoja != null && setLoja.contains(id);
+  }
+
+  Set<String> obterDispensadasPorLoja(String lojaId) {
+    return _notificacoesDispensadasPorLoja[lojaId] ?? const <String>{};
+  }
+
+  Future<void> carregarDispensadasLoja(String lojaId) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final lista = prefs.getStringList('nous_notificacoes_dispensadas_loja_$lojaId');
+      if (lista != null && lista.isNotEmpty) {
+        _notificacoesDispensadasPorLoja.putIfAbsent(lojaId, () => <String>{}).addAll(lista);
+        _notificacoesDispensadasSessao.addAll(lista);
+        notifyListeners();
+      }
+    } catch (_) {}
+  }
+
+  Future<void> dispensarNotificacoesLoja(
+    String lojaId,
+    Iterable<String> ids, {
+    bool originadoDaRede = false,
+  }) async {
+    if (ids.isEmpty) return;
+    final setLoja = _notificacoesDispensadasPorLoja.putIfAbsent(
+      lojaId,
+      () => <String>{},
+    );
+    setLoja.addAll(ids);
+    _notificacoesDispensadasSessao.addAll(ids);
+
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setStringList(
+        'nous_notificacoes_dispensadas_loja_$lojaId',
+        setLoja.toList(),
+      );
+    } catch (_) {}
+
+    if (!originadoDaRede) {
+      final payload = {
+        'tipo': 'notificacoes_loja_limpas',
+        'lojaId': lojaId,
+        'ids': ids.toList(),
+      };
+      if (ServidorRedeLocal().ativo) {
+        ServidorRedeLocal().notificarTodos(payload);
+      } else if (ClienteRedeLocal().conectado) {
+        ClienteRedeLocal().enviarEventoWs(payload);
+      }
+    }
+
+    notifyListeners();
+  }
+
   void dispensarNaSessao(String id) {
     _notificacoesDispensadasSessao.add(id);
     notifyListeners();
@@ -51,6 +114,7 @@ class NotificacoesProvider extends ChangeNotifier {
 
   void restaurarDispensadasSessao() {
     _notificacoesDispensadasSessao.clear();
+    _notificacoesDispensadasPorLoja.clear();
     notifyListeners();
   }
 

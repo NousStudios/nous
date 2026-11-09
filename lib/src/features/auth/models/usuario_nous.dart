@@ -105,20 +105,26 @@ class UsuarioNous {
   }
 
   /// Retorna o nome formatado respeitando a privacidade:
-  /// Se o nome próprio for privado e quem visualiza não tiver autorização, retorna o apelido ou "Usuário Nous".
+  /// Hierarquia estrita: Nome Completo (se permitido) -> Apelido -> @Usuário Nous.
   String nomeExibicaoPara({String? cpfVisualizador, bool reveladoParaDono = false}) {
+    final fallback = apelidoExibicao.isNotEmpty
+        ? apelidoExibicao
+        : (usernameExibicao.isNotEmpty ? usernameExibicao : '@Usuário Nous');
+
     if (!dadoEstaPrivado('nome')) {
-      return nomeExibicao;
+      return nomeExibicao.isNotEmpty ? nomeExibicao : fallback;
     }
     final meuCpfLimpo = cpf.replaceAll(RegExp(r'\D'), '');
     final outroLimpo = (cpfVisualizador ?? '').replaceAll(RegExp(r'\D'), '');
     if (outroLimpo.isEmpty || meuCpfLimpo == outroLimpo) {
-      return reveladoParaDono ? nomeExibicao : (apelidoExibicao.isNotEmpty ? apelidoExibicao : 'Usuário Nous');
+      return reveladoParaDono
+          ? (nomeExibicao.isNotEmpty ? nomeExibicao : fallback)
+          : fallback;
     }
     if (dadoAutorizadoPara('nome', outroLimpo)) {
-      return nomeExibicao;
+      return nomeExibicao.isNotEmpty ? nomeExibicao : fallback;
     }
-    return apelidoExibicao.isNotEmpty ? apelidoExibicao : 'Usuário Nous';
+    return fallback;
   }
 
   bool estaSeguindo(String cpfOuId) {

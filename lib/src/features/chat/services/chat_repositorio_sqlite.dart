@@ -88,6 +88,7 @@ class ChatRepositorioSqlite {
           WHERE tipo IN ('mensagem_entregue', 'mensagens_lidas')
              OR id = '' 
              OR remetente_id = ''
+             OR conversa_id = ''
              OR (tipo = 'texto' AND TRIM(texto) = '' AND (caminho_anexo IS NULL OR caminho_anexo = '') AND (pedido_id IS NULL OR pedido_id = ''));
         ''');
       } catch (_) {}
@@ -191,6 +192,37 @@ class ChatRepositorioSqlite {
         WHERE LOWER(TRIM(titulo_conversa)) = LOWER(TRIM(titulo))
            OR LOWER(TRIM(titulo_conversa)) = LOWER(TRIM(nome_grupo));
       ''');
+
+      // Autocura de IDs não-canônicos e saneamento de histórico P2P
+      final userConvs = await db.query(
+        'conversas_chat',
+        where: 'id LIKE ?',
+        whereArgs: ['user_%_user_%'],
+      );
+      for (final c in userConvs) {
+        final id = c['id'] as String;
+        final match = RegExp(r'^user_(\d{11})_user_(\d{11})$').firstMatch(id);
+        if (match != null) {
+          final c1 = match.group(1)!;
+          final c2 = match.group(2)!;
+          final min = c1.compareTo(c2) <= 0 ? c1 : c2;
+          final max = c1.compareTo(c2) <= 0 ? c2 : c1;
+          final idCanonico = 'user_${min}_user_$max';
+          if (id != idCanonico) {
+            await db.update(
+              'mensagens_chat',
+              {'conversa_id': idCanonico},
+              where: 'conversa_id = ?',
+              whereArgs: [id],
+            );
+            await db.delete(
+              'conversas_chat',
+              where: 'id = ?',
+              whereArgs: [id],
+            );
+          }
+        }
+      }
     } catch (e) {
       debugPrint('[ChatRepositorioSqlite] Erro na migração inicial: $e');
     }
@@ -215,14 +247,31 @@ class ChatRepositorioSqlite {
     int? offset,
   }) async {
     final db = await obterDb();
-    final rows = await db.query(
-      'mensagens_chat',
-      where: 'conversa_id = ?',
-      whereArgs: [conversaId],
-      orderBy: 'data_hora ASC, id ASC',
-      limit: limite,
-      offset: offset,
-    );
+    final matchUser =
+        RegExp(r'^user_(\d{11})_user_(\d{11})$').firstMatch(conversaId);
+    final List<Map<String, dynamic>> rows;
+    if (matchUser != null) {
+      final c1 = matchUser.group(1)!;
+      final c2 = matchUser.group(2)!;
+      final idInverso = 'user_${c2}_user_$c1';
+      rows = await db.query(
+        'mensagens_chat',
+        where: 'conversa_id = ? OR conversa_id = ?',
+        whereArgs: [conversaId, idInverso],
+        orderBy: 'data_hora ASC, id ASC',
+        limit: limite,
+        offset: offset,
+      );
+    } else {
+      rows = await db.query(
+        'mensagens_chat',
+        where: 'conversa_id = ?',
+        whereArgs: [conversaId],
+        orderBy: 'data_hora ASC, id ASC',
+        limit: limite,
+        offset: offset,
+      );
+    }
 
     final listaMsgs = rows.map((r) {
       final remetente = r['remetente_id'] as String? ?? '';
@@ -261,7 +310,7 @@ class ChatRepositorioSqlite {
         destinatarioId: r['destinatario_id'] as String? ?? '',
         texto: r['texto'] as String? ?? '',
         dataHora:
-            DateTime.tryParse(r['data_hora'] as String? ?? '') ??
+            DateTime.tryParse(r['data_hora'] as String? ?? '')?.toLocal() ??
             DateTime.now(),
         enviadaPorMim: enviadaPorMim,
         nomeAtendente: r['nome_atendente'] as String? ?? '',
@@ -481,5 +530,42 @@ class ChatRepositorioSqlite {
       whereArgs: [conversaId],
     );
     await db.delete('conversas_chat', where: 'id = ?', whereArgs: [conversaId]);
+  }
+
+  /// Autocura de integridade temporal: normaliza mensagens que ficaram com horários
+  /// no futuro devido a divergências de timezone (ex: UTC não convertido).
+  static Future<void> curarTimestampsAnomalosDoPassado() async {
+    try {
+      final db = await obterDb();
+      final agora = DateTime.now();
+      final limiteFuturo =
+          agora.add(const Duration(minutes: 5)).toIso8601String();
+      final noFuturo = await db.query(
+        'mensagens_chat',
+        columns: ['id', 'data_hora'],
+        where: 'data_hora > ?',
+        whereArgs: [limiteFuturo],
+      );
+      for (final m in noFuturo) {
+        final id = m['id'] as String;
+        final dataStr = m['data_hora'] as String;
+        final dt = DateTime.tryParse(dataStr);
+        if (dt != null) {
+          final diffHoras = dt.difference(agora).inHours;
+          final DateTime corrigida;
+          if (diffHoras >= 2 && diffHoras <= 4) {
+            corrigida = dt.subtract(const Duration(hours: 3));
+          } else {
+            corrigida = agora;
+          }
+          await db.update(
+            'mensagens_chat',
+            {'data_hora': corrigida.toIso8601String()},
+            where: 'id = ?',
+            whereArgs: [id],
+          );
+        }
+      }
+    } catch (_) {}
   }
 }

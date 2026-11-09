@@ -46,18 +46,25 @@ class ChatMediaService {
     }
   }
 
-  /// Lê os bytes de um anexo para envio pela malha local, respeitando limite de 3.5 MB
+  /// Limite máximo seguro de bytes embutidos em Base64 no WebSocket (64 KB).
+  /// Arquivos maiores devem transitar via streaming HTTP binário para não sobrecarregar o socket.
+  static const int limiteBytesBase64Ws = 64 * 1024;
+
+  /// Lê os bytes de um anexo leve para envio direto pela malha local (até 64 KB).
+  /// Retorna null para arquivos maiores, delegando ao pipeline de upload binário HTTP em background.
   static Future<String?> obterBytesBase64ParaEnvio(String caminhoAnexo) async {
     if (caminhoAnexo.isEmpty) return null;
     final caminhoResolvido = ImagemService.resolverCaminhoExistente(caminhoAnexo);
     if (caminhoResolvido != null && File(caminhoResolvido).existsSync()) {
       try {
-        final bytes = await File(caminhoResolvido).readAsBytes();
-        if (bytes.isNotEmpty && bytes.length <= 3500 * 1024) {
+        final arquivo = File(caminhoResolvido);
+        final tamanho = arquivo.lengthSync();
+        if (tamanho > 0 && tamanho <= limiteBytesBase64Ws) {
+          final bytes = await arquivo.readAsBytes();
           return base64Encode(bytes);
         }
       } catch (e) {
-        debugPrint('[ChatMediaService] Erro ao ler bytes do anexo: $e');
+        debugPrint('[ChatMediaService] Erro ao ler bytes do anexo leve: $e');
       }
     }
     return null;

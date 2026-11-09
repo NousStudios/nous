@@ -10,6 +10,8 @@ import 'package:nous/src/features/chat/services/chat_service.dart';
 import 'package:nous/src/features/chat/services/resolvedor_foto_chat.dart';
 import 'package:nous/src/features/chat/views/chamada_ativa_view.dart';
 import 'package:nous/src/features/pdv/providers/pdv_provider.dart';
+import 'package:nous/src/features/pdv/services/rede_local/cliente_rede_local.dart';
+import 'package:nous/src/features/pdv/services/rede_local/servidor_rede_local.dart';
 
 /// Cabeçalho da conversa ativa com visualização do contato, status,
 /// chamadas WebRTC de vídeo/voz e ações rápidas.
@@ -163,12 +165,124 @@ class CabecalhoConversaAtivaWidget extends StatelessWidget {
                             ),
                           ),
                           const SizedBox(height: 2),
-                          TextoRolante(
-                            texto: subtituloTexto,
-                            style: theme.getTextStyle(
-                              fontSize: 12,
-                              color: theme.secondaryTextColor,
-                            ),
+                          ListenableBuilder(
+                            listenable: Listenable.merge([
+                              ServidorRedeLocal().terminaisConectados,
+                              ClienteRedeLocal().presencasAtivas,
+                              ClienteRedeLocal().estaConectado,
+                            ]),
+                            builder: (context, _) {
+                              final servidor = ServidorRedeLocal();
+                              final cliente = ClienteRedeLocal();
+                              final auth = context.watch<AuthProvider>();
+                              final meuCpf =
+                                  ChatService.normalizarCpf(auth.cpf);
+
+                              List<TerminalConectadoInfo> presencas;
+                              if (servidor.ativo) {
+                                presencas = servidor.obterTodasPresencas();
+                              } else {
+                                presencas = cliente.presencasAtivas.value;
+                              }
+
+                              bool estaOnline = false;
+                              String rotuloPresenca = 'Ausente';
+
+                              if (conversa.ehGrupo) {
+                                final cpfsOnline = presencas
+                                    .map((p) =>
+                                        ChatService.normalizarCpf(p.cpf ?? ''))
+                                    .toSet();
+                                final outrosMembrosOnline = conversa
+                                    .participantesIds
+                                    .map((id) => ChatService.normalizarCpf(id))
+                                    .where((cpf) =>
+                                        cpf.isNotEmpty &&
+                                        cpf != meuCpf &&
+                                        cpfsOnline.contains(cpf))
+                                    .length;
+                                estaOnline = outrosMembrosOnline > 0;
+                                rotuloPresenca = estaOnline
+                                    ? '$outrosMembrosOnline online'
+                                    : 'Ausente';
+                              } else if (conversa.ehLoja) {
+                                estaOnline =
+                                    servidor.ativo || cliente.conectado;
+                                rotuloPresenca =
+                                    estaOnline ? 'Online' : 'Ausente';
+                              } else {
+                                String contatoCpf = conversa.identificador
+                                    .replaceAll(RegExp(r'\D'), '');
+                                if (contatoCpf.isEmpty) {
+                                  contatoCpf = ChatService.extrairOutroCpf(
+                                    conversa.id,
+                                    meuCpf,
+                                  );
+                                }
+                                contatoCpf =
+                                    ChatService.normalizarCpf(contatoCpf);
+
+                                if (contatoCpf.isNotEmpty) {
+                                  estaOnline = presencas.any(
+                                    (p) =>
+                                        ChatService.normalizarCpf(
+                                            p.cpf ?? '') ==
+                                        contatoCpf,
+                                  );
+                                }
+                                rotuloPresenca =
+                                    estaOnline ? 'Online' : 'Ausente';
+                              }
+
+                              final temSubtituloCustom =
+                                  subtituloTexto.isNotEmpty &&
+                                      subtituloTexto != 'Usuário Nous' &&
+                                      subtituloTexto != 'Loja Nous' &&
+                                      subtituloTexto != 'Contato Nous';
+
+                              return Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Container(
+                                    width: 7,
+                                    height: 7,
+                                    decoration: BoxDecoration(
+                                      shape: BoxShape.circle,
+                                      color: estaOnline
+                                          ? const Color(0xFF4CAF50)
+                                          : theme.textColor
+                                              .withValues(alpha: 0.35),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 5),
+                                  Text(
+                                    rotuloPresenca,
+                                    style: theme.getTextStyle(
+                                      fontSize: 11,
+                                      fontWeight: estaOnline
+                                          ? FontWeight.w600
+                                          : FontWeight.normal,
+                                      color: estaOnline
+                                          ? const Color(0xFF4CAF50)
+                                          : theme.secondaryTextColor,
+                                    ),
+                                  ),
+                                  if (temSubtituloCustom) ...[
+                                    Flexible(
+                                      child: Text(
+                                        ' • $subtituloTexto',
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: theme.getTextStyle(
+                                          fontSize: 11,
+                                          color: theme.secondaryTextColor,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ],
+                              );
+                            },
                           ),
                         ],
                       ),

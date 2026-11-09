@@ -52,7 +52,8 @@ class CuradorConversasChat {
       String subtituloRem = rem.subtitulo;
 
       String outroCpfNorm = ChatService.normalizarCpf(rem.identificador);
-      if (outroCpfNorm.length != 11) {
+      if (outroCpfNorm.length != 11 ||
+          (cpfLogadoNorm.isNotEmpty && outroCpfNorm == cpfLogadoNorm)) {
         outroCpfNorm = ChatService.extrairOutroCpf(rem.id, cpfLogadoNorm);
       }
       if (outroCpfNorm.length == 11 &&

@@ -9,6 +9,7 @@ import 'package:nous/src/features/auth/providers/auth_provider.dart';
 import 'package:nous/src/features/auth/services/contas_nous_service.dart';
 import 'package:nous/src/features/chat/services/chamada_webrtc_service.dart';
 import 'package:nous/src/features/chat/services/chat_service.dart';
+import 'package:nous/src/features/notificacoes/providers/notificacoes_provider.dart';
 import 'package:nous/src/features/pdv/views/widgets/rede_local/dialog_autorizacao_terminal.dart';
 import 'package:nous/src/features/pdv/models/loja.dart';
 import 'package:nous/src/features/pdv/providers/pdv_provider.dart';
@@ -64,10 +65,20 @@ class ServidorRedeLocal {
   final ValueNotifier<int> totalConectados = ValueNotifier<int>(0);
   final ValueNotifier<List<TerminalConectadoInfo>> terminaisConectados =
       ValueNotifier<List<TerminalConectadoInfo>>([]);
+  final Map<String, TerminalConectadoInfo> _historicoTerminais = {};
+  final ValueNotifier<List<TerminalConectadoInfo>> terminaisHistorico =
+      ValueNotifier<List<TerminalConectadoInfo>>([]);
 
   void _atualizarListasTerminais() {
     totalConectados.value = _clientesWs.length;
-    terminaisConectados.value = obterTodasPresencas();
+    final ativas = obterTodasPresencas();
+    terminaisConectados.value = ativas;
+    for (final t in ativas) {
+      if (t.ip.isNotEmpty && t.id != 'balcao_servidor_local') {
+        _historicoTerminais[t.ip] = t;
+      }
+    }
+    terminaisHistorico.value = _historicoTerminais.values.toList();
   }
 
   bool get ativo => _servidorHttp != null;
@@ -117,8 +128,19 @@ class ServidorRedeLocal {
         includeLinkLocal: false,
       );
 
-      // Prioriza redes privadas típicas (192.168.x.x, 10.x.x.x, 172.16-31.x.x)
+      // Prioriza redes privadas reais (192.168.x.x, 10.x.x.x, 172.16-31.x.x),
+      // descartando adaptadores virtuais de máquinas virtuais, WSL, Docker, Hyper-V
       for (final interface in interfaces) {
+        final nome = interface.name.toLowerCase();
+        if (nome.contains('virtual') ||
+            nome.contains('wsl') ||
+            nome.contains('docker') ||
+            nome.contains('vethernet') ||
+            nome.contains('hyper-v') ||
+            nome.contains('vmware') ||
+            nome.contains('vbox')) {
+          continue;
+        }
         for (final addr in interface.addresses) {
           if (!addr.isLoopback &&
               (addr.address.startsWith('192.168.') ||
@@ -129,7 +151,22 @@ class ServidorRedeLocal {
         }
       }
 
-      // Fallback para qualquer IPv4 não-loopback
+      // Fallback para qualquer IPv4 não-loopback em interface não virtual
+      for (final interface in interfaces) {
+        final nome = interface.name.toLowerCase();
+        if (nome.contains('virtual') ||
+            nome.contains('wsl') ||
+            nome.contains('docker') ||
+            nome.contains('vethernet') ||
+            nome.contains('hyper-v')) {
+          continue;
+        }
+        for (final addr in interface.addresses) {
+          if (!addr.isLoopback) return addr.address;
+        }
+      }
+
+      // Último recurso: qualquer endereço não loopback
       for (final interface in interfaces) {
         for (final addr in interface.addresses) {
           if (!addr.isLoopback) return addr.address;
@@ -139,6 +176,35 @@ class ServidorRedeLocal {
       debugPrint('[ServidorRedeLocal] Erro ao obter IP local: $e');
     }
     return null;
+  }
+
+  /// Retorna todos os endereços de broadcast IPv4 calculados para as interfaces ativas
+  static Future<Set<String>> obterEnderecosBroadcastLocais([String? ipConhecido]) async {
+    final destinos = <String>{'255.255.255.255'};
+    try {
+      final interfaces = await NetworkInterface.list(
+        type: InternetAddressType.IPv4,
+        includeLinkLocal: false,
+      );
+      for (final interface in interfaces) {
+        for (final addr in interface.addresses) {
+          if (!addr.isLoopback && addr.address.contains('.')) {
+            final partes = addr.address.split('.');
+            if (partes.length == 4) {
+              destinos.add('${partes[0]}.${partes[1]}.${partes[2]}.255');
+            }
+          }
+        }
+      }
+    } catch (_) {}
+
+    if (ipConhecido != null && ipConhecido.contains('.')) {
+      final partes = ipConhecido.split('.');
+      if (partes.length == 4) {
+        destinos.add('${partes[0]}.${partes[1]}.${partes[2]}.255');
+      }
+    }
+    return destinos;
   }
 
   /// Inicia o servidor HTTP, WebSocket e o anúncio UDP na rede local.
@@ -296,6 +362,23 @@ class ServidorRedeLocal {
           }
 
           final ws = await WebSocketTransformer.upgrade(request);
+
+          // Encerra imediatamente qualquer conexão órfã/zumbi anterior do mesmo IP
+          final conexoesAntigas = _terminaisWs.entries
+              .where((entry) => entry.value.ip == ipRemoto)
+              .map((entry) => entry.key)
+              .toList();
+          for (final wsAntigo in conexoesAntigas) {
+            debugPrint(
+              '[ServidorRedeLocal] Encerrando socket zumbi anterior do IP: $ipRemoto',
+            );
+            _clientesWs.remove(wsAntigo);
+            _terminaisWs.remove(wsAntigo);
+            try {
+              wsAntigo.close();
+            } catch (_) {}
+          }
+
           final terminal = TerminalConectadoInfo(
             id: 'term_${DateTime.now().millisecondsSinceEpoch}',
             nome: 'Terminal ($ipRemoto)',
@@ -332,6 +415,10 @@ class ServidorRedeLocal {
 
             final lojaNous =
                 _pdvProvider?.buscarPorId(PdvProvider.idLojaColetivaNous);
+            final dispensadasLoja = NotificacoesProvider.instanciaAtiva
+                    ?.obterDispensadasPorLoja(lojaParaEnvio.id)
+                    .toList() ??
+                <String>[];
 
             ws.add(
               jsonEncode({
@@ -341,6 +428,7 @@ class ServidorRedeLocal {
                 'presencas':
                     obterTodasPresencas().map((p) => p.toJson()).toList(),
                 'fotosUsuariosAusentes': fotosUsuariosAusentes,
+                'notificacoesDispensadasLoja': dispensadasLoja,
               }),
             );
           } else {
@@ -552,6 +640,10 @@ class ServidorRedeLocal {
 
   /// Consolida e unifica a ficha de Identidade do Usuário no banco de contas local do balcão
   void _consolidarContaTerminal(TerminalConectadoInfo terminal) async {
+    if (terminal.ip.isNotEmpty) {
+      _historicoTerminais[terminal.ip] = terminal;
+      terminaisHistorico.value = _historicoTerminais.values.toList();
+    }
     final cpfLimpo = terminal.cpf?.replaceAll(RegExp(r'\D'), '');
     if (cpfLimpo == null || cpfLimpo.isEmpty) return;
 
@@ -652,10 +744,18 @@ class ServidorRedeLocal {
       _socketUdp = await RawDatagramSocket.bind(InternetAddress.anyIPv4, 0);
       _socketUdp!.broadcastEnabled = true;
 
+      Set<String> destinosEmCache = {'255.255.255.255'};
+      var ciclosAtualizacaoDestinos = 0;
+
       _timerUdp?.cancel();
-      _timerUdp = Timer.periodic(const Duration(seconds: 3), (_) {
+      _timerUdp = Timer.periodic(const Duration(seconds: 3), (_) async {
         if (!ativo || _socketUdp == null) return;
         try {
+          // Atualiza lista de broadcasts a cada 15s (5 ciclos de 3s)
+          if (ciclosAtualizacaoDestinos++ % 5 == 0) {
+            destinosEmCache = await obterEnderecosBroadcastLocais(_ipServidor);
+          }
+
           final ehFalsa = _lojaAtiva != null &&
               LojasService.ehLojaHostFalsa(_lojaAtiva!.id, _lojaAtiva!.tags, _lojaAtiva!.nome);
           final lojaValida = ehFalsa ? null : _lojaAtiva;
@@ -674,14 +774,8 @@ class ServidorRedeLocal {
             'porta': _porta,
           });
           final bytes = utf8.encode(pacote);
-          final destinos = <String>{'255.255.255.255'};
-          if (_ipServidor != null && _ipServidor!.contains('.')) {
-            final partes = _ipServidor!.split('.');
-            if (partes.length == 4) {
-              destinos.add('${partes[0]}.${partes[1]}.${partes[2]}.255');
-            }
-          }
-          for (final dest in destinos) {
+
+          for (final dest in destinosEmCache) {
             try {
               _socketUdp!.send(
                 bytes,

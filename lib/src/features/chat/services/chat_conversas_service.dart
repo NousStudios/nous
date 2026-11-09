@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
@@ -118,6 +119,7 @@ class ChatConversasService {
       final ehLoja = (r['eh_loja'] as int? ?? 0) == 1;
       final ehGrupo = (r['eh_grupo'] as int? ?? 0) == 1;
       final nGrupo = (r['nome_grupo'] as String? ?? '').trim();
+      String idNorm = '';
 
       if (!ehGrupo &&
           ehLoja &&
@@ -136,7 +138,7 @@ class ChatConversasService {
           tituloFinal = nGrupo;
         }
       } else if (!ehGrupo && !ehLoja) {
-        var idNorm =
+        idNorm =
             ChatRepositorioSqlite.normalizarCpf(r['identificador'] as String? ?? '');
         if (idNorm.length != 11 ||
             (cpfNormUsuario.isNotEmpty && idNorm == cpfNormUsuario)) {
@@ -248,13 +250,18 @@ class ChatConversasService {
                   : 'Contato Nous');
       }
 
+      String identificadorFinal = r['identificador'] as String? ?? convId;
+      if (!ehGrupo && !ehLoja && idNorm.length == 11) {
+        identificadorFinal = idNorm;
+      }
+
       resultado.add(
         ConversaChat(
           id: convId,
           titulo: tituloFinal,
           subtitulo: subtituloFinal,
           foto: fotoFinal,
-          identificador: r['identificador'] as String? ?? convId,
+          identificador: identificadorFinal,
           ehLoja: ehLoja,
           ehGrupo: ehGrupo,
           nomeGrupo: nGrupo,
@@ -386,18 +393,32 @@ class ChatConversasService {
               ? subDb
               : '');
 
+      final cpfNormUsuario =
+          cpfUsuario != null ? ChatRepositorioSqlite.normalizarCpf(cpfUsuario) : '';
+      var outroCpf = ChatRepositorioSqlite.normalizarCpf(
+        r['identificador'] as String? ?? identificador,
+      );
+      if (outroCpf.length != 11 ||
+          (cpfNormUsuario.isNotEmpty && outroCpf == cpfNormUsuario)) {
+        outroCpf = ChatRepositorioSqlite.extrairOutroCpf(id, cpfNormUsuario);
+      }
+
+      String idFinalConversa = r['identificador'] as String? ?? identificador;
+      if (!ehLoja && !ehGrupo && outroCpf.length == 11) {
+        idFinalConversa = outroCpf;
+        if (r['identificador'] != outroCpf) {
+          unawaited(db.update(
+            'conversas_chat',
+            {'identificador': outroCpf},
+            where: 'id = ?',
+            whereArgs: [id],
+          ));
+        }
+      }
+
       if (!ehLoja &&
           !ehGrupo &&
           (titFinal.isEmpty || subFinal.isEmpty || fotoFinal.isEmpty)) {
-        final cpfNormUsuario =
-            cpfUsuario != null ? ChatRepositorioSqlite.normalizarCpf(cpfUsuario) : '';
-        var outroCpf = ChatRepositorioSqlite.normalizarCpf(
-          r['identificador'] as String? ?? identificador,
-        );
-        if (outroCpf.length != 11 ||
-            (cpfNormUsuario.isNotEmpty && outroCpf == cpfNormUsuario)) {
-          outroCpf = ChatRepositorioSqlite.extrairOutroCpf(id, cpfNormUsuario);
-        }
         if (outroCpf.length == 11) {
           final u = await ContasNousService.buscarPorCpf(outroCpf);
           if (u != null) {
@@ -417,7 +438,7 @@ class ChatConversasService {
         titulo: titFinal.isNotEmpty ? titFinal : 'Contato Nous',
         subtitulo: subFinal.isNotEmpty ? subFinal : 'Contato Nous',
         foto: fotoFinal,
-        identificador: r['identificador'] as String? ?? identificador,
+        identificador: idFinalConversa,
         ehLoja: (r['eh_loja'] as int? ?? 0) == 1,
         ehGrupo: (r['eh_grupo'] as int? ?? 0) == 1,
         nomeGrupo: (r['nome_grupo'] as String? ?? '').trim(),
@@ -437,6 +458,18 @@ class ChatConversasService {
     var subtituloInserir = subtitulo;
     var fotoInserir = foto;
 
+    final cpfNormUsuario =
+        cpfUsuario != null ? ChatRepositorioSqlite.normalizarCpf(cpfUsuario) : '';
+    var outroCpf = ChatRepositorioSqlite.normalizarCpf(identificador);
+    if (outroCpf.length != 11 ||
+        (cpfNormUsuario.isNotEmpty && outroCpf == cpfNormUsuario)) {
+      outroCpf = ChatRepositorioSqlite.extrairOutroCpf(id, cpfNormUsuario);
+    }
+    var idParaSalvar = identificador;
+    if (!ehLoja && !ehGrupo && outroCpf.length == 11) {
+      idParaSalvar = outroCpf;
+    }
+
     if (!ehLoja &&
         !ehGrupo &&
         (tituloInserir.isEmpty ||
@@ -444,13 +477,6 @@ class ChatConversasService {
             tituloInserir == 'Nova Conversa' ||
             tituloInserir == 'Contato' ||
             tituloInserir == 'Contato Nous')) {
-      final cpfNormUsuario =
-          cpfUsuario != null ? ChatRepositorioSqlite.normalizarCpf(cpfUsuario) : '';
-      var outroCpf = ChatRepositorioSqlite.normalizarCpf(identificador);
-      if (outroCpf.length != 11 ||
-          (cpfNormUsuario.isNotEmpty && outroCpf == cpfNormUsuario)) {
-        outroCpf = ChatRepositorioSqlite.extrairOutroCpf(id, cpfNormUsuario);
-      }
       if (outroCpf.length == 11) {
         final u = await ContasNousService.buscarPorCpf(outroCpf);
         if (u != null) {
@@ -480,7 +506,7 @@ class ChatConversasService {
       'titulo': tituloInserir,
       'subtitulo': subtituloInserir,
       'foto': fotoInserir,
-      'identificador': identificador,
+      'identificador': idParaSalvar,
       'eh_loja': ehLoja ? 1 : 0,
       'eh_grupo': ehGrupo ? 1 : 0,
       'loja_id': lojaId ?? '',

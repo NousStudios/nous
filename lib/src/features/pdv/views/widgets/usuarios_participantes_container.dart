@@ -27,6 +27,8 @@ class UsuariosParticipantesContainer extends StatelessWidget {
   final void Function(String cpf, String? cargoId)? onVincularCargoPersonalizado;
   final VoidCallback onSair;
   final bool ehLojaColetivaNous;
+  final String? lojaId;
+  final String? nomeLoja;
 
   const UsuariosParticipantesContainer({
     super.key,
@@ -42,6 +44,8 @@ class UsuariosParticipantesContainer extends StatelessWidget {
     this.onVincularCargoPersonalizado,
     required this.onSair,
     this.ehLojaColetivaNous = false,
+    this.lojaId,
+    this.nomeLoja,
   });
 
   BoxDecoration get _decoracaoDoBloco => BoxDecoration(
@@ -327,6 +331,8 @@ class UsuariosParticipantesContainer extends StatelessWidget {
             for (final membro in membros)
               CardMembroLojaWidget(
                 theme: theme,
+                lojaId: lojaId,
+                nomeLoja: nomeLoja,
                 membro: membro,
                 membros: membros,
                 cargosPersonalizados: cargosPersonalizados,

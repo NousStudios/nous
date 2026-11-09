@@ -32,8 +32,9 @@ class BalaoMensagemWidget extends StatelessWidget {
   });
 
   String _formatarHora(DateTime dataHora) {
-    final hora = dataHora.hour.toString().padLeft(2, '0');
-    final min = dataHora.minute.toString().padLeft(2, '0');
+    final local = dataHora.toLocal();
+    final hora = local.hour.toString().padLeft(2, '0');
+    final min = local.minute.toString().padLeft(2, '0');
     return '$hora:$min';
   }
 

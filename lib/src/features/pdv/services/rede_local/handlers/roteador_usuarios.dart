@@ -120,12 +120,7 @@ class RoteadorUsuarios {
 
         await ContasNousService.salvar(usuario);
 
-        if (usuario.foto.isNotEmpty && ImagemService.existe(usuario.foto)) {
-          servidor.pdvProvider?.sincronizarFotoUsuarioEmClientes(
-            usuario.cpf,
-            usuario.foto,
-          );
-        }
+        servidor.pdvProvider?.sincronizarDadosUsuarioEmLojas(usuario);
 
         servidor.authProvider?.atualizarContaNoCache(usuario);
         servidor.pdvProvider?.notificarMudanca();
@@ -185,6 +180,7 @@ class RoteadorUsuarios {
               final existente = await ContasNousService.buscarPorCpf(u.cpf);
               if (existente == null) {
                 await ContasNousService.salvar(u);
+                servidor.pdvProvider?.sincronizarDadosUsuarioEmLojas(u);
               } else {
                 final mesclada = existente.copyWith(
                   nome: (existente.nome.isEmpty ||
@@ -200,6 +196,7 @@ class RoteadorUsuarios {
                   emails: {...existente.emails, ...u.emails}.toList(),
                 );
                 await ContasNousService.salvar(mesclada);
+                servidor.pdvProvider?.sincronizarDadosUsuarioEmLojas(mesclada);
               }
             }
           }
@@ -244,6 +241,14 @@ class RoteadorUsuarios {
                 manterItensAusentes: true,
               );
               await LojasService.salvarLojaIndividual(lojaConsolidada);
+              if (servidor.pdvProvider != null) {
+                await servidor.pdvProvider!.adicionarOuAtualizarLoja(lojaConsolidada);
+              }
+              if (servidor.lojaAtiva?.id == lojaConsolidada.id) {
+                servidor.lojaAtiva = lojaConsolidada;
+                servidor.notificarLojaAtualizada(lojaConsolidada);
+              }
+              await _extrairContasNousDeLoja(lojaConsolidada);
             } catch (e) {
               debugPrint('[ServidorRedeLocal] Erro ao salvar loja recebida: $e');
             }
@@ -309,8 +314,18 @@ class RoteadorUsuarios {
             ...?servidor.pdvProvider?.lojas,
             if (cpfServidor.isNotEmpty) ...await LojasService.carregar(cpfServidor),
           ];
+          if (cpfServidor.isNotEmpty) {
+            final refsServidor = await LojasService.carregarReferencias(cpfServidor);
+            for (final ref in refsServidor) {
+              final l = await LojasService.carregarLojaPorId(ref.lojaId);
+              if (l != null && !todasLojasServidor.any((item) => item.id == l.id)) {
+                todasLojasServidor.add(l);
+              }
+            }
+          }
           for (final ls in todasLojasServidor) {
             if (LojasService.ehLojaHostFalsa(ls.id, ls.tags, ls.nome)) continue;
+            await _extrairContasNousDeLoja(ls);
             final ehMembro = ls.membros.any(
               (m) => m.cpf.replaceAll(RegExp(r'\D'), '') == cpf,
             );
@@ -359,5 +374,51 @@ class RoteadorUsuarios {
     }
 
     return false;
+  }
+
+  static Future<void> _extrairContasNousDeLoja(Loja loja) async {
+    try {
+      for (final m in loja.membros) {
+        final mCpf = m.cpf.replaceAll(RegExp(r'\D'), '');
+        if (mCpf.length == 11) {
+          final existente = await ContasNousService.buscarPorCpf(mCpf);
+          if (existente == null &&
+              m.nome.trim().isNotEmpty &&
+              m.nome.toLowerCase() != 'blackview' &&
+              m.nome.toLowerCase() != 'celular') {
+            await ContasNousService.salvar(
+              UsuarioNous(
+                cpf: mCpf,
+                nome: m.nome.trim(),
+                apelido: m.nome.trim(),
+                dataNascimento: '',
+              ),
+            );
+          }
+        }
+      }
+      for (final c in loja.clientesLoja) {
+        final cCpf = c.cnpj.replaceAll(RegExp(r'\D'), '');
+        if (cCpf.length == 11) {
+          final existente = await ContasNousService.buscarPorCpf(cCpf);
+          if (existente == null &&
+              c.nome.trim().isNotEmpty &&
+              c.nome.toLowerCase() != 'blackview' &&
+              c.nome.toLowerCase() != 'celular') {
+            await ContasNousService.salvar(
+              UsuarioNous(
+                cpf: cCpf,
+                nome: c.nome.trim(),
+                apelido: c.nome.trim(),
+                foto: c.foto,
+                dataNascimento: '',
+              ),
+            );
+          } else if (existente != null && existente.foto.isEmpty && c.foto.isNotEmpty) {
+            await ContasNousService.salvar(existente.copyWith(foto: c.foto));
+          }
+        }
+      }
+    } catch (_) {}
   }
 }

@@ -5,6 +5,10 @@ import 'package:nous/src/features/pdv/models/cliente.dart';
 import 'package:nous/src/features/pdv/models/configuracoes_impressora.dart';
 import 'package:nous/src/features/pdv/models/fornecedor.dart';
 import 'package:nous/src/features/pdv/models/gasto_diario.dart';
+import 'package:nous/src/features/pdv/models/gasto_fixo.dart';
+import 'package:nous/src/features/pdv/models/contrato_trabalho_membro.dart';
+import 'package:nous/src/features/pdv/models/registro_ponto_membro.dart';
+import 'package:nous/src/features/pdv/models/escala_trabalho_membro.dart';
 import 'package:nous/src/features/pdv/models/grupo_componentes_loja.dart';
 import 'package:nous/src/features/pdv/models/item_loja.dart';
 import 'package:nous/src/features/pdv/models/membro_loja.dart';
@@ -47,6 +51,10 @@ class Loja {
   final List<TurnoCaixa> turnosCaixa;
   final List<PedidoProgramado> pedidosProgramados;
   final List<GastoDiario> gastosDiarios;
+  final List<GastoFixo> gastosFixos;
+  final List<ContratoTrabalhoMembro> contratosTrabalho;
+  final List<RegistroPontoMembro> registrosPonto;
+  final List<EscalaTrabalhoMembro> escalasTrabalho;
 
   final List<String> galeria;
   final List<String> arquivos;
@@ -102,6 +110,10 @@ class Loja {
     this.turnosCaixa = const [],
     this.pedidosProgramados = const [],
     this.gastosDiarios = const [],
+    this.gastosFixos = const [],
+    this.contratosTrabalho = const [],
+    this.registrosPonto = const [],
+    this.escalasTrabalho = const [],
     this.galeria = const [],
     this.arquivos = const [],
     this.musicas = const [],
@@ -145,6 +157,10 @@ class Loja {
     List<TurnoCaixa>? turnosCaixa,
     List<PedidoProgramado>? pedidosProgramados,
     List<GastoDiario>? gastosDiarios,
+    List<GastoFixo>? gastosFixos,
+    List<ContratoTrabalhoMembro>? contratosTrabalho,
+    List<RegistroPontoMembro>? registrosPonto,
+    List<EscalaTrabalhoMembro>? escalasTrabalho,
     List<String>? galeria,
     List<String>? arquivos,
     List<String>? musicas,
@@ -191,6 +207,10 @@ class Loja {
       turnosCaixa: turnosCaixa ?? this.turnosCaixa,
       pedidosProgramados: pedidosProgramados ?? this.pedidosProgramados,
       gastosDiarios: gastosDiarios ?? this.gastosDiarios,
+      gastosFixos: gastosFixos ?? this.gastosFixos,
+      contratosTrabalho: contratosTrabalho ?? this.contratosTrabalho,
+      registrosPonto: registrosPonto ?? this.registrosPonto,
+      escalasTrabalho: escalasTrabalho ?? this.escalasTrabalho,
       galeria: galeria ?? this.galeria,
       arquivos: arquivos ?? this.arquivos,
       musicas: musicas ?? this.musicas,
@@ -247,6 +267,10 @@ class Loja {
       'pedidosProgramados':
           pedidosProgramados.map((p) => p.toJson()).toList(),
       'gastosDiarios': gastosDiarios.map((g) => g.toJson()).toList(),
+      'gastosFixos': gastosFixos.map((g) => g.toJson()).toList(),
+      'contratosTrabalho': contratosTrabalho.map((c) => c.toJson()).toList(),
+      'registrosPonto': registrosPonto.map((r) => r.toJson()).toList(),
+      'escalasTrabalho': escalasTrabalho.map((e) => e.toJson()).toList(),
       'galeria': galeria,
       'arquivos': arquivos,
       'musicas': musicas,
@@ -342,6 +366,18 @@ class Loja {
               .toList(),
       gastosDiarios: (json['gastosDiarios'] as List<dynamic>? ?? const [])
           .map((item) => GastoDiario.fromJson(item as Map<String, dynamic>))
+          .toList(),
+      gastosFixos: (json['gastosFixos'] as List<dynamic>? ?? const [])
+          .map((item) => GastoFixo.fromJson(item as Map<String, dynamic>))
+          .toList(),
+      contratosTrabalho: (json['contratosTrabalho'] as List<dynamic>? ?? const [])
+          .map((item) => ContratoTrabalhoMembro.fromJson(item as Map<String, dynamic>))
+          .toList(),
+      registrosPonto: (json['registrosPonto'] as List<dynamic>? ?? const [])
+          .map((item) => RegistroPontoMembro.fromJson(item as Map<String, dynamic>))
+          .toList(),
+      escalasTrabalho: (json['escalasTrabalho'] as List<dynamic>? ?? const [])
+          .map((item) => EscalaTrabalhoMembro.fromJson(item as Map<String, dynamic>))
           .toList(),
       galeria: (json['galeria'] as List<dynamic>? ?? const [])
           .map((item) => item.toString())

@@ -51,16 +51,21 @@ class ResolvedorConversaInfoService {
 
     if (!ehGrupo && !ehLoja) {
       // Conversa direta entre dois usuários Nous (Rede Social / P2P)
+      final cpfLogadoNorm = cpfLogado != null
+          ? ChatRepositorioSqlite.normalizarCpf(cpfLogado)
+          : '';
       var outroCpf =
           ChatRepositorioSqlite.normalizarCpf(mensagem.destinatarioId);
-      if (outroCpf.length != 11) {
+      if (outroCpf.length != 11 ||
+          (cpfLogadoNorm.isNotEmpty && outroCpf == cpfLogadoNorm)) {
         outroCpf = ChatRepositorioSqlite.extrairOutroCpf(
           mensagem.conversaId,
-          mensagem.remetenteId,
+          cpfLogadoNorm.isNotEmpty ? cpfLogadoNorm : mensagem.remetenteId,
         );
       }
 
       if (outroCpf.length == 11) {
+        identificadorConversa = outroCpf;
         final conta = await ContasNousService.buscarPorCpf(outroCpf);
         if (conta != null) {
           tituloConversa = conta.nomeExibicao;
@@ -68,7 +73,10 @@ class ResolvedorConversaInfoService {
               ? conta.usernameExibicao
               : 'Usuário Nous';
           fotoConversa = conta.fotoExibicao;
-          identificadorConversa = outroCpf;
+        } else if (mensagem.remetenteNome.isNotEmpty &&
+            mensagem.remetenteId == outroCpf) {
+          tituloConversa = mensagem.remetenteNome;
+          fotoConversa = mensagem.remetenteFoto;
         }
       }
     } else if (ehLoja) {

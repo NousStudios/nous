@@ -12,12 +12,16 @@ class ResultadoPagamento {
   final String nome;
   final double valor;
   final String descricao;
+  final String formaPagamento;
+  final bool pago;
 
   const ResultadoPagamento({
     required this.cpf,
     required this.nome,
     required this.valor,
     required this.descricao,
+    this.formaPagamento = 'Dinheiro',
+    this.pago = true,
   });
 }
 
@@ -80,6 +84,7 @@ class _RegistrarPagamentoConteudoState
     extends State<_RegistrarPagamentoConteudo> {
   final _valorController = TextEditingController();
   final _descricaoController = TextEditingController();
+  String _formaPagamento = 'Dinheiro';
 
   MembroLoja? _selecionado;
   String? _aviso;
@@ -134,6 +139,8 @@ class _RegistrarPagamentoConteudoState
         nome: membro.nome,
         valor: valor,
         descricao: _descricaoController.text.trim(),
+        formaPagamento: _formaPagamento,
+        pago: _formaPagamento != 'À Prazo',
       ),
     );
   }
@@ -456,6 +463,36 @@ class _RegistrarPagamentoConteudoState
                   style: theme.getTextStyle(fontSize: 12),
                   decoration: _decoracaoCampo('Ex: 250,00'),
                   onChanged: (_) => setState(() {}),
+                ),
+                const SizedBox(height: 16),
+                _tituloDoBloco('Forma de Pagamento'),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  decoration: BoxDecoration(
+                    color: theme.cardBackgroundColor,
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: theme.borderColor),
+                  ),
+                  child: DropdownButtonHideUnderline(
+                    child: DropdownButton<String>(
+                      value: _formaPagamento,
+                      dropdownColor: theme.cardBackgroundColor,
+                      isExpanded: true,
+                      style: theme.getTextStyle(fontSize: 12, color: theme.textColor),
+                      items: const [
+                        DropdownMenuItem(value: 'Dinheiro', child: Text('Dinheiro')),
+                        DropdownMenuItem(value: 'Pix', child: Text('Pix')),
+                        DropdownMenuItem(value: 'Débito', child: Text('Débito')),
+                        DropdownMenuItem(value: 'Crédito', child: Text('Crédito')),
+                        DropdownMenuItem(value: 'Voucher', child: Text('Voucher')),
+                        DropdownMenuItem(value: 'À Prazo', child: Text('À Prazo (Pendente/Total Devido)')),
+                      ],
+                      onChanged: (v) {
+                        if (v != null) setState(() => _formaPagamento = v);
+                      },
+                    ),
+                  ),
                 ),
                 const SizedBox(height: 16),
                 _tituloDoBloco('Descrição (opcional)'),

@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:nous/src/core/theme/theme_controller.dart';
 import 'package:nous/src/features/pdv/models/gasto_diario.dart';
+import 'package:nous/src/features/pdv/models/gasto_fixo.dart';
 import 'package:nous/src/features/pdv/models/loja.dart';
+import 'package:nous/src/features/pdv/models/membro_loja.dart';
 import 'package:nous/src/features/pdv/models/movimento_estoque.dart';
 import 'package:nous/src/features/pdv/views/widgets/estado_vazio_container.dart';
 import 'package:nous/src/features/pdv/views/widgets/financeiro/item_linha_financeira.dart';
@@ -24,8 +26,13 @@ class BlocoComprasFinanceiroWidget extends StatelessWidget {
   final String Function(Loja? loja, String itemId) unidadeDoItem;
   final VoidCallback onChangedPesquisa;
   final List<GastoDiario> gastosDiarios;
+  final List<GastoFixo> gastosFixos;
+  final List<MembroLoja> membros;
   final ValueChanged<GastoDiario>? onAdicionarGasto;
   final ValueChanged<String>? onRemoverGasto;
+  final ValueChanged<GastoFixo>? onAdicionarGastoFixo;
+  final ValueChanged<String>? onRemoverGastoFixo;
+  final ValueChanged<String>? onAlternarAtivoGastoFixo;
 
   const BlocoComprasFinanceiroWidget({
     super.key,
@@ -43,8 +50,13 @@ class BlocoComprasFinanceiroWidget extends StatelessWidget {
     required this.unidadeDoItem,
     required this.onChangedPesquisa,
     this.gastosDiarios = const [],
+    this.gastosFixos = const [],
+    this.membros = const [],
     this.onAdicionarGasto,
     this.onRemoverGasto,
+    this.onAdicionarGastoFixo,
+    this.onRemoverGastoFixo,
+    this.onAlternarAtivoGastoFixo,
   });
 
   @override
@@ -55,8 +67,13 @@ class BlocoComprasFinanceiroWidget extends StatelessWidget {
             child: SubcontainerGastosDoDiaWidget(
               theme: theme,
               gastos: gastosDiarios,
+              gastosFixos: gastosFixos,
+              membros: membros,
               onAdicionarGasto: onAdicionarGasto!,
               onRemoverGasto: onRemoverGasto!,
+              onAdicionarGastoFixo: onAdicionarGastoFixo ?? (_) {},
+              onRemoverGastoFixo: onRemoverGastoFixo ?? (_) {},
+              onAlternarAtivoGastoFixo: onAlternarAtivoGastoFixo ?? (_) {},
               formatarMoeda: valorFormatado,
             ),
           )

@@ -1,35 +1,12 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:nous/src/core/theme/theme_controller.dart';
 import 'package:nous/src/features/pdv/models/movimento_estoque.dart';
 import 'package:nous/src/features/pdv/models/pagamento_funcionario.dart';
 
+import 'package:nous/src/core/utils/data_input_formatter.dart';
+
 /// Formatador de máscara para datas no formato DD/MM/AAAA.
-class DataInputFormatter extends TextInputFormatter {
-  @override
-  TextEditingValue formatEditUpdate(
-    TextEditingValue oldValue,
-    TextEditingValue newValue,
-  ) {
-    final digitos = newValue.text.replaceAll(RegExp(r'[^0-9]'), '');
-    final limitado = digitos.length > 8 ? digitos.substring(0, 8) : digitos;
-    final buffer = StringBuffer();
-    for (var i = 0; i < limitado.length; i++) {
-      if (i == 2 || i == 4) buffer.write('/');
-      buffer.write(limitado[i]);
-    }
-    final texto = buffer.toString();
-    var offset = newValue.selection.end;
-    if (offset > texto.length) offset = texto.length;
-    if (texto.length > oldValue.text.length && (offset == 2 || offset == 5)) {
-      offset++;
-    }
-    return TextEditingValue(
-      text: texto,
-      selection: TextSelection.collapsed(offset: offset),
-    );
-  }
-}
+class DataInputFormatter extends DataInputFormatterBR {}
 
 /// Widget interativo para exibir e gerenciar um pagamento a funcionário.
 class LinhaPagamentoFuncionarioWidget extends StatefulWidget {

@@ -406,8 +406,17 @@ class _BlocoPedidosGestaoWidgetState extends State<BlocoPedidosGestaoWidget> {
       AbaPedidos.concluidos => StatusPedido.concluido,
       AbaPedidos.cancelados => StatusPedido.cancelado,
     };
-    final pedidosDaAba =
-        widget.pedidos.where((pedido) => pedido.status == statusDaAba).toList();
+    final agora = DateTime.now();
+    bool mesmoDia(DateTime a, DateTime b) =>
+        a.year == b.year && a.month == b.month && a.day == b.day;
+
+    final pedidosDaAba = widget.pedidos.where((pedido) {
+      if (pedido.status != statusDaAba) return false;
+      if (statusDaAba == StatusPedido.novo) {
+        return mesmoDia(pedido.dataHora, agora);
+      }
+      return true;
+    }).toList();
 
     pedidosDaAba.sort((a, b) {
       final cmp = b.dataHora.compareTo(a.dataHora);

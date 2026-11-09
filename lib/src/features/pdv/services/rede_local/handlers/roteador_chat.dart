@@ -115,13 +115,15 @@ class RoteadorChat {
           }
         }
 
+        int alteracoes = 0;
         if (dados['conversas'] is List) {
           final excluidasLocais = await ChatService.obterIdsConversasExcluidas();
           for (final c in dados['conversas'] as List<dynamic>) {
             if (c is Map<String, dynamic>) {
               final id = c['id'] as String? ?? '';
               if (!excluidasLocais.contains(id)) {
-                await ChatService.salvarConversaLocal(c);
+                final alterou = await ChatService.salvarConversaLocal(c, notificar: false);
+                if (alterou) alteracoes++;
               }
             }
           }
@@ -130,9 +132,17 @@ class RoteadorChat {
           for (final m in dados['mensagens'] as List<dynamic>) {
             if (m is Map<String, dynamic>) {
               final msg = MensagemChat.fromJson(m);
-              await ChatService.salvarMensagem(msg, originadaDaRede: true);
+              final alterou = await ChatService.salvarMensagem(
+                msg,
+                originadaDaRede: true,
+                notificar: false,
+              );
+              if (alterou) alteracoes++;
             }
           }
+        }
+        if (alteracoes > 0) {
+          ChatService.notificarAlteracao();
         }
         ServidorRedeLocal.responderJson(request, {'sucesso': true});
         return true;

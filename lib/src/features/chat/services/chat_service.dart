@@ -158,15 +158,16 @@ class ChatService {
         aoNotificar: notificarAlteracao,
       );
 
-  static Future<void> salvarMensagem(
+  static Future<bool> salvarMensagem(
     MensagemChat mensagem, {
     bool originadaDaRede = false,
+    bool notificar = true,
   }) =>
       ChatMensagensService.salvarMensagem(
         mensagem,
         originadaDaRede: originadaDaRede,
         obterCpfLogadoLocal: obterCpfLogadoLocal,
-        aoNotificar: notificarAlteracao,
+        aoNotificar: notificar ? notificarAlteracao : () {},
       );
 
   static Future<bool> despacharMensagemParaRede(MensagemChat msg) =>
@@ -238,6 +239,9 @@ class ChatService {
     }
   }
 
+  static Future<void> curarTimestampsAnomalosDoPassado() =>
+      ChatRepositorioSqlite.curarTimestampsAnomalosDoPassado();
+
   static void despacharConfirmacaoLida(String convId, String idLeitor) =>
       ChatSincronizacaoService.despacharConfirmacaoLida(convId, idLeitor);
 
@@ -266,8 +270,11 @@ class ChatService {
         lojaId: lojaId,
       );
 
-  static Future<void> salvarConversaLocal(Map<String, dynamic> c) =>
-      SincronizadorChatBalcao.salvarConversaLocal(c);
+  static Future<bool> salvarConversaLocal(
+    Map<String, dynamic> c, {
+    bool notificar = true,
+  }) =>
+      SincronizadorChatBalcao.salvarConversaLocal(c, notificar: notificar);
 
   static Future<List<Map<String, dynamic>>> obterMensagensParaSincronizacao({
     String? cpf,
@@ -326,11 +333,30 @@ class ChatService {
     );
     if (alterou) {
       notificarAlteracao();
-      ChatSincronizacaoService.despacharEventoRede({
-        'tipo': 'mensagens_lidas',
-        'conversaId': 'loja_${lojaId}_geral',
-        'idLeitor': idLeitor,
-      });
+    }
+    ChatSincronizacaoService.despacharEventoRede({
+      'tipo': 'mensagens_lidas_loja',
+      'lojaId': lojaId,
+      'idLeitor': idLeitor,
+    });
+  }
+
+  static Future<void> processarMensagensLidasDaLojaDaRede(
+    String lojaId,
+    String idLeitor,
+  ) async {
+    if (lojaId.isEmpty) return;
+    try {
+      final alterou =
+          await ChatRepositorioSqlite.marcarMensagensDaLojaComoLidas(
+        lojaId,
+        idLeitor,
+      );
+      if (alterou) {
+        notificarAlteracao();
+      }
+    } catch (e) {
+      debugPrint('[ChatService] Erro ao processar mensagens_lidas_loja da rede: $e');
     }
   }
 

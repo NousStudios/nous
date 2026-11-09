@@ -7,6 +7,8 @@ import 'package:nous/src/features/pdv/models/cargo_loja.dart';
 import 'package:nous/src/features/pdv/models/membro_loja.dart';
 import 'package:nous/src/features/pdv/providers/pdv_provider.dart';
 import 'package:nous/src/features/pdv/services/imagem_service.dart';
+import 'package:nous/src/features/pdv/views/widgets/usuarios/dialog_central_contrato_trabalhador.dart';
+import 'package:nous/src/features/chat/views/mensageria_view.dart';
 
 String _rotuloPapel(PapelMembro papel) {
   switch (papel) {
@@ -39,6 +41,8 @@ class CardMembroLojaWidget extends StatefulWidget {
   final VoidCallback onAbrirTrocaDePapel;
   final VoidCallback onConfirmarRemocao;
   final void Function(String rotulo, String chave) onSolicitarAcessoAoDado;
+  final String? lojaId;
+  final String? nomeLoja;
 
   const CardMembroLojaWidget({
     super.key,
@@ -53,6 +57,8 @@ class CardMembroLojaWidget extends StatefulWidget {
     required this.onAbrirTrocaDePapel,
     required this.onConfirmarRemocao,
     required this.onSolicitarAcessoAoDado,
+    this.lojaId,
+    this.nomeLoja,
   });
 
   @override
@@ -147,169 +153,251 @@ class _CardMembroLojaWidgetState extends State<CardMembroLojaWidget> {
       cpfExibido = CpfValidator.formatProtegido(membro.cpf, revelado: revelado);
     }
 
-    return MouseRegion(
-      onEnter: (_) => setState(() => _hover = true),
-      onExit: (_) => setState(() => _hover = false),
-      child: InkWell(
-        onTap: widget.onAbrirIdentidade,
-        borderRadius: BorderRadius.circular(10),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-          margin: const EdgeInsets.only(bottom: 8),
-          decoration: BoxDecoration(
-            color: _hover
-                ? theme.borderColor.withValues(alpha: 0.18)
-                : Colors.transparent,
-            borderRadius: BorderRadius.circular(10),
-            border: Border.all(
-              color: _hover ? theme.textColor : theme.borderColor,
-            ),
-          ),
-          child: Row(
-            children: [
-              Container(
-                width: 32,
-                height: 32,
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(
-                    color: theme.borderColor.withValues(alpha: 0.6),
+    Widget construirBotoesAcao() {
+      return Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (!ehVoce)
+            IconButton(
+              tooltip: 'Conversar via Nous',
+              padding: const EdgeInsets.all(4),
+              constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+              icon: Icon(Icons.chat_bubble_outline, size: 16, color: theme.textColor),
+              onPressed: () {
+                final lId = widget.lojaId ?? '';
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (context) => MensageriaView(
+                      modoLoja: lId.isNotEmpty,
+                      lojaId: lId.isNotEmpty ? lId : null,
+                      nomeLoja: widget.nomeLoja,
+                      operadorCpf: widget.cpfLogado,
+                      usuarioCpf: membro.cpf,
+                      usuarioNome: membro.nome,
+                      usuarioFoto: contaMembro?.foto ?? foto,
+                      usuarioApelido: contaMembro?.apelido ?? '',
+                    ),
                   ),
-                ),
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(15),
-                  child: temFoto
-                      ? ImagemService.construirImagem(
-                          foto,
-                          width: 32,
-                          height: 32,
-                          fit: BoxFit.cover,
-                          fallback: Icon(
-                            Icons.person,
-                            size: 20,
-                            color: theme.textColor,
-                          ),
-                        )
-                      : Icon(
-                          Icons.person,
-                          size: 20,
-                          color: theme.textColor,
-                        ),
+                );
+              },
+            ),
+          const SizedBox(width: 2),
+          IconButton(
+            tooltip: 'Contrato e Trabalho',
+            padding: const EdgeInsets.all(4),
+            constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+            icon: Icon(Icons.description_outlined, size: 16, color: theme.textColor),
+            onPressed: () {
+              final lId = widget.lojaId ?? '';
+              CentralContratoTrabalhadorDialog.mostrar(
+                context: context,
+                theme: theme,
+                lojaId: lId,
+                membro: membro,
+                cpfLogado: widget.cpfLogado,
+                podeGerenciar: widget.podeGerenciar,
+              );
+            },
+          ),
+          if (podeEditarPapel) ...[
+            const SizedBox(width: 2),
+            IconButton(
+              tooltip: 'Trocar papel',
+              padding: const EdgeInsets.all(4),
+              constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+              icon: Icon(Icons.edit, size: 16, color: theme.textColor),
+              onPressed: widget.onAbrirTrocaDePapel,
+            ),
+          ],
+          if (podeExcluir) ...[
+            const SizedBox(width: 2),
+            IconButton(
+              tooltip: ehVoce
+                  ? 'Sair da loja'
+                  : (souDono && membro.papel == PapelMembro.dono)
+                      ? 'Solicitar saída de dono'
+                      : 'Remover',
+              padding: const EdgeInsets.all(4),
+              constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+              icon: const Icon(
+                Icons.delete_outline,
+                size: 16,
+                color: Colors.redAccent,
+              ),
+              onPressed: widget.onConfirmarRemocao,
+            ),
+          ],
+        ],
+      );
+    }
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final ehModoCelular = constraints.maxWidth < 560;
+
+        return MouseRegion(
+          onEnter: (_) => setState(() => _hover = true),
+          onExit: (_) => setState(() => _hover = false),
+          child: InkWell(
+            onTap: widget.onAbrirIdentidade,
+            borderRadius: BorderRadius.circular(10),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              margin: const EdgeInsets.only(bottom: 8),
+              decoration: BoxDecoration(
+                color: _hover
+                    ? theme.borderColor.withValues(alpha: 0.18)
+                    : Colors.transparent,
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(
+                  color: _hover ? theme.textColor : theme.borderColor,
                 ),
               ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Flexible(
-                          child: Text(
-                            nomeExibido,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: theme.getTextStyle(
-                              fontSize: 13,
-                              color: theme.textColor,
-                            ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Container(
+                        width: 32,
+                        height: 32,
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(
+                            color: theme.borderColor.withValues(alpha: 0.6),
                           ),
                         ),
-                        if (aoClicarOlhoNome != null) ...[
-                          const SizedBox(width: 4),
-                          InkWell(
-                            onTap: aoClicarOlhoNome,
-                            borderRadius: BorderRadius.circular(10),
-                            child: Padding(
-                              padding: const EdgeInsets.all(2.0),
-                              child: Icon(
-                                olhoNomeAberto
-                                    ? Icons.visibility_outlined
-                                    : Icons.visibility_off_outlined,
-                                size: 14,
-                                color: theme.secondaryTextColor,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ],
-                    ),
-                    Builder(
-                      builder: (context) {
-                        final String rotuloCargo;
-                        if (membro.cargoPersonalizadoId == 'desenvolvedor') {
-                          rotuloCargo = '${_rotuloPapel(membro.papel)} • Desenvolvedor';
-                        } else {
-                          final cargoNome = widget.cargosPersonalizados
-                              .where((c) => c.id == membro.cargoPersonalizadoId)
-                              .firstOrNull
-                              ?.nome;
-                          rotuloCargo = cargoNome != null && cargoNome.isNotEmpty
-                              ? '${_rotuloPapel(membro.papel)} ($cargoNome)'
-                              : _rotuloPapel(membro.papel);
-                        }
-                        return Row(
-                          children: [
-                            Flexible(
-                              child: Text(
-                                '$rotuloCargo • $cpfExibido'
-                                ' • desde ${_dataCurta(membro.desde)}',
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: theme.getTextStyle(
-                                  fontSize: 10,
-                                  color: theme.secondaryTextColor,
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(15),
+                          child: temFoto
+                              ? ImagemService.construirImagem(
+                                  foto,
+                                  width: 32,
+                                  height: 32,
+                                  fit: BoxFit.cover,
+                                  fallback: Icon(
+                                    Icons.person,
+                                    size: 20,
+                                    color: theme.textColor,
+                                  ),
+                                )
+                              : Icon(
+                                  Icons.person,
+                                  size: 20,
+                                  color: theme.textColor,
                                 ),
-                              ),
-                            ),
-                            if (aoClicarOlhoCpf != null) ...[
-                              const SizedBox(width: 4),
-                              InkWell(
-                                onTap: aoClicarOlhoCpf,
-                                borderRadius: BorderRadius.circular(8),
-                                child: Padding(
-                                  padding: const EdgeInsets.all(2.0),
-                                  child: Icon(
-                                    olhoCpfAberto
-                                        ? Icons.visibility_outlined
-                                        : Icons.visibility_off_outlined,
-                                    size: 13,
-                                    color: theme.secondaryTextColor,
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Flexible(
+                                  child: Text(
+                                    nomeExibido,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: theme.getTextStyle(
+                                      fontSize: 13,
+                                      color: theme.textColor,
+                                    ),
                                   ),
                                 ),
-                              ),
-                            ],
+                                if (aoClicarOlhoNome != null) ...[
+                                  const SizedBox(width: 4),
+                                  InkWell(
+                                    onTap: aoClicarOlhoNome,
+                                    borderRadius: BorderRadius.circular(10),
+                                    child: Padding(
+                                      padding: const EdgeInsets.all(2.0),
+                                      child: Icon(
+                                        olhoNomeAberto
+                                            ? Icons.visibility_outlined
+                                            : Icons.visibility_off_outlined,
+                                        size: 14,
+                                        color: theme.secondaryTextColor,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ],
+                            ),
+                            Builder(
+                              builder: (context) {
+                                final String rotuloCargo;
+                                if (membro.cargoPersonalizadoId == 'desenvolvedor') {
+                                  rotuloCargo = '${_rotuloPapel(membro.papel)} • Desenvolvedor';
+                                } else {
+                                  final cargoNome = widget.cargosPersonalizados
+                                      .where((c) => c.id == membro.cargoPersonalizadoId)
+                                      .firstOrNull
+                                      ?.nome;
+                                  rotuloCargo = cargoNome != null && cargoNome.isNotEmpty
+                                      ? '${_rotuloPapel(membro.papel)} ($cargoNome)'
+                                      : _rotuloPapel(membro.papel);
+                                }
+                                return Row(
+                                  children: [
+                                    Flexible(
+                                      child: Text(
+                                        '$rotuloCargo • $cpfExibido'
+                                        ' • desde ${_dataCurta(membro.desde)}',
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: theme.getTextStyle(
+                                          fontSize: 10,
+                                          color: theme.secondaryTextColor,
+                                        ),
+                                      ),
+                                    ),
+                                    if (aoClicarOlhoCpf != null) ...[
+                                      const SizedBox(width: 4),
+                                      InkWell(
+                                        onTap: aoClicarOlhoCpf,
+                                        borderRadius: BorderRadius.circular(8),
+                                        child: Padding(
+                                          padding: const EdgeInsets.all(2.0),
+                                          child: Icon(
+                                            olhoCpfAberto
+                                                ? Icons.visibility_outlined
+                                                : Icons.visibility_off_outlined,
+                                            size: 13,
+                                            color: theme.secondaryTextColor,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ],
+                                );
+                              },
+                            ),
                           ],
-                        );
-                      },
+                        ),
+                      ),
+                      if (!ehModoCelular) ...[
+                        const SizedBox(width: 4),
+                        construirBotoesAcao(),
+                      ],
+                    ],
+                  ),
+                  if (ehModoCelular) ...[
+                    const SizedBox(height: 6),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: [
+                        construirBotoesAcao(),
+                      ],
                     ),
                   ],
-                ),
+                ],
               ),
-              if (podeEditarPapel)
-                IconButton(
-                  tooltip: 'Trocar papel',
-                  icon: Icon(Icons.edit, size: 18, color: theme.textColor),
-                  onPressed: widget.onAbrirTrocaDePapel,
-                ),
-              if (podeExcluir)
-                IconButton(
-                  tooltip: ehVoce
-                      ? 'Sair da loja'
-                      : (souDono && membro.papel == PapelMembro.dono)
-                          ? 'Solicitar saída de dono'
-                          : 'Remover',
-                  icon: const Icon(
-                    Icons.delete_outline,
-                    size: 18,
-                    color: Colors.redAccent,
-                  ),
-                  onPressed: widget.onConfirmarRemocao,
-                ),
-            ],
+            ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 }

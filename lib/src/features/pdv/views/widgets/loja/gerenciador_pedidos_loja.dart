@@ -281,6 +281,41 @@ class GerenciadorPedidosLoja {
     );
   }
 
+  void cancelarPedidoSilencioso(
+    String id, {
+    String motivo = 'Cancelado automaticamente',
+  }) {
+    final pedidos = obterPedidos();
+    var indice = pedidos.indexWhere((p) => p.id == id);
+    if (indice == -1 && estaMontado()) {
+      _sincronizarPedidosLocaisComPdv();
+      indice = pedidos.indexWhere((p) => p.id == id);
+    }
+    if (indice == -1) return;
+    final pedido = pedidos[indice];
+    final cancelado = pedido.copyWith(
+      status: StatusPedido.cancelado,
+      motivoCancelamento: motivo,
+      dataHoraCancelamento: DateTime.now(),
+      canceladoPorNome: 'Sistema',
+    );
+    setState(() {
+      pedidos[indice] = cancelado;
+    });
+    aoPersistir();
+
+    if (ClienteRedeLocal().conectado) {
+      ClienteRedeLocal().enviarPedido(cancelado);
+    }
+    if (ServidorRedeLocal().ativo) {
+      ServidorRedeLocal().notificarTodos({
+        'tipo': 'pedido_atualizado',
+        'lojaId': lojaId,
+        'pedido': cancelado.toJson(),
+      });
+    }
+  }
+
   Future<void> cancelarPedidoComDialog(String id) async {
     final pedidos = obterPedidos();
     final itens = obterItens();
@@ -377,9 +412,46 @@ class GerenciadorPedidosLoja {
     if (indice == -1) return;
     final pedido = pedidos[indice];
 
-    setState(() => pedidos.removeAt(indice));
-    LojasService.excluirPedidoIndividual(lojaId, id);
+    final agora = DateTime.now();
+    final pedidoCancelado = pedido.copyWith(
+      status: StatusPedido.cancelado,
+      motivoCancelamento: 'Recusado pelo atendente',
+      dataHoraCancelamento: agora,
+      canceladoPorCpf: obterCpfLogado(),
+      canceladoPorNome: obterNomeLogado(),
+    );
+
+    setState(() {
+      pedidos[indice] = pedidoCancelado;
+    });
+
+    // Se o pedido era proveniente de um PedidoProgramado, registra que foi gerado hoje para não regenerar
+    if (pedido.id.startsWith('prog_') && estaMontado()) {
+      final pdv = context.read<PdvProvider>();
+      final lojaAtual = pdv.buscarPorId(lojaId);
+      if (lojaAtual != null) {
+        final programadosAtualizados = lojaAtual.pedidosProgramados.map((prog) {
+          if (pedido.id.startsWith('prog_${prog.id}_')) {
+            return prog.copyWith(ultimaDataGerado: agora);
+          }
+          return prog;
+        }).toList();
+        pdv.adicionarOuAtualizarLoja(lojaAtual.copyWith(pedidosProgramados: programadosAtualizados));
+      }
+    }
+
     aoPersistir();
+
+    if (ClienteRedeLocal().conectado) {
+      ClienteRedeLocal().enviarPedido(pedidoCancelado);
+    }
+    if (ServidorRedeLocal().ativo) {
+      ServidorRedeLocal().notificarTodos({
+        'tipo': 'pedido_atualizado',
+        'lojaId': lojaId,
+        'pedido': pedidoCancelado.toJson(),
+      });
+    }
 
     registrarAcao(
       TipoAcao.pedidoRecusado,
@@ -555,6 +627,12 @@ class GerenciadorPedidosLoja {
 
     final pedidosHoje = pdv.pedidosProgramadosDoDia(lojaId).where((prog) {
       if (lojaAtualAvisos == null) return true;
+      final jaGeradoHoje = prog.ultimaDataGerado != null &&
+          prog.ultimaDataGerado!.year == agora.year &&
+          prog.ultimaDataGerado!.month == agora.month &&
+          prog.ultimaDataGerado!.day == agora.day;
+      if (jaGeradoHoje) return false;
+
       final idEsperadoHoje = 'prog_${prog.id}_${agora.year}_${mesStr}_$diaStr';
       final pedidoExistente = lojaAtualAvisos.pedidosLoja.where((p) {
         if (p.id == idEsperadoHoje) return true;
@@ -562,6 +640,14 @@ class GerenciadorPedidosLoja {
             p.dataHora.year == agora.year &&
             p.dataHora.month == agora.month &&
             p.dataHora.day == agora.day) {
+          return true;
+        }
+        if (prog.clienteId.isNotEmpty &&
+            p.clienteId == prog.clienteId &&
+            p.dataHora.year == agora.year &&
+            p.dataHora.month == agora.month &&
+            p.dataHora.day == agora.day &&
+            p.status != StatusPedido.cancelado) {
           return true;
         }
         return false;
@@ -598,8 +684,28 @@ class GerenciadorPedidosLoja {
         final lojaAtual = pdv.buscarPorId(lojaId);
         if (lojaAtual == null) break;
 
+        final agora = DateTime.now();
+        bool mesmoDia(DateTime a, DateTime b) =>
+            a.year == b.year && a.month == b.month && a.day == b.day;
+
+        // Auto-expurgo preventivo: pedidos 'novos' de dias passados são marcados como cancelados
+        final pedidosExpirados = lojaAtual.pedidosLoja
+            .where((p) =>
+                p.status == StatusPedido.novo && !mesmoDia(p.dataHora, agora))
+            .toList();
+        if (pedidosExpirados.isNotEmpty) {
+          for (final exp in pedidosExpirados) {
+            cancelarPedidoSilencioso(
+              exp.id,
+              motivo: 'Expirado por decurso de prazo',
+            );
+          }
+          continue;
+        }
+
         final novosPedidos = lojaAtual.pedidosLoja
-            .where((p) => p.status == StatusPedido.novo)
+            .where((p) =>
+                p.status == StatusPedido.novo && mesmoDia(p.dataHora, agora))
             .toList();
         if (novosPedidos.isEmpty) break;
 

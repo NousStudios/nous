@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 class MensagemChat {
   final String id;
   final String conversaId;
@@ -126,43 +128,86 @@ class MensagemChat {
 
   factory MensagemChat.fromJson(Map<String, dynamic> json) {
     List<Map<String, dynamic>> historico = [];
-    if (json['historicoEdicoes'] is List) {
-      historico = (json['historicoEdicoes'] as List)
+    final histRaw = json['historicoEdicoes'] ?? json['historico_edicoes'];
+    if (histRaw is List) {
+      historico = histRaw
           .map((e) => Map<String, dynamic>.from(e as Map))
           .toList();
+    } else if (histRaw is String && histRaw.isNotEmpty && histRaw != '[]') {
+      try {
+        final dec = jsonDecode(histRaw);
+        if (dec is List) {
+          historico =
+              dec.map((e) => Map<String, dynamic>.from(e as Map)).toList();
+        }
+      } catch (_) {}
     }
 
-    final lida = json['lida'] as bool? ?? false;
-    final entregue = json['entregue'] as bool? ?? false;
-    String status = json['statusEnvio'] as String? ?? 'enviada';
+    final lida = json['lida'] == true || json['lida'] == 1;
+    final entregue = json['entregue'] == true || json['entregue'] == 1;
+    final editada = json['editada'] == true || json['editada'] == 1;
+    final enviadaPorMim = json['enviadaPorMim'] == true ||
+        json['enviada_por_mim'] == true ||
+        json['enviada_por_mim'] == 1;
+
+    String status = json['statusEnvio'] as String? ??
+        json['status_envio'] as String? ??
+        'enviada';
     if (lida) {
       status = 'lida';
     } else if (entregue && status == 'pendente') {
       status = 'entregue';
     }
 
+    final dataHoraStr =
+        json['dataHora'] as String? ?? json['data_hora'] as String?;
+
     return MensagemChat(
       id: json['id'] as String? ?? '',
-      conversaId: json['conversaId'] as String? ?? '',
-      remetenteId: json['remetenteId'] as String? ?? '',
-      remetenteNome: json['remetenteNome'] as String? ?? '',
-      remetenteFoto: json['remetenteFoto'] as String? ?? '',
-      destinatarioId: json['destinatarioId'] as String? ?? '',
+      conversaId: json['conversaId'] as String? ??
+          json['conversa_id'] as String? ??
+          '',
+      remetenteId: json['remetenteId'] as String? ??
+          json['remetente_id'] as String? ??
+          '',
+      remetenteNome: json['remetenteNome'] as String? ??
+          json['remetente_nome'] as String? ??
+          '',
+      remetenteFoto: json['remetenteFoto'] as String? ??
+          json['remetente_foto'] as String? ??
+          '',
+      destinatarioId: json['destinatarioId'] as String? ??
+          json['destinatario_id'] as String? ??
+          '',
       texto: json['texto'] as String? ?? '',
-      dataHora: json['dataHora'] != null
-          ? DateTime.tryParse(json['dataHora'] as String) ?? DateTime.now()
+      dataHora: dataHoraStr != null
+          ? (DateTime.tryParse(dataHoraStr)?.toLocal() ?? DateTime.now())
           : DateTime.now(),
-      enviadaPorMim: json['enviadaPorMim'] as bool? ?? false,
-      nomeAtendente: json['nomeAtendente'] as String? ?? '',
-      cpfAtendente: json['cpfAtendente'] as String? ?? '',
+      enviadaPorMim: enviadaPorMim,
+      nomeAtendente: json['nomeAtendente'] as String? ??
+          json['nome_atendente'] as String? ??
+          '',
+      cpfAtendente: json['cpfAtendente'] as String? ??
+          json['cpf_atendente'] as String? ??
+          '',
       lida: lida,
       tipo: json['tipo'] as String? ?? 'texto',
-      caminhoAnexo: json['caminhoAnexo'] as String? ?? '',
-      nomeAnexo: json['nomeAnexo'] as String? ?? '',
-      tamanhoAnexo: json['tamanhoAnexo'] as int? ?? 0,
-      pedidoId: json['pedidoId'] as String? ?? '',
-      dadosPedidoJson: json['dadosPedidoJson'] as String? ?? '',
-      editada: json['editada'] as bool? ?? false,
+      caminhoAnexo: json['caminhoAnexo'] as String? ??
+          json['caminho_anexo'] as String? ??
+          '',
+      nomeAnexo: json['nomeAnexo'] as String? ??
+          json['nome_anexo'] as String? ??
+          '',
+      tamanhoAnexo: json['tamanhoAnexo'] as int? ??
+          json['tamanho_anexo'] as int? ??
+          0,
+      pedidoId: json['pedidoId'] as String? ??
+          json['pedido_id'] as String? ??
+          '',
+      dadosPedidoJson: json['dadosPedidoJson'] as String? ??
+          json['dados_pedido_json'] as String? ??
+          '',
+      editada: editada,
       historicoEdicoes: historico,
       statusEnvio: status,
       entregue: entregue,

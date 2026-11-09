@@ -425,4 +425,58 @@ class MensageriaAcoesDelegate {
       return null;
     }
   }
+
+  static Future<void> encaminharMensagem({
+    required MensagemChat msgOriginal,
+    required ConversaChat destino,
+    required AuthProvider auth,
+    required bool modoLoja,
+    String? lojaId,
+    String? nomeLoja,
+    String? logoLoja,
+    String? usuarioCpf,
+    String? usuarioNome,
+  }) async {
+    final conta = auth.contaAtual;
+    final remetenteId = modoLoja
+        ? (lojaId ?? 'loja')
+        : (usuarioCpf ?? conta?.cpf ?? 'usuario');
+    final remetenteNome = modoLoja
+        ? (nomeLoja ?? 'Loja')
+        : (usuarioNome ?? conta?.nomeExibicao ?? 'Usuário');
+    final remetenteFoto = modoLoja
+        ? (logoLoja ?? '')
+        : (conta?.fotoExibicao ?? auth.buscarFotoPorCpf(conta?.cpf ?? ''));
+
+    final agora = DateTime.now();
+    final encaminhada = MensagemChat(
+      id: 'msg_${agora.millisecondsSinceEpoch}_${msgOriginal.id.hashCode.abs()}',
+      conversaId: destino.id,
+      remetenteId: remetenteId,
+      remetenteNome: remetenteNome,
+      remetenteFoto: remetenteFoto,
+      destinatarioId: destino.identificador,
+      texto: msgOriginal.texto,
+      dataHora: agora,
+      enviadaPorMim: true,
+      tipo: msgOriginal.tipo,
+      caminhoAnexo: msgOriginal.caminhoAnexo,
+      nomeAnexo: msgOriginal.nomeAnexo,
+      tamanhoAnexo: msgOriginal.tamanhoAnexo,
+      pedidoId: msgOriginal.pedidoId,
+      dadosPedidoJson: msgOriginal.dadosPedidoJson,
+      statusEnvio: 'pendente',
+    );
+
+    await ChatService.salvarConversa(
+      destino.copyWith(
+        ultimaMensagem: encaminhada.texto.isNotEmpty
+            ? encaminhada.texto
+            : (encaminhada.caminhoAnexo.isNotEmpty ? '📷 Foto' : 'Mensagem'),
+        dataHoraUltimaMensagem: agora,
+      ),
+    );
+
+    await ChatService.enviarMensagemInstantanea(encaminhada);
+  }
 }

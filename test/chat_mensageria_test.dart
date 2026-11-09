@@ -746,9 +746,13 @@ void main() {
     });
 
     test('ChatService.idConversaAtiva suprime contagem de mensagens nao lidas no usuario', () async {
-      final convId = 'teste_ativa_${DateTime.now().millisecondsSinceEpoch}';
+      final db = await ChatService.obterDb();
+      await db.delete('mensagens_chat', where: 'destinatario_id = ?', whereArgs: ['77777777777']);
+
+      final agora = DateTime.now().millisecondsSinceEpoch;
+      final convId = 'teste_ativa_$agora';
       final msg = MensagemChat(
-        id: 'msg_ativa_1',
+        id: 'msg_ativa_$agora',
         conversaId: convId,
         remetenteId: '99999999999',
         remetenteNome: 'Remetente Teste',

@@ -12,6 +12,7 @@ import 'package:nous/src/features/auth/services/contas_nous_service.dart';
 import 'package:nous/src/features/chat/models/mensagem_chat.dart';
 import 'package:nous/src/features/chat/services/chamada_webrtc_service.dart';
 import 'package:nous/src/features/chat/services/chat_service.dart';
+import 'package:nous/src/features/notificacoes/providers/notificacoes_provider.dart';
 import 'package:nous/src/features/pdv/models/loja.dart';
 import 'package:nous/src/features/pdv/models/membro_loja.dart';
 import 'package:nous/src/features/pdv/models/mesa_loja.dart';
@@ -220,11 +221,18 @@ class ClienteRedeLocal {
     }
   }
 
-  /// Inicia escuta UDP para encontrar servidores de lojas transmitindo no Wi-Fi.
-  Future<void> iniciarDescoberta() async {
+  bool _varreduraAtiva = false;
+  int _idVarredura = 0;
+
+  /// Inicia escuta UDP para encontrar servidores de lojas transmitindo no Wi-Fi
+  /// acompanhada de radar ativo HTTP pela sub-rede local.
+  Future<void> iniciarDescoberta({PdvProvider? pdv, AuthProvider? auth}) async {
+    if (pdv != null) _pdvProvider = pdv;
+    if (auth != null) _authProvider = auth;
     pararDescoberta();
     lojasEncontradas.value = [];
 
+    // 1. Escuta passiva UDP porta 45454
     try {
       _socketDescoberta = await RawDatagramSocket.bind(
         InternetAddress.anyIPv4,
@@ -243,9 +251,14 @@ class ClienteRedeLocal {
     } catch (e) {
       debugPrint('[ClienteRedeLocal] Erro ao iniciar escuta UDP: $e');
     }
+
+    // 2. Radar ativo HTTP pela sub-rede (imune a filtros UDP e sono do Wi-Fi)
+    unawaited(_iniciarVarreduraAtivaHttp());
   }
 
   void pararDescoberta() {
+    _varreduraAtiva = false;
+    _idVarredura++;
     try {
       _socketDescoberta?.close();
     } catch (_) {}
@@ -269,30 +282,141 @@ class ClienteRedeLocal {
           vistoEm: DateTime.now(),
           tipoHost: tipoHost,
         );
+        _adicionarOuAtualizarServidorDescoberto(info);
+      }
+    } catch (_) {}
+  }
 
-        final lista = List<DispositivoLojaInfo>.from(lojasEncontradas.value);
-        final idx = lista.indexWhere(
-          (d) => d.lojaId == info.lojaId && d.ip == info.ip && d.porta == info.porta,
-        );
+  void _adicionarOuAtualizarServidorDescoberto(DispositivoLojaInfo info) {
+    if (ServidorRedeLocal().ativo) return;
+    final lista = List<DispositivoLojaInfo>.from(lojasEncontradas.value);
+    final idx = lista.indexWhere(
+      (d) => d.lojaId == info.lojaId && d.ip == info.ip && d.porta == info.porta,
+    );
 
-        if (idx != -1) {
-          lista[idx] = info;
-        } else {
-          lista.add(info);
+    if (idx != -1) {
+      lista[idx] = info;
+    } else {
+      lista.add(info);
+    }
+
+    // Remove servidores que não respondem há mais de 15 segundos
+    final agora = DateTime.now();
+    lista.removeWhere((d) => agora.difference(d.vistoEm).inSeconds > 15);
+
+    lojasEncontradas.value = lista;
+
+    // Auto-conecta se ainda desconectado e não estiver em tentativa de conexão
+    if (!conectado && !_conectando && _pdvProvider != null) {
+      conectar(ip: info.ip, porta: info.porta, pdv: _pdvProvider!, auth: _authProvider);
+    }
+  }
+
+  Future<void> _iniciarVarreduraAtivaHttp() async {
+    if (ServidorRedeLocal().ativo) return;
+    final idAtual = ++_idVarredura;
+    _varreduraAtiva = true;
+
+    // 1. Testa primeiro o último IP salvo imediatamente (se existir)
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final ultimoIp = prefs.getString('nous_ultimo_ip_balcao');
+      final ultimaPorta =
+          prefs.getInt('nous_ultima_porta_balcao') ?? ServidorRedeLocal.portaPadraoHttp;
+      if (ultimoIp != null && ultimoIp.isNotEmpty) {
+        final achou = await _testarIpServidorHttp(ultimoIp, ultimaPorta);
+        if (achou || !_varreduraAtiva || idAtual != _idVarredura || conectado) return;
+      }
+    } catch (_) {}
+
+    // 2. Descobre os prefixos de sub-rede das interfaces do aparelho
+    final prefixos = <String>{};
+    try {
+      final interfaces = await NetworkInterface.list(
+        type: InternetAddressType.IPv4,
+        includeLinkLocal: false,
+      );
+      for (final iface in interfaces) {
+        final nome = iface.name.toLowerCase();
+        if (nome.contains('virtual') || nome.contains('wsl') || nome.contains('docker')) {
+          continue;
         }
-
-        // Remove servidores que não respondem há mais de 10 segundos
-        final agora = DateTime.now();
-        lista.removeWhere((d) => agora.difference(d.vistoEm).inSeconds > 10);
-
-        lojasEncontradas.value = lista;
-
-        // Auto-conecta se ainda desconectado e não estiver em tentativa de conexão
-        if (!conectado && !_conectando && _pdvProvider != null) {
-          conectar(ip: info.ip, porta: info.porta, pdv: _pdvProvider!, auth: _authProvider);
+        for (final addr in iface.addresses) {
+          if (!addr.isLoopback && addr.address.contains('.')) {
+            final partes = addr.address.split('.');
+            if (partes.length == 4) {
+              prefixos.add('${partes[0]}.${partes[1]}.${partes[2]}.');
+            }
+          }
         }
       }
     } catch (_) {}
+
+    if (prefixos.isEmpty) {
+      prefixos.addAll(['192.168.0.', '192.168.1.']);
+    }
+
+    // 3. Hosts organizados com prioridade para faixas habituais de roteadores e servidores
+    final hostsPrioritarios = <int>[
+      1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 20, 25, 30, 50,
+      100, 101, 102, 103, 104, 105, 106, 107, 108, 109, 110, 115, 120, 130, 140, 150,
+    ];
+    final todosHosts = <int>[
+      ...hostsPrioritarios,
+      for (int i = 1; i <= 254; i++)
+        if (!hostsPrioritarios.contains(i)) i,
+    ];
+
+    for (final prefixo in prefixos) {
+      if (!_varreduraAtiva || idAtual != _idVarredura || conectado) break;
+
+      // Executa em lotes paralelos de 25 IPs para varredura rápida e sem sobrecarga
+      const tamanhoLote = 25;
+      for (int i = 0; i < todosHosts.length; i += tamanhoLote) {
+        if (!_varreduraAtiva || idAtual != _idVarredura || conectado) break;
+        final fim = (i + tamanhoLote < todosHosts.length) ? i + tamanhoLote : todosHosts.length;
+        final lote = todosHosts.sublist(i, fim);
+
+        final futuros = lote.map((host) {
+          final ip = '$prefixo$host';
+          return _testarIpServidorHttp(ip, ServidorRedeLocal.portaPadraoHttp);
+        });
+
+        final resultados = await Future.wait(futuros);
+        if (resultados.any((r) => r == true)) {
+          // Servidor balcão encontrado e processado com sucesso!
+          break;
+        }
+      }
+    }
+  }
+
+  Future<bool> _testarIpServidorHttp(String ip, int porta) async {
+    try {
+      final client = HttpClient()..connectionTimeout = const Duration(milliseconds: 500);
+      final uri = Uri.parse('http://$ip:$porta/api/status');
+      final req = await client.getUrl(uri).timeout(const Duration(milliseconds: 500));
+      final resp = await req.close().timeout(const Duration(milliseconds: 500));
+      if (resp.statusCode == HttpStatus.ok) {
+        final body = await utf8.decodeStream(resp);
+        final json = jsonDecode(body) as Map<String, dynamic>;
+        if (json['sucesso'] == true && json['servidor'] == 'Nous Local Server') {
+          final lojaIdStr = (json['lojaId'] as String?) ?? '';
+          final tipoHost = json['tipoHost'] as String? ?? (lojaIdStr.isNotEmpty ? 'loja' : 'usuario');
+          final info = DispositivoLojaInfo(
+            lojaId: lojaIdStr,
+            lojaNome: (json['lojaNome'] as String?) ?? 'Usuário Nous',
+            ip: ip,
+            porta: porta,
+            vistoEm: DateTime.now(),
+            tipoHost: tipoHost,
+          );
+          _adicionarOuAtualizarServidorDescoberto(info);
+          return true;
+        }
+      }
+    } catch (_) {}
+    return false;
   }
 
   /// Inicia escuta contínua e tenta reconectar automaticamente ao servidor balcão
@@ -328,17 +452,18 @@ class ClienteRedeLocal {
     required int porta,
     required PdvProvider pdv,
     AuthProvider? auth,
+    bool forcar = false,
   }) async {
     if (ServidorRedeLocal().ativo) {
       debugPrint('[ClienteRedeLocal] Esta máquina já é o Servidor Balcão ativo. Conexão cliente ignorada.');
       return false;
     }
     final ipAlvo = ip.trim();
-    if (conectado && _ipServidor == ipAlvo && _portaServidor == porta) {
+    if (conectado && _ipServidor == ipAlvo && _portaServidor == porta && !forcar) {
       debugPrint('[ClienteRedeLocal] Conexão já ativa em $ipAlvo:$porta.');
       return true;
     }
-    if (_conectando) {
+    if (_conectando && !forcar) {
       debugPrint('[ClienteRedeLocal] Conexão já em andamento para $ipAlvo:$porta. Ignorando chamada concorrente.');
       return false;
     }
@@ -358,8 +483,16 @@ class ClienteRedeLocal {
       ultimoErro.value = null;
       await obterNomeDispositivo();
 
-      final cpfLogado =
+      String cpfLogado =
           _pdvProvider?.cpfAtual ?? _authProvider?.contaAtual?.cpf ?? _authProvider?.cpf ?? '';
+      if (cpfLogado.isEmpty) {
+        try {
+          final prefs = await SharedPreferences.getInstance();
+          cpfLogado = prefs.getString('ultimo_cpf_login') ?? '';
+        } catch (_) {}
+      }
+      cpfLogado = ChatService.normalizarCpf(cpfLogado);
+
       String? nomeUsuario;
       String? apelidoUsuario;
       if (cpfLogado.isNotEmpty) {
@@ -369,8 +502,8 @@ class ClienteRedeLocal {
       }
 
       // 1. Baixa o snapshot atualizado da Loja via REST, passando os dados de identidade para auto-associação
-      // Timeout de conexão rápido (4s) para falhar ágil se o IP estiver inacessível; timeout de resposta de 35s para autorização humana
-      final client = HttpClient()..connectionTimeout = const Duration(seconds: 4);
+      // Timeout de conexão ágil na LAN (3s) para falhar rápido se o IP for inválido
+      final client = HttpClient()..connectionTimeout = const Duration(seconds: 3);
       final uriLoja = Uri(
         scheme: 'http',
         host: _ipServidor,
@@ -383,8 +516,8 @@ class ClienteRedeLocal {
           'dispositivo': _nomeDispositivo,
         },
       );
-      final request = await client.getUrl(uriLoja).timeout(const Duration(seconds: 35));
-      final response = await request.close().timeout(const Duration(seconds: 35));
+      final request = await client.getUrl(uriLoja).timeout(const Duration(seconds: 4));
+      final response = await request.close().timeout(const Duration(seconds: 4));
 
       if (response.statusCode == HttpStatus.forbidden) {
         debugPrint('[ClienteRedeLocal] Conexão recusada pelo Administrador do Balcão.');
@@ -427,6 +560,17 @@ class ClienteRedeLocal {
             _lojaSincronizada = lojaConsolidada;
             await _pdvProvider!.adicionarOuAtualizarLoja(lojaConsolidada);
             await _vincularLojaSeNecessario(lojaConsolidada);
+
+            final notificacoesDispensadas = (dados['notificacoesDispensadasLoja'] as List<dynamic>?)
+                ?.map((e) => e.toString())
+                .toList();
+            if (notificacoesDispensadas != null && notificacoesDispensadas.isNotEmpty) {
+              NotificacoesProvider.instanciaAtiva?.dispensarNotificacoesLoja(
+                lojaConsolidada.id,
+                notificacoesDispensadas,
+                originadoDaRede: true,
+              );
+            }
 
             if (dados['fotosUsuariosAusentes'] != null) {
               fotosUsuariosAusentesParaReconciliar = (dados['fotosUsuariosAusentes'] as List<dynamic>)
@@ -477,7 +621,7 @@ class ClienteRedeLocal {
 
       // 2. Conecta ao WebSocket para atualizações em tempo real
       final wsUrl = 'ws://$_ipServidor:$_portaServidor/api/ws';
-      _ws = await WebSocket.connect(wsUrl).timeout(const Duration(seconds: 10));
+      _ws = await WebSocket.connect(wsUrl).timeout(const Duration(seconds: 4));
 
       estaConectado.value = true;
       debugPrint('[ClienteRedeLocal] Conectado ao servidor via WebSocket em $wsUrl');
@@ -723,19 +867,38 @@ class ClienteRedeLocal {
   }) async {
     MensagemChat msgParaEnvio = msg;
 
-    // Se for mensagem de imagem e houver anexo local, garante envio do anexo
-    if (msg.tipo == 'imagem' && msg.caminhoAnexo.isNotEmpty) {
+    // Se contiver anexo local (imagem, áudio ou arquivo), garante envio do arquivo
+    if (msg.caminhoAnexo.isNotEmpty) {
       final resolvida = ImagemService.resolverCaminhoExistente(msg.caminhoAnexo);
       if (resolvida != null) {
         final jaTemBase64 = payloadCustomizado != null && payloadCustomizado['anexoBytesBase64'] != null;
         if (!jaTemBase64) {
-          final anexoNoServidor = await _enviarUploadImagemParaServidor(resolvida);
+          final String anexoNoServidor;
+          if (msg.tipo == 'imagem') {
+            anexoNoServidor = await _enviarUploadImagemParaServidor(resolvida);
+          } else {
+            anexoNoServidor = await _transferencia.enviarUploadAnexoParaServidor(
+              ipServidor: _ipServidor,
+              portaServidor: _portaServidor,
+              caminhoLocal: resolvida,
+              subpasta: msg.tipo == 'audio' ? 'audios' : 'anexos',
+            );
+          }
           if (anexoNoServidor.isNotEmpty) {
             msgParaEnvio = msgParaEnvio.copyWith(caminhoAnexo: anexoNoServidor);
           }
         } else {
-          // Já temos o binário Base64 na carga útil; despacha upload bruto em paralelo sem bloquear tempo real
-          unawaited(_enviarUploadImagemParaServidor(resolvida));
+          // Já temos o binário Base64 na carga útil (anexo leve <= 64KB); despacha upload bruto em paralelo sem bloquear tempo real
+          if (msg.tipo == 'imagem') {
+            unawaited(_enviarUploadImagemParaServidor(resolvida));
+          } else {
+            unawaited(_transferencia.enviarUploadAnexoParaServidor(
+              ipServidor: _ipServidor,
+              portaServidor: _portaServidor,
+              caminhoLocal: resolvida,
+              subpasta: msg.tipo == 'audio' ? 'audios' : 'anexos',
+            ));
+          }
         }
       }
     }

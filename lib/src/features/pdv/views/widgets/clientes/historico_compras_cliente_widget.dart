@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:nous/src/core/theme/theme_controller.dart';
+import 'package:nous/src/core/utils/data_input_formatter.dart';
 import 'package:nous/src/features/pdv/models/cliente.dart';
 import 'package:nous/src/features/pdv/models/pedido_loja.dart';
 import 'package:nous/src/features/pdv/providers/pdv_provider.dart';
@@ -12,7 +13,8 @@ enum FiltroDataHistorico {
   todas('Todas as datas'),
   hoje('Hoje'),
   ultimos7Dias('Últimos 7 dias'),
-  esteMes('Este mês');
+  esteMes('Este mês'),
+  personalizado('Personalizado');
 
   final String rotulo;
   const FiltroDataHistorico(this.rotulo);
@@ -41,6 +43,8 @@ class _HistoricoComprasClienteWidgetState
     extends State<HistoricoComprasClienteWidget> {
   FiltroDataHistorico _filtroData = FiltroDataHistorico.todas;
   String _filtroForma = 'Todas';
+  final _dataInicioController = TextEditingController();
+  final _dataFimController = TextEditingController();
 
   static const List<String> _formasDisponiveis = [
     'Todas',
@@ -54,10 +58,58 @@ class _HistoricoComprasClienteWidgetState
 
   AppTheme get theme => widget.theme;
 
+  @override
+  void dispose() {
+    _dataInicioController.dispose();
+    _dataFimController.dispose();
+    super.dispose();
+  }
+
   static String _valor(double v) =>
       'R\$ ${v.toStringAsFixed(2).replaceAll('.', ',')}';
 
+  static DateTime? _parseData(String texto) {
+    final limpo = texto.trim();
+    if (limpo.length != 10) return null;
+    final partes = limpo.split('/');
+    if (partes.length != 3) return null;
+    final dia = int.tryParse(partes[0]);
+    final mes = int.tryParse(partes[1]);
+    final ano = int.tryParse(partes[2]);
+    if (dia == null || mes == null || ano == null) return null;
+    if (ano < 1900 || ano > 2100 || mes < 1 || mes > 12 || dia < 1 || dia > 31) {
+      return null;
+    }
+    try {
+      final data = DateTime(ano, mes, dia);
+      if (data.day != dia || data.month != mes || data.year != ano) return null;
+      return data;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  static String _formatarDataBR(DateTime d) {
+    String dois(int n) => n.toString().padLeft(2, '0');
+    return '${dois(d.day)}/${dois(d.month)}/${d.year}';
+  }
+
   bool _pedidoCorrespondeData(PedidoLoja p) {
+    final dInicio = _parseData(_dataInicioController.text);
+    final dFim = _parseData(_dataFimController.text);
+
+    if (dInicio != null || dFim != null) {
+      if (dInicio != null) {
+        final inicio = DateTime(dInicio.year, dInicio.month, dInicio.day);
+        if (p.dataHora.isBefore(inicio)) return false;
+      }
+      if (dFim != null) {
+        final fim = DateTime(dFim.year, dFim.month, dFim.day, 23, 59, 59);
+        if (p.dataHora.isAfter(fim)) return false;
+      }
+      return true;
+    }
+
     if (_filtroData == FiltroDataHistorico.todas) return true;
     final agora = DateTime.now();
     final inicioHoje = DateTime(agora.year, agora.month, agora.day);
@@ -74,6 +126,7 @@ class _HistoricoComprasClienteWidgetState
         final inicioMes = DateTime(agora.year, agora.month, 1);
         return p.dataHora.isAfter(inicioMes) ||
             p.dataHora.isAtSameMomentAs(inicioMes);
+      case FiltroDataHistorico.personalizado:
       case FiltroDataHistorico.todas:
         return true;
     }
@@ -110,13 +163,180 @@ class _HistoricoComprasClienteWidgetState
 
   String _obterDescricaoFiltros() {
     final partes = <String>[];
-    if (_filtroData != FiltroDataHistorico.todas) {
+    final temDatasDigitadas = _dataInicioController.text.isNotEmpty ||
+        _dataFimController.text.isNotEmpty;
+
+    if (temDatasDigitadas) {
+      final de = _dataInicioController.text.trim();
+      final ate = _dataFimController.text.trim();
+      if (de.isNotEmpty && ate.isNotEmpty) {
+        partes.add('Período: $de até $ate');
+      } else if (de.isNotEmpty) {
+        partes.add('Período: a partir de $de');
+      } else if (ate.isNotEmpty) {
+        partes.add('Período: até $ate');
+      }
+    } else if (_filtroData != FiltroDataHistorico.todas &&
+        _filtroData != FiltroDataHistorico.personalizado) {
       partes.add('Período: ${_filtroData.rotulo}');
     }
+
     if (_filtroForma != 'Todas') {
       partes.add('Forma: $_filtroForma');
     }
     return partes.isEmpty ? 'Completo (sem filtros)' : partes.join(' | ');
+  }
+
+  void _ajustarDiaController(TextEditingController controller, int delta) {
+    DateTime base;
+    final atual = _parseData(controller.text);
+    if (atual != null) {
+      base = atual.add(Duration(days: delta));
+    } else {
+      base = DateTime.now();
+    }
+    setState(() {
+      controller.text = _formatarDataBR(base);
+      _filtroData = FiltroDataHistorico.personalizado;
+    });
+  }
+
+  Future<void> _abrirDatePickerController(
+      BuildContext context, TextEditingController controller) async {
+    final atual = _parseData(controller.text) ?? DateTime.now();
+    final selecionada = await showDatePicker(
+      context: context,
+      initialDate: atual,
+      firstDate: DateTime(2000),
+      lastDate: DateTime(2100),
+      builder: (context, child) {
+        return Theme(
+          data: ThemeData.dark().copyWith(
+            colorScheme: ColorScheme.dark(
+              primary: theme.buttonColor != Colors.transparent
+                  ? theme.buttonColor
+                  : theme.textColor,
+              onPrimary: theme.buttonTextColor,
+              surface: theme.cardBackgroundColor,
+              onSurface: theme.textColor,
+            ),
+          ),
+          child: child!,
+        );
+      },
+    );
+    if (selecionada != null) {
+      setState(() {
+        controller.text = _formatarDataBR(selecionada);
+        _filtroData = FiltroDataHistorico.personalizado;
+      });
+    }
+  }
+
+  Widget _campoDataComNavegacao({
+    required BuildContext context,
+    required String rotulo,
+    required TextEditingController controller,
+  }) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        InkWell(
+          borderRadius: BorderRadius.circular(6),
+          onTap: () => _ajustarDiaController(controller, -1),
+          child: Container(
+            padding: const EdgeInsets.all(5),
+            decoration: BoxDecoration(
+              color: theme.cardBackgroundColor,
+              borderRadius: BorderRadius.circular(6),
+              border: Border.all(
+                color: theme.borderColor.withValues(alpha: 0.5),
+              ),
+            ),
+            child: Icon(
+              Icons.chevron_left_rounded,
+              size: 14,
+              color: theme.secondaryTextColor,
+            ),
+          ),
+        ),
+        const SizedBox(width: 3),
+        SizedBox(
+          width: 125,
+          child: TextField(
+            controller: controller,
+            keyboardType: TextInputType.number,
+            inputFormatters: [DataInputFormatterBR()],
+            cursorColor: theme.textColor,
+            style: theme.getTextStyle(fontSize: 11),
+            decoration: InputDecoration(
+              hintText: rotulo,
+              hintStyle: theme.getTextStyle(
+                fontSize: 10.5,
+                color: theme.secondaryTextColor,
+              ),
+              isDense: true,
+              contentPadding:
+                  const EdgeInsets.symmetric(horizontal: 8, vertical: 7),
+              filled: true,
+              fillColor: theme.cardBackgroundColor,
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(8),
+                borderSide: BorderSide(
+                  color: theme.borderColor.withValues(alpha: 0.5),
+                ),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(8),
+                borderSide: BorderSide(
+                  color: theme.borderColor.withValues(alpha: 0.5),
+                ),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(8),
+                borderSide: BorderSide(
+                  color: theme.textColor,
+                  width: 1.2,
+                ),
+              ),
+              suffixIcon: InkWell(
+                onTap: () => _abrirDatePickerController(context, controller),
+                child: Icon(
+                  Icons.calendar_month_outlined,
+                  size: 14,
+                  color: theme.textColor,
+                ),
+              ),
+            ),
+            onChanged: (_) {
+              setState(() {
+                _filtroData = FiltroDataHistorico.personalizado;
+              });
+            },
+          ),
+        ),
+        const SizedBox(width: 3),
+        InkWell(
+          borderRadius: BorderRadius.circular(6),
+          onTap: () => _ajustarDiaController(controller, 1),
+          child: Container(
+            padding: const EdgeInsets.all(5),
+            decoration: BoxDecoration(
+              color: theme.cardBackgroundColor,
+              borderRadius: BorderRadius.circular(6),
+              border: Border.all(
+                color: theme.borderColor.withValues(alpha: 0.5),
+              ),
+            ),
+            child: Icon(
+              Icons.chevron_right_rounded,
+              size: 14,
+              color: theme.secondaryTextColor,
+            ),
+          ),
+        ),
+      ],
+    );
   }
 
   Future<void> _exportarExtratoPDF(BuildContext context) async {
@@ -226,7 +446,9 @@ class _HistoricoComprasClienteWidgetState
         .fold<double>(0, (s, p) => s + p.valor);
 
     final temFiltroAtivo = _filtroData != FiltroDataHistorico.todas ||
-        _filtroForma != 'Todas';
+        _filtroForma != 'Todas' ||
+        _dataInicioController.text.isNotEmpty ||
+        _dataFimController.text.isNotEmpty;
 
     return Container(
       width: double.infinity,
@@ -299,7 +521,8 @@ class _HistoricoComprasClienteWidgetState
             ],
           ),
           if (widget.historico.isNotEmpty) ...[
-            const SizedBox(height: 8),
+            const SizedBox(height: 10),
+            // Filtro superior: Formas de pagamento e datas selecionadas
             Wrap(
               spacing: 8,
               runSpacing: 6,
@@ -315,7 +538,15 @@ class _HistoricoComprasClienteWidgetState
                     );
                   }).toList(),
                   onChanged: (novo) {
-                    if (novo != null) setState(() => _filtroData = novo);
+                    if (novo != null) {
+                      setState(() {
+                        _filtroData = novo;
+                        if (novo != FiltroDataHistorico.personalizado) {
+                          _dataInicioController.clear();
+                          _dataFimController.clear();
+                        }
+                      });
+                    }
                   },
                 ),
                 _seletorFiltro<String>(
@@ -338,6 +569,8 @@ class _HistoricoComprasClienteWidgetState
                       setState(() {
                         _filtroData = FiltroDataHistorico.todas;
                         _filtroForma = 'Todas';
+                        _dataInicioController.clear();
+                        _dataFimController.clear();
                       });
                     },
                     child: Padding(
@@ -348,12 +581,32 @@ class _HistoricoComprasClienteWidgetState
                         style: theme
                             .getTextStyle(
                               fontSize: 10,
-                              color: theme.secondaryTextColor,
+                              color: theme.dangerColor,
+                              fontWeight: FontWeight.w600,
                             )
                             .copyWith(decoration: TextDecoration.underline),
                       ),
                     ),
                   ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            // Filtro por input posicionado ABAIXO
+            Wrap(
+              spacing: 8,
+              runSpacing: 6,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              children: [
+                _campoDataComNavegacao(
+                  context: context,
+                  rotulo: 'De: DD/MM/AAAA',
+                  controller: _dataInicioController,
+                ),
+                _campoDataComNavegacao(
+                  context: context,
+                  rotulo: 'Até: DD/MM/AAAA',
+                  controller: _dataFimController,
+                ),
               ],
             ),
           ],

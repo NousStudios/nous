@@ -1,5 +1,7 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:nous/src/core/theme/theme_controller.dart';
 import 'package:nous/src/features/auth/providers/auth_provider.dart';
 import 'package:nous/src/features/pdv/models/loja.dart';
@@ -68,6 +70,8 @@ class _SincronizacaoRedeDialogState extends State<SincronizacaoRedeDialog> {
         TextEditingController(text: _cliente.nomeDispositivo);
     _buscaUsuariosClienteController = TextEditingController();
 
+    _carregarUltimoIpBalcao();
+
     if (widget.loja != null) {
       _perfilHostSelecionado = widget.loja!.id;
     } else if (_servidor.ativo && _servidor.lojaAtiva != null) {
@@ -84,13 +88,37 @@ class _SincronizacaoRedeDialogState extends State<SincronizacaoRedeDialog> {
       }
     });
 
-    if (_cliente.conectado) {
+    final ehMobile = defaultTargetPlatform == TargetPlatform.android ||
+        defaultTargetPlatform == TargetPlatform.iOS;
+    if (_cliente.conectado || (ehMobile && !_servidor.ativo)) {
       _abaSelecionada = 1;
     } else {
       _abaSelecionada = 0;
     }
 
-    _cliente.iniciarDescoberta();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        final pdv = context.read<PdvProvider>();
+        final auth = context.read<AuthProvider>();
+        _cliente.iniciarDescoberta(pdv: pdv, auth: auth);
+      }
+    });
+  }
+
+  Future<void> _carregarUltimoIpBalcao() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final ultimoIp = prefs.getString('nous_ultimo_ip_balcao');
+      final ultimaPorta = prefs.getInt('nous_ultima_porta_balcao');
+      if (mounted && ultimoIp != null && ultimoIp.isNotEmpty) {
+        setState(() {
+          _ipManualController.text = ultimoIp;
+          if (ultimaPorta != null) {
+            _portaManualController.text = ultimaPorta.toString();
+          }
+        });
+      }
+    } catch (_) {}
   }
 
   @override
@@ -165,8 +193,13 @@ class _SincronizacaoRedeDialogState extends State<SincronizacaoRedeDialog> {
 
     final pdv = context.read<PdvProvider>();
     final auth = context.read<AuthProvider>();
-    final sucesso =
-        await _cliente.conectar(ip: ip, porta: porta, pdv: pdv, auth: auth);
+    final sucesso = await _cliente.conectar(
+      ip: ip,
+      porta: porta,
+      pdv: pdv,
+      auth: auth,
+      forcar: true,
+    );
 
     if (!mounted) return;
     setState(() {

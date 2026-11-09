@@ -9,6 +9,8 @@ class GastoDiario {
   final String descricao;
   final String autorNome;
   final String autorCpf;
+  final String formaPagamento;
+  final bool pago;
 
   const GastoDiario({
     required this.id,
@@ -17,6 +19,8 @@ class GastoDiario {
     this.descricao = '',
     this.autorNome = '',
     this.autorCpf = '',
+    this.formaPagamento = 'Dinheiro',
+    this.pago = true,
   });
 
   factory GastoDiario.novo({
@@ -25,6 +29,8 @@ class GastoDiario {
     String descricao = '',
     String autorNome = '',
     String autorCpf = '',
+    String formaPagamento = 'Dinheiro',
+    bool pago = true,
   }) {
     return GastoDiario(
       id: gerarIdUnico(),
@@ -33,6 +39,8 @@ class GastoDiario {
       descricao: descricao,
       autorNome: autorNome,
       autorCpf: autorCpf,
+      formaPagamento: formaPagamento,
+      pago: pago,
     );
   }
 
@@ -43,6 +51,8 @@ class GastoDiario {
     String? descricao,
     String? autorNome,
     String? autorCpf,
+    String? formaPagamento,
+    bool? pago,
   }) {
     return GastoDiario(
       id: id ?? this.id,
@@ -51,6 +61,8 @@ class GastoDiario {
       descricao: descricao ?? this.descricao,
       autorNome: autorNome ?? this.autorNome,
       autorCpf: autorCpf ?? this.autorCpf,
+      formaPagamento: formaPagamento ?? this.formaPagamento,
+      pago: pago ?? this.pago,
     );
   }
 
@@ -62,6 +74,8 @@ class GastoDiario {
       'descricao': descricao,
       'autorNome': autorNome,
       'autorCpf': autorCpf,
+      'formaPagamento': formaPagamento,
+      'pago': pago,
     };
   }
 
@@ -75,6 +89,8 @@ class GastoDiario {
       descricao: json['descricao'] as String? ?? '',
       autorNome: json['autorNome'] as String? ?? '',
       autorCpf: json['autorCpf'] as String? ?? '',
+      formaPagamento: json['formaPagamento'] as String? ?? 'Dinheiro',
+      pago: json['pago'] as bool? ?? true,
     );
   }
 }

@@ -130,6 +130,29 @@ class ClienteWsMessageHandler {
         return;
       }
 
+      if (tipo == 'mensagens_lidas_loja') {
+        final lojaId = dados['lojaId'] as String? ?? '';
+        final idLeitor = dados['idLeitor'] as String? ?? '';
+        await ChatService.processarMensagensLidasDaLojaDaRede(lojaId, idLeitor);
+        return;
+      }
+
+      if (tipo == 'notificacoes_loja_limpas') {
+        final lojaId = dados['lojaId'] as String? ?? '';
+        final ids = (dados['ids'] as List<dynamic>? ?? const [])
+            .map((e) => e.toString())
+            .toList();
+        if (lojaId.isNotEmpty && ids.isNotEmpty) {
+          NotificacoesProvider.instanciaAtiva?.dispensarNotificacoesLoja(
+            lojaId,
+            ids,
+            originadoDaRede: true,
+          );
+          await ChatService.processarMensagensLidasDaLojaDaRede(lojaId, '');
+        }
+        return;
+      }
+
       if (tipo == 'conversa_atualizada') {
         if (dados['conversa'] != null) {
           final cMap = dados['conversa'] as Map<String, dynamic>;
@@ -222,6 +245,17 @@ class ClienteWsMessageHandler {
         }
         await ctx.pdvProvider!.adicionarOuAtualizarLoja(lojaConsolidada);
         await ctx.vincularLojaSeNecessario(lojaConsolidada);
+
+        final notificacoesDispensadas = (dados['notificacoesDispensadasLoja'] as List<dynamic>?)
+            ?.map((e) => e.toString())
+            .toList();
+        if (notificacoesDispensadas != null && notificacoesDispensadas.isNotEmpty) {
+          NotificacoesProvider.instanciaAtiva?.dispensarNotificacoesLoja(
+            lojaConsolidada.id,
+            notificacoesDispensadas,
+            originadoDaRede: true,
+          );
+        }
 
         if (lojaLocalExistente != null) {
           final servidorTinhaMenosPedidos = lojaLocalExistente.pedidosLoja.any(
@@ -390,6 +424,7 @@ class ClienteWsMessageHandler {
           usuarioRemoto.cpf,
           usuarioRemoto.foto,
         );
+        ctx.pdvProvider?.sincronizarDadosUsuarioEmLojas(usuarioRemoto);
 
         final cpfAtivo = ctx.pdvProvider?.cpfAtual ??
             ctx.authProvider?.contaAtual?.cpf ??

@@ -29,33 +29,49 @@ class ChatMensagensService {
         if (ehGrupo ||
             ehLoja ||
             id.startsWith('grupo_') ||
-            id.startsWith('loja_nous_coletiva_')) {
+            id.startsWith('loja_')) {
           continue;
         }
 
-        final ident =
-            ChatRepositorioSqlite.normalizarCpf(r['identificador'] as String? ?? '');
-        if (ident.length == 11) {
-          porInterlocutor.putIfAbsent(ident, () => []).add(r);
+        final match = RegExp(r'^user_(\d{11})_user_(\d{11})$').firstMatch(id);
+        if (match != null) {
+          final c1 = match.group(1)!;
+          final c2 = match.group(2)!;
+          final min = c1.compareTo(c2) <= 0 ? c1 : c2;
+          final max = c1.compareTo(c2) <= 0 ? c2 : c1;
+          final chaveCanonica = 'user_${min}_user_$max';
+          porInterlocutor.putIfAbsent(chaveCanonica, () => []).add(r);
         }
       }
 
       for (final entry in porInterlocutor.entries) {
+        final chaveCanonica = entry.key;
         final lista = entry.value;
-        if (lista.length <= 1) continue;
+        if (lista.length <= 1 && lista.first['id'] == chaveCanonica) continue;
 
-        lista.sort((a, b) {
-          final dataA = a['data_hora_ultima_mensagem'] as String? ?? '';
-          final dataB = b['data_hora_ultima_mensagem'] as String? ?? '';
-          return dataB.compareTo(dataA);
-        });
+        // O ID principal sempre deve ser o canônico user_{min}_user_{max}
+        final principalId = chaveCanonica;
+        final existePrincipal = lista.any((item) => item['id'] == principalId);
 
-        final principal = lista.first;
-        final principalId = principal['id'] as String;
+        if (!existePrincipal) {
+          final primeiro = lista.first;
+          final idAntigo = primeiro['id'] as String;
+          await db.update(
+            'conversas_chat',
+            {'id': principalId},
+            where: 'id = ?',
+            whereArgs: [idAntigo],
+          );
+          await db.update(
+            'mensagens_chat',
+            {'conversa_id': principalId},
+            where: 'conversa_id = ?',
+            whereArgs: [idAntigo],
+          );
+        }
 
-        for (int i = 1; i < lista.length; i++) {
-          final duplicata = lista[i];
-          final dupId = duplicata['id'] as String;
+        for (final item in lista) {
+          final dupId = item['id'] as String;
           if (dupId == principalId) continue;
 
           await db.update(
@@ -199,7 +215,7 @@ class ChatMensagensService {
     return mensagem.copyWith(statusEnvio: 'enviada');
   }
 
-  static Future<void> salvarMensagem(
+  static Future<bool> salvarMensagem(
     MensagemChat mensagem, {
     bool originadaDaRede = false,
     required Future<String> Function() obterCpfLogadoLocal,
@@ -209,8 +225,45 @@ class ChatMensagensService {
     await ChatRepositorioSqlite.desmarcarConversaExcluida(mensagem.conversaId);
     final meuCpf = await obterCpfLogadoLocal();
 
-    DateTime dataHoraAjustada = mensagem.dataHora;
-    final agoraRede = RelogioRedeService.agora();
+    // Deduplicação sem ruído: se a mensagem já existe no banco com exatamente os mesmos campos, ignora
+    final existentes = await db.query(
+      'mensagens_chat',
+      columns: [
+        'id',
+        'conversa_id',
+        'status_envio',
+        'texto',
+        'lida',
+        'entregue',
+        'editada',
+        'caminho_anexo',
+      ],
+      where: 'id = ?',
+      whereArgs: [mensagem.id],
+      limit: 1,
+    );
+    if (existentes.isNotEmpty) {
+      final ex = existentes.first;
+      final convEx = ex['conversa_id'] as String? ?? '';
+      final stEx = ex['status_envio'] as String? ?? '';
+      final txtEx = ex['texto'] as String? ?? '';
+      final lidaEx = (ex['lida'] as int? ?? 0) == 1;
+      final entEx = (ex['entregue'] as int? ?? 0) == 1;
+      final editEx = (ex['editada'] as int? ?? 0) == 1;
+      final anexoEx = ex['caminho_anexo'] as String? ?? '';
+      if (convEx == mensagem.conversaId &&
+          stEx == mensagem.statusEnvio &&
+          txtEx == mensagem.texto &&
+          lidaEx == mensagem.lida &&
+          entEx == mensagem.entregue &&
+          editEx == mensagem.editada &&
+          anexoEx == mensagem.caminhoAnexo) {
+        return false;
+      }
+    }
+
+    DateTime dataHoraAjustada = mensagem.dataHora.toLocal();
+    final agoraRede = RelogioRedeService.agora().toLocal();
 
     // Se o remetente estiver com relógio adiantado no futuro além de 5 segundos, calibra para o tempo de rede
     if (originadaDaRede && dataHoraAjustada.difference(agoraRede).inSeconds > 5) {
@@ -228,9 +281,15 @@ class ChatMensagensService {
     if (ultimas.isNotEmpty) {
       final ultimaStr = ultimas.first['data_hora'] as String?;
       if (ultimaStr != null && ultimaStr.isNotEmpty) {
-        final ultimaData = DateTime.tryParse(ultimaStr);
+        final ultimaData = DateTime.tryParse(ultimaStr)?.toLocal();
         if (ultimaData != null && !dataHoraAjustada.isAfter(ultimaData)) {
-          dataHoraAjustada = ultimaData.add(const Duration(milliseconds: 5));
+          // Se ultimaData no banco estiver no futuro além de 30 segundos de agoraRede,
+          // trata como anomalia de timezone legado e não propaga o erro
+          if (ultimaData.difference(agoraRede).inSeconds > 30) {
+            dataHoraAjustada = agoraRede;
+          } else {
+            dataHoraAjustada = ultimaData.add(const Duration(milliseconds: 5));
+          }
         }
       }
     }
@@ -310,11 +369,12 @@ class ChatMensagensService {
       } else if (!ehGrupo && !ehLoja) {
         var outroCpf =
             ChatRepositorioSqlite.normalizarCpf(mensagem.destinatarioId);
-        if (outroCpf.length != 11 || outroCpf == meuCpf) {
+        if (outroCpf.length != 11 || (meuCpf.isNotEmpty && outroCpf == meuCpf)) {
           outroCpf = ChatRepositorioSqlite.extrairOutroCpf(
               mensagem.conversaId, meuCpf);
         }
         if (outroCpf.length == 11) {
+          identificadorSalvar = outroCpf;
           final conta = await ContasNousService.buscarPorCpf(outroCpf);
           if (conta != null) {
             tituloConversa = conta.nomeExibicao;
@@ -322,6 +382,10 @@ class ChatMensagensService {
                 ? conta.usernameExibicao
                 : 'Usuário Nous';
             fotoConversa = conta.fotoExibicao;
+          } else if (mensagem.remetenteNome.isNotEmpty &&
+              mensagem.remetenteId == outroCpf) {
+            tituloConversa = mensagem.remetenteNome;
+            fotoConversa = mensagem.remetenteFoto;
           }
         }
       }
@@ -352,6 +416,7 @@ class ChatMensagensService {
     }
 
     aoNotificar();
+    return true;
   }
 
   static Future<void> processarMensagemRecebidaRede(
@@ -442,19 +507,22 @@ class ChatMensagensService {
           debugPrint(
               '[ChatMensagensService] Erro ao gravar anexo recebido via rede: $e');
         }
-      } else if (mensagem.tipo == 'imagem' &&
-          mensagem.caminhoAnexo.isNotEmpty) {
+      } else if (mensagem.caminhoAnexo.isNotEmpty) {
         final existeLocal =
             ImagemService.resolverCaminhoExistente(mensagem.caminhoAnexo) !=
                 null;
         if (!existeLocal && ClienteRedeLocal().conectado) {
           final caminhoRemotoMsg = mensagem.caminhoAnexo;
           final msgIdParaAtualizar = mensagem.id;
+          final tipoMsg = mensagem.tipo;
           unawaited(() async {
             try {
-              final baixado = await ClienteRedeLocal().baixarImagemRemota(
-                caminhoRemotoMsg,
-              );
+              final String baixado;
+              if (tipoMsg == 'audio') {
+                baixado = await ClienteRedeLocal().baixarAudioRemoto(caminhoRemotoMsg);
+              } else {
+                baixado = await ClienteRedeLocal().baixarImagemRemota(caminhoRemotoMsg);
+              }
               if (baixado.isNotEmpty && baixado != caminhoRemotoMsg) {
                 final d = await ChatRepositorioSqlite.obterDb();
                 await d.update(
@@ -509,20 +577,24 @@ class ChatMensagensService {
         }
       }
 
+      final usuarioEstaOlhandoConversa = idConversaAtiva != null &&
+          idConversaAtiva.isNotEmpty &&
+          idConversaAtiva == mensagem.conversaId;
+
       if (ehMinhaPropriaMensagem) {
         mensagem = mensagem.copyWith(
           enviadaPorMim: true,
           statusEnvio: 'enviada',
         );
-      }
-
-      final usuarioEstaOlhandoConversa = idConversaAtiva != null &&
-          idConversaAtiva.isNotEmpty &&
-          idConversaAtiva == mensagem.conversaId;
-
-      if (!ehMinhaPropriaMensagem && usuarioEstaOlhandoConversa) {
-        mensagem = mensagem.copyWith(lida: true, statusEnvio: 'lida');
-        NotificacaoAndroidService.cancelarNotificacaoConversa(mensagem.conversaId);
+      } else {
+        mensagem = mensagem.copyWith(
+          enviadaPorMim: false,
+          statusEnvio: usuarioEstaOlhandoConversa ? 'lida' : 'recebida',
+          lida: usuarioEstaOlhandoConversa,
+        );
+        if (usuarioEstaOlhandoConversa) {
+          NotificacaoAndroidService.cancelarNotificacaoConversa(mensagem.conversaId);
+        }
       }
 
       await salvarMensagem(

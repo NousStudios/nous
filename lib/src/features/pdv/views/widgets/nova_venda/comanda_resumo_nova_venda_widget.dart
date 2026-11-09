@@ -347,7 +347,7 @@ class ComandaResumoNovaVendaWidget extends StatelessWidget {
             papelComanda
           else
             ConstrainedBox(
-              constraints: const BoxConstraints(minHeight: 160, maxHeight: 350),
+              constraints: const BoxConstraints(minHeight: 160, maxHeight: 520),
               child: SingleChildScrollView(
                 controller: scrollController,
                 child: papelComanda,

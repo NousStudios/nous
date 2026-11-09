@@ -511,20 +511,31 @@ class ServidorBalcaoWidget extends StatelessWidget {
     List<TerminalConectadoInfo> pareados,
   ) {
     return ValueListenableBuilder<List<TerminalConectadoInfo>>(
-      valueListenable: ClienteRedeLocal().presencasAtivas,
-      builder: (context, presencas, _) {
+      valueListenable: servidor.terminaisHistorico,
+      builder: (context, historico, _) {
         final ipsPareados = pareados.map((p) => p.ip).toSet();
         final idsPareados = pareados.map((p) => p.id).toSet();
 
-        final naoPareados = presencas.where((p) {
+        final todosCandidatos = [
+          ...historico,
+          ...ClienteRedeLocal().presencasAtivas.value,
+        ];
+
+        final naoPareados = <TerminalConectadoInfo>[];
+        final ipsVistos = <String>{};
+
+        for (final p in todosCandidatos) {
           if (p.id == 'balcao_servidor_local' || p.id == 'este_dispositivo') {
-            return false;
+            continue;
           }
           if (idsPareados.contains(p.id) || ipsPareados.contains(p.ip)) {
-            return false;
+            continue;
           }
-          return true;
-        }).toList();
+          if (!ipsVistos.add(p.ip)) {
+            continue;
+          }
+          naoPareados.add(p);
+        }
 
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -618,7 +629,7 @@ class ServidorBalcaoWidget extends StatelessWidget {
                               ),
                               const SizedBox(height: 1),
                               Text(
-                                'IP: ${term.ip} • Aguardando conexão ou pareamento',
+                                'IP: ${term.ip} • Desconectado (Nous Fechado ou Fora do Alcance)',
                                 style: theme.getTextStyle(
                                   fontSize: 10,
                                   color: theme.secondaryTextColor,

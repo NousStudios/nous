@@ -59,6 +59,12 @@ class PedidosProgramadosDialog extends StatelessWidget {
                     !prog.coincideComData(agora)) {
                   return false;
                 }
+                final jaGeradoHoje = prog.ultimaDataGerado != null &&
+                    prog.ultimaDataGerado!.year == agora.year &&
+                    prog.ultimaDataGerado!.month == agora.month &&
+                    prog.ultimaDataGerado!.day == agora.day;
+                if (jaGeradoHoje) return false;
+
                 final idEsperadoHoje =
                     'prog_${prog.id}_${agora.year}_${mesStr}_$diaStr';
                 final pedidoExistente = loja.pedidosLoja.where((p) {
@@ -67,6 +73,14 @@ class PedidosProgramadosDialog extends StatelessWidget {
                       p.dataHora.year == agora.year &&
                       p.dataHora.month == agora.month &&
                       p.dataHora.day == agora.day) {
+                    return true;
+                  }
+                  if (prog.clienteId.isNotEmpty &&
+                      p.clienteId == prog.clienteId &&
+                      p.dataHora.year == agora.year &&
+                      p.dataHora.month == agora.month &&
+                      p.dataHora.day == agora.day &&
+                      p.status != StatusPedido.cancelado) {
                     return true;
                   }
                   return false;

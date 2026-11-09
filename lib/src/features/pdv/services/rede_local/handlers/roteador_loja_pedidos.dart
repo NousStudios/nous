@@ -6,6 +6,7 @@ import 'package:nous/src/core/services/som_service.dart';
 import 'package:nous/src/core/utils/json_isolate_utils.dart';
 import 'package:nous/src/features/auth/services/contas_nous_service.dart';
 import 'package:nous/src/features/chat/services/chat_service.dart';
+import 'package:nous/src/features/notificacoes/providers/notificacoes_provider.dart';
 import 'package:nous/src/features/pdv/models/loja.dart';
 import 'package:nous/src/features/pdv/models/mesa_loja.dart';
 import 'package:nous/src/features/pdv/models/movimento_estoque.dart';
@@ -66,49 +67,17 @@ class RoteadorLojaPedidos {
           servidor.decisoesTerminais[chaveTerminal];
 
       final ehUsuarioNous = cpfParamLimpo.length == 11;
-      if (ehLocal || ehMesmaConta || ehDono || jaEhMembro || ehUsuarioNous) {
-        decisao = (ehLocal || ehMesmaConta || ehDono || jaEhMembro)
-            ? ResultadoAutorizacaoConexao.autorizadoMembro
-            : ResultadoAutorizacaoConexao.autorizadoCliente;
-        servidor.decisoesTerminais[chaveTerminal] = decisao;
-        servidor.terminaisAutorizados.add(chaveTerminal);
-        debugPrint(
-          '[ServidorRedeLocal] Terminal auto-autorizado instantaneamente (MesmaConta: $ehMesmaConta, Dono: $ehDono, Membro: $jaEhMembro, UsuarioNous: $ehUsuarioNous, Local: $ehLocal): $chaveTerminal',
-        );
-      } else if (!servidor.terminaisAutorizados.contains(chaveTerminal)) {
-        final resultado = await servidor.solicitarAutorizacaoTerminal(
-          ip: ipRemoto,
-          nomeDispositivo: (dispositivoParam != null &&
-                  dispositivoParam.trim().isNotEmpty)
-              ? dispositivoParam.trim()
-              : 'Terminal Móvel',
-          nomeUsuario: (apelidoParam != null &&
-                  apelidoParam.trim().isNotEmpty)
-              ? '$nomeParam ($apelidoParam)'
-              : nomeParam,
-          cpf: cpfParam,
-          jaEhMembro: false,
-        );
-
-        if (resultado == ResultadoAutorizacaoConexao.recusado) {
-          debugPrint(
-            '[ServidorRedeLocal] Conexão recusada pelo administrador para terminal $chaveTerminal ($ipRemoto)',
-          );
-          ServidorRedeLocal.responderJson(
-            request,
-            {
-              'sucesso': false,
-              'mensagem': 'Conexão recusada pelo Administrador do Balcão.',
-            },
-            statusCode: HttpStatus.forbidden,
-          );
-          return true;
-        }
-
-        decisao = resultado;
-        servidor.decisoesTerminais[chaveTerminal] = resultado;
-        servidor.terminaisAutorizados.add(chaveTerminal);
-      }
+      // Na rede local soberana Nous, qualquer dispositivo conectado ao mesmo roteador Wi-Fi é
+      // auto-autorizado de forma instantânea (como membro se autenticado na equipe; como cliente para consulta, cardápio e chat).
+      // Isso previne bloqueios em diálogos modais e timeouts de reconexão de 35 segundos.
+      decisao = (ehLocal || ehMesmaConta || ehDono || jaEhMembro)
+          ? ResultadoAutorizacaoConexao.autorizadoMembro
+          : ResultadoAutorizacaoConexao.autorizadoCliente;
+      servidor.decisoesTerminais[chaveTerminal] = decisao;
+      servidor.terminaisAutorizados.add(chaveTerminal);
+      debugPrint(
+        '[ServidorRedeLocal] Terminal auto-autorizado instantaneamente (MesmaConta: $ehMesmaConta, Dono: $ehDono, Membro: $jaEhMembro, UsuarioNous: $ehUsuarioNous, Local: $ehLocal): $chaveTerminal',
+      );
 
       final ehCliente =
           decisao == ResultadoAutorizacaoConexao.autorizadoCliente;
@@ -225,6 +194,10 @@ class RoteadorLojaPedidos {
         'papelConexao': ehCliente ? 'cliente' : 'membro',
         'imagensAusentes': imagensAusentes,
         'fotosUsuariosAusentes': fotosUsuariosAusentes,
+        'notificacoesDispensadasLoja': NotificacoesProvider.instanciaAtiva
+                ?.obterDispensadasPorLoja(lojaRetorno.id)
+                .toList() ??
+            <String>[],
       });
       return true;
     }

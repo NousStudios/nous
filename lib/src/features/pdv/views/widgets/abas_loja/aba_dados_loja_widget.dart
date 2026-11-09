@@ -277,6 +277,8 @@ class AbaDadosLojaWidget extends StatelessWidget {
 
     final blocoMembros = UsuariosParticipantesContainer(
       theme: theme,
+      lojaId: lojaId,
+      nomeLoja: lojaAtual?.nome,
       membros: membros,
       cargosPersonalizados: lojaAtual?.cargosPersonalizados ?? const [],
       cpfLogado: cpfLogado,

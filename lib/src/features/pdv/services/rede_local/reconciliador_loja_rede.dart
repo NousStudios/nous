@@ -8,6 +8,10 @@ import 'package:nous/src/features/pdv/models/categoria_loja.dart';
 import 'package:nous/src/features/pdv/models/cliente.dart';
 import 'package:nous/src/features/pdv/models/fornecedor.dart';
 import 'package:nous/src/features/pdv/models/gasto_diario.dart';
+import 'package:nous/src/features/pdv/models/gasto_fixo.dart';
+import 'package:nous/src/features/pdv/models/contrato_trabalho_membro.dart';
+import 'package:nous/src/features/pdv/models/registro_ponto_membro.dart';
+import 'package:nous/src/features/pdv/models/escala_trabalho_membro.dart';
 import 'package:nous/src/features/pdv/models/item_loja.dart';
 import 'package:nous/src/features/pdv/models/loja.dart';
 import 'package:nous/src/features/pdv/models/mesa_loja.dart';
@@ -556,13 +560,26 @@ class ReconciliadorLojaRede {
     lojaParaServidor = lojaParaServidor.copyWith(acoes: acoesLimitadas);
 
     // H. Pedidos, Movimentos de Estoque e Pagamentos - Indexação O(1)
+    final agora = DateTime.now();
+    bool mesmoDia(DateTime? a, DateTime b) {
+      if (a == null) return false;
+      return a.year == b.year && a.month == b.month && a.day == b.day;
+    }
+
     final mapaPedidos = <String, PedidoLoja>{
       for (final p in lojaParaServidor.pedidosLoja) p.id: p,
     };
     for (final pLocal in lojaLocal.pedidosLoja) {
       if (!mapaPedidos.containsKey(pLocal.id)) {
-        mapaPedidos[pLocal.id] = pLocal;
-        houveCuraNoServidor = true;
+        // Soberania do Balcão: pedidos locais que o balcão não possui só são enviados
+        // se foram emitidos no dia de hoje e não forem pedidos com status 'novo'
+        // (o balcão/servidor é soberano sobre a fila de novos pedidos, evitando ressuscitar pedidos cancelados).
+        final ehDeHoje = mesmoDia(pLocal.dataHora, agora);
+        final ehNovo = pLocal.status == StatusPedido.novo;
+        if (!ehNovo && ehDeHoje) {
+          mapaPedidos[pLocal.id] = pLocal;
+          houveCuraNoServidor = true;
+        }
       } else {
         final existente = mapaPedidos[pLocal.id]!;
         final mesclado =
@@ -671,6 +688,50 @@ class ReconciliadorLojaRede {
       }
     }
 
+    // M. Gastos Fixos Recorrentes
+    final gastosFixosMesclados =
+        List<GastoFixo>.from(lojaParaServidor.gastosFixos);
+    final idsGastosFixos = gastosFixosMesclados.map((g) => g.id).toSet();
+    for (final gLocal in lojaLocal.gastosFixos) {
+      if (idsGastosFixos.add(gLocal.id)) {
+        gastosFixosMesclados.add(gLocal);
+        houveCuraNoServidor = true;
+      }
+    }
+
+    // N. Contratos de Trabalho
+    final contratosMesclados =
+        List<ContratoTrabalhoMembro>.from(lojaParaServidor.contratosTrabalho);
+    final cpfsContratos = contratosMesclados.map((c) => c.cpf).toSet();
+    for (final cLocal in lojaLocal.contratosTrabalho) {
+      if (cpfsContratos.add(cLocal.cpf)) {
+        contratosMesclados.add(cLocal);
+        houveCuraNoServidor = true;
+      }
+    }
+
+    // O. Registros de Ponto
+    final pontosMesclados =
+        List<RegistroPontoMembro>.from(lojaParaServidor.registrosPonto);
+    final idsPontos = pontosMesclados.map((p) => p.id).toSet();
+    for (final pLocal in lojaLocal.registrosPonto) {
+      if (idsPontos.add(pLocal.id)) {
+        pontosMesclados.add(pLocal);
+        houveCuraNoServidor = true;
+      }
+    }
+
+    // P. Escalas de Trabalho
+    final escalasMescladas =
+        List<EscalaTrabalhoMembro>.from(lojaParaServidor.escalasTrabalho);
+    final cpfsEscalas = escalasMescladas.map((e) => e.cpf).toSet();
+    for (final eLocal in lojaLocal.escalasTrabalho) {
+      if (cpfsEscalas.add(eLocal.cpf)) {
+        escalasMescladas.add(eLocal);
+        houveCuraNoServidor = true;
+      }
+    }
+
     lojaParaServidor = lojaParaServidor.copyWith(
       pedidosLoja: pedidosMesclados,
       movimentosEstoque: movimentosLimitados,
@@ -679,6 +740,10 @@ class ReconciliadorLojaRede {
       pedidosProgramados: programadosMesclados,
       cargosPersonalizados: cargosMesclados,
       gastosDiarios: gastosMesclados,
+      gastosFixos: gastosFixosMesclados,
+      contratosTrabalho: contratosMesclados,
+      registrosPonto: pontosMesclados,
+      escalasTrabalho: escalasMescladas,
     );
 
     // Se houve alguma cura ou restauração necessária no servidor, envia o estado curado ao balcão

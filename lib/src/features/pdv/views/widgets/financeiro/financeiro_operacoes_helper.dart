@@ -356,6 +356,8 @@ class FinanceiroOperacoesHelper {
       descricao: resultado.descricao,
       cpfAutor: conta.cpf,
       nomeAutor: conta.nome,
+      formaPagamento: resultado.formaPagamento,
+      pago: resultado.pago,
     );
 
     if (!context.mounted) return;

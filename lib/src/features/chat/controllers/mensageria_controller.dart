@@ -9,6 +9,7 @@ import 'package:nous/src/features/auth/providers/auth_provider.dart';
 import 'package:nous/src/features/chat/models/conversa_chat.dart';
 import 'package:nous/src/features/chat/models/mensagem_chat.dart';
 import 'package:nous/src/features/chat/services/chat_service.dart';
+import 'package:nous/src/features/chat/services/mensageria_acoes_delegate.dart';
 import 'package:nous/src/features/chat/services/resolvedor_foto_chat.dart';
 import 'package:nous/src/features/chat/services/montador_conversas_chat.dart';
 import 'package:nous/src/features/pdv/providers/pdv_provider.dart';
@@ -46,9 +47,12 @@ class MensageriaController extends ChangeNotifier {
 
   bool _disposed = false;
   bool get isDisposed => _disposed;
+  Timer? _timerPollingLeve;
 
   @override
   void dispose() {
+    _timerPollingLeve?.cancel();
+    _timerPollingLeve = null;
     ChatService.idConversaAtiva = null;
     _disposed = true;
     super.dispose();
@@ -154,14 +158,21 @@ class MensageriaController extends ChangeNotifier {
       }
       if (cpfNorm.length == 11 && _usuariosNousPorCpf.containsKey(cpfNorm)) {
         final u = _usuariosNousPorCpf[cpfNorm]!;
-        if (TextoUtils.contemIgnorandoAcentos(u.nome, tLimpo) ||
-            TextoUtils.contemIgnorandoAcentos(u.nomeExibicao, tLimpo) ||
-            TextoUtils.contemIgnorandoAcentos(u.nomePublico, tLimpo) ||
-            TextoUtils.contemIgnorandoAcentos(u.nomeDeUsuario, termoSemArroba) ||
-            TextoUtils.contemIgnorandoAcentos(u.usernameExibicao, termoSemArroba) ||
-            TextoUtils.contemIgnorandoAcentos(u.apelido, tLimpo) ||
-            TextoUtils.contemIgnorandoAcentos(u.apelidoExibicao, tLimpo) ||
-            TextoUtils.contemIgnorandoAcentos(u.apelidoPublico, tLimpo)) {
+        final campos = [
+          u.nome,
+          u.nomeExibicao,
+          u.nomePublico,
+          u.apelido,
+          u.apelidoExibicao,
+          u.apelidoPublico,
+        ];
+        if (campos.any(
+            (c) => TextoUtils.contemIgnorandoAcentos(c, tLimpo))) {
+          return true;
+        }
+        if (TextoUtils.contemIgnorandoAcentos(u.nomeDeUsuario, termoSemArroba) ||
+            TextoUtils.contemIgnorandoAcentos(
+                u.usernameExibicao, termoSemArroba)) {
           return true;
         }
       }
@@ -202,9 +213,24 @@ class MensageriaController extends ChangeNotifier {
     required PdvProvider pdv,
   }) async {
     if (_disposed) return;
+    final conta = auth.contaAtual;
+    if (usuarioCpf == null || usuarioCpf!.isEmpty) {
+      usuarioCpf = conta?.cpf ?? auth.cpf;
+    }
+    if (usuarioNome == null || usuarioNome!.isEmpty) {
+      usuarioNome = conta?.nomeExibicao ?? conta?.nome;
+    }
+    if (usuarioFoto == null || usuarioFoto!.isEmpty) {
+      usuarioFoto = conta?.fotoExibicao ?? conta?.foto;
+    }
+    if (usuarioApelido == null || usuarioApelido!.isEmpty) {
+      usuarioApelido = conta?.apelidoExibicao ?? conta?.apelido;
+    }
+
     _carregando = true;
     notifyListeners();
 
+    await ChatService.curarTimestampsAnomalosDoPassado();
     await ChatService.consolidarConversasDuplicadas();
     if (_disposed) return;
     await recarregarConversas(auth: auth, pdv: pdv, manterSelecionada: false);
@@ -236,9 +262,33 @@ class MensageriaController extends ChangeNotifier {
     }
 
     sincronizarComRedeLocal(auth: auth, pdv: pdv);
+    _iniciarPollingLeve(auth: auth, pdv: pdv);
 
     _carregando = false;
     notifyListeners();
+  }
+
+  void _iniciarPollingLeve({
+    required AuthProvider auth,
+    required PdvProvider pdv,
+  }) {
+    _timerPollingLeve?.cancel();
+    _timerPollingLeve = Timer.periodic(const Duration(seconds: 25), (_) {
+      if (_disposed) return;
+      ChatService.drenarFilaDeSaida();
+      final cliente = ClienteRedeLocal();
+      if (cliente.conectado &&
+          cliente.ipServidor != null &&
+          cliente.portaServidor != null) {
+        final meuCpf = modoLoja ? null : (usuarioCpf ?? auth.contaAtual?.cpf);
+        ChatService.sincronizarMensagensComBalcao(
+          ipServidor: cliente.ipServidor!,
+          portaServidor: cliente.portaServidor!,
+          cpfUsuario: meuCpf,
+          lojaId: modoLoja ? lojaId : null,
+        );
+      }
+    });
   }
 
   void sincronizarComRedeLocal({
@@ -255,6 +305,7 @@ class MensageriaController extends ChangeNotifier {
       if (_disposed) return;
       if (cliente.ipServidor != null && cliente.portaServidor != null) {
         cliente.reconciliarContasComServidor();
+        ChatService.drenarFilaDeSaida();
         ChatService.sincronizarMensagensComBalcao(
           ipServidor: cliente.ipServidor!,
           portaServidor: cliente.portaServidor!,
@@ -306,7 +357,13 @@ class MensageriaController extends ChangeNotifier {
         (c) => c.id == _conversaSelecionada!.id,
       );
       if (index != -1) {
-        _conversaSelecionada = _conversas[index].copyWith(naoLidasCount: 0);
+        final msgsAtuais = _conversaSelecionada!.mensagens;
+        final novasMsgs = _conversas[index].mensagens;
+        final msgsFinais = novasMsgs.isNotEmpty ? novasMsgs : msgsAtuais;
+        _conversaSelecionada = _conversas[index].copyWith(
+          naoLidasCount: 0,
+          mensagens: msgsFinais,
+        );
         _conversas[index] = _conversaSelecionada!;
       }
       ChatService.idConversaAtiva = _conversaSelecionada!.id;
@@ -437,8 +494,16 @@ class MensageriaController extends ChangeNotifier {
       return;
     }
 
-    // 1. RESPOSTA VISUAL INSTANTÂNEA: zera não lidas e exibe na mesma fração de frame (0ms)
-    final conversaAtualizada = c.copyWith(naoLidasCount: 0);
+    // 1. RESPOSTA VISUAL INSTANTÂNEA: zera não lidas e preserva mensagens já em memória (0ms)
+    final msgsEmMemoria = (_conversaSelecionada?.id == c.id &&
+            _conversaSelecionada!.mensagens.isNotEmpty)
+        ? _conversaSelecionada!.mensagens
+        : c.mensagens;
+
+    final conversaAtualizada = c.copyWith(
+      naoLidasCount: 0,
+      mensagens: msgsEmMemoria,
+    );
     _conversaSelecionada = conversaAtualizada;
     ChatService.idConversaAtiva = c.id;
 
@@ -457,25 +522,74 @@ class MensageriaController extends ChangeNotifier {
       notificar: false,
     ));
 
-    // Carregamento de histórico completo em segundo plano para refletir todas as mensagens do SQLite
-    ChatService.carregarMensagens(c.id, idVisualizador: idVisualizador).then((msgs) {
+    // Carregamento de histórico cirúrgico no SQLite
+    ChatService.carregarMensagens(c.id, idVisualizador: idVisualizador)
+        .then((msgs) {
       if (_disposed || _conversaSelecionada?.id != c.id) return;
-      if (c.mensagens.length != msgs.length || c.mensagens.isEmpty) {
-        final comMsgs = _conversaSelecionada!.copyWith(
-          mensagens: msgs,
-          ultimaMensagem: msgs.isNotEmpty
-              ? resumoMensagem(msgs.last)
-              : _conversaSelecionada!.ultimaMensagem,
-          dataHoraUltimaMensagem: msgs.isNotEmpty
-              ? msgs.last.dataHora
-              : _conversaSelecionada!.dataHoraUltimaMensagem,
-        );
-        _conversaSelecionada = comMsgs;
-        final i = _conversas.indexWhere((item) => item.id == c.id);
-        if (i != -1) _conversas[i] = comMsgs;
-        notifyListeners();
-      }
+      final comMsgs = _conversaSelecionada!.copyWith(
+        mensagens: msgs,
+        ultimaMensagem: msgs.isNotEmpty
+            ? resumoMensagem(msgs.last)
+            : _conversaSelecionada!.ultimaMensagem,
+        dataHoraUltimaMensagem: msgs.isNotEmpty
+            ? msgs.last.dataHora
+            : _conversaSelecionada!.dataHoraUltimaMensagem,
+      );
+      _conversaSelecionada = comMsgs;
+      final i = _conversas.indexWhere((item) => item.id == c.id);
+      if (i != -1) _conversas[i] = comMsgs;
+      notifyListeners();
     });
+  }
+
+  /// Recarrega instantaneamente as mensagens da conversa aberta diretamente do SQLite
+  Future<void> recarregarMensagensConversaAtiva() async {
+    if (_disposed || _conversaSelecionada == null) return;
+    final convId = _conversaSelecionada!.id;
+    try {
+      final msgs = await ChatService.carregarMensagens(
+        convId,
+        idVisualizador: idVisualizador,
+      );
+      if (_disposed || _conversaSelecionada?.id != convId) return;
+
+      final msgsAtuais = _conversaSelecionada!.mensagens;
+      bool saoIguais = msgsAtuais.length == msgs.length;
+      if (saoIguais) {
+        for (int k = 0; k < msgs.length; k++) {
+          final m1 = msgsAtuais[k];
+          final m2 = msgs[k];
+          if (m1.id != m2.id ||
+              m1.statusEnvio != m2.statusEnvio ||
+              m1.texto != m2.texto ||
+              m1.editada != m2.editada ||
+              m1.caminhoAnexo != m2.caminhoAnexo) {
+            saoIguais = false;
+            break;
+          }
+        }
+      }
+      if (saoIguais) {
+        return; // Mensagens em tela já estão idênticas. Zero rebuild desnecessário e sem piscar!
+      }
+
+      final comMsgs = _conversaSelecionada!.copyWith(
+        mensagens: msgs,
+        ultimaMensagem: msgs.isNotEmpty
+            ? resumoMensagem(msgs.last)
+            : _conversaSelecionada!.ultimaMensagem,
+        dataHoraUltimaMensagem: msgs.isNotEmpty
+            ? msgs.last.dataHora
+            : _conversaSelecionada!.dataHoraUltimaMensagem,
+      );
+      _conversaSelecionada = comMsgs;
+
+      final i = _conversas.indexWhere((item) => item.id == convId);
+      if (i != -1) {
+        _conversas[i] = comMsgs;
+      }
+      notifyListeners();
+    } catch (_) {}
   }
 
   Future<void> _salvarUltimaConversaAberta(String convId) async {
@@ -489,7 +603,6 @@ class MensageriaController extends ChangeNotifier {
       }
     } catch (_) {}
   }
-
 
   Future<void> marcarComoLida(ConversaChat conversa) async {
     await ChatService.marcarComoLidas(
@@ -521,12 +634,16 @@ class MensageriaController extends ChangeNotifier {
     if (texto.trim().isEmpty && tipo == 'texto') return;
     if (_conversaSelecionada == null) return;
 
-    final agora = RelogioRedeService.agora();
+    final agora = RelogioRedeService.agora().toLocal();
     var dataHoraEfetiva = agora;
     if (_conversaSelecionada!.mensagens.isNotEmpty) {
-      final ultimaData = _conversaSelecionada!.mensagens.last.dataHora;
+      final ultimaData = _conversaSelecionada!.mensagens.last.dataHora.toLocal();
       if (!dataHoraEfetiva.isAfter(ultimaData)) {
-        dataHoraEfetiva = ultimaData.add(const Duration(milliseconds: 10));
+        if (ultimaData.difference(agora).inSeconds > 30) {
+          dataHoraEfetiva = agora;
+        } else {
+          dataHoraEfetiva = ultimaData.add(const Duration(milliseconds: 10));
+        }
       }
     }
     final conta = auth.contaAtual;
@@ -534,22 +651,28 @@ class MensageriaController extends ChangeNotifier {
     final remetenteId = modoLoja
         ? (lojaId ?? 'loja')
         : (usuarioCpf ?? conta?.cpf ?? 'usuario');
-
     final remetenteNome = modoLoja
         ? (nomeLoja ?? 'Loja')
         : (usuarioNome ?? conta?.nomeExibicao ?? 'Usuário');
-
     final atendenteNome = modoLoja
         ? (operadorNome ?? conta?.nomeExibicao ?? 'Atendente')
         : '';
-
     final remetenteFoto = modoLoja
         ? (logoLoja ?? '')
         : (usuarioFoto ??
               conta?.fotoExibicao ??
               auth.buscarFotoPorCpf(conta?.cpf ?? ''));
 
-    final destinatarioId = _conversaSelecionada!.identificador;
+    var destinatarioId = _conversaSelecionada!.identificador;
+    if (_conversaSelecionada!.id.startsWith('user_')) {
+      final outro = ChatService.extrairOutroCpf(
+        _conversaSelecionada!.id,
+        remetenteId,
+      );
+      if (outro.length == 11) {
+        destinatarioId = outro;
+      }
+    }
 
     final salt = Random().nextInt(9999);
     final novaMensagem = MensagemChat(
@@ -631,51 +754,18 @@ class MensageriaController extends ChangeNotifier {
     required MensagemChat msgOriginal,
     required ConversaChat destino,
     required AuthProvider auth,
-  }) async {
-    final conta = auth.contaAtual;
-    final remetenteId = modoLoja
-        ? (lojaId ?? 'loja')
-        : (usuarioCpf ?? conta?.cpf ?? 'usuario');
-    final remetenteNome = modoLoja
-        ? (nomeLoja ?? 'Loja')
-        : (usuarioNome ?? conta?.nomeExibicao ?? 'Usuário');
-    final remetenteFoto = modoLoja
-        ? (logoLoja ?? '')
-        : (conta?.fotoExibicao ?? auth.buscarFotoPorCpf(conta?.cpf ?? ''));
-
-    final agora = DateTime.now();
-    final encaminhada = MensagemChat(
-      id: 'msg_${agora.millisecondsSinceEpoch}_${msgOriginal.id.hashCode.abs()}',
-      conversaId: destino.id,
-      remetenteId: remetenteId,
-      remetenteNome: remetenteNome,
-      remetenteFoto: remetenteFoto,
-      destinatarioId: destino.identificador,
-      texto: msgOriginal.texto,
-      dataHora: agora,
-      enviadaPorMim: true,
-      tipo: msgOriginal.tipo,
-      caminhoAnexo: msgOriginal.caminhoAnexo,
-      nomeAnexo: msgOriginal.nomeAnexo,
-      tamanhoAnexo: msgOriginal.tamanhoAnexo,
-      pedidoId: msgOriginal.pedidoId,
-      dadosPedidoJson: msgOriginal.dadosPedidoJson,
-      statusEnvio: 'pendente',
-    );
-
-    // Garante persistência da conversa de destino
-    await ChatService.salvarConversa(
-      destino.copyWith(
-        ultimaMensagem: encaminhada.texto.isNotEmpty
-            ? encaminhada.texto
-            : (encaminhada.caminhoAnexo.isNotEmpty ? '📷 Foto' : 'Mensagem'),
-        dataHoraUltimaMensagem: agora,
-      ),
-    );
-
-    // Salva e despacha via malha de rede
-    await ChatService.enviarMensagemInstantanea(encaminhada);
-  }
+  }) =>
+      MensageriaAcoesDelegate.encaminharMensagem(
+        msgOriginal: msgOriginal,
+        destino: destino,
+        auth: auth,
+        modoLoja: modoLoja,
+        lojaId: lojaId,
+        nomeLoja: nomeLoja,
+        logoLoja: logoLoja,
+        usuarioCpf: usuarioCpf,
+        usuarioNome: usuarioNome,
+      );
 
   Future<void> editarMensagem(MensagemChat msg, String novoTexto) async {
     final agora = DateTime.now();

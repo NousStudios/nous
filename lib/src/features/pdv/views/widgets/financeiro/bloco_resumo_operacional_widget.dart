@@ -124,6 +124,23 @@ class BlocoResumoOperacionalWidget extends StatelessWidget {
         gastosDiarios.fold<double>(0.0, (soma, g) => soma + g.valor);
     final saldoOperacional = faturamento - totalGastosDeclarados;
 
+    // Cálculo do Total Devido (Passivo pendente a prazo: diárias, compras estoque, gastos avulsos)
+    final pagamentosDevidos = loja!.pagamentosFuncionarios
+        .where((p) => p.formaPagamento.toLowerCase().contains('prazo') && !p.pago)
+        .fold<double>(0.0, (s, p) => s + p.valor);
+
+    final comprasEstoqueDevidas = loja!.movimentosEstoque
+        .where((m) =>
+            m.formaPagamento.toLowerCase().contains('prazo') && !m.pago)
+        .fold<double>(0.0, (s, m) => s + m.custoTotal);
+
+    final gastosDiariosDevidos = gastosDiarios
+        .where((g) => g.formaPagamento.toLowerCase().contains('prazo') && !g.pago)
+        .fold<double>(0.0, (s, g) => s + g.valor);
+
+    final totalDevido =
+        pagamentosDevidos + comprasEstoqueDevidas + gastosDiariosDevidos;
+
     final String tituloBloco;
     final String rotuloVendas;
     final String rotuloAReceber;
@@ -343,6 +360,29 @@ class BlocoResumoOperacionalWidget extends StatelessWidget {
                     valor:
                         '${saldoOperacional >= 0 ? "+" : ""}${valorFormatado(saldoOperacional)}',
                     destaque: true,
+                  ),
+                ),
+              ],
+            ),
+          ],
+          if (totalDevido > 0 || totalEmAberto > 0) ...[
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                Expanded(
+                  child: _itemMetricaResumo(
+                    icone: Icons.money_off_csred_outlined,
+                    rotulo: 'Total Devido (A Pagar)',
+                    valor: valorFormatado(totalDevido),
+                    destaque: totalDevido > 0,
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: _itemMetricaResumo(
+                    icone: Icons.pending_actions_outlined,
+                    rotulo: 'A Receber (Pedidos)',
+                    valor: valorFormatado(totalEmAberto),
                   ),
                 ),
               ],

@@ -219,11 +219,18 @@ class PdvPedidosProgramadosHelper {
         final jaExisteHoje = novosPedidosLoja.any((p) {
           if (p.id == idEsperadoHoje) return true;
           if (p.id.startsWith('prog_${prog.id}_') && mesmoDia(p.dataHora, agora)) return true;
+          if (prog.clienteId.isNotEmpty &&
+              p.clienteId == prog.clienteId &&
+              mesmoDia(p.dataHora, agora) &&
+              p.status != StatusPedido.cancelado) {
+            return true;
+          }
           return false;
         });
 
-        if (!jaExisteHoje &&
-            (prog.ultimaDataGerado == null || !mesmoDia(prog.ultimaDataGerado, agora))) {
+        final jaGeradoHoje = mesmoDia(prog.ultimaDataGerado, agora);
+
+        if (!jaExisteHoje && !jaGeradoHoje) {
           maiorNumero++;
           final novoPedido = prog.toPedidoLoja(
             numero: maiorNumero,
@@ -237,8 +244,8 @@ class PdvPedidosProgramadosHelper {
           novosProgramados.add(prog.copyWith(ultimaDataGerado: agora));
           alterou = true;
           continue;
-        } else if (jaExisteHoje &&
-            (prog.ultimaDataGerado == null || !mesmoDia(prog.ultimaDataGerado, agora))) {
+        } else if ((jaExisteHoje || jaGeradoHoje) &&
+            (prog.ultimaDataGerado == null || !jaGeradoHoje)) {
           novosProgramados.add(prog.copyWith(ultimaDataGerado: agora));
           alterou = true;
           continue;

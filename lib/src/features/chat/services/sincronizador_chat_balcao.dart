@@ -60,13 +60,15 @@ class SincronizadorChatBalcao {
             final listaConv = dadosConv['conversas'] as List<dynamic>;
             final idsServidorAtivos = <String>{};
             final excluidasLocais = await ChatService.obterIdsConversasExcluidas();
+            int conversasNovas = 0;
             for (final c in listaConv) {
               if (c is Map<String, dynamic>) {
                 final id = c['id'] as String? ?? '';
                 if (id.isNotEmpty) {
                   idsServidorAtivos.add(id);
                   if (!excluidasLocais.contains(id)) {
-                    await salvarConversaLocal(c);
+                    final alterou = await salvarConversaLocal(c, notificar: false);
+                    if (alterou) conversasNovas++;
                     final fotoRemota = (c['foto'] as String? ?? '').trim();
                     if (fotoRemota.isNotEmpty) {
                       unawaited(
@@ -83,6 +85,9 @@ class SincronizadorChatBalcao {
                   }
                 }
               }
+            }
+            if (conversasNovas > 0) {
+              ChatService.notificarAlteracao();
             }
           }
         }
@@ -106,10 +111,16 @@ class SincronizadorChatBalcao {
         final dados = jsonDecode(body) as Map<String, dynamic>;
         if (dados['sucesso'] == true && dados['mensagens'] is List) {
           final lista = dados['mensagens'] as List<dynamic>;
+          int mensagensNovas = 0;
           for (final item in lista) {
             if (item is Map<String, dynamic>) {
               var msg = MensagemChat.fromJson(item);
-              await ChatService.salvarMensagem(msg, originadaDaRede: true);
+              final alterou = await ChatService.salvarMensagem(
+                msg,
+                originadaDaRede: true,
+                notificar: false,
+              );
+              if (alterou) mensagensNovas++;
 
               if (msg.tipo == 'imagem' && msg.caminhoAnexo.isNotEmpty) {
                 final existeLocal =
@@ -138,6 +149,9 @@ class SincronizadorChatBalcao {
                 }
               }
             }
+          }
+          if (mensagensNovas > 0) {
+            ChatService.notificarAlteracao();
           }
         }
       }
@@ -238,12 +252,15 @@ class SincronizadorChatBalcao {
   }
 
   /// Salva ou mescla uma conversa recebida da rede local
-  static Future<void> salvarConversaLocal(Map<String, dynamic> c) async {
+  static Future<bool> salvarConversaLocal(
+    Map<String, dynamic> c, {
+    bool notificar = true,
+  }) async {
     final db = await ChatService.obterDb();
     final id = c['id'] as String? ?? '';
-    if (id.isEmpty) return;
+    if (id.isEmpty) return false;
 
-    if (await ChatService.isConversaExcluida(id)) return;
+    if (await ChatService.isConversaExcluida(id)) return false;
 
     final ultMsg = c['ultima_mensagem'] ?? c['ultimaMensagem'] ?? '';
     final ultData =
@@ -300,6 +317,37 @@ class SincronizadorChatBalcao {
       nGrupo = tit;
     }
 
+    final existentes = await db.query(
+      'conversas_chat',
+      columns: [
+        'id',
+        'titulo',
+        'ultima_mensagem',
+        'data_hora_ultima_mensagem',
+        'foto',
+        'fixada',
+        'arquivada',
+      ],
+      where: 'id = ?',
+      whereArgs: [id],
+      limit: 1,
+    );
+    final fixadaEsperada =
+        (c['fixada'] as int?) ?? ((c['fixada'] == true) ? 1 : 0);
+    final arquivadaEsperada =
+        (c['arquivada'] as int?) ?? ((c['arquivada'] == true) ? 1 : 0);
+    if (existentes.isNotEmpty) {
+      final ex = existentes.first;
+      if (ex['titulo'] == tit &&
+          ex['ultima_mensagem'] == ultMsg &&
+          ex['data_hora_ultima_mensagem'] == ultData &&
+          ex['foto'] == fotoSalvar &&
+          ex['fixada'] == fixadaEsperada &&
+          ex['arquivada'] == arquivadaEsperada) {
+        return false;
+      }
+    }
+
     await db.insert('conversas_chat', {
       'id': id,
       'titulo': tit,
@@ -315,11 +363,13 @@ class SincronizadorChatBalcao {
       'atualizado_em': atzEm,
       'ultima_mensagem': ultMsg,
       'data_hora_ultima_mensagem': ultData,
-      'arquivada':
-          (c['arquivada'] as int?) ?? ((c['arquivada'] == true) ? 1 : 0),
-      'fixada': (c['fixada'] as int?) ?? ((c['fixada'] == true) ? 1 : 0),
+      'arquivada': arquivadaEsperada,
+      'fixada': fixadaEsperada,
     }, conflictAlgorithm: ConflictAlgorithm.replace);
-    ChatService.notificarAlteracao();
+    if (notificar) {
+      ChatService.notificarAlteracao();
+    }
+    return true;
   }
 
   /// Retorna as mensagens persistidas no banco para envio em bloco pela rede Wi-Fi

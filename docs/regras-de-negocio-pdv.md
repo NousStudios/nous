@@ -69,10 +69,12 @@ O que cada tela mostra está em `MAPA_DO_APP.md`. Aqui ficam **as regras de cál
 ## 7. Financeiro
 
 - **Transparência:** o trabalhador vê os mesmos números do dono.
+- **Total Devido (A Pagar) Unificado:** o resumo operacional agrega em um único indicador soberano todas as contas a pagar da loja: diárias de trabalhadores pendentes (`!pagamento.pago`), compras de estoque a prazo de fornecedores (`movimento.formaPagamento == 'À Prazo' && !movimento.pago`) e compras/gastos do dia declarados pendentes (`!gasto.pago`).
+- **Gastos do Dia e Gastos Fixos Recorrentes (`GastoFixo`):** suporta despesas operacionais avulsas de abertura de portas e despesas fixas com periodicidade configurável (diária, semanal, mensal, dias alternados e dias específicos da semana como toda quinta-feira), com controle de forma de pagamento e status de quitação.
 - **Sugestão de divisão igualitária:** `Cota = BaseRateio / Membros`, com `BaseRateio = Entradas − ComprasEstoque` (resultado operacional do período), **constante** (não degrada conforme os anteriores recebem). Ajustes manuais permitidos e auditados com o delta em relação à sugestão.
 - **Filtro de período:** Hoje, Semana, Mês, Tudo (`PeriodoFinanceiro`) ou personalizado (`PeriodoFinanceiro.personalizado`): um dia (só "De") ou intervalo ("De" e "Até"). Imprimir, DRE e PDF respeitam o período escolhido.
 - **DRE:** Receita Operacional Bruta, (−) CMV, (=) Lucro Bruto + margem %, (−) Pagamentos a Trabalhadores, (=) Resultado Líquido + margem %. PDF próprio de página única (`dre_AAAAMMDD_HHMM.pdf`), separado do relatório geral (`financeiro_AAAAMMDD_HHMM.pdf`).
-- Filtros de data: `_DataInputFormatter` mantém o cursor no lugar ao editar no meio da data.
+- Filtros de data: `DataInputFormatterBR` mantém a posição do cursor baseada estritamente nos dígitos digitados antes da inserção, prevenindo inversão de caracteres na máscara brasileira DD/MM/AAAA.
 
 ## 8. Clientes e fornecedores
 
@@ -91,6 +93,12 @@ O que cada tela mostra está em `MAPA_DO_APP.md`. Aqui ficam **as regras de cál
 - Permissões em `PermissaoLojaConst` (inclui `gerenciarMembros`, `resetarTransacoes`). Padrões por papel em `Loja.permissoesPadraoPorPapel`; personalizações em `Loja.permissoesCargosNativos`; cargos criados em `Loja.cargosPersonalizados` (`vincularCargoAoMembro`, `atribuirCargoMembro`, `adicionarCargoLoja`, `atualizarPapelMembro`).
 - **Normalização de CPF** (`PdvProvider._mesmoCpf`): `meuMembro`, `lojasQueAdministro`, `lojasQueParticipo` e `sairDaLoja` funcionam independentemente de máscara.
 - `AuthProvider` mantém cache de fotos de todas as contas locais (`ContasNousService.carregarTodas()`); foto por `auth.buscarFotoPorCpf` com fallback `pdv.buscarFotoClientePorCpf`.
+- **Barra do Trabalhador e Central de Contrato (`BarraTrabalhadorWidget`, `CentralContratoTrabalhadorDialog`):** padronização do componente de trabalhador nos módulos Status da Loja, Financeiro e Dados do Perfil, integrando:
+  - Registro de ponto eletrônico soberano (`RegistroPontoMembro`) com cálculo automático de horas/minutos trabalhados.
+  - Escala semanal de trabalho (`EscalaTrabalhoMembro`) com dias ativos e horários programados.
+  - Contrato de trabalho (`ContratoTrabalhoMembro`) com anexo de documentos interativos via `file_selector`.
+  - Transparência radical com respeito à soberania do indivíduo: cada trabalhador pode manter suas informações de diárias, ponto, escala e contrato privadas através do painel de Privacidade da Conta Nous, exigindo autorização expressa para visualização por outros membros.
+  - Hierarquia universal de nomes em toda a aplicação: Nome Completo (se autorizado) $\rightarrow$ Apelido $\rightarrow$ @Usuário Nous.
 
 ## 10. Persistência e backup
 

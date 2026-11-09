@@ -404,6 +404,7 @@ class SincronizadorUsuariosRede {
                   mesclada.cpf,
                   mesclada.foto,
                 );
+                pdvProvider?.sincronizarDadosUsuarioEmLojas(mesclada);
 
                 final cpfAtivo = pdvProvider?.cpfAtual ??
                     authProvider?.contaAtual?.cpf ??
@@ -545,6 +546,7 @@ class SincronizadorUsuariosRede {
               if (pdvProvider != null) {
                 await pdvProvider.adicionarOuAtualizarLoja(lojaConsolidada);
               }
+              await _extrairContasNousDeLoja(lojaConsolidada);
               houveAlteracao = true;
             } catch (_) {}
           }
@@ -573,5 +575,51 @@ class SincronizadorUsuariosRede {
     } finally {
       _sincronizandoPerfisLojas = false;
     }
+  }
+
+  static Future<void> _extrairContasNousDeLoja(Loja loja) async {
+    try {
+      for (final m in loja.membros) {
+        final mCpf = m.cpf.replaceAll(RegExp(r'\D'), '');
+        if (mCpf.length == 11) {
+          final existente = await ContasNousService.buscarPorCpf(mCpf);
+          if (existente == null &&
+              m.nome.trim().isNotEmpty &&
+              m.nome.toLowerCase() != 'blackview' &&
+              m.nome.toLowerCase() != 'celular') {
+            await ContasNousService.salvar(
+              UsuarioNous(
+                cpf: mCpf,
+                nome: m.nome.trim(),
+                apelido: m.nome.trim(),
+                dataNascimento: '',
+              ),
+            );
+          }
+        }
+      }
+      for (final c in loja.clientesLoja) {
+        final cCpf = c.cnpj.replaceAll(RegExp(r'\D'), '');
+        if (cCpf.length == 11) {
+          final existente = await ContasNousService.buscarPorCpf(cCpf);
+          if (existente == null &&
+              c.nome.trim().isNotEmpty &&
+              c.nome.toLowerCase() != 'blackview' &&
+              c.nome.toLowerCase() != 'celular') {
+            await ContasNousService.salvar(
+              UsuarioNous(
+                cpf: cCpf,
+                nome: c.nome.trim(),
+                apelido: c.nome.trim(),
+                foto: c.foto,
+                dataNascimento: '',
+              ),
+            );
+          } else if (existente != null && existente.foto.isEmpty && c.foto.isNotEmpty) {
+            await ContasNousService.salvar(existente.copyWith(foto: c.foto));
+          }
+        }
+      }
+    } catch (_) {}
   }
 }

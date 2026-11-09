@@ -37,6 +37,11 @@ String _rotuloUnidadeCurto(UnidadeItemLoja u) {
 /// alertas de estoque baixo e mensagens de chat.
 class NotificacoesDialog {
   static Future<void> mostrar(BuildContext context, {String? lojaId}) async {
+    if (lojaId != null) {
+      await context.read<NotificacoesProvider>().carregarDispensadasLoja(lojaId);
+      if (!context.mounted) return;
+    }
+
     final alertaEscolhido = await showDialog<
         ({ItemLoja item, double saldo, String lojaNome, String lojaId})?>(
       context: context,
@@ -126,8 +131,16 @@ class NotificacoesDialog {
 
     pdv.registrarAcao(loja.id, acao);
 
-    notificacoes
-        .dispensarNaSessao('alerta_estoque_${alerta.lojaId}_${alerta.item.id}');
+    if (alerta.lojaId.isNotEmpty) {
+      notificacoes.dispensarNotificacoesLoja(
+        alerta.lojaId,
+        ['alerta_estoque_${alerta.lojaId}_${alerta.item.id}'],
+      );
+    } else {
+      notificacoes.dispensarNaSessao(
+        'alerta_estoque_${alerta.lojaId}_${alerta.item.id}',
+      );
+    }
 
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -194,7 +207,7 @@ class _NotificacoesConteudo extends StatelessWidget {
         : pdv
             .itensEstoqueBaixoPorLoja(lojaId!)
             .where((a) => !notificacoes
-                .estaDispensadaNaSessao('alerta_estoque_${a.lojaId}_${a.item.id}'))
+                .estaDispensadaNaLoja(lojaId!, 'alerta_estoque_${a.lojaId}_${a.item.id}'))
             .toList();
 
     return FutureBuilder<List<MensagemChat>>(
@@ -206,7 +219,9 @@ class _NotificacoesConteudo extends StatelessWidget {
       builder: (context, snapshotMsgs) {
         final todasMensagens = snapshotMsgs.data ?? const <MensagemChat>[];
         final mensagens = todasMensagens
-            .where((m) => !notificacoes.estaDispensadaNaSessao('msg_${m.id}'))
+            .where((m) => lojaId != null
+                ? !notificacoes.estaDispensadaNaLoja(lojaId!, 'msg_${m.id}')
+                : !notificacoes.estaDispensadaNaSessao('msg_${m.id}'))
             .toList();
         final vazio =
             convites.isEmpty && alertasEstoque.isEmpty && mensagens.isEmpty;
@@ -278,7 +293,18 @@ class _NotificacoesConteudo extends StatelessWidget {
                                 for (final m in mensagens) {
                                   ids.add('msg_${m.id}');
                                 }
-                                notificacoes.dispensarTodasNaSessao(ids);
+                                if (lojaId != null) {
+                                  notificacoes.dispensarNotificacoesLoja(
+                                    lojaId!,
+                                    ids,
+                                  );
+                                  ChatService.marcarMensagensDaLojaComoLidas(
+                                    lojaId!,
+                                    cpfUsuario,
+                                  );
+                                } else {
+                                  notificacoes.dispensarTodasNaSessao(ids);
+                                }
                               },
                             )
                           else
@@ -329,12 +355,17 @@ class _NotificacoesConteudo extends StatelessWidget {
                                 for (final m in mensagens) {
                                   ids.add('msg_${m.id}');
                                 }
-                                notificacoes.dispensarTodasNaSessao(ids);
                                 if (lojaId != null) {
+                                  notificacoes.dispensarNotificacoesLoja(
+                                    lojaId!,
+                                    ids,
+                                  );
                                   ChatService.marcarMensagensDaLojaComoLidas(
                                     lojaId!,
                                     cpfUsuario,
                                   );
+                                } else {
+                                  notificacoes.dispensarTodasNaSessao(ids);
                                 }
                               },
                             ),
@@ -383,14 +414,19 @@ class _NotificacoesConteudo extends StatelessWidget {
                                       secondaryBackground:
                                           _buildDismissibleFundoSecundario(),
                                       onDismissed: (_) {
-                                        notificacoes
-                                            .dispensarNaSessao('msg_${msg.id}');
                                         if (lojaId != null) {
+                                          notificacoes.dispensarNotificacoesLoja(
+                                            lojaId!,
+                                            ['msg_${msg.id}'],
+                                          );
                                           ChatService
                                               .marcarMensagensDaLojaComoLidas(
                                             lojaId!,
                                             cpfUsuario,
                                           );
+                                        } else {
+                                          notificacoes
+                                              .dispensarNaSessao('msg_${msg.id}');
                                         }
                                       },
                                       child: CardNotificacaoChat(
@@ -461,9 +497,16 @@ class _NotificacoesConteudo extends StatelessWidget {
                                       secondaryBackground:
                                           _buildDismissibleFundoSecundario(),
                                       onDismissed: (_) {
-                                        notificacoes.dispensarNaSessao(
-                                          'alerta_estoque_${alerta.lojaId}_${alerta.item.id}',
-                                        );
+                                        if (lojaId != null) {
+                                          notificacoes.dispensarNotificacoesLoja(
+                                            lojaId!,
+                                            ['alerta_estoque_${alerta.lojaId}_${alerta.item.id}'],
+                                          );
+                                        } else {
+                                          notificacoes.dispensarNaSessao(
+                                            'alerta_estoque_${alerta.lojaId}_${alerta.item.id}',
+                                          );
+                                        }
                                       },
                                       child: CardNotificacaoEstoque(
                                         theme: theme,

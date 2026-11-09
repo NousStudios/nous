@@ -479,6 +479,15 @@ class _NovaVendaConteudoState extends State<_NovaVendaConteudo> {
                                 _blocoProduto(),
                                 const SizedBox(height: 12),
                                 _blocoAjustes(),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(width: 16),
+                          Expanded(
+                            flex: 5,
+                            child: Column(
+                              children: [
+                                _blocoComanda(),
                                 const SizedBox(height: 12),
                                 _blocoPagamento(),
                                 const SizedBox(height: 12),
@@ -493,11 +502,6 @@ class _NovaVendaConteudoState extends State<_NovaVendaConteudo> {
                                 _botaoConcluir(),
                               ],
                             ),
-                          ),
-                          const SizedBox(width: 16),
-                          Expanded(
-                            flex: 5,
-                            child: _blocoComanda(expandirAltura: true),
                           ),
                         ],
                       ),

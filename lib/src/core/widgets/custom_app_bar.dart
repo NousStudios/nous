@@ -465,7 +465,7 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
                 : pdv
                     .itensEstoqueBaixoPorLoja(lojaId!)
                     .where((a) => !notificacoes
-                        .estaDispensadaNaSessao('alerta_estoque_${a.lojaId}_${a.item.id}'))
+                        .estaDispensadaNaLoja(lojaId!, 'alerta_estoque_${a.lojaId}_${a.item.id}'))
                     .length;
             final temNotificacaoAtiva =
                 quantidadeConvites > 0 || totalEstoqueBaixo > 0 || temMensagens;

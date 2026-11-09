@@ -7,12 +7,12 @@ Arquivos principais: `pdv/services/rede_local/servidor_rede_local.dart`, `pdv/se
 ## 1. Arquitetura
 
 - Motor nativo do Dart (`dart:io`: `HttpServer`, `WebSocket`, `RawDatagramSocket`). Sem internet, sem nuvem.
-- **Servidor balcão** (`ServidorRedeLocal`): computador do caixa, porta **8080**. Anuncia presença por **broadcast UDP a cada 3 s na porta 45454** (`nous_loja_anuncio`).
-- **Terminal móvel** (`ClienteRedeLocal`): escuta a porta 45454, lista balcões e conecta (ou conexão manual por IP/porta). Reconexão automática e heartbeat ping/pong.
+- **Servidor balcão** (`ServidorRedeLocal`): computador do caixa, porta **8080**. Anuncia presença por **broadcast UDP a cada 3 s na porta 45454** (`nous_loja_anuncio`) para todos os endereços de broadcast das interfaces de rede físicas locais (filtrando adaptadores virtuais de WSL/Docker/VMs) e `255.255.255.255`.
+- **Terminal móvel** (`ClienteRedeLocal`): escuta a porta 45454 e dispara simultaneamente **radar ativo de sub-rede HTTP** (consultando `/api/status` na faixa local em lotes paralelos rápidos e testando o último IP salvo prioritariamente), garantindo conexão instantânea mesmo se o roteador ou o sistema Android bloquear pacotes UDP broadcast.
 - **Auto-conexão proibida:** o computador que hospeda o servidor não pode se conectar a si mesmo como terminal móvel (evita tempestade de ecos e loops de WebSocket).
 - **Presença do host:** ao iniciar o servidor, a própria máquina aparece na lista de pareados (`Icons.desktop_windows_rounded`, `Platform.localHostname`).
 - **Identificação:** cada terminal envia `nomeDispositivo`, `cpf` ativo e `nomeUsuario`.
-- **Android:** `AndroidManifest.xml` com `INTERNET`, `ACCESS_NETWORK_STATE`, `ACCESS_WIFI_STATE` e `usesCleartextTraffic="true"`.
+- **Android:** `AndroidManifest.xml` com `INTERNET`, `ACCESS_NETWORK_STATE`, `ACCESS_WIFI_STATE`, `CHANGE_WIFI_MULTICAST_STATE` e `usesCleartextTraffic="true"`.
 
 ## 2. Endpoints REST e WebSocket
 
@@ -48,6 +48,7 @@ Mensagens WebSocket:
 - `chamada_aceita` e `chamada_rejeitada`: resposta do receptor ao convite de ligação.
 - `chamada_sinal_sdp` e `chamada_candidato_ice`: troca de ofertas/respostas SDP e candidatos ICE locais (WebRTC P2P LAN) para handshake direto de mídia sem servidores externos.
 - `chamada_encerrada`: notificação de encerramento de ligação ativa.
+- **Sincronização em Lote e Recarga Cirúrgica de Mensagens (`recarregarMensagensConversaAtiva`):** Durante a drenagem ou sincronização via `/api/chat/conversas/sync` ou `/api/chat/mensagens`, inserções no SQLite ocorrem em silêncio operacional (`notificar: false`), disparando um único aviso consolidado ao final. A interface reage com recarga cirúrgica sub-5ms das mensagens da conversa aberta, aplicando debounce de 300ms na lista geral de contatos para eliminar tempestades de rebuilds.
 
 ## 3. Autorização de terminais e Modos de Operação (Loja vs Usuário Nous)
 
@@ -79,6 +80,7 @@ No primeiro `GET /api/loja` de um terminal novo, o servidor mostra janela modal 
 - **Aprovação mandatória com seletor Cliente vs Membro:** ao receber nova solicitação remota em `GET /api/loja`, o balcão dispara som de alerta e exibe diálogo interativo com as opções: (1) **Cliente** (cadastra o usuário em `loja.clientesLoja`, sem adicioná-lo à equipe de membros, preparando a base para auto-atendimento de pedidos sem garçom) ou (2) **Novo Membro da Loja** (associa o usuário como membro `PapelMembro.funcionario` em `loja.membros`). Se recusado ou atingido timeout de 30s, a requisição é rejeitada com 403.
 - **Desduplicação:** o mesmo CPF em vários aparelhos é reconhecido; referências redundantes à loja do próprio dono são purgadas.
 - Alterações da ficha (apelido, foto, dados pessoais, e-mails) propagam por `ClienteRedeLocal.enviarUsuario` / `POST /api/usuario`. Na inspeção de membros (`_buscarContaPorCpf` em `DadosPerfilView`), a ficha do balcão tem prioridade e enriquece os dados.
+- **Sincronização Cruzada de Contas Nous e Lojas:** Quando qualquer loja é sincronizada (via handshake ou fusão de perfis), o sistema extrai e cadastra automaticamente no cofre de Contas Nous todos os membros e clientes com CPF válido. De forma inversa, atualizações em contas Nous enriquecem e mantêm atualizados em tempo real os nomes e fotos dos membros e clientes em todas as lojas vinculadas (`PdvProvider.sincronizarDadosUsuarioEmLojas`).
 
 ## 6. Malha de autocura mútua (self-healing mesh)
 
@@ -99,7 +101,7 @@ No primeiro `GET /api/loja` de um terminal novo, o servidor mostra janela modal 
 - **Gravação atômica:** leitura do stream agregada ou pipe protegido (evita arquivos corrompidos de 0 bytes).
 - **Blindagem contra sobrescrita (`LojasService.consolidarLojaComImagensLocais`):** toda atualização de loja passa por ela. Se a loja remota traz caminhos inexistentes localmente mas o cofre local tem fotos válidas, as locais são preservadas. Quando a atualização vem intencionalmente do usuário ou terminal móvel (`manterItensAusentes: false`), itens, categorias e registros excluídos não são ressuscitados indevidamente.
 - **Autocura na inicialização (`LojasService.autocuraImagensDeLojas`, em `main.dart`):** recupera caminhos inválidos a partir dos arquivos reais e de `Nous/backups/*.json`. Também `ImagemService.unificarDiretoriosImagens()` consolida pastas legadas.
-- **Fotos e Mídias no Chat (`ChatService` & `ClienteRedeLocal`):** ao enviar uma imagem em uma conversa, os bytes binários são codificados em Base64 no despacho do WebSocket/REST para gravação física imediata (`salvarBytesImagemLocal`) na pasta de imagens do destinatário. Se uma mensagem recebida ou recuperada no histórico apontar para uma foto não encontrada localmente, a interface aciona `ClienteRedeLocal.baixarImagemRemota` sob demanda via `/api/imagem`, atualizando o caminho da mensagem para a cópia física em cache e exibindo a miniatura real sem depender do disco do servidor.
+- **Fotos e Mídias no Chat (`ChatService` & `ClienteRedeLocal`):** imagens e áudios leves (até 64 KB, `ChatMediaService.limiteBytesBase64Ws`) são transmitidos em Base64 para disponibilidade instantânea. Mídias maiores que 64 KB trafegam por stream binário HTTP em background (`/api/upload_imagem` ou `/api/upload_anexo`), mantendo o WebSocket ultraleve (< 500 bytes por mensagem) e prevenindo engasgos no socket. No receptor, ao receber mensagem com caminho remoto, o cliente dispara download assíncrono sob demanda (`ClienteRedeLocal.baixarImagemRemota` ou `baixarAudioRemoto`) e atualiza o banco SQLite com a cópia física em cache, disparando notificação reativa na interface. Se o remetente for o próprio balcão, o caminho é sanitizado para formato relativo canônico (`imagens/nome_arquivo`), garantindo paridade entre nós Android e Windows.
 - **Áudio:** `PlayerAudioService` resolve o caminho localmente em cache de subpastas ou baixa sob demanda via `ClienteRedeLocal.baixarAudioRemoto` antes de iniciar a reprodução. O reprodutor compara nomes de arquivos (`ehMesmoAudio`) para parear o arquivo remoto ao cache local no Android.
 
 ## 8. Proteções
@@ -109,6 +111,7 @@ No primeiro `GET /api/loja` de um terminal novo, o servidor mostra janela modal 
 - **Eliminação de ecos reflexivos:** o endpoint `/api/sincronizar_perfis_usuario` não retransmite eventos de WebSocket desnecessários que geravam ping-pong contínuo de sincronização entre balcão e terminais.
 - **Debounce de 150 ms** nas ações do usuário; eventos críticos (ex.: exclusão de membro) vão imediatamente.
 - Timer de pedidos programados roda **só no balcão** (servidor).
+- **Mensageria P2P Canônica e Fila Outbox:** conversas entre usuários geram chave canônica simétrica `user_${min}_user_${max}`. No receptor, o campo `identificador` grava sempre o CPF do interlocutor (`outroCpf`), com autoria `enviadaPorMim: false` em mensagens de terceiros. Mensagens offline entram em `status_envio = 'pendente'` e são drenadas automaticamente (`ChatService.drenarFilaDeSaida()`) na reconexão à rede local.
 - Descoberta UDP: fechar o socket (`pararDescoberta()`) ao terminar, para poupar bateria e threads no Android.
 
 ## 9. Atualização do app pela rede

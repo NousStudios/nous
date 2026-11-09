@@ -110,8 +110,13 @@ class _MensageriaViewState extends State<MensageriaView> {
 
   void _aoAtualizarChat() {
     if (!mounted || _controller.isDisposed) return;
+    // 1. Atualização ultra-rápida (sub-5ms) das mensagens na conversa aberta
+    if (_controller.conversaSelecionada != null) {
+      _controller.recarregarMensagensConversaAtiva();
+    }
+    // 2. Debounce na recarga da lista geral de contatos e lojas
     _debounceAtualizarChat?.cancel();
-    _debounceAtualizarChat = Timer(const Duration(milliseconds: 120), () {
+    _debounceAtualizarChat = Timer(const Duration(milliseconds: 300), () {
       if (!mounted || _controller.isDisposed) return;
       final auth = context.read<AuthProvider>();
       final pdv = context.read<PdvProvider>();

@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
+import 'package:path/path.dart' as p;
 import 'package:nous/src/features/chat/models/conversa_chat.dart';
 import 'package:nous/src/features/chat/models/mensagem_chat.dart';
 import 'package:nous/src/features/chat/services/chat_media_service.dart';
@@ -61,6 +62,10 @@ class ChatSincronizacaoService {
 
       final servidor = ServidorRedeLocal();
       if (servidor.ativo) {
+        if (mensagem.caminhoAnexo.isNotEmpty) {
+          final nomeBase = p.basename(mensagem.caminhoAnexo);
+          dadosEnvio['caminhoAnexo'] = 'imagens/$nomeBase';
+        }
         servidor.notificarTodos({
           'tipo': 'mensagem_chat',
           'mensagem': dadosEnvio,

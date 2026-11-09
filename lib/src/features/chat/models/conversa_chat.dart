@@ -191,7 +191,7 @@ class ConversaChat {
           json['ultima_mensagem'] as String? ??
           '',
       dataHoraUltimaMensagem: dataHoraStr != null
-          ? DateTime.tryParse(dataHoraStr) ?? DateTime.now()
+          ? (DateTime.tryParse(dataHoraStr)?.toLocal() ?? DateTime.now())
           : DateTime.now(),
       naoLidasCount: json['naoLidasCount'] as int? ?? 0,
       mensagens: (json['mensagens'] as List<dynamic>? ?? const [])
@@ -200,9 +200,9 @@ class ConversaChat {
       fixada: json['fixada'] == true || json['fixada'] == 1,
       arquivada: json['arquivada'] == true || json['arquivada'] == 1,
       atualizadaEm: json['atualizadaEm'] != null
-          ? DateTime.tryParse(json['atualizadaEm'] as String)
+          ? DateTime.tryParse(json['atualizadaEm'] as String)?.toLocal()
           : (json['atualizado_em'] != null
-                ? DateTime.tryParse(json['atualizado_em'] as String)
+                ? DateTime.tryParse(json['atualizado_em'] as String)?.toLocal()
                 : null),
     );
   }
