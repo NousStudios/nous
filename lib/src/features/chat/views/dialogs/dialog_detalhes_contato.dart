@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'package:nous/src/core/theme/theme_controller.dart';
 import 'package:nous/src/features/auth/models/usuario_nous.dart';
+import 'package:nous/src/features/auth/providers/auth_provider.dart';
 import 'package:nous/src/features/auth/services/contas_nous_service.dart';
 import 'package:nous/src/features/auth/views/perfil_social_view.dart';
 import 'package:nous/src/features/chat/models/conversa_chat.dart';
@@ -230,13 +232,29 @@ class DialogDetalhesContato {
                             onPressed: () async {
                               Navigator.pop(ctx);
                               UsuarioNous? usuario;
-                              final cpfLimpo = conversaAtual.identificador
+                              var cpfLimpo = conversaAtual.identificador
                                   .replaceAll(RegExp(r'\D'), '');
+                              if (cpfLimpo.length != 11 &&
+                                  conversaAtual.id.startsWith('user_')) {
+                                final meuCpfLogado = ChatService.normalizarCpf(
+                                  contaLogada?.cpf ?? '',
+                                );
+                                cpfLimpo = ChatService.extrairOutroCpf(
+                                  conversaAtual.id,
+                                  meuCpfLogado,
+                                );
+                              }
+
                               if (cpfLimpo.length == 11) {
                                 usuario = await ContasNousService.buscarPorCpf(
                                   cpfLimpo,
                                 );
+                                if (usuario == null && context.mounted) {
+                                  final auth = context.read<AuthProvider?>();
+                                  usuario = auth?.buscarContaPorCpf(cpfLimpo);
+                                }
                               }
+
                               final fotoDoChat = ResolvedorFotoChat.instancia
                                   .obterFotoEmCache(cpfLimpo);
                               final fotoMelhor = fotoDoChat.isNotEmpty
@@ -249,7 +267,9 @@ class DialogDetalhesContato {
                                 }
                               } else {
                                 usuario = UsuarioNous(
-                                  cpf: conversaAtual.identificador,
+                                  cpf: cpfLimpo.length == 11
+                                      ? cpfLimpo
+                                      : conversaAtual.identificador,
                                   nome: conversaAtual.titulo,
                                   apelido: '',
                                   foto: fotoMelhor,

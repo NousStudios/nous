@@ -317,8 +317,9 @@ class _FinanceiroViewState extends State<FinanceiroView> {
         child: ValueListenableBuilder<AppTheme>(
           valueListenable: ThemeController.currentTheme,
           builder: (context, theme, child) {
-            final loja =
-                context.watch<PdvProvider>().buscarPorId(widget.lojaId);
+            final loja = context.select<PdvProvider, Loja?>(
+              (p) => p.buscarPorId(widget.lojaId),
+            );
             final larguraDaTela = MediaQuery.sizeOf(context).width;
             final expandido =
                 (loja?.layoutExpandido ?? false) && larguraDaTela > 850;

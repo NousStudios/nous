@@ -5,6 +5,7 @@ import 'package:nous/src/core/theme/theme_controller.dart';
 import 'package:nous/src/core/services/janela_windows_service.dart';
 import 'package:nous/src/core/widgets/custom_app_bar.dart';
 import 'package:nous/src/features/auth/providers/auth_provider.dart';
+import 'package:nous/src/features/pdv/models/loja.dart';
 import 'package:nous/src/features/pdv/models/membro_loja.dart';
 import 'package:nous/src/features/pdv/providers/pdv_provider.dart';
 import 'package:nous/src/features/pdv/services/rede_local/cliente_rede_local.dart';
@@ -132,7 +133,9 @@ class _StatusLojaViewState extends State<StatusLojaView> {
   }
 
   Widget _blocoStatus(AppTheme theme) {
-    final loja = context.watch<PdvProvider>().buscarPorId(widget.lojaId);
+    final loja = context.select<PdvProvider, Loja?>(
+      (p) => p.buscarPorId(widget.lojaId),
+    );
     final totalMembros = (loja?.membros ?? widget.membros).length;
 
     return Container(
@@ -313,8 +316,9 @@ class _StatusLojaViewState extends State<StatusLojaView> {
         child: ValueListenableBuilder<AppTheme>(
           valueListenable: ThemeController.currentTheme,
           builder: (context, theme, child) {
-            final loja =
-                context.watch<PdvProvider>().buscarPorId(widget.lojaId);
+            final loja = context.select<PdvProvider, Loja?>(
+              (p) => p.buscarPorId(widget.lojaId),
+            );
             if (loja != null && loja.aberta != _online) {
               _online = loja.aberta;
             }

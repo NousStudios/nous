@@ -150,8 +150,11 @@ class ResolvedorFotoChat {
 
     final auth = context.read<AuthProvider?>();
     final pdv = context.read<PdvProvider?>();
-    final meuCpf = ChatService.normalizarCpf(auth?.contaAtual?.cpf ?? '');
-    final minhaFoto = auth?.contaAtual?.fotoExibicao ?? '';
+    final meuCpfBruto = auth?.contaAtual?.cpf ??
+        (auth != null && auth.cpf.isNotEmpty ? auth.cpf : (pdv?.cpfAtual ?? ''));
+    final meuCpf = ChatService.normalizarCpf(meuCpfBruto);
+    final minhaFoto = auth?.contaAtual?.fotoExibicao ??
+        (meuCpf.isNotEmpty && auth != null ? auth.buscarFotoPorCpf(meuCpf) : '');
     final minhaFotoBase = auth?.contaAtual?.foto ?? '';
 
     // 1. Identificar se a conversa é estritamente com uma LOJA

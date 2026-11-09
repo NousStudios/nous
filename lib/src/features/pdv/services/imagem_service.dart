@@ -1,4 +1,6 @@
 import 'dart:io';
+import 'dart:typed_data';
+import 'dart:ui' as ui;
 import 'package:flutter/widgets.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
@@ -279,6 +281,57 @@ class ImagemService {
     return extensoesImagem.contains(ext);
   }
 
+  /// Redimensiona e otimiza imagens grandes para evitar sobrecarga de memória (OOM)
+  /// e lentidão de rede local, preservando nitidez máxima na exibição da UI.
+  static Future<Uint8List> otimizarBytesImagem(
+    Uint8List bytes, {
+    int maxDimensao = 1200,
+  }) async {
+    if (bytes.lengthInBytes <= 250 * 1024) {
+      return bytes;
+    }
+    try {
+      final codec = await ui.instantiateImageCodec(bytes);
+      final frameInfo = await codec.getNextFrame();
+      final img = frameInfo.image;
+      final w = img.width;
+      final h = img.height;
+
+      if (w <= maxDimensao && h <= maxDimensao) {
+        return bytes;
+      }
+
+      int targetW = w;
+      int targetH = h;
+      if (w >= h) {
+        targetW = maxDimensao;
+        targetH = (h * maxDimensao / w).round().clamp(1, maxDimensao);
+      } else {
+        targetH = maxDimensao;
+        targetW = (w * maxDimensao / h).round().clamp(1, maxDimensao);
+      }
+
+      final resizedCodec = await ui.instantiateImageCodec(
+        bytes,
+        targetWidth: targetW,
+        targetHeight: targetH,
+      );
+      final resizedFrame = await resizedCodec.getNextFrame();
+      final byteData = await resizedFrame.image.toByteData(
+        format: ui.ImageByteFormat.png,
+      );
+      if (byteData != null) {
+        final resizedBytes = byteData.buffer.asUint8List();
+        if (resizedBytes.lengthInBytes < bytes.lengthInBytes) {
+          return resizedBytes;
+        }
+      }
+    } catch (_) {
+      // Em caso de falha de codec ou ambiente headless, fallback seguro
+    }
+    return bytes;
+  }
+
   static Future<String?> salvarImagemLocal(String caminhoOriginal) async {
     try {
       final arquivoOriginal = File(caminhoOriginal);
@@ -298,6 +351,15 @@ class ImagemService {
 
       final novoNome = 'img_${gerarIdUnico()}.$ext';
       final destino = File('${pasta.path}/$novoNome');
+
+      if (extensoesImagem.contains(ext) && tamanho > 250 * 1024) {
+        try {
+          final bytes = await arquivoOriginal.readAsBytes();
+          final otimizados = await otimizarBytesImagem(bytes);
+          await destino.writeAsBytes(otimizados);
+          return destino.path;
+        } catch (_) {}
+      }
 
       await arquivoOriginal.copy(destino.path);
       return destino.path;
@@ -327,6 +389,14 @@ class ImagemService {
           ? nomeSugerido.trim()
           : 'img_${gerarIdUnico()}.$ext';
       final destino = File('${pasta.path}/$nomeFinal');
+
+      if (bytes.length > 250 * 1024 && extensoesImagem.contains(ext)) {
+        try {
+          final otimizados = await otimizarBytesImagem(Uint8List.fromList(bytes));
+          await destino.writeAsBytes(otimizados);
+          return destino.path;
+        } catch (_) {}
+      }
 
       await destino.writeAsBytes(bytes);
       return destino.path;

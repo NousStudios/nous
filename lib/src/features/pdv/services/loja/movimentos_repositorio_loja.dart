@@ -4,7 +4,7 @@ import 'package:nous/src/features/pdv/models/movimento_estoque.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
 class MovimentosRepositorioLoja {
-  static const int limitePadraoMemoria = 2000;
+  static const int limitePadraoMemoria = 120;
 
   static Future<List<MovimentoEstoque>> carregarParaMemoria(
     String lojaId, {

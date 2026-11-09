@@ -214,11 +214,32 @@ class MensageriaController extends ChangeNotifier {
   }) async {
     if (_disposed) return;
     final conta = auth.contaAtual;
-    if (usuarioCpf == null || usuarioCpf!.isEmpty) {
-      usuarioCpf = conta?.cpf ?? auth.cpf;
+    if (usuarioCpf == null || usuarioCpf!.trim().isEmpty) {
+      final cpfCandidato = conta?.cpf ??
+          (auth.cpf.trim().isNotEmpty
+              ? auth.cpf.trim()
+              : (pdv.cpfAtual?.trim() ?? ''));
+      if (cpfCandidato.isNotEmpty) {
+        usuarioCpf = cpfCandidato;
+      } else {
+        final cpfLocal = await ChatService.obterCpfLogadoLocal();
+        if (_disposed) return;
+        if (cpfLocal.isNotEmpty) usuarioCpf = cpfLocal;
+      }
     }
     if (usuarioNome == null || usuarioNome!.isEmpty) {
       usuarioNome = conta?.nomeExibicao ?? conta?.nome;
+      if ((usuarioNome == null || usuarioNome!.isEmpty) &&
+          usuarioCpf != null &&
+          usuarioCpf!.isNotEmpty) {
+        final u = auth.buscarContaPorCpf(usuarioCpf!);
+        if (u != null) {
+          usuarioNome = u.nomeExibicao.isNotEmpty ? u.nomeExibicao : u.nome;
+          usuarioFoto ??= u.fotoExibicao.isNotEmpty ? u.fotoExibicao : u.foto;
+          usuarioApelido ??=
+              u.apelidoExibicao.isNotEmpty ? u.apelidoExibicao : u.apelido;
+        }
+      }
     }
     if (usuarioFoto == null || usuarioFoto!.isEmpty) {
       usuarioFoto = conta?.fotoExibicao ?? conta?.foto;
@@ -326,13 +347,18 @@ class MensageriaController extends ChangeNotifier {
   }) async {
     if (_disposed) return;
     final contaLogada = auth.contaAtual;
-    if (usuarioCpf == null || usuarioCpf!.isEmpty) {
-      usuarioCpf = contaLogada?.cpf;
-    }
-    if (usuarioCpf == null || usuarioCpf!.isEmpty) {
-      final cpfLocal = await ChatService.obterCpfLogadoLocal();
-      if (_disposed) return;
-      if (cpfLocal.isNotEmpty) usuarioCpf = cpfLocal;
+    if (usuarioCpf == null || usuarioCpf!.trim().isEmpty) {
+      final cpfCandidato = contaLogada?.cpf ??
+          (auth.cpf.trim().isNotEmpty
+              ? auth.cpf.trim()
+              : (pdv.cpfAtual?.trim() ?? ''));
+      if (cpfCandidato.isNotEmpty) {
+        usuarioCpf = cpfCandidato;
+      } else {
+        final cpfLocal = await ChatService.obterCpfLogadoLocal();
+        if (_disposed) return;
+        if (cpfLocal.isNotEmpty) usuarioCpf = cpfLocal;
+      }
     }
 
     final resultado = await MontadorConversasChat.montarConversas(

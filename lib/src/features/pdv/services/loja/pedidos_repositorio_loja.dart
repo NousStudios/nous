@@ -12,7 +12,7 @@ class PedidosRepositorioLoja {
   /// pedidos concluídos/cancelados para consumo em memória sem sobrecarregar o Heap.
   static Future<List<PedidoLoja>> carregarParaMemoria(
     String lojaId, {
-    int? limiteHistorico = 300,
+    int? limiteHistorico = 80,
     DatabaseExecutor? executor,
   }) async {
     final db = executor ?? await BancoDadosService.db;

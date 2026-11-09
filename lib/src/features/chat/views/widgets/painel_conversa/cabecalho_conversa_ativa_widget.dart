@@ -206,10 +206,44 @@ class CabecalhoConversaAtivaWidget extends StatelessWidget {
                                     ? '$outrosMembrosOnline online'
                                     : 'Ausente';
                               } else if (conversa.ehLoja) {
-                                estaOnline =
-                                    servidor.ativo || cliente.conectado;
-                                rotuloPresenca =
-                                    estaOnline ? 'Online' : 'Ausente';
+                                final pdv = context.read<PdvProvider>();
+                                final idBase = (conversa.lojaId != null &&
+                                        conversa.lojaId!.isNotEmpty)
+                                    ? conversa.lojaId!
+                                    : conversa.identificador;
+                                final lojaIdAlvo = idBase.startsWith('loja_')
+                                    ? idBase.substring(5)
+                                    : idBase;
+                                final lojaObjeto = pdv.buscarPorId(lojaIdAlvo) ??
+                                    pdv.buscarPorId('loja_$lojaIdAlvo');
+                                final lojaAberta = lojaObjeto?.aberta ?? false;
+
+                                if (!lojaAberta) {
+                                  estaOnline = false;
+                                  rotuloPresenca = 'Fechada';
+                                } else {
+                                  final cpfsEquipe = (lojaObjeto?.membros ?? [])
+                                      .map((m) => ChatService.normalizarCpf(m.cpf))
+                                      .where((c) => c.isNotEmpty)
+                                      .toSet();
+
+                                  final cpfsOnline = presencas
+                                      .map((p) => ChatService.normalizarCpf(p.cpf ?? ''))
+                                      .where((c) => c.isNotEmpty)
+                                      .toSet();
+
+                                  final algumMembroOnline = cpfsEquipe.any(
+                                    (cpfMembro) =>
+                                        cpfsOnline.contains(cpfMembro) ||
+                                        cpfMembro == meuCpf,
+                                  );
+
+                                  estaOnline = algumMembroOnline ||
+                                      (servidor.ativo &&
+                                          lojaObjeto?.cpfDonoOriginal == meuCpf);
+                                  rotuloPresenca =
+                                      estaOnline ? 'Online' : 'Ausente';
+                                }
                               } else {
                                 String contatoCpf = conversa.identificador
                                     .replaceAll(RegExp(r'\D'), '');
@@ -268,11 +302,18 @@ class CabecalhoConversaAtivaWidget extends StatelessWidget {
                                     ),
                                   ),
                                   if (temSubtituloCustom) ...[
+                                    const SizedBox(width: 4),
+                                    Text(
+                                      '•',
+                                      style: theme.getTextStyle(
+                                        fontSize: 11,
+                                        color: theme.secondaryTextColor,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 4),
                                     Flexible(
-                                      child: Text(
-                                        ' • $subtituloTexto',
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
+                                      child: TextoRolante(
+                                        texto: subtituloTexto,
                                         style: theme.getTextStyle(
                                           fontSize: 11,
                                           color: theme.secondaryTextColor,
@@ -293,7 +334,9 @@ class CabecalhoConversaAtivaWidget extends StatelessWidget {
             ),
           ),
 
-          // Botões de Ação do Lado Direito (Ligações de vídeo/voz, edição e 3 pontos juntos e compactos)
+          // Botões de Ação do Lado Direito (Ligações de vídeo/voz e renomear)
+          // Nota: os 3 pontos foram removidos conforme solicitação do usuário,
+          // pois o toque direto no contato/avatar já abre os detalhes completos.
           Row(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -305,12 +348,12 @@ class CabecalhoConversaAtivaWidget extends StatelessWidget {
                 IconButton(
                   icon: Icon(
                     Icons.videocam_rounded,
-                    size: 21,
+                    size: 20,
                     color: theme.textColor,
                   ),
                   tooltip: 'Chamada de Vídeo',
                   padding: paddingBotao,
-                  constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                  constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
                   visualDensity: VisualDensity.compact,
                   onPressed: () =>
                       _iniciarChamada(context, conversa, TipoChamada.video),
@@ -319,12 +362,12 @@ class CabecalhoConversaAtivaWidget extends StatelessWidget {
                 IconButton(
                   icon: Icon(
                     Icons.call_rounded,
-                    size: 19,
+                    size: 18,
                     color: theme.textColor,
                   ),
                   tooltip: 'Chamada de Voz',
                   padding: paddingBotao,
-                  constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                  constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
                   visualDensity: VisualDensity.compact,
                   onPressed: () =>
                       _iniciarChamada(context, conversa, TipoChamada.voz),
@@ -339,22 +382,9 @@ class CabecalhoConversaAtivaWidget extends StatelessWidget {
                 ),
                 tooltip: 'Renomear conversa',
                 padding: paddingBotao,
-                constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
                 visualDensity: VisualDensity.compact,
                 onPressed: () => onRenomearConversa(conversa),
-              ),
-              espacamentoEntreBotoes,
-              IconButton(
-                icon: Icon(
-                  Icons.more_vert,
-                  size: 20,
-                  color: theme.secondaryTextColor,
-                ),
-                tooltip: 'Mais opções / Detalhes',
-                padding: paddingBotao,
-                constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
-                visualDensity: VisualDensity.compact,
-                onPressed: () => onAbrirDetalhes(conversa),
               ),
             ],
           ),

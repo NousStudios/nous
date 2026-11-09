@@ -112,6 +112,8 @@ No primeiro `GET /api/loja` de um terminal novo, o servidor mostra janela modal 
 - **Debounce de 150 ms** nas ações do usuário; eventos críticos (ex.: exclusão de membro) vão imediatamente.
 - Timer de pedidos programados roda **só no balcão** (servidor).
 - **Mensageria P2P Canônica e Fila Outbox:** conversas entre usuários geram chave canônica simétrica `user_${min}_user_${max}`. No receptor, o campo `identificador` grava sempre o CPF do interlocutor (`outroCpf`), com autoria `enviadaPorMim: false` em mensagens de terceiros. Mensagens offline entram em `status_envio = 'pendente'` e são drenadas automaticamente (`ChatService.drenarFilaDeSaida()`) na reconexão à rede local.
+- **Ciclo de Vida e Retomada em Segundo Plano (`AppLifecycleListener`):** No Android e iOS, o sistema operacional suspende conexões Wi-Fi em background. O `ClienteRedeLocal.inicializarMonitoramentoCicloVida()` detecta a volta do aplicativo à tela (`onResume`) e executa imediatamente `verificarEAutoReconectarNaRetomada`, restabelecendo o WebSocket e drenando mensagens pendentes sem exigir que o usuário feche e reabra o aplicativo ou reconfigure o IP.
+- **Compressão e Otimização Automática de Imagens (`ImagemService.otimizarBytesImagem`):** Fotos de câmeras modernas (8 MB a 12 MB) são redimensionadas nativamente via `dart:ui.instantiateImageCodec` para teto máximo de 1200px e otimizadas para < 250 KB ao salvar ou transferir na rede local, impedindo estouro de memória RAM (crash OOM no celular) e mantendo a taxa de transferência em tempo real.
 - Descoberta UDP: fechar o socket (`pararDescoberta()`) ao terminar, para poupar bateria e threads no Android.
 
 ## 9. Atualização do app pela rede

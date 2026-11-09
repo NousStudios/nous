@@ -15,6 +15,7 @@ import 'package:nous/src/features/pdv/providers/pdv_provider.dart';
 import 'package:nous/src/features/pdv/services/backup_service.dart';
 import 'package:nous/src/features/pdv/services/imagem_service.dart';
 import 'package:nous/src/features/pdv/services/lojas_service.dart';
+import 'package:nous/src/features/pdv/services/rede_local/cliente_rede_local.dart';
 import 'package:nous/src/features/chat/services/notificacao_android_service.dart';
 
 class AppScrollBehavior extends MaterialScrollBehavior {
@@ -46,6 +47,9 @@ Future<void> main() async {
 
   // Inicializa o serviço de notificações nativas no Android
   NotificacaoAndroidService.inicializar();
+
+  // Inicializa a escuta de ciclo de vida para auto-reconexão imediata na retomada do app
+  ClienteRedeLocal().inicializarMonitoramentoCicloVida();
 
   // Manipulador global de hardware para F11 (Tela Cheia nativa do Windows)
   // Funciona universalmente: modo compacto, modo desktop, popups ou qualquer widget focado

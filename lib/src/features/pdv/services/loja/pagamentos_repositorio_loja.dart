@@ -4,7 +4,7 @@ import 'package:nous/src/features/pdv/models/pagamento_funcionario.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
 class PagamentosRepositorioLoja {
-  static const int limitePadraoMemoria = 1000;
+  static const int limitePadraoMemoria = 100;
 
   static Future<List<PagamentoFuncionario>> carregarParaMemoria(
     String lojaId, {

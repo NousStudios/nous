@@ -35,6 +35,8 @@ import 'package:nous/src/features/pdv/providers/helpers/pdv_pedidos_programados_
 import 'package:nous/src/features/pdv/providers/helpers/pdv_membros_cargos_helper.dart';
 import 'package:nous/src/features/pdv/providers/helpers/pdv_estoque_financeiro_helper.dart';
 import 'package:nous/src/features/pdv/providers/helpers/pdv_lojas_cofre_helper.dart';
+import 'package:nous/src/features/pdv/providers/helpers/pdv_gastos_ponto_helper.dart';
+import 'package:nous/src/features/pdv/providers/helpers/pdv_layout_impressora_helper.dart';
 
 class PdvProvider extends ChangeNotifier {
   final List<Loja> _lojas = [];
@@ -366,24 +368,12 @@ class PdvProvider extends ChangeNotifier {
     }());
   }
 
-  static bool _temCalibracaoTipografiaOuMargem(ConfiguracoesImpressora c) {
-    return c.modeloFonte != 'belleza' ||
-        c.margemEsquerdaMm != 5.0 ||
-        c.margemDireitaMm != 3.0 ||
-        c.tamanhoFonte != 'normal' ||
-        c.larguraPapelMm != 58.0;
-  }
-
-  /// Garante que todas as lojas do mesmo terminal compartilhem a calibração
-  /// física da impressora térmica (fonte, recuos esquerdo/direito, largura da
-  /// bobina, impressora selecionada e campos da comanda) quando uma loja nova
-  /// ou secundária ainda está nos padrões de fábrica não calibrados.
   Future<void> _herdarCalibracaoImpressoraEntreLojasLocais() async {
     Loja? referenciaCalibrada;
     for (final l in _lojas) {
       if (l.id == idLojaColetivaNous) continue;
       final c = l.configuracoesImpressora;
-      if (_temCalibracaoTipografiaOuMargem(c) ||
+      if (PdvLayoutImpressoraHelper.temCalibracaoTipografiaOuMargem(c) ||
           c.camposClientePersonalizados) {
         referenciaCalibrada = l;
         break;
@@ -405,7 +395,7 @@ class PdvProvider extends ChangeNotifier {
         continue;
       }
       final atual = loja.configuracoesImpressora;
-      final semCalibracaoFisica = !_temCalibracaoTipografiaOuMargem(atual);
+      final semCalibracaoFisica = !PdvLayoutImpressoraHelper.temCalibracaoTipografiaOuMargem(atual);
       final semImpressoraDefinida =
           atual.nomeImpressora.isEmpty && ref.nomeImpressora.isNotEmpty;
       final semCamposPersonalizados =
@@ -687,13 +677,14 @@ class PdvProvider extends ChangeNotifier {
     final indice = _lojas.indexWhere((loja) => loja.id == id);
     if (indice == -1) return;
 
-    final atualizada = _lojas[indice].copyWith(
-      galeria: galeria ?? _lojas[indice].galeria,
-      arquivos: arquivos ?? _lojas[indice].arquivos,
-      musicas: musicas ?? _lojas[indice].musicas,
-      videos: videos ?? _lojas[indice].videos,
-      arquivosAudio: arquivosAudio ?? _lojas[indice].arquivosAudio,
-      descricoesAnexos: descricoesAnexos ?? _lojas[indice].descricoesAnexos,
+    final atualizada = PdvLayoutImpressoraHelper.atualizarAnexosLoja(
+      _lojas[indice],
+      galeria: galeria,
+      arquivos: arquivos,
+      musicas: musicas,
+      videos: videos,
+      arquivosAudio: arquivosAudio,
+      descricoesAnexos: descricoesAnexos,
     );
 
     _lojas[indice] = atualizada;
@@ -705,8 +696,9 @@ class PdvProvider extends ChangeNotifier {
     final indice = _lojas.indexWhere((loja) => loja.id == id);
     if (indice == -1) return;
 
-    final atualizada = _lojas[indice].copyWith(
-      tempoConclusaoMinutos: minutos,
+    final atualizada = PdvLayoutImpressoraHelper.atualizarTempoConclusao(
+      _lojas[indice],
+      minutos,
     );
 
     _lojas[indice] = atualizada;
@@ -718,14 +710,12 @@ class PdvProvider extends ChangeNotifier {
     final indice = _lojas.indexWhere((loja) => loja.id == id);
     if (indice == -1) return;
 
-    final mapa = Map<String, String>.from(_lojas[indice].descricoesAnexos);
-    if (descricao.trim().isEmpty) {
-      mapa.remove(caminho);
-    } else {
-      mapa[caminho] = descricao.trim();
-    }
+    final atualizada = PdvLayoutImpressoraHelper.atualizarDescricaoAnexo(
+      _lojas[indice],
+      caminho,
+      descricao,
+    );
 
-    final atualizada = _lojas[indice].copyWith(descricoesAnexos: mapa);
     _lojas[indice] = atualizada;
     notifyListeners();
     _salvarLojaNoCofreCorreto(atualizada);
@@ -735,14 +725,12 @@ class PdvProvider extends ChangeNotifier {
     final indice = _lojas.indexWhere((loja) => loja.id == id);
     if (indice == -1) return;
 
-    final mapa = Map<String, String>.from(_lojas[indice].sonsAlertas);
-    if (som.isEmpty || som == 'padrao') {
-      mapa.remove(evento);
-    } else {
-      mapa[evento] = som;
-    }
+    final atualizada = PdvLayoutImpressoraHelper.atualizarSomAlerta(
+      _lojas[indice],
+      evento,
+      som,
+    );
 
-    final atualizada = _lojas[indice].copyWith(sonsAlertas: mapa);
     _lojas[indice] = atualizada;
     notifyListeners();
     _salvarLojaNoCofreCorreto(atualizada);
@@ -752,10 +740,12 @@ class PdvProvider extends ChangeNotifier {
     final indice = _lojas.indexWhere((loja) => loja.id == id);
     if (indice == -1) return;
 
-    final mapa = Map<String, String>.from(_lojas[indice].atalhosTeclado);
-    mapa[tecla] = acao;
+    final atualizada = PdvLayoutImpressoraHelper.atualizarAtalhoTeclado(
+      _lojas[indice],
+      tecla,
+      acao,
+    );
 
-    final atualizada = _lojas[indice].copyWith(atalhosTeclado: mapa);
     _lojas[indice] = atualizada;
     notifyListeners();
     _salvarLojaNoCofreCorreto(atualizada);
@@ -996,24 +986,10 @@ class PdvProvider extends ChangeNotifier {
     for (int i = 0; i < _lojas.length; i++) {
       final outra = _lojas[i];
       if (outra.id == id || outra.id == idLojaColetivaNous) continue;
-      final configOutra = outra.configuracoesImpressora.copyWith(
-        larguraPapelMm: configuracoes.larguraPapelMm,
-        tamanhoFonte: configuracoes.tamanhoFonte,
-        modeloFonte: configuracoes.modeloFonte,
-        margemEsquerdaMm: configuracoes.margemEsquerdaMm,
-        margemDireitaMm: configuracoes.margemDireitaMm,
-        tipoConexao: configuracoes.tipoConexao,
-        enderecoRede: configuracoes.enderecoRede,
-        nomeImpressora: configuracoes.nomeImpressora,
-        camposClienteComanda: !outra.configuracoesImpressora.camposClientePersonalizados
-            ? List<String>.from(configuracoes.camposClienteComanda)
-            : outra.configuracoesImpressora.camposClienteComanda,
-        camposClientePersonalizados:
-            outra.configuracoesImpressora.camposClientePersonalizados ||
-                configuracoes.camposClientePersonalizados,
+      final outraAtualizada = PdvLayoutImpressoraHelper.propagarConfiguracoesImpressora(
+        outra,
+        configuracoes,
       );
-      final outraAtualizada =
-          outra.copyWith(configuracoesImpressora: configOutra);
       _lojas[i] = outraAtualizada;
       _salvarLojaNoCofreCorreto(outraAtualizada);
     }
@@ -1024,124 +1000,84 @@ class PdvProvider extends ChangeNotifier {
   void adicionarGastoDiario(String lojaId, GastoDiario gasto) {
     final loja = buscarPorId(lojaId);
     if (loja == null) return;
-    final novosGastos = [gasto, ...loja.gastosDiarios];
-    final atualizada = loja.copyWith(gastosDiarios: novosGastos);
+    final atualizada = PdvGastosPontoHelper.adicionarGastoDiario(loja, gasto);
     _salvarEAtualizar(atualizada);
   }
 
   void removerGastoDiario(String lojaId, String gastoId) {
     final loja = buscarPorId(lojaId);
     if (loja == null) return;
-    final novosGastos =
-        loja.gastosDiarios.where((g) => g.id != gastoId).toList();
-    final atualizada = loja.copyWith(gastosDiarios: novosGastos);
+    final atualizada = PdvGastosPontoHelper.removerGastoDiario(loja, gastoId);
     _salvarEAtualizar(atualizada);
   }
 
   void quitarGastoDiario(String lojaId, String gastoId) {
     final loja = buscarPorId(lojaId);
     if (loja == null) return;
-    final novosGastos = loja.gastosDiarios.map((g) {
-      if (g.id == gastoId) {
-        return g.copyWith(pago: true);
-      }
-      return g;
-    }).toList();
-    final atualizada = loja.copyWith(gastosDiarios: novosGastos);
+    final atualizada = PdvGastosPontoHelper.quitarGastoDiario(loja, gastoId);
     _salvarEAtualizar(atualizada);
   }
 
   void adicionarGastoFixo(String lojaId, GastoFixo gasto) {
     final loja = buscarPorId(lojaId);
     if (loja == null) return;
-    final novos = [gasto, ...loja.gastosFixos];
-    final atualizada = loja.copyWith(gastosFixos: novos);
+    final atualizada = PdvGastosPontoHelper.adicionarGastoFixo(loja, gasto);
     _salvarEAtualizar(atualizada);
   }
 
   void removerGastoFixo(String lojaId, String gastoId) {
     final loja = buscarPorId(lojaId);
     if (loja == null) return;
-    final novos = loja.gastosFixos.where((g) => g.id != gastoId).toList();
-    final atualizada = loja.copyWith(gastosFixos: novos);
+    final atualizada = PdvGastosPontoHelper.removerGastoFixo(loja, gastoId);
     _salvarEAtualizar(atualizada);
   }
 
   void alternarAtivoGastoFixo(String lojaId, String gastoId) {
     final loja = buscarPorId(lojaId);
     if (loja == null) return;
-    final novos = loja.gastosFixos.map((g) {
-      if (g.id == gastoId) {
-        return g.copyWith(ativo: !g.ativo);
-      }
-      return g;
-    }).toList();
-    final atualizada = loja.copyWith(gastosFixos: novos);
+    final atualizada = PdvGastosPontoHelper.alternarAtivoGastoFixo(loja, gastoId);
     _salvarEAtualizar(atualizada);
   }
 
   void salvarContratoTrabalho(String lojaId, ContratoTrabalhoMembro contrato) {
     final loja = buscarPorId(lojaId);
     if (loja == null) return;
-    final outros = loja.contratosTrabalho.where((c) => c.cpf != contrato.cpf).toList();
-    final novos = [contrato, ...outros];
-    final atualizada = loja.copyWith(contratosTrabalho: novos);
+    final atualizada = PdvGastosPontoHelper.salvarContratoTrabalho(loja, contrato);
     _salvarEAtualizar(atualizada);
   }
 
   void registrarPonto(String lojaId, RegistroPontoMembro ponto) {
     final loja = buscarPorId(lojaId);
     if (loja == null) return;
-    final novos = [ponto, ...loja.registrosPonto];
-    final atualizada = loja.copyWith(registrosPonto: novos);
+    final atualizada = PdvGastosPontoHelper.registrarPonto(loja, ponto);
     _salvarEAtualizar(atualizada);
   }
 
   void finalizarPonto(String lojaId, String pontoId, DateTime dataHoraSaida) {
     final loja = buscarPorId(lojaId);
     if (loja == null) return;
-    final novos = loja.registrosPonto.map((p) {
-      if (p.id == pontoId) {
-        return p.copyWith(dataHoraSaida: dataHoraSaida);
-      }
-      return p;
-    }).toList();
-    final atualizada = loja.copyWith(registrosPonto: novos);
+    final atualizada = PdvGastosPontoHelper.finalizarPonto(loja, pontoId, dataHoraSaida);
     _salvarEAtualizar(atualizada);
   }
 
   void salvarEscalaTrabalho(String lojaId, EscalaTrabalhoMembro escala) {
     final loja = buscarPorId(lojaId);
     if (loja == null) return;
-    final outros = loja.escalasTrabalho.where((e) => e.cpf != escala.cpf).toList();
-    final novos = [escala, ...outros];
-    final atualizada = loja.copyWith(escalasTrabalho: novos);
+    final atualizada = PdvGastosPontoHelper.salvarEscalaTrabalho(loja, escala);
     _salvarEAtualizar(atualizada);
   }
 
   void quitarPagamentoFuncionario(String lojaId, String pagamentoId) {
     final loja = buscarPorId(lojaId);
     if (loja == null) return;
-    final novos = loja.pagamentosFuncionarios.map((p) {
-      if (p.id == pagamentoId) {
-        return p.copyWith(pago: true);
-      }
-      return p;
-    }).toList();
-    final atualizada = loja.copyWith(pagamentosFuncionarios: novos);
+    final atualizada = PdvGastosPontoHelper.quitarPagamentoFuncionario(loja, pagamentoId);
     _salvarEAtualizar(atualizada);
   }
 
   void quitarCompraEstoque(String lojaId, String movimentoId) {
     final loja = buscarPorId(lojaId);
     if (loja == null) return;
-    final novos = loja.movimentosEstoque.map((m) {
-      if (m.id == movimentoId) {
-        return m.copyWith(pago: true);
-      }
-      return m;
-    }).toList();
-    final atualizada = loja.copyWith(movimentosEstoque: novos);
+    final atualizada = PdvGastosPontoHelper.quitarCompraEstoque(loja, movimentoId);
     _salvarEAtualizar(atualizada);
   }
 

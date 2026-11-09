@@ -34,7 +34,12 @@ class MensageriaAcoesDelegate {
       String? caminhoFoto;
       try {
         final picker = ImagePicker();
-        final foto = await picker.pickImage(source: ImageSource.camera);
+        final foto = await picker.pickImage(
+          source: ImageSource.camera,
+          maxWidth: 1280,
+          maxHeight: 1280,
+          imageQuality: 82,
+        );
         if (foto != null) {
           caminhoFoto = foto.path;
         }

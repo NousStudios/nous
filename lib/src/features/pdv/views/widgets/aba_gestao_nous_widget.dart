@@ -236,8 +236,9 @@ class _AbaGestaoNousWidgetState extends State<AbaGestaoNousWidget> {
     try {
       final xfile = await _picker.pickImage(
         source: ImageSource.camera,
-        maxWidth: 1600,
-        imageQuality: 85,
+        maxWidth: 1280,
+        maxHeight: 1280,
+        imageQuality: 82,
       );
       if (xfile == null) return;
 
@@ -268,8 +269,9 @@ class _AbaGestaoNousWidgetState extends State<AbaGestaoNousWidget> {
     try {
       final xfile = await _picker.pickImage(
         source: ImageSource.gallery,
-        maxWidth: 1600,
-        imageQuality: 85,
+        maxWidth: 1280,
+        maxHeight: 1280,
+        imageQuality: 82,
       );
       if (xfile == null) return;
 

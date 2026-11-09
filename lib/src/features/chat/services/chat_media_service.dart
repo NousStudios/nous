@@ -46,9 +46,10 @@ class ChatMediaService {
     }
   }
 
-  /// Limite máximo seguro de bytes embutidos em Base64 no WebSocket (64 KB).
-  /// Arquivos maiores devem transitar via streaming HTTP binário para não sobrecarregar o socket.
-  static const int limiteBytesBase64Ws = 64 * 1024;
+  /// Limite máximo seguro de bytes embutidos em Base64 no WebSocket (512 KB).
+  /// Permite que imagens e mídias otimizadas trafeguem instantaneamente via WebSocket sem latência.
+  /// Apenas arquivos muito grandes (> 512 KB) são delegados ao streaming HTTP.
+  static const int limiteBytesBase64Ws = 512 * 1024;
 
   /// Lê os bytes de um anexo leve para envio direto pela malha local (até 64 KB).
   /// Retorna null para arquivos maiores, delegando ao pipeline de upload binário HTTP em background.

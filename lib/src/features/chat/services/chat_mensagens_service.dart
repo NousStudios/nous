@@ -577,7 +577,21 @@ class ChatMensagensService {
         }
       }
 
-      final usuarioEstaOlhandoConversa = idConversaAtiva != null &&
+      // Apenas o verdadeiro destinatário da mensagem pode confirmar visualização/leitura.
+      // Se este nó for apenas o Servidor Balcão retransmitindo mensagens entre dois clientes móveis,
+      // ele nunca deve marcar como lida e jamais deve emitir checks azuis prematuros.
+      final destCpf = ChatRepositorioSqlite.normalizarCpf(mensagem.destinatarioId);
+      final souDestinatarioReal = destCpf.isNotEmpty
+          ? (meuCpf.isNotEmpty && destCpf == meuCpf)
+          : (ehConversaLoja ? true : (meuCpf.isNotEmpty && !ehMinhaPropriaMensagem));
+
+      final bool souApenasRetransmissor = ServidorRedeLocal().ativo &&
+          !ehConversaLoja &&
+          (destCpf.isNotEmpty && destCpf != meuCpf);
+
+      final usuarioEstaOlhandoConversa = !souApenasRetransmissor &&
+          souDestinatarioReal &&
+          idConversaAtiva != null &&
           idConversaAtiva.isNotEmpty &&
           idConversaAtiva == mensagem.conversaId;
 

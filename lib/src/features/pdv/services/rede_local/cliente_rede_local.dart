@@ -2,7 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:flutter/foundation.dart';
+import 'package:flutter/widgets.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:nous/src/core/services/relogio_rede_service.dart';
 import 'package:nous/src/core/utils/json_isolate_utils.dart';
@@ -102,6 +102,42 @@ class ClienteRedeLocal {
   final DespachanteClienteRede _despachante = const DespachanteClienteRede();
 
   Timer? _timerDebounceEnvioLoja;
+  AppLifecycleListener? _lifecycleListener;
+
+  /// Registra escuta do ciclo de vida do Flutter para reconexão imediata quando o app volta à tela no Android/iOS
+  void inicializarMonitoramentoCicloVida() {
+    _lifecycleListener?.dispose();
+    _lifecycleListener = AppLifecycleListener(
+      onResume: () {
+        debugPrint('[ClienteRedeLocal] App retornou a primeiro plano (onResume). Verificando conexão com Balcão...');
+        verificarEAutoReconectarNaRetomada();
+      },
+    );
+  }
+
+  /// Verifica a integridade da conexão ao destravar o celular ou retomar o app.
+  Future<void> verificarEAutoReconectarNaRetomada() async {
+    if (ServidorRedeLocal().ativo) return;
+    if (_usuarioDesconectouManualmente) return;
+    final pdv = _pdvProvider;
+    if (pdv == null) return;
+
+    if (!conectado && !_conectando) {
+      debugPrint('[ClienteRedeLocal] Retomada detectou terminal offline. Reconectando ao Balcão...');
+      await tentarAutoConectarSeDisponivel(pdv, _authProvider);
+      return;
+    }
+
+    if (conectado && _ws != null) {
+      try {
+        _ws!.add(jsonEncode({'tipo': 'ping'}));
+      } catch (e) {
+        debugPrint('[ClienteRedeLocal] Socket morto na retomada ($e). Reiniciando conexão...');
+        await desconectar();
+        await tentarAutoConectarSeDisponivel(pdv, _authProvider);
+      }
+    }
+  }
 
   bool _conectando = false;
   bool get conectando => _conectando;
