@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:nous/src/core/theme/theme_controller.dart';
-import 'package:nous/src/core/widgets/texto_rolante.dart';
 import 'package:nous/src/features/auth/models/usuario_nous.dart';
 import 'package:nous/src/features/auth/providers/auth_provider.dart';
 import 'package:nous/src/features/chat/controllers/mensageria_controller.dart';
@@ -55,6 +54,8 @@ class _DialogFazerPedidoChatState extends State<DialogFazerPedidoChat> {
   String? _categoriaSelecionadaId;
   final List<ItemVendido> _carrinho = [];
   final TextEditingController _observacaoController = TextEditingController();
+  final TextEditingController _buscaItensController = TextEditingController();
+  String _termoBuscaItens = '';
   String _formaPagamento = 'PIX';
   bool _enviando = false;
   bool _vendoCarrinho = false;
@@ -90,6 +91,7 @@ class _DialogFazerPedidoChatState extends State<DialogFazerPedidoChat> {
   @override
   void dispose() {
     _observacaoController.dispose();
+    _buscaItensController.dispose();
     super.dispose();
   }
 
@@ -189,6 +191,8 @@ class _DialogFazerPedidoChatState extends State<DialogFazerPedidoChat> {
     final ctxPai = Navigator.of(context).context;
     setState(() => _enviando = true);
 
+    final geradoPelaLoja = widget.controller.modoLoja;
+
     try {
       final pedido =
           await ChatAutoatendimentoService.enviarPedidoAutoatendimento(
@@ -198,12 +202,32 @@ class _DialogFazerPedidoChatState extends State<DialogFazerPedidoChat> {
             observacaoGeral: _observacaoController.text.trim(),
             formaPagamento: _formaPagamento,
             controller: widget.controller,
+            geradoPelaLoja: geradoPelaLoja,
+            identificadorClienteConversa: widget.conversa.identificador,
+            nomeClienteConversa: widget.conversa.titulo,
+            fotoClienteConversa: widget.conversa.foto,
           );
 
       if (mounted) {
         Navigator.pop(context);
         if (ctxPai.mounted) {
-          _mostrarConfirmacaoComFicha(ctxPai, loja, pedido);
+          if (geradoPelaLoja) {
+            ScaffoldMessenger.of(ctxPai).showSnackBar(
+              SnackBar(
+                backgroundColor: widget.theme.cardBackgroundColor,
+                content: Text(
+                  'Proposta de comanda enviada para o cliente no chat! O pedido entrará em "Novos" assim que for aprovado.',
+                  style: widget.theme.getTextStyle(
+                    color: widget.theme.textColor,
+                    fontSize: 12.5,
+                  ),
+                ),
+                duration: const Duration(seconds: 4),
+              ),
+            );
+          } else {
+            _mostrarConfirmacaoComFicha(ctxPai, loja, pedido);
+          }
         }
       }
     } catch (e) {
@@ -451,6 +475,16 @@ class _DialogFazerPedidoChatState extends State<DialogFazerPedidoChat> {
       }
     }
 
+    final itensExibidos = _termoBuscaItens.isEmpty
+        ? itensFiltrados
+        : itensFiltrados
+            .where(
+              (i) =>
+                  i.nome.toLowerCase().contains(_termoBuscaItens) ||
+                  i.descricao.toLowerCase().contains(_termoBuscaItens),
+            )
+            .toList();
+
     // Categorias que funcionam como produto direto (possuem preço próprio ou grupos de componentes sem itens filhos)
     final categoriasBaseDiretas = _categoriaSelecionadaId == null
         ? categorias
@@ -483,49 +517,12 @@ class _DialogFazerPedidoChatState extends State<DialogFazerPedidoChat> {
         ),
         child: Column(
           children: [
-            // Cabeçalho
+            // Cabeçalho - Linha superior de utilitários: Minha Ficha e Botão Fechar
             Padding(
-              padding: const EdgeInsets.fromLTRB(14, 12, 10, 10),
+              padding: const EdgeInsets.fromLTRB(14, 10, 10, 2),
               child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Container(
-                    padding: const EdgeInsets.all(7),
-                    decoration: BoxDecoration(
-                      color: theme.backgroundColor,
-                      shape: BoxShape.circle,
-                      border: Border.all(color: theme.borderColor),
-                    ),
-                    child: Icon(
-                      Icons.restaurant_menu_rounded,
-                      color: theme.textColor,
-                      size: 18,
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        TextoRolante(
-                          texto: 'Fazer Pedido • ${loja.nome}',
-                          style: theme.getTextStyle(
-                            fontSize: 15,
-                            fontWeight: FontWeight.bold,
-                            color: theme.textColor,
-                          ),
-                        ),
-                        Text(
-                          _vendoCarrinho
-                              ? 'Confira sua comanda e forma de pagamento'
-                              : 'Toque nos itens para adicionar ou personalizar',
-                          style: theme.getTextStyle(
-                            fontSize: 11,
-                            color: theme.secondaryTextColor,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
                   TextButton.icon(
                     style: TextButton.styleFrom(
                       padding: const EdgeInsets.symmetric(
@@ -541,7 +538,7 @@ class _DialogFazerPedidoChatState extends State<DialogFazerPedidoChat> {
                     label: Text(
                       'Minha Ficha',
                       style: theme.getTextStyle(
-                        fontSize: 11,
+                        fontSize: 11.5,
                         fontWeight: FontWeight.bold,
                         color: theme.textColor,
                       ),
@@ -555,6 +552,35 @@ class _DialogFazerPedidoChatState extends State<DialogFazerPedidoChat> {
                       size: 20,
                     ),
                     onPressed: () => Navigator.pop(context),
+                  ),
+                ],
+              ),
+            ),
+
+            // Título e Subtítulo Centralizados no topo (Padrão Nous)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
+              child: Column(
+                children: [
+                  Text(
+                    'Pedido • ${loja.nome}',
+                    textAlign: TextAlign.center,
+                    style: theme.getTextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.bold,
+                      color: theme.textColor,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    _vendoCarrinho
+                        ? 'Confira sua comanda e forma de pagamento'
+                        : 'Toque nos itens para adicionar ou personalizar',
+                    textAlign: TextAlign.center,
+                    style: theme.getTextStyle(
+                      fontSize: 11,
+                      color: theme.secondaryTextColor,
+                    ),
                   ),
                 ],
               ),
@@ -629,12 +655,81 @@ class _DialogFazerPedidoChatState extends State<DialogFazerPedidoChat> {
                               ],
                             ),
                           ),
+
+                        // Barra de Pesquisa de Itens do Catálogo
+                        Padding(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 5,
+                          ),
+                          child: TextField(
+                            controller: _buscaItensController,
+                            style: theme.getTextStyle(
+                              fontSize: 12.5,
+                              color: theme.textColor,
+                            ),
+                            onChanged: (v) => setState(
+                              () => _termoBuscaItens = v.trim().toLowerCase(),
+                            ),
+                            decoration: InputDecoration(
+                              hintText: 'Pesquisar itens no cardápio...',
+                              hintStyle: theme.getTextStyle(
+                                fontSize: 11.5,
+                                color: theme.secondaryTextColor,
+                              ),
+                              prefixIcon: Icon(
+                                Icons.search_rounded,
+                                size: 18,
+                                color: theme.secondaryTextColor,
+                              ),
+                              suffixIcon: _termoBuscaItens.isNotEmpty
+                                  ? IconButton(
+                                      icon: Icon(
+                                        Icons.clear_rounded,
+                                        size: 16,
+                                        color: theme.secondaryTextColor,
+                                      ),
+                                      onPressed: () {
+                                        _buscaItensController.clear();
+                                        setState(() => _termoBuscaItens = '');
+                                      },
+                                    )
+                                  : null,
+                              isDense: true,
+                              filled: true,
+                              fillColor: theme.backgroundColor,
+                              contentPadding: const EdgeInsets.symmetric(
+                                horizontal: 10,
+                                vertical: 8,
+                              ),
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(10),
+                                borderSide: BorderSide(
+                                  color: theme.borderColor.withValues(alpha: 0.5),
+                                ),
+                              ),
+                              enabledBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(10),
+                                borderSide: BorderSide(
+                                  color: theme.borderColor.withValues(alpha: 0.5),
+                                ),
+                              ),
+                              focusedBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(10),
+                                borderSide: BorderSide(color: theme.buttonColor),
+                              ),
+                            ),
+                          ),
+                        ),
+
                         Expanded(
-                          child: (itensFiltrados.isEmpty &&
+                          child: (itensExibidos.isEmpty &&
                                   categoriasBaseDiretas.isEmpty)
                               ? Center(
                                   child: Text(
-                                    'Nenhum item disponível nesta categoria.',
+                                    _termoBuscaItens.isNotEmpty
+                                        ? 'Nenhum item encontrado para "$_termoBuscaItens".'
+                                        : 'Nenhum item disponível nesta categoria.',
                                     style: theme.getTextStyle(
                                       color: theme.secondaryTextColor,
                                     ),
@@ -645,7 +740,7 @@ class _DialogFazerPedidoChatState extends State<DialogFazerPedidoChat> {
                                   children: [
                                     for (final catBase in categoriasBaseDiretas)
                                       _buildCardCategoriaDireta(catBase, loja),
-                                    for (final item in itensFiltrados)
+                                    for (final item in itensExibidos)
                                       _buildCardItemInterativo(
                                         item,
                                         loja,
@@ -664,7 +759,7 @@ class _DialogFazerPedidoChatState extends State<DialogFazerPedidoChat> {
                     ),
             ),
 
-            // Rodapé com Resumo da Comanda + Botões de Sacola e Despachar Pedido Direto
+            // Rodapé com Resumo da Comanda: Linha 1 = Valor/Itens, Linha 2 = Botões Revisar e Despachar
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
               decoration: BoxDecoration(
@@ -675,103 +770,107 @@ class _DialogFazerPedidoChatState extends State<DialogFazerPedidoChat> {
                   ),
                 ),
               ),
-              child: Row(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
                 children: [
-                  Expanded(
-                    child: InkWell(
-                      onTap: _carrinho.isEmpty
-                          ? null
-                          : () => setState(
-                              () => _vendoCarrinho = !_vendoCarrinho,
-                            ),
-                      borderRadius: BorderRadius.circular(8),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text(
-                            'Total: ${_formatarPreco(_totalCarrinho)}',
-                            style: theme.getTextStyle(
-                              fontSize: 15,
-                              fontWeight: FontWeight.bold,
-                              color: theme.textColor,
-                            ),
-                          ),
-                          Text(
-                            '$_quantidadeTotal item${_quantidadeTotal == 1 ? '' : 's'} selecionado${_quantidadeTotal == 1 ? '' : 's'}',
-                            style: theme.getTextStyle(
-                              fontSize: 11,
-                              color: theme.secondaryTextColor,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                  if (_carrinho.isNotEmpty) ...[
-                    OutlinedButton.icon(
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: theme.textColor,
-                        side: BorderSide(color: theme.borderColor),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 10,
-                          vertical: 10,
-                        ),
-                      ),
-                      icon: Icon(
-                        _vendoCarrinho
-                            ? Icons.menu_book_rounded
-                            : Icons.receipt_long_rounded,
-                        size: 16,
-                      ),
-                      label: Text(
-                        _vendoCarrinho
-                            ? 'Cardápio'
-                            : 'Revisar ($_quantidadeTotal)',
+                  // Linha 1: Valor total e quantidade de itens selecionados
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        'Total: ${_formatarPreco(_totalCarrinho)}',
                         style: theme.getTextStyle(
-                          fontSize: 11.5,
+                          fontSize: 16,
                           fontWeight: FontWeight.bold,
                           color: theme.textColor,
                         ),
                       ),
-                      onPressed: () =>
-                          setState(() => _vendoCarrinho = !_vendoCarrinho),
-                    ),
-                    const SizedBox(width: 8),
-                  ],
-                  ElevatedButton.icon(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: theme.buttonColor,
-                      foregroundColor: theme.buttonTextColor,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(10),
+                      Text(
+                        '$_quantidadeTotal item${_quantidadeTotal == 1 ? '' : 's'} selecionado${_quantidadeTotal == 1 ? '' : 's'}',
+                        style: theme.getTextStyle(
+                          fontSize: 11.5,
+                          color: theme.secondaryTextColor,
+                        ),
                       ),
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 14,
-                        vertical: 10,
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+
+                  // Linha 2: Botões de ação em largura completa
+                  Row(
+                    children: [
+                      if (_carrinho.isNotEmpty) ...[
+                        Expanded(
+                          flex: 2,
+                          child: OutlinedButton.icon(
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: theme.textColor,
+                              side: BorderSide(color: theme.borderColor),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              padding: const EdgeInsets.symmetric(vertical: 10),
+                            ),
+                            icon: Icon(
+                              _vendoCarrinho
+                                  ? Icons.menu_book_rounded
+                                  : Icons.receipt_long_rounded,
+                              size: 16,
+                            ),
+                            label: Text(
+                              _vendoCarrinho
+                                  ? 'Cardápio'
+                                  : 'Revisar ($_quantidadeTotal)',
+                              style: theme.getTextStyle(
+                                fontSize: 11.5,
+                                fontWeight: FontWeight.bold,
+                                color: theme.textColor,
+                              ),
+                            ),
+                            onPressed: () => setState(
+                              () => _vendoCarrinho = !_vendoCarrinho,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                      ],
+                      Expanded(
+                        flex: 3,
+                        child: ElevatedButton.icon(
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: theme.buttonColor,
+                            foregroundColor: theme.buttonTextColor,
+                            elevation: 0,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            padding: const EdgeInsets.symmetric(vertical: 10),
+                          ),
+                          icon: _enviando
+                              ? const SizedBox(
+                                  width: 16,
+                                  height: 16,
+                                  child: CircularProgressIndicator(strokeWidth: 2),
+                                )
+                              : const Icon(Icons.send_rounded, size: 17),
+                          label: Text(
+                            _enviando
+                                ? 'Enviando...'
+                                : (widget.controller.modoLoja
+                                    ? 'Enviar Proposta'
+                                    : 'Despachar Pedido'),
+                            style: theme.getTextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                              color: theme.buttonTextColor,
+                            ),
+                          ),
+                          onPressed: _enviando || _carrinho.isEmpty
+                              ? null
+                              : () => _finalizarPedido(loja),
+                        ),
                       ),
-                    ),
-                    icon: _enviando
-                        ? const SizedBox(
-                            width: 16,
-                            height: 16,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : const Icon(Icons.send_rounded, size: 17),
-                    label: Text(
-                      _enviando ? 'Enviando...' : 'Despachar Pedido',
-                      style: theme.getTextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.bold,
-                        color: theme.buttonTextColor,
-                      ),
-                    ),
-                    onPressed: _enviando || _carrinho.isEmpty
-                        ? null
-                        : () => _finalizarPedido(loja),
+                    ],
                   ),
                 ],
               ),

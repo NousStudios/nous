@@ -12,6 +12,7 @@ class BalaoMensagemWidget extends StatelessWidget {
   final MensagemChat msg;
   final ConversaChat conversa;
   final bool enviadaPorMim;
+  final bool modoLoja;
   final AppTheme theme;
   final void Function(MensagemChat) onMostrarMenu;
   final void Function(MensagemChat) onVerHistoricoEdicoes;
@@ -24,6 +25,7 @@ class BalaoMensagemWidget extends StatelessWidget {
     required this.msg,
     required this.conversa,
     required this.enviadaPorMim,
+    this.modoLoja = false,
     required this.theme,
     required this.onMostrarMenu,
     required this.onVerHistoricoEdicoes,
@@ -75,7 +77,9 @@ class BalaoMensagemWidget extends StatelessWidget {
         child: Container(
           margin: const EdgeInsets.only(bottom: 8),
           constraints: BoxConstraints(
-            maxWidth: MediaQuery.sizeOf(context).width * 0.72,
+            maxWidth: msg.tipo == 'comanda'
+                ? (MediaQuery.sizeOf(context).width * 0.88).clamp(280.0, 340.0)
+                : MediaQuery.sizeOf(context).width * 0.72,
           ),
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
           decoration: BoxDecoration(
@@ -150,6 +154,7 @@ class BalaoMensagemWidget extends StatelessWidget {
                 CardMensagemComanda(
                   msg: msg,
                   enviadaPorMim: enviadaPorMim,
+                  modoLoja: modoLoja,
                   theme: theme,
                   onVerComanda: () => onVerComanda(msg),
                 )
@@ -162,10 +167,64 @@ class BalaoMensagemWidget extends StatelessWidget {
                   ),
                 ),
 
+              if (msg.reacoes.isNotEmpty) ...[
+                const SizedBox(height: 4),
+                Wrap(
+                  spacing: 4,
+                  runSpacing: 4,
+                  children: () {
+                    final contagem = <String, int>{};
+                    for (final emo in msg.reacoes.values) {
+                      contagem[emo] = (contagem[emo] ?? 0) + 1;
+                    }
+                    return contagem.entries.map((e) {
+                      return Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 6,
+                          vertical: 2,
+                        ),
+                        decoration: BoxDecoration(
+                          color: theme.backgroundColor.withValues(alpha: 0.65),
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(
+                            color: theme.borderColor.withValues(alpha: 0.4),
+                          ),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(e.key, style: const TextStyle(fontSize: 12)),
+                            if (e.value > 1) ...[
+                              const SizedBox(width: 3),
+                              Text(
+                                '${e.value}',
+                                style: theme.getTextStyle(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.bold,
+                                  color: theme.secondaryTextColor,
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                      );
+                    }).toList();
+                  }(),
+                ),
+              ],
+
               const SizedBox(height: 3),
               Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
+                  if (msg.fixada) ...[
+                    Icon(
+                      Icons.push_pin_rounded,
+                      size: 11,
+                      color: theme.secondaryTextColor.withValues(alpha: 0.9),
+                    ),
+                    const SizedBox(width: 3),
+                  ],
                   if (msg.editada) ...[
                     InkWell(
                       onTap: () => onVerHistoricoEdicoes(msg),
@@ -202,15 +261,9 @@ class BalaoMensagemWidget extends StatelessWidget {
                       color: theme.secondaryTextColor.withValues(alpha: 0.8),
                     ),
                   ),
-                  if (enviadaPorMim) ...[
+                  if (enviadaPorMim || msg.tipo == 'comanda') ...[
                     const SizedBox(width: 4),
-                    if (msg.statusEnvio == 'pendente')
-                      Icon(
-                        Icons.access_time_rounded,
-                        size: 11,
-                        color: theme.secondaryTextColor.withValues(alpha: 0.8),
-                      )
-                    else if (msg.lida || msg.statusEnvio == 'lida')
+                    if (msg.lida || msg.statusEnvio == 'lida')
                       const Icon(
                         Icons.done_all,
                         size: 13,

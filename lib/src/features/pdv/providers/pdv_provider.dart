@@ -574,7 +574,9 @@ class PdvProvider extends ChangeNotifier {
   Loja? buscarPorId(String id) {
     final idLimpo = normalizarIdLoja(id);
     for (final loja in _lojas) {
-      if (loja.id == id || loja.id == idLimpo) return loja;
+      if (normalizarIdLoja(loja.id) == idLimpo || loja.id == id || loja.id == idLimpo) {
+        return loja;
+      }
     }
     return null;
   }

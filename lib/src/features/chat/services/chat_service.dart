@@ -596,13 +596,18 @@ class ChatService {
   static Future<void> desmarcarConversaExcluida(String conversaId) =>
       ChatRepositorioSqlite.desmarcarConversaExcluida(conversaId);
 
-  static Future<void> excluirConversaLocal(String conversaId) async {
+  static Future<void> excluirConversaLocal(
+    String conversaId, {
+    bool originadoDaRede = false,
+  }) async {
     await ChatRepositorioSqlite.excluirConversaLocal(conversaId);
     notificarAlteracao();
-    ChatSincronizacaoService.despacharEventoRede({
-      'tipo': 'conversa_excluida',
-      'conversaId': conversaId,
-    });
+    if (!originadoDaRede) {
+      ChatSincronizacaoService.despacharEventoRede({
+        'tipo': 'conversa_excluida',
+        'conversaId': conversaId,
+      });
+    }
   }
 
   static void despacharConversaRenomeada(
@@ -612,4 +617,68 @@ class ChatService {
 
   static void despacharConversaAtualizada(ConversaChat conversa) =>
       ChatSincronizacaoService.despacharConversaAtualizada(conversa);
+
+  static Future<bool> alternarFixarMensagem(
+    String msgId, {
+    bool? fixar,
+    String? conversaId,
+  }) async {
+    final novo = await ChatRepositorioSqlite.alternarFixarMensagem(
+      msgId,
+      fixar: fixar,
+    );
+    notificarAlteracao();
+    ChatSincronizacaoService.despacharEventoRede({
+      'tipo': 'mensagem_fixada',
+      'id': msgId,
+      'conversaId': conversaId ?? '',
+      'fixada': novo,
+    });
+    return novo;
+  }
+
+  static Future<Map<String, String>> reagirMensagem(
+    String msgId,
+    String autorId,
+    String emoji, {
+    String? conversaId,
+  }) async {
+    final reacoes = await ChatRepositorioSqlite.reagirMensagem(
+      msgId,
+      autorId,
+      emoji,
+    );
+    notificarAlteracao();
+    ChatSincronizacaoService.despacharEventoRede({
+      'tipo': 'mensagem_reacao',
+      'id': msgId,
+      'conversaId': conversaId ?? '',
+      'reacoes': reacoes,
+    });
+    return reacoes;
+  }
+
+  static Future<void> atualizarDadosComandaMensagem({
+    required String msgId,
+    required String dadosPedidoJson,
+    String? texto,
+  }) async {
+    final db = await ChatRepositorioSqlite.obterDb();
+    await db.update(
+      'mensagens_chat',
+      {
+        'dados_pedido_json': dadosPedidoJson,
+        if (texto != null && texto.isNotEmpty) 'texto': texto,
+      },
+      where: 'id = ?',
+      whereArgs: [msgId],
+    );
+    notificarAlteracao();
+    ChatSincronizacaoService.despacharEventoRede({
+      'tipo': 'comanda_atualizada',
+      'id': msgId,
+      'dadosPedidoJson': dadosPedidoJson,
+      'texto': ?texto,
+    });
+  }
 }

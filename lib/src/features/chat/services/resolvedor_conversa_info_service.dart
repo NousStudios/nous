@@ -35,19 +35,21 @@ class ResolvedorConversaInfoService {
     final ehLoja = mensagem.conversaId.startsWith('loja_');
     final ehGrupo = mensagem.conversaId.startsWith('grupo_');
     String? lojaId;
+    String cpfUsuario = '';
 
-    if (ehLoja) {
-      final partes = mensagem.conversaId.split('_');
-      if (partes.length >= 2) {
-        lojaId = partes[1];
-      }
+    if (ehLoja && mensagem.conversaId.contains('_usuario_')) {
+      final antesUsuario = mensagem.conversaId.substring(0, mensagem.conversaId.indexOf('_usuario_'));
+      lojaId = antesUsuario.startsWith('loja_') ? antesUsuario.substring(5) : antesUsuario;
+      cpfUsuario = ChatRepositorioSqlite.normalizarCpf(
+        mensagem.conversaId.split('_usuario_').last,
+      );
     }
 
     String tituloConversa = ehGrupo ? 'Grupo' : '';
     String subtituloConversa = ehLoja ? 'Loja Nous' : 'Contato Nous';
     String fotoConversa = '';
     String identificadorConversa = mensagem.destinatarioId;
-    String cpfUsuario = '';
+    bool ehConversaComLoja = false;
 
     if (!ehGrupo && !ehLoja) {
       // Conversa direta entre dois usuários Nous (Rede Social / P2P)
@@ -80,28 +82,28 @@ class ResolvedorConversaInfoService {
         }
       }
     } else if (ehLoja) {
+      ehConversaComLoja = true;
       // Conversa comercial de Loja com Usuário/Cliente
-      if (mensagem.conversaId.contains('_usuario_')) {
-        cpfUsuario = ChatRepositorioSqlite.normalizarCpf(
-          mensagem.conversaId.split('_usuario_').last,
-        );
-      }
-
       final meuCpfNorm = cpfLogado != null
           ? ChatRepositorioSqlite.normalizarCpf(cpfLogado)
           : '';
       final usuarioLogadoEhOCliente =
           meuCpfNorm.isNotEmpty && meuCpfNorm == cpfUsuario;
 
-      if (usuarioLogadoEhOCliente && lojaId != null) {
+      if (usuarioLogadoEhOCliente) {
         // O usuário logado é o CLIENTE falando com a Loja: o interlocutor exibido é a LOJA!
-        final loja = await LojasService.carregarLojaPorId(lojaId);
-        if (loja != null) {
-          tituloConversa = loja.nome;
-          subtituloConversa = 'Loja';
-          fotoConversa = loja.logo;
-          identificadorConversa = loja.id;
-        }
+        ehConversaComLoja = true;
+        var loja = lojaId != null ? await LojasService.carregarLojaPorId(lojaId) : null;
+        loja ??= lojaId != null ? await LojasService.carregarLojaPorId('loja_$lojaId') : null;
+
+        identificadorConversa = loja?.id ?? (lojaId ?? '');
+        tituloConversa = loja?.nome ??
+            (mensagem.remetenteId != cpfUsuario && mensagem.remetenteNome.isNotEmpty
+                ? mensagem.remetenteNome
+                : 'Loja');
+        subtituloConversa = 'Loja';
+        fotoConversa = loja?.logo ??
+            (mensagem.remetenteId != cpfUsuario ? mensagem.remetenteFoto : '');
       } else if (cpfUsuario.length == 11) {
         // O usuário logado é o lojista/atendente falando com o CLIENTE: o interlocutor exibido é o CLIENTE!
         identificadorConversa = cpfUsuario;
@@ -112,6 +114,12 @@ class ResolvedorConversaInfoService {
               ? conta.usernameExibicao
               : 'Cliente Nous';
           fotoConversa = conta.fotoExibicao;
+        } else if (mensagem.remetenteId == cpfUsuario && mensagem.remetenteNome.isNotEmpty) {
+          tituloConversa = mensagem.remetenteNome;
+          fotoConversa = mensagem.remetenteFoto;
+        } else {
+          tituloConversa = 'Cliente';
+          subtituloConversa = 'Cliente';
         }
       }
 
@@ -122,17 +130,15 @@ class ResolvedorConversaInfoService {
     }
 
     if (tituloConversa.isEmpty) {
-      tituloConversa = ehGrupo ? 'Grupo' : 'Contato Nous';
+      tituloConversa = ehGrupo ? 'Grupo' : (ehLoja ? 'Loja' : 'Contato Nous');
     }
-
-    final ehContatoLoja = ehLoja && cpfUsuario.isEmpty;
 
     return MetadadosConversaInfo(
       titulo: tituloConversa,
       subtitulo: subtituloConversa,
       foto: fotoConversa,
       identificador: identificadorConversa,
-      ehLoja: ehContatoLoja,
+      ehLoja: ehConversaComLoja,
       ehGrupo: ehGrupo,
       lojaId: lojaId,
     );

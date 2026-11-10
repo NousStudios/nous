@@ -8,7 +8,9 @@ import 'package:nous/src/features/chat/models/conversa_chat.dart';
 import 'package:nous/src/features/chat/models/mensagem_chat.dart';
 import 'package:nous/src/features/chat/services/chat_repositorio_sqlite.dart';
 import 'package:nous/src/features/chat/services/chat_sincronizacao_service.dart';
+import 'package:nous/src/features/pdv/models/loja.dart';
 import 'package:nous/src/features/pdv/services/imagem_service.dart';
+import 'package:nous/src/features/pdv/services/lojas_service.dart';
 
 class ChatConversasService {
   static const String idLojaColetivaNous = 'loja_nous_coletiva';
@@ -77,6 +79,23 @@ class ChatConversasService {
     };
     final contaLogada = mapaContasPorCpf[cpfNormUsuario];
 
+    final mapaLojasPorId = <String, Loja?>{};
+    Future<Loja?> obterLojaCacheada(String idBruto) async {
+      final idLimpo = idBruto.startsWith('loja_') ? idBruto.substring(5) : idBruto;
+      if (idLimpo.isEmpty) return null;
+      if (mapaLojasPorId.containsKey(idLimpo)) {
+        return mapaLojasPorId[idLimpo];
+      }
+      var l = await LojasService.carregarLojaPorId(idLimpo);
+      l ??= await LojasService.carregarLojaPorId('loja_$idLimpo');
+      mapaLojasPorId[idLimpo] = l;
+      return l;
+    }
+
+    final lojaIdLimpoModo = (lojaId != null && lojaId.isNotEmpty)
+        ? (lojaId.startsWith('loja_') ? lojaId.substring(5) : lojaId)
+        : '';
+
     final mapaNaoLidas = <String, int>{};
     final mapaUltimaMsgStatus = <String, ({bool enviadaPorMim, String status})>{};
     try {
@@ -87,9 +106,23 @@ class ChatConversasService {
       for (final nr in rowsNaoLidas) {
         final cid = nr['conversa_id'] as String? ?? '';
         final rem = nr['remetente_id'] as String? ?? '';
-        final ehProprio = rem == (cpfUsuario ?? '') ||
-            (idVisNorm.isNotEmpty &&
-                ChatRepositorioSqlite.normalizarCpf(rem) == idVisNorm);
+        final bool ehProprio;
+        if (lojaIdLimpoModo.isNotEmpty) {
+          final remLimpo = rem.startsWith('loja_') ? rem.substring(5) : rem;
+          ehProprio = rem.startsWith('loja_') || remLimpo == lojaIdLimpoModo;
+        } else {
+          final remLimpo = rem.startsWith('loja_') ? rem.substring(5) : rem;
+          String lojaIdConv = '';
+          if (cid.startsWith('loja_') && cid.contains('_usuario_')) {
+            lojaIdConv = cid.substring(5, cid.indexOf('_usuario_'));
+          }
+          final ehMsgLoja = rem.startsWith('loja_') ||
+              (lojaIdConv.isNotEmpty && remLimpo == lojaIdConv);
+          ehProprio = !ehMsgLoja &&
+              (rem == (cpfUsuario ?? '') ||
+                  (idVisNorm.isNotEmpty &&
+                      ChatRepositorioSqlite.normalizarCpf(rem) == idVisNorm));
+        }
         if (!ehProprio && cid.isNotEmpty) {
           mapaNaoLidas[cid] = (mapaNaoLidas[cid] ?? 0) + 1;
         }
@@ -104,9 +137,6 @@ class ChatConversasService {
           GROUP BY conversa_id
         ) u ON m.conversa_id = u.conversa_id AND m.data_hora = u.max_data
       ''');
-      final lojaIdLimpoModo = (lojaId != null && lojaId.isNotEmpty)
-          ? (lojaId.startsWith('loja_') ? lojaId.substring(5) : lojaId)
-          : '';
       for (final ur in rowsUltimas) {
         final cid = ur['conversa_id'] as String? ?? '';
         if (cid.isEmpty) continue;
@@ -114,10 +144,16 @@ class ChatConversasService {
         final bool envPorMim;
         if (lojaIdLimpoModo.isNotEmpty) {
           final remLimpo = rem.startsWith('loja_') ? rem.substring(5) : rem;
-          envPorMim = remLimpo == lojaIdLimpoModo;
+          envPorMim = rem.startsWith('loja_') || remLimpo == lojaIdLimpoModo;
         } else {
           final remNorm = ChatRepositorioSqlite.normalizarCpf(rem);
-          final ehMsgLoja = rem.startsWith('loja_');
+          final remLimpo = rem.startsWith('loja_') ? rem.substring(5) : rem;
+          String lojaIdConv = '';
+          if (cid.startsWith('loja_') && cid.contains('_usuario_')) {
+            lojaIdConv = cid.substring(5, cid.indexOf('_usuario_'));
+          }
+          final ehMsgLoja = rem.startsWith('loja_') ||
+              (lojaIdConv.isNotEmpty && remLimpo == lojaIdConv);
           envPorMim = !ehMsgLoja &&
               cpfNormUsuario.isNotEmpty &&
               remNorm == cpfNormUsuario;
@@ -126,9 +162,7 @@ class ChatConversasService {
         final entregueInt = (ur['entregue'] as int? ?? 0) == 1;
         final stBruto = ur['status_envio'] as String? ?? 'enviada';
         final String stFinal;
-        if (stBruto == 'pendente') {
-          stFinal = 'pendente';
-        } else if (lidaInt || stBruto == 'lida') {
+        if (lidaInt || stBruto == 'lida') {
           stFinal = 'lida';
         } else if (entregueInt || stBruto == 'entregue') {
           stFinal = 'entregue';
@@ -160,17 +194,24 @@ class ChatConversasService {
           titConversaDb.isNotEmpty ? titConversaDb : (titulosCustom[convId] ?? '');
       var subtituloFinal = r['subtitulo'] as String? ?? '';
       var fotoFinal = r['foto'] as String? ?? '';
-      final ehLoja = (r['eh_loja'] as int? ?? 0) == 1;
+      final ehConvLojaUsuario =
+          convId.startsWith('loja_') && convId.contains('_usuario_');
+      final ehLoja = ehConvLojaUsuario || (r['eh_loja'] as int? ?? 0) == 1;
       final ehGrupo = (r['eh_grupo'] as int? ?? 0) == 1;
       final nGrupo = (r['nome_grupo'] as String? ?? '').trim();
+      String lojaIdExtraido = (r['loja_id'] as String? ?? '').trim();
+      if (ehConvLojaUsuario && lojaIdExtraido.isEmpty) {
+        lojaIdExtraido = convId.substring(5, convId.indexOf('_usuario_'));
+      }
       String idNorm = '';
+      String identificadorOverride = '';
 
       if (!ehGrupo &&
           ehLoja &&
           (convId.contains('loja_nous_coletiva') ||
               convId.contains('loja_nous') ||
-              r['loja_id'] == idLojaColetivaNous ||
-              r['loja_id'] == 'nous' ||
+              lojaIdExtraido == idLojaColetivaNous ||
+              lojaIdExtraido == 'nous' ||
               tituloFinal.toLowerCase() == 'nous')) {
         continue;
       }
@@ -229,57 +270,84 @@ class ChatConversasService {
           }
         }
       } else if (ehLoja) {
+        final lojaObj = await obterLojaCacheada(lojaIdExtraido);
         if (lojaId != null && lojaId.isNotEmpty) {
-          var idNorm = ChatRepositorioSqlite.normalizarCpf(
-              r['identificador'] as String? ?? '');
-          if (idNorm.length != 11) {
-            idNorm = ChatRepositorioSqlite.extrairOutroCpf(convId, '');
+          var idCliNorm = '';
+          if (ehConvLojaUsuario) {
+            idCliNorm = ChatRepositorioSqlite.normalizarCpf(
+              convId.split('_usuario_').last,
+            );
           }
-          final u = mapaContasPorCpf[idNorm];
+          if (idCliNorm.length != 11) {
+            idCliNorm = ChatRepositorioSqlite.normalizarCpf(
+              r['identificador'] as String? ?? '',
+            );
+          }
+          if (idCliNorm.length != 11) {
+            idCliNorm = ChatRepositorioSqlite.extrairOutroCpf(convId, '');
+          }
+          if (idCliNorm.length == 11) {
+            identificadorOverride = idCliNorm;
+          }
+          final u = mapaContasPorCpf[idCliNorm];
           if (u != null) {
-            if (tituloFinal.isEmpty ||
-                tituloFinal == 'Conversa' ||
-                tituloFinal == 'Nova Conversa' ||
-                tituloFinal == 'Contato' ||
-                tituloFinal == 'Contato Nous' ||
-                tituloFinal == 'Cliente') {
-              tituloFinal = u.nomeExibicao;
-            }
+            tituloFinal = u.nomeExibicao;
             if (u.fotoExibicao.isNotEmpty) {
               fotoFinal = u.fotoExibicao;
-            } else if (fotoFinal.isEmpty || !ImagemService.existe(fotoFinal)) {
+            } else if (fotoFinal.isEmpty ||
+                !ImagemService.existe(fotoFinal) ||
+                (lojaObj != null && fotoFinal == lojaObj.logo)) {
               fotoFinal = u.foto;
             }
-            if (subtituloFinal.isEmpty ||
-                subtituloFinal == 'Conversa' ||
-                subtituloFinal == 'Contato Nous' ||
-                subtituloFinal == 'Loja Nous') {
-              subtituloFinal = u.usernameExibicao.isNotEmpty
-                  ? u.usernameExibicao
-                  : 'Cliente Nous';
-            }
+            subtituloFinal = u.usernameExibicao.isNotEmpty
+                ? u.usernameExibicao
+                : 'Cliente Nous';
           } else if (contaLogada != null &&
-              idNorm.length == 11 &&
-              idNorm == cpfNormUsuario) {
+              idCliNorm.length == 11 &&
+              idCliNorm == cpfNormUsuario) {
             tituloFinal = contaLogada.nomeExibicao;
             fotoFinal = contaLogada.fotoExibicao;
             subtituloFinal = contaLogada.usernameExibicao.isNotEmpty
                 ? contaLogada.usernameExibicao
                 : 'Cliente Nous';
+          } else if (lojaObj != null && idCliNorm.length == 11) {
+            final cli = lojaObj.clientesLoja
+                .where(
+                  (c) =>
+                      ChatRepositorioSqlite.normalizarCpf(c.cnpj) == idCliNorm,
+                )
+                .firstOrNull;
+            if (cli != null && cli.nome.trim().isNotEmpty) {
+              tituloFinal = cli.nome.trim();
+              if (cli.foto.isNotEmpty) fotoFinal = cli.foto;
+              subtituloFinal = 'Cliente';
+            }
           }
         } else {
-          final ehFotoPropria = contaLogada != null &&
-              ((contaLogada.foto.isNotEmpty && fotoFinal == contaLogada.foto) ||
-                  (contaLogada.fotoExibicao.isNotEmpty &&
-                      fotoFinal == contaLogada.fotoExibicao));
-          if (ehFotoPropria) {
-            fotoFinal = '';
+          if (lojaIdExtraido.isNotEmpty) {
+            identificadorOverride = lojaIdExtraido;
           }
-          if (subtituloFinal.isEmpty ||
-              subtituloFinal == 'Conversa' ||
-              subtituloFinal == 'Contato Nous' ||
-              subtituloFinal == 'Cliente Nous') {
-            subtituloFinal = 'Loja';
+          if (lojaObj != null) {
+            tituloFinal = lojaObj.nome;
+            if (lojaObj.logo.isNotEmpty) {
+              fotoFinal = lojaObj.logo;
+            }
+            subtituloFinal =
+                lojaObj.categorias.isNotEmpty ? lojaObj.categorias : 'Loja Nous';
+          } else {
+            final ehFotoPropria = contaLogada != null &&
+                ((contaLogada.foto.isNotEmpty && fotoFinal == contaLogada.foto) ||
+                    (contaLogada.fotoExibicao.isNotEmpty &&
+                        fotoFinal == contaLogada.fotoExibicao));
+            if (ehFotoPropria) {
+              fotoFinal = '';
+            }
+            if (subtituloFinal.isEmpty ||
+                subtituloFinal == 'Conversa' ||
+                subtituloFinal == 'Contato Nous' ||
+                subtituloFinal == 'Cliente Nous') {
+              subtituloFinal = 'Loja';
+            }
           }
         }
       }
@@ -294,7 +362,9 @@ class ChatConversasService {
                   : 'Contato Nous');
       }
 
-      String identificadorFinal = r['identificador'] as String? ?? convId;
+      String identificadorFinal = identificadorOverride.isNotEmpty
+          ? identificadorOverride
+          : (r['identificador'] as String? ?? convId);
       if (!ehGrupo && !ehLoja && idNorm.length == 11) {
         identificadorFinal = idNorm;
       }
@@ -310,7 +380,9 @@ class ChatConversasService {
           ehGrupo: ehGrupo,
           nomeGrupo: nGrupo,
           tituloConversa: tituloConversaFinal,
-          lojaId: r['loja_id'] as String?,
+          lojaId: lojaIdExtraido.isNotEmpty
+              ? lojaIdExtraido
+              : (r['loja_id'] as String?),
           participantesIds: ChatRepositorioSqlite.decodificarParticipantes(
             r['participantes_json'] as String?,
           ),
@@ -482,17 +554,26 @@ class ChatConversasService {
         }
       }
 
+      final ehConvLojaUsuario =
+          id.startsWith('loja_') && id.contains('_usuario_');
+      final ehLojaFinal =
+          ehConvLojaUsuario || ehLoja || (r['eh_loja'] as int? ?? 0) == 1;
+      var lojaIdFinal = (r['loja_id'] as String? ?? lojaId ?? '').trim();
+      if (ehConvLojaUsuario && lojaIdFinal.isEmpty) {
+        lojaIdFinal = id.substring(5, id.indexOf('_usuario_'));
+      }
+
       return ConversaChat(
         id: id,
         titulo: titFinal.isNotEmpty ? titFinal : 'Contato Nous',
         subtitulo: subFinal.isNotEmpty ? subFinal : 'Contato Nous',
         foto: fotoFinal,
         identificador: idFinalConversa,
-        ehLoja: (r['eh_loja'] as int? ?? 0) == 1,
+        ehLoja: ehLojaFinal,
         ehGrupo: (r['eh_grupo'] as int? ?? 0) == 1,
         nomeGrupo: (r['nome_grupo'] as String? ?? '').trim(),
         tituloConversa: (r['titulo_conversa'] as String? ?? '').trim(),
-        lojaId: r['loja_id'] as String? ?? lojaId,
+        lojaId: lojaIdFinal.isNotEmpty ? lojaIdFinal : lojaId,
         participantesIds: partsExistentes,
         ultimaMensagem: ultMsg,
         dataHoraUltimaMensagem: dataHoraUlt,
@@ -507,6 +588,14 @@ class ChatConversasService {
     var subtituloInserir = subtitulo;
     var fotoInserir = foto;
 
+    final ehConvLojaUsuario =
+        id.startsWith('loja_') && id.contains('_usuario_');
+    final ehLojaEfetivo = ehConvLojaUsuario || ehLoja;
+    var lojaIdEfetivo = (lojaId ?? '').trim();
+    if (ehConvLojaUsuario && lojaIdEfetivo.isEmpty) {
+      lojaIdEfetivo = id.substring(5, id.indexOf('_usuario_'));
+    }
+
     final cpfNormUsuario =
         cpfUsuario != null ? ChatRepositorioSqlite.normalizarCpf(cpfUsuario) : '';
     var outroCpf = ChatRepositorioSqlite.normalizarCpf(identificador);
@@ -515,11 +604,11 @@ class ChatConversasService {
       outroCpf = ChatRepositorioSqlite.extrairOutroCpf(id, cpfNormUsuario);
     }
     var idParaSalvar = identificador;
-    if (!ehLoja && !ehGrupo && outroCpf.length == 11) {
+    if (!ehLojaEfetivo && !ehGrupo && outroCpf.length == 11) {
       idParaSalvar = outroCpf;
     }
 
-    if (!ehLoja &&
+    if (!ehLojaEfetivo &&
         !ehGrupo &&
         (tituloInserir.isEmpty ||
             tituloInserir == 'Conversa' ||
@@ -546,7 +635,7 @@ class ChatConversasService {
     }
     if (subtituloInserir.isEmpty || subtituloInserir == 'Conversa') {
       subtituloInserir =
-          ehLoja ? 'Loja Nous' : (ehGrupo ? 'Grupo Nous' : 'Usuário Nous');
+          ehLojaEfetivo ? 'Loja Nous' : (ehGrupo ? 'Grupo Nous' : 'Usuário Nous');
     }
 
     final agora = DateTime.now();
@@ -556,9 +645,9 @@ class ChatConversasService {
       'subtitulo': subtituloInserir,
       'foto': fotoInserir,
       'identificador': idParaSalvar,
-      'eh_loja': ehLoja ? 1 : 0,
+      'eh_loja': ehLojaEfetivo ? 1 : 0,
       'eh_grupo': ehGrupo ? 1 : 0,
-      'loja_id': lojaId ?? '',
+      'loja_id': lojaIdEfetivo,
       'participantes_json': jsonEncode(listaFinalParticipantes),
       'criado_em': agora.toIso8601String(),
       'atualizado_em': agora.toIso8601String(),
@@ -576,9 +665,9 @@ class ChatConversasService {
       subtitulo: subtituloInserir,
       foto: fotoInserir,
       identificador: identificador,
-      ehLoja: ehLoja,
+      ehLoja: ehLojaEfetivo,
       ehGrupo: ehGrupo,
-      lojaId: lojaId,
+      lojaId: lojaIdEfetivo.isNotEmpty ? lojaIdEfetivo : lojaId,
       participantesIds: listaFinalParticipantes,
       ultimaMensagem: '',
       dataHoraUltimaMensagem: agora,
@@ -596,17 +685,25 @@ class ChatConversasService {
   }) async {
     final db = await ChatRepositorioSqlite.obterDb();
     final agora = DateTime.now();
+    final ehConvLojaUsuario =
+        conversa.id.startsWith('loja_') && conversa.id.contains('_usuario_');
+    final ehLojaEfetivo = ehConvLojaUsuario || conversa.ehLoja;
+    var lojaIdEfetivo = (conversa.lojaId ?? '').trim();
+    if (ehConvLojaUsuario && lojaIdEfetivo.isEmpty) {
+      lojaIdEfetivo =
+          conversa.id.substring(5, conversa.id.indexOf('_usuario_'));
+    }
     await db.insert('conversas_chat', {
       'id': conversa.id,
       'titulo': conversa.titulo,
       'subtitulo': conversa.subtitulo,
       'foto': conversa.foto,
       'identificador': conversa.identificador,
-      'eh_loja': conversa.ehLoja ? 1 : 0,
+      'eh_loja': ehLojaEfetivo ? 1 : 0,
       'eh_grupo': conversa.ehGrupo ? 1 : 0,
       'nome_grupo': conversa.nomeGrupo,
       'titulo_conversa': conversa.tituloConversa,
-      'loja_id': conversa.lojaId ?? '',
+      'loja_id': lojaIdEfetivo,
       'participantes_json': jsonEncode(conversa.participantesIds),
       'criado_em': agora.toIso8601String(),
       'atualizado_em': agora.toIso8601String(),

@@ -4,10 +4,14 @@ import 'package:nous/src/core/theme/theme_controller.dart';
 import 'package:nous/src/features/chat/models/mensagem_chat.dart';
 
 class DialogMenuMensagem {
+  static const List<String> emojisPadrao = ['👍', '❤️', '😂', '😮', '😢', '🙏'];
+
   static void mostrar(
     BuildContext context, {
     required AppTheme theme,
     required MensagemChat msg,
+    required void Function(String emoji) onReagir,
+    required VoidCallback onAlternarFixada,
     required VoidCallback onEditar,
     required VoidCallback onEncaminhar,
     required VoidCallback onAlternarFavorita,
@@ -29,12 +33,54 @@ class DialogMenuMensagem {
             borderRadius: BorderRadius.circular(16),
             side: BorderSide(color: theme.borderColor),
           ),
-          contentPadding: const EdgeInsets.symmetric(vertical: 12),
+          contentPadding: const EdgeInsets.symmetric(vertical: 10),
           content: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 300),
+            constraints: const BoxConstraints(maxWidth: 320),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
+                // Barra Superior de Reações com Emojis
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(12, 4, 12, 10),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceAround,
+                    children: emojisPadrao.map((emoji) {
+                      final reagidoPorMim = msg.reacoes.values.contains(emoji);
+                      return Material(
+                        color: reagidoPorMim
+                            ? theme.buttonColor.withValues(alpha: 0.2)
+                            : Colors.transparent,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(20),
+                          side: BorderSide(
+                            color: reagidoPorMim
+                                ? theme.buttonColor
+                                : Colors.transparent,
+                            width: 1,
+                          ),
+                        ),
+                        child: InkWell(
+                          borderRadius: BorderRadius.circular(20),
+                          onTap: () {
+                            Navigator.pop(ctx);
+                            onReagir(emoji);
+                          },
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 7,
+                              vertical: 4,
+                            ),
+                            child: Text(
+                              emoji,
+                              style: const TextStyle(fontSize: 22),
+                            ),
+                          ),
+                        ),
+                      );
+                    }).toList(),
+                  ),
+                ),
+                Divider(height: 1, color: theme.borderColor.withValues(alpha: 0.3)),
                 // 1. Copiar texto
                 if (msg.texto.isNotEmpty)
                   ListTile(
@@ -128,6 +174,30 @@ class DialogMenuMensagem {
                   onTap: () {
                     Navigator.pop(ctx);
                     onAlternarFavorita();
+                  },
+                ),
+
+                // 5. Fixar / Desafixar mensagem
+                ListTile(
+                  leading: Icon(
+                    msg.fixada
+                        ? Icons.push_pin_rounded
+                        : Icons.push_pin_outlined,
+                    color: theme.textColor,
+                    size: 20,
+                  ),
+                  title: Text(
+                    msg.fixada
+                        ? 'Desafixar mensagem'
+                        : 'Fixar mensagem',
+                    style: theme.getTextStyle(
+                      fontSize: 13,
+                      color: theme.textColor,
+                    ),
+                  ),
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    onAlternarFixada();
                   },
                 ),
 

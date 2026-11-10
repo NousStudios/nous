@@ -26,7 +26,9 @@ class CuradorConversasChat {
     // 1. Incluir conversas persistidas restantes
     for (final rem in persistidasMap.values) {
       if (rem.ehGrupo) continue;
-      if (!modoLoja && rem.ehLoja) continue;
+      if (!modoLoja && (rem.ehLoja || rem.id.startsWith('loja_')) && !rem.id.contains('_usuario_$cpfLogadoNorm')) {
+        continue;
+      }
       if (rem.id.contains('loja_nous_coletiva') ||
           rem.id.contains('loja_nous') ||
           (rem.lojaId != null &&
@@ -204,7 +206,9 @@ class CuradorConversasChat {
     // 4. Cura preventiva de títulos, fotos e identificadores na lista ativa
     for (int i = 0; i < lista.length; i++) {
       final c = lista[i];
-      if (c.ehGrupo || (!modoLoja && c.ehLoja)) continue;
+      if (c.ehGrupo || (!modoLoja && (c.ehLoja || c.id.startsWith('loja_')))) {
+        continue;
+      }
       var cNorm = ChatService.normalizarCpf(c.identificador);
       if (cNorm.length != 11 && c.id.contains('_usuario_')) {
         cNorm = ChatService.normalizarCpf(c.id.split('_usuario_').last);
@@ -232,7 +236,10 @@ class CuradorConversasChat {
         final fotoVazia =
             c.foto.isEmpty || !ImagemService.existe(c.foto) || ehFotoPropria;
 
-        final novoNome = u.nomeExibicao;
+        final ehProprioNoModoLoja = modoLoja && cNorm == cpfLogadoNorm;
+        final novoNome = (ehProprioNoModoLoja && !u.nomeExibicao.contains('(Você)'))
+            ? '${u.nomeExibicao} (Você)'
+            : u.nomeExibicao;
         final novoTituloConversa = titulosCustomizados[c.id] ?? c.tituloConversa;
 
         if (titGenerico || subGenerico || fotoVazia || c.titulo != novoNome) {
@@ -256,14 +263,16 @@ class CuradorConversasChat {
             identificador: cNorm,
           );
 
-          unawaited(
-            ChatService.atualizarMetadadosContatoConversa(
-              conversaId: c.id,
-              titulo: novoNome,
-              subtitulo: subFinalSalvar,
-              foto: fotoFinalSalvar,
-            ),
-          );
+          if (!c.id.startsWith('loja_')) {
+            unawaited(
+              ChatService.atualizarMetadadosContatoConversa(
+                conversaId: c.id,
+                titulo: novoNome,
+                subtitulo: subFinalSalvar,
+                foto: fotoFinalSalvar,
+              ),
+            );
+          }
         }
       }
     }
@@ -342,6 +351,12 @@ class CuradorConversasChat {
           mensagens: msgsOrdenadas,
           ultimaMensagem: resumoUltima,
           dataHoraUltimaMensagem: dataUltima,
+          ultimaMensagemEnviadaPorMim: ultimaMsg != null
+              ? ultimaMsg.enviadaPorMim
+              : maisRecente.ultimaMensagemEnviadaPorMim,
+          statusUltimaMensagem: ultimaMsg != null
+              ? ultimaMsg.statusEnvio
+              : maisRecente.statusUltimaMensagem,
         );
       }
     }

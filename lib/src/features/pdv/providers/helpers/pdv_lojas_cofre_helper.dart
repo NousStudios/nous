@@ -7,6 +7,7 @@ import 'package:nous/src/features/pdv/models/referencia_loja.dart';
 import 'package:nous/src/features/pdv/services/backup_service.dart';
 import 'package:nous/src/features/pdv/services/lojas_service.dart';
 import 'package:nous/src/features/pdv/services/rede_local/cliente_rede_local.dart';
+import 'package:nous/src/features/pdv/services/rede_local/servidor_rede_local.dart';
 
 /// Helper especialista responsável pelo ciclo de vida, cofre de persistência,
 /// resolução de referências e loja coletiva Nous.
@@ -29,15 +30,26 @@ class PdvLojasCofreHelper {
     final minhasLojasBrutas = await LojasService.carregar(cpf);
     final minhasLojasDesduplicadas =
         BackupService.desduplicarLojas(minhasLojasBrutas);
+    final idHospedadaAtiva = ServidorRedeLocal().ativo
+        ? ServidorRedeLocal().lojaAtiva?.id
+        : null;
+    bool algumaTinhaAberta = false;
     final minhasLojas = minhasLojasDesduplicadas
-        .map((l) => l.cpfDonoOriginal.isEmpty
-            ? l.copyWith(cpfDonoOriginal: cpf)
-            : l)
+        .map((l) {
+          var lojaNorm = l.cpfDonoOriginal.isEmpty
+              ? l.copyWith(cpfDonoOriginal: cpf)
+              : l;
+          if (lojaNorm.aberta && lojaNorm.id != idHospedadaAtiva) {
+            algumaTinhaAberta = true;
+            lojaNorm = lojaNorm.copyWith(aberta: false);
+          }
+          return lojaNorm;
+        })
         .where((l) =>
             mesmoCpf(l.cpfDonoOriginal, cpf) ||
             l.membros.any((m) => mesmoCpf(m.cpf, cpf)))
         .toList();
-    if (minhasLojas.length != minhasLojasBrutas.length) {
+    if (minhasLojas.length != minhasLojasBrutas.length || algumaTinhaAberta) {
       await LojasService.salvar(cpf, minhasLojas);
     }
 
@@ -66,6 +78,11 @@ class PdvLojasCofreHelper {
            !encontrada.membros.any((m) => mesmoCpf(m.cpf, cpf)))) {
         referenciasOrfas.add(ref);
         continue;
+      }
+      if (encontrada.aberta &&
+          encontrada.id != idHospedadaAtiva &&
+          !ClienteRedeLocal().conectado) {
+        encontrada = encontrada.copyWith(aberta: false);
       }
       lojasReferenciadas.add(encontrada);
     }

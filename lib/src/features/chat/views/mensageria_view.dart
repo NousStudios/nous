@@ -264,6 +264,8 @@ class _MensageriaViewState extends State<MensageriaView> {
           context,
           theme: theme,
           msg: msg,
+          onReagir: (emoji) => _controller.reagirMensagem(msg, emoji),
+          onAlternarFixada: () => _controller.alternarFixarMensagem(msg),
           onEditar: () {
             DialogEditarMensagem.mostrar(
               context,

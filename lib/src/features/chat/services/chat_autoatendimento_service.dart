@@ -10,6 +10,7 @@ import 'package:nous/src/core/services/som_service.dart';
 import 'package:nous/src/features/auth/models/usuario_nous.dart';
 import 'package:nous/src/features/auth/providers/auth_provider.dart';
 import 'package:nous/src/features/chat/controllers/mensageria_controller.dart';
+import 'package:nous/src/features/chat/models/mensagem_chat.dart';
 import 'package:nous/src/features/chat/services/chat_service.dart';
 import 'package:nous/src/features/pdv/models/cliente.dart';
 import 'package:nous/src/features/pdv/models/loja.dart';
@@ -124,6 +125,19 @@ class ChatAutoatendimentoService {
     }).firstOrNull;
 
     if (porNome != null) {
+      if (meuCpf.length == 11 &&
+          ChatService.normalizarCpf(porNome.cnpj) != meuCpf) {
+        final atualizado = porNome.copyWith(
+          cnpj: usuario.cpf,
+          foto: porNome.foto.isNotEmpty ? porNome.foto : usuario.fotoExibicao,
+        );
+        await atualizarFichaCliente(
+          lojaId: loja.id,
+          clienteAtualizado: atualizado,
+          pdv: pdv,
+        );
+        return atualizado;
+      }
       return porNome;
     }
 
@@ -203,7 +217,9 @@ class ChatAutoatendimentoService {
     }
   }
 
-  /// Envia um novo pedido de autoatendimento direto para a aba 'Novos' da loja e para o chat
+  /// Envia um novo pedido de autoatendimento.
+  /// Se [geradoPelaLoja] for true, cria uma proposta no chat em nome do cliente aguardando a aprovação dele,
+  /// sem enviar diretamente para a aba "Novos" da loja.
   static Future<PedidoLoja> enviarPedidoAutoatendimento({
     required BuildContext context,
     required String lojaId,
@@ -211,6 +227,10 @@ class ChatAutoatendimentoService {
     required String observacaoGeral,
     required String formaPagamento,
     required MensageriaController controller,
+    bool geradoPelaLoja = false,
+    String? identificadorClienteConversa,
+    String? nomeClienteConversa,
+    String? fotoClienteConversa,
   }) async {
     final pdv = context.read<PdvProvider>();
     final auth = context.read<AuthProvider>();
@@ -220,12 +240,30 @@ class ChatAutoatendimentoService {
       throw Exception('Loja não encontrada para envio do pedido.');
     }
 
-    final usuario = auth.contaAtual ??
-        UsuarioNous(
-          cpf: auth.cpf,
-          nome: auth.contaAtual?.nome ?? 'Cliente',
-          dataNascimento: '',
-        );
+    final UsuarioNous usuario;
+    if (geradoPelaLoja) {
+      final cpfCliente = ChatService.normalizarCpf(identificadorClienteConversa ?? '');
+      final nome = (nomeClienteConversa != null &&
+              nomeClienteConversa.isNotEmpty &&
+              nomeClienteConversa != 'Conversa' &&
+              nomeClienteConversa != 'Contato' &&
+              nomeClienteConversa != 'Contato Nous')
+          ? nomeClienteConversa
+          : 'Cliente';
+      usuario = UsuarioNous(
+        cpf: cpfCliente,
+        nome: nome,
+        dataNascimento: '',
+        foto: fotoClienteConversa ?? '',
+      );
+    } else {
+      usuario = auth.contaAtual ??
+          UsuarioNous(
+            cpf: auth.cpf,
+            nome: auth.contaAtual?.nome ?? 'Cliente',
+            dataNascimento: '',
+          );
+    }
 
     // 1. Resolve ou cria ficha do cliente sem duplicações
     final cliente = await resolverOuCriarFichaCliente(
@@ -238,7 +276,11 @@ class ChatAutoatendimentoService {
     final agora = RelogioRedeService.agora();
     double total = 0.0;
     final bufferComanda = StringBuffer();
-    bufferComanda.writeln('📋 *PEDIDO DE AUTOATENDIMENTO (CHAT)*');
+    if (geradoPelaLoja) {
+      bufferComanda.writeln('📋 *PROPOSTA DE PEDIDO (AGUARDANDO APROVAÇÃO DO CLIENTE)*');
+    } else {
+      bufferComanda.writeln('📋 *PEDIDO DE AUTOATENDIMENTO (CHAT)*');
+    }
     bufferComanda.writeln(
       '⏰ Data/Hora: ${agora.day.toString().padLeft(2, '0')}/${agora.month.toString().padLeft(2, '0')}/${agora.year} ${agora.hour.toString().padLeft(2, '0')}:${agora.minute.toString().padLeft(2, '0')}',
     );
@@ -275,7 +317,7 @@ class ChatAutoatendimentoService {
     bufferComanda.writeln('--------------------------------');
     bufferComanda.writeln('💰 TOTAL: R\$ ${total.toStringAsFixed(2)}');
     bufferComanda.writeln(
-      '💳 Pagamento: ${formaPagamento.trim().isNotEmpty ? formaPagamento.trim() : 'A combinar no chat'}',
+      '💳 Pagamento: ${formaPagamento.trim().isNotEmpty ? formaPagamento.trim() : (geradoPelaLoja ? 'A combinar' : 'A combinar no chat')}',
     );
     if (observacaoGeral.trim().isNotEmpty) {
       bufferComanda.writeln('📝 Observações: ${observacaoGeral.trim()}');
@@ -291,7 +333,7 @@ class ChatAutoatendimentoService {
             : 0) +
         1;
 
-    // 3. Monta entidade soberana do pedido com status "novo" (cai na aba "Novos")
+    // 3. Monta entidade soberana do pedido
     final pedido = PedidoLoja(
       id: agora.millisecondsSinceEpoch.toString(),
       numero: proximoNumero,
@@ -304,7 +346,7 @@ class ChatAutoatendimentoService {
       comanda: bufferComanda.toString(),
       formaPagamento: formaPagamento.trim().isNotEmpty
           ? formaPagamento.trim()
-          : 'Autoatendimento no Chat',
+          : (geradoPelaLoja ? 'Balcão / A combinar' : 'Autoatendimento no Chat'),
       pagamentosExtras: const [],
       valorRecebido: 0.0,
       troco: 0.0,
@@ -316,38 +358,48 @@ class ChatAutoatendimentoService {
       lojaId: loja.id,
     );
 
-    // 4. Persiste localmente e despacha na rede local (WebSocket + REST) para cair em "Novos"
-    final lojaAtual = pdv.buscarPorId(loja.id) ?? loja;
-    final pedidosAtualizados = List<PedidoLoja>.from(lojaAtual.pedidosLoja)
-      ..insert(0, pedido);
-    await pdv.adicionarOuAtualizarLoja(
-      lojaAtual.copyWith(pedidosLoja: pedidosAtualizados),
-    );
+    final payloadMap = pedido.toJson();
 
-    if (ServidorRedeLocal().ativo) {
-      SomService.tocarEvento(SomService.eventoNovoPedido, loja: lojaAtual);
-      ServidorRedeLocal().notificarTodos({
-        'tipo': 'pedido_adicionado',
-        'lojaId': loja.id,
-        'pedido': pedido.toJson(),
-      });
+    // 4. Se gerado pela loja, NÃO insere na aba "Novos" da loja nem toca som ainda!
+    if (geradoPelaLoja) {
+      payloadMap['aguardandoAprovacaoCliente'] = true;
     } else {
-      final clienteRede = ClienteRedeLocal();
-      if (clienteRede.conectado) {
-        clienteRede.enviarEventoWs({
+      // Se gerado pelo cliente, insere imediatamente na aba "Novos"
+      final lojaAtual = pdv.buscarPorId(loja.id) ?? loja;
+      final pedidosAtualizados = List<PedidoLoja>.from(lojaAtual.pedidosLoja)
+        ..insert(0, pedido);
+      await pdv.adicionarOuAtualizarLoja(
+        lojaAtual.copyWith(pedidosLoja: pedidosAtualizados),
+      );
+
+      if (ServidorRedeLocal().ativo) {
+        SomService.tocarEvento(SomService.eventoNovoPedido, loja: lojaAtual);
+        ServidorRedeLocal().notificarTodos({
           'tipo': 'pedido_adicionado',
           'lojaId': loja.id,
           'pedido': pedido.toJson(),
         });
+      } else {
+        final clienteRede = ClienteRedeLocal();
+        if (clienteRede.conectado) {
+          clienteRede.enviarEventoWs({
+            'tipo': 'pedido_adicionado',
+            'lojaId': loja.id,
+            'pedido': pedido.toJson(),
+          });
+        }
+        await clienteRede.enviarPedido(pedido);
       }
-      await clienteRede.enviarPedido(pedido);
     }
 
     // 5. Envia comanda estruturada no Chat para reflexo instantâneo no histórico
-    final payloadPedidoJson = jsonEncode(pedido.toJson());
+    final payloadPedidoJson = jsonEncode(payloadMap);
+    final textoMsg = geradoPelaLoja
+        ? 'Proposta de comanda #${pedido.numero.toString().padLeft(4, '0')} para ${cliente.nome} • R\$ ${pedido.valor.toStringAsFixed(2)}'
+        : 'Novo pedido de autoatendimento #${pedido.numero.toString().padLeft(4, '0')} • R\$ ${pedido.valor.toStringAsFixed(2)}';
+
     await controller.enviarMensagem(
-      texto:
-          'Novo pedido de autoatendimento #${pedido.numero.toString().padLeft(4, '0')} • R\$ ${pedido.valor.toStringAsFixed(2)}',
+      texto: textoMsg,
       tipo: 'comanda',
       caminhoAnexo: '',
       nomeAnexo: 'Pedido #${pedido.numero.toString().padLeft(4, '0')}',
@@ -358,5 +410,88 @@ class ChatAutoatendimentoService {
     );
 
     return pedido;
+  }
+
+  /// Aprova uma proposta de pedido pelo cliente, inserindo na aba "Novos" da loja
+  static Future<void> aprovarPedidoPeloCliente({
+    required BuildContext context,
+    required MensagemChat msg,
+    required PedidoLoja pedido,
+  }) async {
+    final pdv = context.read<PdvProvider>();
+    final loja = await obterLojaCatalogo(lojaIdBruto: pedido.lojaId, pdv: pdv);
+    if (loja == null) return;
+
+    final pedidoAprovado = pedido.copyWith(status: StatusPedido.novo);
+    final lojaAtual = pdv.buscarPorId(loja.id) ?? loja;
+    final pedidos = List<PedidoLoja>.from(lojaAtual.pedidosLoja);
+    final idx = pedidos.indexWhere((p) => p.id == pedido.id);
+    if (idx != -1) {
+      pedidos[idx] = pedidoAprovado;
+    } else {
+      pedidos.insert(0, pedidoAprovado);
+    }
+
+    await pdv.adicionarOuAtualizarLoja(
+      lojaAtual.copyWith(pedidosLoja: pedidos),
+    );
+
+    // Dispara som e eventos de novo pedido
+    SomService.tocarEvento(SomService.eventoNovoPedido, loja: lojaAtual);
+    if (ServidorRedeLocal().ativo) {
+      ServidorRedeLocal().notificarTodos({
+        'tipo': 'pedido_adicionado',
+        'lojaId': loja.id,
+        'pedido': pedidoAprovado.toJson(),
+      });
+    } else {
+      final clienteRede = ClienteRedeLocal();
+      if (clienteRede.conectado) {
+        clienteRede.enviarEventoWs({
+          'tipo': 'pedido_adicionado',
+          'lojaId': loja.id,
+          'pedido': pedidoAprovado.toJson(),
+        });
+      }
+      await clienteRede.enviarPedido(pedidoAprovado);
+    }
+
+    // Atualiza a mensagem da comanda no chat
+    final mapa = pedidoAprovado.toJson();
+    mapa['aguardandoAprovacaoCliente'] = false;
+    final dadosJson = jsonEncode(mapa);
+    final texto = 'Pedido #${pedidoAprovado.numero.toString().padLeft(4, '0')} aprovado pelo cliente! • R\$ ${pedidoAprovado.valor.toStringAsFixed(2)}';
+
+    await ChatService.atualizarDadosComandaMensagem(
+      msgId: msg.id,
+      dadosPedidoJson: dadosJson,
+      texto: texto,
+    );
+  }
+
+  /// Permite ao cliente modificar ou adicionar observação em uma comanda do chat
+  static Future<void> modificarObservacaoComanda({
+    required BuildContext context,
+    required MensagemChat msg,
+    required PedidoLoja pedido,
+    required String novaObservacao,
+  }) async {
+    final buffer = StringBuffer(pedido.comanda);
+    buffer.writeln('📝 Obs do Cliente: $novaObservacao');
+
+    final pedidoModificado = pedido.copyWith(
+      comanda: buffer.toString(),
+    );
+
+    final mapa = pedidoModificado.toJson();
+    mapa['aguardandoAprovacaoCliente'] = true;
+    final dadosJson = jsonEncode(mapa);
+    final texto = 'Comanda #${pedido.numero.toString().padLeft(4, '0')} atualizada com observação: "$novaObservacao"';
+
+    await ChatService.atualizarDadosComandaMensagem(
+      msgId: msg.id,
+      dadosPedidoJson: dadosJson,
+      texto: texto,
+    );
   }
 }

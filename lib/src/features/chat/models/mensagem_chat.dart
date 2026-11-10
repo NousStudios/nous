@@ -24,6 +24,8 @@ class MensagemChat {
   final String statusEnvio; // 'pendente', 'enviada', 'entregue', 'lida'
   final bool entregue;
   final bool favorita;
+  final bool fixada;
+  final Map<String, String> reacoes;
 
   const MensagemChat({
     required this.id,
@@ -49,6 +51,8 @@ class MensagemChat {
     this.statusEnvio = 'enviada',
     this.entregue = false,
     this.favorita = false,
+    this.fixada = false,
+    this.reacoes = const {},
   });
 
   MensagemChat copyWith({
@@ -75,6 +79,8 @@ class MensagemChat {
     String? statusEnvio,
     bool? entregue,
     bool? favorita,
+    bool? fixada,
+    Map<String, String>? reacoes,
   }) {
     return MensagemChat(
       id: id ?? this.id,
@@ -100,6 +106,8 @@ class MensagemChat {
       statusEnvio: statusEnvio ?? this.statusEnvio,
       entregue: entregue ?? this.entregue,
       favorita: favorita ?? this.favorita,
+      fixada: fixada ?? this.fixada,
+      reacoes: reacoes ?? this.reacoes,
     );
   }
 
@@ -128,6 +136,8 @@ class MensagemChat {
       'statusEnvio': statusEnvio,
       'entregue': entregue,
       'favorita': favorita,
+      'fixada': fixada,
+      'reacoes': reacoes,
     };
   }
 
@@ -148,10 +158,28 @@ class MensagemChat {
       } catch (_) {}
     }
 
+    Map<String, String> reacoesMap = {};
+    final reacRaw = json['reacoes'] ?? json['reacoes_json'];
+    if (reacRaw is Map) {
+      reacoesMap = reacRaw.map(
+        (k, v) => MapEntry(k.toString(), v.toString()),
+      );
+    } else if (reacRaw is String && reacRaw.isNotEmpty && reacRaw != '{}') {
+      try {
+        final dec = jsonDecode(reacRaw);
+        if (dec is Map) {
+          reacoesMap = dec.map(
+            (k, v) => MapEntry(k.toString(), v.toString()),
+          );
+        }
+      } catch (_) {}
+    }
+
     final lida = json['lida'] == true || json['lida'] == 1;
     final entregue = json['entregue'] == true || json['entregue'] == 1;
     final editada = json['editada'] == true || json['editada'] == 1;
     final favorita = json['favorita'] == true || json['favorita'] == 1;
+    final fixada = json['fixada'] == true || json['fixada'] == 1;
     final enviadaPorMim = json['enviadaPorMim'] == true ||
         json['enviada_por_mim'] == true ||
         json['enviada_por_mim'] == 1;
@@ -218,6 +246,8 @@ class MensagemChat {
       statusEnvio: status,
       entregue: entregue,
       favorita: favorita,
+      fixada: fixada,
+      reacoes: reacoesMap,
     );
   }
 }

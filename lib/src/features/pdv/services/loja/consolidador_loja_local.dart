@@ -536,7 +536,7 @@ class ConsolidadorLojaLocal {
       }
     }
 
-    final pedidoBase = (pesoB > pesoA || b.dataHora.isAfter(a.dataHora)) ? b : a;
+    final pedidoBase = a.dataHora.isBefore(b.dataHora) ? a : b;
 
     return pedidoBase.copyWith(
       status: statusFinal,

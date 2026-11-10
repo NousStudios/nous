@@ -92,6 +92,13 @@ class MontadorConversasModoSocial {
         mensagens: msgs,
         fixada: fixada,
         arquivada: arquivada,
+        silenciada: persistida?.silenciada ?? false,
+        ultimaMensagemEnviadaPorMim: msgs.isNotEmpty
+            ? msgs.last.enviadaPorMim
+            : (persistida?.ultimaMensagemEnviadaPorMim ?? false),
+        statusUltimaMensagem: msgs.isNotEmpty
+            ? msgs.last.statusEnvio
+            : (persistida?.statusUltimaMensagem ?? ''),
       );
 
       todosDisponiveis.add(conversaLoja);
@@ -263,6 +270,13 @@ class MontadorConversasModoSocial {
         mensagens: msgs,
         fixada: fixada,
         arquivada: arquivada,
+        silenciada: persistida?.silenciada ?? false,
+        ultimaMensagemEnviadaPorMim: msgs.isNotEmpty
+            ? msgs.last.enviadaPorMim
+            : (persistida?.ultimaMensagemEnviadaPorMim ?? false),
+        statusUltimaMensagem: msgs.isNotEmpty
+            ? msgs.last.statusEnvio
+            : (persistida?.statusUltimaMensagem ?? ''),
       );
 
       todosDisponiveis.add(conversaUsuario);

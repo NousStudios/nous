@@ -3,12 +3,18 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:nous/src/core/theme/theme_controller.dart';
 import 'package:nous/src/features/chat/models/mensagem_chat.dart';
+import 'package:nous/src/features/chat/services/chat_autoatendimento_service.dart';
+import 'package:nous/src/features/pdv/models/cliente.dart';
+import 'package:nous/src/features/pdv/models/configuracoes_impressora.dart';
+import 'package:nous/src/features/pdv/models/loja.dart';
 import 'package:nous/src/features/pdv/models/pedido_loja.dart';
 import 'package:nous/src/features/pdv/providers/pdv_provider.dart';
+import 'package:nous/src/features/pdv/views/widgets/comanda_pedido.dart';
 
 class CardMensagemComanda extends StatelessWidget {
   final MensagemChat msg;
   final bool enviadaPorMim;
+  final bool modoLoja;
   final AppTheme theme;
   final VoidCallback onVerComanda;
 
@@ -16,6 +22,7 @@ class CardMensagemComanda extends StatelessWidget {
     super.key,
     required this.msg,
     required this.enviadaPorMim,
+    this.modoLoja = false,
     required this.theme,
     required this.onVerComanda,
   });
@@ -37,10 +44,12 @@ class CardMensagemComanda extends StatelessWidget {
   Widget build(BuildContext context) {
     final pdv = context.watch<PdvProvider?>();
     PedidoLoja? pedido;
+    bool aguardandoAprovacao = false;
     if (msg.dadosPedidoJson.isNotEmpty) {
       try {
         final mapa = jsonDecode(msg.dadosPedidoJson) as Map<String, dynamic>;
         pedido = PedidoLoja.fromJson(mapa);
+        aguardandoAprovacao = mapa['aguardandoAprovacaoCliente'] == true;
       } catch (_) {}
     }
 
@@ -54,9 +63,10 @@ class CardMensagemComanda extends StatelessWidget {
       );
     }
 
-    // Sincroniza em tempo real com o estado vivo do pedido na Loja
+    Loja? lojaViva;
+    // Sincroniza em tempo real com o estado vivo do pedido na Loja (se já aceito ou concluído)
     if (pdv != null && msg.pedidoId.isNotEmpty) {
-      final lojaViva = lojaIdAlvo.isNotEmpty ? pdv.buscarPorId(lojaIdAlvo) : null;
+      lojaViva = lojaIdAlvo.isNotEmpty ? pdv.buscarPorId(lojaIdAlvo) : null;
       if (lojaViva != null) {
         final pVivo = lojaViva.pedidosLoja
             .where((p) => p.id == msg.pedidoId)
@@ -64,6 +74,7 @@ class CardMensagemComanda extends StatelessWidget {
         if (pVivo != null) {
           pedido = pVivo;
           lojaIdAlvo = lojaViva.id;
+          aguardandoAprovacao = false;
         }
       } else {
         for (final l in pdv.lojas) {
@@ -72,248 +83,278 @@ class CardMensagemComanda extends StatelessWidget {
               .firstOrNull;
           if (pVivo != null) {
             pedido = pVivo;
+            lojaViva = l;
             lojaIdAlvo = l.id;
+            aguardandoAprovacao = false;
             break;
           }
         }
       }
     }
 
-    final numero = pedido != null
-        ? pedido.numero.toString().padLeft(4, '0')
-        : msg.pedidoId;
-    final totalFormatado = pedido != null
-        ? 'R\$ ${pedido.valor.toStringAsFixed(2)}'
-        : (msg.texto.contains('R\$') ? msg.texto : 'Comanda');
-    final statusNome = pedido != null
-        ? _rotuloStatus(pedido.status)
-        : 'COMANDA';
+    Cliente? clienteDaLoja;
+    final idClientePed = pedido?.clienteId ?? '';
+    if (lojaViva != null && idClientePed.isNotEmpty) {
+      clienteDaLoja = lojaViva.clientesLoja
+          .where((c) => c.id == idClientePed)
+          .firstOrNull;
+    }
 
-    final souMembroDaLoja =
-        pdv != null &&
-        lojaIdAlvo.isNotEmpty &&
-        (pdv.lojasQueAdministro.any((l) => l.id == lojaIdAlvo) ||
-            pdv.lojasQueParticipo.any((l) => l.id == lojaIdAlvo));
+    final String statusNome;
+    if (aguardandoAprovacao) {
+      statusNome = modoLoja
+          ? 'AGUARDANDO CLIENTE APROVAR'
+          : 'AGUARDANDO SUA APROVAÇÃO';
+    } else {
+      statusNome = pedido != null
+          ? _rotuloStatus(pedido.status)
+          : 'COMANDA';
+    }
 
-    return Container(
-      constraints: const BoxConstraints(maxWidth: 300),
-      margin: const EdgeInsets.only(top: 4, bottom: 4),
-      padding: const EdgeInsets.all(10),
-      decoration: BoxDecoration(
-        color: theme.cardBackgroundColor,
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: theme.borderColor.withValues(alpha: 0.8)),
-      ),
+    return ConstrainedBox(
+      constraints: const BoxConstraints(maxWidth: 320),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        mainAxisSize: MainAxisSize.min,
         children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(
-                    Icons.receipt_long_rounded,
-                    color: theme.buttonColor,
-                    size: 17,
-                  ),
-                  const SizedBox(width: 5),
-                  Text(
-                    'COMANDA',
-                    style: theme.getTextStyle(
-                      fontSize: 10.5,
-                      fontWeight: FontWeight.bold,
-                      color: theme.textColor,
+          Padding(
+            padding: const EdgeInsets.only(bottom: 6),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      Icons.receipt_long_rounded,
+                      color: theme.buttonColor,
+                      size: 16,
                     ),
-                  ),
-                ],
-              ),
-              Flexible(
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 6,
-                    vertical: 2,
-                  ),
-                  decoration: BoxDecoration(
-                    color: pedido?.status == StatusPedido.cancelado
-                        ? theme.dangerColor.withValues(alpha: 0.15)
-                        : theme.buttonColor.withValues(alpha: 0.15),
-                    borderRadius: BorderRadius.circular(6),
-                    border: Border.all(
-                      color: pedido?.status == StatusPedido.cancelado
-                          ? theme.dangerColor.withValues(alpha: 0.5)
-                          : theme.buttonColor.withValues(alpha: 0.4),
+                    const SizedBox(width: 5),
+                    Text(
+                      'COMANDA',
+                      style: theme.getTextStyle(
+                        fontSize: 10.5,
+                        fontWeight: FontWeight.bold,
+                        color: theme.textColor,
+                      ),
                     ),
-                  ),
-                  child: Text(
-                    statusNome,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: theme.getTextStyle(
-                      fontSize: 8.5,
-                      fontWeight: FontWeight.bold,
+                  ],
+                ),
+                Flexible(
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 6,
+                      vertical: 2,
+                    ),
+                    decoration: BoxDecoration(
                       color: pedido?.status == StatusPedido.cancelado
-                          ? theme.dangerColor
-                          : theme.buttonColor,
+                          ? theme.dangerColor.withValues(alpha: 0.15)
+                          : (aguardandoAprovacao
+                              ? theme.buttonColor.withValues(alpha: 0.22)
+                              : theme.buttonColor.withValues(alpha: 0.15)),
+                      borderRadius: BorderRadius.circular(6),
+                      border: Border.all(
+                        color: pedido?.status == StatusPedido.cancelado
+                            ? theme.dangerColor.withValues(alpha: 0.5)
+                            : theme.buttonColor.withValues(alpha: 0.4),
+                      ),
+                    ),
+                    child: Text(
+                      statusNome,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.getTextStyle(
+                        fontSize: 8.5,
+                        fontWeight: FontWeight.bold,
+                        color: pedido?.status == StatusPedido.cancelado
+                            ? theme.dangerColor
+                            : theme.buttonColor,
+                      ),
                     ),
                   ),
                 ),
+              ],
+            ),
+          ),
+
+          // Renderiza a comanda idêntica à impressa pela loja
+          if (pedido != null)
+            GestureDetector(
+              onTap: onVerComanda,
+              child: ComandaPedido(
+                theme: theme,
+                pedido: pedido,
+                largura: 300,
+                mostrarTitulo: false,
+                cliente: clienteDaLoja,
+                camposClienteComanda:
+                    lojaViva?.configuracoesImpressora.camposClienteComanda ??
+                    kCamposClienteComandaPadrao,
+              ),
+            )
+          else
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 6),
+              child: Text(
+                msg.texto,
+                style: theme.getTextStyle(fontSize: 12, color: theme.textColor),
+              ),
+            ),
+
+          // Somente quando for proposta gerada pela loja e estiver aguardando aprovação do cliente
+          if (aguardandoAprovacao) ...[
+            const SizedBox(height: 8),
+            if (!modoLoja && pedido != null) ...[
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: theme.buttonColor,
+                    foregroundColor: theme.buttonTextColor,
+                    elevation: 0,
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                  ),
+                  icon: const Icon(Icons.check_circle_rounded, size: 16),
+                  label: const Text(
+                    'Aprovar Pedido',
+                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                  ),
+                  onPressed: () async {
+                    await ChatAutoatendimentoService.aprovarPedidoPeloCliente(
+                      context: context,
+                      msg: msg,
+                      pedido: pedido!,
+                    );
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text(
+                            'Pedido aprovado! Enviado com sucesso para a loja.',
+                          ),
+                          duration: Duration(seconds: 2),
+                        ),
+                      );
+                    }
+                  },
+                ),
+              ),
+              const SizedBox(height: 6),
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: theme.textColor,
+                    side: BorderSide(color: theme.borderColor),
+                    padding: const EdgeInsets.symmetric(vertical: 6),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                  ),
+                  icon: const Icon(Icons.edit_note_rounded, size: 15),
+                  label: const Text(
+                    'Adicionar Observação',
+                    style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600),
+                  ),
+                  onPressed: () => _abrirDialogObservacao(context, pedido!),
+                ),
+              ),
+            ] else ...[
+              Text(
+                'Aguardando aprovação do cliente para cair em "Novos".',
+                textAlign: TextAlign.center,
+                style: theme
+                    .getTextStyle(
+                      fontSize: 10.5,
+                      color: theme.secondaryTextColor,
+                    )
+                    .copyWith(fontStyle: FontStyle.italic),
               ),
             ],
+          ],
+        ],
+      ),
+    );
+  }
+
+  void _abrirDialogObservacao(BuildContext context, PedidoLoja pedido) {
+    final controller = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (ctx) {
+        return AlertDialog(
+          backgroundColor: theme.cardBackgroundColor,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+            side: BorderSide(color: theme.borderColor),
           ),
-          const SizedBox(height: 6),
-          Text(
-            'Pedido #$numero',
+          title: Text(
+            'Adicionar Observação ao Pedido',
             style: theme.getTextStyle(
-              fontSize: 13,
+              fontSize: 15,
               fontWeight: FontWeight.bold,
               color: theme.textColor,
             ),
           ),
-          if (pedido != null && pedido.clienteNome.isNotEmpty) ...[
-            const SizedBox(height: 2),
-            Text(
-              'Cliente: ${pedido.clienteNome}',
-              style: theme.getTextStyle(
-                fontSize: 11,
+          content: TextField(
+            controller: controller,
+            autofocus: true,
+            maxLines: 3,
+            style: theme.getTextStyle(fontSize: 13, color: theme.textColor),
+            decoration: InputDecoration(
+              hintText: 'Ex.: Sem cebola, caprichar no gelo, ponto da carne...',
+              hintStyle: theme.getTextStyle(
+                fontSize: 12,
                 color: theme.secondaryTextColor,
               ),
+              filled: true,
+              fillColor: theme.backgroundColor,
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(10),
+                borderSide: BorderSide(color: theme.borderColor),
+              ),
             ),
-          ],
-          if (pedido != null && pedido.itens.isNotEmpty) ...[
-            const SizedBox(height: 4),
-            ...pedido.itens
-                .take(4)
-                .map(
-                  (it) => Padding(
-                    padding: const EdgeInsets.only(bottom: 2),
-                    child: Row(
-                      children: [
-                        Text(
-                          '${it.quantidade}x ',
-                          style: theme.getTextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.bold,
-                            color: theme.secondaryTextColor,
-                          ),
-                        ),
-                        Expanded(
-                          child: Text(
-                            it.nomeExibicao,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: theme.getTextStyle(
-                              fontSize: 11,
-                              color: theme.secondaryTextColor,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-            if (pedido.itens.length > 4)
-              Text(
-                '+ ${pedido.itens.length - 4} outros itens...',
-                style: theme
-                    .getTextStyle(fontSize: 10, color: theme.secondaryTextColor)
-                    .copyWith(fontStyle: FontStyle.italic),
-              ),
-          ],
-          const SizedBox(height: 6),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                'Total:',
-                style: theme.getTextStyle(
-                  fontSize: 11,
-                  color: theme.secondaryTextColor,
-                ),
-              ),
-              Text(
-                totalFormatado,
-                style: theme.getTextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.bold,
-                  color: theme.textColor,
-                ),
-              ),
-            ],
           ),
-          const SizedBox(height: 8),
-          if (souMembroDaLoja &&
-              pedido != null &&
-              (pedido.status == StatusPedido.novo ||
-                  pedido.status == StatusPedido.aceito)) ...[
-            SizedBox(
-              width: double.infinity,
-              child: OutlinedButton.icon(
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: theme.textColor,
-                  side: BorderSide(color: theme.buttonColor),
-                  padding: const EdgeInsets.symmetric(vertical: 6),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                ),
-                icon: Icon(
-                  pedido.status == StatusPedido.novo
-                      ? Icons.check_circle_outline_rounded
-                      : Icons.task_alt_rounded,
-                  size: 14,
-                  color: theme.buttonColor,
-                ),
-                label: Text(
-                  pedido.status == StatusPedido.novo
-                      ? 'Aceitar Pedido (Em Preparo)'
-                      : 'Marcar como Concluído',
-                  style: theme.getTextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.bold,
-                    color: theme.textColor,
-                  ),
-                ),
-                onPressed: () {
-                  final lojaAtual = pdv.buscarPorId(lojaIdAlvo);
-                  if (lojaAtual == null || pedido == null) return;
-                  final proximoStatus = pedido.status == StatusPedido.novo
-                      ? StatusPedido.aceito
-                      : StatusPedido.concluido;
-                  final pedidoAtualizado = pedido.copyWith(
-                    status: proximoStatus,
-                  );
-                  final novosPedidos = lojaAtual.pedidosLoja
-                      .map((p) => p.id == pedido!.id ? pedidoAtualizado : p)
-                      .toList();
-                  pdv.atualizarListasLoja(lojaAtual.id, pedidos: novosPedidos);
-                },
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: Text(
+                'Cancelar',
+                style: theme.getTextStyle(color: theme.secondaryTextColor),
               ),
             ),
-            const SizedBox(height: 6),
-          ],
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton.icon(
+            ElevatedButton(
               style: ElevatedButton.styleFrom(
                 backgroundColor: theme.buttonColor,
                 foregroundColor: theme.buttonTextColor,
-                padding: const EdgeInsets.symmetric(vertical: 6),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
-                ),
               ),
-              icon: const Icon(Icons.visibility_rounded, size: 14),
-              label: const Text(
-                'Ver Comanda Completa',
-                style: TextStyle(fontSize: 11),
-              ),
-              onPressed: onVerComanda,
+              onPressed: () async {
+                final obs = controller.text.trim();
+                if (obs.isEmpty) return;
+                Navigator.pop(ctx);
+                await ChatAutoatendimentoService.modificarObservacaoComanda(
+                  context: context,
+                  msg: msg,
+                  pedido: pedido,
+                  novaObservacao: obs,
+                );
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Observação adicionada à comanda!'),
+                      duration: Duration(seconds: 2),
+                    ),
+                  );
+                }
+              },
+              child: const Text('Salvar Observação'),
             ),
-          ),
-        ],
-      ),
+          ],
+        );
+      },
     );
   }
 }

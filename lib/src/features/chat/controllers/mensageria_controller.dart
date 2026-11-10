@@ -426,6 +426,14 @@ class MensageriaController extends ChangeNotifier {
       return;
     }
 
+    final ehConvLojaUsuario =
+        convId.startsWith('loja_') && convId.contains('_usuario_');
+    final lojaIdResolvido = modoLoja
+        ? lojaId
+        : (ehConvLojaUsuario
+            ? convId.substring(5, convId.indexOf('_usuario_'))
+            : (ehLoja ? identificador.replaceFirst('loja_', '') : null));
+
     // Inicialização otimista imediata na UI (0ms de atraso perceptível)
     final novaConversaOtimista = ConversaChat(
       id: convId,
@@ -433,7 +441,8 @@ class MensageriaController extends ChangeNotifier {
       subtitulo: subtitulo,
       identificador: identificador,
       foto: foto,
-      ehLoja: ehLoja,
+      ehLoja: ehLoja || ehConvLojaUsuario,
+      lojaId: lojaIdResolvido,
       naoLidasCount: 0,
       mensagens: const [],
       dataHoraUltimaMensagem: DateTime.now(),
@@ -453,7 +462,8 @@ class MensageriaController extends ChangeNotifier {
       subtitulo: subtitulo,
       identificador: identificador,
       foto: foto,
-      ehLoja: ehLoja,
+      ehLoja: ehLoja || ehConvLojaUsuario,
+      lojaIdOverride: lojaIdResolvido,
     ));
   }
 
@@ -464,6 +474,7 @@ class MensageriaController extends ChangeNotifier {
     required String identificador,
     required String foto,
     required bool ehLoja,
+    String? lojaIdOverride,
   }) async {
     try {
       await ChatService.desmarcarConversaExcluida(convId);
@@ -474,7 +485,7 @@ class MensageriaController extends ChangeNotifier {
         identificador: identificador,
         foto: foto,
         ehLoja: ehLoja,
-        lojaId: modoLoja ? lojaId : null,
+        lojaId: lojaIdOverride ?? (modoLoja ? lojaId : null),
         cpfUsuario: modoLoja ? null : usuarioCpf,
       );
       if (_disposed) return;
@@ -536,6 +547,22 @@ class MensageriaController extends ChangeNotifier {
     final idx = _conversas.indexWhere((item) => item.id == c.id);
     if (idx != -1) {
       _conversas[idx] = conversaAtualizada;
+    } else {
+      _conversas.insert(0, conversaAtualizada);
+      unawaited(
+        ChatService.obterOuCriarConversa(
+          id: conversaAtualizada.id,
+          titulo: conversaAtualizada.titulo,
+          subtitulo: conversaAtualizada.subtitulo,
+          identificador: conversaAtualizada.identificador,
+          foto: conversaAtualizada.foto,
+          ehLoja: conversaAtualizada.ehLoja ||
+              conversaAtualizada.id.startsWith('loja_'),
+          ehGrupo: conversaAtualizada.ehGrupo,
+          lojaId: conversaAtualizada.lojaId ?? (modoLoja ? lojaId : null),
+          cpfUsuario: modoLoja ? null : usuarioCpf,
+        ),
+      );
     }
     notifyListeners();
 
@@ -608,10 +635,15 @@ class MensageriaController extends ChangeNotifier {
           final m2 = msgsFinais[k];
           if (m1.id != m2.id ||
               m1.statusEnvio != m2.statusEnvio ||
+              m1.lida != m2.lida ||
+              m1.entregue != m2.entregue ||
               m1.texto != m2.texto ||
               m1.editada != m2.editada ||
               m1.favorita != m2.favorita ||
-              m1.caminhoAnexo != m2.caminhoAnexo) {
+              m1.fixada != m2.fixada ||
+              m1.caminhoAnexo != m2.caminhoAnexo ||
+              m1.dadosPedidoJson != m2.dadosPedidoJson ||
+              !mapEquals(m1.reacoes, m2.reacoes)) {
             saoIguais = false;
             break;
           }
@@ -697,7 +729,9 @@ class MensageriaController extends ChangeNotifier {
     final conta = auth.contaAtual;
 
     final remetenteId = modoLoja
-        ? (lojaId ?? 'loja')
+        ? (lojaId != null && lojaId!.isNotEmpty
+            ? (lojaId!.startsWith('loja_') ? lojaId! : 'loja_$lojaId')
+            : 'loja')
         : (usuarioCpf ?? conta?.cpf ?? 'usuario');
     final remetenteNome = modoLoja
         ? (nomeLoja ?? 'Loja')
@@ -720,6 +754,19 @@ class MensageriaController extends ChangeNotifier {
       if (outro.length == 11) {
         destinatarioId = outro;
       }
+    } else if (_conversaSelecionada!.id.startsWith('loja_')) {
+      if (modoLoja) {
+        final cpfCli = ChatService.normalizarCpf(
+          _conversaSelecionada!.id.split('_usuario_').last,
+        );
+        if (cpfCli.length == 11) {
+          destinatarioId = cpfCli;
+        }
+      } else {
+        destinatarioId = _conversaSelecionada!.lojaId?.isNotEmpty == true
+            ? _conversaSelecionada!.lojaId!
+            : _conversaSelecionada!.identificador;
+      }
     }
 
     final salt = Random().nextInt(9999);
@@ -737,7 +784,7 @@ class MensageriaController extends ChangeNotifier {
       cpfAtendente: operadorCpf ?? conta?.cpf ?? '',
       lida: false,
       entregue: false,
-      statusEnvio: 'pendente',
+      statusEnvio: 'enviada',
       tipo: tipo,
       caminhoAnexo: caminhoAnexo,
       nomeAnexo: nomeAnexo,
@@ -760,6 +807,8 @@ class MensageriaController extends ChangeNotifier {
       mensagens: msgsAtuais,
       ultimaMensagem: resumo,
       dataHoraUltimaMensagem: dataHoraEfetiva,
+      ultimaMensagemEnviadaPorMim: true,
+      statusUltimaMensagem: 'enviada',
     );
 
     final idx = _conversas.indexWhere((c) => c.id == _conversaSelecionada!.id);
@@ -768,6 +817,8 @@ class MensageriaController extends ChangeNotifier {
         mensagens: msgsAtuais,
         ultimaMensagem: resumo,
         dataHoraUltimaMensagem: agora,
+        ultimaMensagemEnviadaPorMim: true,
+        statusUltimaMensagem: 'enviada',
       );
       _conversas.removeAt(idx);
       _conversas.insert(0, atualizada);
@@ -870,6 +921,57 @@ class MensageriaController extends ChangeNotifier {
     }
 
     await ChatService.alternarFavoritaMensagem(msg.id);
+  }
+
+  Future<void> alternarFixarMensagem(MensagemChat msg) async {
+    final novaFixada = !msg.fixada;
+    final msgAtualizada = msg.copyWith(fixada: novaFixada);
+
+    if (_conversaSelecionada != null &&
+        _conversaSelecionada!.id == msg.conversaId) {
+      final msgs = List<MensagemChat>.from(_conversaSelecionada!.mensagens);
+      final idx = msgs.indexWhere((m) => m.id == msg.id);
+      if (idx != -1) {
+        msgs[idx] = msgAtualizada;
+        _conversaSelecionada = _conversaSelecionada!.copyWith(mensagens: msgs);
+        notifyListeners();
+      }
+    }
+
+    await ChatService.alternarFixarMensagem(
+      msg.id,
+      fixar: novaFixada,
+      conversaId: msg.conversaId,
+    );
+  }
+
+  Future<void> reagirMensagem(MensagemChat msg, String emoji) async {
+    final meuId = modoLoja ? (lojaId ?? '') : (usuarioCpf ?? '');
+    final mapa = Map<String, String>.from(msg.reacoes);
+    if (emoji.isEmpty || mapa[meuId] == emoji) {
+      mapa.remove(meuId);
+    } else {
+      mapa[meuId] = emoji;
+    }
+    final msgAtualizada = msg.copyWith(reacoes: mapa);
+
+    if (_conversaSelecionada != null &&
+        _conversaSelecionada!.id == msg.conversaId) {
+      final msgs = List<MensagemChat>.from(_conversaSelecionada!.mensagens);
+      final idx = msgs.indexWhere((m) => m.id == msg.id);
+      if (idx != -1) {
+        msgs[idx] = msgAtualizada;
+        _conversaSelecionada = _conversaSelecionada!.copyWith(mensagens: msgs);
+        notifyListeners();
+      }
+    }
+
+    await ChatService.reagirMensagem(
+      msg.id,
+      meuId,
+      emoji,
+      conversaId: msg.conversaId,
+    );
   }
 
   Future<void> alternarSilenciar(

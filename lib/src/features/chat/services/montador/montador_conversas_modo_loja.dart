@@ -65,7 +65,31 @@ class MontadorConversasModoLoja {
 
     // 2. Clientes da loja
     for (final cliente in loja.clientesLoja) {
-      final cpfCliente = ChatService.normalizarCpf(cliente.cnpj);
+      var cpfCliente = ChatService.normalizarCpf(cliente.cnpj);
+      if (cpfCliente.length != 11 && cliente.nome.trim().isNotEmpty) {
+        final nomeCliLow = cliente.nome.trim().toLowerCase();
+        for (final m in loja.membros) {
+          if (m.nome.trim().toLowerCase() == nomeCliLow) {
+            final cM = ChatService.normalizarCpf(m.cpf);
+            if (cM.length == 11) {
+              cpfCliente = cM;
+              break;
+            }
+          }
+        }
+        if (cpfCliente.length != 11) {
+          for (final u in todosUsuariosNous) {
+            if (u.nome.trim().toLowerCase() == nomeCliLow ||
+                u.nomeExibicao.trim().toLowerCase() == nomeCliLow) {
+              final cU = ChatService.normalizarCpf(u.cpf);
+              if (cU.length == 11) {
+                cpfCliente = cU;
+                break;
+              }
+            }
+          }
+        }
+      }
       if (cpfCliente.length == 11) {
         final ehProprioOperador = cpfCliente == cpfLogadoNorm;
         final uCliente = usuariosNousPorCpf[cpfCliente];
@@ -178,16 +202,23 @@ class MontadorConversasModoLoja {
         final subMelhor = u.usernameExibicao.isNotEmpty && !ant.subtitulo.contains('@')
             ? '${u.usernameExibicao} • ${ant.subtitulo}'
             : ant.subtitulo;
+        final nomeBase = u.nomeExibicao.isNotEmpty ? u.nomeExibicao : ant.titulo;
+        final ehProprio = cU == cpfLogadoNorm;
         contatosUnificados[cU] = ant.copyWith(
-          titulo: u.nomeExibicao.isNotEmpty ? u.nomeExibicao : ant.titulo,
+          titulo: (ehProprio && !nomeBase.contains('(Você)'))
+              ? '$nomeBase (Você)'
+              : nomeBase,
           subtitulo: subMelhor,
           foto: fotoMelhor,
         );
       } else if (temConversaAberta) {
+        final ehProprio = cU == cpfLogadoNorm;
         contatosUnificados[cU] = InfoContatoUnificado(
           identificador: cU,
           cpfNormalizado: cU,
-          titulo: u.nomeExibicao,
+          titulo: (ehProprio && !u.nomeExibicao.contains('(Você)'))
+              ? '${u.nomeExibicao} (Você)'
+              : u.nomeExibicao,
           subtitulo: u.usernameExibicao.isNotEmpty
               ? '${u.usernameExibicao} • Usuário Nous'
               : 'Usuário Nous',
@@ -266,6 +297,13 @@ class MontadorConversasModoLoja {
         mensagens: msgs,
         fixada: fixada,
         arquivada: arquivada,
+        silenciada: persistida?.silenciada ?? false,
+        ultimaMensagemEnviadaPorMim: msgs.isNotEmpty
+            ? msgs.last.enviadaPorMim
+            : (persistida?.ultimaMensagemEnviadaPorMim ?? false),
+        statusUltimaMensagem: msgs.isNotEmpty
+            ? msgs.last.statusEnvio
+            : (persistida?.statusUltimaMensagem ?? ''),
       );
 
       todosDisponiveis.add(conversa);

@@ -45,17 +45,6 @@ class SincronizadorChatBalcao {
           final bodyConv = await utf8.decodeStream(respConv);
           final dadosConv = jsonDecode(bodyConv) as Map<String, dynamic>;
 
-          if (dadosConv['excluidas'] is List) {
-            for (final id in dadosConv['excluidas'] as List<dynamic>) {
-              if (id is String && id.isNotEmpty) {
-                final msgsLoc = await ChatService.carregarMensagens(id);
-                if (msgsLoc.isEmpty) {
-                  await ChatService.excluirConversaLocal(id);
-                }
-              }
-            }
-          }
-
           if (dadosConv['sucesso'] == true && dadosConv['conversas'] is List) {
             final listaConv = dadosConv['conversas'] as List<dynamic>;
             final idsServidorAtivos = <String>{};
@@ -362,6 +351,16 @@ class SincronizadorChatBalcao {
       }
     }
 
+    final ehConvLojaUsuario =
+        id.startsWith('loja_') && id.contains('_usuario_');
+    final ehLojaFinal = ehConvLojaUsuario
+        ? 1
+        : ((c['eh_loja'] as int?) ?? ((c['ehLoja'] == true) ? 1 : 0));
+    var lojaIdFinal = (c['loja_id'] ?? c['lojaId'] ?? '').toString().trim();
+    if (ehConvLojaUsuario && lojaIdFinal.isEmpty) {
+      lojaIdFinal = id.substring(5, id.indexOf('_usuario_'));
+    }
+
     await db.insert('conversas_chat', {
       'id': id,
       'titulo': tit,
@@ -369,9 +368,9 @@ class SincronizadorChatBalcao {
       'subtitulo': c['subtitulo'] ?? '',
       'foto': fotoSalvar,
       'identificador': c['identificador'] ?? id,
-      'eh_loja': (c['eh_loja'] as int?) ?? ((c['ehLoja'] == true) ? 1 : 0),
+      'eh_loja': ehLojaFinal,
       'eh_grupo': ehG,
-      'loja_id': c['loja_id'] ?? c['lojaId'] ?? '',
+      'loja_id': lojaIdFinal,
       'participantes_json': participantesJson,
       'criado_em': c['criado_em'] ?? DateTime.now().toIso8601String(),
       'atualizado_em': atzEm,

@@ -126,7 +126,7 @@ class Loja {
     this.atalhosTeclado = const {},
     this.layoutExpandido = false,
     this.tipoLayoutMaior = 'painel_duplo',
-    this.aberta = true,
+    this.aberta = false,
   });
 
   Loja copyWith({
@@ -412,7 +412,7 @@ class Loja {
               .map((k, v) => MapEntry(k.toString(), v.toString())),
       layoutExpandido: json['layoutExpandido'] as bool? ?? false,
       tipoLayoutMaior: json['tipoLayoutMaior'] as String? ?? 'painel_duplo',
-      aberta: json['aberta'] as bool? ?? true,
+      aberta: json['aberta'] as bool? ?? false,
     );
   }
 

@@ -161,6 +161,35 @@ class PedidoProgramado {
 
   String get descricaoFrequencia => '$descricaoFrequenciaCurta às $horario';
 
+  /// Calcula o momento exato em que o pedido deve ser registrado.
+  /// Preserva o ano/mês/dia da data de referência, mas extrai hora e minuto
+  /// configurados no agendamento (`horario`) ou na criação do pedido,
+  /// garantindo que a sincronização posterior não substitua o horário em que o pedido foi feito.
+  DateTime calcularDataHoraDoPedido([DateTime? dataReferencia]) {
+    final ref = dataReferencia ?? DateTime.now();
+    final partes = horario.trim().split(':');
+    if (partes.length >= 2) {
+      final h = int.tryParse(partes[0].trim());
+      final m = int.tryParse(partes[1].trim());
+      if (h != null && m != null && h >= 0 && h < 24 && m >= 0 && m < 60) {
+        return DateTime(ref.year, ref.month, ref.day, h, m);
+      }
+    }
+    if (dataCriacao.year == ref.year &&
+        dataCriacao.month == ref.month &&
+        dataCriacao.day == ref.day) {
+      return dataCriacao;
+    }
+    return DateTime(
+      ref.year,
+      ref.month,
+      ref.day,
+      dataCriacao.hour,
+      dataCriacao.minute,
+      dataCriacao.second,
+    );
+  }
+
   PedidoLoja toPedidoLoja({
     required int numero,
     DateTime? dataHora,
@@ -168,7 +197,7 @@ class PedidoProgramado {
     String cnpjVendedor = '',
     String? lojaId,
   }) {
-    final momento = dataHora ?? DateTime.now();
+    final momento = calcularDataHoraDoPedido(dataHora ?? DateTime.now());
     final diaStr = momento.day.toString().padLeft(2, '0');
     final mesStr = momento.month.toString().padLeft(2, '0');
     return PedidoLoja(

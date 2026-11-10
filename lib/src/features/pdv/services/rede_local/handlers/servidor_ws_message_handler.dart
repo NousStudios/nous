@@ -153,7 +153,10 @@ class ServidorWsMessageHandler {
       if (tipo == 'conversa_excluida') {
         final convId = dados['conversaId'] as String?;
         if (convId != null) {
-          await ChatService.excluirConversaLocal(convId);
+          await ChatService.excluirConversaLocal(
+            convId,
+            originadoDaRede: true,
+          );
           ctx.retransmitirParaOutros(jsonEncode(dados), exceto: ws);
         }
         return;
@@ -162,7 +165,10 @@ class ServidorWsMessageHandler {
       if (tipo == 'grupo_criado' ||
           tipo == 'grupo_atualizado' ||
           tipo == 'mensagem_editada' ||
-          tipo == 'mensagem_excluida') {
+          tipo == 'mensagem_excluida' ||
+          tipo == 'mensagem_reacao' ||
+          tipo == 'mensagem_fixada' ||
+          tipo == 'comanda_atualizada') {
         await ChatService.processarMensagemRecebidaDaRede(
           dados,
           emitirAlertaSonoro: false,
@@ -342,7 +348,7 @@ class ServidorWsMessageHandler {
         try {
           await ChatService.processarMensagemRecebidaDaRede(
             msgJson,
-            emitirAlertaSonoro: false,
+            emitirAlertaSonoro: true,
           );
 
           final cpfRemetente = ChatService.normalizarCpf(msg.remetenteId);

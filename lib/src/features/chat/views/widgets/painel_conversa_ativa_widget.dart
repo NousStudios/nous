@@ -123,7 +123,24 @@ class _PainelConversaAtivaWidgetState extends State<PainelConversaAtivaWidget> {
 
     if (diffDias == 0) return 'Hoje';
     if (diffDias == 1) return 'Ontem';
-    if (diffDias == 2) return 'Anteontem';
+    if (diffDias > 1 && diffDias <= 7) {
+      switch (local.weekday) {
+        case DateTime.monday:
+          return 'Segunda-feira';
+        case DateTime.tuesday:
+          return 'Terça-feira';
+        case DateTime.wednesday:
+          return 'Quarta-feira';
+        case DateTime.thursday:
+          return 'Quinta-feira';
+        case DateTime.friday:
+          return 'Sexta-feira';
+        case DateTime.saturday:
+          return 'Sábado';
+        case DateTime.sunday:
+          return 'Domingo';
+      }
+    }
     final d = local.day.toString().padLeft(2, '0');
     final m = local.month.toString().padLeft(2, '0');
     return '$d/$m/${local.year}';
@@ -132,19 +149,26 @@ class _PainelConversaAtivaWidgetState extends State<PainelConversaAtivaWidget> {
   Widget _buildSeparadorDia(AppTheme theme, DateTime dataHora) {
     return Center(
       child: Container(
-        margin: const EdgeInsets.symmetric(vertical: 10),
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+        margin: const EdgeInsets.symmetric(vertical: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 5),
         decoration: BoxDecoration(
-          color: theme.cardBackgroundColor,
-          borderRadius: BorderRadius.circular(12),
+          color: theme.cardBackgroundColor.withValues(alpha: 0.95),
+          borderRadius: BorderRadius.circular(14),
           border: Border.all(
-            color: theme.borderColor.withValues(alpha: 0.6),
+            color: theme.borderColor.withValues(alpha: 0.65),
           ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.06),
+              blurRadius: 4,
+              offset: const Offset(0, 1),
+            ),
+          ],
         ),
         child: Text(
           _formatarRotuloDia(dataHora),
           style: theme.getTextStyle(
-            fontSize: 10.5,
+            fontSize: 11,
             fontWeight: FontWeight.w600,
             color: theme.secondaryTextColor,
           ),
@@ -298,6 +322,75 @@ class _PainelConversaAtivaWidgetState extends State<PainelConversaAtivaWidget> {
             ),
           ),
 
+        // Banner de Mensagens Fixadas
+        if (conversa.mensagens.any((m) => m.fixada))
+          Builder(
+            builder: (context) {
+              final fixadas = conversa.mensagens.where((m) => m.fixada).toList();
+              final ultFixada = fixadas.last;
+              final txtExibicao = ultFixada.texto.trim().isNotEmpty
+                  ? ultFixada.texto.trim()
+                  : (ultFixada.nomeAnexo.trim().isNotEmpty
+                      ? ultFixada.nomeAnexo.trim()
+                      : (ultFixada.tipo == 'comanda' ? 'Comanda de Pedido' : 'Mensagem Fixada'));
+              return Container(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                decoration: BoxDecoration(
+                  color: theme.cardBackgroundColor.withValues(alpha: 0.95),
+                  border: Border(
+                    bottom: BorderSide(
+                      color: theme.borderColor.withValues(alpha: 0.4),
+                    ),
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.push_pin_rounded,
+                      size: 15,
+                      color: theme.buttonColor,
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            'Mensagem Fixada${fixadas.length > 1 ? ' (${fixadas.length})' : ''}',
+                            style: theme.getTextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold,
+                              color: theme.buttonColor,
+                            ),
+                          ),
+                          Text(
+                            txtExibicao,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: theme.getTextStyle(
+                              fontSize: 11.5,
+                              color: theme.textColor,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    IconButton(
+                      icon: Icon(
+                        Icons.close_rounded,
+                        size: 16,
+                        color: theme.secondaryTextColor,
+                      ),
+                      tooltip: 'Desafixar',
+                      onPressed: () => widget.controller.alternarFixarMensagem(ultFixada),
+                    ),
+                  ],
+                ),
+              );
+            },
+          ),
+
         // Área das Mensagens
         Builder(
           builder: (context) {
@@ -375,14 +468,22 @@ class _PainelConversaAtivaWidgetState extends State<PainelConversaAtivaWidget> {
                                 final remLimpo = msg.remetenteId.startsWith('loja_')
                                     ? msg.remetenteId.substring(5)
                                     : msg.remetenteId;
-                                enviadaPorMim = lojaIdLimpo.isNotEmpty && remLimpo == lojaIdLimpo;
+                                enviadaPorMim = msg.remetenteId.startsWith('loja_') ||
+                                    (lojaIdLimpo.isNotEmpty && remLimpo == lojaIdLimpo);
                               } else {
                                 final meuCpfNorm = ChatService.normalizarCpf(
                                   widget.controller.usuarioCpf ?? '',
                                 );
                                 final remNorm = ChatService.normalizarCpf(msg.remetenteId);
+                                final remLimpo = msg.remetenteId.startsWith('loja_')
+                                    ? msg.remetenteId.substring(5)
+                                    : msg.remetenteId;
+                                final lojaIdConvLimpo = (conversa.lojaId ?? '')
+                                    .replaceFirst('loja_', '');
                                 final ehMensagemDeLoja = msg.remetenteId.startsWith('loja_') ||
-                                    (conversa.ehLoja && msg.remetenteId == conversa.lojaId);
+                                    (conversa.ehLoja &&
+                                        lojaIdConvLimpo.isNotEmpty &&
+                                        remLimpo == lojaIdConvLimpo);
                                 enviadaPorMim = !ehMensagemDeLoja &&
                                     meuCpfNorm.isNotEmpty &&
                                     remNorm == meuCpfNorm;
@@ -392,6 +493,7 @@ class _PainelConversaAtivaWidgetState extends State<PainelConversaAtivaWidget> {
                                 msg: msg,
                                 conversa: conversa,
                                 enviadaPorMim: enviadaPorMim,
+                                modoLoja: widget.controller.modoLoja,
                                 theme: theme,
                                 onMostrarMenu: widget.onMostrarMenuMensagem,
                                 onVerHistoricoEdicoes: widget.onVerHistoricoEdicoes,

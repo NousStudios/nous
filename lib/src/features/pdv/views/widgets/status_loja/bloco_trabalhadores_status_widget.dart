@@ -165,11 +165,16 @@ class _LinhaTrabalhadorStatusWidgetState
           modoLoja: true,
           lojaId: widget.lojaId,
           nomeLoja: loja?.nome,
+          logoLoja: loja?.logo,
           operadorCpf: widget.cpfLogado,
           usuarioCpf: widget.membro.cpf,
           usuarioNome: widget.membro.nome,
           usuarioFoto: foto,
           usuarioApelido: apelido ?? '',
+          conversaInicialId: ChatService.conversaIdLojaUsuario(
+            widget.lojaId,
+            widget.membro.cpf,
+          ),
         ),
       ),
     );

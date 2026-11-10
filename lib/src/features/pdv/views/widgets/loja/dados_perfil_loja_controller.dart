@@ -18,6 +18,7 @@ import 'package:nous/src/features/pdv/models/movimento_estoque.dart';
 import 'package:nous/src/features/pdv/models/pedido_loja.dart';
 import 'package:nous/src/features/pdv/models/registro_acao.dart';
 import 'package:nous/src/features/pdv/providers/pdv_provider.dart';
+import 'package:nous/src/features/pdv/views/dialogs/dialog_confirmar_abertura_caixa.dart';
 import 'package:nous/src/features/pdv/views/widgets/formulario_dados_loja.dart';
 import 'package:nous/src/features/pdv/views/widgets/gestao_loja_container.dart';
 import 'package:nous/src/features/pdv/views/widgets/loja/gerenciador_anexos_loja.dart';
@@ -62,7 +63,7 @@ class DadosPerfilLojaController {
   final List<MesaLoja> mesas = [];
   List<MembroLoja> membros = [];
 
-  bool lojaOnline = true;
+  bool lojaOnline = false;
   AbaPedidos abaPedidos = AbaPedidos.novos;
   int tempoConclusaoMinutos = 0;
   final Map<String, String> sonsAlertas = {};
@@ -529,12 +530,35 @@ class DadosPerfilLojaController {
   }
 
   Future<void> alternarStatusLojaOnline(bool valor) async {
-    setState(() => lojaOnline = valor);
     final pdv = obterContext().read<PdvProvider>();
-    await pdv.alternarLojaAberta(lojaId, valor);
     final lojaAtual = pdv.buscarPorId(lojaId);
-    if (lojaAtual != null) {
-      PersistenciaLojaHelper.notificarLojaAtualizada(lojaAtual);
+
+    if (valor && lojaAtual != null && lojaAtual.turnoCaixaAberto == null) {
+      final acao = await DialogConfirmarAberturaCaixa.mostrar(
+        context: obterContext(),
+        theme: ThemeController.currentTheme.value,
+        lojaNome: lojaAtual.nome,
+      );
+      if (acao == AcaoAberturaCaixa.cancelar) {
+        return;
+      }
+      setState(() => lojaOnline = true);
+      await pdv.alternarLojaAberta(lojaId, true);
+      final atualizada = pdv.buscarPorId(lojaId);
+      if (atualizada != null) {
+        PersistenciaLojaHelper.notificarLojaAtualizada(atualizada);
+      }
+      if (acao == AcaoAberturaCaixa.abrirCaixaAgora && estaMontado()) {
+        gerenciadorDialogs.abrirPopupCaixa();
+      }
+      return;
+    }
+
+    setState(() => lojaOnline = valor);
+    await pdv.alternarLojaAberta(lojaId, valor);
+    final lojaNova = pdv.buscarPorId(lojaId);
+    if (lojaNova != null) {
+      PersistenciaLojaHelper.notificarLojaAtualizada(lojaNova);
     }
   }
 
@@ -585,7 +609,7 @@ class DadosPerfilLojaController {
     movimentosEstoque.addAll(loja?.movimentosEstoque ?? []);
     mesas.addAll(loja?.mesas ?? []);
     membros = List.of(loja?.membros ?? []);
-    lojaOnline = loja?.aberta ?? true;
+    lojaOnline = loja?.aberta ?? false;
     tempoConclusaoMinutos = loja?.tempoConclusaoMinutos ?? 0;
     sonsAlertas.addAll(loja?.sonsAlertas ?? {});
     atalhosTeclado.addAll(loja?.atalhosTeclado ?? {});

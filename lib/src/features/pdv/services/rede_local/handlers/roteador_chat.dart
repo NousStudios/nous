@@ -95,11 +95,20 @@ class RoteadorChat {
         final body = await utf8.decodeStream(request);
         final dados = await decodificarJsonMapaSeguro(body);
 
-        // Processa exclusões vindas do terminal móvel
+        // Processa exclusões vindas do terminal móvel somente se não houver histórico ativo no servidor
         if (dados['excluidas'] is List) {
           for (final id in dados['excluidas'] as List<dynamic>) {
             if (id is String && id.isNotEmpty) {
-              await ChatService.excluirConversaLocal(id);
+              final msgsNoServidor = await ChatService.carregarMensagens(
+                id,
+                limite: 1,
+              );
+              if (msgsNoServidor.isEmpty) {
+                await ChatService.excluirConversaLocal(
+                  id,
+                  originadoDaRede: true,
+                );
+              }
             }
           }
         }

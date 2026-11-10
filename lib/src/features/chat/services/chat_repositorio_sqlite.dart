@@ -61,7 +61,9 @@ class ChatRepositorioSqlite {
           historico_edicoes TEXT DEFAULT '[]',
           status_envio TEXT DEFAULT 'enviada',
           entregue INTEGER DEFAULT 0,
-          favorita INTEGER DEFAULT 0
+          favorita INTEGER DEFAULT 0,
+          fixada INTEGER DEFAULT 0,
+          reacoes_json TEXT DEFAULT '{}'
         );
       ''');
 
@@ -77,6 +79,8 @@ class ChatRepositorioSqlite {
         'ALTER TABLE mensagens_chat ADD COLUMN status_envio TEXT DEFAULT "enviada";',
         'ALTER TABLE mensagens_chat ADD COLUMN entregue INTEGER DEFAULT 0;',
         'ALTER TABLE mensagens_chat ADD COLUMN favorita INTEGER DEFAULT 0;',
+        'ALTER TABLE mensagens_chat ADD COLUMN fixada INTEGER DEFAULT 0;',
+        'ALTER TABLE mensagens_chat ADD COLUMN reacoes_json TEXT DEFAULT "{}";',
       ];
       for (final sql in alteracoesMensagens) {
         try {
@@ -184,11 +188,34 @@ class ChatRepositorioSqlite {
         ],
       );
 
-      await db.delete(
-        'conversas_excluidas',
+      await db.delete('conversas_excluidas');
+
+      // Garante que toda conversa loja_<lojaId>_usuario_<cpf> tenha eh_loja = 1 e loja_id preenchido
+      final lojaConvs = await db.query(
+        'conversas_chat',
         where: 'id LIKE ?',
-        whereArgs: ['user_%'],
+        whereArgs: ['loja_%_usuario_%'],
       );
+      for (final lc in lojaConvs) {
+        final cid = lc['id'] as String? ?? '';
+        final idxUsr = cid.indexOf('_usuario_');
+        if (idxUsr > 5) {
+          final lIdExtraido = cid.substring(5, idxUsr);
+          final ehLojaAtual = (lc['eh_loja'] as int? ?? 0) == 1;
+          final lojaIdAtual = (lc['loja_id'] as String? ?? '').trim();
+          if (!ehLojaAtual || lojaIdAtual.isEmpty) {
+            await db.update(
+              'conversas_chat',
+              {
+                'eh_loja': 1,
+                'loja_id': lIdExtraido,
+              },
+              where: 'id = ?',
+              whereArgs: [cid],
+            );
+          }
+        }
+      }
 
       await db.execute('''
         UPDATE conversas_chat
@@ -280,30 +307,48 @@ class ChatRepositorioSqlite {
     final listaMsgs = rows.map((r) {
       final remetente = r['remetente_id'] as String? ?? '';
       final bool enviadaPorMim;
-      if (idVisualizador != null &&
+      final visDigits = (idVisualizador ?? '').replaceAll(RegExp(r'\D'), '');
+      final visEhLoja = idVisualizador != null &&
           (idVisualizador.startsWith('loja_') ||
-              (conversaId.startsWith('loja_') &&
-                  !idVisualizador.contains(RegExp(r'^\d{11}$'))))) {
+              (conversaId.startsWith('loja_') && visDigits.length != 11));
+      if (visEhLoja) {
         final idLimpo = idVisualizador.startsWith('loja_')
             ? idVisualizador.substring(5)
             : idVisualizador;
         final remLimpo = remetente.startsWith('loja_')
             ? remetente.substring(5)
             : remetente;
-        enviadaPorMim = idLimpo.isNotEmpty && remLimpo == idLimpo;
+        enviadaPorMim =
+            remetente.startsWith('loja_') || (idLimpo.isNotEmpty && remLimpo == idLimpo);
       } else if (idVisualizador != null && idVisualizador.isNotEmpty) {
-        final ehLoja = remetente.startsWith('loja_');
+        final remLimpo = remetente.startsWith('loja_')
+            ? remetente.substring(5)
+            : remetente;
+        String lojaIdConv = '';
+        if (conversaId.startsWith('loja_') && conversaId.contains('_usuario_')) {
+          lojaIdConv = conversaId.substring(5, conversaId.indexOf('_usuario_'));
+        }
+        final ehMsgLoja = remetente.startsWith('loja_') ||
+            (lojaIdConv.isNotEmpty && remLimpo == lojaIdConv);
         final visNorm = normalizarCpf(idVisualizador);
         final remNorm = normalizarCpf(remetente);
-        enviadaPorMim = !ehLoja && visNorm.isNotEmpty && remNorm == visNorm;
+        enviadaPorMim = !ehMsgLoja && visNorm.isNotEmpty && remNorm == visNorm;
       } else {
         enviadaPorMim = false;
       }
       final lida = (r['lida'] as int? ?? 0) == 1;
       final entregue = (r['entregue'] as int? ?? 0) == 1;
-      final statusEnvio =
-          r['status_envio'] as String? ??
-          (lida ? 'lida' : (entregue ? 'entregue' : 'enviada'));
+      final stBruto = r['status_envio'] as String? ?? '';
+      final String statusEnvio;
+      if (lida || stBruto == 'lida') {
+        statusEnvio = 'lida';
+      } else if (entregue || stBruto == 'entregue') {
+        statusEnvio = 'entregue';
+      } else if (stBruto.isEmpty || stBruto == 'pendente') {
+        statusEnvio = 'enviada';
+      } else {
+        statusEnvio = stBruto;
+      }
 
       return MensagemChat(
         id: r['id'] as String? ?? '',
@@ -343,6 +388,20 @@ class ChatRepositorioSqlite {
         statusEnvio: statusEnvio,
         entregue: entregue,
         favorita: (r['favorita'] as int? ?? 0) == 1,
+        fixada: (r['fixada'] as int? ?? 0) == 1,
+        reacoes: () {
+          final raw = r['reacoes_json'] as String?;
+          if (raw == null || raw.isEmpty || raw == '{}') {
+            return const <String, String>{};
+          }
+          try {
+            final dec = jsonDecode(raw);
+            if (dec is Map) {
+              return dec.map((k, v) => MapEntry(k.toString(), v.toString()));
+            }
+          } catch (_) {}
+          return const <String, String>{};
+        }(),
       );
     }).toList();
 
@@ -355,11 +414,26 @@ class ChatRepositorioSqlite {
     String idLeitor,
   ) async {
     final db = await obterDb();
-    final leitorNorm = normalizarCpf(idLeitor);
+    final leitorDigits = idLeitor.replaceAll(RegExp(r'\D'), '');
+    final leitorEhLoja = idLeitor.startsWith('loja_') ||
+        (conversaId.startsWith('loja_') && leitorDigits.length != 11);
 
+    if (leitorEhLoja) {
+      final idLimpo =
+          idLeitor.startsWith('loja_') ? idLeitor.substring(5) : idLeitor;
+      final alterados = await db.update(
+        'mensagens_chat',
+        {'lida': 1, 'entregue': 1, 'status_envio': 'lida'},
+        where: 'conversa_id = ? AND lida = 0 AND remetente_id NOT IN (?, ?)',
+        whereArgs: [conversaId, idLimpo, 'loja_$idLimpo'],
+      );
+      return alterados > 0;
+    }
+
+    final leitorNorm = normalizarCpf(idLeitor);
     final alterados = await db.update(
       'mensagens_chat',
-      {'lida': 1, 'status_envio': 'lida'},
+      {'lida': 1, 'entregue': 1, 'status_envio': 'lida'},
       where:
           'conversa_id = ? AND lida = 0 AND remetente_id NOT IN (?, ?, ?)',
       whereArgs: [conversaId, idLeitor, leitorNorm, 'user_$leitorNorm'],
@@ -449,12 +523,26 @@ class ChatRepositorioSqlite {
     String idVisualizador,
   ) async {
     final db = await obterDb();
-    final idVisNorm = normalizarCpf(idVisualizador);
+    final visDigits = idVisualizador.replaceAll(RegExp(r'\D'), '');
+    final visEhLoja = idVisualizador.startsWith('loja_') ||
+        (conversaId.startsWith('loja_') && visDigits.length != 11);
 
-    final res = await db.rawQuery(
-      'SELECT COUNT(*) as total FROM mensagens_chat WHERE conversa_id = ? AND lida = 0 AND remetente_id NOT IN (?, ?, ?)',
-      [conversaId, idVisualizador, idVisNorm, 'user_$idVisNorm'],
-    );
+    final List<Map<String, Object?>> res;
+    if (visEhLoja) {
+      final idLimpo = idVisualizador.startsWith('loja_')
+          ? idVisualizador.substring(5)
+          : idVisualizador;
+      res = await db.rawQuery(
+        'SELECT COUNT(*) as total FROM mensagens_chat WHERE conversa_id = ? AND lida = 0 AND remetente_id NOT IN (?, ?)',
+        [conversaId, idLimpo, 'loja_$idLimpo'],
+      );
+    } else {
+      final idVisNorm = normalizarCpf(idVisualizador);
+      res = await db.rawQuery(
+        'SELECT COUNT(*) as total FROM mensagens_chat WHERE conversa_id = ? AND lida = 0 AND remetente_id NOT IN (?, ?, ?)',
+        [conversaId, idVisualizador, idVisNorm, 'user_$idVisNorm'],
+      );
+    }
 
     if (res.isNotEmpty && res.first['total'] != null) {
       return (res.first['total'] as num).toInt();
@@ -560,6 +648,79 @@ class ChatRepositorioSqlite {
       return novoValor == 1;
     } catch (_) {
       return false;
+    }
+  }
+
+  /// Alterna o status de fixada de uma mensagem
+  static Future<bool> alternarFixarMensagem(String id, {bool? fixar}) async {
+    try {
+      final db = await obterDb();
+      final rows = await db.query(
+        'mensagens_chat',
+        columns: ['fixada'],
+        where: 'id = ?',
+        whereArgs: [id],
+        limit: 1,
+      );
+      if (rows.isEmpty) return false;
+      final atual = (rows.first['fixada'] as int? ?? 0) == 1;
+      final novoValor = (fixar ?? !atual) ? 1 : 0;
+      await db.update(
+        'mensagens_chat',
+        {'fixada': novoValor},
+        where: 'id = ?',
+        whereArgs: [id],
+      );
+      return novoValor == 1;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// Adiciona, atualiza ou remove a reação de um autor em uma mensagem
+  static Future<Map<String, String>> reagirMensagem(
+    String id,
+    String autorId,
+    String emoji,
+  ) async {
+    try {
+      final db = await obterDb();
+      final rows = await db.query(
+        'mensagens_chat',
+        columns: ['reacoes_json'],
+        where: 'id = ?',
+        whereArgs: [id],
+        limit: 1,
+      );
+      if (rows.isEmpty) return const {};
+      final raw = rows.first['reacoes_json'] as String? ?? '{}';
+      final mapa = <String, String>{};
+      try {
+        final dec = jsonDecode(raw);
+        if (dec is Map) {
+          dec.forEach((k, v) {
+            mapa[k.toString()] = v.toString();
+          });
+        }
+      } catch (_) {}
+
+      final chave = autorId.trim();
+      if (chave.isEmpty) return mapa;
+      if (emoji.isEmpty || mapa[chave] == emoji) {
+        mapa.remove(chave);
+      } else {
+        mapa[chave] = emoji;
+      }
+
+      await db.update(
+        'mensagens_chat',
+        {'reacoes_json': jsonEncode(mapa)},
+        where: 'id = ?',
+        whereArgs: [id],
+      );
+      return mapa;
+    } catch (_) {
+      return const {};
     }
   }
 

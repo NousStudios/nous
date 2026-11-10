@@ -4,13 +4,13 @@ import 'package:flutter/foundation.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import 'package:nous/src/core/services/relogio_rede_service.dart';
 import 'package:nous/src/core/services/som_service.dart';
-import 'package:nous/src/features/auth/services/contas_nous_service.dart';
 import 'package:nous/src/features/chat/models/mensagem_chat.dart';
 import 'package:nous/src/features/chat/services/chat_media_service.dart';
 import 'package:nous/src/features/chat/services/chat_repositorio_sqlite.dart';
 import 'package:nous/src/features/chat/services/chat_sincronizacao_service.dart';
 import 'package:nous/src/features/chat/services/notificacao_android_service.dart';
 import 'package:nous/src/features/chat/services/resolvedor_conversa_info_service.dart';
+import 'package:nous/src/features/pdv/providers/pdv_provider.dart';
 import 'package:nous/src/features/pdv/services/imagem_service.dart';
 import 'package:nous/src/features/pdv/services/rede_local/cliente_rede_local.dart';
 import 'package:nous/src/features/pdv/services/rede_local/servidor_rede_local.dart';
@@ -144,9 +144,21 @@ class ChatMensagensService {
       'dados_pedido_json': mensagem.dadosPedidoJson,
       'editada': 0,
       'historico_edicoes': jsonEncode(mensagem.historicoEdicoes),
-      'status_envio': 'pendente',
-      'entregue': 0,
+      'status_envio': 'enviada',
+      'entregue': mensagem.entregue ? 1 : 0,
+      'favorita': mensagem.favorita ? 1 : 0,
+      'fixada': mensagem.fixada ? 1 : 0,
+      'reacoes_json': jsonEncode(mensagem.reacoes),
     }, conflictAlgorithm: ConflictAlgorithm.replace);
+
+    final ehConvLojaUsuario = mensagem.conversaId.startsWith('loja_') &&
+        mensagem.conversaId.contains('_usuario_');
+    final lojaIdConv = ehConvLojaUsuario
+        ? mensagem.conversaId.substring(
+            5,
+            mensagem.conversaId.indexOf('_usuario_'),
+          )
+        : '';
 
     final count = await db.update(
       'conversas_chat',
@@ -154,6 +166,8 @@ class ChatMensagensService {
         'ultima_mensagem': resumo,
         'data_hora_ultima_mensagem': mensagem.dataHora.toIso8601String(),
         'atualizado_em': RelogioRedeService.agora().toIso8601String(),
+        if (ehConvLojaUsuario) 'eh_loja': 1,
+        if (ehConvLojaUsuario && lojaIdConv.isNotEmpty) 'loja_id': lojaIdConv,
       },
       where: 'id = ?',
       whereArgs: [mensagem.conversaId],
@@ -172,9 +186,9 @@ class ChatMensagensService {
         'subtitulo': info.subtitulo,
         'foto': info.foto,
         'identificador': info.identificador,
-        'eh_loja': info.ehLoja ? 1 : 0,
+        'eh_loja': (ehConvLojaUsuario || info.ehLoja) ? 1 : 0,
         'eh_grupo': info.ehGrupo ? 1 : 0,
-        'loja_id': info.lojaId ?? '',
+        'loja_id': (info.lojaId?.isNotEmpty == true) ? info.lojaId! : lojaIdConv,
         'participantes_json': jsonEncode([
           mensagem.remetenteId,
           mensagem.destinatarioId,
@@ -237,6 +251,9 @@ class ChatMensagensService {
         'entregue',
         'editada',
         'caminho_anexo',
+        'dados_pedido_json',
+        'fixada',
+        'reacoes_json',
       ],
       where: 'id = ?',
       whereArgs: [mensagem.id],
@@ -251,13 +268,19 @@ class ChatMensagensService {
       final entEx = (ex['entregue'] as int? ?? 0) == 1;
       final editEx = (ex['editada'] as int? ?? 0) == 1;
       final anexoEx = ex['caminho_anexo'] as String? ?? '';
+      final dadosPedEx = ex['dados_pedido_json'] as String? ?? '';
+      final fixadaEx = (ex['fixada'] as int? ?? 0) == 1;
+      final reacoesEx = ex['reacoes_json'] as String? ?? '{}';
       if (convEx == mensagem.conversaId &&
           stEx == mensagem.statusEnvio &&
           txtEx == mensagem.texto &&
           lidaEx == mensagem.lida &&
           entEx == mensagem.entregue &&
           editEx == mensagem.editada &&
-          anexoEx == mensagem.caminhoAnexo) {
+          anexoEx == mensagem.caminhoAnexo &&
+          dadosPedEx == mensagem.dadosPedidoJson &&
+          fixadaEx == mensagem.fixada &&
+          reacoesEx == jsonEncode(mensagem.reacoes)) {
         return false;
       }
     }
@@ -321,7 +344,19 @@ class ChatMensagensService {
       'historico_edicoes': jsonEncode(mensagem.historicoEdicoes),
       'status_envio': mensagem.statusEnvio,
       'entregue': mensagem.entregue ? 1 : 0,
+      'favorita': mensagem.favorita ? 1 : 0,
+      'fixada': mensagem.fixada ? 1 : 0,
+      'reacoes_json': jsonEncode(mensagem.reacoes),
     }, conflictAlgorithm: ConflictAlgorithm.replace);
+
+    final ehConvLojaUsuario = mensagem.conversaId.startsWith('loja_') &&
+        mensagem.conversaId.contains('_usuario_');
+    final lojaIdConv = ehConvLojaUsuario
+        ? mensagem.conversaId.substring(
+            5,
+            mensagem.conversaId.indexOf('_usuario_'),
+          )
+        : '';
 
     final count = await db.update(
       'conversas_chat',
@@ -329,79 +364,28 @@ class ChatMensagensService {
         'ultima_mensagem': resumo,
         'data_hora_ultima_mensagem': mensagem.dataHora.toIso8601String(),
         'atualizado_em': RelogioRedeService.agora().toIso8601String(),
+        if (ehConvLojaUsuario) 'eh_loja': 1,
+        if (ehConvLojaUsuario && lojaIdConv.isNotEmpty) 'loja_id': lojaIdConv,
       },
       where: 'id = ?',
       whereArgs: [mensagem.conversaId],
     );
 
     if (count == 0) {
-      final ehLoja = mensagem.conversaId.startsWith('loja_');
-      final ehGrupo = mensagem.conversaId.startsWith('grupo_');
-      String? lojaId;
-      String identificadorSalvar = mensagem.destinatarioId;
-
-      if (ehLoja && mensagem.conversaId.contains('_usuario_')) {
-        lojaId = mensagem.conversaId.substring('loja_'.length, mensagem.conversaId.indexOf('_usuario_'));
-        final cpfCli = ChatRepositorioSqlite.normalizarCpf(
-          mensagem.conversaId.split('_usuario_').last,
-        );
-        if (cpfCli.length == 11) {
-          identificadorSalvar = cpfCli;
-        }
-      }
-
-      String tituloConversa = ehGrupo ? 'Grupo' : '';
-      String subtituloConversa = ehLoja ? 'Loja Nous' : 'Contato Nous';
-      String fotoConversa = '';
-
-      if (ehLoja && identificadorSalvar.length == 11) {
-        final contaCliente = await ContasNousService.buscarPorCpf(identificadorSalvar);
-        if (contaCliente != null) {
-          tituloConversa = contaCliente.nomeExibicao;
-          subtituloConversa = contaCliente.usernameExibicao.isNotEmpty
-              ? contaCliente.usernameExibicao
-              : 'Cliente Nous';
-          fotoConversa = contaCliente.fotoExibicao;
-        } else if (mensagem.remetenteNome.isNotEmpty && mensagem.remetenteId == identificadorSalvar) {
-          tituloConversa = mensagem.remetenteNome;
-          fotoConversa = mensagem.remetenteFoto;
-        }
-      } else if (!ehGrupo && !ehLoja) {
-        var outroCpf =
-            ChatRepositorioSqlite.normalizarCpf(mensagem.destinatarioId);
-        if (outroCpf.length != 11 || (meuCpf.isNotEmpty && outroCpf == meuCpf)) {
-          outroCpf = ChatRepositorioSqlite.extrairOutroCpf(
-              mensagem.conversaId, meuCpf);
-        }
-        if (outroCpf.length == 11) {
-          identificadorSalvar = outroCpf;
-          final conta = await ContasNousService.buscarPorCpf(outroCpf);
-          if (conta != null) {
-            tituloConversa = conta.nomeExibicao;
-            subtituloConversa = conta.usernameExibicao.isNotEmpty
-                ? conta.usernameExibicao
-                : 'Usuário Nous';
-            fotoConversa = conta.fotoExibicao;
-          } else if (mensagem.remetenteNome.isNotEmpty &&
-              mensagem.remetenteId == outroCpf) {
-            tituloConversa = mensagem.remetenteNome;
-            fotoConversa = mensagem.remetenteFoto;
-          }
-        }
-      }
-      if (tituloConversa.isEmpty) {
-        tituloConversa = ehGrupo ? 'Grupo' : (ehLoja ? 'Cliente' : 'Contato Nous');
-      }
+      final info = await ResolvedorConversaInfoService.resolverMetadadosParaMensagem(
+        mensagem,
+        cpfLogado: meuCpf,
+      );
 
       await db.insert('conversas_chat', {
         'id': mensagem.conversaId,
-        'titulo': tituloConversa,
-        'subtitulo': subtituloConversa,
-        'foto': fotoConversa,
-        'identificador': identificadorSalvar,
-        'eh_loja': ehLoja ? 1 : 0,
-        'eh_grupo': ehGrupo ? 1 : 0,
-        'loja_id': lojaId ?? '',
+        'titulo': info.titulo,
+        'subtitulo': info.subtitulo,
+        'foto': info.foto,
+        'identificador': info.identificador,
+        'eh_loja': (ehConvLojaUsuario || info.ehLoja) ? 1 : 0,
+        'eh_grupo': info.ehGrupo ? 1 : 0,
+        'loja_id': (info.lojaId?.isNotEmpty == true) ? info.lojaId! : lojaIdConv,
         'participantes_json': jsonEncode([
           mensagem.remetenteId,
           mensagem.destinatarioId,
@@ -434,6 +418,72 @@ class ChatMensagensService {
       }
       final msgIdBruto = payloadMensagem['id'] as String? ?? '';
       if (msgIdBruto.trim().isEmpty) {
+        return;
+      }
+
+      if (tipoEvento == 'mensagem_excluida') {
+        final db = await ChatRepositorioSqlite.obterDb();
+        await db.delete('mensagens_chat', where: 'id = ?', whereArgs: [msgIdBruto]);
+        aoNotificar();
+        return;
+      }
+
+      if (tipoEvento == 'mensagem_editada') {
+        final db = await ChatRepositorioSqlite.obterDb();
+        final novoTexto = payloadMensagem['novoTexto'] as String? ??
+            payloadMensagem['texto'] as String? ??
+            '';
+        final hist = payloadMensagem['historicoEdicoes'];
+        await db.update(
+          'mensagens_chat',
+          {
+            'texto': novoTexto,
+            'editada': 1,
+            if (hist != null) 'historico_edicoes': jsonEncode(hist),
+          },
+          where: 'id = ?',
+          whereArgs: [msgIdBruto],
+        );
+        aoNotificar();
+        return;
+      }
+
+      if (tipoEvento == 'mensagem_fixada') {
+        final fixadaVal = payloadMensagem['fixada'] == true || payloadMensagem['fixada'] == 1;
+        await ChatRepositorioSqlite.alternarFixarMensagem(msgIdBruto, fixar: fixadaVal);
+        aoNotificar();
+        return;
+      }
+
+      if (tipoEvento == 'mensagem_reacao') {
+        final db = await ChatRepositorioSqlite.obterDb();
+        final reacoesRaw = payloadMensagem['reacoes'];
+        if (reacoesRaw is Map) {
+          await db.update(
+            'mensagens_chat',
+            {'reacoes_json': jsonEncode(reacoesRaw)},
+            where: 'id = ?',
+            whereArgs: [msgIdBruto],
+          );
+          aoNotificar();
+        }
+        return;
+      }
+
+      if (tipoEvento == 'comanda_atualizada') {
+        final db = await ChatRepositorioSqlite.obterDb();
+        final dadosPed = payloadMensagem['dadosPedidoJson'] as String? ?? '';
+        final textoNovo = payloadMensagem['texto'] as String?;
+        await db.update(
+          'mensagens_chat',
+          {
+            'dados_pedido_json': dadosPed,
+            if (textoNovo != null && textoNovo.isNotEmpty) 'texto': textoNovo,
+          },
+          where: 'id = ?',
+          whereArgs: [msgIdBruto],
+        );
+        aoNotificar();
         return;
       }
 
@@ -587,10 +637,8 @@ class ChatMensagensService {
         String cpfClienteConv = '';
         String lojaIdConv = '';
         if (mensagem.conversaId.contains('_usuario_')) {
-          lojaIdConv = mensagem.conversaId.substring(
-            'loja_'.length,
-            mensagem.conversaId.indexOf('_usuario_'),
-          );
+          final antesUsuario = mensagem.conversaId.substring(0, mensagem.conversaId.indexOf('_usuario_'));
+          lojaIdConv = antesUsuario.startsWith('loja_') ? antesUsuario.substring(5) : antesUsuario;
           cpfClienteConv = ChatRepositorioSqlite.normalizarCpf(
             mensagem.conversaId.split('_usuario_').last,
           );
@@ -604,7 +652,8 @@ class ChatMensagensService {
         } else {
           // Mensagem enviada pelo cliente para a loja: o servidor balcão da loja (ou membro logado) confirma
           final balcaoHospedaLoja = ServidorRedeLocal().ativo &&
-              (ServidorRedeLocal().lojaAtiva?.id == lojaIdConv ||
+              ((ServidorRedeLocal().lojaAtiva != null &&
+                      PdvProvider.normalizarIdLoja(ServidorRedeLocal().lojaAtiva!.id) == lojaIdConv) ||
                   ServidorRedeLocal().pdvProvider?.buscarPorId(lojaIdConv) != null);
           souDestinatarioReal =
               !ehMinhaPropriaMensagem && (balcaoHospedaLoja || (meuCpf.isNotEmpty && meuCpf != cpfClienteConv));

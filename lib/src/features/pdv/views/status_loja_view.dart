@@ -8,7 +8,6 @@ import 'package:nous/src/features/auth/providers/auth_provider.dart';
 import 'package:nous/src/features/pdv/models/loja.dart';
 import 'package:nous/src/features/pdv/models/membro_loja.dart';
 import 'package:nous/src/features/pdv/providers/pdv_provider.dart';
-import 'package:nous/src/features/pdv/services/rede_local/cliente_rede_local.dart';
 import 'package:nous/src/features/pdv/services/rede_local/servidor_rede_local.dart';
 import 'package:nous/src/features/pdv/views/widgets/status_loja/bloco_resumo_operacional_widget.dart';
 import 'package:nous/src/features/pdv/views/widgets/status_loja/bloco_trabalhadores_status_widget.dart';
@@ -47,21 +46,9 @@ class _StatusLojaViewState extends State<StatusLojaView> {
   }
 
   void _alternarOnline(bool valor) {
-    setState(() => _online = valor);
     widget.aoAlterarOnline(valor);
-    context.read<PdvProvider>().alternarLojaAberta(widget.lojaId, valor);
     final lojaAtual = context.read<PdvProvider>().buscarPorId(widget.lojaId);
-    if (lojaAtual != null) {
-      if (ServidorRedeLocal().ativo) {
-        ServidorRedeLocal().notificarTodos({
-          'tipo': 'loja_atualizada',
-          'loja': lojaAtual.toJson(),
-        });
-      }
-      if (ClienteRedeLocal().conectado) {
-        ClienteRedeLocal().enviarLojaAtualizada(lojaAtual);
-      }
-    }
+    setState(() => _online = lojaAtual?.aberta ?? valor);
   }
 
   BoxDecoration _decoracaoDoBloco(AppTheme theme) => BoxDecoration(
