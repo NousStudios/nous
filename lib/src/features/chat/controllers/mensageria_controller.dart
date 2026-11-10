@@ -580,15 +580,37 @@ class MensageriaController extends ChangeNotifier {
       if (_disposed || _conversaSelecionada?.id != convId) return;
 
       final msgsAtuais = _conversaSelecionada!.mensagens;
-      bool saoIguais = msgsAtuais.length == msgs.length;
+
+      // Preservação Estrita de Mensagens Otimistas Pendentes:
+      // Se a memória local contém mensagens recém-enviadas pelo usuário que ainda
+      // não foram inseridas no SQLite, elas NUNCA devem ser apagadas da tela.
+      final idsNoBanco = msgs.map((m) => m.id).toSet();
+      final pendentesLocais = msgsAtuais
+          .where((m) =>
+              m.statusEnvio == 'pendente' && !idsNoBanco.contains(m.id))
+          .toList();
+
+      final List<MensagemChat> msgsFinais;
+      if (pendentesLocais.isNotEmpty) {
+        msgsFinais = [...msgs, ...pendentesLocais]..sort((a, b) {
+            final cmp = a.dataHora.compareTo(b.dataHora);
+            if (cmp != 0) return cmp;
+            return a.id.compareTo(b.id);
+          });
+      } else {
+        msgsFinais = msgs;
+      }
+
+      bool saoIguais = msgsAtuais.length == msgsFinais.length;
       if (saoIguais) {
-        for (int k = 0; k < msgs.length; k++) {
+        for (int k = 0; k < msgsFinais.length; k++) {
           final m1 = msgsAtuais[k];
-          final m2 = msgs[k];
+          final m2 = msgsFinais[k];
           if (m1.id != m2.id ||
               m1.statusEnvio != m2.statusEnvio ||
               m1.texto != m2.texto ||
               m1.editada != m2.editada ||
+              m1.favorita != m2.favorita ||
               m1.caminhoAnexo != m2.caminhoAnexo) {
             saoIguais = false;
             break;
@@ -600,12 +622,12 @@ class MensageriaController extends ChangeNotifier {
       }
 
       final comMsgs = _conversaSelecionada!.copyWith(
-        mensagens: msgs,
-        ultimaMensagem: msgs.isNotEmpty
-            ? resumoMensagem(msgs.last)
+        mensagens: msgsFinais,
+        ultimaMensagem: msgsFinais.isNotEmpty
+            ? resumoMensagem(msgsFinais.last)
             : _conversaSelecionada!.ultimaMensagem,
-        dataHoraUltimaMensagem: msgs.isNotEmpty
-            ? msgs.last.dataHora
+        dataHoraUltimaMensagem: msgsFinais.isNotEmpty
+            ? msgsFinais.last.dataHora
             : _conversaSelecionada!.dataHoraUltimaMensagem,
       );
       _conversaSelecionada = comMsgs;
@@ -830,6 +852,33 @@ class MensageriaController extends ChangeNotifier {
       notifyListeners();
     }
     await ChatService.excluirMensagem(msg.id);
+  }
+
+  Future<void> alternarFavoritarMensagem(MensagemChat msg) async {
+    final novaFavorita = !msg.favorita;
+    final msgAtualizada = msg.copyWith(favorita: novaFavorita);
+
+    if (_conversaSelecionada != null &&
+        _conversaSelecionada!.id == msg.conversaId) {
+      final msgs = List<MensagemChat>.from(_conversaSelecionada!.mensagens);
+      final idx = msgs.indexWhere((m) => m.id == msg.id);
+      if (idx != -1) {
+        msgs[idx] = msgAtualizada;
+        _conversaSelecionada = _conversaSelecionada!.copyWith(mensagens: msgs);
+        notifyListeners();
+      }
+    }
+
+    await ChatService.alternarFavoritaMensagem(msg.id);
+  }
+
+  Future<void> alternarSilenciar(
+    ConversaChat conversa, {
+    required AuthProvider auth,
+    required PdvProvider pdv,
+  }) async {
+    await ChatService.alternarSilenciarConversa(conversa.id);
+    await recarregarConversas(auth: auth, pdv: pdv, manterSelecionada: true);
   }
 
   Future<void> alternarFixar(

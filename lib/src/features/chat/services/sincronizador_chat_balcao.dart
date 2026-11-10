@@ -111,10 +111,24 @@ class SincronizadorChatBalcao {
         final dados = jsonDecode(body) as Map<String, dynamic>;
         if (dados['sucesso'] == true && dados['mensagens'] is List) {
           final lista = dados['mensagens'] as List<dynamic>;
+          final meuCpfNorm = (cpfUsuario != null && cpfUsuario.isNotEmpty)
+              ? ChatService.normalizarCpf(cpfUsuario)
+              : await ChatService.obterCpfLogadoLocal();
           int mensagensNovas = 0;
           for (final item in lista) {
             if (item is Map<String, dynamic>) {
               var msg = MensagemChat.fromJson(item);
+              final remCpf = ChatService.normalizarCpf(msg.remetenteId);
+              final destCpf = ChatService.normalizarCpf(msg.destinatarioId);
+              final souDest = meuCpfNorm.isNotEmpty &&
+                  remCpf != meuCpfNorm &&
+                  (destCpf == meuCpfNorm ||
+                      msg.conversaId.endsWith('_usuario_$meuCpfNorm') ||
+                      msg.conversaId.contains('user_$meuCpfNorm'));
+              if (souDest && !msg.entregue && !msg.lida) {
+                msg = msg.copyWith(entregue: true);
+                ChatService.despacharConfirmacaoEntrega(msg.id, msg.conversaId);
+              }
               final alterou = await ChatService.salvarMensagem(
                 msg,
                 originadaDaRede: true,

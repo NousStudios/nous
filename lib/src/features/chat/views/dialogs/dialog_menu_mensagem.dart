@@ -10,6 +10,7 @@ class DialogMenuMensagem {
     required MensagemChat msg,
     required VoidCallback onEditar,
     required VoidCallback onEncaminhar,
+    required VoidCallback onAlternarFavorita,
     required VoidCallback onVerHistorico,
     required VoidCallback onExcluir,
   }) {
@@ -104,7 +105,33 @@ class DialogMenuMensagem {
                   },
                 ),
 
-                // 4. Histórico de Edições
+                // 4. Favoritar / Desfavoritar mensagem
+                ListTile(
+                  leading: Icon(
+                    msg.favorita
+                        ? Icons.star_rounded
+                        : Icons.star_outline_rounded,
+                    color: msg.favorita
+                        ? const Color(0xFFFFB300)
+                        : theme.textColor,
+                    size: 20,
+                  ),
+                  title: Text(
+                    msg.favorita
+                        ? 'Desfavoritar mensagem'
+                        : 'Favoritar mensagem',
+                    style: theme.getTextStyle(
+                      fontSize: 13,
+                      color: theme.textColor,
+                    ),
+                  ),
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    onAlternarFavorita();
+                  },
+                ),
+
+                // 5. Histórico de Edições
                 if (msg.editada)
                   ListTile(
                     leading: Icon(

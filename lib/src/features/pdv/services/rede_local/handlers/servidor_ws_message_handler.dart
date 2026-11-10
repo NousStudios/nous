@@ -1,6 +1,8 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
+import 'package:nous/src/core/services/som_service.dart';
 import 'package:nous/src/core/utils/json_isolate_utils.dart';
 import 'package:nous/src/features/auth/models/usuario_nous.dart';
 import 'package:nous/src/features/auth/providers/auth_provider.dart';
@@ -10,6 +12,7 @@ import 'package:nous/src/features/chat/services/chat_service.dart';
 import 'package:nous/src/features/notificacoes/models/convite_loja.dart';
 import 'package:nous/src/features/notificacoes/providers/notificacoes_provider.dart';
 import 'package:nous/src/features/notificacoes/services/convites_service.dart';
+import 'package:nous/src/features/pdv/models/cliente.dart';
 import 'package:nous/src/features/pdv/models/loja.dart';
 import 'package:nous/src/features/pdv/models/pedido_loja.dart';
 import 'package:nous/src/features/pdv/models/terminal_conectado_info.dart';
@@ -173,8 +176,13 @@ class ServidorWsMessageHandler {
         return;
       }
 
-      if (tipo == 'pedido_atualizado') {
+      if (tipo == 'pedido_atualizado' || tipo == 'pedido_adicionado') {
         _processarPedidoAtualizado(ws, dados, ctx);
+        return;
+      }
+
+      if (tipo == 'cliente_atualizado') {
+        _processarClienteAtualizado(ws, dados, ctx);
         return;
       }
 
@@ -322,34 +330,37 @@ class ServidorWsMessageHandler {
     if (dados['mensagem'] != null) {
       final msgJson = dados['mensagem'] as Map<String, dynamic>;
       final msg = MensagemChat.fromJson(msgJson);
-      await ChatService.processarMensagemRecebidaDaRede(
-        msgJson,
-        emitirAlertaSonoro: false,
-      );
 
-      final cpfRemetente = ChatService.normalizarCpf(msg.remetenteId);
-      if (cpfRemetente.length == 11 && msg.remetenteFoto.isNotEmpty) {
-        final fotoResolvida = ImagemService.resolverCaminhoExistente(msg.remetenteFoto);
-        if (fotoResolvida != null) {
-          final c = await ContasNousService.buscarPorCpf(cpfRemetente);
-          if (c != null && (c.foto.isEmpty || !ImagemService.existe(c.foto) || c.foto != fotoResolvida)) {
-            final atualizado = c.copyWith(foto: fotoResolvida);
-            await ContasNousService.salvar(atualizado);
-            ctx.authProvider?.atualizarContaNoCache(atualizado);
-          }
-        }
-      }
-
-      try {
-        ws.add(jsonEncode({
-          'tipo': 'mensagem_entregue',
-          'id': msg.id,
-          'conversaId': msg.conversaId,
-        }));
-      } catch (_) {}
-
+      // 1. RETRANSMISSÃO IMEDIATA EM 0ms: entrega sem bloqueio de banco aos demais clientes
       final payload = jsonEncode({'tipo': 'mensagem_chat', 'mensagem': msgJson});
       ctx.retransmitirParaOutros(payload, exceto: ws);
+
+      // 2. Persistência local e autocura de perfil em background sem atrasar o WebSocket
+      // (A confirmação 'mensagem_entregue' será emitida por processarMensagemRecebidaDaRede
+      // exclusivamente se este nó for o verdadeiro destinatário da mensagem)
+      unawaited(() async {
+        try {
+          await ChatService.processarMensagemRecebidaDaRede(
+            msgJson,
+            emitirAlertaSonoro: false,
+          );
+
+          final cpfRemetente = ChatService.normalizarCpf(msg.remetenteId);
+          if (cpfRemetente.length == 11 && msg.remetenteFoto.isNotEmpty) {
+            final fotoResolvida = ImagemService.resolverCaminhoExistente(msg.remetenteFoto);
+            if (fotoResolvida != null) {
+              final c = await ContasNousService.buscarPorCpf(cpfRemetente);
+              if (c != null && (c.foto.isEmpty || !ImagemService.existe(c.foto) || c.foto != fotoResolvida)) {
+                final atualizado = c.copyWith(foto: fotoResolvida);
+                await ContasNousService.salvar(atualizado);
+                ctx.authProvider?.atualizarContaNoCache(atualizado);
+              }
+            }
+          }
+        } catch (e) {
+          debugPrint('[ServidorRedeLocal] Erro em background ao persistir mensagem recebida: $e');
+        }
+      }());
     }
   }
 
@@ -393,6 +404,7 @@ class ServidorWsMessageHandler {
       if (lojaAtual != null) {
         final pedidos = List<PedidoLoja>.from(lojaAtual.pedidosLoja);
         final idx = pedidos.indexWhere((p) => p.id == pedido.id);
+        final ehNovo = idx == -1;
         if (idx != -1) {
           pedidos[idx] = pedido;
         } else {
@@ -400,9 +412,51 @@ class ServidorWsMessageHandler {
         }
         ctx.pdvProvider!.atualizarListasLoja(lojaAtual.id, pedidos: pedidos);
 
+        if (ehNovo) {
+          SomService.tocarEvento(
+            SomService.eventoNovoPedido,
+            loja: lojaAtual,
+          );
+        }
+
         final payload = jsonEncode({
-          'tipo': 'pedido_atualizado',
+          'tipo': ehNovo ? 'pedido_adicionado' : 'pedido_atualizado',
+          'lojaId': lojaAtual.id,
           'pedido': pedido.toJson(),
+        });
+        ctx.retransmitirParaOutros(payload, exceto: ws);
+      }
+    }
+  }
+
+  static void _processarClienteAtualizado(
+    WebSocket ws,
+    Map<String, dynamic> dados,
+    ServidorWsContext ctx,
+  ) {
+    if (dados['cliente'] != null && ctx.pdvProvider != null) {
+      final cliente = Cliente.fromJson(dados['cliente'] as Map<String, dynamic>);
+      final lojaAtiva = ctx.obterLojaAtiva();
+      final lojaIdAlvo = (dados['lojaId'] as String?)?.trim().isNotEmpty == true
+          ? (dados['lojaId'] as String).trim()
+          : (lojaAtiva?.id ?? '');
+      if (lojaIdAlvo.isEmpty) return;
+
+      final lojaAtual = ctx.pdvProvider!.buscarPorId(lojaIdAlvo);
+      if (lojaAtual != null) {
+        final clientes = List<Cliente>.from(lojaAtual.clientesLoja);
+        final idx = clientes.indexWhere((c) => c.id == cliente.id);
+        if (idx != -1) {
+          clientes[idx] = cliente.copyWith(fretePadrao: clientes[idx].fretePadrao);
+        } else {
+          clientes.add(cliente);
+        }
+        ctx.pdvProvider!.atualizarListasLoja(lojaAtual.id, clientes: clientes);
+
+        final payload = jsonEncode({
+          'tipo': 'cliente_atualizado',
+          'lojaId': lojaAtual.id,
+          'cliente': cliente.toJson(),
         });
         ctx.retransmitirParaOutros(payload, exceto: ws);
       }

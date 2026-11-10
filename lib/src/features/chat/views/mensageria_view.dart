@@ -8,13 +8,17 @@ import 'package:nous/src/core/widgets/custom_app_bar.dart';
 import 'package:nous/src/core/widgets/floating_bottom_nav_bar.dart';
 import 'package:nous/src/features/auth/providers/auth_provider.dart';
 import 'package:nous/src/features/chat/controllers/mensageria_controller.dart';
+import 'package:nous/src/features/chat/models/conversa_chat.dart';
+import 'package:nous/src/features/chat/services/chat_autoatendimento_service.dart';
 import 'package:nous/src/features/chat/services/chat_service.dart';
 import 'package:nous/src/features/chat/services/gravador_audio_service.dart';
 import 'package:nous/src/features/chat/services/mensageria_acoes_delegate.dart';
 import 'package:nous/src/features/chat/views/dialogs/dialog_criar_grupo.dart';
 import 'package:nous/src/features/chat/views/dialogs/dialog_detalhes_contato.dart';
+import 'package:nous/src/features/chat/views/dialogs/dialog_editar_ficha_cliente_loja.dart';
 import 'package:nous/src/features/chat/views/dialogs/dialog_editar_mensagem.dart';
 import 'package:nous/src/features/chat/views/dialogs/dialog_encaminhar_mensagem.dart';
+import 'package:nous/src/features/chat/views/dialogs/dialog_fazer_pedido_chat.dart';
 import 'package:nous/src/features/chat/views/dialogs/dialog_historico_edicoes.dart';
 import 'package:nous/src/features/chat/views/dialogs/dialog_menu_mensagem.dart';
 import 'package:nous/src/features/chat/views/dialogs/dialog_nova_conversa.dart';
@@ -206,6 +210,35 @@ class _MensageriaViewState extends State<MensageriaView> {
           ),
           onAbrirArquivo: (caminho) =>
               MensageriaAcoesDelegate.abrirArquivo(context, caminho),
+          onRenomearConversa: (conv) => _abrirDialogRenomear(conv, theme),
+          onAbrirMinhaFichaLoja: (conv) async {
+            final pdv = context.read<PdvProvider>();
+            final auth = context.read<AuthProvider>();
+            final lojaIdAlvo =
+                (conv.lojaId != null && conv.lojaId!.isNotEmpty)
+                ? conv.lojaId!
+                : (conv.identificador.isNotEmpty ? conv.identificador : conv.id);
+            final loja = await ChatAutoatendimentoService.obterLojaCatalogo(
+              lojaIdBruto: lojaIdAlvo,
+              pdv: pdv,
+            );
+            if (loja != null && auth.contaAtual != null) {
+              final cliente =
+                  await ChatAutoatendimentoService.resolverOuCriarFichaCliente(
+                loja: loja,
+                usuario: auth.contaAtual!,
+                pdv: pdv,
+              );
+              if (mounted) {
+                DialogEditarFichaClienteLoja.mostrar(
+                  context: context,
+                  theme: theme,
+                  lojaId: loja.id,
+                  cliente: cliente,
+                );
+              }
+            }
+          },
         );
       },
       onRenomearConversa: (c) {
@@ -255,6 +288,8 @@ class _MensageriaViewState extends State<MensageriaView> {
               },
             );
           },
+          onAlternarFavorita: () =>
+              _controller.alternarFavoritarMensagem(msg),
           onVerHistorico: () {
             DialogHistoricoEdicoes.mostrar(
               context,
@@ -316,6 +351,12 @@ class _MensageriaViewState extends State<MensageriaView> {
         context: context,
         controller: _controller,
       ),
+      onCompartilharContato: () =>
+          MensageriaAcoesDelegate.compartilharContato(
+        context: context,
+        controller: _controller,
+        theme: theme,
+      ),
       onCompartilharComanda: () =>
           MensageriaAcoesDelegate.abrirDialogCompartilharComanda(
         context: context,
@@ -323,6 +364,12 @@ class _MensageriaViewState extends State<MensageriaView> {
         controller: _controller,
         modoLoja: widget.modoLoja,
         lojaId: widget.lojaId,
+      ),
+      onFazerPedido: (c) => DialogFazerPedidoChat.mostrar(
+        context: context,
+        theme: theme,
+        conversa: c,
+        controller: _controller,
       ),
     );
   }
@@ -366,6 +413,35 @@ class _MensageriaViewState extends State<MensageriaView> {
         final pdv = context.read<PdvProvider>();
         _controller.alternarArquivar(
           c,
+          auth: auth,
+          pdv: pdv,
+        );
+      },
+      onAlternarSilenciar: (c) {
+        final auth = context.read<AuthProvider>();
+        final pdv = context.read<PdvProvider>();
+        _controller.alternarSilenciar(
+          c,
+          auth: auth,
+          pdv: pdv,
+        );
+      },
+      onRenomearConversa: (c) => _abrirDialogRenomear(c, theme),
+    );
+  }
+
+  void _abrirDialogRenomear(ConversaChat c, AppTheme theme) {
+    DialogRenomearConversa.mostrar(
+      context,
+      theme: theme,
+      conversa: c,
+      titulosCustomizados: _controller.titulosCustomizados,
+      onSalvar: (novo) {
+        final auth = context.read<AuthProvider>();
+        final pdv = context.read<PdvProvider>();
+        return _controller.renomearConversa(
+          c,
+          novo,
           auth: auth,
           pdv: pdv,
         );

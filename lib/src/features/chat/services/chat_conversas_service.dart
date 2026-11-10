@@ -78,6 +78,7 @@ class ChatConversasService {
     final contaLogada = mapaContasPorCpf[cpfNormUsuario];
 
     final mapaNaoLidas = <String, int>{};
+    final mapaUltimaMsgStatus = <String, ({bool enviadaPorMim, String status})>{};
     try {
       final rowsNaoLidas = await db.rawQuery(
         'SELECT conversa_id, remetente_id FROM mensagens_chat WHERE lida = 0',
@@ -92,6 +93,49 @@ class ChatConversasService {
         if (!ehProprio && cid.isNotEmpty) {
           mapaNaoLidas[cid] = (mapaNaoLidas[cid] ?? 0) + 1;
         }
+      }
+
+      final rowsUltimas = await db.rawQuery('''
+        SELECT m.conversa_id, m.remetente_id, m.status_envio, m.lida, m.entregue
+        FROM mensagens_chat m
+        INNER JOIN (
+          SELECT conversa_id, MAX(data_hora) AS max_data
+          FROM mensagens_chat
+          GROUP BY conversa_id
+        ) u ON m.conversa_id = u.conversa_id AND m.data_hora = u.max_data
+      ''');
+      final lojaIdLimpoModo = (lojaId != null && lojaId.isNotEmpty)
+          ? (lojaId.startsWith('loja_') ? lojaId.substring(5) : lojaId)
+          : '';
+      for (final ur in rowsUltimas) {
+        final cid = ur['conversa_id'] as String? ?? '';
+        if (cid.isEmpty) continue;
+        final rem = ur['remetente_id'] as String? ?? '';
+        final bool envPorMim;
+        if (lojaIdLimpoModo.isNotEmpty) {
+          final remLimpo = rem.startsWith('loja_') ? rem.substring(5) : rem;
+          envPorMim = remLimpo == lojaIdLimpoModo;
+        } else {
+          final remNorm = ChatRepositorioSqlite.normalizarCpf(rem);
+          final ehMsgLoja = rem.startsWith('loja_');
+          envPorMim = !ehMsgLoja &&
+              cpfNormUsuario.isNotEmpty &&
+              remNorm == cpfNormUsuario;
+        }
+        final lidaInt = (ur['lida'] as int? ?? 0) == 1;
+        final entregueInt = (ur['entregue'] as int? ?? 0) == 1;
+        final stBruto = ur['status_envio'] as String? ?? 'enviada';
+        final String stFinal;
+        if (stBruto == 'pendente') {
+          stFinal = 'pendente';
+        } else if (lidaInt || stBruto == 'lida') {
+          stFinal = 'lida';
+        } else if (entregueInt || stBruto == 'entregue') {
+          stFinal = 'entregue';
+        } else {
+          stFinal = 'enviada';
+        }
+        mapaUltimaMsgStatus[cid] = (enviadaPorMim: envPorMim, status: stFinal);
       }
     } catch (_) {}
 
@@ -276,7 +320,12 @@ class ChatConversasService {
           mensagens: msgs,
           fixada: (r['fixada'] as int? ?? 0) == 1,
           arquivada: (r['arquivada'] as int? ?? 0) == 1,
+          silenciada: (r['silenciada'] as int? ?? 0) == 1,
           atualizadaEm: DateTime.tryParse(r['atualizado_em'] as String? ?? ''),
+          ultimaMensagemEnviadaPorMim:
+              mapaUltimaMsgStatus[convId]?.enviadaPorMim ?? false,
+          statusUltimaMensagem:
+              mapaUltimaMsgStatus[convId]?.status ?? '',
         ),
       );
     }

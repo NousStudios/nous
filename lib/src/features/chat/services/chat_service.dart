@@ -225,6 +225,22 @@ class ChatService {
     if (conversaId.isEmpty) return;
     try {
       final db = await ChatRepositorioSqlite.obterDb();
+
+      // Em grupos, uma leitura individual não deve passar a mensagem para azul (lida por todos)
+      // prematuramente. Passa para 'entregue' (2 checks cinzas) até que todos confirmem.
+      if (conversaId.startsWith('grupo_')) {
+        final alterou = await db.update(
+          'mensagens_chat',
+          {'status_envio': 'entregue', 'entregue': 1},
+          where: 'conversa_id = ? AND status_envio = "enviada"',
+          whereArgs: [conversaId],
+        );
+        if (alterou > 0) {
+          notificarAlteracao();
+        }
+        return;
+      }
+
       final alterou = await db.update(
         'mensagens_chat',
         {'status_envio': 'lida', 'lida': 1},
@@ -237,6 +253,20 @@ class ChatService {
     } catch (e) {
       debugPrint('[ChatService] Erro ao processar mensagens lidas da rede: $e');
     }
+  }
+
+  /// Alterna o status de favorita de uma mensagem
+  static Future<bool> alternarFavoritaMensagem(String id) async {
+    final res = await ChatRepositorioSqlite.alternarFavoritaMensagem(id);
+    notificarAlteracao(imediato: true);
+    return res;
+  }
+
+  /// Alterna o silenciamento de notificações de uma conversa
+  static Future<bool> alternarSilenciarConversa(String conversaId) async {
+    final res = await ChatRepositorioSqlite.alternarSilenciarConversa(conversaId);
+    notificarAlteracao(imediato: true);
+    return res;
   }
 
   static Future<void> curarTimestampsAnomalosDoPassado() =>
@@ -432,6 +462,17 @@ class ChatService {
 
   static Future<bool> deveNotificarConversa(String conversaId) async {
     try {
+      final db = await ChatRepositorioSqlite.obterDb();
+      final rows = await db.query(
+        'conversas_chat',
+        columns: ['silenciada'],
+        where: 'id = ?',
+        whereArgs: [conversaId],
+        limit: 1,
+      );
+      if (rows.isNotEmpty && (rows.first['silenciada'] as int? ?? 0) == 1) {
+        return false;
+      }
       final prefs = await SharedPreferences.getInstance();
       final silenciadas =
           prefs.getStringList(_chaveConversasSilenciadas) ?? [];

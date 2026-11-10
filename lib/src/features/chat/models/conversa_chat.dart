@@ -20,7 +20,10 @@ class ConversaChat {
   final List<MensagemChat> mensagens;
   final bool fixada;
   final bool arquivada;
+  final bool silenciada;
   final DateTime? atualizadaEm;
+  final bool ultimaMensagemEnviadaPorMim;
+  final String statusUltimaMensagem;
 
   const ConversaChat({
     required this.id,
@@ -40,7 +43,10 @@ class ConversaChat {
     this.mensagens = const [],
     this.fixada = false,
     this.arquivada = false,
+    this.silenciada = false,
     this.atualizadaEm,
+    this.ultimaMensagemEnviadaPorMim = false,
+    this.statusUltimaMensagem = '',
   });
 
   bool get temTituloConversa =>
@@ -66,7 +72,10 @@ class ConversaChat {
     List<MensagemChat>? mensagens,
     bool? fixada,
     bool? arquivada,
+    bool? silenciada,
     DateTime? atualizadaEm,
+    bool? ultimaMensagemEnviadaPorMim,
+    String? statusUltimaMensagem,
   }) {
     return ConversaChat(
       id: id ?? this.id,
@@ -87,7 +96,11 @@ class ConversaChat {
       mensagens: mensagens ?? this.mensagens,
       fixada: fixada ?? this.fixada,
       arquivada: arquivada ?? this.arquivada,
+      silenciada: silenciada ?? this.silenciada,
       atualizadaEm: atualizadaEm ?? this.atualizadaEm,
+      ultimaMensagemEnviadaPorMim:
+          ultimaMensagemEnviadaPorMim ?? this.ultimaMensagemEnviadaPorMim,
+      statusUltimaMensagem: statusUltimaMensagem ?? this.statusUltimaMensagem,
     );
   }
 
@@ -112,8 +125,11 @@ class ConversaChat {
       'mensagens': mensagens.map((m) => m.toJson()).toList(),
       'fixada': fixada,
       'arquivada': arquivada,
+      'silenciada': silenciada,
       'atualizadaEm': (atualizadaEm ?? dataHoraUltimaMensagem)
           .toIso8601String(),
+      'ultimaMensagemEnviadaPorMim': ultimaMensagemEnviadaPorMim,
+      'statusUltimaMensagem': statusUltimaMensagem,
     };
   }
 
@@ -199,11 +215,19 @@ class ConversaChat {
           .toList(),
       fixada: json['fixada'] == true || json['fixada'] == 1,
       arquivada: json['arquivada'] == true || json['arquivada'] == 1,
+      silenciada: json['silenciada'] == true || json['silenciada'] == 1,
       atualizadaEm: json['atualizadaEm'] != null
           ? DateTime.tryParse(json['atualizadaEm'] as String)?.toLocal()
           : (json['atualizado_em'] != null
                 ? DateTime.tryParse(json['atualizado_em'] as String)?.toLocal()
                 : null),
+      ultimaMensagemEnviadaPorMim:
+          json['ultimaMensagemEnviadaPorMim'] == true ||
+          json['ultima_mensagem_enviada_por_mim'] == 1,
+      statusUltimaMensagem:
+          (json['statusUltimaMensagem'] as String?) ??
+          (json['status_ultima_mensagem'] as String?) ??
+          '',
     );
   }
 }

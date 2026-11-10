@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:nous/src/core/theme/theme_controller.dart';
 import 'package:nous/src/features/chat/models/conversa_chat.dart';
 import 'package:nous/src/features/chat/models/mensagem_chat.dart';
@@ -38,6 +39,26 @@ class BalaoMensagemWidget extends StatelessWidget {
     return '$hora:$min';
   }
 
+  void _copiarAoToqueDuplo(BuildContext context) {
+    final textoCopiar = msg.texto.trim().isNotEmpty
+        ? msg.texto.trim()
+        : (msg.nomeAnexo.trim().isNotEmpty ? msg.nomeAnexo.trim() : '');
+    if (textoCopiar.isEmpty) return;
+    Clipboard.setData(ClipboardData(text: textoCopiar));
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          backgroundColor: theme.cardBackgroundColor,
+          duration: const Duration(milliseconds: 1200),
+          content: Text(
+            'Mensagem copiada!',
+            style: theme.getTextStyle(fontSize: 12, color: theme.textColor),
+          ),
+        ),
+      );
+  }
+
   @override
   Widget build(BuildContext context) {
     if (msg.tipo == 'texto' && msg.texto.trim().isEmpty && msg.caminhoAnexo.trim().isEmpty) {
@@ -48,6 +69,7 @@ class BalaoMensagemWidget extends StatelessWidget {
       alignment: enviadaPorMim ? Alignment.centerRight : Alignment.centerLeft,
       child: InkWell(
         borderRadius: BorderRadius.circular(12),
+        onDoubleTap: () => _copiarAoToqueDuplo(context),
         onLongPress: () => onMostrarMenu(msg),
         onSecondaryTap: () => onMostrarMenu(msg),
         child: Container(
@@ -164,6 +186,14 @@ class BalaoMensagemWidget extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(width: 4),
+                  ],
+                  if (msg.favorita) ...[
+                    Icon(
+                      Icons.star_rounded,
+                      size: 11,
+                      color: theme.secondaryTextColor.withValues(alpha: 0.85),
+                    ),
+                    const SizedBox(width: 3),
                   ],
                   Text(
                     _formatarHora(msg.dataHora),

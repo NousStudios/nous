@@ -32,6 +32,7 @@ class MensageriaAcoesDelegate {
     final auth = context.read<AuthProvider>();
     try {
       String? caminhoFoto;
+      bool falhaImagePicker = false;
       try {
         final picker = ImagePicker();
         final foto = await picker.pickImage(
@@ -42,14 +43,21 @@ class MensageriaAcoesDelegate {
         );
         if (foto != null) {
           caminhoFoto = foto.path;
+        } else {
+          // Usuário cancelou ou fechou a câmera: retorna imediatamente ao chat
+          return;
         }
       } catch (e) {
+        falhaImagePicker = true;
         debugPrint(
           '[Mensageria] Falha ao abrir câmera via ImagePicker, tentando fallback: $e',
         );
       }
 
-      if (caminhoFoto == null) {
+      // Fallback para openFile do file_selector SOMENTE no Windows/Linux/macOS se o ImagePicker falhou
+      if (caminhoFoto == null &&
+          falhaImagePicker &&
+          (Platform.isWindows || Platform.isLinux || Platform.isMacOS)) {
         const grupo = XTypeGroup(
           label: 'Câmera / Imagens',
           extensions: ['jpg', 'jpeg', 'png', 'webp'],
@@ -58,6 +66,8 @@ class MensageriaAcoesDelegate {
         if (arquivo == null) return;
         caminhoFoto = arquivo.path;
       }
+
+      if (caminhoFoto == null) return;
 
       final salvo = await ImagemService.salvarImagemLocal(caminhoFoto);
       if (salvo == null) {
@@ -91,14 +101,43 @@ class MensageriaAcoesDelegate {
   }) async {
     final auth = context.read<AuthProvider>();
     try {
-      const grupo = XTypeGroup(
-        label: 'Imagens',
-        extensions: ['jpg', 'jpeg', 'png', 'webp', 'gif', 'bmp'],
-      );
-      final arquivo = await openFile(acceptedTypeGroups: const [grupo]);
-      if (arquivo == null) return;
+      String? caminhoFoto;
+      bool falhaImagePicker = false;
+      try {
+        final picker = ImagePicker();
+        final foto = await picker.pickImage(
+          source: ImageSource.gallery,
+          maxWidth: 1280,
+          maxHeight: 1280,
+          imageQuality: 82,
+        );
+        if (foto != null) {
+          caminhoFoto = foto.path;
+        } else {
+          // Usuário cancelou ou fechou a galeria: retorna imediatamente ao chat
+          return;
+        }
+      } catch (e) {
+        falhaImagePicker = true;
+        debugPrint('[Mensageria] Falha ao abrir galeria via ImagePicker: $e');
+      }
 
-      final salvo = await ImagemService.salvarImagemLocal(arquivo.path);
+      // Fallback para openFile do file_selector SOMENTE no Windows/Linux/macOS se o ImagePicker falhou
+      if (caminhoFoto == null &&
+          falhaImagePicker &&
+          (Platform.isWindows || Platform.isLinux || Platform.isMacOS)) {
+        const grupo = XTypeGroup(
+          label: 'Imagens',
+          extensions: ['jpg', 'jpeg', 'png', 'webp', 'gif', 'bmp'],
+        );
+        final arquivo = await openFile(acceptedTypeGroups: const [grupo]);
+        if (arquivo == null) return;
+        caminhoFoto = arquivo.path;
+      }
+
+      if (caminhoFoto == null) return;
+
+      final salvo = await ImagemService.salvarImagemLocal(caminhoFoto);
       if (salvo == null) {
         if (context.mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -115,12 +154,107 @@ class MensageriaAcoesDelegate {
         texto: '',
         tipo: 'imagem',
         caminhoAnexo: salvo,
-        nomeAnexo: p.basename(arquivo.path),
+        nomeAnexo: p.basename(caminhoFoto),
         tamanhoAnexo: tamanho,
         auth: auth,
       );
     } catch (e) {
       debugPrint('[Mensageria] Erro ao anexar foto: $e');
+    }
+  }
+
+  static Future<void> compartilharContato({
+    required BuildContext context,
+    required MensageriaController controller,
+    required AppTheme theme,
+  }) async {
+    final contatos = controller.todosContatosDisponiveis
+        .where((c) => !c.ehLoja && !c.ehGrupo)
+        .toList();
+
+    if (contatos.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          backgroundColor: theme.cardBackgroundColor,
+          content: Text(
+            'Nenhum contato disponível para compartilhar.',
+            style: theme.getTextStyle(color: theme.textColor),
+          ),
+        ),
+      );
+      return;
+    }
+
+    final selecionado = await showDialog<ConversaChat>(
+      context: context,
+      builder: (ctx) {
+        return AlertDialog(
+          backgroundColor: theme.cardBackgroundColor,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+            side: BorderSide(color: theme.borderColor),
+          ),
+          title: Text(
+            'Compartilhar Contato',
+            style: theme.getTextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.bold,
+              color: theme.textColor,
+            ),
+          ),
+          content: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 360, maxHeight: 380),
+            child: ListView.separated(
+              shrinkWrap: true,
+              itemCount: contatos.length,
+              separatorBuilder: (context, index) => Divider(
+                color: theme.borderColor.withValues(alpha: 0.3),
+              ),
+              itemBuilder: (_, idx) {
+                final c = contatos[idx];
+                return ListTile(
+                  title: Text(
+                    c.titulo,
+                    style: theme.getTextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.bold,
+                      color: theme.textColor,
+                    ),
+                  ),
+                  subtitle: Text(
+                    c.subtitulo,
+                    style: theme.getTextStyle(
+                      fontSize: 11,
+                      color: theme.secondaryTextColor,
+                    ),
+                  ),
+                  onTap: () => Navigator.pop(ctx, c),
+                );
+              },
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: Text(
+                'Cancelar',
+                style: theme.getTextStyle(color: theme.secondaryTextColor),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (selecionado != null && context.mounted) {
+      final auth = context.read<AuthProvider>();
+      final textoCartao =
+          '👤 Contato Nous: ${selecionado.titulo} (${selecionado.subtitulo.isNotEmpty ? selecionado.subtitulo : "@usuario"})';
+      await controller.enviarMensagem(
+        texto: textoCartao,
+        tipo: 'texto',
+        auth: auth,
+      );
     }
   }
 
@@ -218,20 +352,41 @@ class MensageriaAcoesDelegate {
       try {
         final mapa = jsonDecode(msg.dadosPedidoJson) as Map<String, dynamic>;
         pedidoEfetivo = PedidoLoja.fromJson(mapa);
+        if (lojaIdEfetiva.isEmpty && pedidoEfetivo.lojaId.isNotEmpty) {
+          lojaIdEfetiva = pedidoEfetivo.lojaId;
+        }
       } catch (_) {}
     }
 
-    if (pedidoEfetivo == null && msg.pedidoId.isNotEmpty) {
-      final todasLojas = [...pdv.lojasQueAdministro, ...pdv.lojasQueParticipo];
-      for (final l in todasLojas) {
-        final achado = l.pedidosLoja.cast<PedidoLoja?>().firstWhere(
-          (p) => p?.id == msg.pedidoId,
-          orElse: () => null,
-        );
+    if (lojaIdEfetiva.isEmpty &&
+        msg.conversaId.startsWith('loja_') &&
+        msg.conversaId.contains('_usuario_')) {
+      lojaIdEfetiva = msg.conversaId.substring(
+        'loja_'.length,
+        msg.conversaId.indexOf('_usuario_'),
+      );
+    }
+
+    if (msg.pedidoId.isNotEmpty) {
+      final lojaAlvo = lojaIdEfetiva.isNotEmpty ? pdv.buscarPorId(lojaIdEfetiva) : null;
+      if (lojaAlvo != null) {
+        final achado = lojaAlvo.pedidosLoja
+            .where((p) => p.id == msg.pedidoId)
+            .firstOrNull;
         if (achado != null) {
           pedidoEfetivo = achado;
-          lojaIdEfetiva = l.id;
-          break;
+          lojaIdEfetiva = lojaAlvo.id;
+        }
+      } else {
+        for (final l in pdv.lojas) {
+          final achado = l.pedidosLoja
+              .where((p) => p.id == msg.pedidoId)
+              .firstOrNull;
+          if (achado != null) {
+            pedidoEfetivo = achado;
+            lojaIdEfetiva = l.id;
+            break;
+          }
         }
       }
     }

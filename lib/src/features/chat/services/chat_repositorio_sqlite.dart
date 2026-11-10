@@ -60,7 +60,8 @@ class ChatRepositorioSqlite {
           editada INTEGER DEFAULT 0,
           historico_edicoes TEXT DEFAULT '[]',
           status_envio TEXT DEFAULT 'enviada',
-          entregue INTEGER DEFAULT 0
+          entregue INTEGER DEFAULT 0,
+          favorita INTEGER DEFAULT 0
         );
       ''');
 
@@ -75,6 +76,7 @@ class ChatRepositorioSqlite {
         'ALTER TABLE mensagens_chat ADD COLUMN historico_edicoes TEXT DEFAULT "[]";',
         'ALTER TABLE mensagens_chat ADD COLUMN status_envio TEXT DEFAULT "enviada";',
         'ALTER TABLE mensagens_chat ADD COLUMN entregue INTEGER DEFAULT 0;',
+        'ALTER TABLE mensagens_chat ADD COLUMN favorita INTEGER DEFAULT 0;',
       ];
       for (final sql in alteracoesMensagens) {
         try {
@@ -109,7 +111,8 @@ class ChatRepositorioSqlite {
           ultima_mensagem TEXT DEFAULT '',
           data_hora_ultima_mensagem TEXT,
           arquivada INTEGER DEFAULT 0,
-          fixada INTEGER DEFAULT 0
+          fixada INTEGER DEFAULT 0,
+          silenciada INTEGER DEFAULT 0
         );
       ''');
 
@@ -122,6 +125,7 @@ class ChatRepositorioSqlite {
         'ALTER TABLE conversas_chat ADD COLUMN fixada INTEGER DEFAULT 0;',
         'ALTER TABLE conversas_chat ADD COLUMN nome_grupo TEXT DEFAULT "";',
         'ALTER TABLE conversas_chat ADD COLUMN titulo_conversa TEXT DEFAULT "";',
+        'ALTER TABLE conversas_chat ADD COLUMN silenciada INTEGER DEFAULT 0;',
       ];
       for (final sql in alteracoesConversas) {
         try {
@@ -338,6 +342,7 @@ class ChatRepositorioSqlite {
         }(),
         statusEnvio: statusEnvio,
         entregue: entregue,
+        favorita: (r['favorita'] as int? ?? 0) == 1,
       );
     }).toList();
 
@@ -530,6 +535,58 @@ class ChatRepositorioSqlite {
       whereArgs: [conversaId],
     );
     await db.delete('conversas_chat', where: 'id = ?', whereArgs: [conversaId]);
+  }
+
+  /// Alterna o status de favorita de uma mensagem
+  static Future<bool> alternarFavoritaMensagem(String id) async {
+    try {
+      final db = await obterDb();
+      final rows = await db.query(
+        'mensagens_chat',
+        columns: ['favorita'],
+        where: 'id = ?',
+        whereArgs: [id],
+        limit: 1,
+      );
+      if (rows.isEmpty) return false;
+      final atual = (rows.first['favorita'] as int? ?? 0) == 1;
+      final novoValor = atual ? 0 : 1;
+      await db.update(
+        'mensagens_chat',
+        {'favorita': novoValor},
+        where: 'id = ?',
+        whereArgs: [id],
+      );
+      return novoValor == 1;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// Alterna o status de silenciada de uma conversa
+  static Future<bool> alternarSilenciarConversa(String conversaId) async {
+    try {
+      final db = await obterDb();
+      final rows = await db.query(
+        'conversas_chat',
+        columns: ['silenciada'],
+        where: 'id = ?',
+        whereArgs: [conversaId],
+        limit: 1,
+      );
+      if (rows.isEmpty) return false;
+      final atual = (rows.first['silenciada'] as int? ?? 0) == 1;
+      final novoValor = atual ? 0 : 1;
+      await db.update(
+        'conversas_chat',
+        {'silenciada': novoValor},
+        where: 'id = ?',
+        whereArgs: [conversaId],
+      );
+      return novoValor == 1;
+    } catch (_) {
+      return false;
+    }
   }
 
   /// Autocura de integridade temporal: normaliza mensagens que ficaram com horários

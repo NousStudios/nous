@@ -21,7 +21,8 @@ class CabecalhoConversaAtivaWidget extends StatelessWidget {
   final bool desktop;
   final VoidCallback onVoltarMobile;
   final void Function(ConversaChat) onAbrirDetalhes;
-  final void Function(ConversaChat) onRenomearConversa;
+  final VoidCallback onAlternarPesquisa;
+  final bool pesquisaAtiva;
 
   const CabecalhoConversaAtivaWidget({
     super.key,
@@ -30,7 +31,8 @@ class CabecalhoConversaAtivaWidget extends StatelessWidget {
     required this.desktop,
     required this.onVoltarMobile,
     required this.onAbrirDetalhes,
-    required this.onRenomearConversa,
+    required this.onAlternarPesquisa,
+    this.pesquisaAtiva = false,
   });
 
   void _iniciarChamada(BuildContext context, ConversaChat conversa, TipoChamada tipo) async {
@@ -376,15 +378,15 @@ class CabecalhoConversaAtivaWidget extends StatelessWidget {
               ],
               IconButton(
                 icon: Icon(
-                  Icons.edit_outlined,
-                  size: 18,
-                  color: theme.secondaryTextColor,
+                  pesquisaAtiva ? Icons.close_rounded : Icons.search_rounded,
+                  size: 19,
+                  color: pesquisaAtiva ? theme.buttonColor : theme.textColor,
                 ),
-                tooltip: 'Renomear conversa',
+                tooltip: 'Pesquisar na conversa',
                 padding: paddingBotao,
                 constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
                 visualDensity: VisualDensity.compact,
-                onPressed: () => onRenomearConversa(conversa),
+                onPressed: onAlternarPesquisa,
               ),
             ],
           ),

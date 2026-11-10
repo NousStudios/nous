@@ -13,6 +13,8 @@ class ListaConversasWidget extends StatefulWidget {
   final void Function(ConversaChat) onSelecionarConversa;
   final void Function(ConversaChat) onAlternarFixar;
   final void Function(ConversaChat) onAlternarArquivar;
+  final void Function(ConversaChat) onAlternarSilenciar;
+  final void Function(ConversaChat) onRenomearConversa;
 
   const ListaConversasWidget({
     super.key,
@@ -23,6 +25,8 @@ class ListaConversasWidget extends StatefulWidget {
     required this.onSelecionarConversa,
     required this.onAlternarFixar,
     required this.onAlternarArquivar,
+    required this.onAlternarSilenciar,
+    required this.onRenomearConversa,
   });
 
   @override
@@ -208,6 +212,9 @@ class _ListaConversasWidgetState extends State<ListaConversasWidget> {
                       onAlternarFixar: () => widget.onAlternarFixar(conversa),
                       onAlternarArquivar: () =>
                           widget.onAlternarArquivar(conversa),
+                      onAlternarSilenciar: () =>
+                          widget.onAlternarSilenciar(conversa),
+                      onRenomear: () => widget.onRenomearConversa(conversa),
                       onTap: () => widget.onSelecionarConversa(conversa),
                     );
                   },

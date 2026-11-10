@@ -560,9 +560,21 @@ class PdvProvider extends ChangeNotifier {
     await _salvarLojaNoCofreCorreto(lojaConsolidada);
   }
 
+  static String normalizarIdLoja(String id) {
+    var limpo = id.trim();
+    if (limpo.startsWith('loja_') && limpo != idLojaColetivaNous) {
+      limpo = limpo.substring(5);
+    }
+    if (limpo.contains('_usuario_')) {
+      limpo = limpo.split('_usuario_').first;
+    }
+    return limpo;
+  }
+
   Loja? buscarPorId(String id) {
+    final idLimpo = normalizarIdLoja(id);
     for (final loja in _lojas) {
-      if (loja.id == id) return loja;
+      if (loja.id == id || loja.id == idLimpo) return loja;
     }
     return null;
   }

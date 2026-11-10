@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:nous/src/core/theme/theme_controller.dart';
+import 'package:nous/src/core/widgets/texto_rolante.dart';
 import 'package:nous/src/features/chat/models/conversa_chat.dart';
 
 class ItemConversaTile extends StatefulWidget {
@@ -11,6 +12,8 @@ class ItemConversaTile extends StatefulWidget {
   final VoidCallback onTap;
   final VoidCallback? onAlternarFixar;
   final VoidCallback? onAlternarArquivar;
+  final VoidCallback? onAlternarSilenciar;
+  final VoidCallback? onRenomear;
 
   const ItemConversaTile({
     super.key,
@@ -22,6 +25,8 @@ class ItemConversaTile extends StatefulWidget {
     required this.onTap,
     this.onAlternarFixar,
     this.onAlternarArquivar,
+    this.onAlternarSilenciar,
+    this.onRenomear,
   });
 
   @override
@@ -34,11 +39,13 @@ class _ItemConversaTileState extends State<ItemConversaTile> {
   void _mostrarMenuContexto(BuildContext ctx, [Offset? posicao]) {
     final RenderBox? overlay =
         Overlay.of(ctx).context.findRenderObject() as RenderBox?;
-    final targetPos =
-        posicao ??
-        (overlay != null
-            ? Offset(overlay.size.width / 2, overlay.size.height / 2)
-            : Offset.zero);
+    final RenderBox? tileBox = ctx.findRenderObject() as RenderBox?;
+    final Offset tileGlobalPos =
+        tileBox?.localToGlobal(Offset.zero) ?? Offset.zero;
+    final Size tileSize = tileBox?.size ?? const Size(200, 50);
+
+    final targetPos = posicao ??
+        Offset(tileGlobalPos.dx + 40, tileGlobalPos.dy + tileSize.height / 2);
 
     showMenu<String>(
       context: ctx,
@@ -73,6 +80,50 @@ class _ItemConversaTileState extends State<ItemConversaTile> {
           ),
         ),
         PopupMenuItem(
+          value: 'renomear',
+          child: Row(
+            children: [
+              Icon(
+                Icons.edit_outlined,
+                size: 16,
+                color: widget.theme.textColor,
+              ),
+              const SizedBox(width: 10),
+              Text(
+                'Renomear conversa',
+                style: widget.theme.getTextStyle(
+                  fontSize: 13,
+                  color: widget.theme.textColor,
+                ),
+              ),
+            ],
+          ),
+        ),
+        PopupMenuItem(
+          value: 'silenciar',
+          child: Row(
+            children: [
+              Icon(
+                widget.conversa.silenciada
+                    ? Icons.notifications_active_outlined
+                    : Icons.notifications_off_outlined,
+                size: 16,
+                color: widget.theme.textColor,
+              ),
+              const SizedBox(width: 10),
+              Text(
+                widget.conversa.silenciada
+                    ? 'Reativar notificações'
+                    : 'Silenciar notificações',
+                style: widget.theme.getTextStyle(
+                  fontSize: 13,
+                  color: widget.theme.textColor,
+                ),
+              ),
+            ],
+          ),
+        ),
+        PopupMenuItem(
           value: 'arquivar',
           child: Row(
             children: [
@@ -96,8 +147,12 @@ class _ItemConversaTileState extends State<ItemConversaTile> {
         ),
       ],
     ).then((valor) {
-      if (valor == 'fixar') {
+      if (valor == 'renomear') {
+        widget.onRenomear?.call();
+      } else if (valor == 'fixar') {
         widget.onAlternarFixar?.call();
+      } else if (valor == 'silenciar') {
+        widget.onAlternarSilenciar?.call();
       } else if (valor == 'arquivar') {
         widget.onAlternarArquivar?.call();
       }
@@ -245,10 +300,8 @@ class _ItemConversaTileState extends State<ItemConversaTile> {
                     Row(
                       children: [
                         Expanded(
-                          child: Text(
-                            tituloExibicao,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
+                          child: TextoRolante(
+                            texto: tituloExibicao,
                             style: theme.getTextStyle(
                               fontSize: 13,
                               fontWeight: selecionada
@@ -268,6 +321,16 @@ class _ItemConversaTileState extends State<ItemConversaTile> {
                             ),
                           ),
                         ],
+                        if (conversa.silenciada) ...[
+                          const SizedBox(width: 4),
+                          Icon(
+                            Icons.notifications_off_outlined,
+                            size: 13,
+                            color: theme.secondaryTextColor.withValues(
+                              alpha: 0.75,
+                            ),
+                          ),
+                        ],
                         const SizedBox(width: 6),
                         Text(
                           widget.horaFormatada,
@@ -279,39 +342,98 @@ class _ItemConversaTileState extends State<ItemConversaTile> {
                       ],
                     ),
                     const SizedBox(height: 3),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            subtituloExibicao,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: theme.getTextStyle(
-                              fontSize: 11,
-                              color: theme.secondaryTextColor,
-                            ),
-                          ),
-                        ),
-                        if (!selecionada && conversa.naoLidasCount > 0)
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 6,
-                              vertical: 2,
-                            ),
-                            decoration: BoxDecoration(
-                              color: theme.dangerColor,
-                              borderRadius: BorderRadius.circular(10),
-                            ),
-                            child: Text(
-                              '${conversa.naoLidasCount}',
-                              style: theme.getTextStyle(
-                                fontSize: 9,
-                                color: theme.buttonTextColor,
-                                fontWeight: FontWeight.bold,
+                    Builder(
+                      builder: (context) {
+                        bool mostrarChecks = false;
+                        String statusCheck = conversa.statusUltimaMensagem;
+                        if (conversa.mensagens.isNotEmpty) {
+                          final ult = conversa.mensagens.last;
+                          mostrarChecks = ult.enviadaPorMim ||
+                              conversa.ultimaMensagemEnviadaPorMim;
+                          if (ult.statusEnvio == 'pendente') {
+                            statusCheck = 'pendente';
+                          } else if (ult.lida || ult.statusEnvio == 'lida') {
+                            statusCheck = 'lida';
+                          } else if (ult.entregue ||
+                              ult.statusEnvio == 'entregue') {
+                            statusCheck = 'entregue';
+                          } else if (statusCheck.isEmpty) {
+                            statusCheck = 'enviada';
+                          }
+                        } else if (temMensagensReais &&
+                            conversa.ultimaMensagemEnviadaPorMim) {
+                          mostrarChecks = true;
+                          if (statusCheck.isEmpty) statusCheck = 'enviada';
+                        }
+
+                        return Row(
+                          children: [
+                            if (mostrarChecks) ...[
+                              if (statusCheck == 'pendente')
+                                Icon(
+                                  Icons.access_time_rounded,
+                                  size: 12,
+                                  color: theme.secondaryTextColor.withValues(
+                                    alpha: 0.8,
+                                  ),
+                                )
+                              else if (statusCheck == 'lida')
+                                const Icon(
+                                  Icons.done_all,
+                                  size: 14,
+                                  color: Color(0xFF34B7F1),
+                                )
+                              else if (statusCheck == 'entregue')
+                                Icon(
+                                  Icons.done_all,
+                                  size: 14,
+                                  color: theme.secondaryTextColor.withValues(
+                                    alpha: 0.85,
+                                  ),
+                                )
+                              else
+                                Icon(
+                                  Icons.check,
+                                  size: 14,
+                                  color: theme.secondaryTextColor.withValues(
+                                    alpha: 0.8,
+                                  ),
+                                ),
+                              const SizedBox(width: 4),
+                            ],
+                            Expanded(
+                              child: TextoRolante(
+                                texto: subtituloExibicao,
+                                style: theme.getTextStyle(
+                                  fontSize: 11,
+                                  color: theme.secondaryTextColor,
+                                ),
                               ),
                             ),
-                          ),
-                      ],
+                            if (!selecionada && conversa.naoLidasCount > 0) ...[
+                              const SizedBox(width: 6),
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 6,
+                                  vertical: 2,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: theme.dangerColor,
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                                child: Text(
+                                  '${conversa.naoLidasCount}',
+                                  style: theme.getTextStyle(
+                                    fontSize: 9,
+                                    color: theme.buttonTextColor,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ],
+                        );
+                      },
                     ),
                   ],
                 ),

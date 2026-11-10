@@ -8,6 +8,7 @@ import 'package:nous/src/features/chat/services/chat_service.dart';
 import 'package:nous/src/features/notificacoes/models/convite_loja.dart';
 import 'package:nous/src/features/notificacoes/providers/notificacoes_provider.dart';
 import 'package:nous/src/features/notificacoes/services/convites_service.dart';
+import 'package:nous/src/features/pdv/models/cliente.dart';
 import 'package:nous/src/features/pdv/models/loja.dart';
 import 'package:nous/src/features/pdv/models/membro_loja.dart';
 import 'package:nous/src/features/pdv/models/mesa_loja.dart';
@@ -85,6 +86,11 @@ class ClienteWsMessageHandler {
 
       if (tipo == 'pedido_adicionado' || tipo == 'pedido_atualizado') {
         _processarPedido(dados, ctx);
+        return;
+      }
+
+      if (tipo == 'cliente_atualizado') {
+        _processarCliente(dados, ctx);
         return;
       }
 
@@ -335,14 +341,47 @@ class ClienteWsMessageHandler {
 
       final lojaAtual = ctx.pdvProvider!.buscarPorId(lojaIdAlvo);
       if (lojaAtual != null) {
-        final pedidos = List<PedidoLoja>.from(lojaAtual.pedidosLoja);
-        final idx = pedidos.indexWhere((p) => p.id == pedido.id);
-        if (idx != -1) {
-          pedidos[idx] = pedido;
-        } else {
-          pedidos.insert(0, pedido);
+        ctx.definirAplicandoAtualizacaoRemota(true);
+        try {
+          final pedidos = List<PedidoLoja>.from(lojaAtual.pedidosLoja);
+          final idx = pedidos.indexWhere((p) => p.id == pedido.id);
+          if (idx != -1) {
+            pedidos[idx] = pedido;
+          } else {
+            pedidos.insert(0, pedido);
+          }
+          ctx.pdvProvider!.atualizarListasLoja(lojaAtual.id, pedidos: pedidos);
+        } finally {
+          ctx.definirAplicandoAtualizacaoRemota(false);
         }
-        ctx.pdvProvider!.atualizarListasLoja(lojaAtual.id, pedidos: pedidos);
+      }
+    }
+  }
+
+  static void _processarCliente(Map<String, dynamic> dados, ClienteWsContext ctx) {
+    if (dados['cliente'] != null && ctx.pdvProvider != null) {
+      final cliente = Cliente.fromJson(dados['cliente'] as Map<String, dynamic>);
+      final lojaSinc = ctx.obterLojaSincronizada();
+      final lojaIdAlvo = (dados['lojaId'] as String?)?.trim().isNotEmpty == true
+          ? (dados['lojaId'] as String).trim()
+          : (lojaSinc?.id ?? '');
+      if (lojaIdAlvo.isEmpty) return;
+
+      final lojaAtual = ctx.pdvProvider!.buscarPorId(lojaIdAlvo);
+      if (lojaAtual != null) {
+        ctx.definirAplicandoAtualizacaoRemota(true);
+        try {
+          final clientes = List<Cliente>.from(lojaAtual.clientesLoja);
+          final idx = clientes.indexWhere((c) => c.id == cliente.id);
+          if (idx != -1) {
+            clientes[idx] = cliente.copyWith(fretePadrao: clientes[idx].fretePadrao);
+          } else {
+            clientes.add(cliente);
+          }
+          ctx.pdvProvider!.atualizarListasLoja(lojaAtual.id, clientes: clientes);
+        } finally {
+          ctx.definirAplicandoAtualizacaoRemota(false);
+        }
       }
     }
   }

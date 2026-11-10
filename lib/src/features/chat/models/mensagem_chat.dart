@@ -23,6 +23,7 @@ class MensagemChat {
   final List<Map<String, dynamic>> historicoEdicoes;
   final String statusEnvio; // 'pendente', 'enviada', 'entregue', 'lida'
   final bool entregue;
+  final bool favorita;
 
   const MensagemChat({
     required this.id,
@@ -47,6 +48,7 @@ class MensagemChat {
     this.historicoEdicoes = const [],
     this.statusEnvio = 'enviada',
     this.entregue = false,
+    this.favorita = false,
   });
 
   MensagemChat copyWith({
@@ -72,6 +74,7 @@ class MensagemChat {
     List<Map<String, dynamic>>? historicoEdicoes,
     String? statusEnvio,
     bool? entregue,
+    bool? favorita,
   }) {
     return MensagemChat(
       id: id ?? this.id,
@@ -96,6 +99,7 @@ class MensagemChat {
       historicoEdicoes: historicoEdicoes ?? this.historicoEdicoes,
       statusEnvio: statusEnvio ?? this.statusEnvio,
       entregue: entregue ?? this.entregue,
+      favorita: favorita ?? this.favorita,
     );
   }
 
@@ -123,6 +127,7 @@ class MensagemChat {
       'historicoEdicoes': historicoEdicoes,
       'statusEnvio': statusEnvio,
       'entregue': entregue,
+      'favorita': favorita,
     };
   }
 
@@ -146,6 +151,7 @@ class MensagemChat {
     final lida = json['lida'] == true || json['lida'] == 1;
     final entregue = json['entregue'] == true || json['entregue'] == 1;
     final editada = json['editada'] == true || json['editada'] == 1;
+    final favorita = json['favorita'] == true || json['favorita'] == 1;
     final enviadaPorMim = json['enviadaPorMim'] == true ||
         json['enviada_por_mim'] == true ||
         json['enviada_por_mim'] == 1;
@@ -211,6 +217,7 @@ class MensagemChat {
       historicoEdicoes: historico,
       statusEnvio: status,
       entregue: entregue,
+      favorita: favorita,
     );
   }
 }

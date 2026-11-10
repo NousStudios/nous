@@ -27,17 +27,6 @@ class RoteadorChat {
           emitirAlertaSonoro: false,
         );
         servidor.notificarTodos({'tipo': 'mensagem_chat', 'mensagem': msgJson});
-        final msgId = msgJson['id'] as String? ?? '';
-        final convId = msgJson['conversaId'] as String? ??
-            msgJson['conversa_id'] as String? ??
-            '';
-        if (msgId.isNotEmpty) {
-          servidor.notificarTodos({
-            'tipo': 'mensagem_entregue',
-            'id': msgId,
-            'conversaId': convId,
-          });
-        }
         ServidorRedeLocal.responderJson(request, {'sucesso': true, 'entregue': true});
         return true;
       } catch (e) {

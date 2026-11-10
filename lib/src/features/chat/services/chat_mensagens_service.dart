@@ -577,17 +577,52 @@ class ChatMensagensService {
         }
       }
 
-      // Apenas o verdadeiro destinatário da mensagem pode confirmar visualização/leitura.
+      // Apenas o verdadeiro destinatário da mensagem pode confirmar entrega (2 checks cinzas)
+      // e visualização/leitura (2 checks azuis).
       // Se este nó for apenas o Servidor Balcão retransmitindo mensagens entre dois clientes móveis,
-      // ele nunca deve marcar como lida e jamais deve emitir checks azuis prematuros.
+      // ou outro terminal na rede que não é o destinatário da conversa, ele nunca deve confirmar entrega/leitura.
       final destCpf = ChatRepositorioSqlite.normalizarCpf(mensagem.destinatarioId);
-      final souDestinatarioReal = destCpf.isNotEmpty
-          ? (meuCpf.isNotEmpty && destCpf == meuCpf)
-          : (ehConversaLoja ? true : (meuCpf.isNotEmpty && !ehMinhaPropriaMensagem));
+      final bool souDestinatarioReal;
+      if (ehConversaLoja) {
+        String cpfClienteConv = '';
+        String lojaIdConv = '';
+        if (mensagem.conversaId.contains('_usuario_')) {
+          lojaIdConv = mensagem.conversaId.substring(
+            'loja_'.length,
+            mensagem.conversaId.indexOf('_usuario_'),
+          );
+          cpfClienteConv = ChatRepositorioSqlite.normalizarCpf(
+            mensagem.conversaId.split('_usuario_').last,
+          );
+        }
+        final remEhLoja = mensagem.remetenteId.startsWith('loja_') ||
+            (cpfClienteConv.isNotEmpty && remetenteCpf != cpfClienteConv);
+        if (remEhLoja) {
+          // Mensagem enviada pela loja para o cliente: só o cliente confirma
+          souDestinatarioReal =
+              meuCpf.isNotEmpty && cpfClienteConv.isNotEmpty && meuCpf == cpfClienteConv;
+        } else {
+          // Mensagem enviada pelo cliente para a loja: o servidor balcão da loja (ou membro logado) confirma
+          final balcaoHospedaLoja = ServidorRedeLocal().ativo &&
+              (ServidorRedeLocal().lojaAtiva?.id == lojaIdConv ||
+                  ServidorRedeLocal().pdvProvider?.buscarPorId(lojaIdConv) != null);
+          souDestinatarioReal =
+              !ehMinhaPropriaMensagem && (balcaoHospedaLoja || (meuCpf.isNotEmpty && meuCpf != cpfClienteConv));
+        }
+      } else if (mensagem.conversaId.startsWith('grupo_')) {
+        souDestinatarioReal = meuCpf.isNotEmpty && !ehMinhaPropriaMensagem;
+      } else {
+        final outroCpfConv = ChatRepositorioSqlite.extrairOutroCpf(
+          mensagem.conversaId,
+          remetenteCpf,
+        );
+        souDestinatarioReal = meuCpf.isNotEmpty &&
+            !ehMinhaPropriaMensagem &&
+            ((destCpf.isNotEmpty && destCpf == meuCpf) ||
+                (outroCpfConv.isNotEmpty && outroCpfConv == meuCpf));
+      }
 
-      final bool souApenasRetransmissor = ServidorRedeLocal().ativo &&
-          !ehConversaLoja &&
-          (destCpf.isNotEmpty && destCpf != meuCpf);
+      final bool souApenasRetransmissor = !souDestinatarioReal;
 
       final usuarioEstaOlhandoConversa = !souApenasRetransmissor &&
           souDestinatarioReal &&
@@ -596,15 +631,19 @@ class ChatMensagensService {
           idConversaAtiva == mensagem.conversaId;
 
       if (ehMinhaPropriaMensagem) {
+        final statusAtualLocal = jaExisteLocal
+            ? (msgsExistentes.first['status_envio'] as String? ?? 'enviada')
+            : 'enviada';
         mensagem = mensagem.copyWith(
           enviadaPorMim: true,
-          statusEnvio: 'enviada',
+          statusEnvio: statusAtualLocal == 'pendente' ? 'enviada' : statusAtualLocal,
         );
       } else {
         mensagem = mensagem.copyWith(
           enviadaPorMim: false,
           statusEnvio: usuarioEstaOlhandoConversa ? 'lida' : 'recebida',
           lida: usuarioEstaOlhandoConversa,
+          entregue: souDestinatarioReal ? true : mensagem.entregue,
         );
         if (usuarioEstaOlhandoConversa) {
           NotificacaoAndroidService.cancelarNotificacaoConversa(mensagem.conversaId);
@@ -618,7 +657,7 @@ class ChatMensagensService {
         aoNotificar: aoNotificar,
       );
 
-      if (!ehMinhaPropriaMensagem) {
+      if (!ehMinhaPropriaMensagem && souDestinatarioReal && !souApenasRetransmissor) {
         if (usuarioEstaOlhandoConversa) {
           ChatSincronizacaoService.despacharConfirmacaoLida(
               mensagem.conversaId, meuCpf);

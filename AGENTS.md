@@ -43,9 +43,9 @@ Após cada ciclo concluído e validado (testes e `flutter analyze`), compile os 
 
 ## 2. O que é o Nous
 
-SuperApp brasileiro, livre e de código aberto, de **Autogestão Comercial e Social**, baseado no Plataformismo Brasileiro. Hoje o núcleo é um **PDV completo** (lojas, vendas, estoque, caixa, financeiro, impressão térmica) com identidade por CPF, notificações deliberativas e sincronização local por Wi-Fi. Módulos futuros (pastas reservadas): `chat`, `timeline`, `delivery`, `banco`, `autogestao`.
+SuperApp brasileiro, livre e de código aberto, de **Autogestão Comercial e Social**, baseado no Plataformismo Brasileiro. Hoje o núcleo reúne **PDV completo** (lojas, vendas, estoque, caixa, financeiro, impressão térmica), **Mensageria Soberana com Autoatendimento (`chat`)**, **Perfil Social e Busca Regional (`busca`)**, identidade por CPF, notificações deliberativas e sincronização local por Wi-Fi. Módulos futuros (pastas reservadas): `timeline`, `delivery`, `banco`, `autogestao`.
 
-- Stack: Flutter/Dart, `Provider` (ChangeNotifier), SQLite local (`sqflite_common_ffi`), versão atual no `pubspec.yaml` (hoje v1.0.68+69).
+- Stack: Flutter/Dart, `Provider` (ChangeNotifier), SQLite local (`sqflite_common_ffi`), versão atual no `pubspec.yaml` (hoje v1.0.97+98).
 - Plataformas: Windows (foco principal), Android; também Web, Linux, iOS.
 - Política e filosofia completas: `docs/filosofia.md`.
 

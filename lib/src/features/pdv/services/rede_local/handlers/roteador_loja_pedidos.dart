@@ -101,7 +101,11 @@ class RoteadorLojaPedidos {
         servidor.consolidarContaTerminal(terminalTemp);
       }
 
-      final lojaRetorno = servidor.lojaAtiva;
+      final lojaIdParam = request.uri.queryParameters['lojaId'];
+      final lojaRetorno = (lojaIdParam != null && lojaIdParam.trim().isNotEmpty)
+          ? (servidor.pdvProvider?.buscarPorId(lojaIdParam.trim()) ??
+              servidor.lojaAtiva)
+          : servidor.lojaAtiva;
       if (lojaRetorno == null ||
           LojasService.ehLojaHostFalsa(
             lojaRetorno.id,
