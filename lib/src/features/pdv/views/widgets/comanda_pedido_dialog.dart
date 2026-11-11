@@ -251,24 +251,47 @@ class ComandaPedidoDialog extends StatelessWidget {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Row(
+                  Stack(
+                    alignment: Alignment.center,
                     children: [
-                      Icon(Icons.receipt_long, color: theme.textColor, size: 22),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          'Comanda do Pedido',
-                          style: theme.getTextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                            color: theme.textColor,
-                          ),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 36),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              Icons.receipt_long,
+                              color: theme.textColor,
+                              size: 20,
+                            ),
+                            const SizedBox(width: 8),
+                            Flexible(
+                              child: TextoRolante(
+                                texto: 'Comanda do Pedido',
+                                textAlign: TextAlign.center,
+                                style: theme.getTextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
+                                  color: theme.textColor,
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
                       ),
-                      IconButton(
-                        icon: Icon(Icons.close, color: theme.secondaryTextColor, size: 20),
-                        tooltip: 'Fechar',
-                        onPressed: () => Navigator.of(context).pop(),
+                      Align(
+                        alignment: Alignment.centerRight,
+                        child: IconButton(
+                          visualDensity: VisualDensity.compact,
+                          icon: Icon(
+                            Icons.close,
+                            color: theme.secondaryTextColor,
+                            size: 20,
+                          ),
+                          tooltip: 'Fechar',
+                          onPressed: () => Navigator.of(context).pop(),
+                        ),
                       ),
                     ],
                   ),
@@ -281,27 +304,29 @@ class ComandaPedidoDialog extends StatelessWidget {
                         cliente: cliente,
                         largura: 360,
                         mostrarTitulo: false,
-                        camposClienteComanda: configImpressora?.camposClienteComanda ??
+                        camposClienteComanda:
+                            configImpressora?.camposClienteComanda ??
                             kCamposClienteComandaPadrao,
                       ),
                     ),
                   ),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 14),
                   Row(
                     children: [
                       if (configImpressora != null) ...[
                         Expanded(
-                          child: OutlinedButton.icon(
+                          child: OutlinedButton(
                             style: OutlinedButton.styleFrom(
                               foregroundColor: theme.textColor,
                               side: BorderSide(color: theme.borderColor),
-                              padding: const EdgeInsets.symmetric(vertical: 12),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 10,
+                                vertical: 11,
+                              ),
                               shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(10),
                               ),
                             ),
-                            icon: const Icon(Icons.print, size: 18),
-                            label: const Text('Imprimir'),
                             onPressed: () async {
                               await ImpressaoService.imprimirComanda(
                                 config: configImpressora,
@@ -314,34 +339,81 @@ class ComandaPedidoDialog extends StatelessWidget {
                                     backgroundColor: theme.cardBackgroundColor,
                                     content: Text(
                                       'Comanda enviada para a impressora.',
-                                      style: theme.getTextStyle(color: theme.textColor),
+                                      style: theme.getTextStyle(
+                                        color: theme.textColor,
+                                      ),
                                     ),
                                   ),
                                 );
                               }
                             },
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(
+                                  Icons.print_rounded,
+                                  size: 16,
+                                  color: theme.textColor,
+                                ),
+                                const SizedBox(width: 6),
+                                Flexible(
+                                  child: TextoRolante(
+                                    texto: 'Imprimir',
+                                    textAlign: TextAlign.center,
+                                    style: theme.getTextStyle(
+                                      fontSize: 12.5,
+                                      fontWeight: FontWeight.w600,
+                                      color: theme.textColor,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
                         ),
                         const SizedBox(width: 8),
                       ],
                       Expanded(
-                        child: OutlinedButton.icon(
+                        child: OutlinedButton(
                           style: OutlinedButton.styleFrom(
                             foregroundColor: theme.textColor,
                             side: BorderSide(color: theme.borderColor),
-                            padding: const EdgeInsets.symmetric(vertical: 12),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 11,
+                            ),
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(10),
                             ),
                           ),
-                          icon: const Icon(Icons.chat_bubble_outline_rounded, size: 18),
-                          label: const Text('Chat'),
                           onPressed: () => _abrirDialogCompartilharNoChat(
                             context,
                             theme,
                             loja,
                             pedidoEfetivo,
                             cliente,
+                          ),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(
+                                Icons.chat_bubble_outline_rounded,
+                                size: 16,
+                                color: theme.textColor,
+                              ),
+                              const SizedBox(width: 6),
+                              Flexible(
+                                child: TextoRolante(
+                                  texto: 'Chat',
+                                  textAlign: TextAlign.center,
+                                  style: theme.getTextStyle(
+                                    fontSize: 12.5,
+                                    fontWeight: FontWeight.w600,
+                                    color: theme.textColor,
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
                         ),
                       ),
@@ -351,13 +423,24 @@ class ComandaPedidoDialog extends StatelessWidget {
                           style: ElevatedButton.styleFrom(
                             backgroundColor: theme.buttonColor,
                             foregroundColor: theme.buttonTextColor,
-                            padding: const EdgeInsets.symmetric(vertical: 12),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 11,
+                            ),
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(10),
                             ),
                           ),
                           onPressed: () => Navigator.of(context).pop(),
-                          child: const Text('Fechar'),
+                          child: TextoRolante(
+                            texto: 'Fechar',
+                            textAlign: TextAlign.center,
+                            style: theme.getTextStyle(
+                              fontSize: 12.5,
+                              fontWeight: FontWeight.bold,
+                              color: theme.buttonTextColor,
+                            ),
+                          ),
                         ),
                       ),
                     ],

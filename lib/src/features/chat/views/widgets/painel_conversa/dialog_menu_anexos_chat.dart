@@ -9,7 +9,7 @@ class DialogMenuAnexosChat {
     required VoidCallback onAnexarFoto,
     required VoidCallback onAnexarArquivo,
     required VoidCallback onCompartilharContato,
-    required VoidCallback onCompartilharComanda,
+    VoidCallback? onCompartilharComanda,
     VoidCallback? onFazerPedido,
   }) async {
     void mostrarEmConstrucao(String nome) {
@@ -80,14 +80,15 @@ class DialogMenuAnexosChat {
         icone: Icons.event_rounded,
         onTap: () => mostrarEmConstrucao('Evento'),
       ),
-      _ItemMenuAnexo(
-        rotulo: 'Comanda',
-        icone: Icons.receipt_long_rounded,
-        onTap: () {
-          Navigator.pop(context);
-          onCompartilharComanda();
-        },
-      ),
+      if (onCompartilharComanda != null)
+        _ItemMenuAnexo(
+          rotulo: 'Comanda',
+          icone: Icons.receipt_long_rounded,
+          onTap: () {
+            Navigator.pop(context);
+            onCompartilharComanda();
+          },
+        ),
     ];
 
     await showDialog(

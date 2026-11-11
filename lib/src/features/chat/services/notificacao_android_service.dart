@@ -26,7 +26,7 @@ class NotificacaoAndroidService {
       FlutterLocalNotificationsPlugin();
   static bool _inicializado = false;
 
-  static const String canalId = 'nous_chat_mensagens_v3';
+  static const String canalId = 'nous_chat_mensagens_v4';
   static const String canalNome = 'Mensagens do Chat';
   static const String canalDescricao =
       'Recebimento, agrupamento e resposta rápida de mensagens do chat Nous';
@@ -253,7 +253,7 @@ class NotificacaoAndroidService {
     }
 
     try {
-      const corLogoNous = Color(0xFF000000);
+      const corLogoNous = Color(0xFFFFFFFF);
 
       // Resolução da foto do remetente para avatar grande na notificação
       AndroidBitmap<Object>? avatarBitmap;
@@ -424,7 +424,7 @@ class NotificacaoAndroidService {
         }
       }
 
-      const corLogoNous = Color(0xFF000000);
+      const corLogoNous = Color(0xFFFFFFFF);
 
       final resumoTexto = totalMensagens == 1
           ? '1 nova mensagem'

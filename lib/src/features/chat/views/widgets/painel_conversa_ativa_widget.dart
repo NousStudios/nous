@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'package:nous/src/core/theme/theme_controller.dart';
+import 'package:nous/src/features/auth/providers/auth_provider.dart';
 import 'package:nous/src/features/chat/controllers/mensageria_controller.dart';
 import 'package:nous/src/features/chat/models/conversa_chat.dart';
 import 'package:nous/src/features/chat/models/mensagem_chat.dart';
@@ -9,6 +11,8 @@ import 'package:nous/src/features/chat/views/widgets/painel_conversa/banner_titu
 import 'package:nous/src/features/chat/views/widgets/painel_conversa/barra_envio_mensagem_widget.dart';
 import 'package:nous/src/features/chat/views/widgets/painel_conversa/cabecalho_conversa_ativa_widget.dart';
 import 'package:nous/src/features/chat/views/widgets/painel_conversa/dialog_menu_anexos_chat.dart';
+import 'package:nous/src/features/pdv/models/loja.dart';
+import 'package:nous/src/features/pdv/providers/pdv_provider.dart';
 
 /// Painel central da conversa selecionada na Mensageria Nous.
 class PainelConversaAtivaWidget extends StatefulWidget {
@@ -193,11 +197,69 @@ class _PainelConversaAtivaWidgetState extends State<PainelConversaAtivaWidget> {
     widget.onEnviarTexto(texto);
   }
 
+  bool _ehMembroOuDonoDaLoja(Loja loja, String cpfBruto) {
+    final cpf = ChatService.normalizarCpf(cpfBruto);
+    if (cpf.length != 11) return false;
+    if (ChatService.normalizarCpf(loja.cpfDonoOriginal) == cpf) return true;
+    return loja.membros.any((m) => ChatService.normalizarCpf(m.cpf) == cpf);
+  }
+
+  bool _podeExibirComandaNoClipe(ConversaChat? conversa) {
+    if (conversa == null) return false;
+    final pdv = context.read<PdvProvider?>();
+    if (pdv == null) return false;
+    final auth = context.read<AuthProvider?>();
+    final meuCpf = ChatService.normalizarCpf(
+      widget.controller.operadorCpf ?? auth?.cpf ?? pdv.cpfAtual ?? '',
+    );
+
+    // Caso 1: Conversa da loja para um funcionário dela (ou do funcionário para a loja)
+    final idLojaConv = conversa.lojaId != null && conversa.lojaId!.isNotEmpty
+        ? PdvProvider.normalizarIdLoja(conversa.lojaId!)
+        : (conversa.ehLoja
+            ? PdvProvider.normalizarIdLoja(conversa.identificador)
+            : '');
+
+    if (idLojaConv.isNotEmpty && idLojaConv != PdvProvider.idLojaColetivaNous) {
+      final loja = pdv.buscarPorId(idLojaConv);
+      if (loja != null) {
+        if (widget.controller.modoLoja) {
+          final cpfAlvo = ChatService.normalizarCpf(conversa.identificador);
+          return _ehMembroOuDonoDaLoja(loja, cpfAlvo) ||
+              conversa.subtitulo.toLowerCase().contains('membro da equipe');
+        } else {
+          return _ehMembroOuDonoDaLoja(loja, meuCpf);
+        }
+      }
+      if (widget.controller.modoLoja &&
+          conversa.subtitulo.toLowerCase().contains('membro da equipe')) {
+        return true;
+      }
+    }
+
+    // Caso 2: Conversa direta entre dois funcionários/membros da mesma loja
+    if (!conversa.ehGrupo && !conversa.ehLoja && !widget.controller.modoLoja) {
+      final outroCpf = ChatService.normalizarCpf(conversa.identificador);
+      if (meuCpf.length == 11 && outroCpf.length == 11) {
+        for (final loja in pdv.lojas) {
+          if (loja.id == PdvProvider.idLojaColetivaNous) continue;
+          if (_ehMembroOuDonoDaLoja(loja, meuCpf) &&
+              _ehMembroOuDonoDaLoja(loja, outroCpf)) {
+            return true;
+          }
+        }
+      }
+    }
+
+    return false;
+  }
+
   void _abrirMenuAnexo() {
     final conversa = widget.controller.conversaSelecionada;
     final ehLoja = conversa != null &&
         (conversa.ehLoja ||
             (conversa.lojaId != null && conversa.lojaId!.isNotEmpty));
+    final mostrarComanda = _podeExibirComandaNoClipe(conversa);
 
     DialogMenuAnexosChat.mostrar(
       context: context,
@@ -205,7 +267,8 @@ class _PainelConversaAtivaWidgetState extends State<PainelConversaAtivaWidget> {
       onAnexarFoto: widget.onAnexarFoto,
       onAnexarArquivo: widget.onAnexarArquivo,
       onCompartilharContato: widget.onCompartilharContato,
-      onCompartilharComanda: widget.onCompartilharComanda,
+      onCompartilharComanda:
+          mostrarComanda ? widget.onCompartilharComanda : null,
       onFazerPedido: ehLoja && widget.onFazerPedido != null
           ? () => widget.onFazerPedido!(conversa)
           : null,

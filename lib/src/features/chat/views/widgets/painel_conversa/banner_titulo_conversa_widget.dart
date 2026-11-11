@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:nous/src/core/theme/theme_controller.dart';
+import 'package:nous/src/core/widgets/texto_rolante.dart';
 import 'package:nous/src/features/chat/models/conversa_chat.dart';
 
-/// Banner de destaque que exibe o título soberano ou assunto fixado da conversa.
+/// Banner no início do chat que exibe o título da conversa centralizado
+/// ("Nova Conversa" por padrão) e o pequeno pincel de edição no canto direito inferior.
 class BannerTituloConversaWidget extends StatelessWidget {
   final ConversaChat conversa;
   final AppTheme theme;
@@ -17,82 +19,56 @@ class BannerTituloConversaWidget extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final temTitulo = conversa.temTituloConversa;
-    if (!temTitulo) {
-      return const SizedBox.shrink();
-    }
-    final titulo = conversa.tituloConversa;
+    final titulo = conversa.temTituloConversa
+        ? conversa.tituloConversa.trim()
+        : 'Nova Conversa';
 
     return Center(
       child: Container(
-        margin: const EdgeInsets.only(top: 10, bottom: 20),
-        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
-        constraints: const BoxConstraints(maxWidth: 480),
+        margin: const EdgeInsets.only(top: 10, bottom: 18),
+        padding: const EdgeInsets.fromLTRB(18, 12, 10, 6),
+        constraints: const BoxConstraints(minWidth: 200, maxWidth: 460),
         decoration: BoxDecoration(
           color: theme.cardBackgroundColor.withValues(alpha: 0.95),
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(14),
           border: Border.all(
-            color: theme.buttonColor.withValues(alpha: 0.35),
+            color: theme.borderColor.withValues(alpha: 0.65),
             width: 1,
           ),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.06),
-              blurRadius: 8,
-              offset: const Offset(0, 3),
-            ),
-          ],
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.center,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(
-                  Icons.bookmark_outline_rounded,
-                  size: 14,
-                  color: theme.buttonColor,
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              child: TextoRolante(
+                texto: titulo,
+                textAlign: TextAlign.center,
+                style: theme.getTextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: theme.textColor,
                 ),
-                const SizedBox(width: 6),
-                Text(
-                  'TÍTULO DA CONVERSA',
-                  style: theme
-                      .getTextStyle(
-                        fontSize: 10,
-                        fontWeight: FontWeight.bold,
-                        color: theme.buttonColor,
-                      )
-                      .copyWith(letterSpacing: 1.1),
-                ),
-                const SizedBox(width: 6),
-                Tooltip(
-                  message: 'Renomear conversa',
-                  child: InkWell(
-                    onTap: () => onRenomearConversa(conversa),
-                    borderRadius: BorderRadius.circular(6),
-                    child: Padding(
-                      padding: const EdgeInsets.all(4),
-                      child: Icon(
-                        Icons.edit_outlined,
-                        size: 14,
-                        color: theme.secondaryTextColor,
-                      ),
+              ),
+            ),
+            const SizedBox(height: 2),
+            Align(
+              alignment: Alignment.bottomRight,
+              child: Tooltip(
+                message: 'Renomear conversa',
+                child: InkWell(
+                  onTap: () => onRenomearConversa(conversa),
+                  borderRadius: BorderRadius.circular(6),
+                  child: Padding(
+                    padding: const EdgeInsets.all(3),
+                    child: Icon(
+                      Icons.brush_rounded,
+                      size: 13,
+                      color: theme.secondaryTextColor.withValues(alpha: 0.85),
                     ),
                   ),
                 ),
-              ],
-            ),
-            const SizedBox(height: 6),
-            Text(
-              titulo,
-              textAlign: TextAlign.center,
-              style: theme.getTextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-                color: theme.textColor,
               ),
             ),
           ],

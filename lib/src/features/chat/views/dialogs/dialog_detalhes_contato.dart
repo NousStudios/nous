@@ -252,23 +252,13 @@ class DialogDetalhesContato {
                         ),
                       ],
 
-                      // Botões Rápidos de Ação Compactos e Centralizados
+                      // Botão de Compartilhar centralizado (e Minha Ficha quando loja)
                       const SizedBox(height: 12),
                       Wrap(
                         alignment: WrapAlignment.center,
                         spacing: 8,
                         runSpacing: 8,
                         children: [
-                          if (onRenomearConversa != null)
-                            _BotaoAcaoRapida(
-                              icone: Icons.edit_outlined,
-                              rotulo: 'Renomear',
-                              theme: theme,
-                              onTap: () {
-                                Navigator.pop(ctx);
-                                onRenomearConversa(conversaAtual);
-                              },
-                            ),
                           _BotaoAcaoRapida(
                             icone: Icons.share_rounded,
                             rotulo: 'Compartilhar',

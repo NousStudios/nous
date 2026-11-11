@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:nous/src/core/theme/theme_controller.dart';
+import 'package:nous/src/core/widgets/texto_rolante.dart';
 import 'package:nous/src/features/chat/models/mensagem_chat.dart';
 import 'package:nous/src/features/chat/services/chat_autoatendimento_service.dart';
 import 'package:nous/src/features/pdv/models/cliente.dart';
@@ -27,16 +28,16 @@ class CardMensagemComanda extends StatelessWidget {
     required this.onVerComanda,
   });
 
-  String _rotuloStatus(StatusPedido status) {
+  String _rotuloStatus(StatusPedido status, {bool recusadoPeloCliente = false}) {
     switch (status) {
       case StatusPedido.novo:
-        return 'AGUARDANDO ACEITE (NOVOS)';
+        return 'Aguardando aceite da loja (Novos)';
       case StatusPedido.aceito:
-        return 'EM PREPARO (ACEITO)';
+        return 'Em preparo (Aceito)';
       case StatusPedido.concluido:
-        return 'CONCLUÍDO';
+        return 'Concluído';
       case StatusPedido.cancelado:
-        return 'CANCELADO';
+        return recusadoPeloCliente ? 'Recusado pelo cliente' : 'Cancelado';
     }
   }
 
@@ -45,11 +46,13 @@ class CardMensagemComanda extends StatelessWidget {
     final pdv = context.watch<PdvProvider?>();
     PedidoLoja? pedido;
     bool aguardandoAprovacao = false;
+    bool recusadoPeloCliente = false;
     if (msg.dadosPedidoJson.isNotEmpty) {
       try {
         final mapa = jsonDecode(msg.dadosPedidoJson) as Map<String, dynamic>;
         pedido = PedidoLoja.fromJson(mapa);
         aguardandoAprovacao = mapa['aguardandoAprovacaoCliente'] == true;
+        recusadoPeloCliente = mapa['recusadoPeloCliente'] == true;
       } catch (_) {}
     }
 
@@ -64,7 +67,6 @@ class CardMensagemComanda extends StatelessWidget {
     }
 
     Loja? lojaViva;
-    // Sincroniza em tempo real com o estado vivo do pedido na Loja (se já aceito ou concluído)
     if (pdv != null && msg.pedidoId.isNotEmpty) {
       lojaViva = lojaIdAlvo.isNotEmpty ? pdv.buscarPorId(lojaIdAlvo) : null;
       if (lojaViva != null) {
@@ -100,15 +102,19 @@ class CardMensagemComanda extends StatelessWidget {
           .firstOrNull;
     }
 
-    final String statusNome;
+    final String statusRodape;
+    final bool ehCancelado = pedido?.status == StatusPedido.cancelado;
     if (aguardandoAprovacao) {
-      statusNome = modoLoja
-          ? 'AGUARDANDO CLIENTE APROVAR'
-          : 'AGUARDANDO SUA APROVAÇÃO';
+      statusRodape = modoLoja
+          ? 'Aguardando aprovação do cliente para cair em "Novos"...'
+          : 'Aguardando sua aprovação';
+    } else if (pedido != null) {
+      statusRodape = _rotuloStatus(
+        pedido.status,
+        recusadoPeloCliente: recusadoPeloCliente,
+      );
     } else {
-      statusNome = pedido != null
-          ? _rotuloStatus(pedido.status)
-          : 'COMANDA';
+      statusRodape = '';
     }
 
     return ConstrainedBox(
@@ -117,61 +123,25 @@ class CardMensagemComanda extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         mainAxisSize: MainAxisSize.min,
         children: [
+          // Título "Comanda" centralizado no topo
           Padding(
             padding: const EdgeInsets.only(bottom: 6),
             child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      Icons.receipt_long_rounded,
-                      color: theme.buttonColor,
-                      size: 16,
-                    ),
-                    const SizedBox(width: 5),
-                    Text(
-                      'COMANDA',
-                      style: theme.getTextStyle(
-                        fontSize: 10.5,
-                        fontWeight: FontWeight.bold,
-                        color: theme.textColor,
-                      ),
-                    ),
-                  ],
+                Icon(
+                  Icons.receipt_long_rounded,
+                  color: theme.buttonColor,
+                  size: 16,
                 ),
-                Flexible(
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 6,
-                      vertical: 2,
-                    ),
-                    decoration: BoxDecoration(
-                      color: pedido?.status == StatusPedido.cancelado
-                          ? theme.dangerColor.withValues(alpha: 0.15)
-                          : (aguardandoAprovacao
-                              ? theme.buttonColor.withValues(alpha: 0.22)
-                              : theme.buttonColor.withValues(alpha: 0.15)),
-                      borderRadius: BorderRadius.circular(6),
-                      border: Border.all(
-                        color: pedido?.status == StatusPedido.cancelado
-                            ? theme.dangerColor.withValues(alpha: 0.5)
-                            : theme.buttonColor.withValues(alpha: 0.4),
-                      ),
-                    ),
-                    child: Text(
-                      statusNome,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: theme.getTextStyle(
-                        fontSize: 8.5,
-                        fontWeight: FontWeight.bold,
-                        color: pedido?.status == StatusPedido.cancelado
-                            ? theme.dangerColor
-                            : theme.buttonColor,
-                      ),
-                    ),
+                const SizedBox(width: 6),
+                Text(
+                  'Comanda',
+                  textAlign: TextAlign.center,
+                  style: theme.getTextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.bold,
+                    color: theme.textColor,
                   ),
                 ),
               ],
@@ -202,82 +172,201 @@ class CardMensagemComanda extends StatelessWidget {
               ),
             ),
 
-          // Somente quando for proposta gerada pela loja e estiver aguardando aprovação do cliente
-          if (aguardandoAprovacao) ...[
+          // Status da comanda sempre na parte inferior (ex.: Cancelado, Aguardando aprovação...)
+          if (statusRodape.isNotEmpty) ...[
             const SizedBox(height: 8),
-            if (!modoLoja && pedido != null) ...[
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton.icon(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: theme.buttonColor,
-                    foregroundColor: theme.buttonTextColor,
-                    elevation: 0,
-                    padding: const EdgeInsets.symmetric(vertical: 8),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                  ),
-                  icon: const Icon(Icons.check_circle_rounded, size: 16),
-                  label: const Text(
-                    'Aprovar Pedido',
-                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
-                  ),
-                  onPressed: () async {
-                    await ChatAutoatendimentoService.aprovarPedidoPeloCliente(
-                      context: context,
-                      msg: msg,
-                      pedido: pedido!,
-                    );
-                    if (context.mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text(
-                            'Pedido aprovado! Enviado com sucesso para a loja.',
-                          ),
-                          duration: Duration(seconds: 2),
-                        ),
-                      );
-                    }
-                  },
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+              decoration: BoxDecoration(
+                color: ehCancelado
+                    ? theme.dangerColor.withValues(alpha: 0.14)
+                    : theme.backgroundColor.withValues(alpha: 0.45),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(
+                  color: ehCancelado
+                      ? theme.dangerColor.withValues(alpha: 0.5)
+                      : theme.borderColor.withValues(alpha: 0.5),
                 ),
               ),
-              const SizedBox(height: 6),
-              SizedBox(
-                width: double.infinity,
-                child: OutlinedButton.icon(
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: theme.textColor,
-                    side: BorderSide(color: theme.borderColor),
-                    padding: const EdgeInsets.symmetric(vertical: 6),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                  ),
-                  icon: const Icon(Icons.edit_note_rounded, size: 15),
-                  label: const Text(
-                    'Adicionar Observação',
-                    style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600),
-                  ),
-                  onPressed: () => _abrirDialogObservacao(context, pedido!),
-                ),
-              ),
-            ] else ...[
-              Text(
-                'Aguardando aprovação do cliente para cair em "Novos".',
+              child: TextoRolante(
+                texto: statusRodape,
                 textAlign: TextAlign.center,
-                style: theme
-                    .getTextStyle(
-                      fontSize: 10.5,
-                      color: theme.secondaryTextColor,
-                    )
-                    .copyWith(fontStyle: FontStyle.italic),
+                style: theme.getTextStyle(
+                  fontSize: 10.5,
+                  fontWeight: FontWeight.bold,
+                  color: ehCancelado ? theme.dangerColor : theme.secondaryTextColor,
+                ),
               ),
-            ],
+            ),
+          ],
+
+          // Botões de deliberação do cliente quando aguardando aprovação
+          if (aguardandoAprovacao && !modoLoja && pedido != null) ...[
+            const SizedBox(height: 8),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: theme.buttonColor,
+                  foregroundColor: theme.buttonTextColor,
+                  elevation: 0,
+                  padding: const EdgeInsets.symmetric(vertical: 8),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
+                icon: const Icon(Icons.check_circle_rounded, size: 16),
+                label: const Text(
+                  'Aprovar Pedido',
+                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                ),
+                onPressed: () async {
+                  await ChatAutoatendimentoService.aprovarPedidoPeloCliente(
+                    context: context,
+                    msg: msg,
+                    pedido: pedido!,
+                  );
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text(
+                          'Pedido aprovado! Enviado com sucesso para a loja.',
+                        ),
+                        duration: Duration(seconds: 2),
+                      ),
+                    );
+                  }
+                },
+              ),
+            ),
+            const SizedBox(height: 6),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: theme.textColor,
+                  side: BorderSide(color: theme.borderColor),
+                  padding: const EdgeInsets.symmetric(vertical: 6),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
+                icon: const Icon(Icons.edit_note_rounded, size: 15),
+                label: const Text(
+                  'Adicionar Observação',
+                  style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600),
+                ),
+                onPressed: () => _abrirDialogObservacao(context, pedido!),
+              ),
+            ),
+            const SizedBox(height: 6),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: theme.dangerColor,
+                  side: BorderSide(
+                    color: theme.dangerColor.withValues(alpha: 0.6),
+                  ),
+                  padding: const EdgeInsets.symmetric(vertical: 6),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
+                icon: Icon(
+                  Icons.cancel_outlined,
+                  size: 15,
+                  color: theme.dangerColor,
+                ),
+                label: Text(
+                  'Recusar Pedido',
+                  style: theme.getTextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.bold,
+                    color: theme.dangerColor,
+                  ),
+                ),
+                onPressed: () => _confirmarRecusaPedido(context, pedido!),
+              ),
+            ),
           ],
         ],
       ),
     );
+  }
+
+  Future<void> _confirmarRecusaPedido(
+    BuildContext context,
+    PedidoLoja pedido,
+  ) async {
+    final confirmou = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: theme.cardBackgroundColor,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+          side: BorderSide(color: theme.borderColor),
+        ),
+        title: Text(
+          'Recusar Pedido',
+          textAlign: TextAlign.center,
+          style: theme.getTextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.bold,
+            color: theme.textColor,
+          ),
+        ),
+        content: Text(
+          'Deseja recusar esta proposta de pedido enviada pela loja?',
+          textAlign: TextAlign.center,
+          style: theme.getTextStyle(
+            fontSize: 13,
+            color: theme.secondaryTextColor,
+          ),
+        ),
+        actionsAlignment: MainAxisAlignment.center,
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text(
+              'Voltar',
+              style: theme.getTextStyle(color: theme.secondaryTextColor),
+            ),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: Text(
+              'Recusar Pedido',
+              style: theme.getTextStyle(
+                color: theme.dangerColor,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmou == true && context.mounted) {
+      await ChatAutoatendimentoService.recusarPedidoPeloCliente(
+        context: context,
+        msg: msg,
+        pedido: pedido,
+      );
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            backgroundColor: theme.cardBackgroundColor,
+            content: Text(
+              'Pedido recusado.',
+              style: theme.getTextStyle(color: theme.textColor),
+            ),
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      }
+    }
   }
 
   void _abrirDialogObservacao(BuildContext context, PedidoLoja pedido) {

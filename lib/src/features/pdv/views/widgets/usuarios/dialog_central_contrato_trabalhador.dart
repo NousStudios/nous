@@ -2,6 +2,7 @@ import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:nous/src/core/theme/theme_controller.dart';
+import 'package:nous/src/core/widgets/texto_rolante.dart';
 import 'package:nous/src/features/auth/providers/auth_provider.dart';
 import 'package:nous/src/features/auth/views/widgets/ficha_usuario_dialog.dart';
 import 'package:nous/src/features/pdv/models/contrato_trabalho_membro.dart';
@@ -262,16 +263,16 @@ class _CentralContratoTrabalhadorDialogState
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  nomeSoberano,
+                TextoRolante(
+                  texto: nomeSoberano,
                   style: theme.getTextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.bold,
                     color: theme.textColor,
                   ),
                 ),
-                Text(
-                  'Gestão Soberana do Trabalhador • ${widget.membro.papel.name}',
+                TextoRolante(
+                  texto: 'Gestão Soberana do Trabalhador • ${widget.membro.papel.name}',
                   style: theme.getTextStyle(
                     fontSize: 11,
                     color: theme.secondaryTextColor,
@@ -408,9 +409,9 @@ class _CentralContratoTrabalhadorDialogState
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('Total Recebido', style: theme.getTextStyle(fontSize: 11, color: theme.secondaryTextColor)),
+                    TextoRolante(texto: 'Total Recebido', style: theme.getTextStyle(fontSize: 11, color: theme.secondaryTextColor)),
                     const SizedBox(height: 2),
-                    Text(_formatarMoeda(recebido), style: theme.getTextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.greenAccent)),
+                    TextoRolante(texto: _formatarMoeda(recebido), style: theme.getTextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: theme.textColor)),
                   ],
                 ),
               ),
@@ -427,9 +428,9 @@ class _CentralContratoTrabalhadorDialogState
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('Pendente (A Prazo)', style: theme.getTextStyle(fontSize: 11, color: theme.secondaryTextColor)),
+                    TextoRolante(texto: 'Pendente (A Prazo)', style: theme.getTextStyle(fontSize: 11, color: theme.secondaryTextColor)),
                     const SizedBox(height: 2),
-                    Text(_formatarMoeda(devido), style: theme.getTextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: devido > 0 ? theme.dangerColor : theme.textColor)),
+                    TextoRolante(texto: _formatarMoeda(devido), style: theme.getTextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: devido > 0 ? theme.dangerColor : theme.textColor)),
                   ],
                 ),
               ),
@@ -437,7 +438,7 @@ class _CentralContratoTrabalhadorDialogState
           ],
         ),
         const SizedBox(height: 12),
-        Text('Extrato de Diárias e Pagamentos (${pagamentos.length}):', style: theme.getTextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: theme.secondaryTextColor)),
+        TextoRolante(texto: 'Extrato de Diárias e Pagamentos (${pagamentos.length}):', style: theme.getTextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: theme.secondaryTextColor)),
         const SizedBox(height: 6),
         if (pagamentos.isEmpty)
           Padding(
@@ -459,11 +460,12 @@ class _CentralContratoTrabalhadorDialogState
                     Text(_formatarDataHora(p.dataHora), style: theme.getTextStyle(fontSize: 10.5, color: theme.secondaryTextColor)),
                     const SizedBox(width: 6),
                     Expanded(
-                      child: Text(
-                        '${p.descricao.isNotEmpty ? p.descricao : "Diária/Salário"} (${p.formaPagamento}${!p.pago ? " • A Prazo" : ""})',
+                      child: TextoRolante(
+                        texto: '${p.descricao.isNotEmpty ? p.descricao : "Diária/Salário"} (${p.formaPagamento}${!p.pago ? " • A Prazo" : ""})',
                         style: theme.getTextStyle(fontSize: 11),
                       ),
                     ),
+                    const SizedBox(width: 6),
                     Text(
                       _formatarMoeda(p.valor),
                       style: theme.getTextStyle(fontSize: 11.5, fontWeight: FontWeight.bold, color: !p.pago ? theme.dangerColor : theme.textColor),
@@ -472,10 +474,8 @@ class _CentralContratoTrabalhadorDialogState
                       const SizedBox(width: 6),
                       TextButton(
                         style: TextButton.styleFrom(padding: EdgeInsets.zero, minimumSize: const Size(50, 24)),
-                        onPressed: () {
-                          context.read<PdvProvider>().quitarPagamentoFuncionario(widget.lojaId, p.id);
-                        },
-                        child: Text('Quitar', style: theme.getTextStyle(fontSize: 10, color: Colors.greenAccent)),
+                        onPressed: () => context.read<PdvProvider>().quitarPagamentoFuncionario(widget.lojaId, p.id),
+                        child: Text('Quitar', style: theme.getTextStyle(fontSize: 10, color: theme.textColor, fontWeight: FontWeight.bold)),
                       ),
                     ],
                   ],
@@ -567,14 +567,21 @@ class _CentralContratoTrabalhadorDialogState
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text('Arquivos & Documentos Anexados (${_arquivosContrato.length}):', style: theme.getTextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: theme.secondaryTextColor)),
-            if (widget.podeGerenciar)
+            Expanded(
+              child: TextoRolante(
+                texto: 'Arquivos & Documentos Anexados (${_arquivosContrato.length}):',
+                style: theme.getTextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: theme.secondaryTextColor),
+              ),
+            ),
+            if (widget.podeGerenciar) ...[
+              const SizedBox(width: 8),
               OutlinedButton.icon(
                 style: OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4)),
                 onPressed: _anexarArquivo,
                 icon: Icon(Icons.attach_file, size: 14, color: theme.textColor),
                 label: Text('Anexar', style: theme.getTextStyle(fontSize: 11)),
               ),
+            ],
           ],
         ),
         const SizedBox(height: 6),
@@ -586,27 +593,35 @@ class _CentralContratoTrabalhadorDialogState
             runSpacing: 6,
             children: _arquivosContrato.map((caminho) {
               final nomeArquivo = caminho.split(RegExp(r'[\\/]')).last;
-              return Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(
-                  color: theme.backgroundColor.withValues(alpha: 0.3),
-                  borderRadius: BorderRadius.circular(6),
-                  border: Border.all(color: theme.borderColor.withValues(alpha: 0.5)),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(Icons.insert_drive_file_outlined, size: 13, color: theme.textColor),
-                    const SizedBox(width: 4),
-                    Text(nomeArquivo, style: theme.getTextStyle(fontSize: 10.5)),
-                    if (widget.podeGerenciar) ...[
+              return ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 260),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: theme.backgroundColor.withValues(alpha: 0.3),
+                    borderRadius: BorderRadius.circular(6),
+                    border: Border.all(color: theme.borderColor.withValues(alpha: 0.5)),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.insert_drive_file_outlined, size: 13, color: theme.textColor),
                       const SizedBox(width: 4),
-                      InkWell(
-                        onTap: () => setState(() => _arquivosContrato.remove(caminho)),
-                        child: Icon(Icons.close, size: 12, color: theme.dangerColor),
+                      Flexible(
+                        child: TextoRolante(
+                          texto: nomeArquivo,
+                          style: theme.getTextStyle(fontSize: 10.5),
+                        ),
                       ),
+                      if (widget.podeGerenciar) ...[
+                        const SizedBox(width: 4),
+                        InkWell(
+                          onTap: () => setState(() => _arquivosContrato.remove(caminho)),
+                          child: Icon(Icons.close, size: 12, color: theme.dangerColor),
+                        ),
+                      ],
                     ],
-                  ],
+                  ),
                 ),
               );
             }).toList(),
@@ -638,41 +653,44 @@ class _CentralContratoTrabalhadorDialogState
         Container(
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
-            color: temPontoAberto ? Colors.greenAccent.withValues(alpha: 0.12) : theme.backgroundColor.withValues(alpha: 0.3),
+            color: temPontoAberto ? theme.textColor.withValues(alpha: 0.08) : theme.backgroundColor.withValues(alpha: 0.3),
             borderRadius: BorderRadius.circular(10),
-            border: Border.all(color: temPontoAberto ? Colors.greenAccent : theme.borderColor.withValues(alpha: 0.5)),
+            border: Border.all(color: temPontoAberto ? theme.textColor : theme.borderColor.withValues(alpha: 0.5)),
           ),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    temPontoAberto ? 'Ponto Ativo (Trabalhando)' : 'Ponto Fechado (Fora do Turno)',
-                    style: theme.getTextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: temPontoAberto ? Colors.greenAccent : theme.textColor),
-                  ),
-                  Text(
-                    temPontoAberto ? 'Entrada registrada. Clique para registrar saída.' : 'Clique para registrar início de jornada.',
-                    style: theme.getTextStyle(fontSize: 10.5, color: theme.secondaryTextColor),
-                  ),
-                ],
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    TextoRolante(
+                      texto: temPontoAberto ? 'Ponto Ativo (Trabalhando)' : 'Ponto Fechado (Fora do Turno)',
+                      style: theme.getTextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: theme.textColor),
+                    ),
+                    TextoRolante(
+                      texto: temPontoAberto ? 'Entrada registrada. Clique para registrar saída.' : 'Clique para registrar início de jornada.',
+                      style: theme.getTextStyle(fontSize: 10.5, color: theme.secondaryTextColor),
+                    ),
+                  ],
+                ),
               ),
+              const SizedBox(width: 8),
               ElevatedButton.icon(
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: temPontoAberto ? Colors.redAccent.withValues(alpha: 0.8) : Colors.greenAccent.withValues(alpha: 0.8),
-                  foregroundColor: Colors.white,
+                  backgroundColor: temPontoAberto ? theme.dangerColor.withValues(alpha: 0.85) : theme.buttonColor,
+                  foregroundColor: temPontoAberto ? theme.textColor : theme.buttonTextColor,
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                 ),
                 onPressed: () => _baterPonto(loja),
                 icon: Icon(temPontoAberto ? Icons.logout : Icons.login, size: 16),
-                label: Text(temPontoAberto ? 'Bater Saída' : 'Bater Entrada', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                label: Text(temPontoAberto ? 'Bater Saída' : 'Bater Entrada', style: theme.getTextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: temPontoAberto ? theme.textColor : theme.buttonTextColor)),
               ),
             ],
           ),
         ),
         const SizedBox(height: 12),
-        Text('Histórico de Ponto (${pontos.length}):', style: theme.getTextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: theme.secondaryTextColor)),
+        TextoRolante(texto: 'Histórico de Ponto (${pontos.length}):', style: theme.getTextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: theme.secondaryTextColor)),
         const SizedBox(height: 6),
         if (pontos.isEmpty)
           Padding(
@@ -694,18 +712,18 @@ class _CentralContratoTrabalhadorDialogState
                 padding: const EdgeInsets.symmetric(vertical: 3),
                 child: Row(
                   children: [
-                    Icon(p.estaEmAberto ? Icons.timelapse : Icons.check_circle_outline, size: 14, color: p.estaEmAberto ? Colors.orangeAccent : Colors.greenAccent),
+                    Icon(p.estaEmAberto ? Icons.timelapse : Icons.check_circle_outline, size: 14, color: p.estaEmAberto ? theme.secondaryTextColor : theme.textColor),
                     const SizedBox(width: 6),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(
-                            'Entrada: ${_formatarDataHora(p.dataHoraEntrada)}',
+                          TextoRolante(
+                            texto: 'Entrada: ${_formatarDataHora(p.dataHoraEntrada)}',
                             style: theme.getTextStyle(fontSize: 11, fontWeight: FontWeight.w600),
                           ),
-                          Text(
-                            p.dataHoraSaida != null
+                          TextoRolante(
+                            texto: p.dataHoraSaida != null
                                 ? 'Saída: ${_formatarDataHora(p.dataHoraSaida!)} • Duração: ${horas}h ${minutos}min'
                                 : 'Em andamento...',
                             style: theme.getTextStyle(fontSize: 10, color: theme.secondaryTextColor),

@@ -48,9 +48,30 @@ class CabecalhoConversaAtivaWidget extends StatelessWidget {
     String destId = '';
     String destNome = conversa.titulo;
     String destFoto = conversa.foto;
+    final participantes = <String>{...conversa.participantesIds};
 
     if (conversa.ehGrupo) {
       destId = conversa.id;
+    } else if (conversa.ehLoja) {
+      final pdv = context.read<PdvProvider?>();
+      final idLoja = PdvProvider.normalizarIdLoja(
+        conversa.lojaId != null && conversa.lojaId!.isNotEmpty
+            ? conversa.lojaId!
+            : conversa.identificador,
+      );
+      destId = idLoja;
+      final loja = pdv?.buscarPorId(idLoja) ??
+          (ClienteRedeLocal().lojaSincronizada?.id == idLoja
+              ? ClienteRedeLocal().lojaSincronizada
+              : null);
+      if (loja != null) {
+        final cpfDono = ChatService.normalizarCpf(loja.cpfDonoOriginal);
+        if (cpfDono.length == 11) participantes.add(cpfDono);
+        for (final m in loja.membros) {
+          final cM = ChatService.normalizarCpf(m.cpf);
+          if (cM.length == 11) participantes.add(cM);
+        }
+      }
     } else {
       destId = conversa.identificador.replaceAll(RegExp(r'\D'), '');
       if (destId.isEmpty) {
@@ -68,7 +89,7 @@ class CabecalhoConversaAtivaWidget extends StatelessWidget {
       destinatarioNome: destNome,
       destinatarioFoto: destFoto,
       ehGrupo: conversa.ehGrupo,
-      participantesIds: conversa.participantesIds,
+      participantesIds: participantes.toList(),
     );
 
     if (sessao != null && context.mounted) {

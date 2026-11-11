@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:nous/src/core/theme/theme_controller.dart';
+import 'package:nous/src/core/widgets/texto_rolante.dart';
 import 'package:nous/src/features/pdv/models/cliente.dart';
 import 'package:nous/src/features/pdv/models/configuracoes_impressora.dart';
 import 'package:nous/src/features/pdv/models/pedido_loja.dart';
@@ -56,7 +57,7 @@ class ComandaPedido extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           Text(
             '$rotulo: ',
@@ -68,10 +69,9 @@ class ComandaPedido extends StatelessWidget {
           ),
           const SizedBox(width: 4),
           Expanded(
-            child: Text(
-              valor,
+            child: TextoRolante(
+              texto: valor,
               textAlign: TextAlign.right,
-              softWrap: true,
               style: theme.getTextStyle(
                 fontSize: 12,
                 color: theme.textColor,
@@ -90,13 +90,12 @@ class ComandaPedido extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           if (ehPreco)
             Expanded(
-              child: Text(
-                esquerda,
-                softWrap: true,
+              child: TextoRolante(
+                texto: esquerda,
                 style: theme.getTextStyle(
                   fontSize: 12,
                   color: destaque ? theme.textColor : theme.secondaryTextColor,
@@ -127,10 +126,9 @@ class ComandaPedido extends StatelessWidget {
             )
           else
             Expanded(
-              child: Text(
-                direita,
+              child: TextoRolante(
+                texto: direita,
                 textAlign: TextAlign.right,
-                softWrap: true,
                 style: theme.getTextStyle(
                   fontSize: 12,
                   color: destaque ? theme.textColor : theme.secondaryTextColor,
@@ -223,8 +221,8 @@ class ComandaPedido extends StatelessWidget {
                   children: [
                     if (pedido.nomeVendedor.isNotEmpty)
                       Center(
-                        child: Text(
-                          pedido.nomeVendedor,
+                        child: TextoRolante(
+                          texto: pedido.nomeVendedor,
                           textAlign: TextAlign.center,
                           style: theme.getTextStyle(
                               fontSize: 12, color: theme.textColor),
@@ -232,8 +230,8 @@ class ComandaPedido extends StatelessWidget {
                       ),
                     if (pedido.cnpjVendedor.isNotEmpty)
                       Center(
-                        child: Text(
-                          'CNPJ: ${pedido.cnpjVendedor}',
+                        child: TextoRolante(
+                          texto: 'CNPJ: ${pedido.cnpjVendedor}',
                           textAlign: TextAlign.center,
                           style: theme.getTextStyle(
                               fontSize: 11,

@@ -494,4 +494,54 @@ class ChatAutoatendimentoService {
       texto: texto,
     );
   }
+
+  /// Permite ao cliente recusar uma proposta de pedido enviada pela loja no chat
+  static Future<void> recusarPedidoPeloCliente({
+    required BuildContext context,
+    required MensagemChat msg,
+    required PedidoLoja pedido,
+  }) async {
+    final pdv = context.read<PdvProvider?>();
+    final pedidoCancelado = pedido.copyWith(status: StatusPedido.cancelado);
+
+    if (pdv != null && pedido.lojaId.isNotEmpty) {
+      final lojaAtual = pdv.buscarPorId(pedido.lojaId);
+      if (lojaAtual != null) {
+        final pedidos = List<PedidoLoja>.from(lojaAtual.pedidosLoja);
+        final idx = pedidos.indexWhere((p) => p.id == pedido.id);
+        if (idx != -1) {
+          pedidos[idx] = pedidoCancelado;
+          await pdv.adicionarOuAtualizarLoja(
+            lojaAtual.copyWith(pedidosLoja: pedidos),
+          );
+          if (ServidorRedeLocal().ativo) {
+            ServidorRedeLocal().notificarTodos({
+              'tipo': 'pedido_atualizado',
+              'lojaId': lojaAtual.id,
+              'pedido': pedidoCancelado.toJson(),
+            });
+          } else if (ClienteRedeLocal().conectado) {
+            ClienteRedeLocal().enviarEventoWs({
+              'tipo': 'pedido_atualizado',
+              'lojaId': lojaAtual.id,
+              'pedido': pedidoCancelado.toJson(),
+            });
+          }
+        }
+      }
+    }
+
+    final mapa = pedidoCancelado.toJson();
+    mapa['aguardandoAprovacaoCliente'] = false;
+    mapa['recusadoPeloCliente'] = true;
+    final dadosJson = jsonEncode(mapa);
+    final texto =
+        'Pedido #${pedido.numero.toString().padLeft(4, '0')} recusado pelo cliente.';
+
+    await ChatService.atualizarDadosComandaMensagem(
+      msgId: msg.id,
+      dadosPedidoJson: dadosJson,
+      texto: texto,
+    );
+  }
 }

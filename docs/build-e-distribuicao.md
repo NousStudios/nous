@@ -2,7 +2,8 @@
 
 ## 1. Versão
 
-- Fonte da verdade: `pubspec.yaml` (`version:`). Hoje **v1.0.62+63**.
+- Fonte da verdade: `pubspec.yaml` (`version:`). Hoje **v1.1.0+102**.
+- **Regra de incremento de versão (limite 99 por casa):** cada casa semântica (`MAJOR.MINOR.PATCH`) vai de `0` até `99`. Quando o `PATCH` chega em `99`, o próximo ciclo avança o `MINOR` e reinicia o `PATCH` em `0` (ex.: `1.0.99` → `1.1.0`, `1.1.1`, `1.1.2`... até `1.1.99` → `1.2.0`), mantendo o `+build` sempre crescente.
 - O nome dos arquivos em `dist/` utiliza o padrão versionado `Nous_Instalador_v${versao}_Versao_Teste.exe` e `Nous_Android_v${versao}_Versao_Teste.apk`.
 - Ao subir a versão, o `gerar_instalador.ps1` sincroniza `AtualizacaoService.dart` antes de compilar.
 

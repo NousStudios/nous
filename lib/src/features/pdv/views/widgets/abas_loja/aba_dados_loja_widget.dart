@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:nous/src/core/theme/theme_controller.dart';
+import 'package:nous/src/core/widgets/texto_rolante.dart';
 import 'package:nous/src/features/auth/models/usuario_nous.dart';
 import 'package:nous/src/features/pdv/models/loja.dart';
 import 'package:nous/src/features/pdv/models/membro_loja.dart';
@@ -168,8 +169,8 @@ class AbaDadosLojaWidget extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  rotulo,
+                TextoRolante(
+                  texto: rotulo,
                   style: theme.getTextStyle(
                     fontSize: 11,
                     fontWeight: FontWeight.w600,
@@ -177,8 +178,8 @@ class AbaDadosLojaWidget extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 2),
-                Text(
-                  valor,
+                TextoRolante(
+                  texto: valor,
                   style: theme.getTextStyle(
                     fontSize: 13,
                     fontWeight: FontWeight.w600,

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:nous/src/core/theme/theme_controller.dart';
+import 'package:nous/src/core/widgets/texto_rolante.dart';
 import 'package:nous/src/features/pdv/models/cargo_loja.dart';
 import 'package:nous/src/features/pdv/models/membro_loja.dart';
 
@@ -50,8 +51,8 @@ class DialogTrocaPapelMembro {
             borderRadius: BorderRadius.circular(16.0),
             side: BorderSide(color: theme.borderColor),
           ),
-          title: Text(
-            'Cargo e Papel de ${membro.nome}',
+          title: TextoRolante(
+            texto: 'Cargo e Papel de ${membro.nome}',
             textAlign: TextAlign.center,
             style: theme.getTextStyle(
               fontSize: 16,
@@ -143,8 +144,8 @@ class DialogTrocaPapelMembro {
                   for (final cargo in cargosPersonalizados)
                     ListTile(
                       dense: true,
-                      title: Text(
-                        cargo.nome,
+                      title: TextoRolante(
+                        texto: cargo.nome,
                         style: theme.getTextStyle(
                           color: membro.cargoPersonalizadoId == cargo.id
                               ? theme.textColor

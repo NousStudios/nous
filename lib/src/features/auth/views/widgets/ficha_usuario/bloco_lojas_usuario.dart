@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:nous/src/core/theme/theme_controller.dart';
+import 'package:nous/src/core/widgets/texto_rolante.dart';
 import 'package:nous/src/features/pdv/models/loja.dart';
 import 'package:nous/src/features/pdv/models/membro_loja.dart';
 
@@ -58,8 +59,9 @@ class BlocoLojasUsuario extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           Expanded(
-            child: Text(
-              nomeLoja,
+            flex: 6,
+            child: TextoRolante(
+              texto: nomeLoja,
               style: theme.getTextStyle(
                 fontSize: 12,
                 color: theme.secondaryTextColor,
@@ -67,13 +69,16 @@ class BlocoLojasUsuario extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 8),
-          Text(
-            cargo,
-            textAlign: TextAlign.right,
-            style: theme.getTextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.bold,
-              color: theme.textColor,
+          Flexible(
+            flex: 4,
+            child: TextoRolante(
+              texto: cargo,
+              textAlign: TextAlign.right,
+              style: theme.getTextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.bold,
+                color: theme.textColor,
+              ),
             ),
           ),
         ],

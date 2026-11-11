@@ -80,26 +80,6 @@ class _ItemConversaTileState extends State<ItemConversaTile> {
           ),
         ),
         PopupMenuItem(
-          value: 'renomear',
-          child: Row(
-            children: [
-              Icon(
-                Icons.edit_outlined,
-                size: 16,
-                color: widget.theme.textColor,
-              ),
-              const SizedBox(width: 10),
-              Text(
-                'Renomear conversa',
-                style: widget.theme.getTextStyle(
-                  fontSize: 13,
-                  color: widget.theme.textColor,
-                ),
-              ),
-            ],
-          ),
-        ),
-        PopupMenuItem(
           value: 'silenciar',
           child: Row(
             children: [

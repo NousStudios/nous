@@ -549,13 +549,32 @@ class ServidorRedeLocal {
         final sdp = dados['sdp'] as Map<String, dynamic>?;
         if (chamadaJson != null && sdp != null) {
           final destId = (chamadaJson['destinatarioId'] as String? ?? '').replaceAll(RegExp(r'\D'), '');
-          final ehGrupo = chamadaJson['ehGrupo'] as bool? ?? false;
           final participantes = (chamadaJson['participantesIds'] as List<dynamic>?)
                   ?.map((e) => e.toString().replaceAll(RegExp(r'\D'), ''))
                   .toList() ??
               [];
+          final idLojaAtiva = _lojaAtiva != null
+              ? PdvProvider.normalizarIdLoja(_lojaAtiva!.id)
+              : '';
+          final destEhLojaLocal = destId.isNotEmpty &&
+              ((idLojaAtiva.isNotEmpty && idLojaAtiva == destId) ||
+                  (_pdvProvider?.lojas.any(
+                        (l) =>
+                            PdvProvider.normalizarIdLoja(l.id) == destId &&
+                            (ChatService.normalizarCpf(l.cpfDonoOriginal) ==
+                                    meuCpf ||
+                                l.membros.any(
+                                  (m) =>
+                                      ChatService.normalizarCpf(m.cpf) ==
+                                      meuCpf,
+                                )),
+                      ) ??
+                      false));
 
-          if (destId == meuCpf || (ehGrupo && participantes.contains(meuCpf)) || destId.isEmpty) {
+          if (destId == meuCpf ||
+              destEhLojaLocal ||
+              participantes.contains(meuCpf) ||
+              destId.isEmpty) {
             ChamadaWebRtcService.instancia.receberConvite(chamadaJson, sdp);
           }
         }

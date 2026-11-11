@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:nous/src/core/theme/theme_controller.dart';
+import 'package:nous/src/core/widgets/texto_rolante.dart';
 import 'package:nous/src/features/auth/providers/auth_provider.dart';
 import 'package:nous/src/features/auth/services/cpf_validator.dart';
 import 'package:nous/src/features/pdv/models/cargo_loja.dart';
@@ -219,10 +220,10 @@ class _CardMembroLojaWidgetState extends State<CardMembroLojaWidget> {
                       : 'Remover',
               padding: const EdgeInsets.all(4),
               constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
-              icon: const Icon(
+              icon: Icon(
                 Icons.delete_outline,
                 size: 16,
-                color: Colors.redAccent,
+                color: theme.dangerColor,
               ),
               onPressed: widget.onConfirmarRemocao,
             ),
@@ -296,10 +297,8 @@ class _CardMembroLojaWidgetState extends State<CardMembroLojaWidget> {
                             Row(
                               children: [
                                 Flexible(
-                                  child: Text(
-                                    nomeExibido,
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
+                                  child: TextoRolante(
+                                    texto: nomeExibido,
                                     style: theme.getTextStyle(
                                       fontSize: 13,
                                       color: theme.textColor,
@@ -342,11 +341,9 @@ class _CardMembroLojaWidgetState extends State<CardMembroLojaWidget> {
                                 return Row(
                                   children: [
                                     Flexible(
-                                      child: Text(
-                                        '$rotuloCargo • $cpfExibido'
-                                        ' • desde ${_dataCurta(membro.desde)}',
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
+                                      child: TextoRolante(
+                                        texto: '$rotuloCargo • $cpfExibido'
+                                            ' • desde ${_dataCurta(membro.desde)}',
                                         style: theme.getTextStyle(
                                           fontSize: 10,
                                           color: theme.secondaryTextColor,

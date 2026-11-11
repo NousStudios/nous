@@ -39,13 +39,13 @@ Este arquivo deve continuar curto (meta: menos de 200 linhas). Funcionalidade no
 
 ### Build e instaladores (regra do desenvolvedor)
 
-Após cada ciclo concluído e validado (testes e `flutter analyze`), compile os instaladores com `scripts/gerar_instalador.ps1`. O pipeline apaga versões antigas em `dist/` e mantém só a mais recente. Detalhes em `docs/build-e-distribuicao.md`.
+Após cada ciclo concluído e validado (testes e `flutter analyze`), compile os instaladores com `scripts/gerar_instalador.ps1`. O pipeline apaga versões antigas em `dist/` e mantém só a mais recente. **Regra de versionamento:** cada casa decimal vai de `0` até `99`; ao atingir `99`, o próximo ciclo avança a casa anterior e zera a atual (ex.: `1.0.99` → `1.1.0`, `1.1.1` ... `1.1.99` → `1.2.0`), incrementando sempre o `+build`. Detalhes em `docs/build-e-distribuicao.md`.
 
 ## 2. O que é o Nous
 
 SuperApp brasileiro, livre e de código aberto, de **Autogestão Comercial e Social**, baseado no Plataformismo Brasileiro. Hoje o núcleo reúne **PDV completo** (lojas, vendas, estoque, caixa, financeiro, impressão térmica), **Mensageria Soberana com Autoatendimento (`chat`)**, **Perfil Social e Busca Regional (`busca`)**, identidade por CPF, notificações deliberativas e sincronização local por Wi-Fi. Módulos futuros (pastas reservadas): `timeline`, `delivery`, `banco`, `autogestao`.
 
-- Stack: Flutter/Dart, `Provider` (ChangeNotifier), SQLite local (`sqflite_common_ffi`), versão atual no `pubspec.yaml` (hoje v1.0.97+98).
+- Stack: Flutter/Dart, `Provider` (ChangeNotifier), SQLite local (`sqflite_common_ffi`), versão atual no `pubspec.yaml` (hoje v1.1.0+102).
 - Plataformas: Windows (foco principal), Android; também Web, Linux, iOS.
 - Política e filosofia completas: `docs/filosofia.md`.
 

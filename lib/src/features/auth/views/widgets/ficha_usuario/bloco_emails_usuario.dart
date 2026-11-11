@@ -1,6 +1,7 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:nous/src/core/theme/theme_controller.dart';
+import 'package:nous/src/core/widgets/texto_rolante.dart';
 import 'package:nous/src/features/auth/models/usuario_nous.dart';
 
 /// Bloco que exibe os e-mails associados ao CPF do usuário.
@@ -73,8 +74,8 @@ class BlocoEmailsUsuario extends StatelessWidget {
                     ),
                     const SizedBox(width: 8),
                     Expanded(
-                      child: Text(
-                        email,
+                      child: TextoRolante(
+                        texto: email,
                         style: theme.getTextStyle(
                           fontSize: 12,
                           color: emailAtivo == email
