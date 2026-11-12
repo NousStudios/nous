@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:nous/src/core/services/criptografia_service.dart';
 import 'package:nous/src/core/theme/theme_controller.dart';
 import 'package:nous/src/features/auth/models/usuario_nous.dart';
 import 'package:nous/src/features/auth/services/contas_nous_service.dart';
@@ -46,6 +47,7 @@ class AuthProvider extends ChangeNotifier {
   UsuarioNous? get contaAtual => _contaAtual;
   String? get emailAtivo => _emailAtivo;
   Set<String> get dadosReveladosDono => _dadosReveladosDono;
+  List<UsuarioNous> get contasCache => _contasPorCpf.values.toList();
 
   bool dadoEstaReveladoParaDono(String chave) => _dadosReveladosDono.contains(chave);
 
@@ -215,6 +217,26 @@ class AuthProvider extends ChangeNotifier {
         } catch (_) {}
       }
 
+      // Garante chave pública Ed25519 e chave de troca X25519 no perfil soberano do usuário
+      try {
+        final chavePub = await CriptografiaService.obterOuGerarChavePublica(contaSegura.cpf);
+        final chaveTroca = await CriptografiaService.obterOuGerarChaveTroca(contaSegura.cpf);
+        var precisaSalvar = false;
+        if (chavePub.isNotEmpty && contaSegura.chavePublica != chavePub) {
+          contaSegura = contaSegura.copyWith(chavePublica: chavePub);
+          precisaSalvar = true;
+        }
+        if (chaveTroca.isNotEmpty && contaSegura.chaveTrocaPublica != chaveTroca) {
+          contaSegura = contaSegura.copyWith(chaveTrocaPublica: chaveTroca);
+          precisaSalvar = true;
+        }
+        if (precisaSalvar) {
+          await ContasNousService.salvar(contaSegura);
+        }
+      } catch (e) {
+        debugPrint('[AuthProvider] Erro ao sincronizar chaves de criptografia: $e');
+      }
+
       _contaAtual = contaSegura;
       _emailAtivo = contaSegura.emails.isNotEmpty ? contaSegura.emails.first : null;
       await ThemeController.carregarTemaDoUsuario(contaSegura.cpf);
@@ -319,9 +341,16 @@ class AuthProvider extends ChangeNotifier {
       dataNascimento: dataNascimento.trim(),
     );
 
-    await ContasNousService.salvar(conta);
+    final chavePub = await CriptografiaService.obterOuGerarChavePublica(_cpf);
+    final chaveTroca = await CriptografiaService.obterOuGerarChaveTroca(_cpf);
+    final contaComChave = conta.copyWith(
+      chavePublica: chavePub,
+      chaveTrocaPublica: chaveTroca,
+    );
 
-    _contaAtual = conta;
+    await ContasNousService.salvar(contaComChave);
+
+    _contaAtual = contaComChave;
     _emailAtivo = null;
     await ThemeController.carregarTemaDoUsuario(_cpf);
     await carregarDadosReveladosDono(_cpf);
@@ -341,20 +370,83 @@ class AuthProvider extends ChangeNotifier {
       dataNascimento: '',
     );
 
-    await ContasNousService.salvar(conta);
+    final chavePub = await CriptografiaService.obterOuGerarChavePublica(_cpf);
+    final chaveTroca = await CriptografiaService.obterOuGerarChaveTroca(_cpf);
+    final contaComChave = conta.copyWith(
+      chavePublica: chavePub,
+      chaveTrocaPublica: chaveTroca,
+    );
 
-    _contaAtual = conta;
+    await ContasNousService.salvar(contaComChave);
+
+    _contaAtual = contaComChave;
     _emailAtivo = null;
     await ThemeController.carregarTemaDoUsuario(_cpf);
     await carregarDadosReveladosDono(_cpf);
     ClienteRedeLocal().atualizarIdentidadeUsuario(
-      cpf: conta.cpf,
-      nome: conta.nome,
-      apelido: conta.apelido,
-      foto: conta.foto,
+      cpf: contaComChave.cpf,
+      nome: contaComChave.nome,
+      apelido: contaComChave.apelido,
+      foto: contaComChave.foto,
     );
-    ServidorRedeLocal().atualizarOperadorBalcao(conta);
-    _propagarUsuarioAtualizado(conta);
+    ServidorRedeLocal().atualizarOperadorBalcao(contaComChave);
+    _propagarUsuarioAtualizado(contaComChave);
+    notifyListeners();
+  }
+
+  Future<void> registrarNovaContaCompleta({
+    required String nome,
+    required String apelido,
+    required String nomeDeUsuario,
+    required String foto,
+    required String biografia,
+    required List<String> dadosPrivados,
+  }) async {
+    final apelidoLimpo = apelido.trim().isNotEmpty ? apelido.trim() : nome.trim();
+    final usernameLimpo = nomeDeUsuario
+        .trim()
+        .toLowerCase()
+        .replaceAll(RegExp(r'\s+'), '')
+        .replaceAll('@', '');
+    final hojeIso = DateTime.now().toIso8601String();
+
+    final conta = UsuarioNous(
+      cpf: _cpf,
+      nome: nome.trim(),
+      apelido: apelidoLimpo,
+      nomeDeUsuario: usernameLimpo,
+      dataNascimento: '',
+      foto: foto.trim(),
+      fotoPublica: foto.trim(),
+      biografia: biografia.trim(),
+      dadosPrivados: dadosPrivados,
+      criadoEm: hojeIso,
+      validadoPorNome: 'Rede Soberana Nous',
+      validadoEm: hojeIso,
+      verificado: true,
+    );
+
+    final chavePub = await CriptografiaService.obterOuGerarChavePublica(_cpf);
+    final chaveTroca = await CriptografiaService.obterOuGerarChaveTroca(_cpf);
+    final contaComChave = conta.copyWith(
+      chavePublica: chavePub,
+      chaveTrocaPublica: chaveTroca,
+    );
+
+    await ContasNousService.salvar(contaComChave);
+
+    _contaAtual = contaComChave;
+    _emailAtivo = null;
+    await ThemeController.carregarTemaDoUsuario(_cpf);
+    await carregarDadosReveladosDono(_cpf);
+    ClienteRedeLocal().atualizarIdentidadeUsuario(
+      cpf: contaComChave.cpf,
+      nome: contaComChave.nome,
+      apelido: contaComChave.apelido,
+      foto: contaComChave.foto,
+    );
+    ServidorRedeLocal().atualizarOperadorBalcao(contaComChave);
+    _propagarUsuarioAtualizado(contaComChave);
     notifyListeners();
   }
 
@@ -405,7 +497,9 @@ class AuthProvider extends ChangeNotifier {
   }
 
   void _propagarUsuarioAtualizado(UsuarioNous usuario) {
-    _contasPorCpf[CpfValidator.onlyDigits(usuario.cpf)] = usuario;
+    final cpfLimpo = CpfValidator.onlyDigits(usuario.cpf);
+    _contasPorCpf[cpfLimpo] = usuario;
+    _contasPorCpf[usuario.cpf] = usuario;
     if (ClienteRedeLocal().conectado) {
       ClienteRedeLocal().enviarUsuario(usuario);
     } else if (ServidorRedeLocal().ativo) {
@@ -480,8 +574,29 @@ class AuthProvider extends ChangeNotifier {
 
     _fotosPorCpf.remove(cpfLimpo);
     _fotosPorCpf.remove(cpfReal);
+    _contasPorCpf.remove(cpfLimpo);
+    _contasPorCpf.remove(cpfReal);
+
+    if (ClienteRedeLocal().conectado) {
+      ClienteRedeLocal().enviarEventoWs({
+        'tipo': 'usuario_nous_excluido',
+        'cpf': cpfLimpo,
+      });
+    } else if (ServidorRedeLocal().ativo) {
+      ServidorRedeLocal().notificarTodos({
+        'tipo': 'usuario_nous_excluido',
+        'cpf': cpfLimpo,
+      });
+    }
+
     await carregarCacheContas();
-    sair();
+    final eraContaAtual = c != null &&
+        CpfValidator.onlyDigits(c.cpf) == cpfLimpo;
+    if (eraContaAtual) {
+      sair();
+    } else {
+      notifyListeners();
+    }
   }
 
   Future<void> atualizarNomeDeUsuario(String novoUsername) async {
@@ -509,6 +624,16 @@ class AuthProvider extends ChangeNotifier {
     }
 
     final atualizado = conta.copyWith(dadosPrivados: novaLista);
+    await ContasNousService.salvar(atualizado);
+    _contaAtual = atualizado;
+    _propagarUsuarioAtualizado(atualizado);
+    notifyListeners();
+  }
+
+  Future<void> atualizarQuemPodeEnviarMensagens(String opcao) async {
+    final conta = _contaAtual;
+    if (conta == null) return;
+    final atualizado = conta.copyWith(quemPodeEnviarMensagens: opcao);
     await ContasNousService.salvar(atualizado);
     _contaAtual = atualizado;
     _propagarUsuarioAtualizado(atualizado);
@@ -551,7 +676,7 @@ class AuthProvider extends ChangeNotifier {
     await ContasNousService.salvar(atualizado);
     _contaAtual = atualizado;
 
-    // Atualiza também a conta alvo se existir localmente
+    // Atualiza também a conta alvo se existir localmente e propaga para a rede
     final contaAlvo = await ContasNousService.buscarPorCpf(alvoLimpo);
     if (contaAlvo != null) {
       final meuCpfLimpo = conta.cpf.replaceAll(RegExp(r'\D'), '');
@@ -563,6 +688,7 @@ class AuthProvider extends ChangeNotifier {
       }
       final alvoAtualizado = contaAlvo.copyWith(seguidores: seguidoresAlvo);
       await ContasNousService.salvar(alvoAtualizado);
+      _propagarUsuarioAtualizado(alvoAtualizado);
     }
 
     _propagarUsuarioAtualizado(atualizado);

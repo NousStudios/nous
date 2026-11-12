@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'package:nous/src/core/theme/theme_controller.dart';
+import 'package:nous/src/core/widgets/texto_rolante.dart';
+import 'package:nous/src/features/auth/providers/auth_provider.dart';
 import 'package:nous/src/features/chat/controllers/mensageria_controller.dart';
 import 'package:nous/src/features/chat/models/conversa_chat.dart';
 import 'package:nous/src/features/chat/services/resolvedor_foto_chat.dart';
@@ -58,7 +61,13 @@ class _ListaConversasWidgetState extends State<ListaConversasWidget> {
   @override
   Widget build(BuildContext context) {
     final theme = widget.theme;
-    final filtradas = widget.controller.obterConversasFiltradas();
+    final auth = context.watch<AuthProvider>();
+    final contaLogada = auth.contaAtual;
+    final filtradas =
+        widget.controller.obterConversasFiltradas(contaLogada: contaLogada);
+    final totalSolicitacoes =
+        widget.controller.totalSolicitacoes(contaLogada: contaLogada);
+    final emSolicitacoes = widget.controller.exibindoSolicitacoes;
 
     return Column(
       children: [
@@ -166,6 +175,140 @@ class _ListaConversasWidgetState extends State<ListaConversasWidget> {
           ),
         ),
 
+        // Cabeçalho de Navegação de Solicitações (quando dentro da aba)
+        if (emSolicitacoes)
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            decoration: BoxDecoration(
+              color: theme.cardBackgroundColor.withValues(alpha: 0.8),
+              border: Border(
+                bottom: BorderSide(
+                  color: theme.borderColor.withValues(alpha: 0.4),
+                ),
+              ),
+            ),
+            child: Row(
+              children: [
+                IconButton(
+                  icon: Icon(Icons.arrow_back, size: 20, color: theme.textColor),
+                  onPressed: () =>
+                      widget.controller.alternarExibindoSolicitacoes(false),
+                  tooltip: 'Voltar para todas as conversas',
+                ),
+                const SizedBox(width: 4),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      TextoRolante(
+                        texto: 'Solicitações de Mensagens',
+                        style: theme.getTextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.bold,
+                          color: theme.textColor,
+                        ),
+                      ),
+                      TextoRolante(
+                        texto: 'Pessoas que você não segue',
+                        style: theme.getTextStyle(
+                          fontSize: 11,
+                          color: theme.secondaryTextColor,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          )
+        // Banner estilo Instagram para Acessar Solicitações (sempre disponível no modo pessoal)
+        else if (!widget.controller.modoLoja)
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+            child: InkWell(
+              onTap: () => widget.controller.alternarExibindoSolicitacoes(true),
+              borderRadius: BorderRadius.circular(10),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                decoration: BoxDecoration(
+                  color: theme.cardBackgroundColor,
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(
+                    color: theme.borderColor.withValues(alpha: 0.6),
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(6),
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: theme.textColor.withValues(alpha: 0.1),
+                      ),
+                      child: Icon(
+                        Icons.mark_email_unread_outlined,
+                        size: 16,
+                        color: theme.textColor,
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          TextoRolante(
+                            texto: 'Solicitações de Mensagens',
+                            style: theme.getTextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.bold,
+                              color: theme.textColor,
+                            ),
+                          ),
+                          TextoRolante(
+                            texto: totalSolicitacoes == 0
+                                ? 'Nenhuma solicitação pendente'
+                                : totalSolicitacoes == 1
+                                    ? '1 pessoa quer te enviar mensagem'
+                                    : '$totalSolicitacoes pessoas querem te enviar mensagens',
+                            style: theme.getTextStyle(
+                              fontSize: 11,
+                              color: theme.secondaryTextColor,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    if (totalSolicitacoes > 0)
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 2,
+                        ),
+                        decoration: BoxDecoration(
+                          color: theme.textColor,
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Text(
+                          '$totalSolicitacoes',
+                          style: theme.getTextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.bold,
+                            color: theme.backgroundColor,
+                          ),
+                        ),
+                      ),
+                    const SizedBox(width: 4),
+                    Icon(
+                      Icons.chevron_right,
+                      size: 18,
+                      color: theme.secondaryTextColor,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+
         // Lista de chats
         Expanded(
           child: filtradas.isEmpty
@@ -173,9 +316,11 @@ class _ListaConversasWidgetState extends State<ListaConversasWidget> {
                   child: Padding(
                     padding: const EdgeInsets.all(20),
                     child: Text(
-                      widget.controller.termoBusca.isEmpty
-                          ? 'Nenhuma conversa iniciada.'
-                          : 'Nenhum resultado encontrado.',
+                      emSolicitacoes
+                          ? 'Nenhuma solicitação de mensagem pendente.'
+                          : (widget.controller.termoBusca.isEmpty
+                              ? 'Nenhuma conversa iniciada.'
+                              : 'Nenhum resultado encontrado.'),
                       textAlign: TextAlign.center,
                       style: theme.getTextStyle(
                         fontSize: 13,

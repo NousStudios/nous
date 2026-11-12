@@ -192,16 +192,20 @@ class RoteadorLojaPedidos {
         }
       }
 
+      final lojaParaEnvio = ehCliente ? lojaRetorno.toVisaoPublica() : lojaRetorno;
+
       ServidorRedeLocal.responderJson(request, {
         'sucesso': true,
-        'loja': lojaRetorno.toJson(),
+        'loja': lojaParaEnvio.toJson(),
         'papelConexao': ehCliente ? 'cliente' : 'membro',
         'imagensAusentes': imagensAusentes,
-        'fotosUsuariosAusentes': fotosUsuariosAusentes,
-        'notificacoesDispensadasLoja': NotificacoesProvider.instanciaAtiva
-                ?.obterDispensadasPorLoja(lojaRetorno.id)
-                .toList() ??
-            <String>[],
+        'fotosUsuariosAusentes': ehCliente ? <String>[] : fotosUsuariosAusentes,
+        'notificacoesDispensadasLoja': ehCliente
+            ? <String>[]
+            : (NotificacoesProvider.instanciaAtiva
+                    ?.obterDispensadasPorLoja(lojaRetorno.id)
+                    .toList() ??
+                <String>[]),
       });
       return true;
     }
@@ -212,6 +216,16 @@ class RoteadorLojaPedidos {
         final body = await utf8.decodeStream(request);
         final dados = await decodificarJsonMapaSeguro(body);
         final lojaRemota = Loja.fromJson(dados);
+
+        // Bloqueia tentativas de sobrescrever a Loja Coletiva Nous via API
+        if (lojaRemota.id == PdvProvider.idLojaColetivaNous) {
+          ServidorRedeLocal.responderJson(
+            request,
+            {'sucesso': false, 'mensagem': 'A Loja Coletiva Nous é soberana e não pode ser modificada remotamente.'},
+            statusCode: HttpStatus.forbidden,
+          );
+          return true;
+        }
 
         if (servidor.pdvProvider != null) {
           final lojaAtual = servidor.pdvProvider!.buscarPorId(lojaRemota.id) ??

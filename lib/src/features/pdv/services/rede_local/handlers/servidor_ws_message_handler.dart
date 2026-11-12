@@ -7,6 +7,7 @@ import 'package:nous/src/core/utils/json_isolate_utils.dart';
 import 'package:nous/src/features/auth/models/usuario_nous.dart';
 import 'package:nous/src/features/auth/providers/auth_provider.dart';
 import 'package:nous/src/features/auth/services/contas_nous_service.dart';
+import 'package:nous/src/features/chat/controllers/helpers/mensageria_solicitacoes_helper.dart';
 import 'package:nous/src/features/chat/models/mensagem_chat.dart';
 import 'package:nous/src/features/chat/services/chat_service.dart';
 import 'package:nous/src/features/notificacoes/models/convite_loja.dart';
@@ -45,13 +46,73 @@ class ServidorWsContext {
   });
 
   /// Envia payload serializado para todos os clientes conectados, exceto o emissor original se fornecido.
+  /// Aplica filtragem de privacidade soberana: clientes externos recebem apenas eventos pertinentes
+  /// a eles e visões públicas/cardápios, bloqueando o vazamento de dados internos de gestão.
   void retransmitirParaOutros(String payload, {WebSocket? exceto}) {
-    for (final cliente in List<WebSocket>.from(clientesWs)) {
-      if (cliente != exceto) {
-        try {
-          cliente.add(payload);
-        } catch (_) {}
+    Map<String, dynamic>? dados;
+    try {
+      final dec = jsonDecode(payload);
+      if (dec is Map<String, dynamic>) {
+        dados = dec;
       }
+    } catch (_) {}
+
+    final tipo = dados?['tipo'] as String?;
+
+    for (final cliente in List<WebSocket>.from(clientesWs)) {
+      if (cliente == exceto) continue;
+
+      final terminal = terminaisWs[cliente];
+      final ehCliente = terminal?.tipoConexao == 'cliente';
+
+      if (ehCliente && dados != null) {
+        // Clientes externos não devem receber dados de clientes, estoque interno ou caixa
+        if (tipo == 'cliente_atualizado' ||
+            tipo == 'movimento_estoque' ||
+            tipo == 'caixa_atualizado') {
+          continue;
+        }
+
+        // Se for atualização de loja, cliente recebe apenas a visão pública do cardápio
+        if (tipo == 'loja_atualizada') {
+          try {
+            final lojaMap = dados['loja'] as Map<String, dynamic>?;
+            if (lojaMap != null) {
+              final lojaObj = Loja.fromJson(lojaMap);
+              final payloadSanitizado = jsonEncode({
+                ...dados,
+                'loja': lojaObj.toVisaoPublica().toJson(),
+              });
+              cliente.add(payloadSanitizado);
+              continue;
+            }
+          } catch (_) {}
+        }
+
+        // Se for pedido adicionado ou atualizado, cliente só recebe se o pedido pertencer a ele
+        if (tipo == 'pedido_atualizado' || tipo == 'pedido_adicionado') {
+          try {
+            final pedMap = dados['pedido'] as Map<String, dynamic>?;
+            if (pedMap != null) {
+              final pedCpf = pedMap['cpfCliente']?.toString().replaceAll(RegExp(r'\D'), '');
+              final pedClienteId = pedMap['clienteId']?.toString();
+              final termCpf = terminal?.cpf?.replaceAll(RegExp(r'\D'), '');
+              final termId = terminal?.id;
+
+              final ehMeuPedido = (termCpf != null && termCpf.isNotEmpty && termCpf == pedCpf) ||
+                  (termId != null && termId.isNotEmpty && termId == pedClienteId);
+
+              if (!ehMeuPedido) {
+                continue;
+              }
+            }
+          } catch (_) {}
+        }
+      }
+
+      try {
+        cliente.add(payload);
+      } catch (_) {}
     }
   }
 }
@@ -179,6 +240,22 @@ class ServidorWsMessageHandler {
 
       if (tipo == 'usuario_atualizado') {
         await _processarUsuarioAtualizado(ws, dados, ctx);
+        return;
+      }
+
+      if (tipo == 'usuario_nous_excluido') {
+        await _processarUsuarioNousExcluido(ws, dados, ctx);
+        return;
+      }
+
+      if (tipo == 'solicitacao_aceita') {
+        final conversaId = dados['conversaId'] as String? ?? '';
+        final cpf = dados['cpf'] as String? ?? '';
+        await MensageriaSolicitacoesHelper.processarAceiteRemoto(
+          conversaId: conversaId,
+          meuCpf: cpf,
+        );
+        ctx.retransmitirParaOutros(jsonEncode(dados), exceto: ws);
         return;
       }
 
@@ -380,6 +457,7 @@ class ServidorWsMessageHandler {
         final usuario = UsuarioNous.fromJson(dados['usuario'] as Map<String, dynamic>);
         await ContasNousService.salvar(usuario);
         ctx.authProvider?.atualizarContaNoCache(usuario);
+        await ctx.authProvider?.carregarCacheContas();
         ctx.pdvProvider?.notificarMudanca();
 
         final payload = jsonEncode({
@@ -390,6 +468,34 @@ class ServidorWsMessageHandler {
       } catch (e) {
         debugPrint('[ServidorRedeLocal] Erro ao processar usuario_atualizado via WS: $e');
       }
+    }
+  }
+
+  static Future<void> _processarUsuarioNousExcluido(
+    WebSocket ws,
+    Map<String, dynamic> dados,
+    ServidorWsContext ctx,
+  ) async {
+    final cpf = (dados['cpf'] as String? ?? '').replaceAll(RegExp(r'\D'), '');
+    if (cpf.isEmpty) return;
+    try {
+      await ContasNousService.excluir(cpf);
+      final coletiva = ctx.pdvProvider?.buscarPorId('loja_nous_coletiva');
+      if (coletiva != null) {
+        final membrosAtualizados = coletiva.membros
+            .where((m) => m.cpf.replaceAll(RegExp(r'\D'), '') != cpf)
+            .toList();
+        if (membrosAtualizados.length != coletiva.membros.length) {
+          final atualizada = coletiva.copyWith(membros: membrosAtualizados);
+          await LojasService.salvarLojaIndividual(atualizada);
+          await ctx.pdvProvider?.adicionarOuAtualizarLoja(atualizada);
+        }
+      }
+      await ctx.authProvider?.carregarCacheContas();
+      ctx.pdvProvider?.notificarMudanca();
+      ctx.retransmitirParaOutros(jsonEncode(dados), exceto: ws);
+    } catch (e) {
+      debugPrint('[ServidorRedeLocal] Erro ao processar usuario_nous_excluido: $e');
     }
   }
 

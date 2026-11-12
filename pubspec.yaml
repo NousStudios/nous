@@ -3,7 +3,7 @@ description: "Um novo projeto Flutter."
 
 publish_to: 'none'
 
-version: 1.1.0+102
+version: 1.1.15+117
 
 environment:
   sdk: ^3.11.4
@@ -30,6 +30,7 @@ dependencies:
   image_picker: ^1.1.2
   record: ^7.1.2
   flutter_webrtc: ^1.6.3
+  cryptography: ^2.9.0
 
 dev_dependencies:
   flutter_test:

@@ -82,7 +82,6 @@ class ResolvedorConversaInfoService {
         }
       }
     } else if (ehLoja) {
-      ehConversaComLoja = true;
       // Conversa comercial de Loja com Usuário/Cliente
       final meuCpfNorm = cpfLogado != null
           ? ChatRepositorioSqlite.normalizarCpf(cpfLogado)
@@ -106,6 +105,7 @@ class ResolvedorConversaInfoService {
             (mensagem.remetenteId != cpfUsuario ? mensagem.remetenteFoto : '');
       } else if (cpfUsuario.length == 11) {
         // O usuário logado é o lojista/atendente falando com o CLIENTE: o interlocutor exibido é o CLIENTE!
+        ehConversaComLoja = false;
         identificadorConversa = cpfUsuario;
         final conta = await ContasNousService.buscarPorCpf(cpfUsuario);
         if (conta != null) {

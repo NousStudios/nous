@@ -11,6 +11,7 @@ import 'package:nous/src/features/auth/views/login_view.dart';
 import 'package:nous/src/features/auth/views/widgets/adicionar_email_dialog.dart';
 import 'package:nous/src/features/auth/views/widgets/cadastrar_nome_usuario_dialog.dart';
 import 'package:nous/src/features/auth/views/widgets/ficha_usuario_dialog.dart';
+import 'package:nous/src/features/notificacoes/providers/notificacoes_provider.dart';
 import 'package:nous/src/features/pdv/providers/pdv_provider.dart';
 import 'package:nous/src/features/pdv/services/imagem_service.dart';
 import 'package:nous/src/features/pdv/services/rede_local/cliente_rede_local.dart';
@@ -86,6 +87,9 @@ class _ContasUsuarioViewState extends State<ContasUsuarioView> {
     unawaited(ClienteRedeLocal().verificarAtualizacaoLocal());
     final cpf = auth.cpf;
     await context.read<PdvProvider>().entrarComCpf(cpf);
+    if (context.mounted) {
+      await context.read<NotificacoesProvider>().carregarParaCpf(cpf);
+    }
 
     if (!context.mounted) return;
     Navigator.pushAndRemoveUntil(

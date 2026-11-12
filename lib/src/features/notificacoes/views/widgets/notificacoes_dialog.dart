@@ -304,6 +304,13 @@ class _NotificacoesConteudo extends StatelessWidget {
                                   );
                                 } else {
                                   notificacoes.dispensarTodasNaSessao(ids);
+                                  ChatService
+                                      .marcarMensagensDoUsuarioComoLidas(
+                                    cpfUsuario,
+                                    mensagens
+                                        .map((m) => m.conversaId)
+                                        .toList(),
+                                  );
                                 }
                               },
                             )
@@ -366,6 +373,13 @@ class _NotificacoesConteudo extends StatelessWidget {
                                   );
                                 } else {
                                   notificacoes.dispensarTodasNaSessao(ids);
+                                  ChatService
+                                      .marcarMensagensDoUsuarioComoLidas(
+                                    cpfUsuario,
+                                    mensagens
+                                        .map((m) => m.conversaId)
+                                        .toList(),
+                                  );
                                 }
                               },
                             ),
@@ -427,6 +441,11 @@ class _NotificacoesConteudo extends StatelessWidget {
                                         } else {
                                           notificacoes
                                               .dispensarNaSessao('msg_${msg.id}');
+                                          ChatService
+                                              .marcarMensagensDoUsuarioComoLidas(
+                                            cpfUsuario,
+                                            [msg.conversaId],
+                                          );
                                         }
                                       },
                                       child: CardNotificacaoChat(

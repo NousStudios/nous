@@ -19,6 +19,14 @@ class UsuarioNous {
   final List<String> dadosAutorizadosPorCpf;
   final List<String> seguindo;
   final List<String> seguidores;
+  final String chavePublica;
+  final String chaveTrocaPublica;
+  final String quemPodeEnviarMensagens;
+  final String criadoEm;
+  final String validadoPorCpf;
+  final String validadoPorNome;
+  final String validadoEm;
+  final bool verificado;
 
   const UsuarioNous({
     required this.cpf,
@@ -41,6 +49,14 @@ class UsuarioNous {
     this.dadosAutorizadosPorCpf = const [],
     this.seguindo = const [],
     this.seguidores = const [],
+    this.chavePublica = '',
+    this.chaveTrocaPublica = '',
+    this.quemPodeEnviarMensagens = 'todos',
+    this.criadoEm = '',
+    this.validadoPorCpf = '',
+    this.validadoPorNome = '',
+    this.validadoEm = '',
+    this.verificado = false,
   });
 
   String get nomeExibicao =>
@@ -127,6 +143,24 @@ class UsuarioNous {
     return fallback;
   }
 
+  String get criadoEmFormatado {
+    if (criadoEm.trim().isEmpty) return 'Membro Fundador';
+    final dt = DateTime.tryParse(criadoEm);
+    if (dt == null) return criadoEm;
+    final d = dt.day.toString().padLeft(2, '0');
+    final m = dt.month.toString().padLeft(2, '0');
+    return '$d/$m/${dt.year}';
+  }
+
+  String get validadoEmFormatado {
+    if (validadoEm.trim().isEmpty) return '';
+    final dt = DateTime.tryParse(validadoEm);
+    if (dt == null) return validadoEm;
+    final d = dt.day.toString().padLeft(2, '0');
+    final m = dt.month.toString().padLeft(2, '0');
+    return '$d/$m/${dt.year}';
+  }
+
   bool estaSeguindo(String cpfOuId) {
     final limpo = cpfOuId.replaceAll(RegExp(r'\D'), '');
     return seguindo.any((s) => s.replaceAll(RegExp(r'\D'), '') == limpo);
@@ -152,6 +186,14 @@ class UsuarioNous {
     List<String>? dadosAutorizadosPorCpf,
     List<String>? seguindo,
     List<String>? seguidores,
+    String? chavePublica,
+    String? chaveTrocaPublica,
+    String? quemPodeEnviarMensagens,
+    String? criadoEm,
+    String? validadoPorCpf,
+    String? validadoPorNome,
+    String? validadoEm,
+    bool? verificado,
   }) {
     return UsuarioNous(
       cpf: cpf,
@@ -175,6 +217,15 @@ class UsuarioNous {
           dadosAutorizadosPorCpf ?? this.dadosAutorizadosPorCpf,
       seguindo: seguindo ?? this.seguindo,
       seguidores: seguidores ?? this.seguidores,
+      chavePublica: chavePublica ?? this.chavePublica,
+      chaveTrocaPublica: chaveTrocaPublica ?? this.chaveTrocaPublica,
+      quemPodeEnviarMensagens:
+          quemPodeEnviarMensagens ?? this.quemPodeEnviarMensagens,
+      criadoEm: criadoEm ?? this.criadoEm,
+      validadoPorCpf: validadoPorCpf ?? this.validadoPorCpf,
+      validadoPorNome: validadoPorNome ?? this.validadoPorNome,
+      validadoEm: validadoEm ?? this.validadoEm,
+      verificado: verificado ?? this.verificado,
     );
   }
 
@@ -200,6 +251,14 @@ class UsuarioNous {
       'dadosAutorizadosPorCpf': dadosAutorizadosPorCpf,
       'seguindo': seguindo,
       'seguidores': seguidores,
+      'chavePublica': chavePublica,
+      'chaveTrocaPublica': chaveTrocaPublica,
+      'quemPodeEnviarMensagens': quemPodeEnviarMensagens,
+      'criadoEm': criadoEm,
+      'validadoPorCpf': validadoPorCpf,
+      'validadoPorNome': validadoPorNome,
+      'validadoEm': validadoEm,
+      'verificado': verificado,
     };
   }
 
@@ -237,6 +296,23 @@ class UsuarioNous {
       seguidores: (json['seguidores'] as List<dynamic>? ?? const [])
           .map((item) => item as String)
           .toList(),
+      chavePublica: json['chavePublica'] as String? ?? '',
+      chaveTrocaPublica: json['chaveTrocaPublica'] as String? ??
+          json['chave_troca_publica'] as String? ??
+          '',
+      quemPodeEnviarMensagens:
+          json['quemPodeEnviarMensagens'] as String? ?? 'todos',
+      criadoEm: json['criadoEm'] as String? ?? json['criado_em'] as String? ?? '',
+      validadoPorCpf: json['validadoPorCpf'] as String? ??
+          json['validado_por_cpf'] as String? ??
+          '',
+      validadoPorNome: json['validadoPorNome'] as String? ??
+          json['validado_por_nome'] as String? ??
+          '',
+      validadoEm: json['validadoEm'] as String? ??
+          json['validado_em'] as String? ??
+          '',
+      verificado: json['verificado'] == true || json['verificado'] == 1,
     );
   }
 }

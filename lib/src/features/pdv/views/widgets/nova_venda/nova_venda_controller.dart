@@ -16,14 +16,17 @@ import 'package:nous/src/features/pdv/services/gerador_comprovante_venda.dart';
 import 'package:nous/src/features/pdv/views/dialogs/dialog_editar_acompanhamentos.dart';
 import 'package:nous/src/features/pdv/views/dialogs/dialog_escolher_variante_item.dart';
 import 'package:nous/src/features/pdv/views/dialogs/dialog_seletor_item_categoria.dart';
+import 'package:nous/src/features/pdv/views/widgets/nova_venda/calculadora_nova_venda.dart';
 import 'package:nous/src/features/pdv/views/widgets/nova_venda/finalizador_nova_venda.dart';
+import 'package:nous/src/features/pdv/views/widgets/nova_venda/gerenciador_rascunho_venda.dart';
 import 'package:nous/src/features/pdv/views/widgets/novo_item_dialog.dart';
 
 class NovaVendaController extends ChangeNotifier {
-  static final Map<String, RascunhoVenda> rascunhosPorLoja = {};
+  static Map<String, RascunhoVenda> get rascunhosPorLoja =>
+      GerenciadorRascunhoVenda.rascunhosPorLoja;
 
   static void limparRascunho(String? lojaId) {
-    rascunhosPorLoja.remove(lojaId ?? '');
+    GerenciadorRascunhoVenda.limparRascunho(lojaId);
   }
 
   static const List<String> formasDePagamento = [
@@ -132,94 +135,42 @@ class NovaVendaController extends ChangeNotifier {
     notifyListeners();
   }
 
-  static double precoComoNumero(String texto) {
-    var limpo = texto.replaceAll(RegExp(r'[^0-9,.]'), '');
-    if (limpo.contains(',')) {
-      limpo = limpo.replaceAll('.', '').replaceAll(',', '.');
-    }
-    return double.tryParse(limpo) ?? 0;
-  }
+  static double precoComoNumero(String texto) =>
+      CalculadoraNovaVenda.precoComoNumero(texto);
 
   static String valorComVirgula(double valor) =>
-      valor.toStringAsFixed(2).replaceAll('.', ',');
+      CalculadoraNovaVenda.valorComVirgula(valor);
 
-  static String doisDigitos(int n) => n.toString().padLeft(2, '0');
+  static String doisDigitos(int n) => CalculadoraNovaVenda.doisDigitos(n);
 
   static String dataHoraCompleta(DateTime d) =>
-      '${doisDigitos(d.day)}/${doisDigitos(d.month)}/${d.year} '
-      '${doisDigitos(d.hour)}:${doisDigitos(d.minute)}';
+      CalculadoraNovaVenda.dataHoraCompleta(d);
 
   void _restaurarRascunhoSeHouver() {
-    final chaveLoja = lojaId ?? '';
-    final rascunho = rascunhosPorLoja[chaveLoja];
-    if (rascunho == null) return;
-
-    if (rascunho.clienteId != null) {
-      clienteSelecionado = buscarCliente(rascunho.clienteId!);
-    }
-    clienteController.text = rascunho.clienteNomeDigitado;
-    freteController.text = rascunho.frete;
-    descontoController.text = rascunho.desconto;
-    acrescimoController.text = rascunho.acrescimo;
-
-    for (final item in rascunho.itens) {
-      final linha = LinhaCarrinho(
-        chave: item.chave,
-        itemId: item.itemId,
-        categoriaId: item.categoriaId,
-        varianteNome: item.varianteNome,
-        precoVariante: item.precoVariante,
-        acompanhamentos: Map<String, int>.from(item.acompanhamentos),
-      );
-      linha.quantidade = item.quantidade;
-      linha.observacaoController.text = item.observacao;
-      carrinho.add(linha);
-    }
-
-    for (final pag in rascunho.pagamentos) {
-      pagamentos.add(LinhaPagamento(
-        forma: pag.forma,
-        valorInicial: pag.valor,
-      ));
-    }
+    GerenciadorRascunhoVenda.restaurarRascunho(
+      lojaId: lojaId,
+      buscarCliente: buscarCliente,
+      clienteController: clienteController,
+      freteController: freteController,
+      descontoController: descontoController,
+      acrescimoController: acrescimoController,
+      carrinho: carrinho,
+      pagamentos: pagamentos,
+      onClienteRestaurado: (c) => clienteSelecionado = c,
+    );
   }
 
   void salvarRascunhoAtual() {
-    final temDados = carrinho.isNotEmpty ||
-        pagamentos.isNotEmpty ||
-        clienteSelecionado != null ||
-        clienteController.text.trim().isNotEmpty ||
-        freteController.text.trim().isNotEmpty ||
-        descontoController.text.trim().isNotEmpty ||
-        acrescimoController.text.trim().isNotEmpty;
-
-    final chaveLoja = lojaId ?? '';
-    if (temDados) {
-      rascunhosPorLoja[chaveLoja] = RascunhoVenda(
-        itens: carrinho.map((linha) {
-          return ItemRascunho(
-            chave: linha.chave,
-            itemId: linha.itemId,
-            categoriaId: linha.categoriaId,
-            varianteNome: linha.varianteNome,
-            precoVariante: linha.precoVariante,
-            quantidade: linha.quantidade,
-            acompanhamentos: Map<String, int>.from(linha.acompanhamentosPorItemId),
-            observacao: linha.observacaoController.text,
-          );
-        }).toList(),
-        pagamentos: pagamentos.map((p) {
-          return (forma: p.forma, valor: p.controller.text);
-        }).toList(),
-        clienteId: clienteSelecionado?.id,
-        clienteNomeDigitado: clienteController.text,
-        frete: freteController.text,
-        desconto: descontoController.text,
-        acrescimo: acrescimoController.text,
-      );
-    } else {
-      rascunhosPorLoja.remove(chaveLoja);
-    }
+    GerenciadorRascunhoVenda.salvarRascunho(
+      lojaId: lojaId,
+      carrinho: carrinho,
+      pagamentos: pagamentos,
+      clienteSelecionado: clienteSelecionado,
+      clienteController: clienteController,
+      freteController: freteController,
+      descontoController: descontoController,
+      acrescimoController: acrescimoController,
+    );
   }
 
   void limparTudo() {
@@ -244,43 +195,20 @@ class NovaVendaController extends ChangeNotifier {
     notifyListeners();
   }
 
-  ItemLoja? buscarItem(String id) {
-    for (final item in itensDisponiveis) {
-      if (item.id == id) return item;
-    }
-    return null;
-  }
+  ItemLoja? buscarItem(String id) =>
+      itensDisponiveis.where((i) => i.id == id).firstOrNull;
 
-  double saldoDoItem(String itemId) {
-    var saldo = 0.0;
-    for (final m in movimentosEstoque) {
-      if (m.itemId == itemId) {
-        saldo += m.quantidadeComSinal;
-      }
-    }
-    return saldo;
-  }
+  double saldoDoItem(String itemId) =>
+      movimentosEstoque.where((m) => m.itemId == itemId).fold(0.0, (s, m) => s + m.quantidadeComSinal);
 
-  CategoriaLoja? buscarCategoria(String id) {
-    for (final categoria in categoriasDisponiveis) {
-      if (categoria.id == id) return categoria;
-    }
-    return null;
-  }
+  CategoriaLoja? buscarCategoria(String id) =>
+      categoriasDisponiveis.where((c) => c.id == id).firstOrNull;
 
-  GrupoComponentesLoja? buscarGrupo(String id) {
-    for (final grupo in gruposDisponiveis) {
-      if (grupo.id == id) return grupo;
-    }
-    return null;
-  }
+  GrupoComponentesLoja? buscarGrupo(String id) =>
+      gruposDisponiveis.where((g) => g.id == id).firstOrNull;
 
-  Cliente? buscarCliente(String id) {
-    for (final cliente in obterClientes()) {
-      if (cliente.id == id) return cliente;
-    }
-    return null;
-  }
+  Cliente? buscarCliente(String id) =>
+      obterClientes().where((c) => c.id == id).firstOrNull;
 
   String montarChave({
     required String itemId,
@@ -308,39 +236,41 @@ class NovaVendaController extends ChangeNotifier {
   }
 
   double precoDosAcompanhamentosPorUnidade(LinhaCarrinho linha) {
-    var soma = 0.0;
-    linha.acompanhamentosPorItemId.forEach((itemId, quantidade) {
-      final item = buscarItem(itemId);
-      if (item == null) return;
-      soma += precoComoNumero(item.preco) * quantidade;
-    });
-    return soma;
+    return CalculadoraNovaVenda.precoDosAcompanhamentosPorUnidade(
+      linha: linha,
+      buscarItem: buscarItem,
+    );
   }
 
   double precoBaseUnitarioDaLinha(LinhaCarrinho linha) {
-    final item = buscarItem(linha.itemId);
-    if (item == null) return 0;
-    final precoItem = linha.precoVariante.trim().isNotEmpty
-        ? precoComoNumero(linha.precoVariante)
-        : precoComoNumero(item.preco);
-    var soma = precoItem;
-    if (linha.categoriaId != null) {
-      final categoria = buscarCategoria(linha.categoriaId!);
-      if (categoria != null) soma += precoComoNumero(categoria.preco);
-    }
-    return soma;
+    return CalculadoraNovaVenda.precoBaseUnitarioDaLinha(
+      linha: linha,
+      buscarItem: buscarItem,
+      buscarCategoria: buscarCategoria,
+    );
   }
 
   double precoUnitarioDaLinha(LinhaCarrinho linha) {
-    return precoBaseUnitarioDaLinha(linha) +
-        precoDosAcompanhamentosPorUnidade(linha);
+    return CalculadoraNovaVenda.precoUnitarioDaLinha(
+      linha: linha,
+      buscarItem: buscarItem,
+      buscarCategoria: buscarCategoria,
+    );
   }
 
   double subtotalBaseDaLinha(LinhaCarrinho linha) =>
-      precoBaseUnitarioDaLinha(linha) * linha.quantidade;
+      CalculadoraNovaVenda.subtotalBaseDaLinha(
+        linha: linha,
+        buscarItem: buscarItem,
+        buscarCategoria: buscarCategoria,
+      );
 
   double subtotalDaLinha(LinhaCarrinho linha) =>
-      precoUnitarioDaLinha(linha) * linha.quantidade;
+      CalculadoraNovaVenda.subtotalDaLinha(
+        linha: linha,
+        buscarItem: buscarItem,
+        buscarCategoria: buscarCategoria,
+      );
 
   double get subtotalDosItens {
     var soma = 0.0;
@@ -351,15 +281,10 @@ class NovaVendaController extends ChangeNotifier {
   }
 
   double _calcularValorOuPorcentagem(String texto) {
-    final t = texto.trim();
-    if (t.isEmpty) return 0.0;
-    if (t.contains('%')) {
-      final limpo = t.replaceAll('%', '').trim();
-      final percentual = precoComoNumero(limpo);
-      if (percentual <= 0) return 0.0;
-      return subtotalDosItens * (percentual / 100.0);
-    }
-    return precoComoNumero(t);
+    return CalculadoraNovaVenda.calcularValorOuPorcentagem(
+      texto,
+      subtotalDosItens,
+    );
   }
 
   double get frete => precoComoNumero(freteController.text);
@@ -835,64 +760,17 @@ class NovaVendaController extends ChangeNotifier {
     );
   }
 
-  String resumoAcompanhamentos(LinhaCarrinho linha) {
-    final partes = <String>[];
-    linha.acompanhamentosPorItemId.forEach((itemId, quantidade) {
-      final item = buscarItem(itemId);
-      if (item == null || quantidade <= 0) return;
-      final valor = precoComoNumero(item.preco) * quantidade * linha.quantidade;
-      partes.add('${quantidade}x ${item.nome} R\$ ${valorComVirgula(valor)}');
-    });
-    return partes.join(', ');
-  }
+  String resumoAcompanhamentos(LinhaCarrinho linha) =>
+      CalculadoraNovaVenda.resumoAcompanhamentos(linha: linha, buscarItem: buscarItem);
 
-  double dividaDoCliente(Cliente cliente) {
-    final pedidos = obterPedidos?.call() ?? const <PedidoLoja>[];
-    if (pedidos.isEmpty) return 0.0;
-    var soma = 0.0;
-    final nomeAlvo = cliente.nome.trim().toLowerCase();
-    for (final p in pedidos) {
-      final ehDesteCliente = p.clienteId == cliente.id ||
-          (nomeAlvo.isNotEmpty &&
-              p.clienteNome.trim().toLowerCase() == nomeAlvo);
-      if (ehDesteCliente && p.aPrazoEmAberto) {
-        soma += p.valorRestante;
-      }
-    }
-    return soma;
-  }
+  double dividaDoCliente(Cliente cliente) =>
+      CalculadoraNovaVenda.dividaDoCliente(
+        cliente: cliente,
+        pedidos: obterPedidos?.call() ?? const <PedidoLoja>[],
+      );
 
-  String obterDadoPrioritarioCliente(Cliente cliente) {
-    final end = cliente.endereco.trim();
-    final num = cliente.numero.trim();
-    final tel = cliente.telefone.trim();
-
-    final enderecoCompleto = end.isNotEmpty
-        ? (num.isNotEmpty ? '$end, $num' : end)
-        : (num.isNotEmpty ? 'nº $num' : '');
-
-    final partes = <String>[
-      if (enderecoCompleto.isNotEmpty) enderecoCompleto,
-      if (tel.isNotEmpty) tel,
-    ];
-    if (partes.isNotEmpty) {
-      return partes.join(' • ');
-    }
-
-    if (cliente.descricao.trim().isNotEmpty) {
-      return cliente.descricao.trim();
-    }
-    if (cliente.email.trim().isNotEmpty) {
-      return cliente.email.trim();
-    }
-    if (cliente.redesSociais.trim().isNotEmpty) {
-      return cliente.redesSociais.trim();
-    }
-    if (cliente.cnpj.trim().isNotEmpty) {
-      return cliente.cnpj.trim();
-    }
-    return '';
-  }
+  String obterDadoPrioritarioCliente(Cliente cliente) =>
+      CalculadoraNovaVenda.obterDadoPrioritarioCliente(cliente);
 
   @override
   void dispose() {

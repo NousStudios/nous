@@ -16,6 +16,7 @@ import 'package:nous/src/features/auth/services/cpf_validator.dart';
 import 'package:nous/src/features/auth/views/widgets/ficha_usuario/bloco_dados_pessoais_usuario.dart';
 import 'package:nous/src/features/auth/views/widgets/ficha_usuario/bloco_emails_usuario.dart';
 import 'package:nous/src/features/auth/views/widgets/ficha_usuario/bloco_lojas_usuario.dart';
+import 'package:nous/src/features/auth/views/widgets/ficha_usuario/bloco_registro_conta_usuario.dart';
 import 'package:nous/src/features/pdv/views/widgets/opcoes_imagem_dialog.dart';
 
 class FichaUsuarioDialog {
@@ -233,12 +234,12 @@ class _FichaUsuarioConteudoState extends State<_FichaUsuarioConteudo> {
 
     if (confirmar == true && mounted) {
       final solicitacao = ConviteLoja(
-        id: 'solic_${DateTime.now().millisecondsSinceEpoch}_${usuarioLogado.cpf}',
-        cpfConvidante: usuarioLogado.cpf,
+        id: 'solic_${DateTime.now().millisecondsSinceEpoch}_${CpfValidator.onlyDigits(usuarioLogado.cpf)}',
+        cpfConvidante: CpfValidator.onlyDigits(usuarioLogado.cpf),
         nomeConvidante: usuarioLogado.nome.isNotEmpty
             ? usuarioLogado.nome
             : usuarioLogado.usernameExibicao,
-        cpfConvidado: _usuario.cpf,
+        cpfConvidado: CpfValidator.onlyDigits(_usuario.cpf),
         lojaId: '',
         nomeLoja: 'Conta Pessoal',
         papel: PapelMembro.funcionario,
@@ -311,10 +312,12 @@ class _FichaUsuarioConteudoState extends State<_FichaUsuarioConteudo> {
     final ehProprioUsuario = (widget.somenteLeitura == false) ||
         (widget.somenteLeitura == null &&
             auth.contaAtual != null &&
-            auth.contaAtual!.cpf.replaceAll(RegExp(r'\D'), '') ==
-                _usuario.cpf.replaceAll(RegExp(r'\D'), ''));
-    final contaAtualizada =
-        ehProprioUsuario ? (auth.contaAtual ?? _usuario) : _usuario;
+            CpfValidator.onlyDigits(auth.contaAtual!.cpf) ==
+                CpfValidator.onlyDigits(_usuario.cpf));
+    final contaDoCache = auth.buscarContaPorCpf(_usuario.cpf);
+    final contaAtualizada = ehProprioUsuario
+        ? (auth.contaAtual ?? _usuario)
+        : (contaDoCache ?? _usuario);
     final fotoResolvida =
         ImagemService.resolverCaminhoExistente(contaAtualizada.foto);
     final temFoto = fotoResolvida != null;
@@ -547,8 +550,8 @@ class _FichaUsuarioConteudoState extends State<_FichaUsuarioConteudo> {
           else
             Builder(
               builder: (context) {
-                final estaPrivado = _usuario.dadoEstaPrivado('nome');
-                final autorizado = _usuario.dadoAutorizadoPara('nome', auth.contaAtual?.cpf ?? '');
+                final estaPrivado = contaAtualizada.dadoEstaPrivado('nome');
+                final autorizado = contaAtualizada.dadoAutorizadoPara('nome', auth.contaAtual?.cpf ?? '');
                 final nomeTexto = estaPrivado && !autorizado
                     ? (contaAtualizada.apelido.isNotEmpty ? contaAtualizada.apelido : '••••••••')
                     : (contaAtualizada.nome.isEmpty ? 'Nome do Usuário' : contaAtualizada.nome);
@@ -585,24 +588,40 @@ class _FichaUsuarioConteudoState extends State<_FichaUsuarioConteudo> {
               },
             ),
           const SizedBox(height: 6),
-          // Nome de Usuário Nous (imutável, com a mesma identidade visual do CPF)
-          Text(
-            contaAtualizada.usernameExibicao.isNotEmpty
-                ? contaAtualizada.usernameExibicao
-                : '@usuario',
-            textAlign: TextAlign.center,
-            style: theme.getTextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.w600,
-              color: theme.secondaryTextColor,
-            ),
+          // Nome de Usuário Nous com Selo de Verificado
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Text(
+                contaAtualizada.usernameExibicao.isNotEmpty
+                    ? contaAtualizada.usernameExibicao
+                    : '@usuario',
+                textAlign: TextAlign.center,
+                style: theme.getTextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: theme.secondaryTextColor,
+                ),
+              ),
+              if (contaAtualizada.verificado || contaAtualizada.validadoPorCpf.isNotEmpty) ...[
+                const SizedBox(width: 4),
+                const Tooltip(
+                  message: 'Conta Verificada pela Comunidade Nous',
+                  child: Icon(
+                    Icons.verified,
+                    size: 15,
+                    color: Color(0xFF34B7F1),
+                  ),
+                ),
+              ],
+            ],
           ),
           const SizedBox(height: 2),
           _borrarSeNecessario(
             Builder(
               builder: (context) {
                 final cpfVisualizador = auth.contaAtual?.cpf ?? '';
-                final estaPrivado = _usuario.dadoEstaPrivado('cpf');
+                final estaPrivado = contaAtualizada.dadoEstaPrivado('cpf');
 
                 bool censurado = false;
                 bool olhoAberto = false;
@@ -615,7 +634,7 @@ class _FichaUsuarioConteudoState extends State<_FichaUsuarioConteudo> {
                   olhoAberto = revelado;
                   aoClicarOlho = () => auth.alternarRevelacaoParaDono('cpf');
                 } else if (estaPrivado) {
-                  final autorizado = _usuario.dadoAutorizadoPara('cpf', cpfVisualizador);
+                  final autorizado = contaAtualizada.dadoAutorizadoPara('cpf', cpfVisualizador);
                   if (!autorizado) {
                     censurado = true;
                     olhoAberto = false;
@@ -719,6 +738,15 @@ class _FichaUsuarioConteudoState extends State<_FichaUsuarioConteudo> {
             cpfUsuario: contaAtualizada.cpf,
             lojasAdmin: lojasAdmin,
             lojasParticipa: lojasParticipa,
+            decoracao: _decoracaoDoBloco,
+          ),
+
+          const SizedBox(height: 12),
+
+          // Bloco Registro Soberano & Validação de Identidade
+          BlocoRegistroContaUsuario(
+            theme: theme,
+            usuario: contaAtualizada,
             decoracao: _decoracaoDoBloco,
           ),
 

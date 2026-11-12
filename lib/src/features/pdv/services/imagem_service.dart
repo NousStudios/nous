@@ -445,10 +445,10 @@ class ImagemService {
         await pasta.create(recursive: true);
       }
 
-      final nomeFinal = nomeSugerido != null && nomeSugerido.trim().isNotEmpty
-          ? nomeSugerido.trim()
+      final nomeBase = nomeSugerido != null && nomeSugerido.trim().isNotEmpty
+          ? p.basename(nomeSugerido.trim())
           : '${gerarIdUnico()}_anexo';
-      final destino = File('${pasta.path}/$nomeFinal');
+      final destino = File('${pasta.path}/$nomeBase');
 
       await destino.writeAsBytes(bytes);
       return destino.path;

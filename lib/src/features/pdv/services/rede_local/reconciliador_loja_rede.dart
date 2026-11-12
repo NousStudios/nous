@@ -3,37 +3,30 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
-import 'package:nous/src/features/pdv/models/cargo_loja.dart';
 import 'package:nous/src/features/pdv/models/categoria_loja.dart';
 import 'package:nous/src/features/pdv/models/cliente.dart';
 import 'package:nous/src/features/pdv/models/fornecedor.dart';
-import 'package:nous/src/features/pdv/models/gasto_diario.dart';
-import 'package:nous/src/features/pdv/models/gasto_fixo.dart';
-import 'package:nous/src/features/pdv/models/contrato_trabalho_membro.dart';
-import 'package:nous/src/features/pdv/models/registro_ponto_membro.dart';
-import 'package:nous/src/features/pdv/models/escala_trabalho_membro.dart';
 import 'package:nous/src/features/pdv/models/item_loja.dart';
 import 'package:nous/src/features/pdv/models/loja.dart';
-import 'package:nous/src/features/pdv/models/mesa_loja.dart';
-import 'package:nous/src/features/pdv/models/movimento_estoque.dart';
-import 'package:nous/src/features/pdv/models/pagamento_funcionario.dart';
-import 'package:nous/src/features/pdv/models/pedido_loja.dart';
-import 'package:nous/src/features/pdv/models/pedido_programado.dart';
-import 'package:nous/src/features/pdv/models/registro_acao.dart';
-import 'package:nous/src/features/pdv/models/turno_caixa.dart';
 import 'package:nous/src/features/pdv/providers/pdv_provider.dart';
 import 'package:nous/src/features/pdv/services/imagem_service.dart';
-import 'package:nous/src/features/pdv/services/loja/consolidador_loja_local.dart';
 import 'package:nous/src/features/pdv/services/lojas_service.dart';
+import 'package:nous/src/features/pdv/services/rede_local/helpers/resolvedor_url_rede.dart';
+import 'package:nous/src/features/pdv/services/rede_local/mesclador_entidades_rede.dart';
+import 'package:nous/src/features/pdv/services/rede_local/sincronizador_midias_rede.dart';
 import 'package:nous/src/features/pdv/services/rede_local/transferencia_arquivos_rede.dart';
 
 /// Especialista em reconciliação mútua, mesclagem e sincronização de dados e mídias
 /// de lojas entre o cliente de rede local e o servidor balcão.
 class ReconciliadorLojaRede {
   final TransferenciaArquivosRede _transferencia;
+  final SincronizadorMidiasRede _sincronizadorMidias;
 
   ReconciliadorLojaRede({TransferenciaArquivosRede? transferencia})
-      : _transferencia = transferencia ?? TransferenciaArquivosRede();
+      : _transferencia = transferencia ?? TransferenciaArquivosRede(),
+        _sincronizadorMidias = SincronizadorMidiasRede(
+          transferencia: transferencia ?? TransferenciaArquivosRede(),
+        );
 
   /// Envia a loja curada via HTTP POST para a API do servidor balcão
   Future<bool> enviarLojaCuradaParaServidor({
@@ -46,7 +39,11 @@ class ReconciliadorLojaRede {
       final client =
           HttpClient()..connectionTimeout = const Duration(seconds: 15);
       final request = await client.postUrl(
-        Uri.parse('http://$ipServidor:$portaServidor/api/loja/atualizar'),
+        ResolvedorUrlRede.montarUriHttp(
+          hostOuIp: ipServidor,
+          porta: portaServidor,
+          caminho: '/api/loja/atualizar',
+        ),
       );
       request.headers.contentType = ContentType.json;
       request.write(jsonEncode(lojaCurada.toJson()));
@@ -493,258 +490,15 @@ class ReconciliadorLojaRede {
     lojaParaServidor =
         lojaParaServidor.copyWith(fornecedoresLoja: novosFornecedoresServidor);
 
-    // F. Mesas com mesclagem aditiva granular de itens de comanda (blindagem contra concorrência)
-    final mapaMesas = <String, MesaLoja>{
-      for (final m in lojaParaServidor.mesas) m.id: m,
-    };
-    for (final mLocal in lojaLocal.mesas) {
-      final mExistente = mapaMesas[mLocal.id];
-      if (mExistente == null) {
-        mapaMesas[mLocal.id] = mLocal;
-        houveCuraNoServidor = true;
-      } else if (mExistente.status == StatusMesa.ocupada &&
-          mLocal.status == StatusMesa.ocupada) {
-        // Ambas as pontas estão ocupadas na mesma sessão: mesclar itens de comanda por ID do item,
-        // sem ressuscitar mesas já liberadas/fechadas no balcão.
-        final aberturaMinima = mExistente.dataHoraAbertura
-            ?.subtract(const Duration(seconds: 5));
-        final mapaItens = <String, ItemComandaMesa>{
-          for (final it in mExistente.itens) it.id: it,
-        };
-        var itensAdicionados = false;
-        for (final itLocal in mLocal.itens) {
-          if (aberturaMinima != null &&
-              itLocal.dataHora.isBefore(aberturaMinima)) {
-            continue;
-          }
-          if (!mapaItens.containsKey(itLocal.id)) {
-            mapaItens[itLocal.id] = itLocal;
-            itensAdicionados = true;
-          }
-        }
-        if (itensAdicionados) {
-          final todosItens = mapaItens.values.toList()
-            ..sort((a, b) => a.dataHora.compareTo(b.dataHora));
-          final clienteEfetivo = mExistente.clienteNome.isNotEmpty
-              ? mExistente.clienteNome
-              : mLocal.clienteNome;
-          final obsEfetiva = mExistente.observacoes.isNotEmpty
-              ? mExistente.observacoes
-              : mLocal.observacoes;
-
-          mapaMesas[mLocal.id] = mExistente.copyWith(
-            itens: todosItens,
-            status: StatusMesa.ocupada,
-            clienteNome: clienteEfetivo,
-            observacoes: obsEfetiva,
-          );
-          houveCuraNoServidor = true;
-        }
-      }
-    }
-    lojaParaServidor = lojaParaServidor.copyWith(mesas: mapaMesas.values.toList());
-
-    // G. Histórico de Auditoria (Ações) - Com janela de retenção de 2.000 itens para evitar OOM
-    final acoesMescladas = List<RegistroAcao>.from(lojaParaServidor.acoes);
-    final idsAcoes = acoesMescladas.map((a) => a.id).toSet();
-    for (final aLocal in lojaLocal.acoes) {
-      if (idsAcoes.add(aLocal.id)) {
-        acoesMescladas.add(aLocal);
-        houveCuraNoServidor = true;
-      }
-    }
-    acoesMescladas.sort((a, b) => b.dataHora.compareTo(a.dataHora));
-    final acoesLimitadas = acoesMescladas.length > 2000
-        ? acoesMescladas.sublist(0, 2000)
-        : acoesMescladas;
-    lojaParaServidor = lojaParaServidor.copyWith(acoes: acoesLimitadas);
-
-    // H. Pedidos, Movimentos de Estoque e Pagamentos - Indexação O(1)
-    final agora = DateTime.now();
-    bool mesmoDia(DateTime? a, DateTime b) {
-      if (a == null) return false;
-      return a.year == b.year && a.month == b.month && a.day == b.day;
-    }
-
-    final mapaPedidos = <String, PedidoLoja>{
-      for (final p in lojaParaServidor.pedidosLoja) p.id: p,
-    };
-    for (final pLocal in lojaLocal.pedidosLoja) {
-      if (!mapaPedidos.containsKey(pLocal.id)) {
-        // Soberania do Balcão: pedidos locais que o balcão não possui só são enviados
-        // se foram emitidos no dia de hoje e não forem pedidos com status 'novo'
-        // (o balcão/servidor é soberano sobre a fila de novos pedidos, evitando ressuscitar pedidos cancelados).
-        final ehDeHoje = mesmoDia(pLocal.dataHora, agora);
-        final ehNovo = pLocal.status == StatusPedido.novo;
-        if (!ehNovo && ehDeHoje) {
-          mapaPedidos[pLocal.id] = pLocal;
-          houveCuraNoServidor = true;
-        }
-      } else {
-        final existente = mapaPedidos[pLocal.id]!;
-        final mesclado =
-            ConsolidadorLojaLocal.mesclarDoisPedidos(existente, pLocal);
-        if (mesclado != existente) {
-          mapaPedidos[pLocal.id] = mesclado;
-          if (mesclado.status != existente.status ||
-              mesclado.quitado != existente.quitado ||
-              mesclado.valorPago != existente.valorPago) {
-            houveCuraNoServidor = true;
-          }
-        }
-      }
-    }
-    final pedidosMesclados = mapaPedidos.values.toList()
-      ..sort((a, b) => b.dataHora.compareTo(a.dataHora));
-
-    final movimentosMesclados =
-        List<MovimentoEstoque>.from(lojaParaServidor.movimentosEstoque);
-    final idsMovimentos = movimentosMesclados.map((m) => m.id).toSet();
-    for (final mLocal in lojaLocal.movimentosEstoque) {
-      if (idsMovimentos.add(mLocal.id)) {
-        movimentosMesclados.add(mLocal);
-        houveCuraNoServidor = true;
-      }
-    }
-    movimentosMesclados.sort((a, b) => b.dataHora.compareTo(a.dataHora));
-    final movimentosLimitados = movimentosMesclados.length > 2000
-        ? movimentosMesclados.sublist(0, 2000)
-        : movimentosMesclados;
-
-    final pagamentosMesclados = List<PagamentoFuncionario>.from(
-      lojaParaServidor.pagamentosFuncionarios,
+    // F-P. Reconciliação e Mesclagem de Entidades de Negócio (Mesas, Auditoria, Pedidos, Turnos, Ponto, etc.)
+    final resultadoEntidades = MescladorEntidadesRede.mesclarEntidades(
+      lojaBase: lojaParaServidor,
+      lojaLocal: lojaLocal,
     );
-    final idsPagamentos = pagamentosMesclados.map((pg) => pg.id).toSet();
-    for (final pgLocal in lojaLocal.pagamentosFuncionarios) {
-      if (idsPagamentos.add(pgLocal.id)) {
-        pagamentosMesclados.add(pgLocal);
-        houveCuraNoServidor = true;
-      }
+    lojaParaServidor = resultadoEntidades.loja;
+    if (resultadoEntidades.houveCuraNoServidor) {
+      houveCuraNoServidor = true;
     }
-    pagamentosMesclados.sort((a, b) => b.dataHora.compareTo(a.dataHora));
-    final pagamentosLimitados = pagamentosMesclados.length > 1000
-        ? pagamentosMesclados.sublist(0, 1000)
-        : pagamentosMesclados;
-
-    // I. Turnos de Caixa (Finanças e Fechamento) - Map O(1) com união de movimentações
-    final mapaTurnos = <String, TurnoCaixa>{
-      for (final t in lojaParaServidor.turnosCaixa) t.id: t,
-    };
-    for (final tLocal in lojaLocal.turnosCaixa) {
-      final tExistente = mapaTurnos[tLocal.id];
-      if (tExistente == null) {
-        mapaTurnos[tLocal.id] = tLocal;
-        houveCuraNoServidor = true;
-      } else {
-        final mesclado =
-            ConsolidadorLojaLocal.mesclarDoisTurnosCaixa(tExistente, tLocal);
-        if (mesclado.aberto != tExistente.aberto ||
-            mesclado.movimentacoes.length != tExistente.movimentacoes.length) {
-          mapaTurnos[tLocal.id] = mesclado;
-          houveCuraNoServidor = true;
-        }
-      }
-    }
-    final turnosMesclados = mapaTurnos.values.toList()
-      ..sort((a, b) => b.dataAbertura.compareTo(a.dataAbertura));
-
-    // J. Pedidos Programados - O servidor balcão é soberano na lista ativa (evita ressuscitar excluídos),
-    // preservando apenas ultimaDataGerado mais recente caso tenha sido gerado antes.
-    final mapaProgramadosLocal = <String, PedidoProgramado>{
-      for (final pp in lojaLocal.pedidosProgramados) pp.id: pp,
-    };
-    final programadosMesclados =
-        lojaParaServidor.pedidosProgramados.map((ppRemoto) {
-      final ppLocal = mapaProgramadosLocal[ppRemoto.id];
-      if (ppLocal != null && ppLocal.ultimaDataGerado != null) {
-        if (ppRemoto.ultimaDataGerado == null ||
-            ppLocal.ultimaDataGerado!.isAfter(ppRemoto.ultimaDataGerado!)) {
-          houveCuraNoServidor = true;
-          return ppRemoto.copyWith(ultimaDataGerado: ppLocal.ultimaDataGerado);
-        }
-      }
-      return ppRemoto;
-    }).toList();
-
-    // K. Cargos Personalizados - Set O(1)
-    final cargosMesclados =
-        List<CargoLoja>.from(lojaParaServidor.cargosPersonalizados);
-    final idsCargos = cargosMesclados.map((c) => c.id).toSet();
-    for (final cLocal in lojaLocal.cargosPersonalizados) {
-      if (idsCargos.add(cLocal.id)) {
-        cargosMesclados.add(cLocal);
-        houveCuraNoServidor = true;
-      }
-    }
-
-    // L. Gastos Diários Operacionais - Set O(1)
-    final gastosMesclados =
-        List<GastoDiario>.from(lojaParaServidor.gastosDiarios);
-    final idsGastos = gastosMesclados.map((g) => g.id).toSet();
-    for (final gLocal in lojaLocal.gastosDiarios) {
-      if (idsGastos.add(gLocal.id)) {
-        gastosMesclados.add(gLocal);
-        houveCuraNoServidor = true;
-      }
-    }
-
-    // M. Gastos Fixos Recorrentes
-    final gastosFixosMesclados =
-        List<GastoFixo>.from(lojaParaServidor.gastosFixos);
-    final idsGastosFixos = gastosFixosMesclados.map((g) => g.id).toSet();
-    for (final gLocal in lojaLocal.gastosFixos) {
-      if (idsGastosFixos.add(gLocal.id)) {
-        gastosFixosMesclados.add(gLocal);
-        houveCuraNoServidor = true;
-      }
-    }
-
-    // N. Contratos de Trabalho
-    final contratosMesclados =
-        List<ContratoTrabalhoMembro>.from(lojaParaServidor.contratosTrabalho);
-    final cpfsContratos = contratosMesclados.map((c) => c.cpf).toSet();
-    for (final cLocal in lojaLocal.contratosTrabalho) {
-      if (cpfsContratos.add(cLocal.cpf)) {
-        contratosMesclados.add(cLocal);
-        houveCuraNoServidor = true;
-      }
-    }
-
-    // O. Registros de Ponto
-    final pontosMesclados =
-        List<RegistroPontoMembro>.from(lojaParaServidor.registrosPonto);
-    final idsPontos = pontosMesclados.map((p) => p.id).toSet();
-    for (final pLocal in lojaLocal.registrosPonto) {
-      if (idsPontos.add(pLocal.id)) {
-        pontosMesclados.add(pLocal);
-        houveCuraNoServidor = true;
-      }
-    }
-
-    // P. Escalas de Trabalho
-    final escalasMescladas =
-        List<EscalaTrabalhoMembro>.from(lojaParaServidor.escalasTrabalho);
-    final cpfsEscalas = escalasMescladas.map((e) => e.cpf).toSet();
-    for (final eLocal in lojaLocal.escalasTrabalho) {
-      if (cpfsEscalas.add(eLocal.cpf)) {
-        escalasMescladas.add(eLocal);
-        houveCuraNoServidor = true;
-      }
-    }
-
-    lojaParaServidor = lojaParaServidor.copyWith(
-      pedidosLoja: pedidosMesclados,
-      movimentosEstoque: movimentosLimitados,
-      pagamentosFuncionarios: pagamentosLimitados,
-      turnosCaixa: turnosMesclados,
-      pedidosProgramados: programadosMesclados,
-      cargosPersonalizados: cargosMesclados,
-      gastosDiarios: gastosMesclados,
-      gastosFixos: gastosFixosMesclados,
-      contratosTrabalho: contratosMesclados,
-      registrosPonto: pontosMesclados,
-      escalasTrabalho: escalasMescladas,
-    );
 
     // Se houve alguma cura ou restauração necessária no servidor, envia o estado curado ao balcão
     if (houveCuraNoServidor) {
@@ -777,249 +531,13 @@ class ReconciliadorLojaRede {
     PdvProvider? pdvProvider,
     Loja? lojaSincronizada,
   }) async {
-    if (ipServidor == null || portaServidor == null) return lojaRemota;
-
-    try {
-      final dirBase = await ImagemService.obterDiretorioBase();
-      final pastaImagens = Directory('${dirBase.path}/imagens');
-      if (!await pastaImagens.exists()) {
-        await pastaImagens.create(recursive: true);
-      }
-
-      final clienteHttp =
-          HttpClient()..connectionTimeout = const Duration(seconds: 4);
-      final Map<String, String> mapaCaminhos = {};
-
-      Future<String> resolverCaminhoImagem(
-        String? caminhoRemoto, {
-        String? itemId,
-        String? categoriaId,
-        String? cpf,
-      }) async {
-        if (caminhoRemoto == null || caminhoRemoto.trim().isEmpty) return '';
-        final caminhoLimpo = caminhoRemoto.trim();
-        if (ImagemService.ehAsset(caminhoLimpo)) return caminhoLimpo;
-
-        if (File(caminhoLimpo).existsSync()) {
-          return caminhoLimpo;
-        }
-
-        if (_transferencia.mapaUploadsRealizados.containsKey(caminhoLimpo)) {
-          final original =
-              _transferencia.mapaUploadsRealizados[caminhoLimpo]!;
-          if (File(original).existsSync()) {
-            return original;
-          }
-        }
-
-        if (mapaCaminhos.containsKey(caminhoLimpo)) {
-          return mapaCaminhos[caminhoLimpo]!;
-        }
-
-        final localExistente =
-            ImagemService.resolverCaminhoExistente(caminhoLimpo);
-        if (localExistente != null && File(localExistente).existsSync()) {
-          mapaCaminhos[caminhoLimpo] = localExistente;
-          return localExistente;
-        }
-
-        final ext = caminhoLimpo.split('.').last.toLowerCase();
-        final extensaoFinal =
-            ImagemService.extensoesImagem.contains(ext) ? ext : 'jpg';
-        final nomeArquivoLocal =
-            'remota_${caminhoLimpo.hashCode.abs()}.$extensaoFinal';
-        final arquivoLocal = File('${pastaImagens.path}/$nomeArquivoLocal');
-
-        if (arquivoLocal.existsSync() && arquivoLocal.lengthSync() > 0) {
-          mapaCaminhos[caminhoLimpo] = arquivoLocal.path;
-          return arquivoLocal.path;
-        }
-
-        try {
-          final queryParams = <String, String>{
-            'caminho': caminhoLimpo,
-          };
-          if (itemId != null && itemId.isNotEmpty) {
-            queryParams['item_id'] = itemId;
-          }
-          if (categoriaId != null && categoriaId.isNotEmpty) {
-            queryParams['categoria_id'] = categoriaId;
-          }
-          if (cpf != null && cpf.isNotEmpty) {
-            queryParams['cpf'] = cpf;
-          }
-
-          final uri = Uri.http(
-            '$ipServidor:$portaServidor',
-            '/api/imagem',
-            queryParams,
-          );
-          final req = await clienteHttp.getUrl(uri);
-          final resp = await req.close();
-
-          if (resp.statusCode == HttpStatus.ok) {
-            final bytes = await resp.fold<List<int>>(
-              [],
-              (acc, chunk) => acc..addAll(chunk),
-            );
-            await arquivoLocal.writeAsBytes(bytes);
-
-            if (await arquivoLocal.exists() && arquivoLocal.lengthSync() > 0) {
-              mapaCaminhos[caminhoLimpo] = arquivoLocal.path;
-              return arquivoLocal.path;
-            }
-          }
-        } catch (e) {
-          debugPrint(
-            '[ReconciliadorLojaRede] Erro ao baixar imagem "$caminhoLimpo": $e',
-          );
-        }
-
-        if (localExistente != null && File(localExistente).existsSync()) {
-          return localExistente;
-        }
-
-        return caminhoLimpo;
-      }
-
-      // 1. Logo da loja
-      String novaLogo = lojaRemota.logo;
-      if (novaLogo.isNotEmpty) {
-        novaLogo = await resolverCaminhoImagem(novaLogo);
-      }
-
-      // 2. Itens da loja
-      final novosItens = <ItemLoja>[];
-      for (final item in lojaRemota.itensLoja) {
-        if (item.imagens.isNotEmpty) {
-          final novasImgs = <String>[];
-          for (final img in item.imagens) {
-            novasImgs.add(await resolverCaminhoImagem(img, itemId: item.id));
-          }
-          novosItens.add(item.copyWith(imagens: novasImgs));
-        } else {
-          novosItens.add(item);
-        }
-      }
-
-      // 3. Categorias da loja
-      final novasCategorias = <CategoriaLoja>[];
-      for (final cat in lojaRemota.categoriasLoja) {
-        if (cat.foto.isNotEmpty) {
-          final local = await resolverCaminhoImagem(cat.foto, categoriaId: cat.id);
-          novasCategorias.add(cat.copyWith(foto: local));
-        } else {
-          novasCategorias.add(cat);
-        }
-      }
-
-      // 4. Clientes da loja
-      final novosClientes = <Cliente>[];
-      for (final cli in lojaRemota.clientesLoja) {
-        if (cli.foto.isNotEmpty) {
-          final local = await resolverCaminhoImagem(cli.foto, cpf: cli.cnpj);
-          novosClientes.add(cli.copyWith(foto: local));
-        } else {
-          novosClientes.add(cli);
-        }
-      }
-
-      // 5. Fornecedores da loja
-      final novosFornecedores = <Fornecedor>[];
-      for (final forn in lojaRemota.fornecedoresLoja) {
-        if (forn.foto.isNotEmpty) {
-          final local = await resolverCaminhoImagem(forn.foto, cpf: forn.cnpj);
-          novosFornecedores.add(forn.copyWith(foto: local));
-        } else {
-          novosFornecedores.add(forn);
-        }
-      }
-
-      // 6. Galeria da loja
-      final novaGaleria = <String>[];
-      for (final g in lojaRemota.galeria) {
-        novaGaleria.add(await resolverCaminhoImagem(g));
-      }
-
-      // 7. Músicas da loja
-      final novasMusicas = <String>[];
-      for (final m in lojaRemota.musicas) {
-        final local = ImagemService.resolverCaminhoExistente(m);
-        if (local != null) {
-          novasMusicas.add(local);
-        } else {
-          novasMusicas.add(m);
-          _transferencia
-              .baixarAudioRemoto(
-            caminhoRemoto: m,
-            ipServidor: ipServidor,
-            portaServidor: portaServidor,
-          )
-              .then((baixado) {
-            if (baixado != m &&
-                pdvProvider != null &&
-                lojaSincronizada != null) {
-              final lojaAtual =
-                  pdvProvider.buscarPorId(lojaSincronizada.id);
-              if (lojaAtual != null) {
-                final musicasAtualizadas = lojaAtual.musicas
-                    .map((x) => x == m ? baixado : x)
-                    .toList();
-                pdvProvider.adicionarOuAtualizarLoja(
-                  lojaAtual.copyWith(musicas: musicasAtualizadas),
-                );
-              }
-            }
-          });
-        }
-      }
-
-      // 8. Arquivos de áudio da loja
-      final novosAudios = <String>[];
-      for (final a in lojaRemota.arquivosAudio) {
-        final local = ImagemService.resolverCaminhoExistente(a);
-        if (local != null) {
-          novosAudios.add(local);
-        } else {
-          novosAudios.add(a);
-          _transferencia
-              .baixarAudioRemoto(
-            caminhoRemoto: a,
-            ipServidor: ipServidor,
-            portaServidor: portaServidor,
-          )
-              .then((baixado) {
-            if (baixado != a &&
-                pdvProvider != null &&
-                lojaSincronizada != null) {
-              final lojaAtual =
-                  pdvProvider.buscarPorId(lojaSincronizada.id);
-              if (lojaAtual != null) {
-                final audiosAtualizados = lojaAtual.arquivosAudio
-                    .map((x) => x == a ? baixado : x)
-                    .toList();
-                pdvProvider.adicionarOuAtualizarLoja(
-                  lojaAtual.copyWith(arquivosAudio: audiosAtualizados),
-                );
-              }
-            }
-          });
-        }
-      }
-
-      return lojaRemota.copyWith(
-        logo: novaLogo,
-        itensLoja: novosItens,
-        categoriasLoja: novasCategorias,
-        clientesLoja: novosClientes,
-        fornecedoresLoja: novosFornecedores,
-        galeria: novaGaleria,
-        musicas: novasMusicas,
-        arquivosAudio: novosAudios,
-      );
-    } catch (e) {
-      debugPrint('[ReconciliadorLojaRede] Erro ao sincronizar imagens: $e');
-      return lojaRemota;
-    }
+    return _sincronizadorMidias.sincronizarImagensRemotas(
+      ipServidor: ipServidor,
+      portaServidor: portaServidor,
+      lojaRemota: lojaRemota,
+      pdvProvider: pdvProvider,
+      lojaSincronizada: lojaSincronizada,
+    );
   }
 }
+

@@ -9,7 +9,9 @@ import 'package:nous/src/core/widgets/texto_rolante.dart';
 import 'package:nous/src/features/auth/models/usuario_nous.dart';
 import 'package:nous/src/features/auth/providers/auth_provider.dart';
 import 'package:nous/src/features/auth/services/contas_nous_service.dart';
+import 'package:nous/src/features/auth/views/dialogs/dialog_lista_conexoes.dart';
 import 'package:nous/src/features/auth/views/widgets/editar_perfil_dialog.dart';
+import 'package:nous/src/features/chat/services/chat_service.dart';
 import 'package:nous/src/features/chat/services/resolvedor_foto_chat.dart';
 import 'package:nous/src/features/chat/views/mensageria_view.dart';
 import 'package:nous/src/features/pdv/services/imagem_service.dart';
@@ -219,14 +221,55 @@ class _PerfilSocialViewState extends State<PerfilSocialView> {
   }
 
   void _abrirMensagensUsuario(BuildContext context, UsuarioNous conta) {
+    final auth = context.read<AuthProvider>();
+    final meuCpf = auth.contaAtual?.cpf ?? auth.cpf;
+    final ehMeuProprioPerfil =
+        ChatService.normalizarCpf(meuCpf) == ChatService.normalizarCpf(conta.cpf);
+
+    if (ehMeuProprioPerfil) {
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (context) => const MensageriaView(
+            modoLoja: false,
+          ),
+        ),
+      );
+      return;
+    }
+
+    final meuCpfNorm = ChatService.normalizarCpf(meuCpf);
+    if (conta.quemPodeEnviarMensagens == 'apenas_seguidos' &&
+        !conta.estaSeguindo(meuCpfNorm)) {
+      showDialog(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          backgroundColor: const Color(0xFF1E1E1E),
+          title: const Text(
+            'Mensagens Restritas',
+            style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+          ),
+          content: Text(
+            '${conta.nomeExibicao} configurou o perfil para receber mensagens diretas apenas de pessoas que ele segue.',
+            style: const TextStyle(color: Colors.white70),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(),
+              child: const Text('Entendido'),
+            ),
+          ],
+        ),
+      );
+      return;
+    }
+
+    final idConversaDireta = ChatService.conversaIdEntreUsuarios(meuCpf, conta.cpf);
+
     Navigator.of(context).push(
       MaterialPageRoute(
         builder: (context) => MensageriaView(
           modoLoja: false,
-          usuarioCpf: conta.cpf,
-          usuarioNome: conta.nome,
-          usuarioFoto: conta.foto,
-          usuarioApelido: conta.apelido,
+          conversaInicialId: idConversaDireta,
         ),
       ),
     );
@@ -266,8 +309,13 @@ class _PerfilSocialViewState extends State<PerfilSocialView> {
     );
   }
 
-  Widget _buildMetricaItem(AppTheme theme, String valor, String rotulo) {
-    return Column(
+  Widget _buildMetricaItem(
+    AppTheme theme,
+    String valor,
+    String rotulo, {
+    VoidCallback? onTap,
+  }) {
+    final item = Column(
       mainAxisSize: MainAxisSize.min,
       children: [
         Text(
@@ -287,6 +335,17 @@ class _PerfilSocialViewState extends State<PerfilSocialView> {
           ),
         ),
       ],
+    );
+
+    if (onTap == null) return item;
+
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(8),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+        child: item,
+      ),
     );
   }
 
@@ -367,13 +426,32 @@ class _PerfilSocialViewState extends State<PerfilSocialView> {
                       ),
                       const SizedBox(height: 12),
                       Center(
-                        child: TextoRolante(
-                          texto: apelidoExibicao,
-                          textAlign: TextAlign.center,
-                          style: theme.getTextStyle(
-                            fontSize: 13,
-                            color: theme.secondaryTextColor,
-                          ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Flexible(
+                              child: TextoRolante(
+                                texto: apelidoExibicao,
+                                textAlign: TextAlign.center,
+                                style: theme.getTextStyle(
+                                  fontSize: 13,
+                                  color: theme.secondaryTextColor,
+                                ),
+                              ),
+                            ),
+                            if (conta.verificado || conta.validadoPorCpf.isNotEmpty) ...[
+                              const SizedBox(width: 4),
+                              const Tooltip(
+                                message: 'Conta Verificada pela Comunidade Nous',
+                                child: Icon(
+                                  Icons.verified,
+                                  size: 15,
+                                  color: Color(0xFF34B7F1),
+                                ),
+                              ),
+                            ],
+                          ],
                         ),
                       ),
                       const SizedBox(height: 4),
@@ -393,17 +471,35 @@ class _PerfilSocialViewState extends State<PerfilSocialView> {
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
                           _buildMetricaItem(theme, '0', 'Posts'),
-                          const SizedBox(width: 28),
+                          const SizedBox(width: 20),
                           _buildMetricaItem(
                             theme,
                             '${conta.seguidores.length}',
                             'Seguidores',
+                            onTap: () {
+                              DialogListaConexoes.exibir(
+                                context: context,
+                                titulo: 'Seguidores',
+                                cpfs: conta.seguidores,
+                                theme: theme,
+                                usuarioDonoLista: conta,
+                              );
+                            },
                           ),
-                          const SizedBox(width: 28),
+                          const SizedBox(width: 20),
                           _buildMetricaItem(
                             theme,
                             '${conta.seguindo.length}',
                             'Seguindo',
+                            onTap: () {
+                              DialogListaConexoes.exibir(
+                                context: context,
+                                titulo: 'Seguindo',
+                                cpfs: conta.seguindo,
+                                theme: theme,
+                                usuarioDonoLista: conta,
+                              );
+                            },
                           ),
                         ],
                       ),

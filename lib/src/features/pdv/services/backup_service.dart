@@ -23,26 +23,37 @@ import 'package:nous/src/features/pdv/models/pedido_loja.dart';
 import 'package:nous/src/features/pdv/models/referencia_loja.dart';
 import 'package:nous/src/features/pdv/models/registro_acao.dart';
 import 'package:nous/src/features/pdv/models/turno_caixa.dart';
+import 'package:nous/src/features/pdv/services/imagem_service.dart';
 import 'package:nous/src/features/pdv/services/lojas_service.dart';
+import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
 class ResultadoImportacao {
   final int contasImportadas;
   final int lojasImportadas;
   final int referenciasImportadas;
   final int convitesImportados;
+  final int conversasImportadas;
+  final int mensagensImportadas;
+  final int midiasImportadas;
 
   const ResultadoImportacao({
     required this.contasImportadas,
     required this.lojasImportadas,
     required this.referenciasImportadas,
     required this.convitesImportados,
+    this.conversasImportadas = 0,
+    this.mensagensImportadas = 0,
+    this.midiasImportadas = 0,
   });
 
   int get total =>
       contasImportadas +
       lojasImportadas +
       referenciasImportadas +
-      convitesImportados;
+      convitesImportados +
+      conversasImportadas +
+      mensagensImportadas +
+      midiasImportadas;
 
   bool get vazio => total == 0;
 }
@@ -99,12 +110,52 @@ class BackupService {
       }
     }
 
+    // Exportação do Chat (Conversas e Mensagens)
+    List<Map<String, dynamic>> conversasChat = [];
+    List<Map<String, dynamic>> mensagensChat = [];
+    try {
+      conversasChat = await db.query('conversas_chat');
+      mensagensChat = await db.query('mensagens_chat');
+    } catch (_) {}
+
+    // Exportação de Mídias Físicas (Fotos, Logos, Áudios) em Base64
+    final midias = <String, String>{};
+    try {
+      final baseDir = await ImagemService.obterDiretorioBase();
+      final subPastas = [
+        Directory('${baseDir.path}/imagens'),
+        Directory('${baseDir.path}/audios'),
+        Directory('${baseDir.path}/anexos'),
+      ];
+      for (final dir in subPastas) {
+        if (!dir.existsSync()) continue;
+        final arquivos = dir.listSync(recursive: true, followLinks: false);
+        for (final item in arquivos) {
+          if (item is File && item.existsSync()) {
+            final tamanho = item.lengthSync();
+            if (tamanho > 0 && tamanho <= 8 * 1024 * 1024) {
+              final nome = p.basename(item.path);
+              if (!midias.containsKey(nome)) {
+                try {
+                  final bytes = item.readAsBytesSync();
+                  midias[nome] = base64Encode(bytes);
+                } catch (_) {}
+              }
+            }
+          }
+        }
+      }
+    } catch (_) {}
+
     return {
-      'versao': 1,
+      'versao': 2,
       'exportadoEm': DateTime.now().toIso8601String(),
       'contas': contas.map((c) => c.toJson()).toList(),
       'cofres': cofres,
       'convites': convites,
+      'conversas': conversasChat,
+      'mensagens': mensagensChat,
+      'midias': midias,
     };
   }
 
@@ -298,11 +349,80 @@ class BackupService {
       await ConvitesService.salvar(cpf, mesclados);
     }
 
+    int conversasImportadas = 0;
+    int mensagensImportadas = 0;
+    int midiasImportadas = 0;
+
+    // Restauração das Mídias Físicas (Fotos, Logos, Áudios)
+    final midiasJson = json['midias'] as Map<String, dynamic>? ?? const {};
+    if (midiasJson.isNotEmpty) {
+      try {
+        final pastaBase = await ImagemService.obterDiretorioBase();
+        final pastaImagens = Directory(p.join(pastaBase.path, 'imagens'));
+        if (!pastaImagens.existsSync()) {
+          await pastaImagens.create(recursive: true);
+        }
+        for (final entry in midiasJson.entries) {
+          final nome = entry.key;
+          final b64 = entry.value?.toString() ?? '';
+          if (nome.isNotEmpty && b64.isNotEmpty) {
+            final destino = File(p.join(pastaImagens.path, nome));
+            if (!destino.existsSync()) {
+              try {
+                final bytes = base64Decode(b64);
+                await destino.writeAsBytes(bytes);
+                midiasImportadas++;
+              } catch (_) {}
+            }
+          }
+        }
+      } catch (_) {}
+    }
+
+    // Restauração das Conversas do Chat
+    final conversasJson = json['conversas'] as List<dynamic>? ?? const [];
+    for (final item in conversasJson) {
+      if (item is Map<String, dynamic>) {
+        final id = item['id']?.toString() ?? '';
+        if (id.isNotEmpty) {
+          try {
+            await db.insert(
+              'conversas_chat',
+              Map<String, dynamic>.from(item),
+              conflictAlgorithm: ConflictAlgorithm.ignore,
+            );
+            conversasImportadas++;
+          } catch (_) {}
+        }
+      }
+    }
+
+    // Restauração das Mensagens do Chat
+    final mensagensJson = json['mensagens'] as List<dynamic>? ?? const [];
+    for (final item in mensagensJson) {
+      if (item is Map<String, dynamic>) {
+        final id = item['id']?.toString() ?? '';
+        if (id.isNotEmpty) {
+          try {
+            await db.insert(
+              'mensagens_chat',
+              Map<String, dynamic>.from(item),
+              conflictAlgorithm: ConflictAlgorithm.ignore,
+            );
+            mensagensImportadas++;
+          } catch (_) {}
+        }
+      }
+    }
+
     return ResultadoImportacao(
       contasImportadas: contasImportadas,
       lojasImportadas: lojasImportadas,
       referenciasImportadas: referenciasImportadas,
       convitesImportados: convitesImportados,
+      conversasImportadas: conversasImportadas,
+      mensagensImportadas: mensagensImportadas,
+      midiasImportadas: midiasImportadas,
     );
   }
 

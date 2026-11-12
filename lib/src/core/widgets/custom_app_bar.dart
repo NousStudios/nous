@@ -17,12 +17,17 @@ import 'package:nous/src/features/pdv/services/rede_local/cliente_rede_local.dar
 import 'package:nous/src/features/pdv/services/rede_local/servidor_rede_local.dart';
 import 'package:nous/src/features/pdv/views/widgets/sincronizacao_rede_dialog.dart';
 import 'package:nous/src/core/widgets/texto_rolante.dart';
+import 'package:nous/src/features/chat/models/mensagem_chat.dart';
 import 'package:nous/src/features/chat/services/chat_service.dart';
 
-String _formatarCpf(String cpf) {
-  if (cpf.length != 11) return cpf;
-  return '${cpf.substring(0, 3)}.${cpf.substring(3, 6)}.'
-      '${cpf.substring(6, 9)}-${cpf.substring(9, 11)}';
+String _formatarCpf(String cpf, {bool mascarado = false}) {
+  final limpo = cpf.replaceAll(RegExp(r'\D'), '');
+  if (limpo.length != 11) return cpf;
+  if (mascarado) {
+    return '${limpo.substring(0, 3)}.***.***-**';
+  }
+  return '${limpo.substring(0, 3)}.${limpo.substring(3, 6)}.'
+      '${limpo.substring(6, 9)}-${limpo.substring(9, 11)}';
 }
 
 class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
@@ -167,14 +172,17 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
 
   void _showSettingsDialog(BuildContext context) {
     final authProvider = context.read<AuthProvider>();
+    var mostrarCpf = false;
 
     showDialog(
       context: context,
       barrierDismissible: true,
       builder: (BuildContext context) {
-        return ValueListenableBuilder<AppTheme>(
-          valueListenable: ThemeController.currentTheme,
-          builder: (context, currentTheme, child) {
+        return StatefulBuilder(
+          builder: (dialogCtx, setDialogState) {
+            return ValueListenableBuilder<AppTheme>(
+              valueListenable: ThemeController.currentTheme,
+              builder: (context, currentTheme, child) {
             final conta = authProvider.contaAtual;
             final mostrarGrupoConta = conta != null || onLogout != null;
 
@@ -331,20 +339,51 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
                                           ),
                                         ),
                                         const SizedBox(height: 1),
-                                        Text(
-                                          _formatarCpf(conta.cpf),
-                                          style: currentTheme.getTextStyle(
-                                            fontSize: 12,
-                                            color: currentTheme
-                                                .secondaryTextColor,
-                                          ),
+                                        Row(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            Text(
+                                              _formatarCpf(
+                                                conta.cpf,
+                                                mascarado: !mostrarCpf,
+                                              ),
+                                              style: currentTheme.getTextStyle(
+                                                fontSize: 12,
+                                                color: currentTheme
+                                                    .secondaryTextColor,
+                                              ),
+                                            ),
+                                            const SizedBox(width: 4),
+                                            InkWell(
+                                              onTap: () {
+                                                setDialogState(() {
+                                                  mostrarCpf = !mostrarCpf;
+                                                });
+                                              },
+                                              borderRadius:
+                                                  BorderRadius.circular(10),
+                                              child: Padding(
+                                                padding:
+                                                    const EdgeInsets.all(2),
+                                                child: Icon(
+                                                  mostrarCpf
+                                                      ? Icons.visibility_outlined
+                                                      : Icons
+                                                          .visibility_off_outlined,
+                                                  size: 14,
+                                                  color: currentTheme
+                                                      .secondaryTextColor,
+                                                ),
+                                              ),
+                                            ),
+                                          ],
                                         ),
                                         if (authProvider.emailAtivo != null &&
                                             authProvider
                                                 .emailAtivo!.isNotEmpty) ...[
                                           const SizedBox(height: 1),
-                                          Text(
-                                            authProvider.emailAtivo!,
+                                          TextoRolante(
+                                            texto: authProvider.emailAtivo!,
                                             style: currentTheme.getTextStyle(
                                               fontSize: 11,
                                               color: currentTheme
@@ -440,6 +479,8 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
         );
       },
     );
+  },
+);
   }
 
   Widget _botaoNotificacoes(BuildContext context, AppTheme theme) {
@@ -451,14 +492,24 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
     return ValueListenableBuilder<int>(
       valueListenable: ChatService.alteracoesChatNotifier,
       builder: (context, _, child) {
-        return FutureBuilder<bool>(
+        return FutureBuilder<List<MensagemChat>>(
           future: (lojaId != null)
-              ? ChatService.temMensagensNaoLidasNaLoja(lojaId!)
-              : ChatService.temMensagensNaoLidasNoUsuario(cpfUsuario),
+              ? ChatService.obterMensagensNaoLidasDaLoja(lojaId!)
+              : (cpfUsuario.isNotEmpty
+                  ? ChatService.obterMensagensNaoLidasDoUsuario(cpfUsuario)
+                  : Future.value(const <MensagemChat>[])),
           builder: (context, snapshotMsg) {
-            final temMensagens = snapshotMsg.data ?? false;
+            final msgsNaoLidas = (snapshotMsg.data ?? const <MensagemChat>[])
+                .where((m) => lojaId != null
+                    ? !notificacoes.estaDispensadaNaLoja(lojaId!, 'msg_${m.id}')
+                    : !notificacoes.estaDispensadaNaSessao('msg_${m.id}'))
+                .toList();
+            final temMensagens = msgsNaoLidas.isNotEmpty;
             final quantidadeConvites = (lojaId == null)
-                ? notificacoes.quantidadeConvitesAtivos
+                ? notificacoes.convites
+                    .where((c) =>
+                        !notificacoes.estaDispensadaNaSessao('convite_${c.id}'))
+                    .length
                 : 0;
             final totalEstoqueBaixo = (lojaId == null)
                 ? 0

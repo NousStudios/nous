@@ -4,6 +4,7 @@ import 'package:nous/src/features/pdv/models/movimento_estoque.dart';
 import 'package:nous/src/features/pdv/models/pagamento_funcionario.dart';
 import 'package:nous/src/features/pdv/models/pedido_loja.dart';
 import 'package:nous/src/features/pdv/models/registro_acao.dart';
+import 'package:nous/src/features/pdv/services/lojas_service.dart';
 
 /// Helper especialista para operações de estoque, pagamentos a funcionários e transações financeiras.
 class PdvEstoqueFinanceiroHelper {
@@ -130,6 +131,59 @@ class PdvEstoqueFinanceiroHelper {
     return loja.copyWith(
       pagamentosFuncionarios:
           atual.where((p) => p.id != pagamentoId).toList(),
+    );
+  }
+
+  static Future<void> executarResetTransacoes({
+    required Loja loja,
+    required String autorCpf,
+    required String autorNome,
+    required String autorEmail,
+    required Future<void> Function(Loja) salvarEAtualizar,
+  }) async {
+    final atualizada = resetarTransacoes(
+      loja,
+      autorCpf: autorCpf,
+      autorNome: autorNome,
+      autorEmail: autorEmail,
+    );
+    await LojasService.limparTransacoesBancoLoja(loja.id);
+    await salvarEAtualizar(atualizada);
+  }
+
+  static void executarQuitarPedido({
+    required Loja loja,
+    required String pedidoId,
+    required String formaRecebimento,
+    required String autorCpf,
+    required String autorNome,
+    required String autorEmail,
+    required void Function(Loja) salvarEAtualizar,
+    required void Function(double valor, String motivo) registrarSuprimentoCaixa,
+    required void Function(RegistroAcao acao) registrarAcao,
+  }) {
+    final res = quitarPedido(loja, pedidoId);
+    if (res == null) return;
+    salvarEAtualizar(res.loja);
+
+    if (formaRecebimento.trim().toLowerCase() == 'dinheiro' && res.valorQuitado > 0) {
+      registrarSuprimentoCaixa(
+        res.valorQuitado,
+        'Recebimento de prazo - Pedido #${res.pedidoQuitado?.numero}',
+      );
+    }
+
+    registrarAcao(
+      RegistroAcao(
+        id: DateTime.now().millisecondsSinceEpoch.toString(),
+        dataHora: DateTime.now(),
+        tipo: TipoAcao.pagamentoPrazoRecebido,
+        descricao:
+            'Pedido #${res.pedidoQuitado?.numero} quitado ($formaRecebimento) - R\$ ${res.valorQuitado.toStringAsFixed(2).replaceAll('.', ',')}',
+        cpfAutor: autorCpf,
+        nomeAutor: autorNome,
+        emailAutor: autorEmail,
+      ),
     );
   }
 }

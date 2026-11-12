@@ -313,4 +313,67 @@ class DialogsTopicosGestao {
       },
     );
   }
+
+  static void dialogMenuAnexos({
+    required BuildContext context,
+    required AppTheme theme,
+    required VoidCallback onCapturarFotoCamera,
+    required VoidCallback onSelecionarImagemGaleria,
+    required VoidCallback onAnexarArquivo,
+  }) {
+    showDialog(
+      context: context,
+      builder: (ctx) {
+        return AlertDialog(
+          backgroundColor: theme.cardBackgroundColor,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+            side: BorderSide(color: theme.borderColor),
+          ),
+          title: Text(
+            'Compartilhar na Comunidade',
+            style: theme.getTextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.bold,
+              color: theme.textColor,
+            ),
+          ),
+          content: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 320),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                ListTile(
+                  leading: Icon(Icons.camera_alt_rounded, color: theme.textColor, size: 22),
+                  title: Text('Câmera (Tirar Foto)', style: theme.getTextStyle(color: theme.textColor)),
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    onCapturarFotoCamera();
+                  },
+                ),
+                Divider(color: theme.borderColor.withValues(alpha: 0.3)),
+                ListTile(
+                  leading: Icon(Icons.photo_library_outlined, color: theme.textColor, size: 22),
+                  title: Text('Galeria de Imagens', style: theme.getTextStyle(color: theme.textColor)),
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    onSelecionarImagemGaleria();
+                  },
+                ),
+                Divider(color: theme.borderColor.withValues(alpha: 0.3)),
+                ListTile(
+                  leading: Icon(Icons.insert_drive_file_outlined, color: theme.textColor, size: 22),
+                  title: Text('Documento / Arquivo', style: theme.getTextStyle(color: theme.textColor)),
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    onAnexarArquivo();
+                  },
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
 }

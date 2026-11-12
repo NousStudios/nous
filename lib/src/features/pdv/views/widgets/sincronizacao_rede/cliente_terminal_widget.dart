@@ -421,7 +421,7 @@ class ClienteTerminalWidget extends StatelessWidget {
                       child: ThemedTextField(
                         theme: theme,
                         controller: ipManualController,
-                        label: 'Endereço IP (ex: 192.168.0.100)',
+                        label: 'IP local ou Domínio Nuvem (ex: 192.168.0.100 ou loja.nous.app)',
                       ),
                     ),
                     const SizedBox(width: 8),

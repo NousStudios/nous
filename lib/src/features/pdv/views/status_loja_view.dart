@@ -5,6 +5,7 @@ import 'package:nous/src/core/theme/theme_controller.dart';
 import 'package:nous/src/core/services/janela_windows_service.dart';
 import 'package:nous/src/core/widgets/custom_app_bar.dart';
 import 'package:nous/src/features/auth/providers/auth_provider.dart';
+import 'package:nous/src/features/chat/services/chat_service.dart';
 import 'package:nous/src/features/pdv/models/loja.dart';
 import 'package:nous/src/features/pdv/models/membro_loja.dart';
 import 'package:nous/src/features/pdv/providers/pdv_provider.dart';
@@ -131,7 +132,12 @@ class _StatusLojaViewState extends State<StatusLojaView> {
       decoration: _decoracaoDoBloco(theme),
       child: Column(
         children: [
-          _tituloDoBloco(theme, 'Status da Loja'),
+          _tituloDoBloco(
+            theme,
+            widget.lojaId == PdvProvider.idLojaColetivaNous
+                ? 'Usuários Nous'
+                : 'Status da Loja',
+          ),
           const SizedBox(height: 16),
           Container(
             padding: const EdgeInsets.only(left: 20, right: 4),
@@ -312,15 +318,20 @@ class _StatusLojaViewState extends State<StatusLojaView> {
             final larguraDaTela = MediaQuery.sizeOf(context).width;
             final expandido =
                 (loja?.layoutExpandido ?? false) && larguraDaTela > 850;
+            final ehLojaColetivaNous =
+                widget.lojaId == PdvProvider.idLojaColetivaNous ||
+                widget.lojaId == ChatService.idLojaColetivaNous;
 
-            final conteudoColuna1 = [
-              BlocoResumoOperacionalWidget(
-                lojaId: widget.lojaId,
-                theme: theme,
-              ),
-              const SizedBox(height: 16),
-              _blocoStatus(theme),
-            ];
+            final conteudoColuna1 = ehLojaColetivaNous
+                ? const <Widget>[]
+                : [
+                    BlocoResumoOperacionalWidget(
+                      lojaId: widget.lojaId,
+                      theme: theme,
+                    ),
+                    const SizedBox(height: 16),
+                    _blocoStatus(theme),
+                  ];
 
             final conteudoColuna2 = [
               BlocoTrabalhadoresStatusWidget(
@@ -334,48 +345,56 @@ class _StatusLojaViewState extends State<StatusLojaView> {
             return Scaffold(
               backgroundColor: theme.backgroundColor,
               appBar: CustomAppBar(
-                title: 'Status da Loja',
+                title: ehLojaColetivaNous ? 'Usuários Nous' : 'Status da Loja',
                 lojaId: widget.lojaId,
               ),
               body: SafeArea(
                 child: Center(
                   child: ConstrainedBox(
                     constraints: BoxConstraints(
-                      maxWidth: expandido ? 1200 : 500,
+                      maxWidth: ehLojaColetivaNous
+                          ? 700
+                          : (expandido ? 1200 : 500),
                     ),
                     child: SingleChildScrollView(
                       padding: const EdgeInsets.all(16),
-                      child: expandido
-                          ? Row(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Expanded(
-                                  flex: 5,
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.stretch,
-                                    children: conteudoColuna1,
-                                  ),
-                                ),
-                                const SizedBox(width: 16),
-                                Expanded(
-                                  flex: 5,
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.stretch,
-                                    children: conteudoColuna2,
-                                  ),
-                                ),
-                              ],
-                            )
-                          : Column(
+                      child: ehLojaColetivaNous
+                          ? Column(
                               crossAxisAlignment: CrossAxisAlignment.stretch,
-                              children: [
-                                ...conteudoColuna1,
-                                const SizedBox(height: 16),
-                                ...conteudoColuna2,
-                              ],
-                            ),
+                              children: conteudoColuna2,
+                            )
+                          : (expandido
+                              ? Row(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Expanded(
+                                      flex: 5,
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.stretch,
+                                        children: conteudoColuna1,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 16),
+                                    Expanded(
+                                      flex: 5,
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.stretch,
+                                        children: conteudoColuna2,
+                                      ),
+                                    ),
+                                  ],
+                                )
+                              : Column(
+                                  crossAxisAlignment:
+                                      CrossAxisAlignment.stretch,
+                                  children: [
+                                    ...conteudoColuna1,
+                                    const SizedBox(height: 16),
+                                    ...conteudoColuna2,
+                                  ],
+                                )),
                     ),
                   ),
                 ),

@@ -253,6 +253,17 @@ class BlocoIdentidadeContaWidget extends StatelessWidget {
                                 color: theme.buttonColor,
                               ),
                             ),
+                            if (conta?.verificado == true || (conta?.validadoPorCpf.isNotEmpty ?? false)) ...[
+                              const SizedBox(width: 4),
+                              const Tooltip(
+                                message: 'Conta Verificada',
+                                child: Icon(
+                                  Icons.verified,
+                                  size: 14,
+                                  color: Color(0xFF34B7F1),
+                                ),
+                              ),
+                            ],
                             const SizedBox(width: 4),
                             Icon(
                               Icons.edit_outlined,

@@ -500,6 +500,7 @@ class ChatAutoatendimentoService {
     required BuildContext context,
     required MensagemChat msg,
     required PedidoLoja pedido,
+    bool cancelamentoCliente = false,
   }) async {
     final pdv = context.read<PdvProvider?>();
     final pedidoCancelado = pedido.copyWith(status: StatusPedido.cancelado);
@@ -514,29 +515,31 @@ class ChatAutoatendimentoService {
           await pdv.adicionarOuAtualizarLoja(
             lojaAtual.copyWith(pedidosLoja: pedidos),
           );
-          if (ServidorRedeLocal().ativo) {
-            ServidorRedeLocal().notificarTodos({
-              'tipo': 'pedido_atualizado',
-              'lojaId': lojaAtual.id,
-              'pedido': pedidoCancelado.toJson(),
-            });
-          } else if (ClienteRedeLocal().conectado) {
-            ClienteRedeLocal().enviarEventoWs({
-              'tipo': 'pedido_atualizado',
-              'lojaId': lojaAtual.id,
-              'pedido': pedidoCancelado.toJson(),
-            });
-          }
         }
+      }
+    }
+
+    if (pedido.lojaId.isNotEmpty) {
+      final evento = {
+        'tipo': 'pedido_atualizado',
+        'lojaId': pedido.lojaId,
+        'pedido': pedidoCancelado.toJson(),
+      };
+      if (ServidorRedeLocal().ativo) {
+        ServidorRedeLocal().notificarTodos(evento);
+      } else if (ClienteRedeLocal().conectado) {
+        ClienteRedeLocal().enviarEventoWs(evento);
       }
     }
 
     final mapa = pedidoCancelado.toJson();
     mapa['aguardandoAprovacaoCliente'] = false;
-    mapa['recusadoPeloCliente'] = true;
+    mapa['recusadoPeloCliente'] = !cancelamentoCliente;
     final dadosJson = jsonEncode(mapa);
-    final texto =
-        'Pedido #${pedido.numero.toString().padLeft(4, '0')} recusado pelo cliente.';
+    final numFmt = pedido.numero.toString().padLeft(4, '0');
+    final texto = cancelamentoCliente
+        ? 'Pedido #$numFmt cancelado pelo cliente.'
+        : 'Pedido #$numFmt recusado pelo cliente.';
 
     await ChatService.atualizarDadosComandaMensagem(
       msgId: msg.id,

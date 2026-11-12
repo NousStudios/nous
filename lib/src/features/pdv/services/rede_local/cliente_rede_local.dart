@@ -5,63 +5,30 @@ import 'dart:io';
 import 'package:flutter/widgets.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:nous/src/core/services/relogio_rede_service.dart';
-import 'package:nous/src/core/utils/json_isolate_utils.dart';
 import 'package:nous/src/features/auth/models/usuario_nous.dart';
 import 'package:nous/src/features/auth/providers/auth_provider.dart';
 import 'package:nous/src/features/auth/services/contas_nous_service.dart';
 import 'package:nous/src/features/chat/models/mensagem_chat.dart';
-import 'package:nous/src/features/chat/services/chamada_webrtc_service.dart';
 import 'package:nous/src/features/chat/services/chat_service.dart';
-import 'package:nous/src/features/notificacoes/providers/notificacoes_provider.dart';
 import 'package:nous/src/features/pdv/models/loja.dart';
-import 'package:nous/src/features/pdv/models/membro_loja.dart';
 import 'package:nous/src/features/pdv/models/mesa_loja.dart';
 import 'package:nous/src/features/pdv/models/movimento_estoque.dart';
 import 'package:nous/src/features/pdv/models/pedido_loja.dart';
-import 'package:nous/src/features/pdv/models/referencia_loja.dart';
 import 'package:nous/src/features/pdv/providers/pdv_provider.dart';
-import 'package:nous/src/features/pdv/services/imagem_service.dart';
-import 'package:nous/src/features/pdv/services/lojas_service.dart';
 import 'package:nous/src/features/pdv/services/rede_local/reconciliador_loja_rede.dart';
 import 'package:nous/src/features/pdv/services/rede_local/servidor_rede_local.dart';
 import 'package:nous/src/features/pdv/services/rede_local/sincronizador_usuarios_rede.dart';
 import 'package:nous/src/features/pdv/services/rede_local/transferencia_arquivos_rede.dart';
 import 'package:nous/src/features/pdv/services/rede_local/despachante_cliente_rede.dart';
+import 'package:nous/src/features/pdv/models/dispositivo_loja_info.dart';
+import 'package:nous/src/features/pdv/services/rede_local/descoberta_rede_local.dart';
+import 'package:nous/src/features/pdv/services/rede_local/helpers/gerenciador_dispositivo_local.dart';
+import 'package:nous/src/features/pdv/services/rede_local/helpers/resolvedor_url_rede.dart';
+import 'package:nous/src/features/pdv/services/rede_local/handlers/cliente_pos_conexao_orquestrador.dart';
 import 'package:nous/src/features/pdv/services/rede_local/handlers/cliente_ws_message_handler.dart';
+import 'package:nous/src/features/pdv/services/rede_local/handlers/snapshot_loja_cliente_handler.dart';
 
-/// Informações de um servidor de loja anunciado na rede Wi-Fi local.
-class DispositivoLojaInfo {
-  final String lojaId;
-  final String lojaNome;
-  final String ip;
-  final int porta;
-  final DateTime vistoEm;
-  final String tipoHost;
-
-  const DispositivoLojaInfo({
-    required this.lojaId,
-    required this.lojaNome,
-    required this.ip,
-    required this.porta,
-    required this.vistoEm,
-    this.tipoHost = 'loja',
-  });
-
-  bool get ehUsuario => tipoHost == 'usuario' || lojaId.isEmpty;
-  String get enderecoCompleto => '$ip:$porta';
-
-  @override
-  bool operator ==(Object other) =>
-      identical(this, other) ||
-      other is DispositivoLojaInfo &&
-          runtimeType == other.runtimeType &&
-          lojaId == other.lojaId &&
-          ip == other.ip &&
-          porta == other.porta;
-
-  @override
-  int get hashCode => lojaId.hashCode ^ ip.hashCode ^ porta.hashCode;
-}
+export 'package:nous/src/features/pdv/models/dispositivo_loja_info.dart';
 
 /// Gerencia o Cliente que conecta o celular ao servidor do balcão na rede Wi-Fi.
 class ClienteRedeLocal {
@@ -69,7 +36,6 @@ class ClienteRedeLocal {
   factory ClienteRedeLocal() => _instancia;
   ClienteRedeLocal._interno();
 
-  RawDatagramSocket? _socketDescoberta;
   WebSocket? _ws;
   Timer? _timerPing;
   Timer? _timerReconexao;
@@ -80,8 +46,8 @@ class ClienteRedeLocal {
   AuthProvider? _authProvider;
   Loja? _lojaSincronizada;
 
-  String _nomeDispositivo = 'Celular';
-  bool _nomeCarregado = false;
+  final GerenciadorDispositivoLocal _dispLocal = GerenciadorDispositivoLocal();
+  String get _nomeDispositivo => _dispLocal.nomeDispositivo;
 
   final ValueNotifier<bool> estaConectado = ValueNotifier<bool>(false);
   final ValueNotifier<String?> ultimoErro = ValueNotifier<String?>(null);
@@ -89,6 +55,15 @@ class ClienteRedeLocal {
       ValueNotifier<List<DispositivoLojaInfo>>([]);
   final ValueNotifier<List<TerminalConectadoInfo>> presencasAtivas =
       ValueNotifier<List<TerminalConectadoInfo>>([]);
+
+  late final DescobertaRedeLocal _descoberta = DescobertaRedeLocal(
+    lojasEncontradas: lojasEncontradas,
+    onServidorDescoberto: (info) {
+      if (!conectado && !_conectando && _pdvProvider != null) {
+        conectar(ip: info.ip, porta: info.porta, pdv: _pdvProvider!, auth: _authProvider);
+      }
+    },
+  );
 
   bool _aplicandoAtualizacaoRemota = false;
   bool get aplicandoAtualizacaoRemota => _aplicandoAtualizacaoRemota;
@@ -146,6 +121,12 @@ class ClienteRedeLocal {
   bool get conectado => _ws != null && estaConectado.value;
   String? get ipServidor => _ipServidor;
   int? get portaServidor => _portaServidor;
+
+  /// Permite definir o IP/porta do servidor balcão para despachos REST sem WS ativo
+  void configurarServidorManual(String ip, int porta) {
+    _ipServidor = ip.trim();
+    _portaServidor = porta;
+  }
   String? get enderecoServidor =>
       _ipServidor != null && _portaServidor != null ? '$_ipServidor:$_portaServidor' : null;
   Loja? get lojaSincronizada => _lojaSincronizada;
@@ -214,245 +195,26 @@ class ClienteRedeLocal {
     }
   }
 
-  Future<String> obterNomeDispositivo() async {
-    if (_nomeCarregado) return _nomeDispositivo;
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final salvo = prefs.getString('terminal_nome_dispositivo');
-      if (salvo != null && salvo.trim().isNotEmpty) {
-        _nomeDispositivo = salvo.trim();
-      } else {
-        _nomeDispositivo = Platform.isAndroid ? 'Celular' : 'Terminal Móvel';
-      }
-      _nomeCarregado = true;
-    } catch (_) {}
-    return _nomeDispositivo;
-  }
+  Future<String> obterNomeDispositivo() => _dispLocal.obterNomeDispositivo();
 
-  Future<void> salvarNomeDispositivo(String novoNome) async {
-    final nomeLimpo = novoNome.trim();
-    if (nomeLimpo.isEmpty) return;
-    _nomeDispositivo = nomeLimpo;
-    _nomeCarregado = true;
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setString('terminal_nome_dispositivo', _nomeDispositivo);
-    } catch (_) {}
-
-    if (_ws != null && estaConectado.value) {
-      try {
-        final cpfLogado = _pdvProvider?.cpfAtual;
-        String? nomeUsuario;
-        if (cpfLogado != null && cpfLogado.isNotEmpty) {
-          final conta = await ContasNousService.buscarPorCpf(cpfLogado);
-          nomeUsuario = conta?.nome;
-        }
-        _ws!.add(jsonEncode({
-          'tipo': 'identificacao',
-          'nomeDispositivo': _nomeDispositivo,
-          'cpf': cpfLogado,
-          'nomeUsuario': nomeUsuario,
-        }));
-      } catch (_) {}
-    }
-  }
-
-  bool _varreduraAtiva = false;
-  int _idVarredura = 0;
+  Future<void> salvarNomeDispositivo(String novoNome) =>
+      _dispLocal.salvarNomeDispositivo(
+        novoNome,
+        ws: _ws,
+        estaConectado: estaConectado.value,
+        cpfLogado: _pdvProvider?.cpfAtual,
+      );
 
   /// Inicia escuta UDP para encontrar servidores de lojas transmitindo no Wi-Fi
   /// acompanhada de radar ativo HTTP pela sub-rede local.
   Future<void> iniciarDescoberta({PdvProvider? pdv, AuthProvider? auth}) async {
     if (pdv != null) _pdvProvider = pdv;
     if (auth != null) _authProvider = auth;
-    pararDescoberta();
-    lojasEncontradas.value = [];
-
-    // 1. Escuta passiva UDP porta 45454
-    try {
-      _socketDescoberta = await RawDatagramSocket.bind(
-        InternetAddress.anyIPv4,
-        ServidorRedeLocal.portaUdpAnuncio,
-        reuseAddress: true,
-      );
-
-      _socketDescoberta!.listen((event) {
-        if (event == RawSocketEvent.read) {
-          final datagram = _socketDescoberta?.receive();
-          if (datagram != null) {
-            _processarDatagramaDescoberta(datagram);
-          }
-        }
-      });
-    } catch (e) {
-      debugPrint('[ClienteRedeLocal] Erro ao iniciar escuta UDP: $e');
-    }
-
-    // 2. Radar ativo HTTP pela sub-rede (imune a filtros UDP e sono do Wi-Fi)
-    unawaited(_iniciarVarreduraAtivaHttp());
+    await _descoberta.iniciarDescoberta();
   }
 
   void pararDescoberta() {
-    _varreduraAtiva = false;
-    _idVarredura++;
-    try {
-      _socketDescoberta?.close();
-    } catch (_) {}
-    _socketDescoberta = null;
-  }
-
-  void _processarDatagramaDescoberta(Datagram datagram) {
-    if (ServidorRedeLocal().ativo) return;
-    try {
-      final texto = utf8.decode(datagram.data);
-      final json = jsonDecode(texto) as Map<String, dynamic>;
-
-      if (json['assinatura'] == 'nous_loja_anuncio') {
-        final lojaIdStr = (json['lojaId'] as String?) ?? '';
-        final tipoHost = json['tipoHost'] as String? ?? (lojaIdStr.isNotEmpty ? 'loja' : 'usuario');
-        final info = DispositivoLojaInfo(
-          lojaId: lojaIdStr,
-          lojaNome: (json['lojaNome'] as String?) ?? 'Usuário Nous',
-          ip: json['ip'] as String,
-          porta: json['porta'] as int,
-          vistoEm: DateTime.now(),
-          tipoHost: tipoHost,
-        );
-        _adicionarOuAtualizarServidorDescoberto(info);
-      }
-    } catch (_) {}
-  }
-
-  void _adicionarOuAtualizarServidorDescoberto(DispositivoLojaInfo info) {
-    if (ServidorRedeLocal().ativo) return;
-    final lista = List<DispositivoLojaInfo>.from(lojasEncontradas.value);
-    final idx = lista.indexWhere(
-      (d) => d.lojaId == info.lojaId && d.ip == info.ip && d.porta == info.porta,
-    );
-
-    if (idx != -1) {
-      lista[idx] = info;
-    } else {
-      lista.add(info);
-    }
-
-    // Remove servidores que não respondem há mais de 15 segundos
-    final agora = DateTime.now();
-    lista.removeWhere((d) => agora.difference(d.vistoEm).inSeconds > 15);
-
-    lojasEncontradas.value = lista;
-
-    // Auto-conecta se ainda desconectado e não estiver em tentativa de conexão
-    if (!conectado && !_conectando && _pdvProvider != null) {
-      conectar(ip: info.ip, porta: info.porta, pdv: _pdvProvider!, auth: _authProvider);
-    }
-  }
-
-  Future<void> _iniciarVarreduraAtivaHttp() async {
-    if (ServidorRedeLocal().ativo) return;
-    final idAtual = ++_idVarredura;
-    _varreduraAtiva = true;
-
-    // 1. Testa primeiro o último IP salvo imediatamente (se existir)
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final ultimoIp = prefs.getString('nous_ultimo_ip_balcao');
-      final ultimaPorta =
-          prefs.getInt('nous_ultima_porta_balcao') ?? ServidorRedeLocal.portaPadraoHttp;
-      if (ultimoIp != null && ultimoIp.isNotEmpty) {
-        final achou = await _testarIpServidorHttp(ultimoIp, ultimaPorta);
-        if (achou || !_varreduraAtiva || idAtual != _idVarredura || conectado) return;
-      }
-    } catch (_) {}
-
-    // 2. Descobre os prefixos de sub-rede das interfaces do aparelho
-    final prefixos = <String>{};
-    try {
-      final interfaces = await NetworkInterface.list(
-        type: InternetAddressType.IPv4,
-        includeLinkLocal: false,
-      );
-      for (final iface in interfaces) {
-        final nome = iface.name.toLowerCase();
-        if (nome.contains('virtual') || nome.contains('wsl') || nome.contains('docker')) {
-          continue;
-        }
-        for (final addr in iface.addresses) {
-          if (!addr.isLoopback && addr.address.contains('.')) {
-            final partes = addr.address.split('.');
-            if (partes.length == 4) {
-              prefixos.add('${partes[0]}.${partes[1]}.${partes[2]}.');
-            }
-          }
-        }
-      }
-    } catch (_) {}
-
-    if (prefixos.isEmpty) {
-      prefixos.addAll(['192.168.0.', '192.168.1.']);
-    }
-
-    // 3. Hosts organizados com prioridade para faixas habituais de roteadores e servidores
-    final hostsPrioritarios = <int>[
-      1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 20, 25, 30, 50,
-      100, 101, 102, 103, 104, 105, 106, 107, 108, 109, 110, 115, 120, 130, 140, 150,
-    ];
-    final todosHosts = <int>[
-      ...hostsPrioritarios,
-      for (int i = 1; i <= 254; i++)
-        if (!hostsPrioritarios.contains(i)) i,
-    ];
-
-    for (final prefixo in prefixos) {
-      if (!_varreduraAtiva || idAtual != _idVarredura || conectado) break;
-
-      // Executa em lotes paralelos de 25 IPs para varredura rápida e sem sobrecarga
-      const tamanhoLote = 25;
-      for (int i = 0; i < todosHosts.length; i += tamanhoLote) {
-        if (!_varreduraAtiva || idAtual != _idVarredura || conectado) break;
-        final fim = (i + tamanhoLote < todosHosts.length) ? i + tamanhoLote : todosHosts.length;
-        final lote = todosHosts.sublist(i, fim);
-
-        final futuros = lote.map((host) {
-          final ip = '$prefixo$host';
-          return _testarIpServidorHttp(ip, ServidorRedeLocal.portaPadraoHttp);
-        });
-
-        final resultados = await Future.wait(futuros);
-        if (resultados.any((r) => r == true)) {
-          // Servidor balcão encontrado e processado com sucesso!
-          break;
-        }
-      }
-    }
-  }
-
-  Future<bool> _testarIpServidorHttp(String ip, int porta) async {
-    try {
-      final client = HttpClient()..connectionTimeout = const Duration(milliseconds: 500);
-      final uri = Uri.parse('http://$ip:$porta/api/status');
-      final req = await client.getUrl(uri).timeout(const Duration(milliseconds: 500));
-      final resp = await req.close().timeout(const Duration(milliseconds: 500));
-      if (resp.statusCode == HttpStatus.ok) {
-        final body = await utf8.decodeStream(resp);
-        final json = jsonDecode(body) as Map<String, dynamic>;
-        if (json['sucesso'] == true && json['servidor'] == 'Nous Local Server') {
-          final lojaIdStr = (json['lojaId'] as String?) ?? '';
-          final tipoHost = json['tipoHost'] as String? ?? (lojaIdStr.isNotEmpty ? 'loja' : 'usuario');
-          final info = DispositivoLojaInfo(
-            lojaId: lojaIdStr,
-            lojaNome: (json['lojaNome'] as String?) ?? 'Usuário Nous',
-            ip: ip,
-            porta: porta,
-            vistoEm: DateTime.now(),
-            tipoHost: tipoHost,
-          );
-          _adicionarOuAtualizarServidorDescoberto(info);
-          return true;
-        }
-      }
-    } catch (_) {}
-    return false;
+    _descoberta.pararDescoberta();
   }
 
   /// Inicia escuta contínua e tenta reconectar automaticamente ao servidor balcão
@@ -465,15 +227,16 @@ class ClienteRedeLocal {
     await iniciarDescoberta();
 
     // 1. Tenta o último IP conhecido salvo
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final ultimoIp = prefs.getString('nous_ultimo_ip_balcao');
-      final ultimaPorta = prefs.getInt('nous_ultima_porta_balcao') ?? ServidorRedeLocal.portaPadraoHttp;
-      if (ultimoIp != null && ultimoIp.isNotEmpty) {
-        final ok = await conectar(ip: ultimoIp, porta: ultimaPorta, pdv: pdv, auth: auth);
-        if (ok) return;
-      }
-    } catch (_) {}
+    final ultimo = await GerenciadorDispositivoLocal.obterUltimoBalcao();
+    if (ultimo.ip != null && ultimo.ip!.isNotEmpty) {
+      final ok = await conectar(
+        ip: ultimo.ip!,
+        porta: ultimo.porta ?? ServidorRedeLocal.portaPadraoHttp,
+        pdv: pdv,
+        auth: auth,
+      );
+      if (ok) return;
+    }
 
     // 2. Se já encontrou servidores via UDP, conecta no primeiro disponível
     if (!conectado && !_conectando && lojasEncontradas.value.isNotEmpty) {
@@ -537,136 +300,43 @@ class ClienteRedeLocal {
         apelidoUsuario = conta?.apelido ?? _authProvider?.contaAtual?.apelido;
       }
 
-      // 1. Baixa o snapshot atualizado da Loja via REST, passando os dados de identidade para auto-associação
-      // Timeout de conexão ágil na LAN (3s) para falhar rápido se o IP for inválido
-      final client = HttpClient()..connectionTimeout = const Duration(seconds: 3);
-      final uriLoja = Uri(
-        scheme: 'http',
-        host: _ipServidor,
-        port: _portaServidor,
-        path: '/api/loja',
-        queryParameters: {
-          if (cpfLogado.isNotEmpty) 'cpf': cpfLogado,
-          if (nomeUsuario != null && nomeUsuario.isNotEmpty) 'nome': nomeUsuario,
-          if (apelidoUsuario != null && apelidoUsuario.isNotEmpty) 'apelido': apelidoUsuario,
-          'dispositivo': _nomeDispositivo,
-        },
+      // 1. Baixa e consolida o snapshot atualizado da Loja via REST
+      final resultadoSnapshot = await SnapshotLojaClienteHandler.obterEConsolidarSnapshot(
+        ipServidor: _ipServidor!,
+        portaServidor: _portaServidor!,
+        cpfLogado: cpfLogado,
+        nomeUsuario: nomeUsuario,
+        apelidoUsuario: apelidoUsuario,
+        nomeDispositivo: _nomeDispositivo,
+        pdvProvider: _pdvProvider!,
+        vincularLojaSeNecessario: _vincularLojaSeNecessario,
       );
-      final request = await client.getUrl(uriLoja).timeout(const Duration(seconds: 4));
-      final response = await request.close().timeout(const Duration(seconds: 4));
 
-      if (response.statusCode == HttpStatus.forbidden) {
-        debugPrint('[ClienteRedeLocal] Conexão recusada pelo Administrador do Balcão.');
-        ultimoErro.value = 'Conexão recusada pelo Administrador do Balcão.';
+      if (!resultadoSnapshot.sucesso) {
+        ultimoErro.value = resultadoSnapshot.erro;
         return false;
       }
 
-      if (response.statusCode != HttpStatus.ok) {
-        debugPrint('[ClienteRedeLocal] Falha ao obter dados da loja HTTP ${response.statusCode}');
-        ultimoErro.value = 'Falha ao obter dados da loja (HTTP ${response.statusCode}).';
-        return false;
-      }
-
-      final body = await utf8.decodeStream(response);
-      final dados = await decodificarJsonMapaSeguro(body);
-
-      Loja? lojaBrutaParaReconciliar;
-      List<String> imagensAusentesParaReconciliar = [];
-      List<String> fotosUsuariosAusentesParaReconciliar = [];
-
-      if (dados['sucesso'] == true) {
-        if (dados['loja'] != null) {
-          final lojaBruta = Loja.fromJson(dados['loja'] as Map<String, dynamic>);
-          if (!LojasService.ehLojaHostFalsa(lojaBruta.id, lojaBruta.tags, lojaBruta.nome)) {
-            lojaBrutaParaReconciliar = lojaBruta;
-            imagensAusentesParaReconciliar = (dados['imagensAusentes'] as List<dynamic>? ?? [])
-                .map((e) => e.toString())
-                .toList();
-
-            // Consolidação leve imediata para disponibilidade instantânea da loja e pedidos
-            final lojaLocalExistente = _pdvProvider!.buscarPorId(lojaBruta.id) ??
-                await LojasService.carregarLojaPorId(lojaBruta.id);
-
-            final lojaConsolidada = LojasService.consolidarLojaComImagensLocais(
-              lojaBruta,
-              lojaLocalExistente,
-              manterItensAusentes: true,
-            );
-
-            _lojaSincronizada = lojaConsolidada;
-            await _pdvProvider!.adicionarOuAtualizarLoja(lojaConsolidada);
-            await _vincularLojaSeNecessario(lojaConsolidada);
-
-            final notificacoesDispensadas = (dados['notificacoesDispensadasLoja'] as List<dynamic>?)
-                ?.map((e) => e.toString())
-                .toList();
-            if (notificacoesDispensadas != null && notificacoesDispensadas.isNotEmpty) {
-              NotificacoesProvider.instanciaAtiva?.dispensarNotificacoesLoja(
-                lojaConsolidada.id,
-                notificacoesDispensadas,
-                originadoDaRede: true,
-              );
-            }
-
-            if (dados['fotosUsuariosAusentes'] != null) {
-              fotosUsuariosAusentesParaReconciliar = (dados['fotosUsuariosAusentes'] as List<dynamic>)
-                  .map((e) => e.toString())
-                  .toList();
-            }
-          } else {
-            _lojaSincronizada = null;
-          }
-        } else {
-          _lojaSincronizada = null;
-        }
-
-        if (dados['lojaNousColetiva'] != null && _pdvProvider != null) {
-          try {
-            final lojaNousBruta =
-                Loja.fromJson(dados['lojaNousColetiva'] as Map<String, dynamic>);
-            final lojaNousAtual =
-                _pdvProvider!.buscarPorId(PdvProvider.idLojaColetivaNous);
-            if (lojaNousAtual != null) {
-              final membrosCombinados = <String, MembroLoja>{};
-              for (final m in lojaNousAtual.membros) {
-                membrosCombinados[m.cpf.replaceAll(RegExp(r'\D'), '')] = m;
-              }
-              for (final m in lojaNousBruta.membros) {
-                final cpfNorm = m.cpf.replaceAll(RegExp(r'\D'), '');
-                membrosCombinados[cpfNorm] = m;
-              }
-              final mesclada = lojaNousAtual.copyWith(
-                membros: membrosCombinados.values.toList(),
-              );
-              await _pdvProvider!.adicionarOuAtualizarLoja(mesclada);
-            } else {
-              await _pdvProvider!.adicionarOuAtualizarLoja(lojaNousBruta);
-            }
-          } catch (_) {}
-        }
-
-        if (dados['presencas'] != null) {
-          final lista = dados['presencas'] as List<dynamic>? ?? [];
-          presencasAtivas.value = lista
-              .map((e) => TerminalConectadoInfo.fromJson(e as Map<String, dynamic>))
-              .toList();
-        }
-      } else {
-        _lojaSincronizada = null;
+      _lojaSincronizada = resultadoSnapshot.lojaConsolidada;
+      final lojaBrutaParaReconciliar = resultadoSnapshot.lojaBrutaParaReconciliar;
+      final imagensAusentesParaReconciliar = resultadoSnapshot.imagensAusentes;
+      final fotosUsuariosAusentesParaReconciliar = resultadoSnapshot.fotosUsuariosAusentes;
+      if (resultadoSnapshot.presencas != null) {
+        presencasAtivas.value = resultadoSnapshot.presencas!;
       }
 
       // 2. Conecta ao WebSocket para atualizações em tempo real
-      final wsUrl = 'ws://$_ipServidor:$_portaServidor/api/ws';
+      final wsUrl = ResolvedorUrlRede.montarUrlWs(
+        hostOuIp: _ipServidor,
+        porta: _portaServidor,
+        caminho: '/api/ws',
+      );
       _ws = await WebSocket.connect(wsUrl).timeout(const Duration(seconds: 4));
 
       estaConectado.value = true;
       debugPrint('[ClienteRedeLocal] Conectado ao servidor via WebSocket em $wsUrl');
 
-      try {
-        final prefs = await SharedPreferences.getInstance();
-        await prefs.setString('nous_ultimo_ip_balcao', _ipServidor!);
-        await prefs.setInt('nous_ultima_porta_balcao', _portaServidor!);
-      } catch (_) {}
+      await GerenciadorDispositivoLocal.salvarUltimoBalcao(_ipServidor!, _portaServidor!);
 
       // Envia identificação nominal do dispositivo e dados do usuário para o balcão
       _ws!.add(
@@ -708,56 +378,24 @@ class ClienteRedeLocal {
         },
       );
 
-      // Orquestração sequencial e resiliente em background pós-conexão para evitar gargalos no socket e banco SQLite
-      unawaited(() async {
-        try {
-          // Checagem prioritária imediata de nova versão no balcão (em paralelo, sem esperar nada)
-          unawaited(verificarAtualizacaoLocal());
-
-          // 0. Sincroniza o relógio em uníssono com o balcão antes de qualquer operação
-          await RelogioRedeService.instancia.sincronizarComServidor(
-            ip: _ipServidor!,
-            porta: _portaServidor!,
-          );
-          if (lojaBrutaParaReconciliar != null) {
-            try {
-              final lojaReconciliada = await _reconciliarLojaMutua(
-                lojaBrutaParaReconciliar,
-                imagensAusentesParaReconciliar,
-              );
-              _lojaSincronizada = lojaReconciliada;
-              await _pdvProvider!.adicionarOuAtualizarLoja(lojaReconciliada);
-              if (fotosUsuariosAusentesParaReconciliar.isNotEmpty) {
-                _curarFotosUsuariosAusentesNoServidor(
-                  fotosUsuariosAusentesParaReconciliar,
-                );
-              }
-            } catch (e) {
-              debugPrint('[ClienteRedeLocal] Reconciliação mútua assíncrona de mídia: $e');
-            }
-          }
-          await sincronizarIdentidadeUsuario();
-          await reconciliarContasComServidor();
-          await sincronizarPerfisLojasComServidor();
-          await ChatService.sincronizarMensagensComBalcao(
-            ipServidor: _ipServidor!,
-            portaServidor: _portaServidor!,
-            cpfUsuario: cpfLogado,
-            lojaId: _lojaSincronizada?.id,
-          );
-          if (_lojaSincronizada?.id != PdvProvider.idLojaColetivaNous) {
-            await ChatService.sincronizarMensagensComBalcao(
-              ipServidor: _ipServidor!,
-              portaServidor: _portaServidor!,
-              lojaId: PdvProvider.idLojaColetivaNous,
-            );
-          }
-          await ChatService.drenarFilaDeSaida();
-          verificarAtualizacaoLocal();
-        } catch (e) {
-          debugPrint('[ClienteRedeLocal] Erro na sincronização pós-conexão: $e');
-        }
-      }());
+      // Orquestração sequencial e resiliente em background pós-conexão
+      unawaited(ClientePosConexaoOrquestrador.executar(
+        ipServidor: _ipServidor!,
+        portaServidor: _portaServidor!,
+        cpfLogado: cpfLogado,
+        lojaBrutaParaReconciliar: lojaBrutaParaReconciliar,
+        imagensAusentesParaReconciliar: imagensAusentesParaReconciliar,
+        fotosUsuariosAusentesParaReconciliar: fotosUsuariosAusentesParaReconciliar,
+        pdvProvider: _pdvProvider,
+        reconciliarLojaMutua: _reconciliarLojaMutua,
+        onLojaSincronizada: (l) => _lojaSincronizada = l,
+        curarFotosUsuariosAusentesNoServidor: _curarFotosUsuariosAusentesNoServidor,
+        verificarAtualizacaoLocal: verificarAtualizacaoLocal,
+        sincronizarIdentidadeUsuario: sincronizarIdentidadeUsuario,
+        reconciliarContasComServidor: reconciliarContasComServidor,
+        sincronizarPerfisLojasComServidor: sincronizarPerfisLojasComServidor,
+        idLojaSincronizada: _lojaSincronizada?.id,
+      ));
 
       return true;
     } catch (e) {
@@ -792,55 +430,12 @@ class ClienteRedeLocal {
   }
 
   void _processarSinalChamada(Map<String, dynamic> dados) {
-    try {
-      final tipo = dados['tipo'] as String?;
-      final meuCpf = (_authProvider?.cpf ?? _pdvProvider?.cpfAtual ?? '').replaceAll(RegExp(r'\D'), '');
-
-      if (tipo == 'chamada_iniciar') {
-        final chamadaJson = dados['chamada'] as Map<String, dynamic>?;
-        final sdp = dados['sdp'] as Map<String, dynamic>?;
-        if (chamadaJson != null && sdp != null) {
-          final destId = (chamadaJson['destinatarioId'] as String? ?? '').replaceAll(RegExp(r'\D'), '');
-          final participantes = (chamadaJson['participantesIds'] as List<dynamic>?)
-                  ?.map((e) => e.toString().replaceAll(RegExp(r'\D'), ''))
-                  .toList() ??
-              [];
-          final destEhLojaLocal = destId.isNotEmpty &&
-              (_pdvProvider?.lojas.any(
-                    (l) =>
-                        PdvProvider.normalizarIdLoja(l.id) == destId &&
-                        (ChatService.normalizarCpf(l.cpfDonoOriginal) ==
-                                meuCpf ||
-                            l.membros.any(
-                              (m) =>
-                                  ChatService.normalizarCpf(m.cpf) == meuCpf,
-                            )),
-                  ) ??
-                  false);
-
-          if (destId == meuCpf ||
-              destEhLojaLocal ||
-              participantes.contains(meuCpf) ||
-              destId.isEmpty) {
-            ChamadaWebRtcService.instancia.receberConvite(chamadaJson, sdp);
-          }
-        }
-      } else if (tipo == 'chamada_aceita') {
-        final sdp = dados['sdp'] as Map<String, dynamic>?;
-        if (sdp != null) {
-          ChamadaWebRtcService.instancia.receberRespostaAceita(sdp);
-        }
-      } else if (tipo == 'chamada_candidato_ice') {
-        final candidate = dados['candidate'] as Map<String, dynamic>?;
-        if (candidate != null) {
-          ChamadaWebRtcService.instancia.receberCandidatoIce(candidate);
-        }
-      } else if (tipo == 'chamada_rejeitada' || tipo == 'chamada_encerrada') {
-        ChamadaWebRtcService.instancia.encerrarChamada(notificarRede: false);
-      }
-    } catch (e) {
-      debugPrint('[ClienteRedeLocal] Erro ao processar sinal de chamada: $e');
-    }
+    final meuCpf = (_authProvider?.cpf ?? _pdvProvider?.cpfAtual ?? '').replaceAll(RegExp(r'\D'), '');
+    ClienteWsMessageHandler.processarSinalChamada(
+      dados: dados,
+      meuCpf: meuCpf,
+      lojasLocal: _pdvProvider?.lojas,
+    );
   }
 
   void _aoDesconectar() {
@@ -864,160 +459,37 @@ class ClienteRedeLocal {
   }
 
   /// Vincula a loja sincronizada aos perfis locais do usuário se ele for membro ou dono
-  Future<void> _vincularLojaSeNecessario(Loja loja) async {
-    if (LojasService.ehLojaHostFalsa(loja.id, loja.tags, loja.nome)) return;
-    final cpf = _pdvProvider?.cpfAtual ?? _authProvider?.contaAtual?.cpf ?? _authProvider?.cpf;
-    if (cpf != null && cpf.isNotEmpty && _pdvProvider != null) {
-      final cpfLimpo = cpf.replaceAll(RegExp(r'\D'), '');
-      final ehDono =
-          loja.cpfDonoOriginal.replaceAll(RegExp(r'\D'), '') == cpfLimpo;
-      final ehMembro = loja.membros.any(
-        (m) => m.cpf.replaceAll(RegExp(r'\D'), '') == cpfLimpo,
+  Future<void> _vincularLojaSeNecessario(Loja loja) =>
+      ClientePosConexaoOrquestrador.vincularLojaSeNecessario(
+        loja: loja,
+        cpfLogado: _pdvProvider?.cpfAtual ?? _authProvider?.contaAtual?.cpf ?? _authProvider?.cpf,
+        pdvProvider: _pdvProvider,
       );
-
-      if (ehDono) {
-        // O dono nunca deve ter ReferenciaLoja para sua própria loja (já reside em minhasLojas).
-        await LojasService.removerReferencia(cpf, loja.id);
-        return;
-      }
-
-      // Se o usuário logado NÃO é membro da equipe nem dono, NUNCA vincula aos seus perfis!
-      if (!ehMembro) {
-        debugPrint(
-          '[ClienteRedeLocal] Usuário $cpfLimpo não é membro nem dono da loja "${loja.nome}". Não vinculando aos perfis profissionais.',
-        );
-        return;
-      }
-
-      // Salva a loja completa no banco SQLite local deste aparelho com proteção de imagens
-      await LojasService.salvarLojaIndividual(loja);
-
-      // Garante a referência no cofre deste CPF participante para que a loja apareça em lojasQueParticipo
-      final refs = await LojasService.carregarReferencias(cpf);
-      final jaTem = refs.any((r) => r.lojaId == loja.id);
-      if (!jaTem) {
-        await LojasService.adicionarReferencia(
-          cpf,
-          ReferenciaLoja(
-            lojaId: loja.id,
-            cpfDonoOriginal: loja.cpfDonoOriginal,
-          ),
-        );
-
-        // Recarrega as lojas no PdvProvider apenas na primeira vinculação para aparecer em lojasQueParticipo
-        await _pdvProvider!.entrarComCpf(cpf);
-      }
-    }
-  }
 
   /// Envia mensagem de chat em tempo real via WebSocket para o servidor (com fallback REST)
   Future<bool> enviarMensagemChat(
     MensagemChat msg, {
     Map<String, dynamic>? payloadCustomizado,
-  }) async {
-    MensagemChat msgParaEnvio = msg;
-
-    // Se contiver anexo local (imagem, áudio ou arquivo), garante envio do arquivo
-    if (msg.caminhoAnexo.isNotEmpty) {
-      final resolvida = ImagemService.resolverCaminhoExistente(msg.caminhoAnexo);
-      if (resolvida != null) {
-        final jaTemBase64 = payloadCustomizado != null && payloadCustomizado['anexoBytesBase64'] != null;
-        if (!jaTemBase64) {
-          final String anexoNoServidor;
-          if (msg.tipo == 'imagem') {
-            anexoNoServidor = await _enviarUploadImagemParaServidor(resolvida);
-          } else {
-            anexoNoServidor = await _transferencia.enviarUploadAnexoParaServidor(
-              ipServidor: _ipServidor,
-              portaServidor: _portaServidor,
-              caminhoLocal: resolvida,
-              subpasta: msg.tipo == 'audio' ? 'audios' : 'anexos',
-            );
-          }
-          if (anexoNoServidor.isNotEmpty) {
-            msgParaEnvio = msgParaEnvio.copyWith(caminhoAnexo: anexoNoServidor);
-          }
-        } else {
-          // Já temos o binário Base64 na carga útil (anexo leve <= 64KB); despacha upload bruto em paralelo sem bloquear tempo real
-          if (msg.tipo == 'imagem') {
-            unawaited(_enviarUploadImagemParaServidor(resolvida));
-          } else {
-            unawaited(_transferencia.enviarUploadAnexoParaServidor(
-              ipServidor: _ipServidor,
-              portaServidor: _portaServidor,
-              caminhoLocal: resolvida,
-              subpasta: msg.tipo == 'audio' ? 'audios' : 'anexos',
-            ));
-          }
-        }
-      }
-    }
-
-    final dadosEnvio = payloadCustomizado != null
-        ? Map<String, dynamic>.from(payloadCustomizado)
-        : msgParaEnvio.toJson();
-    if (msgParaEnvio.caminhoAnexo != msg.caminhoAnexo) {
-      dadosEnvio['caminhoAnexo'] = msgParaEnvio.caminhoAnexo;
-    }
-
-    // 1. Envia via WebSocket em tempo real se conectado
-    if (_ws != null && estaConectado.value) {
-      try {
-        _ws!.add(
-          jsonEncode({
-            'tipo': 'mensagem_chat',
-            'mensagem': dadosEnvio,
-          }),
-        );
-        return true;
-      } catch (e) {
-        debugPrint('[ClienteRedeLocal] Erro ao enviar mensagem via WS, tentando REST: $e');
-      }
-    }
-
-    // 2. Fallback imediato para REST HTTP POST /api/chat/mensagem
-    String? ip = _ipServidor;
-    int porta = _portaServidor ?? ServidorRedeLocal.portaPadraoHttp;
-    if (ip == null && lojasEncontradas.value.isNotEmpty) {
-      ip = lojasEncontradas.value.first.ip;
-      porta = lojasEncontradas.value.first.porta;
-    }
-    if (ip == null) {
-      try {
-        final prefs = await SharedPreferences.getInstance();
-        ip = prefs.getString('nous_ultimo_ip_balcao');
-        porta = prefs.getInt('nous_ultima_porta_balcao') ?? ServidorRedeLocal.portaPadraoHttp;
-      } catch (_) {}
-    }
-
-    if (ip != null) {
-      try {
-        final client = HttpClient()..connectionTimeout = const Duration(seconds: 4);
-        final uri = Uri.parse('http://$ip:$porta/api/chat/mensagem');
-        final req = await client.postUrl(uri);
-        req.headers.contentType = ContentType.json;
-        req.write(jsonEncode(dadosEnvio));
-        final resp = await req.close();
-        if (resp.statusCode == HttpStatus.ok) {
-          return true;
-        }
-      } catch (e) {
-        debugPrint('[ClienteRedeLocal] Erro ao enviar mensagem de chat via REST: $e');
-      }
-    }
-    return false;
-  }
+  }) =>
+      _despachante.enviarMensagemChat(
+        ws: _ws,
+        estaConectado: estaConectado.value,
+        ipServidor: _ipServidor,
+        portaServidor: _portaServidor,
+        lojasEncontradas: lojasEncontradas.value,
+        msg: msg,
+        payloadCustomizado: payloadCustomizado,
+        uploadImagem: _enviarUploadImagemParaServidor,
+        uploadAnexo: (caminho, subpasta) => _transferencia.enviarUploadAnexoParaServidor(
+          ipServidor: _ipServidor,
+          portaServidor: _portaServidor,
+          caminhoLocal: caminho,
+          subpasta: subpasta,
+        ),
+      );
 
   /// Envia um evento de controle ou confirmação via WebSocket (ex: mensagem_entregue, mensagem_lida)
-  void enviarEventoWs(Map<String, dynamic> payload) {
-    if (_ws != null && estaConectado.value) {
-      try {
-        _ws!.add(jsonEncode(payload));
-      } catch (e) {
-        debugPrint('[ClienteRedeLocal] Erro ao enviar evento WS: $e');
-      }
-    }
-  }
+  void enviarEventoWs(Map<String, dynamic> payload) => enviarMensagemRaw(payload);
 
   /// Envia um pedido (novo ou atualizado) realizado no celular para o servidor central da loja
   Future<bool> enviarPedido(PedidoLoja pedido) async {
@@ -1102,7 +574,11 @@ class ClienteRedeLocal {
 
         final client = HttpClient()..connectionTimeout = const Duration(seconds: 15);
         final request = await client.postUrl(
-          Uri.parse('http://$_ipServidor:$_portaServidor/api/loja/atualizar'),
+          ResolvedorUrlRede.montarUriHttp(
+            hostOuIp: _ipServidor,
+            porta: _portaServidor,
+            caminho: '/api/loja/atualizar',
+          ),
         );
         request.headers.contentType = ContentType.json;
         request.write(jsonEncode(lojaParaEnvio.toJson()));
@@ -1237,52 +713,50 @@ class ClienteRedeLocal {
 
 
   /// Baixa uma imagem remota individual do balcão e salva no armazenamento local
-  Future<String> baixarImagemRemota(String caminhoRemoto, {String? cpf}) {
-    return _transferencia.baixarImagemRemota(
-      caminhoRemoto: caminhoRemoto,
-      ipServidor: _ipServidor,
-      portaServidor: _portaServidor,
-      cpf: cpf,
-      onFotoUsuarioBaixada: (cpfLimpo, pathFinal) async {
-        try {
-          final c = await ContasNousService.buscarPorCpf(cpfLimpo);
-          if (c != null) {
-            final atualizada = c.copyWith(foto: pathFinal);
-            await ContasNousService.salvar(atualizada);
-            _authProvider?.atualizarContaNoCache(atualizada);
-            _pdvProvider?.sincronizarFotoUsuarioEmClientes(cpfLimpo, pathFinal);
-          }
-        } catch (_) {}
-      },
-    );
+  Future<String> baixarImagemRemota(String caminhoRemoto, {String? cpf}) =>
+      _transferencia.baixarImagemRemota(
+        caminhoRemoto: caminhoRemoto,
+        ipServidor: _ipServidor,
+        portaServidor: _portaServidor,
+        cpf: cpf,
+        onFotoUsuarioBaixada: _onFotoUsuarioBaixada,
+      );
+
+  Future<void> _onFotoUsuarioBaixada(String cpfLimpo, String pathFinal) async {
+    try {
+      final c = await ContasNousService.buscarPorCpf(cpfLimpo);
+      if (c != null) {
+        final atualizada = c.copyWith(foto: pathFinal);
+        await ContasNousService.salvar(atualizada);
+        _authProvider?.atualizarContaNoCache(atualizada);
+        _pdvProvider?.sincronizarFotoUsuarioEmClientes(cpfLimpo, pathFinal);
+      }
+    } catch (_) {}
   }
 
   /// Baixa um arquivo de áudio/música remoto do balcão e salva no armazenamento local
-  Future<String> baixarAudioRemoto(String caminhoRemoto) {
-    return _transferencia.baixarAudioRemoto(
-      caminhoRemoto: caminhoRemoto,
-      ipServidor: _ipServidor,
-      portaServidor: _portaServidor,
-    );
-  }
+  Future<String> baixarAudioRemoto(String caminhoRemoto) =>
+      _transferencia.baixarAudioRemoto(
+        caminhoRemoto: caminhoRemoto,
+        ipServidor: _ipServidor,
+        portaServidor: _portaServidor,
+      );
 
   /// Envia a Identidade do Usuário (dados cadastrais, apelido e foto) atualizada para o servidor balcão
-  Future<bool> enviarUsuario(UsuarioNous usuario) {
-    return _sincronizador.enviarUsuario(
-      ipServidor: _ipServidor,
-      portaServidor: _portaServidor,
-      usuario: usuario,
-    );
-  }
+  Future<bool> enviarUsuario(UsuarioNous usuario) =>
+      _sincronizador.enviarUsuario(
+        ipServidor: _ipServidor,
+        portaServidor: _portaServidor,
+        usuario: usuario,
+      );
 
-  Future<void> _curarFotosUsuariosAusentesNoServidor(List<String> cpfsAusentes) {
-    return _sincronizador.curarFotosUsuariosAusentesNoServidor(
-      ipServidor: _ipServidor,
-      portaServidor: _portaServidor,
-      cpfsAusentes: cpfsAusentes,
-      pdvProvider: _pdvProvider,
-    );
-  }
+  Future<void> _curarFotosUsuariosAusentesNoServidor(List<String> cpfsAusentes) =>
+      _sincronizador.curarFotosUsuariosAusentesNoServidor(
+        ipServidor: _ipServidor,
+        portaServidor: _portaServidor,
+        cpfsAusentes: cpfsAusentes,
+        pdvProvider: _pdvProvider,
+      );
 
   /// Método público para forçar a sincronização e reconciliação mútua de contas e usuários com o balcão
   Future<void> reconciliarContasComServidor() =>
@@ -1294,15 +768,14 @@ class ClienteRedeLocal {
       );
 
   /// Sincroniza pan-dispositivo todas as lojas e referências associadas ao CPF ativo
-  Future<void> sincronizarPerfisLojasComServidor() {
-    return _sincronizador.sincronizarPerfisLojasComServidor(
-      ipServidor: _ipServidor,
-      portaServidor: _portaServidor,
-      authProvider: _authProvider,
-      pdvProvider: _pdvProvider,
-      lojaSincronizada: _lojaSincronizada,
-    );
-  }
+  Future<void> sincronizarPerfisLojasComServidor() =>
+      _sincronizador.sincronizarPerfisLojasComServidor(
+        ipServidor: _ipServidor,
+        portaServidor: _portaServidor,
+        authProvider: _authProvider,
+        pdvProvider: _pdvProvider,
+        lojaSincronizada: _lojaSincronizada,
+      );
 
   /// Notifica o servidor balcão que o membro saiu da loja para desvinculação imediata
   Future<void> notificarSaidaLoja(String lojaId, String cpf) =>
@@ -1327,17 +800,10 @@ class ClienteRedeLocal {
 
   /// Sincroniza o relógio deste dispositivo com o balcão da rede local sob demanda
   Future<bool> sincronizarRelogio() async {
-    String? ip = _ipServidor;
-    int? porta = _portaServidor;
-    if (ip == null && lojasEncontradas.value.isNotEmpty) {
-      ip = lojasEncontradas.value.first.ip;
-      porta = lojasEncontradas.value.first.porta;
-    }
+    final ip = _ipServidor ?? (lojasEncontradas.value.isNotEmpty ? lojasEncontradas.value.first.ip : null);
+    final porta = _portaServidor ?? (lojasEncontradas.value.isNotEmpty ? lojasEncontradas.value.first.porta : null);
     if (ip != null && porta != null) {
-      return await RelogioRedeService.instancia.sincronizarComServidor(
-        ip: ip,
-        porta: porta,
-      );
+      return await RelogioRedeService.instancia.sincronizarComServidor(ip: ip, porta: porta);
     }
     return false;
   }

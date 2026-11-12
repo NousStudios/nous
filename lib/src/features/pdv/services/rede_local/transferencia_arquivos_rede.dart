@@ -6,6 +6,7 @@ import 'package:flutter/foundation.dart';
 import 'package:nous/src/features/chat/services/chat_service.dart';
 import 'package:nous/src/features/chat/services/resolvedor_foto_chat.dart';
 import 'package:nous/src/features/pdv/services/imagem_service.dart';
+import 'package:nous/src/features/pdv/services/rede_local/helpers/resolvedor_url_rede.dart';
 import 'package:nous/src/features/pdv/services/rede_local/servidor_rede_local.dart';
 import 'package:path/path.dart' as p;
 import 'package:shared_preferences/shared_preferences.dart';
@@ -49,8 +50,11 @@ class TransferenciaArquivosRede {
       final client =
           HttpClient()..connectionTimeout = const Duration(seconds: 15);
       final req = await client.postUrl(
-        Uri.parse(
-          'http://$ipServidor:$portaServidor/api/upload_imagem?nome=${Uri.encodeQueryComponent(nome)}',
+        ResolvedorUrlRede.montarUriHttp(
+          hostOuIp: ipServidor,
+          porta: portaServidor,
+          caminho: '/api/upload_imagem',
+          parametros: {'nome': nome},
         ),
       );
       req.headers.contentType = ContentType.binary;
@@ -102,8 +106,11 @@ class TransferenciaArquivosRede {
       final client =
           HttpClient()..connectionTimeout = const Duration(seconds: 30);
       final req = await client.postUrl(
-        Uri.parse(
-          'http://$ipServidor:$portaServidor/api/upload_anexo?nome=${Uri.encodeQueryComponent(nome)}&pasta=${Uri.encodeQueryComponent(subpasta)}',
+        ResolvedorUrlRede.montarUriHttp(
+          hostOuIp: ipServidor,
+          porta: portaServidor,
+          caminho: '/api/upload_anexo',
+          parametros: {'nome': nome, 'pasta': subpasta},
         ),
       );
       req.headers.contentType = ContentType.binary;
@@ -277,8 +284,11 @@ class TransferenciaArquivosRede {
 
       final clienteHttp =
           HttpClient()..connectionTimeout = const Duration(seconds: 15);
-      final uri = Uri.parse(
-        'http://$ipServidor:$portaServidor/api/audio?caminho=${Uri.encodeQueryComponent(caminhoLimpo)}',
+      final uri = ResolvedorUrlRede.montarUriHttp(
+        hostOuIp: ipServidor,
+        porta: portaServidor,
+        caminho: '/api/audio',
+        parametros: {'caminho': caminhoLimpo},
       );
       final req = await clienteHttp.getUrl(uri);
       final resp = await req.close();

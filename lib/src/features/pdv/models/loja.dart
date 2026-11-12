@@ -419,6 +419,29 @@ class Loja {
   TurnoCaixa? get turnoCaixaAberto =>
       turnosCaixa.where((t) => t.aberto).firstOrNull;
 
+  /// Retorna uma visão pública e segura da Loja (Cardápio Digital Público),
+  /// ocultando estritamente dados financeiros, listas de fornecedores, clientes com fiado,
+  /// auditorias e histórico de pedidos de terceiros.
+  Loja toVisaoPublica() {
+    return copyWith(
+      clientesLoja: const [],
+      fornecedoresLoja: const [],
+      pedidosLoja: const [],
+      acoes: const [],
+      movimentosEstoque: const [],
+      pagamentosFuncionarios: const [],
+      turnosCaixa: const [],
+      pedidosProgramados: const [],
+      gastosDiarios: const [],
+      gastosFixos: const [],
+      contratosTrabalho: const [],
+      registrosPonto: const [],
+      escalasTrabalho: const [],
+      membros: const [],
+      configuracoesImpressora: const ConfiguracoesImpressora(),
+    );
+  }
+
   Map<String, String> get atalhosTecladoEfetivos => {
         'F1': 'Desativado',
         'F2': 'Desativado',

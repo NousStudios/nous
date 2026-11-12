@@ -7,6 +7,11 @@ import 'package:nous/src/features/chat/controllers/mensageria_controller.dart';
 import 'package:nous/src/features/chat/models/conversa_chat.dart';
 import 'package:nous/src/features/chat/services/chat_autoatendimento_service.dart';
 import 'package:nous/src/features/chat/views/dialogs/dialog_editar_ficha_cliente_loja.dart';
+import 'package:nous/src/features/chat/views/dialogs/widgets/fazer_pedido/barra_categorias_e_pesquisa_chat_widget.dart';
+import 'package:nous/src/features/chat/views/dialogs/widgets/fazer_pedido/cabecalho_fazer_pedido_widget.dart';
+import 'package:nous/src/features/chat/views/dialogs/widgets/fazer_pedido/itens_catalogo_chat_widget.dart';
+import 'package:nous/src/features/chat/views/dialogs/widgets/fazer_pedido/rodape_resumo_pedido_chat_widget.dart';
+import 'package:nous/src/features/chat/views/dialogs/widgets/fazer_pedido/visao_carrinho_chat_widget.dart';
 import 'package:nous/src/features/chat/views/dialogs/widgets/modal_personalizar_item_autoatendimento.dart';
 import 'package:nous/src/features/pdv/models/categoria_loja.dart';
 import 'package:nous/src/features/pdv/models/cliente.dart';
@@ -14,10 +19,10 @@ import 'package:nous/src/features/pdv/models/item_loja.dart';
 import 'package:nous/src/features/pdv/models/loja.dart';
 import 'package:nous/src/features/pdv/models/pedido_loja.dart';
 import 'package:nous/src/features/pdv/providers/pdv_provider.dart';
-import 'package:nous/src/features/pdv/services/imagem_service.dart';
 
 /// Modal completo de Autoatendimento no Chat: navegação de categorias,
 /// cardápio interativo, acompanhamentos, carrinho e envio direto para a aba "Novos" da loja.
+/// Modularizado seguindo a arquitetura limpa do Nous (< 450 linhas).
 class DialogFazerPedidoChat extends StatefulWidget {
   final AppTheme theme;
   final ConversaChat conversa;
@@ -54,6 +59,7 @@ class _DialogFazerPedidoChatState extends State<DialogFazerPedidoChat> {
   String? _categoriaSelecionadaId;
   final List<ItemVendido> _carrinho = [];
   final TextEditingController _observacaoController = TextEditingController();
+  final TextEditingController _trocoController = TextEditingController();
   final TextEditingController _buscaItensController = TextEditingController();
   String _termoBuscaItens = '';
   String _formaPagamento = 'PIX';
@@ -72,10 +78,10 @@ class _DialogFazerPedidoChatState extends State<DialogFazerPedidoChat> {
     final pdv = context.read<PdvProvider>();
     final idBruto =
         (widget.conversa.lojaId != null && widget.conversa.lojaId!.isNotEmpty)
-        ? widget.conversa.lojaId!
-        : (widget.conversa.identificador.isNotEmpty
-              ? widget.conversa.identificador
-              : widget.conversa.id);
+            ? widget.conversa.lojaId!
+            : (widget.conversa.identificador.isNotEmpty
+                ? widget.conversa.identificador
+                : widget.conversa.id);
     final loja = await ChatAutoatendimentoService.obterLojaCatalogo(
       lojaIdBruto: idBruto,
       pdv: pdv,
@@ -91,17 +97,14 @@ class _DialogFazerPedidoChatState extends State<DialogFazerPedidoChat> {
   @override
   void dispose() {
     _observacaoController.dispose();
+    _trocoController.dispose();
     _buscaItensController.dispose();
     super.dispose();
   }
 
-  double _parsePreco(String p) =>
-      double.tryParse(p.replaceAll(',', '.')) ?? 0.0;
-
+  double _parsePreco(String p) => double.tryParse(p.replaceAll(',', '.')) ?? 0.0;
   double get _totalCarrinho => _carrinho.fold(0.0, (s, i) => s + i.subtotal);
   int get _quantidadeTotal => _carrinho.fold(0, (s, i) => s + i.quantidade);
-
-  String _formatarPreco(double v) => 'R\$ ${v.toStringAsFixed(2)}';
 
   void _adicionarItemDireto(ItemLoja item, {CategoriaLoja? cat}) {
     setState(() {
@@ -194,19 +197,26 @@ class _DialogFazerPedidoChatState extends State<DialogFazerPedidoChat> {
     final geradoPelaLoja = widget.controller.modoLoja;
 
     try {
-      final pedido =
-          await ChatAutoatendimentoService.enviarPedidoAutoatendimento(
-            context: context,
-            lojaId: loja.id,
-            carrinho: _carrinho,
-            observacaoGeral: _observacaoController.text.trim(),
-            formaPagamento: _formaPagamento,
-            controller: widget.controller,
-            geradoPelaLoja: geradoPelaLoja,
-            identificadorClienteConversa: widget.conversa.identificador,
-            nomeClienteConversa: widget.conversa.titulo,
-            fotoClienteConversa: widget.conversa.foto,
-          );
+      final obsTexto = _observacaoController.text.trim();
+      final trocoTexto = _trocoController.text.trim();
+      final obsFinal = (_formaPagamento == 'Dinheiro' && trocoTexto.isNotEmpty)
+          ? (obsTexto.isEmpty
+              ? 'Troco para R\$ $trocoTexto'
+              : '$obsTexto | Troco para R\$ $trocoTexto')
+          : obsTexto;
+
+      final pedido = await ChatAutoatendimentoService.enviarPedidoAutoatendimento(
+        context: context,
+        lojaId: loja.id,
+        carrinho: _carrinho,
+        observacaoGeral: obsFinal,
+        formaPagamento: _formaPagamento,
+        controller: widget.controller,
+        geradoPelaLoja: geradoPelaLoja,
+        identificadorClienteConversa: widget.conversa.identificador,
+        nomeClienteConversa: widget.conversa.titulo,
+        fotoClienteConversa: widget.conversa.foto,
+      );
 
       if (mounted) {
         Navigator.pop(context);
@@ -392,10 +402,10 @@ class _DialogFazerPedidoChatState extends State<DialogFazerPedidoChat> {
     final pdv = context.watch<PdvProvider>();
     final idBruto =
         (widget.conversa.lojaId != null && widget.conversa.lojaId!.isNotEmpty)
-        ? widget.conversa.lojaId!
-        : (widget.conversa.identificador.isNotEmpty
-              ? widget.conversa.identificador
-              : widget.conversa.id);
+            ? widget.conversa.lojaId!
+            : (widget.conversa.identificador.isNotEmpty
+                ? widget.conversa.identificador
+                : widget.conversa.id);
     final loja = pdv.buscarPorId(idBruto) ?? _lojaResolvida;
 
     if (_carregandoLoja && loja == null) {
@@ -451,7 +461,6 @@ class _DialogFazerPedidoChatState extends State<DialogFazerPedidoChat> {
     final todosItens = loja.itensLoja;
     final grupos = loja.gruposComponentesLoja;
 
-    // Identifica itens que pertencem APENAS a grupos de acompanhamentos (para não poluir a aba Todos)
     final idsEmCategorias = categorias.expand((c) => c.itemIds).toSet();
     final idsEmGrupos = grupos.expand((g) => g.itemIds).toSet();
     final idsApenasAcompanhamento = idsEmGrupos.difference(idsEmCategorias);
@@ -485,21 +494,20 @@ class _DialogFazerPedidoChatState extends State<DialogFazerPedidoChat> {
             )
             .toList();
 
-    // Categorias que funcionam como produto direto (possuem preço próprio ou grupos de componentes sem itens filhos)
     final categoriasBaseDiretas = _categoriaSelecionadaId == null
         ? categorias
-              .where(
-                (c) =>
-                    c.itemIds.isEmpty &&
-                    (_parsePreco(c.preco) > 0 || c.grupoIds.isNotEmpty),
-              )
-              .toList()
+            .where(
+              (c) =>
+                  c.itemIds.isEmpty &&
+                  (_parsePreco(c.preco) > 0 || c.grupoIds.isNotEmpty),
+            )
+            .toList()
         : (categoriaAtiva != null &&
-                  categoriaAtiva.itemIds.isEmpty &&
-                  (_parsePreco(categoriaAtiva.preco) > 0 ||
-                      categoriaAtiva.grupoIds.isNotEmpty)
-              ? [categoriaAtiva]
-              : const <CategoriaLoja>[]);
+                categoriaAtiva.itemIds.isEmpty &&
+                (_parsePreco(categoriaAtiva.preco) > 0 ||
+                    categoriaAtiva.grupoIds.isNotEmpty)
+            ? [categoriaAtiva]
+            : const <CategoriaLoja>[]);
 
     final tamanho = MediaQuery.sizeOf(context);
 
@@ -517,211 +525,61 @@ class _DialogFazerPedidoChatState extends State<DialogFazerPedidoChat> {
         ),
         child: Column(
           children: [
-            // Cabeçalho - Linha superior de utilitários: Minha Ficha e Botão Fechar
-            Padding(
-              padding: const EdgeInsets.fromLTRB(14, 10, 10, 2),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  TextButton.icon(
-                    style: TextButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 4,
-                      ),
-                    ),
-                    icon: Icon(
-                      Icons.badge_outlined,
-                      size: 16,
-                      color: theme.textColor,
-                    ),
-                    label: Text(
-                      'Minha Ficha',
-                      style: theme.getTextStyle(
-                        fontSize: 11.5,
-                        fontWeight: FontWeight.bold,
-                        color: theme.textColor,
-                      ),
-                    ),
-                    onPressed: () => _abrirMinhaFichaCliente(loja),
-                  ),
-                  IconButton(
-                    icon: Icon(
-                      Icons.close,
-                      color: theme.secondaryTextColor,
-                      size: 20,
-                    ),
-                    onPressed: () => Navigator.pop(context),
-                  ),
-                ],
-              ),
+            CabecalhoFazerPedidoChatWidget(
+              theme: theme,
+              nomeLoja: loja.nome,
+              vendoCarrinho: _vendoCarrinho,
+              onAbrirMinhaFicha: () => _abrirMinhaFichaCliente(loja),
+              onFechar: () => Navigator.pop(context),
             ),
-
-            // Título e Subtítulo Centralizados no topo (Padrão Nous)
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
-              child: Column(
-                children: [
-                  Text(
-                    'Pedido • ${loja.nome}',
-                    textAlign: TextAlign.center,
-                    style: theme.getTextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.bold,
-                      color: theme.textColor,
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    _vendoCarrinho
-                        ? 'Confira sua comanda e forma de pagamento'
-                        : 'Toque nos itens para adicionar ou personalizar',
-                    textAlign: TextAlign.center,
-                    style: theme.getTextStyle(
-                      fontSize: 11,
-                      color: theme.secondaryTextColor,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            Divider(height: 1, color: theme.borderColor.withValues(alpha: 0.3)),
-
-            // Conteúdo Principal
             Expanded(
               child: _vendoCarrinho
-                  ? _buildVisaoCarrinho(loja)
+                  ? VisaoCarrinhoChatWidget(
+                      theme: theme,
+                      loja: loja,
+                      carrinho: _carrinho,
+                      formaPagamento: _formaPagamento,
+                      observacaoController: _observacaoController,
+                      trocoController: _trocoController,
+                      onDecrementarOuRemover: (i) {
+                        setState(() {
+                          if (_carrinho[i].quantidade > 1) {
+                            _carrinho[i] = _carrinho[i].copyWith(
+                              quantidade: _carrinho[i].quantidade - 1,
+                            );
+                          } else {
+                            _carrinho.removeAt(i);
+                          }
+                        });
+                      },
+                      onIncrementar: (i) {
+                        setState(() {
+                          _carrinho[i] = _carrinho[i].copyWith(
+                            quantidade: _carrinho[i].quantidade + 1,
+                          );
+                        });
+                      },
+                      onSelecionarFormaPagamento: (fp) =>
+                          setState(() => _formaPagamento = fp),
+                    )
                   : Column(
                       children: [
-                        if (categorias.isNotEmpty)
-                          SizedBox(
-                            height: 44,
-                            child: ListView(
-                              scrollDirection: Axis.horizontal,
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 10,
-                                vertical: 5,
-                              ),
-                              children: [
-                                Padding(
-                                  padding: const EdgeInsets.only(right: 6),
-                                  child: ChoiceChip(
-                                    selected: _categoriaSelecionadaId == null,
-                                    label: const Text('Todos'),
-                                    labelStyle: theme.getTextStyle(
-                                      fontSize: 11.5,
-                                      fontWeight: _categoriaSelecionadaId == null
-                                          ? FontWeight.bold
-                                          : FontWeight.normal,
-                                      color: _categoriaSelecionadaId == null
-                                          ? theme.buttonTextColor
-                                          : theme.textColor,
-                                    ),
-                                    backgroundColor: theme.backgroundColor,
-                                    selectedColor: theme.buttonColor,
-                                    onSelected: (_) => setState(
-                                      () => _categoriaSelecionadaId = null,
-                                    ),
-                                  ),
-                                ),
-                                for (final cat in categorias)
-                                  Padding(
-                                    padding: const EdgeInsets.only(right: 6),
-                                    child: ChoiceChip(
-                                      selected:
-                                          _categoriaSelecionadaId == cat.id,
-                                      label: Text(
-                                        _parsePreco(cat.preco) > 0
-                                            ? '${cat.nome} (${_formatarPreco(_parsePreco(cat.preco))})'
-                                            : cat.nome,
-                                      ),
-                                      labelStyle: theme.getTextStyle(
-                                        fontSize: 11.5,
-                                        fontWeight:
-                                            _categoriaSelecionadaId == cat.id
-                                            ? FontWeight.bold
-                                            : FontWeight.normal,
-                                        color: _categoriaSelecionadaId == cat.id
-                                            ? theme.buttonTextColor
-                                            : theme.textColor,
-                                      ),
-                                      backgroundColor: theme.backgroundColor,
-                                      selectedColor: theme.buttonColor,
-                                      onSelected: (_) => setState(
-                                        () => _categoriaSelecionadaId = cat.id,
-                                      ),
-                                    ),
-                                  ),
-                              ],
-                            ),
+                        BarraCategoriasEPesquisaChatWidget(
+                          theme: theme,
+                          categorias: categorias,
+                          categoriaSelecionadaId: _categoriaSelecionadaId,
+                          buscaController: _buscaItensController,
+                          termoBusca: _termoBuscaItens,
+                          onSelecionarCategoria: (catId) =>
+                              setState(() => _categoriaSelecionadaId = catId),
+                          onChangedBusca: (v) => setState(
+                            () => _termoBuscaItens = v.trim().toLowerCase(),
                           ),
-
-                        // Barra de Pesquisa de Itens do Catálogo
-                        Padding(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 10,
-                            vertical: 5,
-                          ),
-                          child: TextField(
-                            controller: _buscaItensController,
-                            style: theme.getTextStyle(
-                              fontSize: 12.5,
-                              color: theme.textColor,
-                            ),
-                            onChanged: (v) => setState(
-                              () => _termoBuscaItens = v.trim().toLowerCase(),
-                            ),
-                            decoration: InputDecoration(
-                              hintText: 'Pesquisar itens no cardápio...',
-                              hintStyle: theme.getTextStyle(
-                                fontSize: 11.5,
-                                color: theme.secondaryTextColor,
-                              ),
-                              prefixIcon: Icon(
-                                Icons.search_rounded,
-                                size: 18,
-                                color: theme.secondaryTextColor,
-                              ),
-                              suffixIcon: _termoBuscaItens.isNotEmpty
-                                  ? IconButton(
-                                      icon: Icon(
-                                        Icons.clear_rounded,
-                                        size: 16,
-                                        color: theme.secondaryTextColor,
-                                      ),
-                                      onPressed: () {
-                                        _buscaItensController.clear();
-                                        setState(() => _termoBuscaItens = '');
-                                      },
-                                    )
-                                  : null,
-                              isDense: true,
-                              filled: true,
-                              fillColor: theme.backgroundColor,
-                              contentPadding: const EdgeInsets.symmetric(
-                                horizontal: 10,
-                                vertical: 8,
-                              ),
-                              border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(10),
-                                borderSide: BorderSide(
-                                  color: theme.borderColor.withValues(alpha: 0.5),
-                                ),
-                              ),
-                              enabledBorder: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(10),
-                                borderSide: BorderSide(
-                                  color: theme.borderColor.withValues(alpha: 0.5),
-                                ),
-                              ),
-                              focusedBorder: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(10),
-                                borderSide: BorderSide(color: theme.buttonColor),
-                              ),
-                            ),
-                          ),
+                          onLimparBusca: () {
+                            _buscaItensController.clear();
+                            setState(() => _termoBuscaItens = '');
+                          },
                         ),
-
                         Expanded(
                           child: (itensExibidos.isEmpty &&
                                   categoriasBaseDiretas.isEmpty)
@@ -739,598 +597,97 @@ class _DialogFazerPedidoChatState extends State<DialogFazerPedidoChat> {
                                   padding: const EdgeInsets.all(10),
                                   children: [
                                     for (final catBase in categoriasBaseDiretas)
-                                      _buildCardCategoriaDireta(catBase, loja),
-                                    for (final item in itensExibidos)
-                                      _buildCardItemInterativo(
-                                        item,
-                                        loja,
-                                        categoriaAtiva ??
-                                            categorias
-                                                .where(
-                                                  (c) =>
-                                                      c.itemIds.contains(item.id),
-                                                )
-                                                .firstOrNull,
+                                      ItensCatalogoChatWidget.buildCardCategoriaDireta(
+                                        theme: theme,
+                                        cat: catBase,
+                                        loja: loja,
+                                        onTap: () => _abrirPersonalizacao(
+                                          null,
+                                          loja,
+                                          catBase,
+                                        ),
                                       ),
+                                    for (final item in itensExibidos) ...[
+                                      Builder(
+                                        builder: (context) {
+                                          final catResolvida = categoriaAtiva ??
+                                              (_parsePreco(item.preco) > 0
+                                                  ? null
+                                                  : categorias
+                                                      .where(
+                                                        (c) => c.itemIds
+                                                            .contains(item.id),
+                                                      )
+                                                      .firstOrNull);
+                                          return ItensCatalogoChatWidget
+                                              .buildCardItemInterativo(
+                                            theme: theme,
+                                            item: item,
+                                            loja: loja,
+                                            cat: catResolvida,
+                                            categoriaSelecionadaId:
+                                                _categoriaSelecionadaId,
+                                            carrinho: _carrinho,
+                                            onInteragir: () =>
+                                                _interagirComItem(
+                                              item,
+                                              loja,
+                                              catResolvida,
+                                            ),
+                                            onPersonalizar: () =>
+                                                _abrirPersonalizacao(
+                                              item,
+                                              loja,
+                                              catResolvida,
+                                            ),
+                                            onDecrementar: () {
+                                              setState(() {
+                                                final idx =
+                                                    _carrinho.lastIndexWhere(
+                                                  (c) => c.itemId == item.id,
+                                                );
+                                                if (idx != -1) {
+                                                  if (_carrinho[idx]
+                                                          .quantidade >
+                                                      1) {
+                                                    _carrinho[idx] =
+                                                        _carrinho[idx].copyWith(
+                                                      quantidade:
+                                                          _carrinho[idx]
+                                                                  .quantidade -
+                                                              1,
+                                                    );
+                                                  } else {
+                                                    _carrinho.removeAt(idx);
+                                                  }
+                                                }
+                                              });
+                                            },
+                                          );
+                                        },
+                                      ),
+                                    ],
                                   ],
                                 ),
                         ),
                       ],
                     ),
             ),
-
-            // Rodapé com Resumo da Comanda: Linha 1 = Valor/Itens, Linha 2 = Botões Revisar e Despachar
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-              decoration: BoxDecoration(
-                color: theme.backgroundColor,
-                border: Border(
-                  top: BorderSide(
-                    color: theme.borderColor.withValues(alpha: 0.4),
-                  ),
-                ),
-              ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  // Linha 1: Valor total e quantidade de itens selecionados
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        'Total: ${_formatarPreco(_totalCarrinho)}',
-                        style: theme.getTextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                          color: theme.textColor,
-                        ),
-                      ),
-                      Text(
-                        '$_quantidadeTotal item${_quantidadeTotal == 1 ? '' : 's'} selecionado${_quantidadeTotal == 1 ? '' : 's'}',
-                        style: theme.getTextStyle(
-                          fontSize: 11.5,
-                          color: theme.secondaryTextColor,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-
-                  // Linha 2: Botões de ação em largura completa
-                  Row(
-                    children: [
-                      if (_carrinho.isNotEmpty) ...[
-                        Expanded(
-                          flex: 2,
-                          child: OutlinedButton.icon(
-                            style: OutlinedButton.styleFrom(
-                              foregroundColor: theme.textColor,
-                              side: BorderSide(color: theme.borderColor),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(10),
-                              ),
-                              padding: const EdgeInsets.symmetric(vertical: 10),
-                            ),
-                            icon: Icon(
-                              _vendoCarrinho
-                                  ? Icons.menu_book_rounded
-                                  : Icons.receipt_long_rounded,
-                              size: 16,
-                            ),
-                            label: Text(
-                              _vendoCarrinho
-                                  ? 'Cardápio'
-                                  : 'Revisar ($_quantidadeTotal)',
-                              style: theme.getTextStyle(
-                                fontSize: 11.5,
-                                fontWeight: FontWeight.bold,
-                                color: theme.textColor,
-                              ),
-                            ),
-                            onPressed: () => setState(
-                              () => _vendoCarrinho = !_vendoCarrinho,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                      ],
-                      Expanded(
-                        flex: 3,
-                        child: ElevatedButton.icon(
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: theme.buttonColor,
-                            foregroundColor: theme.buttonTextColor,
-                            elevation: 0,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(10),
-                            ),
-                            padding: const EdgeInsets.symmetric(vertical: 10),
-                          ),
-                          icon: _enviando
-                              ? const SizedBox(
-                                  width: 16,
-                                  height: 16,
-                                  child: CircularProgressIndicator(strokeWidth: 2),
-                                )
-                              : const Icon(Icons.send_rounded, size: 17),
-                          label: Text(
-                            _enviando
-                                ? 'Enviando...'
-                                : (widget.controller.modoLoja
-                                    ? 'Enviar Proposta'
-                                    : 'Despachar Pedido'),
-                            style: theme.getTextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.bold,
-                              color: theme.buttonTextColor,
-                            ),
-                          ),
-                          onPressed: _enviando || _carrinho.isEmpty
-                              ? null
-                              : () => _finalizarPedido(loja),
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
+            RodapeResumoPedidoChatWidget(
+              theme: theme,
+              total: _totalCarrinho,
+              quantidadeTotal: _quantidadeTotal,
+              temItens: _carrinho.isNotEmpty,
+              vendoCarrinho: _vendoCarrinho,
+              enviando: _enviando,
+              modoLoja: widget.controller.modoLoja,
+              onAlternarVisaoCarrinho: () =>
+                  setState(() => _vendoCarrinho = !_vendoCarrinho),
+              onFinalizarPedido: () => _finalizarPedido(loja),
             ),
           ],
         ),
       ),
-    );
-  }
-
-  Widget _buildCardCategoriaDireta(CategoriaLoja cat, Loja loja) {
-    final theme = widget.theme;
-    final precoCat = _parsePreco(cat.preco);
-    return Card(
-      color: theme.backgroundColor,
-      margin: const EdgeInsets.only(bottom: 8),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-        side: BorderSide(color: theme.borderColor.withValues(alpha: 0.5)),
-      ),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(12),
-        onTap: () => _abrirPersonalizacao(null, loja, cat),
-        child: Padding(
-          padding: const EdgeInsets.all(10),
-          child: Row(
-            children: [
-              ClipRRect(
-                borderRadius: BorderRadius.circular(8),
-                child: SizedBox(
-                  width: 48,
-                  height: 48,
-                  child: ImagemService.construirImagem(
-                    cat.foto,
-                    width: 48,
-                    height: 48,
-                    fit: BoxFit.cover,
-                    fallback: Container(
-                      color: theme.cardBackgroundColor,
-                      child: Icon(
-                        Icons.restaurant_rounded,
-                        color: theme.secondaryTextColor,
-                        size: 22,
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      cat.nome,
-                      style: theme.getTextStyle(
-                        fontSize: 13.5,
-                        fontWeight: FontWeight.bold,
-                        color: theme.textColor,
-                      ),
-                    ),
-                    Text(
-                      'Toque para montar e escolher acompanhamentos',
-                      style: theme.getTextStyle(
-                        fontSize: 11,
-                        color: theme.secondaryTextColor,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              Text(
-                _formatarPreco(precoCat),
-                style: theme.getTextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.bold,
-                  color: theme.buttonColor,
-                ),
-              ),
-              const SizedBox(width: 8),
-              Icon(Icons.add_circle_rounded, color: theme.buttonColor, size: 26),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildCardItemInterativo(
-    ItemLoja item,
-    Loja loja,
-    CategoriaLoja? cat,
-  ) {
-    final theme = widget.theme;
-    final temComponentesOuVariantes =
-        (cat != null && cat.grupoIds.isNotEmpty) || item.variantes.isNotEmpty;
-    final precoBase =
-        _parsePreco(item.preco) + (cat != null ? _parsePreco(cat.preco) : 0.0);
-    final fotoItem = item.imagens.isNotEmpty
-        ? item.imagens.first
-        : (cat?.foto ?? '');
-
-    final qtdNoCarrinho = _carrinho
-        .where((c) => c.itemId == item.id)
-        .fold(0, (s, c) => s + c.quantidade);
-
-    return Card(
-      color: theme.backgroundColor,
-      margin: const EdgeInsets.only(bottom: 8),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-        side: BorderSide(
-          color: qtdNoCarrinho > 0
-              ? theme.buttonColor
-              : theme.borderColor.withValues(alpha: 0.4),
-          width: qtdNoCarrinho > 0 ? 1.4 : 1.0,
-        ),
-      ),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(12),
-        onTap: () => _interagirComItem(item, loja, cat),
-        child: Padding(
-          padding: const EdgeInsets.all(10),
-          child: Row(
-            children: [
-              ClipRRect(
-                borderRadius: BorderRadius.circular(8),
-                child: SizedBox(
-                  width: 48,
-                  height: 48,
-                  child: ImagemService.construirImagem(
-                    fotoItem,
-                    width: 48,
-                    height: 48,
-                    fit: BoxFit.cover,
-                    fallback: Container(
-                      color: theme.cardBackgroundColor,
-                      child: Icon(
-                        Icons.fastfood_outlined,
-                        color: theme.secondaryTextColor,
-                        size: 22,
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      item.nome,
-                      style: theme.getTextStyle(
-                        fontSize: 13.5,
-                        fontWeight: FontWeight.bold,
-                        color: theme.textColor,
-                      ),
-                    ),
-                    if (cat != null && _categoriaSelecionadaId == null)
-                      Text(
-                        cat.nome,
-                        style: theme.getTextStyle(
-                          fontSize: 10.5,
-                          fontWeight: FontWeight.w600,
-                          color: theme.buttonColor,
-                        ),
-                      ),
-                    if (item.descricao.isNotEmpty)
-                      Text(
-                        item.descricao,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: theme.getTextStyle(
-                          fontSize: 11,
-                          color: theme.secondaryTextColor,
-                        ),
-                      ),
-                    const SizedBox(height: 3),
-                    Row(
-                      children: [
-                        Text(
-                          _formatarPreco(precoBase),
-                          style: theme.getTextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.bold,
-                            color: theme.textColor,
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        InkWell(
-                          onTap: () => _abrirPersonalizacao(item, loja, cat),
-                          borderRadius: BorderRadius.circular(6),
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 4,
-                              vertical: 2,
-                            ),
-                            child: Text(
-                              temComponentesOuVariantes
-                                  ? 'Escolher opções'
-                                  : '+ Observação',
-                              style: theme.getTextStyle(
-                                fontSize: 11,
-                                fontWeight: FontWeight.w600,
-                                color: theme.buttonColor,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 6),
-              if (qtdNoCarrinho > 0 && !temComponentesOuVariantes)
-                Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    IconButton(
-                      icon: const Icon(Icons.remove_circle_outline, size: 22),
-                      color: theme.dangerColor,
-                      visualDensity: VisualDensity.compact,
-                      onPressed: () {
-                        setState(() {
-                          final idx = _carrinho.lastIndexWhere(
-                            (c) => c.itemId == item.id,
-                          );
-                          if (idx != -1) {
-                            if (_carrinho[idx].quantidade > 1) {
-                              _carrinho[idx] = _carrinho[idx].copyWith(
-                                quantidade: _carrinho[idx].quantidade - 1,
-                              );
-                            } else {
-                              _carrinho.removeAt(idx);
-                            }
-                          }
-                        });
-                      },
-                    ),
-                    Text(
-                      '$qtdNoCarrinho',
-                      style: theme.getTextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.bold,
-                        color: theme.textColor,
-                      ),
-                    ),
-                    IconButton(
-                      icon: const Icon(Icons.add_circle_rounded, size: 24),
-                      color: theme.buttonColor,
-                      visualDensity: VisualDensity.compact,
-                      onPressed: () => _interagirComItem(item, loja, cat),
-                    ),
-                  ],
-                )
-              else
-                ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: theme.buttonColor,
-                    foregroundColor: theme.buttonTextColor,
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 10,
-                      vertical: 6,
-                    ),
-                    minimumSize: Size.zero,
-                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                  ),
-                  onPressed: () => _interagirComItem(item, loja, cat),
-                  child: Text(
-                    qtdNoCarrinho > 0 ? '+ Mais ($qtdNoCarrinho)' : 'Pedir',
-                    style: theme.getTextStyle(
-                      fontSize: 11.5,
-                      fontWeight: FontWeight.bold,
-                      color: theme.buttonTextColor,
-                    ),
-                  ),
-                ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildVisaoCarrinho(Loja loja) {
-    final theme = widget.theme;
-    const formas = ['PIX', 'Dinheiro', 'Cartão', 'A combinar no chat'];
-
-    return ListView(
-      padding: const EdgeInsets.all(12),
-      children: [
-        for (int i = 0; i < _carrinho.length; i++)
-          Builder(
-            builder: (_) {
-              final item = _carrinho[i];
-              return Container(
-                margin: const EdgeInsets.only(bottom: 8),
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  color: theme.backgroundColor,
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(
-                    color: theme.borderColor.withValues(alpha: 0.4),
-                  ),
-                ),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            item.nomeExibicao,
-                            style: theme.getTextStyle(
-                              fontSize: 13,
-                              fontWeight: FontWeight.bold,
-                              color: theme.textColor,
-                            ),
-                          ),
-                          for (final a in item.acompanhamentos)
-                            Text(
-                              ' + ${a.quantidadePorUnidade}x ${a.nomeItem}',
-                              style: theme.getTextStyle(
-                                fontSize: 11,
-                                color: theme.secondaryTextColor,
-                              ),
-                            ),
-                          if (item.observacao.isNotEmpty)
-                            Text(
-                              ' Obs: ${item.observacao}',
-                              style: theme.getTextStyle(
-                                fontSize: 11,
-                                color: theme.secondaryTextColor,
-                              ),
-                            ),
-                          const SizedBox(height: 4),
-                          Text(
-                            _formatarPreco(item.subtotal),
-                            style: theme.getTextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.bold,
-                              color: theme.buttonColor,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        IconButton(
-                          icon: Icon(
-                            item.quantidade > 1
-                                ? Icons.remove
-                                : Icons.delete_outline,
-                            size: 18,
-                          ),
-                          color: item.quantidade > 1
-                              ? theme.textColor
-                              : theme.dangerColor,
-                          onPressed: () {
-                            setState(() {
-                              if (item.quantidade > 1) {
-                                _carrinho[i] = item.copyWith(
-                                  quantidade: item.quantidade - 1,
-                                );
-                              } else {
-                                _carrinho.removeAt(i);
-                              }
-                            });
-                          },
-                        ),
-                        Text(
-                          '${item.quantidade}',
-                          style: theme.getTextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.bold,
-                            color: theme.textColor,
-                          ),
-                        ),
-                        IconButton(
-                          icon: const Icon(Icons.add, size: 18),
-                          color: theme.textColor,
-                          onPressed: () {
-                            setState(() {
-                              _carrinho[i] = item.copyWith(
-                                quantidade: item.quantidade + 1,
-                              );
-                            });
-                          },
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              );
-            },
-          ),
-        const SizedBox(height: 8),
-        Text(
-          'Forma de pagamento preferida:',
-          style: theme.getTextStyle(
-            fontSize: 12,
-            fontWeight: FontWeight.bold,
-            color: theme.secondaryTextColor,
-          ),
-        ),
-        const SizedBox(height: 6),
-        Wrap(
-          spacing: 8,
-          runSpacing: 6,
-          children: [
-            for (final fp in formas)
-              ChoiceChip(
-                selected: _formaPagamento == fp,
-                label: Text(fp),
-                labelStyle: theme.getTextStyle(
-                  fontSize: 11.5,
-                  fontWeight: _formaPagamento == fp
-                      ? FontWeight.bold
-                      : FontWeight.normal,
-                  color: _formaPagamento == fp
-                      ? theme.buttonTextColor
-                      : theme.textColor,
-                ),
-                backgroundColor: theme.backgroundColor,
-                selectedColor: theme.buttonColor,
-                onSelected: (_) => setState(() => _formaPagamento = fp),
-              ),
-          ],
-        ),
-        const SizedBox(height: 12),
-        TextField(
-          controller: _observacaoController,
-          maxLines: 2,
-          style: theme.getTextStyle(fontSize: 12, color: theme.textColor),
-          decoration: InputDecoration(
-            labelText: 'Observações de Entrega / Pedido',
-            labelStyle: theme.getTextStyle(
-              fontSize: 11,
-              color: theme.secondaryTextColor,
-            ),
-            hintText: 'Ex: Entregar no portão preto, troco para R\$ 50...',
-            hintStyle: theme.getTextStyle(
-              fontSize: 11,
-              color: theme.secondaryTextColor.withValues(alpha: 0.5),
-            ),
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-            contentPadding: const EdgeInsets.symmetric(
-              horizontal: 10,
-              vertical: 8,
-            ),
-          ),
-        ),
-      ],
     );
   }
 }

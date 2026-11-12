@@ -5,6 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:nous/src/features/chat/models/conversa_chat.dart';
 import 'package:nous/src/features/chat/models/mensagem_chat.dart';
 import 'package:nous/src/features/chat/services/chat_conversas_service.dart';
+import 'package:nous/src/features/chat/services/chat_e2ee_service.dart';
 import 'package:nous/src/features/chat/services/chat_grupos_service.dart';
 import 'package:nous/src/features/chat/services/chat_media_service.dart';
 import 'package:nous/src/features/chat/services/chat_mensagens_service.dart';
@@ -217,18 +218,30 @@ class ChatService {
     }
   }
 
+  /// Identifica se uma conversa é coletiva (grupos, tópicos da Ágora Digital, comunidade ou chat de equipe)
+  static bool ehConversaColetivaOuGrupo(String conversaId) {
+    if (conversaId.isEmpty) return false;
+    if (conversaId.startsWith('grupo_') ||
+        conversaId.startsWith('topico_') ||
+        conversaId.startsWith('comunidade_') ||
+        conversaId.startsWith('loja_nous_coletiva_')) {
+      return true;
+    }
+    return false;
+  }
+
   /// Processa confirmação de mensagens lidas recebida da rede local (2 checks azuis)
   static Future<void> processarMensagensLidasDaRede(
     String conversaId,
     String idLeitor,
   ) async {
-    if (conversaId.isEmpty) return;
+    if (conversaId.isEmpty || idLeitor.isEmpty) return;
     try {
       final db = await ChatRepositorioSqlite.obterDb();
 
-      // Em grupos, uma leitura individual não deve passar a mensagem para azul (lida por todos)
-      // prematuramente. Passa para 'entregue' (2 checks cinzas) até que todos confirmem.
-      if (conversaId.startsWith('grupo_')) {
+      // Em grupos e tópicos coletivos (Ágora Digital, equipe, etc.), uma leitura individual
+      // NÃO passa a mensagem para azul (lida). Mantém em 'entregue' (2 checks cinzas).
+      if (ehConversaColetivaOuGrupo(conversaId)) {
         final alterou = await db.update(
           'mensagens_chat',
           {'status_envio': 'entregue', 'entregue': 1},
@@ -241,14 +254,51 @@ class ChatService {
         return;
       }
 
-      final alterou = await db.update(
-        'mensagens_chat',
-        {'status_envio': 'lida', 'lida': 1},
-        where: 'conversa_id = ? AND status_envio != "lida"',
-        whereArgs: [conversaId],
-      );
+      int alterou = 0;
+      if (conversaId.startsWith('loja_')) {
+        final ehLeituraDaLoja = idLeitor.startsWith('loja_');
+        if (ehLeituraDaLoja) {
+          // A loja leu a conversa: mensagens do cliente viram lidas
+          alterou = await db.update(
+            'mensagens_chat',
+            {'status_envio': 'lida', 'lida': 1},
+            where:
+                'conversa_id = ? AND status_envio != "lida" AND remetente_id NOT LIKE "loja_%"',
+            whereArgs: [conversaId],
+          );
+        } else {
+          // O cliente leu a conversa: mensagens da loja viram lidas
+          alterou = await db.update(
+            'mensagens_chat',
+            {'status_envio': 'lida', 'lida': 1},
+            where:
+                'conversa_id = ? AND status_envio != "lida" AND remetente_id LIKE "loja_%"',
+            whereArgs: [conversaId],
+          );
+          if (alterou == 0) {
+            final leitorNorm = normalizarCpf(idLeitor);
+            alterou = await db.update(
+              'mensagens_chat',
+              {'status_envio': 'lida', 'lida': 1},
+              where:
+                  'conversa_id = ? AND status_envio != "lida" AND remetente_id NOT IN (?, ?, ?)',
+              whereArgs: [conversaId, idLeitor, leitorNorm, 'user_$leitorNorm'],
+            );
+          }
+        }
+      } else {
+        // Em conversas 1:1 normais entre usuários
+        final leitorNorm = normalizarCpf(idLeitor);
+        alterou = await db.update(
+          'mensagens_chat',
+          {'status_envio': 'lida', 'lida': 1},
+          where:
+              'conversa_id = ? AND status_envio != "lida" AND remetente_id NOT IN (?, ?, ?)',
+          whereArgs: [conversaId, idLeitor, leitorNorm, 'user_$leitorNorm'],
+        );
+      }
       if (alterou > 0) {
-        notificarAlteracao();
+        notificarAlteracao(imediato: true);
       }
     } catch (e) {
       debugPrint('[ChatService] Erro ao processar mensagens lidas da rede: $e');
@@ -320,13 +370,21 @@ class ChatService {
     String? idVisualizador,
     int? limite,
     int? offset,
-  }) =>
-      ChatRepositorioSqlite.carregarMensagens(
-        conversaId,
-        idVisualizador: idVisualizador,
-        limite: limite,
-        offset: offset,
-      );
+  }) async {
+    final msgs = await ChatRepositorioSqlite.carregarMensagens(
+      conversaId,
+      idVisualizador: idVisualizador,
+      limite: limite,
+      offset: offset,
+    );
+    if (idVisualizador == null || idVisualizador.isEmpty) {
+      return msgs;
+    }
+    return ChatE2eeService.decifrarListaMensagens(
+      msgs,
+      cpfVisualizador: idVisualizador,
+    );
+  }
 
   static Future<void> marcarComoLidas(
     String conversaId,
@@ -350,7 +408,10 @@ class ChatService {
   static Future<List<MensagemChat>> obterMensagensNaoLidasDaLoja(
     String lojaId,
   ) =>
-      ChatMensagensService.obterMensagensNaoLidasDaLoja(lojaId);
+      ChatMensagensService.obterMensagensNaoLidasDaLoja(
+        lojaId,
+        idConversaAtiva: idConversaAtiva,
+      );
 
   static Future<void> marcarMensagensDaLojaComoLidas(
     String lojaId,
@@ -397,7 +458,23 @@ class ChatService {
   static Future<List<MensagemChat>> obterMensagensNaoLidasDoUsuario(
     String cpf,
   ) =>
-      ChatMensagensService.obterMensagensNaoLidasDoUsuario(cpf);
+      ChatMensagensService.obterMensagensNaoLidasDoUsuario(
+        cpf,
+        idConversaAtiva: idConversaAtiva,
+      );
+
+  static Future<void> marcarMensagensDoUsuarioComoLidas(
+    String cpf,
+    List<String> conversaIds,
+  ) async {
+    final cpfNorm = normalizarCpf(cpf);
+    if (cpfNorm.isEmpty) return;
+    for (final convId in conversaIds.toSet()) {
+      await ChatRepositorioSqlite.marcarComoLidas(convId, cpfNorm);
+      despacharConfirmacaoLida(convId, cpfNorm);
+    }
+    notificarAlteracao(imediato: true);
+  }
 
   static Future<Map<String, ({String nome, String foto})>>
       obterInterlocutoresDoUsuario(String cpf) =>

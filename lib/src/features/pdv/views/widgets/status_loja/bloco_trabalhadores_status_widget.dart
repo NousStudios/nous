@@ -66,7 +66,22 @@ class BlocoTrabalhadoresStatusWidget extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final loja = context.watch<PdvProvider>().buscarPorId(lojaId);
-    final membros = loja?.membros ?? membrosFallback;
+    final auth = context.watch<AuthProvider>();
+    final ehLojaColetivaNous = lojaId == PdvProvider.idLojaColetivaNous ||
+        lojaId == ChatService.idLojaColetivaNous;
+
+    final cpfsAtivos = auth.contasCache
+        .map((c) => c.cpf.replaceAll(RegExp(r'\D'), ''))
+        .toSet();
+    final membros = (loja?.membros ?? membrosFallback).where((m) {
+      if (!ehLojaColetivaNous || cpfsAtivos.isEmpty) return true;
+      final cpfNorm = m.cpf.replaceAll(RegExp(r'\D'), '');
+      return cpfsAtivos.contains(cpfNorm);
+    }).toList();
+    final titulo = ehLojaColetivaNous ? 'Lista de Usuários' : 'Lista de Trabalhadores';
+    final msgVazia = ehLojaColetivaNous
+        ? 'Nenhum usuário cadastrado ainda.'
+        : 'Nenhum trabalhador cadastrado ainda.';
 
     return Container(
       width: double.infinity,
@@ -74,12 +89,12 @@ class BlocoTrabalhadoresStatusWidget extends StatelessWidget {
       decoration: _decoracaoDoBloco(theme),
       child: Column(
         children: [
-          _tituloDoBloco(theme, 'Lista de Trabalhadores'),
+          _tituloDoBloco(theme, titulo),
           const SizedBox(height: 12),
           if (membros.isEmpty)
             EstadoVazioContainer(
               theme: theme,
-              mensagem: 'Nenhum trabalhador cadastrado ainda.',
+              mensagem: msgVazia,
             )
           else
             for (final membro in membros)

@@ -8,6 +8,7 @@ import 'package:nous/src/features/pdv/services/backup_service.dart';
 import 'package:nous/src/features/pdv/services/lojas_service.dart';
 import 'package:nous/src/features/pdv/services/rede_local/cliente_rede_local.dart';
 import 'package:nous/src/features/pdv/services/rede_local/servidor_rede_local.dart';
+import 'package:nous/src/features/chat/services/chat_service.dart';
 
 /// Helper especialista responsável pelo ciclo de vida, cofre de persistência,
 /// resolução de referências e loja coletiva Nous.
@@ -278,6 +279,79 @@ class PdvLojasCofreHelper {
       if (ClienteRedeLocal().conectado) {
         await ClienteRedeLocal().notificarSaidaLoja(loja.id, cpfUsuario);
       }
+    }
+  }
+
+  /// Processa a exclusão permanente de uma loja dos cofres, banco e propaga evento de rede
+  static Future<void> excluirLoja({
+    required Loja? loja,
+    required String id,
+    required String? cpfAtual,
+    bool originadaDaRede = false,
+  }) async {
+    if (loja == null) return;
+
+    final dono = loja.cpfDonoOriginal.isEmpty
+        ? (cpfAtual ?? '')
+        : loja.cpfDonoOriginal;
+    if (dono.isNotEmpty) {
+      final cofre = await LojasService.carregar(dono);
+      await LojasService.salvar(
+        dono,
+        cofre.where((l) => l.id != id).toList(),
+      );
+    }
+
+    if (cpfAtual != null && cpfAtual.isNotEmpty && cpfAtual != dono) {
+      final cofreAtual = await LojasService.carregar(cpfAtual);
+      await LojasService.salvar(
+        cpfAtual,
+        cofreAtual.where((l) => l.id != id).toList(),
+      );
+    }
+
+    for (final membro in loja.membros) {
+      await LojasService.removerReferencia(membro.cpf, id);
+    }
+    if (cpfAtual != null) {
+      await LojasService.removerReferencia(cpfAtual, id);
+    }
+
+    // Excluir conversas da loja
+    await ChatService.excluirConversaLocal('loja_${id}_geral');
+
+    // Propagar evento de rede para evitar que outro dispositivo restaure a loja excluída
+    if (!originadaDaRede) {
+      if (ClienteRedeLocal().conectado) {
+        ClienteRedeLocal().enviarMensagemRaw({
+          'tipo': 'loja_excluida',
+          'lojaId': id,
+          'cpfDono': dono,
+        });
+      }
+      if (ServidorRedeLocal().ativo) {
+        ServidorRedeLocal().notificarTodos({
+          'tipo': 'loja_excluida',
+          'lojaId': id,
+          'cpfDono': dono,
+        });
+      }
+    }
+  }
+
+  /// Salva a loja no SQLite individual com segurança e notifica a rede local se necessário
+  static Future<void> salvarLojaNoCofreCorreto(Loja loja, String? cpfAtual) async {
+    if (cpfAtual == null) return;
+    final dono = loja.cpfDonoOriginal.isEmpty ? cpfAtual : loja.cpfDonoOriginal;
+
+    await LojasService.salvarLojaIndividual(loja.copyWith(cpfDonoOriginal: dono));
+
+    if (ServidorRedeLocal().ativo) {
+      ServidorRedeLocal().notificarLojaAtualizada(loja);
+    }
+
+    if (ClienteRedeLocal().conectado && !ClienteRedeLocal().aplicandoAtualizacaoRemota) {
+      ClienteRedeLocal().enviarLojaAtualizada(loja);
     }
   }
 }

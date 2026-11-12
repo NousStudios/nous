@@ -1,10 +1,13 @@
 import 'dart:async';
+import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:path/path.dart' as p;
 import 'package:nous/src/features/chat/models/conversa_chat.dart';
 import 'package:nous/src/features/chat/models/mensagem_chat.dart';
+import 'package:nous/src/features/chat/services/chat_e2ee_service.dart';
 import 'package:nous/src/features/chat/services/chat_media_service.dart';
 import 'package:nous/src/features/chat/services/chat_repositorio_sqlite.dart';
+import 'package:nous/src/features/pdv/services/imagem_service.dart';
 import 'package:nous/src/features/pdv/services/rede_local/cliente_rede_local.dart';
 import 'package:nous/src/features/pdv/services/rede_local/servidor_rede_local.dart';
 
@@ -52,9 +55,22 @@ class ChatSincronizacaoService {
         } catch (_) {}
       }
 
+      // Se for conversa E2EE e existir anexo físico cifrado (.enc), prioriza o envio da versão cifrada
+      String caminhoAnexoParaEnvio = mensagem.caminhoAnexo;
+      if (mensagem.caminhoAnexo.isNotEmpty &&
+          ChatE2eeService.ehConversaElegivelE2ee(mensagem.conversaId)) {
+        final caminhoFisico = ImagemService.resolverCaminhoExistente(mensagem.caminhoAnexo);
+        if (caminhoFisico != null) {
+          final arqEnc = File('$caminhoFisico.enc');
+          if (arqEnc.existsSync()) {
+            caminhoAnexoParaEnvio = arqEnc.path;
+          }
+        }
+      }
+
       // Se contiver anexo, embute os bytes em Base64
       final base64 = await ChatMediaService.obterBytesBase64ParaEnvio(
-        mensagem.caminhoAnexo,
+        caminhoAnexoParaEnvio,
       );
       if (base64 != null) {
         dadosEnvio['anexoBytesBase64'] = base64;
@@ -63,7 +79,7 @@ class ChatSincronizacaoService {
       final servidor = ServidorRedeLocal();
       if (servidor.ativo) {
         if (mensagem.caminhoAnexo.isNotEmpty) {
-          final nomeBase = p.basename(mensagem.caminhoAnexo);
+          final nomeBase = p.basename(caminhoAnexoParaEnvio);
           dadosEnvio['caminhoAnexo'] = 'imagens/$nomeBase';
         }
         servidor.notificarTodos({

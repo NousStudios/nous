@@ -13,6 +13,7 @@ import 'package:nous/src/features/pdv/providers/pdv_provider.dart';
 import 'package:nous/src/features/pdv/services/dados_locais_service.dart';
 import 'package:nous/src/features/pdv/services/imagem_service.dart';
 import 'package:nous/src/features/pdv/services/lojas_service.dart';
+import 'package:nous/src/features/pdv/services/rede_local/helpers/resolvedor_url_rede.dart';
 import 'package:nous/src/features/pdv/services/rede_local/reconciliador_loja_rede.dart';
 import 'package:nous/src/features/pdv/services/rede_local/transferencia_arquivos_rede.dart';
 
@@ -185,8 +186,11 @@ class SincronizadorUsuariosRede {
 
       final client =
           HttpClient()..connectionTimeout = const Duration(seconds: 4);
-      final uri =
-          Uri.parse('http://$ipServidor:$portaServidor/api/usuario/atualizar');
+      final uri = ResolvedorUrlRede.montarUriHttp(
+        hostOuIp: ipServidor,
+        porta: portaServidor,
+        caminho: '/api/usuario/atualizar',
+      );
       final req = await client.postUrl(uri);
       req.headers.contentType = ContentType.json;
       req.write(jsonEncode(usuarioParaEnvio.toJson()));
@@ -219,8 +223,11 @@ class SincronizadorUsuariosRede {
     try {
       final client =
           HttpClient()..connectionTimeout = const Duration(seconds: 4);
-      final uri = Uri.parse(
-        'http://$ipServidor:$portaServidor/api/usuario?cpf=$cpfLimpo',
+      final uri = ResolvedorUrlRede.montarUriHttp(
+        hostOuIp: ipServidor,
+        porta: portaServidor,
+        caminho: '/api/usuario',
+        parametros: {'cpf': cpfLimpo},
       );
       final req = await client.getUrl(uri);
       final resp = await req.close();
@@ -292,8 +299,12 @@ class SincronizadorUsuariosRede {
     try {
       final client =
           HttpClient()..connectionTimeout = const Duration(seconds: 4);
-      final uri =
-          Uri.parse('http://$ipServidor:$portaServidor/api/usuario?cpf=$cpf');
+      final uri = ResolvedorUrlRede.montarUriHttp(
+        hostOuIp: ipServidor,
+        porta: portaServidor,
+        caminho: '/api/usuario',
+        parametros: {'cpf': cpf},
+      );
       final req = await client.getUrl(uri);
       final resp = await req.close();
 
@@ -362,8 +373,11 @@ class SincronizadorUsuariosRede {
       try {
         final clientUsuarios =
             HttpClient()..connectionTimeout = const Duration(seconds: 4);
-        final uriUsuarios =
-            Uri.parse('http://$ipServidor:$portaServidor/api/usuarios');
+        final uriUsuarios = ResolvedorUrlRede.montarUriHttp(
+          hostOuIp: ipServidor,
+          porta: portaServidor,
+          caminho: '/api/usuarios',
+        );
         final reqUsuarios = await clientUsuarios.getUrl(uriUsuarios);
         final respUsuarios = await reqUsuarios.close();
         if (respUsuarios.statusCode == HttpStatus.ok) {
@@ -495,8 +509,10 @@ class SincronizadorUsuariosRede {
 
       final client =
           HttpClient()..connectionTimeout = const Duration(seconds: 5);
-      final uri = Uri.parse(
-        'http://$ipServidor:$portaServidor/api/sincronizar_perfis_usuario',
+      final uri = ResolvedorUrlRede.montarUriHttp(
+        hostOuIp: ipServidor,
+        porta: portaServidor,
+        caminho: '/api/sincronizar_perfis_usuario',
       );
       final req = await client.postUrl(uri);
       req.headers.contentType = ContentType.json;

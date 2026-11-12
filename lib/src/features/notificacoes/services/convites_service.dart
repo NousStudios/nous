@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import 'package:nous/src/core/services/banco_dados_service.dart';
+import 'package:nous/src/features/auth/services/cpf_validator.dart';
 import 'package:nous/src/features/notificacoes/models/convite_loja.dart';
 import 'package:nous/src/features/pdv/models/loja.dart';
 import 'package:nous/src/features/pdv/services/rede_local/cliente_rede_local.dart';
@@ -12,10 +13,11 @@ class ConvitesService {
 
   static Future<List<ConviteLoja>> carregar(String cpf) async {
     final db = await BancoDadosService.db;
+    final cpfLimpo = CpfValidator.onlyDigits(cpf);
     final rows = await db.query(
       'convites',
-      where: 'cpf_destinatario = ?',
-      whereArgs: [cpf],
+      where: 'cpf_destinatario = ? OR cpf_destinatario = ?',
+      whereArgs: [cpfLimpo, cpf],
     );
     return rows
         .map((r) =>
@@ -25,18 +27,19 @@ class ConvitesService {
 
   static Future<void> salvar(String cpf, List<ConviteLoja> convites) async {
     final db = await BancoDadosService.db;
+    final cpfLimpo = CpfValidator.onlyDigits(cpf);
     await db.transaction((txn) async {
       await txn.delete(
         'convites',
-        where: 'cpf_destinatario = ?',
-        whereArgs: [cpf],
+        where: 'cpf_destinatario = ? OR cpf_destinatario = ?',
+        whereArgs: [cpfLimpo, cpf],
       );
       for (final c in convites) {
         await txn.insert(
           'convites',
           {
             'id': c.id,
-            'cpf_destinatario': cpf,
+            'cpf_destinatario': cpfLimpo,
             'dados_json': jsonEncode(c.toJson()),
           },
           conflictAlgorithm: ConflictAlgorithm.replace,
@@ -52,11 +55,12 @@ class ConvitesService {
     Loja? loja,
   }) async {
     final db = await BancoDadosService.db;
+    final cpfLimpo = CpfValidator.onlyDigits(cpf);
     await db.insert(
       'convites',
       {
         'id': convite.id,
-        'cpf_destinatario': cpf,
+        'cpf_destinatario': cpfLimpo,
         'dados_json': jsonEncode(convite.toJson()),
       },
       conflictAlgorithm: ConflictAlgorithm.replace,
@@ -72,13 +76,14 @@ class ConvitesService {
     bool originadoDaRede = false,
   }) async {
     final db = await BancoDadosService.db;
+    final cpfLimpo = CpfValidator.onlyDigits(cpf);
     await db.delete(
       'convites',
-      where: 'cpf_destinatario = ? AND id = ?',
-      whereArgs: [cpf, conviteId],
+      where: '(cpf_destinatario = ? OR cpf_destinatario = ?) AND id = ?',
+      whereArgs: [cpfLimpo, cpf, conviteId],
     );
     if (!originadoDaRede) {
-      await despacharRemocaoConvitePelaRede(cpf, conviteId);
+      await despacharRemocaoConvitePelaRede(cpfLimpo, conviteId);
     }
   }
 

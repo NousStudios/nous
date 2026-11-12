@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:nous/src/features/pdv/models/configuracoes_impressora.dart';
 import 'package:nous/src/features/pdv/models/loja.dart';
 
@@ -5,6 +6,113 @@ import 'package:nous/src/features/pdv/models/loja.dart';
 /// sons de alerta e sincronização de calibração de impressoras térmicas locais.
 class PdvLayoutImpressoraHelper {
   PdvLayoutImpressoraHelper._();
+
+  static bool layoutDesktopAtivo({
+    required Loja? loja,
+    required double? larguraTela,
+    required bool layoutDesktopGlobal,
+  }) {
+    if (defaultTargetPlatform == TargetPlatform.android ||
+        defaultTargetPlatform == TargetPlatform.iOS) {
+      return false;
+    }
+    if (larguraTela != null && larguraTela <= 850) {
+      return false;
+    }
+    if (loja != null) return loja.layoutExpandidoEfetivo;
+    return layoutDesktopGlobal;
+  }
+
+  static String tipoLayoutAtivo({
+    required Loja? loja,
+    required String tipoLayoutDesktopGlobal,
+  }) {
+    if (loja != null && loja.tipoLayoutMaior.isNotEmpty) {
+      return loja.tipoLayoutMaior;
+    }
+    return tipoLayoutDesktopGlobal;
+  }
+
+  static ({bool novoGlobal, Loja? lojaAtualizada}) alternarLayoutExpandido({
+    required List<Loja> lojas,
+    required String? id,
+    required bool layoutDesktopGlobal,
+  }) {
+    if (defaultTargetPlatform == TargetPlatform.android ||
+        defaultTargetPlatform == TargetPlatform.iOS) {
+      return (novoGlobal: layoutDesktopGlobal, lojaAtualizada: null);
+    }
+    bool novoValor = !layoutDesktopGlobal;
+    if (id != null && id.isNotEmpty) {
+      final indice = lojas.indexWhere((loja) => loja.id == id);
+      if (indice != -1) {
+        novoValor = !lojas[indice].layoutExpandido;
+        final atualizada = lojas[indice].copyWith(layoutExpandido: novoValor);
+        return (novoGlobal: novoValor, lojaAtualizada: atualizada);
+      }
+    }
+    return (novoGlobal: novoValor, lojaAtualizada: null);
+  }
+
+  static Loja? definirLayoutExpandido({
+    required List<Loja> lojas,
+    required String? id,
+    required bool ativo,
+  }) {
+    if (defaultTargetPlatform == TargetPlatform.android ||
+        defaultTargetPlatform == TargetPlatform.iOS) {
+      return null;
+    }
+    if (id != null && id.isNotEmpty) {
+      final indice = lojas.indexWhere((loja) => loja.id == id);
+      if (indice != -1) {
+        return lojas[indice].copyWith(layoutExpandido: ativo);
+      }
+    }
+    return null;
+  }
+
+  static Loja? definirTipoLayoutMaior({
+    required List<Loja> lojas,
+    required String? id,
+    required String tipo,
+  }) {
+    if (id != null && id.isNotEmpty) {
+      final indice = lojas.indexWhere((loja) => loja.id == id);
+      if (indice != -1) {
+        return lojas[indice].copyWith(tipoLayoutMaior: tipo);
+      }
+    }
+    return null;
+  }
+
+  /// Propaga calibração da impressora física para a loja indicada e todas as outras lojas da estação
+  static Future<void> atualizarConfiguracoesImpressora({
+    required List<Loja> lojas,
+    required String id,
+    required ConfiguracoesImpressora configuracoes,
+    required String idLojaColetivaNous,
+    required Future<void> Function(Loja) salvarNoCofre,
+  }) async {
+    final indice = lojas.indexWhere((loja) => loja.id == id);
+    if (indice == -1) return;
+
+    final atualizada =
+        lojas[indice].copyWith(configuracoesImpressora: configuracoes);
+    lojas[indice] = atualizada;
+    await salvarNoCofre(atualizada);
+
+    for (int i = 0; i < lojas.length; i++) {
+      final outra = lojas[i];
+      if (outra.id == id || outra.id == idLojaColetivaNous) continue;
+      final outraAtualizada = propagarConfiguracoesImpressora(
+        outra,
+        configuracoes,
+      );
+      lojas[i] = outraAtualizada;
+      await salvarNoCofre(outraAtualizada);
+    }
+  }
 
   static bool temCalibracaoTipografiaOuMargem(ConfiguracoesImpressora c) {
     return c.modeloFonte != 'belleza' ||
@@ -84,5 +192,77 @@ class PdvLayoutImpressoraHelper {
           configAtual.camposClientePersonalizados || novas.camposClientePersonalizados,
     );
     return alvo.copyWith(configuracoesImpressora: configPropagada);
+  }
+
+  /// Propaga calibração tipográfica e de impressora térmica da loja de referência para lojas locais
+  static Future<void> herdarCalibracaoImpressoraEntreLojasLocais({
+    required List<Loja> lojas,
+    required String idLojaColetivaNous,
+    required Future<void> Function(Loja) salvarNoCofre,
+  }) async {
+    Loja? referenciaCalibrada;
+    for (final l in lojas) {
+      if (l.id == idLojaColetivaNous) continue;
+      final c = l.configuracoesImpressora;
+      if (temCalibracaoTipografiaOuMargem(c) || c.camposClientePersonalizados) {
+        referenciaCalibrada = l;
+        break;
+      }
+    }
+    referenciaCalibrada ??= lojas
+        .where((l) =>
+            l.id != idLojaColetivaNous &&
+            l.configuracoesImpressora.nomeImpressora.isNotEmpty)
+        .firstOrNull;
+
+    if (referenciaCalibrada == null) return;
+    final ref = referenciaCalibrada.configuracoesImpressora;
+
+    for (int i = 0; i < lojas.length; i++) {
+      final loja = lojas[i];
+      if (loja.id == idLojaColetivaNous || loja.id == referenciaCalibrada.id) {
+        continue;
+      }
+      final atual = loja.configuracoesImpressora;
+      final semCalibracaoFisica = !temCalibracaoTipografiaOuMargem(atual);
+      final semImpressoraDefinida =
+          atual.nomeImpressora.isEmpty && ref.nomeImpressora.isNotEmpty;
+      final semCamposPersonalizados =
+          !atual.camposClientePersonalizados && ref.camposClientePersonalizados;
+
+      if (semCalibracaoFisica ||
+          semImpressoraDefinida ||
+          semCamposPersonalizados) {
+        final novaConfig = atual.copyWith(
+          larguraPapelMm:
+              semCalibracaoFisica ? ref.larguraPapelMm : atual.larguraPapelMm,
+          tamanhoFonte:
+              semCalibracaoFisica ? ref.tamanhoFonte : atual.tamanhoFonte,
+          modeloFonte:
+              semCalibracaoFisica ? ref.modeloFonte : atual.modeloFonte,
+          margemEsquerdaMm: semCalibracaoFisica
+              ? ref.margemEsquerdaMm
+              : atual.margemEsquerdaMm,
+          margemDireitaMm:
+              semCalibracaoFisica ? ref.margemDireitaMm : atual.margemDireitaMm,
+          nomeImpressora:
+              atual.nomeImpressora.isEmpty ? ref.nomeImpressora : atual.nomeImpressora,
+          tipoConexao:
+              atual.nomeImpressora.isEmpty ? ref.tipoConexao : atual.tipoConexao,
+          enderecoRede:
+              atual.enderecoRede.isEmpty ? ref.enderecoRede : atual.enderecoRede,
+          camposClienteComanda: semCamposPersonalizados
+              ? List<String>.from(ref.camposClienteComanda)
+              : atual.camposClienteComanda,
+          camposClientePersonalizados: semCamposPersonalizados
+              ? ref.camposClientePersonalizados
+              : atual.camposClientePersonalizados,
+        );
+        final lojaAtualizada =
+            loja.copyWith(configuracoesImpressora: novaConfig);
+        lojas[i] = lojaAtualizada;
+        await salvarNoCofre(lojaAtualizada);
+      }
+    }
   }
 }

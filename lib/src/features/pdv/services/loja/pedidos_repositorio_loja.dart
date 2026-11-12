@@ -136,6 +136,30 @@ class PedidosRepositorioLoja {
     return 0;
   }
 
+  /// Insere ou atualiza um pedido individualmente de forma rápida no SQLite sem reescrever a loja inteira.
+  static Future<void> salvarIndividual(
+    PedidoLoja pedido, {
+    String? lojaIdFallback,
+    DatabaseExecutor? executor,
+  }) async {
+    final db = executor ?? await BancoDadosService.db;
+    final lId = pedido.lojaId.isNotEmpty ? pedido.lojaId : (lojaIdFallback ?? '');
+    await db.insert(
+      'pedidos',
+      {
+        'id': pedido.id,
+        'loja_id': lId,
+        'numero': pedido.numero,
+        'data_hora': pedido.dataHora.toIso8601String(),
+        'status': pedido.status.name,
+        'valor': pedido.valor,
+        'cliente_nome': pedido.clienteNome,
+        'dados_json': jsonEncode(pedido.toJson()),
+      },
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
+  }
+
   /// Insere ou atualiza pedidos em lote de forma transacional e não-destrutiva.
   static Future<void> salvarLote(
     DatabaseExecutor txn,

@@ -26,6 +26,7 @@ class MensagemChat {
   final bool favorita;
   final bool fixada;
   final Map<String, String> reacoes;
+  final String assinatura;
 
   const MensagemChat({
     required this.id,
@@ -53,6 +54,7 @@ class MensagemChat {
     this.favorita = false,
     this.fixada = false,
     this.reacoes = const {},
+    this.assinatura = '',
   });
 
   MensagemChat copyWith({
@@ -81,6 +83,7 @@ class MensagemChat {
     bool? favorita,
     bool? fixada,
     Map<String, String>? reacoes,
+    String? assinatura,
   }) {
     return MensagemChat(
       id: id ?? this.id,
@@ -108,6 +111,7 @@ class MensagemChat {
       favorita: favorita ?? this.favorita,
       fixada: fixada ?? this.fixada,
       reacoes: reacoes ?? this.reacoes,
+      assinatura: assinatura ?? this.assinatura,
     );
   }
 
@@ -138,6 +142,7 @@ class MensagemChat {
       'favorita': favorita,
       'fixada': fixada,
       'reacoes': reacoes,
+      'assinatura': assinatura,
     };
   }
 
@@ -184,10 +189,23 @@ class MensagemChat {
         json['enviada_por_mim'] == true ||
         json['enviada_por_mim'] == 1;
 
+    final conversaId = json['conversaId'] as String? ??
+        json['conversa_id'] as String? ??
+        '';
+    final ehColetiva = conversaId.startsWith('grupo_') ||
+        conversaId.startsWith('topico_') ||
+        conversaId.startsWith('comunidade_') ||
+        conversaId.startsWith('loja_nous_coletiva_') ||
+        (!conversaId.startsWith('user_') && conversaId.isNotEmpty);
+
     String status = json['statusEnvio'] as String? ??
         json['status_envio'] as String? ??
         'enviada';
-    if (lida) {
+    if (ehColetiva) {
+      if (status == 'lida' || lida) {
+        status = 'entregue';
+      }
+    } else if (status != 'lida' && status != 'pendente' && lida) {
       status = 'lida';
     } else if (entregue && status == 'pendente') {
       status = 'entregue';
@@ -198,9 +216,7 @@ class MensagemChat {
 
     return MensagemChat(
       id: json['id'] as String? ?? '',
-      conversaId: json['conversaId'] as String? ??
-          json['conversa_id'] as String? ??
-          '',
+      conversaId: conversaId,
       remetenteId: json['remetenteId'] as String? ??
           json['remetente_id'] as String? ??
           '',
@@ -248,6 +264,7 @@ class MensagemChat {
       favorita: favorita,
       fixada: fixada,
       reacoes: reacoesMap,
+      assinatura: json['assinatura'] as String? ?? '',
     );
   }
 }

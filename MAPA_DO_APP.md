@@ -29,9 +29,9 @@ Dois estados mudam o comportamento de várias telas:
 ### 1.1 Tela de Login
 📄 `auth/views/login_view.dart` · widgets: `cpf_input_widget.dart`, `login_buttons_widget.dart`, `logo_widget.dart`
 - **Campo CPF**: já vem preenchido com o último CPF que entrou (guardado no aparelho como `ultimo_cpf_login`). Valida o CPF (`cpf_validator.dart`). Possui máscara de privacidade que mantém os 3 primeiros dígitos visíveis e oculta os dígitos seguintes com pontos médios no meio da linha (`123.•••.•••-••`). Ícone interativo de olho aberto/fechado no campo permite alternar entre visualizar o número completo ou manter ofuscado; o ícone some automaticamente quando o campo está vazio.
-- **Botão "Entrar"**: abre primeiramente o diálogo de **Sincronização em Rede Wi-Fi** (`SincronizacaoRedeDialog`). Ao se conectar ao balcão ou continuar, consulta a conta na rede local. Se for uma conta totalmente nova sem registro, abre `CadastrarNomeUsuarioDialog` e `CadastrarApelidoDialog`. Se for conta antiga sem `@username`, solicita o nome de usuário. Em seguida, avança para a tela de triagem de e-mails (`ContasUsuarioView`).
+- **Botão "Entrar"**: abre primeiramente o diálogo de **Sincronização em Rede Wi-Fi** (`SincronizacaoRedeDialog`). Ao se conectar ao balcão ou continuar, consulta a conta na rede local. Se for uma conta totalmente nova sem registro, abre `CadastrarNomeUsuarioDialog` para escolha do `@username` soberano e, em seguida, o diálogo completo de Onboarding (`DialogOnboardingIdentidadeNous`), onde o cidadão personaliza foto, nome, apelido, biografia e as **Regras de Transparência** iniciais de sua nova conta. Se for conta antiga sem `@username`, solicita o nome de usuário. Em seguida, avança para a tela de triagem de e-mails (`ContasUsuarioView`).
 - **Ao digitar um CPF que já existe** (neste aparelho ou em outro da rede): recupera nome, nome de usuário, data de nascimento e foto via Wi-Fi do balcão. Se faltar nome de usuário, solicita a criação imediata.
-- **Ao digitar um CPF novo** (sem ficha em lugar nenhum): abre `CadastrarNomeUsuarioDialog` pedindo o **Nome de Usuário (@)** e em seguida `CadastrarApelidoDialog` pedindo o **Apelido**. Ao confirmar, cria a conta Nous e o cidadão vira automaticamente membro sócio da loja coletiva "Nous". 📄 `auth/views/widgets/cadastrar_nome_usuario_dialog.dart` e `cadastrar_apelido_dialog.dart`
+- **Ao digitar um CPF novo** (sem ficha em lugar nenhum): abre `CadastrarNomeUsuarioDialog` pedindo o **Nome de Usuário (@)** e em seguida `DialogOnboardingIdentidadeNous` para configuração soberana de foto, nome civil, apelido e visibilidade de dados pessoais. Ao confirmar, cria a conta Nous com o par de chaves assimétricas Ed25519 e X25519, registra o selo de verificação comunitária e associa o cidadão como membro sócio da loja coletiva "Nous". 📄 `auth/views/dialogs/dialog_onboarding_identidade_nous.dart`
 - Outras telas de acesso: `terms_view.dart` (termos de uso), `adicionar_email_dialog.dart` (adicionar e-mail à conta).
 
 ### 1.2 Triagem de E-mails do Usuário (pós-sincronia)
@@ -40,11 +40,12 @@ Dois estados mudam o comportamento de várias telas:
 - Inclui botão para adicionar novo e-mail (`AdicionarEmailDialog`) e ação de contingência para "Continuar sem e-mail".
 
 ### 1.3 Janela "Identidade do Usuário"
-📄 `auth/views/widgets/ficha_usuario_dialog.dart` · subcomponentes: `bloco_dados_pessoais_usuario.dart`, `bloco_emails_usuario.dart`, `bloco_lojas_usuario.dart`, `linha_info_usuario.dart`
-- Topo: **foto**, **apelido** e **nome próprio editável pelo titular** (alinhados e centralizados simetricamente com largura de 260px e ícone de privacidade perfeitamente integrado via `Stack`), **nome de usuário** (`@`) e **CPF** (protegido contra alteração).
+📄 `auth/views/widgets/ficha_usuario_dialog.dart` · subcomponentes: `bloco_dados_pessoais_usuario.dart`, `bloco_emails_usuario.dart`, `bloco_lojas_usuario.dart`, `bloco_registro_conta_usuario.dart`, `linha_info_usuario.dart`
+- Topo: **foto**, **apelido** e **nome próprio editável pelo titular** (alinhados e centralizados simetricamente com largura de 260px e ícone de privacidade perfeitamente integrado via `Stack`), **nome de usuário** (`@`) acompanhado pelo selo de **Conta Verificada** (`Icons.verified` azul) e **CPF** (protegido contra alteração).
 - Bloco **Dados pessoais** (`BlocoDadosPessoaisUsuario`): data de nascimento, nome do pai, nome da mãe, local de nascimento, tipo sanguíneo, estado civil, telefones e redes sociais.
 - Bloco **E-mails Associados** (`BlocoEmailsUsuario`): e-mails vinculados ao CPF e destaque para a credencial ativa da sessão.
 - Bloco **Lojas e Coletivos** (`BlocoLojasUsuario`): histórico de lojas administradas e participadas com indicação do cargo e papel do membro.
+- Bloco **Registro Soberano da Conta** (`BlocoRegistroContaUsuario`): exibe o status de verificação da conta, data de adesão à rede ("Membro desde"), validador responsável ("Validado por") e data de validação da identidade.
 - Botão **"Editar dados pessoais"**: fica visível no rodapé do bloco de dados pessoais. Ao clicar, o bloco vira editável com **Salvar** e **Cancelar**.
 - **Blindagem em Dados Ocultos**: quando os dados estão borrados pelo botão do olho, qualquer clique, hover ou foco nos botões e campos internos é totalmente desabilitado com `IgnorePointer(ignoring: true)`, impedindo interação acidental.
 - **Privacidade Granular e Ícone de Olho Interativo**:
@@ -58,9 +59,10 @@ Dois estados mudam o comportamento de várias telas:
 ### 1.4 Tela "Perfil Social do Usuário"
 📄 `auth/views/perfil_social_view.dart` · acessada pelo segundo ícone (pessoinha) da barra inferior flutuante (`FloatingBottomNavBar`).
 - Topo com engrenagem de **Configurações** (sem botão de voltar quando acessada pela barra inferior).
-- Cabeçalho vertical centralizado: foto grande de avatar centralizada, `@username` identificador único centralizado, **Nome Completo em negrito** centralizado (ambos com `TextoRolante`) e métricas reais (**Posts**, **Seguidores**, **Seguindo**) sincronizadas do modelo `UsuarioNous`.
+- Cabeçalho vertical centralizado: foto grande de avatar centralizada, `@username` identificador único centralizado acompanhado do selo de verificação comunitária, **Nome Completo em negrito** centralizado (ambos com `TextoRolante`) e métricas reais (**Posts**, **Seguidores**, **Seguindo**) sincronizadas do modelo `UsuarioNous`.
+- **Listas de Conexões Sociais Clicáveis**: tocar no número de "Seguidores" ou "Seguindo" abre o diálogo `DialogListaConexoes` com avatar, nome, `@username`, busca rápida, navegação direta para o perfil do usuário e botão dinâmico para Seguir / Deixar de Seguir.
 - Bloco **Biografia** com título e descrição.
-- Botões de ação em linha com `TextoRolante`: **"Editar Perfil"** (abre a edição social), **"Seguir" / "Seguindo"** (quando visualizando perfil de terceiros, alternando status social e persistindo seguidores), **"Compartilhar"** (exibe e copia o nome de usuário Nous `@username`) e **"Mensagens"** (abre a Mensageria do Usuário).
+- Botões de ação em linha com `TextoRolante`: **"Editar Perfil"** (abre a edição social), **"Seguir" / "Seguindo"** (quando visualizando perfil de terceiros, alternando status social e persistindo seguidores), **"Compartilhar"** (exibe e copia o nome de usuário Nous `@username`) e **"Mensagens"** (no próprio perfil, abre a lista geral de conversas da Mensageria sem criar chat redundante consigo mesmo; em perfis de terceiros, valida a regra "Quem pode me enviar mensagens diretas").
 - Carrossel horizontal de destaques circulares.
 - Barra de abas com 4 ícones (Grade, Reels/Vídeo, Documento, Música) e grade de 3 colunas de publicações.
 - Barra flutuante universal no rodapé com o segundo botão (pessoinha) ativo.
@@ -123,6 +125,7 @@ Dois estados mudam o comportamento de várias telas:
 - **Navegação com Botão Voltar do Android:** Controlado por `PopScope`: ao pressionar o botão voltar do sistema operacional com uma conversa aberta, o app desmarca a conversa e retorna para a lista de conversas da mensageria (sem fechar a tela).
 - **Destaque Permanente no Desktop:** A conversa selecionada no painel lateral esquerdo mantém o destaque de hover e borda temática ativo permanentemente enquanto estiver aberta.
 - **Chat Universal da Comunidade Nous (Gestão do Perfil / Perfil Profissional):**
+  - **Validação de Identidades (Teia de Confiança):** Botão logo abaixo de "Status da Loja" que abre o diálogo de deliberação (`DialogFilaValidacaoIdentidades`). Permite aos membros visualizar os novos CPFs solicitantes, consultar a ficha e atestar com assinatura criptográfica Ed25519 infalsificável.
   - **Tópicos Paralelos Delimitados:** Barra superior de tópicos com chips ("Geral", tópicos adicionais e botões "+ Nova Sala" e "Explorar Salas"), permitindo conversas comunitárias setorizadas sem misturar assuntos.
   - **Explorador de Salas Comunitárias:** Diálogo para pesquisar todas as salas comunitárias criadas por outros membros com filtro insensível a acentos, entrar em salas abertas, sair de salas e apagar salas criadas pelo próprio usuário (sendo `#Geral` a única sala comunitária fixa).
   - **Preservação de Títulos de Salas:** Salas comunitárias criadas pelo celular mantêm com rigor o nome definido (ex: "Desenvolver") ao sincronizar com o computador ou outros nós locais.
@@ -147,17 +150,18 @@ Dois estados mudam o comportamento de várias telas:
 ### 2.2 Janela "Configurações"
 📄 aberta a partir de `custom_app_bar.dart` · rolável com altura máxima de 85% da tela (o botão **Sair** sempre fica visível no celular).
 - **Botão de Sincronização Wi-Fi** (`_BarraSincronizacaoWifiSettings`): barra com hover, acima da Identidade. Mostra "Servidor Ativo", "Conectado ao Balcão" ou "Desconectado" e abre a janela 4.1.
-- **Card da conta Nous integrado**: container reunindo foto, nome civil, CPF formatado, e-mail ativo e o botão estilizado **"Conta Nous"** (abre a tela 2.2.1).
+- **Card da conta Nous integrado**: container reunindo foto, nome civil, CPF mascarado por padrão (`***.***.123-**`) com alternador de revelação no ícone de olho, e-mail ativo e o botão estilizado **"Conta Nous"** (abre a tela 2.2.1).
 - **Personalizar Aparência**: abre `ThemeCustomizerDialog` (cores, fontes, tamanhos, cor de exclusão). O tema é salvo por CPF. 📄 `core/theme/theme_customizer_dialog.dart`
 - **Sair**: faz logout, desconecta as redes locais e volta ao Login.
 
 ### 2.2.1 Tela "Conta Nous"
-📄 `auth/views/conta_nous_view.dart` · submódulos modulares em `auth/views/widgets/conta_nous/` (`bloco_identidade_conta_widget.dart`, `bloco_privacidade_conta_widget.dart`, `bloco_emails_conta_widget.dart`, `bloco_seguranca_conta_widget.dart`) · acessada pelo botão "Conta Nous" em Configurações.
+📄 `auth/views/conta_nous_view.dart` · submódulos modulares em `auth/views/widgets/conta_nous/` (`bloco_identidade_conta_widget.dart`, `bloco_privacidade_conta_widget.dart`, `bloco_emails_conta_widget.dart`, `bloco_seguranca_conta_widget.dart`, `dialog_chaves_criptograficas.dart`) · acessada pelo botão "Conta Nous" em Configurações.
 - Reúne os módulos soberanos da identidade e dos dados do cidadão:
   - **Identidade do Usuário**: foto de perfil, `@username` identificador único com diálogo de edição, apelido, nome civil e CPF formatado com alternância permanente de revelação no olho para o dono, com botão "Ver / Editar Identidade Completa" (abre `FichaUsuarioDialog` 1.3).
-  - **Privacidade e Transparência dos Dados**: container com interruptores `ThemedSwitch` por campo (Nome Próprio / Nome Civil, CPF, data de nascimento, filiação, local de nascimento, tipo sanguíneo, estado civil, telefone e endereço). Permite tornar dados públicos ou privados para terceiros nas lojas e buscas. Exibe a lista de membros que receberam autorização de acesso a cada dado privado e botão para revogar a permissão individualmente a qualquer momento.
+  - **Privacidade e Transparência dos Dados**: container com interruptores `ThemedSwitch` por campo (Nome Próprio / Nome Civil, CPF, data de nascimento, filiação, local de nascimento, tipo sanguíneo, estado civil, telefone e endereço). Inclui a configuração "Mensagens Diretas" (`todos` vs `apenas_seguidos`) para controlar quem pode iniciar chat direto. Exibe a lista de membros com autorização de acesso e botão de revogação.
   - **E-mails Associados**: listagem de todos os e-mails associados ao CPF da conta com indicação do e-mail ativo da sessão e botão para adicionar novo e-mail (`AdicionarEmailDialog`).
-  - **Backup Soberano dos Dados**: atalho seguro para exportação e importação do cofre de dados em arquivo JSON único.
+  - **Backup Soberano dos Dados**: exportação e importação integral das lojas, convites, histórico completo do chat (`conversas_chat` e `mensagens_chat`) e todas as mídias físicas locais (fotos, áudios, logos) em arquivo JSON único.
+  - **Cofre Criptográfico & Chaves E2EE**: módulo dedicado para exportar e restaurar com senha mestre o par assimétrico Ed25519 e X25519 (via AES-GCM 256 bits e PBKDF2), permitindo migrar a identidade soberana entre aparelhos sem expor a chave privada.
   - **Excluir Conta Nous Definitivamente**: botão de ação destrutiva em cor de perigo (`theme.dangerColor`) que expurga os dados do SQLite, limpa o cache persistido (`_chaveUltimoCpf`) e redireciona ao login inicial.
 
 ### 2.3 Tela cheia (F11)
@@ -266,13 +270,11 @@ Esta tela atualiza **em tempo real** quando muda algo no balcão ou em outro cel
 - **Abas Restritas**: Apenas **Dados** e **Gestão** (as abas Ajustes e Loja/Catálogo são removidas).
 - **Dados Institucionais Fixos**: Exibição da logo oficial (`assets/images/logo.png`) e dados fixos apenas de leitura (Nome: *Nous*, Email: *nousstudios72@gmail.com*, Redes Sociais: *@nous.studios72*, Categorias: *Autogestão, Comunidade, Software Livre*, Descrição: *Software Universal de Autogestão Comercial e Social*). Sem botões de "Salvar Dados" ou "Excluir Loja". Os usuários podem enviar fotos, vídeos e arquivos para as galerias normalmente.
 - **Cargos e Permissões**: Apenas duas abas: **Sócio** e **Desenvolvedor**. A função de Desenvolvedor é voluntariamente requisitada com o botão "Se tornar Desenvolvedor" / "Deixar de ser um desenvolvedor". No container "Usuários Participantes", o membro desenvolvedor recebe o rótulo `Sócio • Desenvolvedor`.
-- **Aba Gestão Modularizada**: 📄 `aba_gestao_nous_widget.dart` (< 790 linhas) composto por:
-  - `widgets/gestao_nous/dialogs_topicos_gestao.dart`: criação, exclusão, renomeação e saída de salas.
-  - `widgets/gestao_nous/barra_envio_mensagem_gestao.dart`: input de texto, áudio com timer e anexos.
-  - `widgets/gestao_nous/bolha_mensagem_gestao.dart`: bolhas, menus de contexto e ações de mensagens.
-  - `widgets/gestao_nous/barra_topicos_comunitarios_widget.dart`: navegação horizontal entre salas comunitárias.
-  - `widgets/gestao_nous/cabecalho_chat_gestao_widget.dart`: cabeçalho centralizado com sino e ações da sala.
-  - `widgets/gestao_nous/card_audio_mensagem_gestao.dart` e `dialogs/dialog_explorar_salas_comunitarias.dart`.
+- **Aba Gestão Modularizada da Autogestão Nous**: 📄 `aba_gestao_nous_widget.dart` com 4 eixos soberanos em formato de barras/cards:
+  - **Status da Loja** (`StatusLojaView`): Exclusivamente no perfil Nous, oculta o resumo operacional comercial e botão On/Off, apresentando a *Lista de Usuários* participantes da rede.
+  - **Gestão** (📄 `pdv/views/gestao_financeira_nous_view.dart`): Tela de transparência radical com exposição dos custos operacionais reais (IA, Internet, Luz), Caixinha do Novo Computador, saldo do fundo comunitário e chave Pix oficial (`nousstudios72@gmail.com`).
+  - **Ágora Digital** (📄 `pdv/views/agora_digital_view.dart`): Tela cheia dedicada ao chat coletivo e deliberação popular, com tópicos temáticos (`barra_topicos_comunitarios_widget.dart`), áudios, anexos, mensagens em tempo real e diálogo de salas comunitárias.
+  - **Validação de Identidades** (📄 `dialog_fila_validacao_identidades.dart`): Fila de atesto e validação comunitária entre pares de novos cidadãos na rede Nous.
 - **Proibição de Saída**: Nenhum usuário pode sair da loja coletiva Nous nem ser excluído por terceiros. Sincronização automática na rede Wi-Fi ao conectar em qualquer loja.
 
 ### 6.0 Barra lateral (só no desktop expandido)
@@ -495,7 +497,7 @@ Todas abrem centralizadas, aceitam **F11** e, no desktop expandido, ficam em **d
     - **Comanda de Pedido**: visível no menu do clipe apenas para funcionários da loja entre si ou da loja para algum funcionário dela (`_podeExibirComandaNoClipe`). Envia card interativo (`CardMensagemComanda`) com título **"Comanda"** centralizado no topo, renderizando a comanda oficial idêntica à impressa pela loja (`ComandaPedido`), englobada no balão da mensagem com remetente no topo esquerdo e horário + ticks de confirmação visual (`enviada`, `entregue`, `lida`) no canto inferior direito, status na parte inferior com `TextoRolante` e, quando for proposta enviada pela loja ao cliente, botões para **"Aprovar Pedido"**, **"Adicionar Observação"** e **"Recusar Pedido"**.
     - **Localização, Enquete, PIX e Evento**: atalhos com aviso de "Funcionalidade em construção".
 - **Compartilhamento de Comanda direto do PDV** (`ComandaPedidoDialog`): botão "Chat" ao lado de Imprimir e Fechar (todos com `TextoRolante`) que permite enviar a comanda com 1 clique para o cliente do pedido ou para a equipe da loja.
-- **Título da Conversa no Início do Chat (`BannerTituloConversaWidget`)**: exibido sempre no início do histórico do chat, centralizado e com letras maiores (`fontSize: 18`), tendo por padrão o nome **"Nova Conversa"** e um pequeno ícone de pincel (`Icons.brush_rounded`) no canto direito inferior logo abaixo do título para renomear a conversa.
+- **Título da Conversa no Início do Chat (`BannerTituloConversaWidget`)**: exibido sempre no início do histórico do chat, perfeitamente incorporado ao próprio fundo sem bordas ou containers, centralizado com letras maiores (`fontSize: 18`) e respiro superior generoso. Tem por padrão o nome **"Nova Conversa"** e permite renomear a conversa com um simples toque direto no próprio título.
 - **Painel limpo por padrão**: ao abrir a tela de Mensagens, nenhuma conversa é auto-selecionada; o painel direito exibe o espaço limpo e receptivo convidando o usuário a escolher ou iniciar um chat.
 - **Destaque Permanente da Conversa Ativa**: o chat selecionado na barra lateral desktop recebe destaque visual fixo (borda nítida de 4px e fundo aceso contrastante) e efeito suave de hover nos demais contatos.
 - **Busca de Contatos com `TextoRolante`**: placeholder rolante e filtragem dinâmica de contatos e lojas.
@@ -564,6 +566,44 @@ Todas abrem centralizadas, aceitam **F11** e, no desktop expandido, ficam em **d
   - Execução periódica automática em segundo plano a cada 7 dias de uso contínuo.
 - **Desacoplamento do PdvProvider**:
   - 📄 `pdv/providers/helpers/pdv_lojas_cofre_helper.dart`: Extraído helper de carregamento de lojas, referências, sucessão de dono e consolidação da Loja Coletiva Nous, reduzindo a complexidade de `PdvProvider`.
+
+### 7.18 Criptografia de Ponta a Ponta Soberana (E2EE) e Blindagem do Relay Local (v1.1.7)
+- **Criptografia de Ponta a Ponta P2P (X25519 + AES-256-GCM)**:
+  - 📄 `core/services/criptografia_service.dart` e `chat/services/chat_e2ee_service.dart`: Mensagens diretas entre cidadãos (`user_{cpf1}_user_{cpf2}`) nascem cifradas na origem, repousam cifradas no SQLite e são decifradas exclusivamente no dispositivo legítimo via segredo compartilhado Diffie-Hellman em curva X25519.
+  - **Cifragem de Mídias e Anexos (Fotos, Áudios, PDFs, Documentos)**: Cada arquivo anexo recebe uma chave simétrica AES-GCM (256-bit) efêmera e é armazenado/transmitido como `.enc` cifrado; a chave simétrica viaja encapsulada dentro do envelope E2EE da mensagem. Intermediários (servidor relay no PC residencial ou túnel Cloudflare) enxergam apenas bytes criptográficos aleatórios, sem acesso visual ou auditivo ao conteúdo.
+  - **Decifragem Transparente na Recepção**: O destinatário decifra o envelope, extrai a chave simétrica e restaura os bytes nítidos do arquivo em disco de forma imperceptível, com suporte a notificações Android em segundo plano com texto claro.
+- **Blindagem do Servidor Relay Local para Exposição Segura via Túnel**:
+  - 📄 `pdv/services/rede_local/seguranca_servidor_relay.dart`: Guarda modular de proteção contra DoS, scans e floods de pacotes:
+    - **Rate Limiting por IP**: Limite de 50 requisições HTTP a cada 2 segundos e 35 mensagens WebSocket por segundo por cliente, acionando cooldown automático de 15 segundos para IPs abusivos.
+    - **Teto Estrito de Payload**: Limite de 2 MB para requisições gerais/frames WS e 15 MB para uploads de mídia, rejeitando pacotes anômalos antes da alocação de heap.
+    - **Headers Defensivos**: Inclusão de `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `X-XSS-Protection: 1; mode=block` e identidade de servidor `Nous-Sovereign-Relay`.
+
+### 7.19 Sandbox de Arquivos e Segregação de Cardápio Digital Público (v1.1.8)
+- **Sandbox Estrito e Proteção contra Path Traversal**:
+  - 📄 `pdv/services/rede_local/seguranca_servidor_relay.dart` e `pdv/services/rede_local/manipulador_midia_servidor.dart`:
+    - Confinamento rígido de leitura de arquivos nos endpoints `/api/imagem` e `/api/audio`: bloqueio sumário (código HTTP 403 Forbidden) para qualquer caminho que aponte para fora das pastas oficiais de mídia do Nous, pastas de sistema do Windows/Linux (`/windows/`, `/system32/`, `/etc/`) ou para o banco SQLite `nous.db`.
+    - Proibição de extensões perigosas (`.db`, `.sqlite`, `.key`, `.env`, `.exe`, `.bat`, `.ps1`, `.dll`).
+    - Sanitização de uploads em `/api/upload_imagem` e `/api/upload_anexo`, extraindo estritamente o basename via `p.basename` e restringindo subpastas a caracteres alfanuméricos seguros.
+- **Segregação de Cardápio Digital Público (`Loja.toVisaoPublica`)**:
+  - 📄 `pdv/models/loja.dart` e `pdv/services/rede_local/handlers/roteador_loja_pedidos.dart`:
+    - Método soberano `toVisaoPublica()` preserva o cardápio (produtos, preços, fotos, descrições, complementos, mesas) e zera completamente dados sigilosos da empresa (`clientesLoja`, `fornecedoresLoja`, `pedidosLoja`, `turnosCaixa`, `movimentosEstoque`, `acoes`, `membros`, `configuracoesImpressora`).
+    - Requisições `/api/loja` de clientes entregam estritamente o cardápio público; bloqueadas alterações remotas não autorizadas da Loja Coletiva Nous.
+    - WebSocket `retransmitirParaOutros` isola clientes de eventos internos de estoque, novos clientes e pedidos de terceiros.
+- **Identidade Visual de Notificação Android**:
+  - 📄 `chat/services/notificacao_android_service.dart`: Badge circular de notificação configurado com `color: const Color(0xFF000000)`, exibindo o círculo em preto sólido com o **N** branco centralizado em todos os launchers e sistemas com tema escuro.
+
+### 7.21 Conexões Sociais, Solicitações de Mensagens & Onboarding de Identidade (v1.1.10)
+- **Listas de Conexões Sociais estilo Instagram**:
+  - 📄 `auth/views/dialogs/dialog_lista_conexoes.dart`: Diálogo interativo exibido ao tocar nas métricas de "Seguidores" e "Seguindo" do `PerfilSocialView`. Exibe avatares, `@username`, nome de exibição, botão dinâmico para seguir/deixar de seguir e busca em tempo real.
+- **Caixa de Solicitações de Mensagens na Mensageria**:
+  - 📄 `chat/controllers/helpers/mensageria_solicitacoes_helper.dart` e `chat/views/widgets/lista_conversas_widget.dart`:
+  - Conversas iniciadas por contatos que o usuário não segue caem na aba separada de **"Solicitações de Mensagens"**, não poluindo a lista principal.
+  - Card de aviso no topo da lista com contador de solicitações pendentes.
+  - No painel da conversa ativa, enquanto não aceita, o usuário dispõe de ações claras para **Aceitar** (liberando a conversa direta) ou **Excluir** (removendo a solicitação).
+- **Onboarding Completo de Criação de Conta & Registro de Verificação**:
+  - 📄 `auth/views/dialogs/dialog_onboarding_identidade_nous.dart` e `auth/views/widgets/ficha_usuario/bloco_registro_conta_usuario.dart`:
+  - Fluxo de boas-vindas pós-CPF e `@username` permitindo personalizar foto de perfil, apelido, nome completo, biografia e as **Regras de Transparência** (quais dados pessoais são públicos/privados).
+  - Seção **Registro Soberano da Conta** na Identidade do Usuário com data de adesão à rede ("Membro desde"), validador comunitário ("Validado por"), data de validação e o selo oficial de **Conta Verificada** (`Icons.verified`).
 
 ---
 

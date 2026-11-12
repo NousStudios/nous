@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:nous/src/core/theme/theme_controller.dart';
 import 'package:nous/src/features/auth/providers/auth_provider.dart';
+import 'package:nous/src/features/auth/views/dialogs/dialog_chaves_criptograficas.dart';
 import 'package:nous/src/features/auth/views/login_view.dart';
 import 'package:nous/src/features/pdv/providers/pdv_provider.dart';
 import 'package:nous/src/features/pdv/views/widgets/backup_dialog.dart';
@@ -147,6 +148,86 @@ class BlocoSegurancaContaWidget extends StatelessWidget {
                   ),
                   label: Text(
                     'Gerenciar Backup / Restaurar Dados',
+                    style: theme.getTextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: theme.textColor,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 16),
+
+        // Bloco Cofre Criptográfico Soberano
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: theme.cardBackgroundColor,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(
+              color: theme.borderColor.withValues(alpha: 0.6),
+            ),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Icon(
+                    Icons.vpn_key_rounded,
+                    size: 18,
+                    color: theme.textColor,
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Cofre Criptográfico & Chaves E2EE',
+                    style: theme.getTextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.bold,
+                      color: theme.textColor,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 6),
+              Text(
+                'Suas chaves soberanas Ed25519 (assinatura de atestados e mensagens) e X25519 (criptografia de ponta a ponta) residem neste aparelho. Exporte ou restaure suas chaves com senha mestre.',
+                style: theme.getTextStyle(
+                  fontSize: 12,
+                  color: theme.secondaryTextColor,
+                ),
+              ),
+              const SizedBox(height: 12),
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  style: OutlinedButton.styleFrom(
+                    side: BorderSide(
+                      color: theme.borderColor.withValues(alpha: 0.6),
+                    ),
+                    padding: const EdgeInsets.symmetric(vertical: 11),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                  ),
+                  onPressed: () {
+                    final cpf = context.read<AuthProvider>().cpf;
+                    DialogChavesCriptograficas.mostrar(
+                      context,
+                      theme: theme,
+                      cpf: cpf,
+                    );
+                  },
+                  icon: Icon(
+                    Icons.lock_reset_rounded,
+                    size: 16,
+                    color: theme.textColor,
+                  ),
+                  label: Text(
+                    'Exportar ou Restaurar Chaves Criptográficas',
                     style: theme.getTextStyle(
                       fontSize: 12,
                       fontWeight: FontWeight.w600,

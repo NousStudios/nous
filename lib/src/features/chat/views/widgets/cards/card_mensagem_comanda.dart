@@ -291,9 +291,119 @@ class CardMensagemComanda extends StatelessWidget {
               ),
             ),
           ],
+          if (!aguardandoAprovacao &&
+              !modoLoja &&
+              pedido != null &&
+              pedido.status == StatusPedido.novo) ...[
+            const SizedBox(height: 8),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: theme.dangerColor,
+                  side: BorderSide(
+                    color: theme.dangerColor.withValues(alpha: 0.6),
+                  ),
+                  padding: const EdgeInsets.symmetric(vertical: 6),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
+                icon: Icon(
+                  Icons.cancel_outlined,
+                  size: 15,
+                  color: theme.dangerColor,
+                ),
+                label: Text(
+                  'Cancelar Pedido',
+                  style: theme.getTextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.bold,
+                    color: theme.dangerColor,
+                  ),
+                ),
+                onPressed: () => _confirmarCancelamentoCliente(
+                  context,
+                  pedido!.copyWith(
+                    lojaId: pedido.lojaId.isNotEmpty ? pedido.lojaId : lojaIdAlvo,
+                  ),
+                ),
+              ),
+            ),
+          ],
         ],
       ),
     );
+  }
+
+  Future<void> _confirmarCancelamentoCliente(
+    BuildContext context,
+    PedidoLoja pedido,
+  ) async {
+    final confirmou = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: theme.cardBackgroundColor,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+          side: BorderSide(color: theme.borderColor),
+        ),
+        title: Text(
+          'Cancelar Pedido',
+          textAlign: TextAlign.center,
+          style: theme.getTextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.bold,
+            color: theme.textColor,
+          ),
+        ),
+        content: Text(
+          'Deseja cancelar este pedido enviado para a loja?',
+          textAlign: TextAlign.center,
+          style: theme.getTextStyle(
+            fontSize: 13,
+            color: theme.secondaryTextColor,
+          ),
+        ),
+        actionsAlignment: MainAxisAlignment.center,
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text(
+              'Voltar',
+              style: theme.getTextStyle(color: theme.secondaryTextColor),
+            ),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: Text(
+              'Cancelar Pedido',
+              style: theme.getTextStyle(
+                color: theme.dangerColor,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmou == true && context.mounted) {
+      await ChatAutoatendimentoService.recusarPedidoPeloCliente(
+        context: context,
+        msg: msg,
+        pedido: pedido,
+        cancelamentoCliente: true,
+      );
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Pedido cancelado e atualizado na loja.'),
+            duration: Duration(seconds: 2),
+          ),
+        );
+      }
+    }
   }
 
   Future<void> _confirmarRecusaPedido(

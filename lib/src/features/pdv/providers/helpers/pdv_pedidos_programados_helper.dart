@@ -1,6 +1,9 @@
 import 'package:nous/src/features/pdv/models/loja.dart';
 import 'package:nous/src/features/pdv/models/pedido_loja.dart';
 import 'package:nous/src/features/pdv/models/pedido_programado.dart';
+import 'package:nous/src/features/pdv/services/lojas_service.dart';
+import 'package:nous/src/features/pdv/services/rede_local/cliente_rede_local.dart';
+import 'package:nous/src/features/pdv/services/rede_local/servidor_rede_local.dart';
 
 /// Helper especialista para gestão e disparo automático de pedidos programados.
 class PdvPedidosProgramadosHelper {
@@ -271,5 +274,26 @@ class PdvPedidosProgramadosHelper {
       loja: loja,
       pedidosGerados: const [],
     );
+  }
+
+  static Future<void> purgarPedidosRemovidos(List<String> ids, String lojaId) async {
+    for (final pid in ids) {
+      await LojasService.excluirPedidoIndividual(lojaId, pid);
+    }
+  }
+
+  static void despacharPedidosGeradosNaRede(List<PedidoLoja> pedidos, String lojaId) {
+    for (final novo in pedidos) {
+      if (ServidorRedeLocal().ativo) {
+        ServidorRedeLocal().notificarTodos({
+          'tipo': 'pedido_adicionado',
+          'lojaId': lojaId,
+          'pedido': novo.toJson(),
+        });
+      }
+      if (ClienteRedeLocal().conectado) {
+        ClienteRedeLocal().enviarPedido(novo);
+      }
+    }
   }
 }

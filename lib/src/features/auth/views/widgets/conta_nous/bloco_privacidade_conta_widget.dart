@@ -227,6 +227,66 @@ class BlocoPrivacidadeContaWidget extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 12),
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: theme.backgroundColor.withValues(alpha: 0.5),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(
+                color: theme.borderColor.withValues(alpha: 0.6),
+              ),
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Icon(
+                            Icons.mark_chat_unread_outlined,
+                            size: 16,
+                            color: theme.textColor,
+                          ),
+                          const SizedBox(width: 6),
+                          Text(
+                            'Mensagens Diretas',
+                            style: theme.getTextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                              color: theme.textColor,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        (conta?.quemPodeEnviarMensagens == 'apenas_seguidos')
+                            ? 'Apenas pessoas que você segue podem iniciar chat'
+                            : 'Qualquer usuário da rede pode iniciar uma conversa direta',
+                        style: theme.getTextStyle(
+                          fontSize: 11,
+                          color: theme.secondaryTextColor,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 8),
+                ThemedSwitch(
+                  theme: theme,
+                  value: conta?.quemPodeEnviarMensagens != 'apenas_seguidos',
+                  onChanged: (permitirTodos) {
+                    auth.atualizarQuemPodeEnviarMensagens(
+                      permitirTodos ? 'todos' : 'apenas_seguidos',
+                    );
+                  },
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
           _itemPrivacidade(
             context: context,
             theme: theme,

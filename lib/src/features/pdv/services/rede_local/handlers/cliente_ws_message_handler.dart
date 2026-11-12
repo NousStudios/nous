@@ -4,6 +4,8 @@ import 'package:nous/src/core/utils/json_isolate_utils.dart';
 import 'package:nous/src/features/auth/models/usuario_nous.dart';
 import 'package:nous/src/features/auth/providers/auth_provider.dart';
 import 'package:nous/src/features/auth/services/contas_nous_service.dart';
+import 'package:nous/src/features/chat/controllers/helpers/mensageria_solicitacoes_helper.dart';
+import 'package:nous/src/features/chat/services/chamada_webrtc_service.dart';
 import 'package:nous/src/features/chat/services/chat_service.dart';
 import 'package:nous/src/features/notificacoes/models/convite_loja.dart';
 import 'package:nous/src/features/notificacoes/providers/notificacoes_provider.dart';
@@ -106,6 +108,21 @@ class ClienteWsMessageHandler {
 
       if (tipo == 'usuario_atualizado') {
         await _processarUsuarioAtualizado(dados, ctx);
+        return;
+      }
+
+      if (tipo == 'usuario_nous_excluido') {
+        await _processarUsuarioNousExcluido(dados, ctx);
+        return;
+      }
+
+      if (tipo == 'solicitacao_aceita') {
+        final conversaId = dados['conversaId'] as String? ?? '';
+        final cpf = dados['cpf'] as String? ?? '';
+        await MensageriaSolicitacoesHelper.processarAceiteRemoto(
+          conversaId: conversaId,
+          meuCpf: cpf,
+        );
         return;
       }
 
@@ -478,6 +495,8 @@ class ClienteWsMessageHandler {
             cpfAtivo.replaceAll(RegExp(r'\D'), '') ==
                 usuarioRemoto.cpf.replaceAll(RegExp(r'\D'), '')) {
           await ctx.authProvider?.recarregarConta();
+        } else {
+          await ctx.authProvider?.carregarCacheContas();
         }
         debugPrint(
           '[ClienteRedeLocal] Identidade do usuário ${usuarioRemoto.cpf} (${usuarioRemoto.nome}) atualizada via WebSocket (Foto: ${usuarioRemoto.foto})',
@@ -487,6 +506,34 @@ class ClienteWsMessageHandler {
           '[ClienteRedeLocal] Erro ao processar usuario_atualizado via WebSocket: $e',
         );
       }
+    }
+  }
+
+  static Future<void> _processarUsuarioNousExcluido(
+    Map<String, dynamic> dados,
+    ClienteWsContext ctx,
+  ) async {
+    final cpf = (dados['cpf'] as String? ?? '').replaceAll(RegExp(r'\D'), '');
+    if (cpf.isEmpty) return;
+    try {
+      await ContasNousService.excluir(cpf);
+      final coletiva = ctx.pdvProvider?.buscarPorId('loja_nous_coletiva');
+      if (coletiva != null) {
+        final membrosAtualizados = coletiva.membros
+            .where((m) => m.cpf.replaceAll(RegExp(r'\D'), '') != cpf)
+            .toList();
+        if (membrosAtualizados.length != coletiva.membros.length) {
+          final atualizada = coletiva.copyWith(membros: membrosAtualizados);
+          await LojasService.salvarLojaIndividual(atualizada);
+          await ctx.pdvProvider?.adicionarOuAtualizarLoja(atualizada);
+        }
+      }
+      await ctx.authProvider?.carregarCacheContas();
+      ctx.pdvProvider?.notificarMudanca();
+    } catch (e) {
+      debugPrint(
+        '[ClienteRedeLocal] Erro ao processar usuario_nous_excluido via WebSocket: $e',
+      );
     }
   }
 
@@ -561,6 +608,62 @@ class ClienteWsMessageHandler {
       debugPrint(
         '[ClienteRedeLocal] Sincronizados ${listaConvites.length} convite(s) via balcão.',
       );
+    }
+  }
+
+  /// Processa e roteia pacotes WebRTC de áudio e vídeo recebidos via WebSocket
+  static void processarSinalChamada({
+    required Map<String, dynamic> dados,
+    required String meuCpf,
+    required List<Loja>? lojasLocal,
+  }) {
+    try {
+      final tipo = dados['tipo'] as String?;
+
+      if (tipo == 'chamada_iniciar') {
+        final chamadaJson = dados['chamada'] as Map<String, dynamic>?;
+        final sdp = dados['sdp'] as Map<String, dynamic>?;
+        if (chamadaJson != null && sdp != null) {
+          final destId = (chamadaJson['destinatarioId'] as String? ?? '').replaceAll(RegExp(r'\D'), '');
+          final participantes = (chamadaJson['participantesIds'] as List<dynamic>?)
+                  ?.map((e) => e.toString().replaceAll(RegExp(r'\D'), ''))
+                  .toList() ??
+              [];
+          final destEhLojaLocal = destId.isNotEmpty &&
+              (lojasLocal?.any(
+                    (l) =>
+                        PdvProvider.normalizarIdLoja(l.id) == destId &&
+                        (ChatService.normalizarCpf(l.cpfDonoOriginal) ==
+                                meuCpf ||
+                            l.membros.any(
+                              (m) =>
+                                  ChatService.normalizarCpf(m.cpf) == meuCpf,
+                            )),
+                  ) ??
+                  false);
+
+          if (destId == meuCpf ||
+              destEhLojaLocal ||
+              participantes.contains(meuCpf) ||
+              destId.isEmpty) {
+            ChamadaWebRtcService.instancia.receberConvite(chamadaJson, sdp);
+          }
+        }
+      } else if (tipo == 'chamada_aceita') {
+        final sdp = dados['sdp'] as Map<String, dynamic>?;
+        if (sdp != null) {
+          ChamadaWebRtcService.instancia.receberRespostaAceita(sdp);
+        }
+      } else if (tipo == 'chamada_candidato_ice') {
+        final candidate = dados['candidate'] as Map<String, dynamic>?;
+        if (candidate != null) {
+          ChamadaWebRtcService.instancia.receberCandidatoIce(candidate);
+        }
+      } else if (tipo == 'chamada_rejeitada' || tipo == 'chamada_encerrada') {
+        ChamadaWebRtcService.instancia.encerrarChamada(notificarRede: false);
+      }
+    } catch (e) {
+      debugPrint('[ClienteWsMessageHandler] Erro ao processar sinal de chamada: $e');
     }
   }
 }

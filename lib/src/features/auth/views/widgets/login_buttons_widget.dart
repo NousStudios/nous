@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:nous/src/core/theme/theme_controller.dart';
 import 'package:nous/src/features/auth/providers/auth_provider.dart';
-import 'package:nous/src/features/auth/views/widgets/cadastrar_apelido_dialog.dart';
+import 'package:nous/src/features/auth/views/dialogs/dialog_onboarding_identidade_nous.dart';
 import 'package:nous/src/features/auth/views/widgets/cadastrar_nome_usuario_dialog.dart';
 import 'package:nous/src/features/auth/views/contas_usuario_view.dart';
 import 'package:nous/src/features/notificacoes/providers/notificacoes_provider.dart';
@@ -46,16 +46,25 @@ class LoginButtonsWidget extends StatelessWidget {
         return;
       }
 
-      // 2. Cadastra o apelido/nome inicial
-      final apelido = await CadastrarApelidoDialog.mostrar(
+      // 2. Onboarding completo da Identidade do Usuário & Regras de Transparência
+      final dadosIdentidade = await DialogOnboardingIdentidadeNous.mostrar(
         context,
         cpf: authProvider.cpf,
+        username: username.trim(),
         theme: theme,
       );
-      if (apelido == null || apelido.trim().isEmpty || !context.mounted) {
+      if (dadosIdentidade == null || !context.mounted) {
         return;
       }
-      await authProvider.associarContaComApelido(apelido.trim(), username.trim());
+
+      await authProvider.registrarNovaContaCompleta(
+        nome: dadosIdentidade.nome,
+        apelido: dadosIdentidade.apelido,
+        nomeDeUsuario: username.trim(),
+        foto: dadosIdentidade.foto,
+        biografia: dadosIdentidade.biografia,
+        dadosPrivados: dadosIdentidade.dadosPrivados,
+      );
     } else {
       // Conta antiga existente: verifica se possui nome de usuário cadastrado
       final conta = authProvider.contaAtual;

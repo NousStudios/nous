@@ -193,8 +193,69 @@ class _PainelConversaAtivaWidgetState extends State<PainelConversaAtivaWidget> {
   void _enviarTexto() {
     final texto = _mensagemController.text.trim();
     if (texto.isEmpty) return;
+    final conv = widget.controller.conversaSelecionada;
+    if (conv != null && widget.controller.ehSolicitacao(conv)) {
+      widget.controller.aceitarSolicitacao(conv);
+    }
     _mensagemController.clear();
     widget.onEnviarTexto(texto);
+  }
+
+  Future<void> _aceitarSolicitacao(ConversaChat conversa) async {
+    await widget.controller.aceitarSolicitacao(conversa);
+    if (mounted) setState(() {});
+  }
+
+  Future<void> _recusarSolicitacao(ConversaChat conversa) async {
+    final theme = widget.theme;
+    final confirmar = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: theme.cardBackgroundColor,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(14),
+          side: BorderSide(color: theme.borderColor),
+        ),
+        title: Text(
+          'Excluir Solicitação?',
+          style: theme.getTextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.bold,
+            color: theme.textColor,
+          ),
+        ),
+        content: Text(
+          'A conversa e as mensagens serão excluídas permanentemente.',
+          style: theme.getTextStyle(
+            fontSize: 13,
+            color: theme.secondaryTextColor,
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: Text(
+              'Cancelar',
+              style: theme.getTextStyle(color: theme.secondaryTextColor),
+            ),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: theme.dangerColor,
+              foregroundColor: Colors.white,
+            ),
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('Excluir'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmar == true && mounted) {
+      final auth = context.read<AuthProvider>();
+      final pdv = context.read<PdvProvider>();
+      await widget.controller.recusarSolicitacao(conversa, auth: auth, pdv: pdv);
+    }
   }
 
   bool _ehMembroOuDonoDaLoja(Loja loja, String cpfBruto) {
@@ -609,15 +670,101 @@ class _PainelConversaAtivaWidgetState extends State<PainelConversaAtivaWidget> {
           },
         ),
 
-        // Barra de Envio
-        BarraEnvioMensagemWidget(
-          controller: widget.controller,
-          theme: theme,
-          mensagemController: _mensagemController,
-          onEnviarTexto: _enviarTexto,
-          onEnviarAudio: widget.onEnviarAudio,
-          onCapturarFotoCamera: widget.onCapturarFotoCamera,
-          onAbrirMenuAnexo: _abrirMenuAnexo,
+        // Barra de Envio ou Banner de Solicitação de Mensagem
+        Builder(
+          builder: (context) {
+            final auth = context.watch<AuthProvider>();
+            final ehSolicitacao = widget.controller.ehSolicitacao(
+              conversa,
+              contaLogada: auth.contaAtual,
+            );
+
+            if (ehSolicitacao) {
+              final interlocutorNome = conversa.titulo.isNotEmpty
+                  ? conversa.titulo
+                  : 'Este usuário';
+
+              return Container(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                decoration: BoxDecoration(
+                  color: theme.cardBackgroundColor,
+                  border: Border(
+                    top: BorderSide(
+                      color: theme.borderColor.withValues(alpha: 0.6),
+                    ),
+                  ),
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      'Esta pessoa não está na sua lista de seguidos.',
+                      style: theme.getTextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                        color: theme.textColor,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      'Deseja aceitar a mensagem de $interlocutorNome? Se aceitar, vocês poderão conversar diretamente.',
+                      textAlign: TextAlign.center,
+                      style: theme.getTextStyle(
+                        fontSize: 11,
+                        color: theme.secondaryTextColor,
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: OutlinedButton(
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: theme.dangerColor,
+                              side: BorderSide(
+                                color: theme.dangerColor.withValues(alpha: 0.6),
+                              ),
+                              padding: const EdgeInsets.symmetric(vertical: 8),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                            ),
+                            onPressed: () => _recusarSolicitacao(conversa),
+                            child: const Text('Excluir'),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: ElevatedButton(
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: theme.buttonColor,
+                              foregroundColor: theme.buttonTextColor,
+                              padding: const EdgeInsets.symmetric(vertical: 8),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                            ),
+                            onPressed: () => _aceitarSolicitacao(conversa),
+                            child: const Text('Aceitar'),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              );
+            }
+
+            return BarraEnvioMensagemWidget(
+              controller: widget.controller,
+              theme: theme,
+              mensagemController: _mensagemController,
+              onEnviarTexto: _enviarTexto,
+              onEnviarAudio: widget.onEnviarAudio,
+              onCapturarFotoCamera: widget.onCapturarFotoCamera,
+              onAbrirMenuAnexo: _abrirMenuAnexo,
+            );
+          },
         ),
       ],
     );

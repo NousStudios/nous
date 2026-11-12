@@ -63,7 +63,8 @@ class ChatRepositorioSqlite {
           entregue INTEGER DEFAULT 0,
           favorita INTEGER DEFAULT 0,
           fixada INTEGER DEFAULT 0,
-          reacoes_json TEXT DEFAULT '{}'
+          reacoes_json TEXT DEFAULT '{}',
+          assinatura TEXT DEFAULT ''
         );
       ''');
 
@@ -81,6 +82,7 @@ class ChatRepositorioSqlite {
         'ALTER TABLE mensagens_chat ADD COLUMN favorita INTEGER DEFAULT 0;',
         'ALTER TABLE mensagens_chat ADD COLUMN fixada INTEGER DEFAULT 0;',
         'ALTER TABLE mensagens_chat ADD COLUMN reacoes_json TEXT DEFAULT "{}";',
+        'ALTER TABLE mensagens_chat ADD COLUMN assinatura TEXT DEFAULT "";',
       ];
       for (final sql in alteracoesMensagens) {
         try {
@@ -339,10 +341,16 @@ class ChatRepositorioSqlite {
       final lida = (r['lida'] as int? ?? 0) == 1;
       final entregue = (r['entregue'] as int? ?? 0) == 1;
       final stBruto = r['status_envio'] as String? ?? '';
+      final convIdMsg = r['conversa_id'] as String? ?? '';
+      final ehColetiva = convIdMsg.startsWith('grupo_') ||
+          convIdMsg.startsWith('topico_') ||
+          convIdMsg.startsWith('comunidade_') ||
+          convIdMsg.startsWith('loja_nous_coletiva_');
+
       final String statusEnvio;
-      if (lida || stBruto == 'lida') {
+      if (!ehColetiva && stBruto == 'lida') {
         statusEnvio = 'lida';
-      } else if (entregue || stBruto == 'entregue') {
+      } else if (entregue || stBruto == 'entregue' || (ehColetiva && (lida || stBruto == 'lida'))) {
         statusEnvio = 'entregue';
       } else if (stBruto.isEmpty || stBruto == 'pendente') {
         statusEnvio = 'enviada';
@@ -402,6 +410,7 @@ class ChatRepositorioSqlite {
           } catch (_) {}
           return const <String, String>{};
         }(),
+        assinatura: r['assinatura'] as String? ?? '',
       );
     }).toList();
 

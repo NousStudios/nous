@@ -7,6 +7,7 @@ import 'package:nous/src/core/services/changelog_service.dart';
 import 'package:nous/src/features/auth/services/contas_nous_service.dart';
 import 'package:nous/src/features/pdv/providers/pdv_provider.dart';
 import 'package:nous/src/features/pdv/services/imagem_service.dart';
+import 'package:nous/src/features/pdv/services/rede_local/seguranca_servidor_relay.dart';
 
 /// Manipula uploads, downloads e streaming de arquivos de mídia (imagens, áudios e APK)
 /// requisitados pelos terminais móveis ao servidor da rede local.
@@ -134,6 +135,14 @@ class ManipuladorMidiaServidor {
       return;
     }
 
+    // Validação estrita de Sandbox e proteção contra Path Traversal
+    if (!SegurancaServidorRelay.validarCaminhoLeituraPermitido(caminhoResolvido)) {
+      debugPrint('[ManipuladorMidiaServidor] Acesso bloqueado por segurança (Path Traversal/Fora do Sandbox): $caminhoResolvido');
+      request.response.statusCode = HttpStatus.forbidden;
+      await request.response.close();
+      return;
+    }
+
     final arquivo = File(caminhoResolvido);
     if (!arquivo.existsSync() || arquivo.lengthSync() == 0) {
       request.response.statusCode = HttpStatus.notFound;
@@ -173,7 +182,8 @@ class ManipuladorMidiaServidor {
 
   static Future<void> _atenderUploadImagem(HttpRequest request) async {
     try {
-      final nomeOriginal = request.uri.queryParameters['nome'];
+      final nomeBruto = request.uri.queryParameters['nome'];
+      final nomeOriginal = SegurancaServidorRelay.sanitizarNomeArquivo(nomeBruto);
       final bytes = await request.fold<List<int>>([], (acc, chunk) => acc..addAll(chunk));
       if (bytes.isEmpty) {
         request.response.statusCode = HttpStatus.badRequest;
@@ -181,10 +191,10 @@ class ManipuladorMidiaServidor {
         return;
       }
 
-      final ext = nomeOriginal?.split('.').last.toLowerCase() ?? 'jpg';
+      final ext = nomeOriginal.split('.').last.toLowerCase();
       final salvo = await ImagemService.salvarBytesImagemLocal(
         bytes,
-        extensaoOriginal: ext,
+        extensaoOriginal: ext.isNotEmpty ? ext : 'jpg',
         nomeSugerido: nomeOriginal,
       );
 
@@ -206,8 +216,10 @@ class ManipuladorMidiaServidor {
 
   static Future<void> _atenderUploadAnexo(HttpRequest request) async {
     try {
-      final nomeOriginal = request.uri.queryParameters['nome'];
-      final subpasta = request.uri.queryParameters['pasta'] ?? 'musicas';
+      final nomeBruto = request.uri.queryParameters['nome'];
+      final pastaBruta = request.uri.queryParameters['pasta'] ?? 'musicas';
+      final nomeOriginal = SegurancaServidorRelay.sanitizarNomeArquivo(nomeBruto);
+      final subpasta = SegurancaServidorRelay.sanitizarSubpasta(pastaBruta);
       final bytes = await request.fold<List<int>>([], (acc, chunk) => acc..addAll(chunk));
       if (bytes.isEmpty) {
         request.response.statusCode = HttpStatus.badRequest;
@@ -248,6 +260,14 @@ class ManipuladorMidiaServidor {
     final caminhoResolvido = ImagemService.resolverCaminhoExistente(caminho.trim());
     if (caminhoResolvido == null) {
       request.response.statusCode = HttpStatus.notFound;
+      await request.response.close();
+      return;
+    }
+
+    // Validação estrita de Sandbox e proteção contra Path Traversal
+    if (!SegurancaServidorRelay.validarCaminhoLeituraPermitido(caminhoResolvido)) {
+      debugPrint('[ManipuladorMidiaServidor] Acesso bloqueado por segurança (Path Traversal/Fora do Sandbox): $caminhoResolvido');
+      request.response.statusCode = HttpStatus.forbidden;
       await request.response.close();
       return;
     }

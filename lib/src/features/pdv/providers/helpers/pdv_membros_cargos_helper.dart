@@ -115,4 +115,19 @@ class PdvMembrosCargosHelper {
     if (p == PapelMembro.funcionario) return 2;
     return 3;
   }
+
+  static Loja alternarFuncaoDesenvolvedor(Loja loja, String cpf) {
+    final digitos = cpf.replaceAll(RegExp(r'\D'), '');
+    final novosMembros = loja.membros.map((m) {
+      if (m.cpf.replaceAll(RegExp(r'\D'), '') == digitos) {
+        final ehDev = m.cargoPersonalizadoId == 'desenvolvedor';
+        return m.copyWith(
+          cargoPersonalizadoId: ehDev ? null : 'desenvolvedor',
+          limparCargoPersonalizado: ehDev,
+        );
+      }
+      return m;
+    }).toList();
+    return loja.copyWith(membros: novosMembros);
+  }
 }

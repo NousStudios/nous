@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:nous/src/core/services/som_service.dart';
 import 'package:nous/src/core/theme/theme_controller.dart';
+import 'package:nous/src/features/chat/services/chat_service.dart';
 import 'package:nous/src/features/notificacoes/providers/notificacoes_provider.dart';
 import 'package:nous/src/features/notificacoes/views/widgets/notificacoes_dialog.dart';
 import 'package:nous/src/features/pdv/models/item_loja.dart';
@@ -607,12 +608,19 @@ class GerenciadorPedidosLoja {
     if (!estaMontado() || !ctx.mounted) return;
 
     final notificacoes = ctx.read<NotificacoesProvider>();
-    final quantidadeConvites = notificacoes.quantidadeConvitesAtivos;
+    await notificacoes.carregarDispensadasLoja(lojaId);
+    if (!estaMontado() || !ctx.mounted) return;
+
     final totalEstoqueBaixo = pdv.itensEstoqueBaixoPorLoja(lojaId)
         .where((a) => !notificacoes
-            .estaDispensadaNaSessao('alerta_estoque_${a.lojaId}_${a.item.id}'))
+            .estaDispensadaNaLoja(lojaId, 'alerta_estoque_${a.lojaId}_${a.item.id}'))
         .length;
-    final temNotificacoes = (quantidadeConvites + totalEstoqueBaixo) > 0;
+    final msgsLoja = (await ChatService.obterMensagensNaoLidasDaLoja(lojaId))
+        .where((m) => !notificacoes.estaDispensadaNaLoja(lojaId, 'msg_${m.id}'))
+        .toList();
+    if (!estaMontado() || !ctx.mounted) return;
+
+    final temNotificacoes = (totalEstoqueBaixo + msgsLoja.length) > 0;
 
     if (temNotificacoes) {
       await NotificacoesDialog.mostrar(ctx, lojaId: lojaId);

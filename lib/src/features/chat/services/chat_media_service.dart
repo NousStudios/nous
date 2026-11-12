@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:path/path.dart' as p;
+import 'package:nous/src/core/services/criptografia_service.dart';
 import 'package:nous/src/features/chat/models/mensagem_chat.dart';
 import 'package:nous/src/features/pdv/services/imagem_service.dart';
 
@@ -11,6 +12,9 @@ class ChatMediaService {
 
   /// Converte qualquer mensagem em resumo textual legível para a lista de conversas
   static String gerarResumoMensagem(MensagemChat msg) {
+    if (CriptografiaService.ehTextoCifrado(msg.texto)) {
+      return '🔒 Mensagem protegida';
+    }
     if (msg.tipo == 'imagem') {
       return msg.texto.isNotEmpty ? '📷 ${msg.texto}' : '📷 Foto';
     } else if (msg.tipo == 'arquivo') {
@@ -90,6 +94,34 @@ class ChatMediaService {
     } catch (e) {
       debugPrint('[ChatMediaService] Erro ao salvar bytes de anexo: $e');
       return null;
+    }
+  }
+
+  /// Limpa arquivos de cache temporários e áudios antigos com mais de [diasRetencao] dias
+  /// para evitar acúmulo desnecessário de disco no dispositivo mobile.
+  static Future<void> purgarCacheTemporarioAntigo({int diasRetencao = 60}) async {
+    try {
+      final base = await ImagemService.obterDiretorioBase();
+      final pasta = Directory('${base.path}/anexos_chat');
+      if (!await pasta.exists()) return;
+
+      final agora = DateTime.now();
+      final limite = agora.subtract(Duration(days: diasRetencao));
+
+      final entidades = await pasta.list().toList();
+      for (final entidade in entidades) {
+        if (entidade is File) {
+          final stat = await entidade.stat();
+          if (stat.modified.isBefore(limite)) {
+            try {
+              await entidade.delete();
+              debugPrint('[ChatMediaService] Anexo antigo excluído da limpeza de cache: ${entidade.path}');
+            } catch (_) {}
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint('[ChatMediaService] Erro ao purgar cache antigo: $e');
     }
   }
 }
