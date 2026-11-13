@@ -4,8 +4,8 @@ import 'package:nous/src/core/widgets/texto_rolante.dart';
 import 'package:nous/src/features/pdv/models/membro_loja.dart';
 import 'package:nous/src/features/pdv/services/rede_local/cliente_rede_local.dart';
 import 'package:nous/src/features/pdv/services/rede_local/servidor_rede_local.dart';
+import 'package:nous/src/features/auth/views/widgets/validacao_identidades_dialog.dart';
 import 'package:nous/src/features/pdv/views/agora_digital_view.dart';
-import 'package:nous/src/features/pdv/views/dialogs/dialog_fila_validacao_identidades.dart';
 import 'package:nous/src/features/pdv/views/gestao_financeira_nous_view.dart';
 import 'package:nous/src/features/pdv/views/widgets/gestao_nous/cards_atalhos_gestao_widget.dart';
 
@@ -102,14 +102,7 @@ class _AbaGestaoNousWidgetState extends State<AbaGestaoNousWidget> {
   }
 
   void _dialogFilaValidacaoIdentidades(AppTheme theme) {
-    showDialog(
-      context: context,
-      builder: (ctx) => DialogFilaValidacaoIdentidades(
-        theme: theme,
-        cpfValidador: widget.cpfLogado,
-        nomeValidador: widget.nomeLogado,
-      ),
-    );
+    ValidacaoIdentidadesDialog.mostrar(context: context, theme: theme);
   }
 
   @override

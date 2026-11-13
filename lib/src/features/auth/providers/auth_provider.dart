@@ -4,6 +4,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:nous/src/core/services/criptografia_service.dart';
 import 'package:nous/src/core/theme/theme_controller.dart';
 import 'package:nous/src/features/auth/models/usuario_nous.dart';
+import 'package:nous/src/features/auth/services/contas_excluidas_service.dart';
 import 'package:nous/src/features/auth/services/contas_nous_service.dart';
 import 'package:nous/src/features/auth/services/cpf_validator.dart';
 import 'package:nous/src/features/pdv/services/dados_locais_service.dart';
@@ -477,6 +478,8 @@ class AuthProvider extends ChangeNotifier {
     required String apelido,
     required String biografia,
     String? foto,
+    List<String>? links,
+    Map<String, String>? coresPerfil,
   }) async {
     final conta = _contaAtual;
     if (conta == null) return;
@@ -486,6 +489,8 @@ class AuthProvider extends ChangeNotifier {
       apelidoPublico: apelido.trim(),
       biografia: biografia.trim(),
       fotoPublica: foto != null ? foto.trim() : conta.fotoPublica,
+      links: links ?? conta.links,
+      coresPerfil: coresPerfil ?? conta.coresPerfil,
     );
     await ContasNousService.salvar(atualizado);
     _contaAtual = atualizado;
@@ -563,7 +568,27 @@ class AuthProvider extends ChangeNotifier {
     final cpfLimpo = cpfReal.replaceAll(RegExp(r'\D'), '');
     if (cpfLimpo.isEmpty) return;
 
+    final contaExistente =
+        buscarContaPorCpf(cpfLimpo) ?? await ContasNousService.buscarPorCpf(cpfLimpo);
+    final regExcluida = contaExistente != null
+        ? await ContasExcluidasService.registrarExclusao(contaExistente)
+        : null;
+
     await ContasNousService.excluir(cpfLimpo);
+
+    try {
+      final coletiva = await LojasService.carregarLojaPorId('loja_nous_coletiva');
+      if (coletiva != null) {
+        final membrosAtualizados = coletiva.membros
+            .where((m) => m.cpf.replaceAll(RegExp(r'\D'), '') != cpfLimpo)
+            .toList();
+        if (membrosAtualizados.length != coletiva.membros.length) {
+          await LojasService.salvarLojaIndividual(
+            coletiva.copyWith(membros: membrosAtualizados),
+          );
+        }
+      }
+    } catch (_) {}
 
     final prefs = await SharedPreferences.getInstance();
     final ultimo = prefs.getString(_chaveUltimoCpf);
@@ -577,16 +602,15 @@ class AuthProvider extends ChangeNotifier {
     _contasPorCpf.remove(cpfLimpo);
     _contasPorCpf.remove(cpfReal);
 
+    final evento = <String, dynamic>{
+      'tipo': 'usuario_nous_excluido',
+      'cpf': cpfLimpo,
+      if (regExcluida != null) 'registro': regExcluida.toJson(),
+    };
     if (ClienteRedeLocal().conectado) {
-      ClienteRedeLocal().enviarEventoWs({
-        'tipo': 'usuario_nous_excluido',
-        'cpf': cpfLimpo,
-      });
+      ClienteRedeLocal().enviarEventoWs(evento);
     } else if (ServidorRedeLocal().ativo) {
-      ServidorRedeLocal().notificarTodos({
-        'tipo': 'usuario_nous_excluido',
-        'cpf': cpfLimpo,
-      });
+      ServidorRedeLocal().notificarTodos(evento);
     }
 
     await carregarCacheContas();
@@ -597,6 +621,64 @@ class AuthProvider extends ChangeNotifier {
     } else {
       notifyListeners();
     }
+  }
+
+  /// Valida a identidade de outro usuário Nous com assinatura digital Ed25519
+  /// e registra na lista cronológica de validações do alvo.
+  Future<UsuarioNous?> validarIdentidadeUsuario(UsuarioNous alvo) async {
+    final validador = _contaAtual;
+    if (validador == null) return null;
+
+    final cpfValidador = CpfValidator.onlyDigits(validador.cpf);
+    final cpfAlvo = CpfValidator.onlyDigits(alvo.cpf);
+    if (cpfValidador.isEmpty || cpfAlvo.isEmpty || cpfValidador == cpfAlvo) {
+      return null;
+    }
+
+    final alvoVivo = buscarContaPorCpf(cpfAlvo) ?? alvo;
+    if (alvoVivo.jaValidadoPor(cpfValidador)) {
+      return alvoVivo;
+    }
+
+    final agoraIso = DateTime.now().toIso8601String();
+    final assinatura = await CriptografiaService.assinarDados(
+          cpf: cpfValidador,
+          mensagem: 'validar_identidade:$cpfAlvo:$cpfValidador:$agoraIso',
+        ) ??
+        '';
+
+    final novaValidacao = <String, String>{
+      'cpf': cpfValidador,
+      'nome': validador.nome.isNotEmpty
+          ? validador.nome
+          : validador.nomeExibicao,
+      'dataHora': agoraIso,
+      'assinatura': assinatura,
+    };
+
+    final listaAtualizada = List<Map<String, String>>.from(
+      alvoVivo.validacoesOrdenadas,
+    )..add(novaValidacao);
+
+    final primeiro = listaAtualizada.first;
+    final alvoAtualizado = alvoVivo.copyWith(
+      verificado: true,
+      validacoes: listaAtualizada,
+      validadoPorCpf: alvoVivo.validadoPorCpf.isNotEmpty
+          ? alvoVivo.validadoPorCpf
+          : (primeiro['cpf'] ?? cpfValidador),
+      validadoPorNome: alvoVivo.validadoPorNome.isNotEmpty
+          ? alvoVivo.validadoPorNome
+          : (primeiro['nome'] ?? novaValidacao['nome']!),
+      validadoEm: alvoVivo.validadoEm.isNotEmpty
+          ? alvoVivo.validadoEm
+          : (primeiro['dataHora'] ?? agoraIso),
+    );
+
+    await ContasNousService.salvar(alvoAtualizado);
+    _propagarUsuarioAtualizado(alvoAtualizado);
+    notifyListeners();
+    return alvoAtualizado;
   }
 
   Future<void> atualizarNomeDeUsuario(String novoUsername) async {

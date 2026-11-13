@@ -10,7 +10,10 @@ import 'package:nous/src/features/auth/models/usuario_nous.dart';
 import 'package:nous/src/features/auth/providers/auth_provider.dart';
 import 'package:nous/src/features/auth/services/contas_nous_service.dart';
 import 'package:nous/src/features/auth/views/dialogs/dialog_lista_conexoes.dart';
+import 'package:nous/src/features/auth/views/widgets/compartilhar_perfil_dialog.dart';
 import 'package:nous/src/features/auth/views/widgets/editar_perfil_dialog.dart';
+import 'package:nous/src/features/auth/views/widgets/selo_verificado_widget.dart';
+import 'package:nous/src/features/auth/views/widgets/validacao_identidade_dialog.dart';
 import 'package:nous/src/features/chat/services/chat_service.dart';
 import 'package:nous/src/features/chat/services/resolvedor_foto_chat.dart';
 import 'package:nous/src/features/chat/views/mensageria_view.dart';
@@ -146,77 +149,10 @@ class _PerfilSocialViewState extends State<PerfilSocialView> {
   }
 
   void _compartilharPerfil(BuildContext context, AppTheme theme, UsuarioNous conta) {
-    final nomeUsuario = conta.usernameExibicao;
-    Clipboard.setData(ClipboardData(text: nomeUsuario));
-
-    showDialog(
+    CompartilharPerfilDialog.mostrar(
       context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: theme.cardBackgroundColor,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-          side: BorderSide(color: theme.borderColor),
-        ),
-        title: Row(
-          children: [
-            Icon(Icons.share_outlined, color: theme.textColor, size: 20),
-            const SizedBox(width: 8),
-            Text(
-              'Compartilhar Perfil',
-              style: theme.getTextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-                color: theme.textColor,
-              ),
-            ),
-          ],
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Nome de usuário copiado para a área de transferência!',
-              style: theme.getTextStyle(
-                fontSize: 13,
-                color: theme.textColor,
-              ),
-            ),
-            const SizedBox(height: 10),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-              decoration: BoxDecoration(
-                color: theme.backgroundColor,
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(
-                  color: theme.borderColor.withValues(alpha: 0.6),
-                ),
-              ),
-              child: SelectableText(
-                nomeUsuario,
-                style: theme.getTextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                  color: theme.textColor,
-                ),
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: Text(
-              'Fechar',
-              style: theme.getTextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.bold,
-                color: theme.textColor,
-              ),
-            ),
-          ),
-        ],
-      ),
+      theme: theme,
+      conta: conta,
     );
   }
 
@@ -273,6 +209,14 @@ class _PerfilSocialViewState extends State<PerfilSocialView> {
         ),
       ),
     );
+  }
+
+  Color? _parseHexColor(String? hex) {
+    if (hex == null || hex.isEmpty) return null;
+    final limpo = hex.replaceAll('#', '');
+    if (limpo.length != 6) return null;
+    final val = int.tryParse('FF$limpo', radix: 16);
+    return val != null ? Color(val) : null;
   }
 
   Widget _buildBotaoPerfil({
@@ -384,8 +328,21 @@ class _PerfilSocialViewState extends State<PerfilSocialView> {
     return ValueListenableBuilder<AppTheme>(
       valueListenable: ThemeController.currentTheme,
       builder: (context, theme, child) {
+        final corFundoCustom = _parseHexColor(conta.coresPerfil['fundo']);
+        final corDestaqueCustom = _parseHexColor(conta.coresPerfil['destaque']);
+        final fundoFinal = corFundoCustom ?? theme.backgroundColor;
+        final textoSobreFundo = corFundoCustom != null
+            ? (corFundoCustom.computeLuminance() > 0.5
+                ? const Color(0xFF141416)
+                : const Color(0xFFF5F5F7))
+            : theme.textColor;
+        final textoSecSobreFundo = corFundoCustom != null
+            ? textoSobreFundo.withValues(alpha: 0.72)
+            : theme.secondaryTextColor;
+        final corBordaPerfil = corDestaqueCustom ?? theme.borderColor;
+
         return Scaffold(
-          backgroundColor: theme.backgroundColor,
+          backgroundColor: fundoFinal,
           appBar: CustomAppBar(
             title: '',
             showBackButton: widget.mostrarBotaoVoltar,
@@ -440,15 +397,12 @@ class _PerfilSocialViewState extends State<PerfilSocialView> {
                                 ),
                               ),
                             ),
-                            if (conta.verificado || conta.validadoPorCpf.isNotEmpty) ...[
-                              const SizedBox(width: 4),
-                              const Tooltip(
-                                message: 'Conta Verificada pela Comunidade Nous',
-                                child: Icon(
-                                  Icons.verified,
-                                  size: 15,
-                                  color: Color(0xFF34B7F1),
-                                ),
+                            if (conta.possuiValidacao) ...[
+                              const SizedBox(width: 5),
+                              SeloVerificadoWidget(
+                                usuario: conta,
+                                theme: theme,
+                                tamanho: 17,
                               ),
                             ],
                           ],
@@ -467,41 +421,55 @@ class _PerfilSocialViewState extends State<PerfilSocialView> {
                         ),
                       ),
                       const SizedBox(height: 14),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          _buildMetricaItem(theme, '0', 'Posts'),
-                          const SizedBox(width: 20),
-                          _buildMetricaItem(
-                            theme,
-                            '${conta.seguidores.length}',
-                            'Seguidores',
-                            onTap: () {
-                              DialogListaConexoes.exibir(
-                                context: context,
-                                titulo: 'Seguidores',
-                                cpfs: conta.seguidores,
-                                theme: theme,
-                                usuarioDonoLista: conta,
-                              );
-                            },
+                      Center(
+                        child: ConstrainedBox(
+                          constraints: const BoxConstraints(maxWidth: 330),
+                          child: Row(
+                            children: [
+                              Expanded(
+                                child: Center(
+                                  child: _buildMetricaItem(theme, '0', 'Posts'),
+                                ),
+                              ),
+                              Expanded(
+                                child: Center(
+                                  child: _buildMetricaItem(
+                                    theme,
+                                    '${conta.seguidores.length}',
+                                    'Seguidores',
+                                    onTap: () {
+                                      DialogListaConexoes.exibir(
+                                        context: context,
+                                        titulo: 'Seguidores',
+                                        cpfs: conta.seguidores,
+                                        theme: theme,
+                                        usuarioDonoLista: conta,
+                                      );
+                                    },
+                                  ),
+                                ),
+                              ),
+                              Expanded(
+                                child: Center(
+                                  child: _buildMetricaItem(
+                                    theme,
+                                    '${conta.seguindo.length}',
+                                    'Seguindo',
+                                    onTap: () {
+                                      DialogListaConexoes.exibir(
+                                        context: context,
+                                        titulo: 'Seguindo',
+                                        cpfs: conta.seguindo,
+                                        theme: theme,
+                                        usuarioDonoLista: conta,
+                                      );
+                                    },
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
-                          const SizedBox(width: 20),
-                          _buildMetricaItem(
-                            theme,
-                            '${conta.seguindo.length}',
-                            'Seguindo',
-                            onTap: () {
-                              DialogListaConexoes.exibir(
-                                context: context,
-                                titulo: 'Seguindo',
-                                cpfs: conta.seguindo,
-                                theme: theme,
-                                usuarioDonoLista: conta,
-                              );
-                            },
-                          ),
-                        ],
+                        ),
                       ),
 
                       const SizedBox(height: 16),
@@ -513,7 +481,7 @@ class _PerfilSocialViewState extends State<PerfilSocialView> {
                           style: theme.getTextStyle(
                             fontSize: 13,
                             fontWeight: FontWeight.bold,
-                            color: theme.textColor,
+                            color: textoSobreFundo,
                           ),
                         ),
                       ),
@@ -526,10 +494,73 @@ class _PerfilSocialViewState extends State<PerfilSocialView> {
                           textAlign: TextAlign.center,
                           style: theme.getTextStyle(
                             fontSize: 12,
-                            color: theme.secondaryTextColor,
+                            color: textoSecSobreFundo,
                           ),
                         ),
                       ),
+                      if (conta.links.isNotEmpty) ...[
+                        const SizedBox(height: 10),
+                        Wrap(
+                          alignment: WrapAlignment.center,
+                          spacing: 8,
+                          runSpacing: 6,
+                          children: [
+                            for (final link in conta.links)
+                              InkWell(
+                                borderRadius: BorderRadius.circular(16),
+                                onTap: () {
+                                  Clipboard.setData(ClipboardData(text: link));
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      backgroundColor:
+                                          theme.cardBackgroundColor,
+                                      content: Text(
+                                        'Link copiado: $link',
+                                        style: theme.getTextStyle(
+                                          color: theme.textColor,
+                                        ),
+                                      ),
+                                      duration: const Duration(seconds: 2),
+                                    ),
+                                  );
+                                },
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 10,
+                                    vertical: 4,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    borderRadius: BorderRadius.circular(16),
+                                    border: Border.all(
+                                      color: corBordaPerfil
+                                          .withValues(alpha: 0.65),
+                                    ),
+                                  ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Icon(
+                                        Icons.link_rounded,
+                                        size: 13,
+                                        color: corDestaqueCustom ??
+                                            textoSobreFundo,
+                                      ),
+                                      const SizedBox(width: 4),
+                                      Text(
+                                        link,
+                                        style: theme.getTextStyle(
+                                          fontSize: 11.5,
+                                          fontWeight: FontWeight.w600,
+                                          color: textoSobreFundo,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                          ],
+                        ),
+                      ],
 
                       const SizedBox(height: 16),
 
@@ -570,6 +601,53 @@ class _PerfilSocialViewState extends State<PerfilSocialView> {
                           ),
                         ],
                       ),
+                      if (!ehProprioUsuario &&
+                          contaPropria != null &&
+                          !conta.jaValidadoPor(contaPropria.cpf)) ...[
+                        const SizedBox(height: 8),
+                        Center(
+                          child: InkWell(
+                            borderRadius: BorderRadius.circular(14),
+                            onTap: () async {
+                              final atualizado =
+                                  await ValidacaoIdentidadeDialog.mostrar(
+                                context: context,
+                                alvo: conta,
+                                theme: theme,
+                              );
+                              if (atualizado != null && mounted) {
+                                setState(() {
+                                  _contaAlvoAtualizada = atualizado;
+                                });
+                              }
+                            },
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 10,
+                                vertical: 4,
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(
+                                    Icons.verified_user_outlined,
+                                    size: 13,
+                                    color: textoSecSobreFundo,
+                                  ),
+                                  const SizedBox(width: 5),
+                                  Text(
+                                    'Validar identidade',
+                                    style: theme.getTextStyle(
+                                      fontSize: 11.5,
+                                      color: textoSecSobreFundo,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
 
                       const SizedBox(height: 18),
 

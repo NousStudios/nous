@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 import 'package:nous/src/core/utils/json_isolate_utils.dart';
 import 'package:nous/src/features/auth/models/usuario_nous.dart';
 import 'package:nous/src/features/auth/providers/auth_provider.dart';
+import 'package:nous/src/features/auth/services/contas_excluidas_service.dart';
 import 'package:nous/src/features/auth/services/contas_nous_service.dart';
 import 'package:nous/src/features/chat/controllers/helpers/mensageria_solicitacoes_helper.dart';
 import 'package:nous/src/features/chat/services/chamada_webrtc_service.dart';
@@ -516,6 +517,17 @@ class ClienteWsMessageHandler {
     final cpf = (dados['cpf'] as String? ?? '').replaceAll(RegExp(r'\D'), '');
     if (cpf.isEmpty) return;
     try {
+      final regJson = dados['registro'] as Map<String, dynamic>?;
+      if (regJson != null) {
+        await ContasExcluidasService.salvarRegistro(
+          ContaExcluidaNous.fromMap(regJson),
+        );
+      } else {
+        final local = await ContasNousService.buscarPorCpf(cpf);
+        if (local != null) {
+          await ContasExcluidasService.registrarExclusao(local);
+        }
+      }
       await ContasNousService.excluir(cpf);
       final coletiva = ctx.pdvProvider?.buscarPorId('loja_nous_coletiva');
       if (coletiva != null) {

@@ -27,6 +27,9 @@ class UsuarioNous {
   final String validadoPorNome;
   final String validadoEm;
   final bool verificado;
+  final List<Map<String, String>> validacoes;
+  final List<String> links;
+  final Map<String, String> coresPerfil;
 
   const UsuarioNous({
     required this.cpf,
@@ -57,6 +60,9 @@ class UsuarioNous {
     this.validadoPorNome = '',
     this.validadoEm = '',
     this.verificado = false,
+    this.validacoes = const [],
+    this.links = const [],
+    this.coresPerfil = const {},
   });
 
   String get nomeExibicao =>
@@ -144,12 +150,44 @@ class UsuarioNous {
   }
 
   String get criadoEmFormatado {
-    if (criadoEm.trim().isEmpty) return 'Membro Fundador';
-    final dt = DateTime.tryParse(criadoEm);
+    final dt = criadoEm.trim().isEmpty
+        ? DateTime.now()
+        : DateTime.tryParse(criadoEm);
     if (dt == null) return criadoEm;
     final d = dt.day.toString().padLeft(2, '0');
     final m = dt.month.toString().padLeft(2, '0');
     return '$d/$m/${dt.year}';
+  }
+
+  List<Map<String, String>> get validacoesOrdenadas {
+    final lista = <Map<String, String>>[
+      for (final v in validacoes) Map<String, String>.from(v),
+    ];
+    if (lista.isEmpty && validadoPorCpf.trim().isNotEmpty) {
+      lista.add({
+        'cpf': validadoPorCpf,
+        'nome': validadoPorNome.isNotEmpty ? validadoPorNome : 'Usuário Nous',
+        'dataHora': validadoEm,
+        'assinatura': '',
+      });
+    }
+    lista.sort((a, b) {
+      final da = DateTime.tryParse(a['dataHora'] ?? '') ?? DateTime(2099);
+      final db = DateTime.tryParse(b['dataHora'] ?? '') ?? DateTime(2099);
+      return da.compareTo(db);
+    });
+    return lista;
+  }
+
+  int get totalValidacoes => validacoesOrdenadas.length;
+  bool get possuiValidacao => verificado || totalValidacoes > 0;
+
+  bool jaValidadoPor(String cpfValidador) {
+    final norm = cpfValidador.replaceAll(RegExp(r'\D'), '');
+    if (norm.isEmpty) return false;
+    return validacoesOrdenadas.any(
+      (v) => (v['cpf'] ?? '').replaceAll(RegExp(r'\D'), '') == norm,
+    );
   }
 
   String get validadoEmFormatado {
@@ -194,6 +232,9 @@ class UsuarioNous {
     String? validadoPorNome,
     String? validadoEm,
     bool? verificado,
+    List<Map<String, String>>? validacoes,
+    List<String>? links,
+    Map<String, String>? coresPerfil,
   }) {
     return UsuarioNous(
       cpf: cpf,
@@ -226,6 +267,9 @@ class UsuarioNous {
       validadoPorNome: validadoPorNome ?? this.validadoPorNome,
       validadoEm: validadoEm ?? this.validadoEm,
       verificado: verificado ?? this.verificado,
+      validacoes: validacoes ?? this.validacoes,
+      links: links ?? this.links,
+      coresPerfil: coresPerfil ?? this.coresPerfil,
     );
   }
 
@@ -259,6 +303,9 @@ class UsuarioNous {
       'validadoPorNome': validadoPorNome,
       'validadoEm': validadoEm,
       'verificado': verificado,
+      'validacoes': validacoes,
+      'links': links,
+      'coresPerfil': coresPerfil,
     };
   }
 
@@ -313,6 +360,22 @@ class UsuarioNous {
           json['validado_em'] as String? ??
           '',
       verificado: json['verificado'] == true || json['verificado'] == 1,
+      validacoes: (json['validacoes'] as List<dynamic>? ?? const [])
+          .whereType<Map>()
+          .map(
+            (m) => m.map(
+              (k, v) => MapEntry(k.toString(), v?.toString() ?? ''),
+            ),
+          )
+          .toList(),
+      links: (json['links'] as List<dynamic>? ?? const [])
+          .map((e) => e.toString())
+          .where((e) => e.trim().isNotEmpty)
+          .toList(),
+      coresPerfil: (json['coresPerfil'] as Map?)?.map(
+            (k, v) => MapEntry(k.toString(), v?.toString() ?? ''),
+          ) ??
+          const {},
     );
   }
 }

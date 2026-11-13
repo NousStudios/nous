@@ -169,11 +169,20 @@ class PdvLojasCofreHelper {
           membros: membrosSocios,
         );
       } else {
-        final mapaMembros = {for (final m in lojaColetiva.membros) m.cpf: m};
-        for (final novo in membrosSocios) {
-          if (!mapaMembros.containsKey(novo.cpf)) {
-            mapaMembros[novo.cpf] = novo;
+        final cpfsAtivos = membrosSocios
+            .map((m) => m.cpf.replaceAll(RegExp(r'\D'), ''))
+            .where((c) => c.isNotEmpty)
+            .toSet();
+        final mapaMembros = <String, MembroLoja>{};
+        for (final m in lojaColetiva.membros) {
+          final norm = m.cpf.replaceAll(RegExp(r'\D'), '');
+          if (cpfsAtivos.contains(norm)) {
+            mapaMembros[norm] = m;
           }
+        }
+        for (final novo in membrosSocios) {
+          final norm = novo.cpf.replaceAll(RegExp(r'\D'), '');
+          mapaMembros.putIfAbsent(norm, () => novo);
         }
         lojaColetiva = lojaColetiva.copyWith(
           nome: 'Nous',
