@@ -3,6 +3,7 @@ import 'package:nous/src/core/theme/theme_controller.dart';
 import 'package:nous/src/features/pdv/views/widgets/estado_vazio_container.dart';
 import 'package:nous/src/core/widgets/texto_rolante.dart';
 import 'package:nous/src/features/auth/models/solicitacao_validacao_identidade.dart';
+import 'package:nous/src/features/auth/services/contas_nous_service.dart';
 import 'package:nous/src/features/auth/services/validacao_identidade_service.dart';
 import 'package:nous/src/features/auth/views/widgets/ficha_usuario_dialog.dart';
 import 'package:nous/src/features/auth/providers/auth_provider.dart';
@@ -82,6 +83,15 @@ class _DialogFilaValidacaoIdentidadesState extends State<DialogFilaValidacaoIden
       cpfValidador: widget.cpfValidador,
       nomeValidador: widget.nomeValidador,
     );
+
+    if (mounted) {
+      final auth = context.read<AuthProvider>();
+      final contaCandidato = auth.buscarContaPorCpf(sol.cpfCandidato) ??
+          await ContasNousService.buscarPorCpf(sol.cpfCandidato);
+      if (contaCandidato != null) {
+        await auth.validarIdentidadeUsuario(contaCandidato);
+      }
+    }
 
     await _carregarSolicitacoes();
     if (mounted) {

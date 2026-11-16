@@ -353,6 +353,18 @@ class AbaDadosLojaWidget extends StatelessWidget {
       ),
     ];
 
+    if (ehLojaNous) {
+      return Column(
+        children: [
+          blocoFormularioOuDados,
+          const SizedBox(height: 16),
+          blocoCargos,
+          const SizedBox(height: 16),
+          blocoMembros,
+        ],
+      );
+    }
+
     if (expandido && larguraDaTela > 850) {
       return Row(
         crossAxisAlignment: CrossAxisAlignment.start,

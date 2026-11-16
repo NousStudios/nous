@@ -1,5 +1,5 @@
 import 'package:flutter/foundation.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:nous/src/core/services/preferencias_soberanas_service.dart';
 import 'package:nous/src/features/notificacoes/models/convite_loja.dart';
 import 'package:nous/src/features/notificacoes/services/convites_service.dart';
 import 'package:nous/src/features/pdv/models/loja.dart';
@@ -55,9 +55,10 @@ class NotificacoesProvider extends ChangeNotifier {
 
   Future<void> carregarDispensadasLoja(String lojaId) async {
     try {
-      final prefs = await SharedPreferences.getInstance();
-      final lista = prefs.getStringList('nous_notificacoes_dispensadas_loja_$lojaId');
-      if (lista != null && lista.isNotEmpty) {
+      final lista = await PreferenciasSoberanasService.obterLista(
+        'nous_notificacoes_dispensadas_loja_$lojaId',
+      );
+      if (lista.isNotEmpty) {
         _notificacoesDispensadasPorLoja.putIfAbsent(lojaId, () => <String>{}).addAll(lista);
         _notificacoesDispensadasSessao.addAll(lista);
         notifyListeners();
@@ -79,8 +80,7 @@ class NotificacoesProvider extends ChangeNotifier {
     _notificacoesDispensadasSessao.addAll(ids);
 
     try {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setStringList(
+      await PreferenciasSoberanasService.salvarLista(
         'nous_notificacoes_dispensadas_loja_$lojaId',
         setLoja.toList(),
       );
@@ -102,13 +102,32 @@ class NotificacoesProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  String get _chaveDispensadasUsuario {
+    final cpfLimpo = (_cpfAtual ?? '').replaceAll(RegExp(r'\D'), '');
+    return 'nous_notificacoes_dispensadas_usuario_$cpfLimpo';
+  }
+
+  Future<void> _persistirDispensadasUsuario() async {
+    final cpfLimpo = (_cpfAtual ?? '').replaceAll(RegExp(r'\D'), '');
+    if (cpfLimpo.isEmpty) return;
+    try {
+      await PreferenciasSoberanasService.salvarLista(
+        _chaveDispensadasUsuario,
+        _notificacoesDispensadasSessao.toList(),
+      );
+    } catch (_) {}
+  }
+
   void dispensarNaSessao(String id) {
     _notificacoesDispensadasSessao.add(id);
+    _persistirDispensadasUsuario();
     notifyListeners();
   }
 
   void dispensarTodasNaSessao(Iterable<String> ids) {
+    if (ids.isEmpty) return;
     _notificacoesDispensadasSessao.addAll(ids);
+    _persistirDispensadasUsuario();
     notifyListeners();
   }
 
@@ -120,6 +139,16 @@ class NotificacoesProvider extends ChangeNotifier {
 
   Future<void> carregarParaCpf(String cpf) async {
     _cpfAtual = cpf;
+    _notificacoesDispensadasSessao.clear();
+    final cpfLimpo = cpf.replaceAll(RegExp(r'\D'), '');
+    if (cpfLimpo.isNotEmpty) {
+      try {
+        final salvas = await PreferenciasSoberanasService.obterLista(
+          'nous_notificacoes_dispensadas_usuario_$cpfLimpo',
+        );
+        _notificacoesDispensadasSessao.addAll(salvas);
+      } catch (_) {}
+    }
     _convites = await ConvitesService.carregar(cpf);
     notifyListeners();
   }

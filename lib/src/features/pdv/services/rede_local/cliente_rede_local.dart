@@ -22,6 +22,7 @@ import 'package:nous/src/features/pdv/services/rede_local/transferencia_arquivos
 import 'package:nous/src/features/pdv/services/rede_local/despachante_cliente_rede.dart';
 import 'package:nous/src/features/pdv/models/dispositivo_loja_info.dart';
 import 'package:nous/src/features/pdv/services/rede_local/descoberta_rede_local.dart';
+import 'package:nous/src/features/pdv/services/rede_local/helpers/delta_loja_helper.dart';
 import 'package:nous/src/features/pdv/services/rede_local/helpers/gerenciador_dispositivo_local.dart';
 import 'package:nous/src/features/pdv/services/rede_local/helpers/resolvedor_url_rede.dart';
 import 'package:nous/src/features/pdv/services/rede_local/handlers/cliente_pos_conexao_orquestrador.dart';
@@ -227,6 +228,19 @@ class ClienteRedeLocal {
     await iniciarDescoberta();
 
     // 1. Tenta o último IP conhecido salvo
+    // 1. Prioridade máxima: servidores descobertos no Wi-Fi local (menor latência)
+    if (!conectado && !_conectando && lojasEncontradas.value.isNotEmpty) {
+      final primeiro = lojasEncontradas.value.first;
+      final ok = await conectar(
+        ip: primeiro.ip,
+        porta: primeiro.porta,
+        pdv: pdv,
+        auth: auth,
+      );
+      if (ok) return;
+    }
+
+    // 2. Tenta o último balcão salvo (LAN ou nuvem)
     final ultimo = await GerenciadorDispositivoLocal.obterUltimoBalcao();
     if (ultimo.ip != null && ultimo.ip!.isNotEmpty) {
       final ok = await conectar(
@@ -238,10 +252,18 @@ class ClienteRedeLocal {
       if (ok) return;
     }
 
-    // 2. Se já encontrou servidores via UDP, conecta no primeiro disponível
-    if (!conectado && !_conectando && lojasEncontradas.value.isNotEmpty) {
-      final primeiro = lojasEncontradas.value.first;
-      await conectar(ip: primeiro.ip, porta: primeiro.porta, pdv: pdv, auth: auth);
+    // 3. Fallback remoto (HTTPS/WSS) para acesso fora do Wi-Fi local
+    if (!conectado && !_conectando) {
+      final servidorRemoto =
+          await GerenciadorDispositivoLocal.obterServidorExterno();
+      if (servidorRemoto != null && servidorRemoto.isNotEmpty) {
+        await conectar(
+          ip: servidorRemoto,
+          porta: 443,
+          pdv: pdv,
+          auth: auth,
+        );
+      }
     }
   }
 
@@ -337,6 +359,9 @@ class ClienteRedeLocal {
       debugPrint('[ClienteRedeLocal] Conectado ao servidor via WebSocket em $wsUrl');
 
       await GerenciadorDispositivoLocal.salvarUltimoBalcao(_ipServidor!, _portaServidor!);
+      if (ResolvedorUrlRede.ehHostNuvem(_ipServidor!)) {
+        await GerenciadorDispositivoLocal.salvarServidorExterno(_ipServidor!);
+      }
 
       // Envia identificação nominal do dispositivo e dados do usuário para o balcão
       _ws!.add(
@@ -570,7 +595,9 @@ class ClienteRedeLocal {
 
     Future<bool> executarEnvio() async {
       try {
-        final lojaParaEnvio = await _prepararLojaComUploadsParaServidor(loja);
+        final lojaParaEnvio = await _prepararLojaComUploadsParaServidor(
+          DeltaLojaHelper.compactarParaRede(loja),
+        );
 
         final client = HttpClient()..connectionTimeout = const Duration(seconds: 15);
         final request = await client.postUrl(

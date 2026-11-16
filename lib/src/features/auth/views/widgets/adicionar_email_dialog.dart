@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:nous/src/core/theme/theme_controller.dart';
 import 'package:nous/src/features/auth/providers/auth_provider.dart';
+import 'package:nous/src/features/auth/services/google_oauth_service.dart';
 
 class AdicionarEmailDialog {
   static Future<bool?> mostrar(
@@ -19,8 +20,13 @@ class AdicionarEmailDialog {
             side: BorderSide(color: theme.borderColor),
           ),
           child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 500),
-            child: _AdicionarEmailConteudo(theme: theme),
+            constraints: BoxConstraints(
+              maxWidth: 500,
+              maxHeight: MediaQuery.sizeOf(dialogContext).height * 0.90,
+            ),
+            child: SingleChildScrollView(
+              child: _AdicionarEmailConteudo(theme: theme),
+            ),
           ),
         );
       },
@@ -39,27 +45,33 @@ class _AdicionarEmailConteudo extends StatefulWidget {
 }
 
 class _AdicionarEmailConteudoState extends State<_AdicionarEmailConteudo> {
-  final _emailController = TextEditingController();
   String? _aviso;
   bool _salvando = false;
 
   AppTheme get theme => widget.theme;
 
-  @override
-  void dispose() {
-    _emailController.dispose();
-    super.dispose();
-  }
-
-  Future<void> _confirmar() async {
+  Future<void> _autenticarComGoogle() async {
     setState(() {
       _salvando = true;
       _aviso = null;
     });
 
-    final erro = await context
-        .read<AuthProvider>()
-        .adicionarEmail(_emailController.text);
+    final resultado = await GoogleOAuthService.autenticarComGoogle();
+
+    if (!mounted) return;
+
+    if (!resultado.sucesso || (resultado.email?.isEmpty ?? true)) {
+      setState(() {
+        _salvando = false;
+        _aviso = resultado.erro ?? 'Falha ao autenticar com o Google.';
+      });
+      return;
+    }
+
+    final erro = await context.read<AuthProvider>().adicionarEmail(
+          resultado.email!,
+          verificadoGoogle: true,
+        );
 
     if (!mounted) return;
 
@@ -74,22 +86,6 @@ class _AdicionarEmailConteudoState extends State<_AdicionarEmailConteudo> {
     Navigator.of(context).pop(true);
   }
 
-  InputDecoration _decoracaoCampo(String dica) {
-    OutlineInputBorder borda(Color cor) => OutlineInputBorder(
-          borderRadius: BorderRadius.circular(30),
-          borderSide: BorderSide(color: cor),
-        );
-    return InputDecoration(
-      hintText: dica,
-      hintStyle:
-          theme.getTextStyle(fontSize: 12, color: theme.secondaryTextColor),
-      isDense: true,
-      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      enabledBorder: borda(theme.borderColor),
-      focusedBorder: borda(theme.textColor),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     return Padding(
@@ -98,7 +94,7 @@ class _AdicionarEmailConteudoState extends State<_AdicionarEmailConteudo> {
         mainAxisSize: MainAxisSize.min,
         children: [
           Text(
-            'Adicionar Email',
+            'Vincular E-mail Google',
             textAlign: TextAlign.center,
             style: theme.getTextStyle(
               fontSize: 16,
@@ -108,77 +104,77 @@ class _AdicionarEmailConteudoState extends State<_AdicionarEmailConteudo> {
           ),
           const SizedBox(height: 6),
           Text(
-            'Simulação do login com Google. Na próxima etapa, isso será '
-            'substituído pela autenticação real.',
+            'Para segurança da rede, todos os e-mails precisam ser autenticados pela sua conta Google.',
             textAlign: TextAlign.center,
-            style: theme.getTextStyle(fontSize: 11),
+            style: theme.getTextStyle(
+              fontSize: 11,
+              color: theme.secondaryTextColor,
+            ),
           ),
           const SizedBox(height: 16),
-          TextField(
-            controller: _emailController,
-            keyboardType: TextInputType.emailAddress,
-            cursorColor: theme.textColor,
-            style: theme.getTextStyle(fontSize: 13),
-            decoration: _decoracaoCampo('seuemail@gmail.com'),
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              icon: const Icon(Icons.login_rounded, size: 18),
+              style: OutlinedButton.styleFrom(
+                backgroundColor: theme.buttonColor,
+                foregroundColor: theme.buttonTextColor,
+                side: BorderSide(color: theme.borderColor),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 12,
+                ),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
+              ),
+              onPressed: _salvando ? null : _autenticarComGoogle,
+              label: _salvando
+                  ? SizedBox(
+                      height: 16,
+                      width: 16,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: theme.buttonTextColor,
+                      ),
+                    )
+                  : Text(
+                      'Continuar com Google',
+                      style: theme.getTextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: theme.buttonTextColor,
+                      ),
+                    ),
+            ),
           ),
           if (_aviso != null)
             Padding(
-              padding: const EdgeInsets.only(top: 8),
-              child: Text(_aviso!, style: theme.getTextStyle(fontSize: 12)),
+              padding: const EdgeInsets.only(top: 10),
+              child: Text(
+                _aviso!,
+                textAlign: TextAlign.center,
+                style: theme.getTextStyle(
+                  fontSize: 12,
+                  color: theme.dangerColor,
+                ),
+              ),
             ),
           const SizedBox(height: 16),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              OutlinedButton(
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: theme.textColor,
-                  side: BorderSide(color: theme.borderColor),
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 12,
-                  ),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                ),
-                onPressed: () => Navigator.of(context).pop(false),
-                child:
-                    Text('Cancelar', style: theme.getTextStyle(fontSize: 12)),
+          OutlinedButton(
+            style: OutlinedButton.styleFrom(
+              foregroundColor: theme.textColor,
+              side: BorderSide(color: theme.borderColor),
+              padding: const EdgeInsets.symmetric(
+                horizontal: 20,
+                vertical: 12,
               ),
-              const SizedBox(width: 8),
-              OutlinedButton(
-                style: OutlinedButton.styleFrom(
-                  backgroundColor: theme.buttonColor,
-                  foregroundColor: theme.buttonTextColor,
-                  side: BorderSide(color: theme.borderColor),
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 12,
-                  ),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                ),
-                onPressed: _salvando ? null : _confirmar,
-                child: _salvando
-                    ? SizedBox(
-                        height: 16,
-                        width: 16,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: theme.buttonTextColor,
-                        ),
-                      )
-                    : Text(
-                        'Continuar com Google',
-                        style: theme.getTextStyle(
-                          fontSize: 12,
-                          color: theme.buttonTextColor,
-                        ),
-                      ),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
               ),
-            ],
+            ),
+            onPressed: _salvando ? null : () => Navigator.of(context).pop(false),
+            child: Text('Cancelar', style: theme.getTextStyle(fontSize: 12)),
           ),
         ],
       ),

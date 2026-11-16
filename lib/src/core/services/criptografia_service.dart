@@ -499,6 +499,75 @@ class CriptografiaService {
     }
   }
 
+  /// Exporta o pacote bruto de chaves soberanas de um CPF para sincronização direta
+  /// entre dispositivos do MESMO CPF autenticados na rede local.
+  static Future<Map<String, dynamic>?> exportarChavesDoCpf(String cpf) async {
+    try {
+      final cpfLimpo = cpf.replaceAll(RegExp(r'\D'), '');
+      if (cpfLimpo.isEmpty) return null;
+
+      final db = await BancoDadosService.db;
+      await _garantirTabela(db);
+
+      final seguras = await db.query(
+        'cofre_chaves_seguras',
+        where: 'cpf = ?',
+        whereArgs: [cpfLimpo],
+        limit: 1,
+      );
+      final troca = await db.query(
+        'cofre_chaves_troca',
+        where: 'cpf = ?',
+        whereArgs: [cpfLimpo],
+        limit: 1,
+      );
+      if (seguras.isEmpty && troca.isEmpty) return null;
+
+      return {
+        'cpf': cpfLimpo,
+        'chaves_seguras': seguras.isNotEmpty ? Map<String, dynamic>.from(seguras.first) : null,
+        'chaves_troca': troca.isNotEmpty ? Map<String, dynamic>.from(troca.first) : null,
+      };
+    } catch (e) {
+      debugPrint('[CriptografiaService] Erro ao exportar chaves do CPF: $e');
+      return null;
+    }
+  }
+
+  /// Importa o pacote de chaves de um CPF recebido de outro dispositivo do mesmo dono.
+  static Future<bool> importarChavesDoCpf(Map<String, dynamic> pacote) async {
+    try {
+      final cpf = (pacote['cpf']?.toString() ?? '').replaceAll(RegExp(r'\D'), '');
+      if (cpf.isEmpty) return false;
+
+      final db = await BancoDadosService.db;
+      await _garantirTabela(db);
+
+      final chavesSeguras = pacote['chaves_seguras'];
+      if (chavesSeguras is Map) {
+        await db.insert(
+          'cofre_chaves_seguras',
+          Map<String, dynamic>.from(chavesSeguras),
+          conflictAlgorithm: ConflictAlgorithm.replace,
+        );
+      }
+
+      final chavesTroca = pacote['chaves_troca'];
+      if (chavesTroca is Map) {
+        await db.insert(
+          'cofre_chaves_troca',
+          Map<String, dynamic>.from(chavesTroca),
+          conflictAlgorithm: ConflictAlgorithm.replace,
+        );
+      }
+
+      return true;
+    } catch (e) {
+      debugPrint('[CriptografiaService] Erro ao importar chaves do CPF: $e');
+      return false;
+    }
+  }
+
   /// Decifra os bytes de um arquivo/mídia cifrado com AES-GCM (256-bit).
   /// Retorna os bytes claros originais ou null se a autenticação falhar / corrompido.
   static Future<Uint8List?> decifrarBytesComChave(

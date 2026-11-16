@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:nous/src/core/services/preferencias_soberanas_service.dart';
 import 'package:nous/src/core/theme/fontes_app.dart';
 
 /// Modelo de dados para armazenar tanto cores sólidas quanto gradientes nas seleções rápidas
@@ -399,11 +400,13 @@ class ThemeController {
   }
 
   static Future<void> _persistirTemaAtivo() async {
-    final prefs = await SharedPreferences.getInstance();
     final jsonText = jsonEncode(currentTheme.value.toJson());
-    await prefs.setString(_keyTemaAtual(), jsonText);
+    await PreferenciasSoberanasService.salvarTexto(_keyTemaAtual(), jsonText);
     if (_cpfAtivo == null || _cpfAtivo!.isEmpty) {
-      await prefs.setString(_currentThemePrefsKey, jsonText);
+      await PreferenciasSoberanasService.salvarTexto(
+        _currentThemePrefsKey,
+        jsonText,
+      );
     }
   }
 
@@ -412,9 +415,9 @@ class ThemeController {
     if (cpfLimpo.isEmpty) return;
     _cpfAtivo = cpfLimpo;
 
-    final prefs = await SharedPreferences.getInstance();
     final chaveUsuario = _keyTemaAtual(cpfLimpo);
-    final rawThemeJson = prefs.getString(chaveUsuario);
+    final rawThemeJson =
+        await PreferenciasSoberanasService.obterTexto(chaveUsuario);
 
     if (rawThemeJson != null && rawThemeJson.isNotEmpty) {
       try {
@@ -424,10 +427,15 @@ class ThemeController {
     }
 
     final chaveSalvos = _keyTemasSalvos(cpfLimpo);
-    final rawSavedList = prefs.getStringList(chaveSalvos) ??
-        prefs.getStringList(_savedThemesPrefsKey);
+    var rawSavedList =
+        await PreferenciasSoberanasService.obterLista(chaveSalvos);
+    if (rawSavedList.isEmpty) {
+      rawSavedList = await PreferenciasSoberanasService.obterLista(
+        _savedThemesPrefsKey,
+      );
+    }
 
-    if (rawSavedList != null) {
+    if (rawSavedList.isNotEmpty) {
       savedThemes.value = rawSavedList
           .map((jsonText) => SavedTheme.fromJson(
               jsonDecode(jsonText) as Map<String, dynamic>))
@@ -499,12 +507,14 @@ class ThemeController {
   }
 
   static Future<void> _persistSavedThemes() async {
-    final prefs = await SharedPreferences.getInstance();
     final rawList =
         savedThemes.value.map((saved) => jsonEncode(saved.toJson())).toList();
-    await prefs.setStringList(_keyTemasSalvos(), rawList);
+    await PreferenciasSoberanasService.salvarLista(_keyTemasSalvos(), rawList);
     if (_cpfAtivo == null || _cpfAtivo!.isEmpty) {
-      await prefs.setStringList(_savedThemesPrefsKey, rawList);
+      await PreferenciasSoberanasService.salvarLista(
+        _savedThemesPrefsKey,
+        rawList,
+      );
     }
   }
 }

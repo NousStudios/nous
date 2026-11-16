@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import 'package:nous/src/core/services/banco_dados_service.dart';
 import 'package:nous/src/features/chat/models/mensagem_chat.dart';
+import 'package:nous/src/features/chat/services/chat_outbox_e_recibos_service.dart';
 import 'package:nous/src/features/chat/services/comunidade_chat_service.dart';
 
 /// Repositório soberano de persistência e consultas SQLite de Mensagens e Conversas
@@ -320,8 +321,9 @@ class ChatRepositorioSqlite {
         final remLimpo = remetente.startsWith('loja_')
             ? remetente.substring(5)
             : remetente;
-        enviadaPorMim =
-            remetente.startsWith('loja_') || (idLimpo.isNotEmpty && remLimpo == idLimpo);
+        enviadaPorMim = idLimpo.isNotEmpty
+            ? remLimpo == idLimpo
+            : remetente.startsWith('loja_');
       } else if (idVisualizador != null && idVisualizador.isNotEmpty) {
         final remLimpo = remetente.startsWith('loja_')
             ? remetente.substring(5)
@@ -433,20 +435,30 @@ class ChatRepositorioSqlite {
       final alterados = await db.update(
         'mensagens_chat',
         {'lida': 1, 'entregue': 1, 'status_envio': 'lida'},
-        where: 'conversa_id = ? AND lida = 0 AND remetente_id NOT IN (?, ?)',
+        where:
+            'conversa_id = ? AND lida = 0 AND remetente_id NOT IN (?, ?) AND remetente_id NOT LIKE \'loja_%\'',
         whereArgs: [conversaId, idLimpo, 'loja_$idLimpo'],
       );
+      if (alterados > 0) {
+        await ChatOutboxERecibosService.registrarLeituraConversa(conversaId, idLeitor);
+      }
       return alterados > 0;
     }
 
     final leitorNorm = normalizarCpf(idLeitor);
+    final filtroLoja = conversaId.startsWith('loja_')
+        ? ' AND remetente_id LIKE \'loja_%\''
+        : '';
     final alterados = await db.update(
       'mensagens_chat',
       {'lida': 1, 'entregue': 1, 'status_envio': 'lida'},
       where:
-          'conversa_id = ? AND lida = 0 AND remetente_id NOT IN (?, ?, ?)',
+          'conversa_id = ? AND lida = 0 AND remetente_id NOT IN (?, ?, ?)$filtroLoja',
       whereArgs: [conversaId, idLeitor, leitorNorm, 'user_$leitorNorm'],
     );
+    if (alterados > 0) {
+      await ChatOutboxERecibosService.registrarLeituraConversa(conversaId, idLeitor);
+    }
 
     return alterados > 0;
   }
@@ -761,38 +773,6 @@ class ChatRepositorioSqlite {
 
   /// Autocura de integridade temporal: normaliza mensagens que ficaram com horários
   /// no futuro devido a divergências de timezone (ex: UTC não convertido).
-  static Future<void> curarTimestampsAnomalosDoPassado() async {
-    try {
-      final db = await obterDb();
-      final agora = DateTime.now();
-      final limiteFuturo =
-          agora.add(const Duration(minutes: 5)).toIso8601String();
-      final noFuturo = await db.query(
-        'mensagens_chat',
-        columns: ['id', 'data_hora'],
-        where: 'data_hora > ?',
-        whereArgs: [limiteFuturo],
-      );
-      for (final m in noFuturo) {
-        final id = m['id'] as String;
-        final dataStr = m['data_hora'] as String;
-        final dt = DateTime.tryParse(dataStr);
-        if (dt != null) {
-          final diffHoras = dt.difference(agora).inHours;
-          final DateTime corrigida;
-          if (diffHoras >= 2 && diffHoras <= 4) {
-            corrigida = dt.subtract(const Duration(hours: 3));
-          } else {
-            corrigida = agora;
-          }
-          await db.update(
-            'mensagens_chat',
-            {'data_hora': corrigida.toIso8601String()},
-            where: 'id = ?',
-            whereArgs: [id],
-          );
-        }
-      }
-    } catch (_) {}
-  }
+  static Future<void> curarTimestampsAnomalosDoPassado() =>
+      ChatOutboxERecibosService.curarTimestampsAnomalosDoPassado();
 }

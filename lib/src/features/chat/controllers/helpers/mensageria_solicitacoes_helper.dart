@@ -1,4 +1,4 @@
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:nous/src/core/services/preferencias_soberanas_service.dart';
 import 'package:nous/src/features/auth/models/usuario_nous.dart';
 import 'package:nous/src/features/chat/models/conversa_chat.dart';
 import 'package:nous/src/features/chat/services/chat_service.dart';
@@ -19,8 +19,9 @@ class MensageriaSolicitacoesHelper {
     if (_carregado && _ultimoCpf == meuNorm) return;
 
     try {
-      final prefs = await SharedPreferences.getInstance();
-      final lista = prefs.getStringList('chat_solicitacoes_aceitas_$meuNorm') ?? [];
+      final lista = await PreferenciasSoberanasService.obterLista(
+        'chat_solicitacoes_aceitas_$meuNorm',
+      );
       _aceitas.clear();
       _aceitas.addAll(lista);
       _carregado = true;
@@ -72,8 +73,7 @@ class MensageriaSolicitacoesHelper {
     _aceitas.add(conversaId);
     if (meuNorm.isNotEmpty) {
       try {
-        final prefs = await SharedPreferences.getInstance();
-        await prefs.setStringList(
+        await PreferenciasSoberanasService.salvarLista(
           'chat_solicitacoes_aceitas_$meuNorm',
           _aceitas.toList(),
         );
@@ -98,10 +98,11 @@ class MensageriaSolicitacoesHelper {
     final meuNorm = ChatService.normalizarCpf(meuCpf);
     if (conversaId.isEmpty || meuNorm.isEmpty) return;
     try {
-      final prefs = await SharedPreferences.getInstance();
       final chave = 'chat_solicitacoes_aceitas_$meuNorm';
-      final lista = (prefs.getStringList(chave) ?? []).toSet()..add(conversaId);
-      await prefs.setStringList(chave, lista.toList());
+      final lista =
+          (await PreferenciasSoberanasService.obterLista(chave)).toSet()
+            ..add(conversaId);
+      await PreferenciasSoberanasService.salvarLista(chave, lista.toList());
       if (_ultimoCpf == meuNorm) {
         _aceitas.add(conversaId);
       }

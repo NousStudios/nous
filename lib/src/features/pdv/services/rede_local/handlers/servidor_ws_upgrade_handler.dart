@@ -100,6 +100,9 @@ class ServidorWsUpgradeHandler {
                 .toList() ??
             <String>[];
 
+        final todasContas = await ContasNousService.carregarTodas();
+        final contasPayload = todasContas.map((c) => c.toJson()).toList();
+
         ws.add(
           jsonEncode({
             'tipo': 'dados_iniciais',
@@ -109,11 +112,14 @@ class ServidorWsUpgradeHandler {
                 obterTodasPresencas().map((p) => p.toJson()).toList(),
             'fotosUsuariosAusentes': fotosUsuariosAusentes,
             'notificacoesDispensadasLoja': dispensadasLoja,
+            'contasSincronizadas': contasPayload,
           }),
         );
       } else {
         final lojaNous =
             pdvProvider?.buscarPorId(PdvProvider.idLojaColetivaNous);
+        final todasContas = await ContasNousService.carregarTodas();
+        final contasPayload = todasContas.map((c) => c.toJson()).toList();
         ws.add(
           jsonEncode({
             'tipo': 'dados_iniciais',
@@ -122,6 +128,7 @@ class ServidorWsUpgradeHandler {
             'presencas':
                 obterTodasPresencas().map((p) => p.toJson()).toList(),
             'fotosUsuariosAusentes': <String>[],
+            'contasSincronizadas': contasPayload,
           }),
         );
       }

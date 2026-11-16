@@ -178,7 +178,10 @@ class ChatConversasHidratadorService {
 
     for (final r in rows) {
       final convId = r['id'] as String;
-      final ultMsg = r['ultima_mensagem'] as String? ?? '';
+      var ultMsg = r['ultima_mensagem'] as String? ?? '';
+      if (ultMsg.startsWith('e2ee:v1:')) {
+        ultMsg = '[Mensagem Cifrada Protegida]';
+      }
       final dataHoraUlt = DateTime.tryParse(
             r['data_hora_ultima_mensagem'] as String? ?? '',
           ) ??

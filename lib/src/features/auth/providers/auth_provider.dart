@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:nous/src/core/services/criptografia_service.dart';
+import 'package:nous/src/core/services/preferencias_soberanas_service.dart';
 import 'package:nous/src/core/theme/theme_controller.dart';
 import 'package:nous/src/features/auth/models/usuario_nous.dart';
 import 'package:nous/src/features/auth/services/contas_excluidas_service.dart';
@@ -41,6 +42,7 @@ class AuthProvider extends ChangeNotifier {
   Map<String, String> _fotosPorCpf = {};
   Map<String, UsuarioNous> _contasPorCpf = {};
   Set<String> _dadosReveladosDono = {};
+  bool _modoVisitante = false;
 
   String get cpf => _cpf;
   String? get errorMessage => _errorMessage;
@@ -49,6 +51,10 @@ class AuthProvider extends ChangeNotifier {
   String? get emailAtivo => _emailAtivo;
   Set<String> get dadosReveladosDono => _dadosReveladosDono;
   List<UsuarioNous> get contasCache => _contasPorCpf.values.toList();
+  bool get modoVisitante => _modoVisitante;
+  bool get usuarioAtualVerificado => _contaAtual?.possuiValidacao ?? false;
+  bool get perfilIsolado =>
+      !_modoVisitante && _contaAtual != null && !usuarioAtualVerificado;
 
   bool dadoEstaReveladoParaDono(String chave) => _dadosReveladosDono.contains(chave);
 
@@ -80,8 +86,9 @@ class AuthProvider extends ChangeNotifier {
       _dadosReveladosDono = {};
       return;
     }
-    final prefs = await SharedPreferences.getInstance();
-    final lista = prefs.getStringList('dados_revelados_$digitos') ?? [];
+    final lista = await PreferenciasSoberanasService.obterLista(
+      'dados_revelados_$digitos',
+    );
     _dadosReveladosDono = lista.toSet();
     notifyListeners();
   }
@@ -94,8 +101,10 @@ class AuthProvider extends ChangeNotifier {
     } else {
       _dadosReveladosDono.add(chave);
     }
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setStringList('dados_revelados_$digitos', _dadosReveladosDono.toList());
+    await PreferenciasSoberanasService.salvarLista(
+      'dados_revelados_$digitos',
+      _dadosReveladosDono.toList(),
+    );
     notifyListeners();
   }
 
@@ -123,6 +132,7 @@ class AuthProvider extends ChangeNotifier {
   }
 
   Future<void> carregarCacheContas() async {
+    await ContasNousService.varrerECorrigirBanco();
     final todas = await ContasNousService.carregarTodas();
     if (_disposed) return;
     _contasPorCpf = {
@@ -181,7 +191,8 @@ class AuthProvider extends ChangeNotifier {
     var conta = await ContasNousService.buscarPorCpf(_cpf);
 
     // 1. Se não encontrou no banco de contas local, tenta enriquecer e consolidar a partir de dados locais (clientes e membros)
-    if (conta == null) {
+    // desde que a conta não tenha sido explicitamente excluída pelo usuário.
+    if (conta == null && !await ContasExcluidasService.estaExcluido(_cpf)) {
       try {
         final dadosAuto = await DadosLocaisService.buscarPorDocumento(_cpf);
         if (dadosAuto != null && dadosAuto.nome.trim().isNotEmpty) {
@@ -349,7 +360,7 @@ class AuthProvider extends ChangeNotifier {
       chaveTrocaPublica: chaveTroca,
     );
 
-    await ContasNousService.salvar(contaComChave);
+    await ContasNousService.salvar(contaComChave, permitirReativacao: true);
 
     _contaAtual = contaComChave;
     _emailAtivo = null;
@@ -378,7 +389,7 @@ class AuthProvider extends ChangeNotifier {
       chaveTrocaPublica: chaveTroca,
     );
 
-    await ContasNousService.salvar(contaComChave);
+    await ContasNousService.salvar(contaComChave, permitirReativacao: true);
 
     _contaAtual = contaComChave;
     _emailAtivo = null;
@@ -434,7 +445,7 @@ class AuthProvider extends ChangeNotifier {
       chaveTrocaPublica: chaveTroca,
     );
 
-    await ContasNousService.salvar(contaComChave);
+    await ContasNousService.salvar(contaComChave, permitirReativacao: true);
 
     _contaAtual = contaComChave;
     _emailAtivo = null;
@@ -520,7 +531,10 @@ class AuthProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<String?> adicionarEmail(String email) async {
+  Future<String?> adicionarEmail(
+    String email, {
+    bool verificadoGoogle = false,
+  }) async {
     final conta = _contaAtual;
     if (conta == null) return 'Nenhuma conta carregada.';
 
@@ -528,7 +542,11 @@ class AuthProvider extends ChangeNotifier {
     if (emailLimpo.isEmpty || !emailLimpo.contains('@')) {
       return 'Informe um e-mail válido.';
     }
-    if (conta.emails.contains(emailLimpo)) {
+
+    final jaExisteNaConta = conta.emails.any(
+      (e) => e.trim().toLowerCase() == emailLimpo,
+    );
+    if (jaExisteNaConta && !verificadoGoogle) {
       return 'Este e-mail já está nesta conta.';
     }
 
@@ -537,7 +555,17 @@ class AuthProvider extends ChangeNotifier {
       return 'Este e-mail já está associado a outro CPF.';
     }
 
-    final atualizado = conta.copyWith(emails: [...conta.emails, emailLimpo]);
+    final novosEmails = jaExisteNaConta
+        ? conta.emails
+        : [...conta.emails, emailLimpo];
+    final novosVerificados = verificadoGoogle && !conta.emailEstaVerificado(emailLimpo)
+        ? [...conta.emailsVerificados, emailLimpo]
+        : conta.emailsVerificados;
+
+    final atualizado = conta.copyWith(
+      emails: novosEmails,
+      emailsVerificados: novosVerificados,
+    );
     await ContasNousService.salvar(atualizado);
     _contaAtual = atualizado;
     _emailAtivo ??= emailLimpo;
@@ -546,16 +574,43 @@ class AuthProvider extends ChangeNotifier {
     return null;
   }
 
+  Future<void> marcarEmailComoVerificadoGoogle(String email) async {
+    final conta = _contaAtual;
+    if (conta == null) return;
+    final emailLimpo = email.trim().toLowerCase();
+    if (emailLimpo.isEmpty || conta.emailEstaVerificado(emailLimpo)) return;
+
+    final novosEmails = conta.emails.any((e) => e.trim().toLowerCase() == emailLimpo)
+        ? conta.emails
+        : [...conta.emails, emailLimpo];
+    final atualizado = conta.copyWith(
+      emails: novosEmails,
+      emailsVerificados: [...conta.emailsVerificados, emailLimpo],
+    );
+    await ContasNousService.salvar(atualizado);
+    _contaAtual = atualizado;
+    _propagarUsuarioAtualizado(atualizado);
+    notifyListeners();
+  }
+
   Future<void> removerEmail(String email) async {
     final conta = _contaAtual;
     if (conta == null) return;
 
-    final novosEmails = conta.emails.where((e) => e != email).toList();
-    final atualizado = conta.copyWith(emails: novosEmails);
+    final emailLimpo = email.trim().toLowerCase();
+    final novosEmails =
+        conta.emails.where((e) => e.trim().toLowerCase() != emailLimpo).toList();
+    final novosVerificados = conta.emailsVerificados
+        .where((e) => e.trim().toLowerCase() != emailLimpo)
+        .toList();
+    final atualizado = conta.copyWith(
+      emails: novosEmails,
+      emailsVerificados: novosVerificados,
+    );
     await ContasNousService.salvar(atualizado);
     _contaAtual = atualizado;
 
-    if (_emailAtivo == email) {
+    if (_emailAtivo?.trim().toLowerCase() == emailLimpo) {
       _emailAtivo = novosEmails.isEmpty ? null : novosEmails.first;
     }
     _propagarUsuarioAtualizado(atualizado);
@@ -627,7 +682,7 @@ class AuthProvider extends ChangeNotifier {
   /// e registra na lista cronológica de validações do alvo.
   Future<UsuarioNous?> validarIdentidadeUsuario(UsuarioNous alvo) async {
     final validador = _contaAtual;
-    if (validador == null) return null;
+    if (validador == null || !validador.possuiValidacao) return null;
 
     final cpfValidador = CpfValidator.onlyDigits(validador.cpf);
     final cpfAlvo = CpfValidator.onlyDigits(alvo.cpf);
@@ -848,6 +903,18 @@ class AuthProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  void entrarComoVisitante() {
+    limparSessao();
+    _cpf = '';
+    _errorMessage = null;
+    _contaAtual = null;
+    _emailAtivo = null;
+    _dadosReveladosDono = {};
+    _modoVisitante = true;
+    ThemeController.desvincularUsuario();
+    notifyListeners();
+  }
+
   void sair() {
     limparSessao();
     _cpf = '';
@@ -855,6 +922,7 @@ class AuthProvider extends ChangeNotifier {
     _contaAtual = null;
     _emailAtivo = null;
     _dadosReveladosDono = {};
+    _modoVisitante = false;
     ThemeController.desvincularUsuario();
     ClienteRedeLocal().notificarLogout();
     unawaited(ClienteRedeLocal().desconectar(manual: true));

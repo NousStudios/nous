@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:nous/src/core/services/preferencias_soberanas_service.dart';
 import 'package:nous/src/features/chat/models/conversa_chat.dart';
 import 'package:nous/src/features/chat/models/mensagem_chat.dart';
 import 'package:nous/src/features/chat/services/chat_conversas_service.dart';
@@ -9,6 +10,7 @@ import 'package:nous/src/features/chat/services/chat_e2ee_service.dart';
 import 'package:nous/src/features/chat/services/chat_grupos_service.dart';
 import 'package:nous/src/features/chat/services/chat_media_service.dart';
 import 'package:nous/src/features/chat/services/chat_mensagens_service.dart';
+import 'package:nous/src/features/chat/services/chat_outbox_e_recibos_service.dart';
 import 'package:nous/src/features/chat/services/chat_repositorio_sqlite.dart';
 import 'package:nous/src/features/chat/services/chat_sincronizacao_service.dart';
 import 'package:nous/src/features/chat/services/comunidade_chat_service.dart';
@@ -26,7 +28,7 @@ class ChatService {
   static const String _chaveConversasSilenciadas =
       'nous_conversas_silenciadas';
   static const String idLojaColetivaNous = 'loja_nous_coletiva';
-  static const String idTopicoGeral = 'loja_nous_coletiva_geral';
+  static const String idTopicoGeral = 'loja_nous_coletiva_topico_geral';
 
   static void notificarAlteracao({bool imediato = false}) {
     if (imediato) {
@@ -211,6 +213,10 @@ class ChatService {
         whereArgs: [msgId],
       );
       if (alterou > 0) {
+        await ChatOutboxERecibosService.registrarEntrega(
+          msgId,
+          conversaId ?? 'rede',
+        );
         notificarAlteracao();
       }
     } catch (e) {
@@ -242,6 +248,10 @@ class ChatService {
       // Em grupos e tópicos coletivos (Ágora Digital, equipe, etc.), uma leitura individual
       // NÃO passa a mensagem para azul (lida). Mantém em 'entregue' (2 checks cinzas).
       if (ehConversaColetivaOuGrupo(conversaId)) {
+        await ChatOutboxERecibosService.registrarLeituraConversa(
+          conversaId,
+          idLeitor,
+        );
         final alterou = await db.update(
           'mensagens_chat',
           {'status_envio': 'entregue', 'entregue': 1},
@@ -256,7 +266,9 @@ class ChatService {
 
       int alterou = 0;
       if (conversaId.startsWith('loja_')) {
-        final ehLeituraDaLoja = idLeitor.startsWith('loja_');
+        final leitorDigits = idLeitor.replaceAll(RegExp(r'\D'), '');
+        final ehLeituraDaLoja =
+            idLeitor.startsWith('loja_') || leitorDigits.length != 11;
         if (ehLeituraDaLoja) {
           // A loja leu a conversa: mensagens do cliente viram lidas
           alterou = await db.update(
@@ -298,6 +310,10 @@ class ChatService {
         );
       }
       if (alterou > 0) {
+        await ChatOutboxERecibosService.registrarLeituraConversa(
+          conversaId,
+          idLeitor,
+        );
         notificarAlteracao(imediato: true);
       }
     } catch (e) {
@@ -391,11 +407,11 @@ class ChatService {
     String idLeitor, {
     bool notificar = true,
   }) async {
-    await ChatRepositorioSqlite.marcarComoLidas(
+    final alterou = await ChatRepositorioSqlite.marcarComoLidas(
       conversaId,
       idLeitor,
     );
-    if (notificar) {
+    if (notificar && alterou) {
       notificarAlteracao();
     }
     despacharConfirmacaoLida(conversaId, idLeitor);
@@ -550,9 +566,9 @@ class ChatService {
       if (rows.isNotEmpty && (rows.first['silenciada'] as int? ?? 0) == 1) {
         return false;
       }
-      final prefs = await SharedPreferences.getInstance();
-      final silenciadas =
-          prefs.getStringList(_chaveConversasSilenciadas) ?? [];
+      final silenciadas = await PreferenciasSoberanasService.obterLista(
+        _chaveConversasSilenciadas,
+      );
       return !silenciadas.contains(conversaId);
     } catch (_) {
       return true;
@@ -564,15 +580,16 @@ class ChatService {
     bool notificar,
   ) async {
     try {
-      final prefs = await SharedPreferences.getInstance();
-      final silenciadas =
-          (prefs.getStringList(_chaveConversasSilenciadas) ?? []).toSet();
+      final silenciadas = (await PreferenciasSoberanasService.obterLista(
+        _chaveConversasSilenciadas,
+      ))
+          .toSet();
       if (notificar) {
         silenciadas.remove(conversaId);
       } else {
         silenciadas.add(conversaId);
       }
-      await prefs.setStringList(
+      await PreferenciasSoberanasService.salvarLista(
         _chaveConversasSilenciadas,
         silenciadas.toList(),
       );

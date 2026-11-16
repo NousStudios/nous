@@ -297,7 +297,12 @@ class _PerfilSocialViewState extends State<PerfilSocialView> {
   Widget build(BuildContext context) {
     final auth = context.watch<AuthProvider>();
     final contaPropria = auth.contaAtual;
-    final conta = _contaAlvoAtualizada ??
+    final cpfAlvoRef = widget.usuarioAlvo?.cpf ?? contaPropria?.cpf ?? '';
+    final contaNoCache = cpfAlvoRef.isNotEmpty
+        ? auth.buscarContaPorCpf(cpfAlvoRef)
+        : null;
+    final conta = (widget.usuarioAlvo == null ? contaPropria : contaNoCache) ??
+        _contaAlvoAtualizada ??
         widget.usuarioAlvo ??
         contaPropria ??
         const UsuarioNous(
@@ -319,11 +324,15 @@ class _PerfilSocialViewState extends State<PerfilSocialView> {
         ? ImagemService.obterImageProvider(fotoResolvida)
         : null;
 
-    final apelidoExibicao = conta.usernameExibicao;
+    final apelidoOculto = !ehProprioUsuario && conta.dadoEstaPrivado('apelido');
+    final apelidoExibicao = apelidoOculto ? '' : conta.usernameExibicao;
 
-    final nomeExibicao = conta.nomeExibicao.isNotEmpty
-        ? conta.nomeExibicao
-        : 'Usuário Nous';
+    final nomeOculto = !ehProprioUsuario && conta.dadoEstaPrivado('nome');
+    final nomeExibicao = nomeOculto
+        ? (apelidoOculto || conta.apelidoExibicao.isEmpty
+            ? 'Cidadão Nous'
+            : conta.apelidoExibicao)
+        : (conta.nomeExibicao.isNotEmpty ? conta.nomeExibicao : 'Usuário Nous');
 
     return ValueListenableBuilder<AppTheme>(
       valueListenable: ThemeController.currentTheme,

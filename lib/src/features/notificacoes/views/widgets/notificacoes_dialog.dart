@@ -199,10 +199,13 @@ class _NotificacoesConteudo extends StatelessWidget {
     final auth = context.watch<AuthProvider>();
     final cpfUsuario = auth.contaAtual?.cpf ?? '';
 
-    final convites = notificacoes.convites
-        .where((c) => !notificacoes.estaDispensadaNaSessao('convite_${c.id}'))
-        .toList();
-    final alertasEstoque = (lojaId == null)
+    final ehLojaColetivaNous = lojaId == PdvProvider.idLojaColetivaNous;
+    final convites = (lojaId != null)
+        ? const []
+        : notificacoes.convites
+            .where((c) => !notificacoes.estaDispensadaNaSessao('convite_${c.id}'))
+            .toList();
+    final alertasEstoque = (lojaId == null || ehLojaColetivaNous)
         ? const <({ItemLoja item, double saldo, String lojaNome, String lojaId})>[]
         : pdv
             .itensEstoqueBaixoPorLoja(lojaId!)
@@ -255,7 +258,11 @@ class _NotificacoesConteudo extends StatelessWidget {
                               mainAxisSize: MainAxisSize.min,
                               children: [
                                 Text(
-                                  'Notificações',
+                                  lojaId == null
+                                      ? 'Notificações Pessoais'
+                                      : (ehLojaColetivaNous
+                                          ? 'Notificações • Comunidade Nous'
+                                          : 'Notificações da Loja'),
                                   textAlign: TextAlign.center,
                                   style: theme.getTextStyle(
                                     fontSize: 16,

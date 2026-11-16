@@ -5,6 +5,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import 'package:nous/src/core/services/banco_dados_service.dart';
 import 'package:nous/src/core/services/criptografia_service.dart';
+import 'package:nous/src/features/auth/models/usuario_nous.dart';
+import 'package:nous/src/features/auth/services/contas_nous_service.dart';
 import 'package:nous/src/features/chat/models/mensagem_chat.dart';
 import 'package:nous/src/features/chat/services/chat_e2ee_service.dart';
 import 'package:nous/src/features/chat/services/chat_service.dart';
@@ -150,8 +152,20 @@ void main() {
     });
 
     test('Fluxo completo de anexo e mídia no ChatE2eeService', () async {
-      await CriptografiaService.obterOuGerarChaveTroca(cpfBob);
-      await CriptografiaService.obterOuGerarChaveTroca(cpfAlice);
+      final pubBob = await CriptografiaService.obterOuGerarChaveTroca(cpfBob);
+      final pubAlice = await CriptografiaService.obterOuGerarChaveTroca(cpfAlice);
+      await ContasNousService.salvar(UsuarioNous(
+        cpf: cpfBob,
+        nome: 'Bob',
+        dataNascimento: '01/01/1990',
+        chaveTrocaPublica: pubBob,
+      ));
+      await ContasNousService.salvar(UsuarioNous(
+        cpf: cpfAlice,
+        nome: 'Alice',
+        dataNascimento: '01/01/1990',
+        chaveTrocaPublica: pubAlice,
+      ));
 
       final tempDir = Directory.systemTemp;
       final tempFile = File('${tempDir.path}/foto_teste_${DateTime.now().millisecondsSinceEpoch}.jpg');
@@ -204,6 +218,20 @@ void main() {
     });
 
     test('Fluxo completo no ChatService: Mensagem P2P é gravada cifrada no SQLite e decifrada na leitura', () async {
+      final pubBob = await CriptografiaService.obterOuGerarChaveTroca(cpfBob);
+      final pubAlice = await CriptografiaService.obterOuGerarChaveTroca(cpfAlice);
+      await ContasNousService.salvar(UsuarioNous(
+        cpf: cpfBob,
+        nome: 'Bob Cidadão',
+        dataNascimento: '01/01/1990',
+        chaveTrocaPublica: pubBob,
+      ));
+      await ContasNousService.salvar(UsuarioNous(
+        cpf: cpfAlice,
+        nome: 'Alice Cidadã',
+        dataNascimento: '01/01/1990',
+        chaveTrocaPublica: pubAlice,
+      ));
       final conversaId = 'user_${cpfAlice}_user_$cpfBob';
       final msg = MensagemChat(
         id: 'msg_e2ee_1',

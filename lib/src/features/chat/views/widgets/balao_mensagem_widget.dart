@@ -276,9 +276,9 @@ class BalaoMensagemWidget extends StatelessWidget {
                           color: theme.secondaryTextColor.withValues(alpha: 0.8),
                         ),
                       ),
-                      if (enviadaPorMim || msg.tipo == 'comanda') ...[
+                      if (enviadaPorMim) ...[
                         const SizedBox(width: 4),
-                        if (msg.lida || msg.statusEnvio == 'lida')
+                        if (msg.statusEnvio == 'lida' || msg.lida)
                           const Icon(
                             Icons.done_all,
                             size: 13,

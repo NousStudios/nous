@@ -75,9 +75,10 @@ class MensageriaMensagemHelper {
           destinatarioId = cpfCli;
         }
       } else {
-        destinatarioId = conversa.lojaId?.isNotEmpty == true
+        final idBruto = conversa.lojaId?.isNotEmpty == true
             ? conversa.lojaId!
             : conversa.identificador;
+        destinatarioId = idBruto.startsWith('loja_') ? idBruto : 'loja_$idBruto';
       }
     }
 

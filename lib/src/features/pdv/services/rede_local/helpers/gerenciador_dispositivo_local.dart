@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:nous/src/core/services/preferencias_soberanas_service.dart';
 import 'package:nous/src/features/auth/services/contas_nous_service.dart';
 
 /// Helper desacoplado para gerenciar nome do terminal móvel e cache do último IP/Porta do balcão.
@@ -79,19 +80,29 @@ class GerenciadorDispositivoLocal {
   }
 
   static Future<void> salvarServidorExterno(String urlOuDominio) async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setString('nous_servidor_externo_nuvem', urlOuDominio.trim());
-    } catch (_) {}
+    final limpo = urlOuDominio.trim();
+    await PreferenciasSoberanasService.salvarLista(
+      'nous_servidor_externo_nuvem',
+      limpo.isEmpty ? const [] : [limpo],
+    );
   }
 
   static Future<String?> obterServidorExterno() async {
+    final lista = await PreferenciasSoberanasService.obterLista(
+      'nous_servidor_externo_nuvem',
+    );
+    if (lista.isNotEmpty && lista.first.trim().isNotEmpty) {
+      return lista.first.trim();
+    }
     try {
       final prefs = await SharedPreferences.getInstance();
       final val = prefs.getString('nous_servidor_externo_nuvem');
-      return (val != null && val.trim().isNotEmpty) ? val.trim() : null;
-    } catch (_) {
-      return null;
-    }
+      if (val != null && val.trim().isNotEmpty) {
+        final limpo = val.trim();
+        await salvarServidorExterno(limpo);
+        return limpo;
+      }
+    } catch (_) {}
+    return null;
   }
 }

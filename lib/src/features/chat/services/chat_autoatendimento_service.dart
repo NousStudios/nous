@@ -217,6 +217,35 @@ class ChatAutoatendimentoService {
     }
   }
 
+  static bool _usuarioOperaLojaLocal(Loja loja, PdvProvider pdv) {
+    final cpfLimpo = (pdv.cpfAtual ?? '').replaceAll(RegExp(r'\D'), '');
+    if (cpfLimpo.length != 11) return false;
+    final ehDono = loja.cpfDonoOriginal.replaceAll(RegExp(r'\D'), '') == cpfLimpo;
+    final ehMembro = loja.membros.any(
+      (m) => m.cpf.replaceAll(RegExp(r'\D'), '') == cpfLimpo,
+    );
+    return ehDono || ehMembro;
+  }
+
+  static bool _balcaoHospedaEstaLoja(Loja loja, PdvProvider pdv) {
+    final servidor = ServidorRedeLocal();
+    if (!servidor.ativo) return false;
+    final idAlvo = PdvProvider.normalizarIdLoja(loja.id);
+    if (servidor.lojaAtiva != null &&
+        PdvProvider.normalizarIdLoja(servidor.lojaAtiva!.id) == idAlvo) {
+      return true;
+    }
+    return _usuarioOperaLojaLocal(loja, pdv) && pdv.buscarPorId(idAlvo) != null;
+  }
+
+  static bool _servidorConectadoHospedaLoja(String lojaId) {
+    final clienteRede = ClienteRedeLocal();
+    final sinc = clienteRede.lojaSincronizada;
+    if (sinc == null) return false;
+    return PdvProvider.normalizarIdLoja(sinc.id) ==
+        PdvProvider.normalizarIdLoja(lojaId);
+  }
+
   /// Envia um novo pedido de autoatendimento.
   /// Se [geradoPelaLoja] for true, cria uma proposta no chat em nome do cliente aguardando a aprovação dele,
   /// sem enviar diretamente para a aba "Novos" da loja.
@@ -364,22 +393,25 @@ class ChatAutoatendimentoService {
     if (geradoPelaLoja) {
       payloadMap['aguardandoAprovacaoCliente'] = true;
     } else {
-      // Se gerado pelo cliente, insere imediatamente na aba "Novos"
+      // Se gerado pelo cliente: só injeta no PDV local se este dispositivo operar a loja,
+      // e só envia evento de PDV ao servidor se o servidor conectado hospedar ESTA mesma loja.
       final lojaAtual = pdv.buscarPorId(loja.id) ?? loja;
-      final pedidosAtualizados = List<PedidoLoja>.from(lojaAtual.pedidosLoja)
-        ..insert(0, pedido);
-      await pdv.adicionarOuAtualizarLoja(
-        lojaAtual.copyWith(pedidosLoja: pedidosAtualizados),
-      );
+      if (_usuarioOperaLojaLocal(lojaAtual, pdv)) {
+        final pedidosAtualizados = List<PedidoLoja>.from(lojaAtual.pedidosLoja)
+          ..insert(0, pedido);
+        await pdv.adicionarOuAtualizarLoja(
+          lojaAtual.copyWith(pedidosLoja: pedidosAtualizados),
+        );
+      }
 
-      if (ServidorRedeLocal().ativo) {
+      if (_balcaoHospedaEstaLoja(lojaAtual, pdv)) {
         SomService.tocarEvento(SomService.eventoNovoPedido, loja: lojaAtual);
         ServidorRedeLocal().notificarTodos({
           'tipo': 'pedido_adicionado',
           'lojaId': loja.id,
           'pedido': pedido.toJson(),
         });
-      } else {
+      } else if (_servidorConectadoHospedaLoja(loja.id)) {
         final clienteRede = ClienteRedeLocal();
         if (clienteRede.conectado) {
           clienteRede.enviarEventoWs({
@@ -424,27 +456,30 @@ class ChatAutoatendimentoService {
 
     final pedidoAprovado = pedido.copyWith(status: StatusPedido.novo);
     final lojaAtual = pdv.buscarPorId(loja.id) ?? loja;
-    final pedidos = List<PedidoLoja>.from(lojaAtual.pedidosLoja);
-    final idx = pedidos.indexWhere((p) => p.id == pedido.id);
-    if (idx != -1) {
-      pedidos[idx] = pedidoAprovado;
-    } else {
-      pedidos.insert(0, pedidoAprovado);
+    if (_usuarioOperaLojaLocal(lojaAtual, pdv)) {
+      final pedidos = List<PedidoLoja>.from(lojaAtual.pedidosLoja);
+      final idx = pedidos.indexWhere((p) => p.id == pedido.id);
+      if (idx != -1) {
+        pedidos[idx] = pedidoAprovado;
+      } else {
+        pedidos.insert(0, pedidoAprovado);
+      }
+
+      await pdv.adicionarOuAtualizarLoja(
+        lojaAtual.copyWith(pedidosLoja: pedidos),
+      );
     }
 
-    await pdv.adicionarOuAtualizarLoja(
-      lojaAtual.copyWith(pedidosLoja: pedidos),
-    );
-
-    // Dispara som e eventos de novo pedido
-    SomService.tocarEvento(SomService.eventoNovoPedido, loja: lojaAtual);
-    if (ServidorRedeLocal().ativo) {
+    // Dispara som apenas se este dispositivo for o balcão desta loja;
+    // eventos de PDV só vão para o servidor se ele hospedar esta mesma loja.
+    if (_balcaoHospedaEstaLoja(lojaAtual, pdv)) {
+      SomService.tocarEvento(SomService.eventoNovoPedido, loja: lojaAtual);
       ServidorRedeLocal().notificarTodos({
         'tipo': 'pedido_adicionado',
         'lojaId': loja.id,
         'pedido': pedidoAprovado.toJson(),
       });
-    } else {
+    } else if (_servidorConectadoHospedaLoja(loja.id)) {
       final clienteRede = ClienteRedeLocal();
       if (clienteRede.conectado) {
         clienteRede.enviarEventoWs({

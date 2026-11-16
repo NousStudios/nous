@@ -7,6 +7,7 @@ import 'package:provider/provider.dart';
 import 'package:nous/src/core/theme/theme_controller.dart';
 import 'package:nous/src/features/auth/models/usuario_nous.dart';
 import 'package:nous/src/features/auth/providers/auth_provider.dart';
+import 'package:nous/src/features/auth/services/google_oauth_service.dart';
 import 'package:nous/src/features/auth/views/login_view.dart';
 import 'package:nous/src/features/auth/views/widgets/adicionar_email_dialog.dart';
 import 'package:nous/src/features/auth/views/widgets/cadastrar_nome_usuario_dialog.dart';
@@ -27,6 +28,8 @@ class ContasUsuarioView extends StatefulWidget {
 }
 
 class _ContasUsuarioViewState extends State<ContasUsuarioView> {
+  bool _autenticandoGoogle = false;
+
   @override
   void initState() {
     super.initState();
@@ -83,6 +86,56 @@ class _ContasUsuarioViewState extends State<ContasUsuarioView> {
     }
 
     final auth = context.read<AuthProvider>();
+    final conta = auth.contaAtual;
+    if (conta != null && !conta.emailEstaVerificado(emailFinal)) {
+      if (_autenticandoGoogle) return;
+      setState(() => _autenticandoGoogle = true);
+      final resultado = await GoogleOAuthService.autenticarComGoogle(
+        loginHint: emailFinal,
+      );
+      if (!context.mounted) return;
+      setState(() => _autenticandoGoogle = false);
+
+      final emailGoogle = resultado.email?.trim().toLowerCase() ?? '';
+      if (!resultado.sucesso || emailGoogle.isEmpty) {
+        final theme = ThemeController.currentTheme.value;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            backgroundColor: theme.backgroundColor,
+            content: Text(
+              resultado.erro ??
+                  'Autenticação Google necessária para validar este e-mail.',
+              style: theme.getTextStyle(
+                fontSize: 13,
+                color: theme.dangerColor,
+              ),
+            ),
+          ),
+        );
+        return;
+      }
+
+      if (emailGoogle != emailFinal.toLowerCase()) {
+        final theme = ThemeController.currentTheme.value;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            backgroundColor: theme.backgroundColor,
+            content: Text(
+              'O e-mail autenticado ($emailGoogle) é diferente de $emailFinal.',
+              style: theme.getTextStyle(
+                fontSize: 13,
+                color: theme.dangerColor,
+              ),
+            ),
+          ),
+        );
+        return;
+      }
+
+      await auth.marcarEmailComoVerificadoGoogle(emailFinal);
+      if (!context.mounted) return;
+    }
+
     auth.definirEmailAtivo(emailFinal);
     unawaited(ClienteRedeLocal().verificarAtualizacaoLocal());
     final cpf = auth.cpf;
@@ -112,6 +165,41 @@ class _ContasUsuarioViewState extends State<ContasUsuarioView> {
       if (auth.emailAtivo != null && auth.emailAtivo!.isNotEmpty) {
         await _entrarComEmail(context, auth.emailAtivo);
       }
+    }
+  }
+
+  Future<void> _conectarComGoogleDireto(BuildContext context) async {
+    if (_autenticandoGoogle) return;
+    setState(() => _autenticandoGoogle = true);
+
+    final resultado = await GoogleOAuthService.autenticarComGoogle();
+    if (!context.mounted) return;
+    setState(() => _autenticandoGoogle = false);
+
+    final email = resultado.email?.trim() ?? '';
+    if (!resultado.sucesso || email.isEmpty) {
+      final theme = ThemeController.currentTheme.value;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          backgroundColor: theme.backgroundColor,
+          content: Text(
+            resultado.erro ?? 'Falha ao autenticar com o Google.',
+            style: theme.getTextStyle(
+              fontSize: 13,
+              color: theme.dangerColor,
+            ),
+          ),
+        ),
+      );
+      return;
+    }
+
+    final auth = context.read<AuthProvider>();
+    await auth.adicionarEmail(email, verificadoGoogle: true);
+    auth.definirEmailAtivo(email);
+
+    if (context.mounted) {
+      await _entrarComEmail(context, auth.emailAtivo ?? email);
     }
   }
 
@@ -291,7 +379,16 @@ class _ContasUsuarioViewState extends State<ContasUsuarioView> {
                         ),
                         const SizedBox(height: 16),
                         ElevatedButton.icon(
-                          icon: const Icon(Icons.mail_outline, size: 18),
+                          icon: _autenticandoGoogle
+                              ? SizedBox(
+                                  width: 16,
+                                  height: 16,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: theme.buttonTextColor,
+                                  ),
+                                )
+                              : const Icon(Icons.login_rounded, size: 18),
                           style: ElevatedButton.styleFrom(
                             backgroundColor: theme.buttonColor,
                             foregroundColor: theme.buttonTextColor,
@@ -303,14 +400,38 @@ class _ContasUsuarioViewState extends State<ContasUsuarioView> {
                               borderRadius: BorderRadius.circular(10),
                             ),
                           ),
-                          onPressed: () => _abrirAdicionarEmail(context),
+                          onPressed: _autenticandoGoogle
+                              ? null
+                              : () => _conectarComGoogleDireto(context),
                           label: Text(
-                            'Cadastrar e-mail obrigatório',
+                            'Conectar com Google',
                             style: theme.getTextStyle(
                               fontSize: 14,
                               fontWeight: FontWeight.bold,
                               color: theme.buttonTextColor,
                             ),
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+                        OutlinedButton.icon(
+                          icon: const Icon(Icons.mail_outline, size: 18),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: theme.textColor,
+                            side: BorderSide(color: theme.borderColor),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 20,
+                              vertical: 14,
+                            ),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                          ),
+                          onPressed: _autenticandoGoogle
+                              ? null
+                              : () => _abrirAdicionarEmail(context),
+                          label: Text(
+                            'Cadastrar e-mail manualmente',
+                            style: theme.getTextStyle(fontSize: 13),
                           ),
                         ),
                       ] else ...[
@@ -330,6 +451,8 @@ class _ContasUsuarioViewState extends State<ContasUsuarioView> {
                                 child: _BarraEmail(
                                   theme: theme,
                                   email: email,
+                                  verificadoGoogle:
+                                      conta.emailEstaVerificado(email),
                                   aoClicar: () =>
                                       _entrarComEmail(context, email),
                                   aoExcluir: () =>
@@ -339,6 +462,41 @@ class _ContasUsuarioViewState extends State<ContasUsuarioView> {
                           ],
                         ),
                         const SizedBox(height: 16),
+                        ElevatedButton.icon(
+                          icon: _autenticandoGoogle
+                              ? SizedBox(
+                                  width: 16,
+                                  height: 16,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: theme.buttonTextColor,
+                                  ),
+                                )
+                              : const Icon(Icons.login_rounded, size: 18),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: theme.buttonColor,
+                            foregroundColor: theme.buttonTextColor,
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 24,
+                              vertical: 14,
+                            ),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                          ),
+                          onPressed: _autenticandoGoogle
+                              ? null
+                              : () => _conectarComGoogleDireto(context),
+                          label: Text(
+                            'Conectar com Google',
+                            style: theme.getTextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.bold,
+                              color: theme.buttonTextColor,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 10),
                         OutlinedButton(
                           style: OutlinedButton.styleFrom(
                             foregroundColor: theme.textColor,
@@ -351,7 +509,9 @@ class _ContasUsuarioViewState extends State<ContasUsuarioView> {
                               borderRadius: BorderRadius.circular(10),
                             ),
                           ),
-                          onPressed: () => _abrirAdicionarEmail(context),
+                          onPressed: _autenticandoGoogle
+                              ? null
+                              : () => _abrirAdicionarEmail(context),
                           child: Text(
                             'Adicionar outro e-mail',
                             style: theme.getTextStyle(fontSize: 13),
@@ -512,12 +672,14 @@ class _CardConta extends StatelessWidget {
 class _BarraEmail extends StatefulWidget {
   final AppTheme theme;
   final String email;
+  final bool verificadoGoogle;
   final VoidCallback aoClicar;
   final VoidCallback aoExcluir;
 
   const _BarraEmail({
     required this.theme,
     required this.email,
+    required this.verificadoGoogle,
     required this.aoClicar,
     required this.aoExcluir,
   });
@@ -556,13 +718,39 @@ class _BarraEmailState extends State<_BarraEmail> {
               Icon(Icons.mail_outline, size: 20, color: theme.textColor),
               const SizedBox(width: 10),
               Expanded(
-                child: Text(
-                  widget.email,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: theme.getTextStyle(fontSize: 13, color: theme.textColor),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      widget.email,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.getTextStyle(
+                        fontSize: 13,
+                        color: theme.textColor,
+                      ),
+                    ),
+                    if (!widget.verificadoGoogle)
+                      Text(
+                        'Requer autenticação Google',
+                        style: theme.getTextStyle(
+                          fontSize: 10,
+                          color: theme.secondaryTextColor,
+                        ),
+                      ),
+                  ],
                 ),
               ),
+              if (widget.verificadoGoogle)
+                Padding(
+                  padding: const EdgeInsets.only(right: 4),
+                  child: Icon(
+                    Icons.verified_outlined,
+                    size: 16,
+                    color: theme.secondaryTextColor,
+                  ),
+                ),
               PopupMenuButton<String>(
                 icon: Icon(Icons.more_vert, color: theme.secondaryTextColor),
                 color: theme.cardBackgroundColor,

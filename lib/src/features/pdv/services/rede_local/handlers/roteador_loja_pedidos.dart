@@ -15,6 +15,7 @@ import 'package:nous/src/features/pdv/models/registro_acao.dart';
 import 'package:nous/src/features/pdv/providers/pdv_provider.dart';
 import 'package:nous/src/features/pdv/services/imagem_service.dart';
 import 'package:nous/src/features/pdv/services/lojas_service.dart';
+import 'package:nous/src/features/pdv/services/rede_local/handlers/autorizador_loja_balcao.dart';
 import 'package:nous/src/features/pdv/services/rede_local/servidor_rede_local.dart';
 
 /// Roteador responsável pelos endpoints REST de Loja, Pedidos, Estoque e Mesas no Servidor Local.
@@ -103,8 +104,12 @@ class RoteadorLojaPedidos {
 
       final lojaIdParam = request.uri.queryParameters['lojaId'];
       final lojaRetorno = (lojaIdParam != null && lojaIdParam.trim().isNotEmpty)
-          ? (servidor.pdvProvider?.buscarPorId(lojaIdParam.trim()) ??
-              servidor.lojaAtiva)
+          ? AutorizadorLojaBalcao.obterLojaHospedada(
+              lojaIdBruto: lojaIdParam.trim(),
+              lojaAtiva: servidor.lojaAtiva,
+              pdvProvider: servidor.pdvProvider,
+              cpfOperadorBalcao: servidor.authProvider?.contaAtual?.cpf,
+            )
           : servidor.lojaAtiva;
       if (lojaRetorno == null ||
           LojasService.ehLojaHostFalsa(
@@ -228,8 +233,12 @@ class RoteadorLojaPedidos {
         }
 
         if (servidor.pdvProvider != null) {
-          final lojaAtual = servidor.pdvProvider!.buscarPorId(lojaRemota.id) ??
-              (servidor.lojaAtiva?.id == lojaRemota.id ? servidor.lojaAtiva : null);
+          final lojaAtual = AutorizadorLojaBalcao.obterLojaHospedada(
+            lojaIdBruto: lojaRemota.id,
+            lojaAtiva: servidor.lojaAtiva,
+            pdvProvider: servidor.pdvProvider,
+            cpfOperadorBalcao: servidor.authProvider?.contaAtual?.cpf,
+          );
 
           if (lojaAtual != null) {
             for (final m in lojaAtual.membros) {
@@ -268,12 +277,15 @@ class RoteadorLojaPedidos {
               'loja': lojaConsolidada.toJson(),
             });
           } else {
-            await LojasService.salvarLojaIndividual(lojaRemota);
-            await servidor.pdvProvider!.adicionarOuAtualizarLoja(lojaRemota);
-            servidor.notificarTodos({
-              'tipo': 'loja_atualizada',
-              'loja': lojaRemota.toJson(),
-            });
+            ServidorRedeLocal.responderJson(
+              request,
+              {
+                'sucesso': false,
+                'erro': 'Loja não hospedada neste balcão.',
+              },
+              statusCode: HttpStatus.forbidden,
+            );
+            return true;
           }
         }
 
@@ -299,9 +311,26 @@ class RoteadorLojaPedidos {
             ? pedido.lojaId
             : (dados['lojaId'] as String? ?? servidor.lojaAtiva?.id ?? '');
 
-        if (servidor.pdvProvider != null && lojaIdAlvo.isNotEmpty) {
-          final lojaAtual = servidor.pdvProvider!.buscarPorId(lojaIdAlvo);
-          if (lojaAtual != null) {
+        final lojaAtual = AutorizadorLojaBalcao.obterLojaHospedada(
+          lojaIdBruto: lojaIdAlvo,
+          lojaAtiva: servidor.lojaAtiva,
+          pdvProvider: servidor.pdvProvider,
+          cpfOperadorBalcao: servidor.authProvider?.contaAtual?.cpf,
+        );
+        if (lojaAtual == null) {
+          ServidorRedeLocal.responderJson(
+            request,
+            {
+              'sucesso': false,
+              'erro': 'Pedido rejeitado: loja "$lojaIdAlvo" não pertence a este balcão.',
+            },
+            statusCode: HttpStatus.forbidden,
+          );
+          return true;
+        }
+
+        if (servidor.pdvProvider != null) {
+          {
             final pedidos = List<PedidoLoja>.from(lojaAtual.pedidosLoja);
             final idx = pedidos.indexWhere((p) => p.id == pedido.id);
             if (idx != -1) {
@@ -362,9 +391,26 @@ class RoteadorLojaPedidos {
             ? lojaIdParam
             : (servidor.lojaAtiva?.id ?? '');
 
-        if (servidor.pdvProvider != null && lojaIdAlvo.isNotEmpty) {
-          final lojaAtual = servidor.pdvProvider!.buscarPorId(lojaIdAlvo);
-          if (lojaAtual != null) {
+        final lojaAtual = AutorizadorLojaBalcao.obterLojaHospedada(
+          lojaIdBruto: lojaIdAlvo,
+          lojaAtiva: servidor.lojaAtiva,
+          pdvProvider: servidor.pdvProvider,
+          cpfOperadorBalcao: servidor.authProvider?.contaAtual?.cpf,
+        );
+        if (lojaAtual == null) {
+          ServidorRedeLocal.responderJson(
+            request,
+            {
+              'sucesso': false,
+              'erro': 'Loja "$lojaIdAlvo" não pertence a este balcão.',
+            },
+            statusCode: HttpStatus.forbidden,
+          );
+          return true;
+        }
+
+        if (servidor.pdvProvider != null) {
+          {
             final movs =
                 List<MovimentoEstoque>.from(lojaAtual.movimentosEstoque);
             if (!movs.any((m) => m.id == mov.id)) {
@@ -408,9 +454,26 @@ class RoteadorLojaPedidos {
             ? lojaIdParam
             : (servidor.lojaAtiva?.id ?? '');
 
-        if (servidor.pdvProvider != null && lojaIdAlvo.isNotEmpty) {
-          final lojaAtual = servidor.pdvProvider!.buscarPorId(lojaIdAlvo);
-          if (lojaAtual != null) {
+        final lojaAtual = AutorizadorLojaBalcao.obterLojaHospedada(
+          lojaIdBruto: lojaIdAlvo,
+          lojaAtiva: servidor.lojaAtiva,
+          pdvProvider: servidor.pdvProvider,
+          cpfOperadorBalcao: servidor.authProvider?.contaAtual?.cpf,
+        );
+        if (lojaAtual == null) {
+          ServidorRedeLocal.responderJson(
+            request,
+            {
+              'sucesso': false,
+              'erro': 'Loja "$lojaIdAlvo" não pertence a este balcão.',
+            },
+            statusCode: HttpStatus.forbidden,
+          );
+          return true;
+        }
+
+        if (servidor.pdvProvider != null) {
+          {
             final mesas = List<MesaLoja>.from(lojaAtual.mesas);
             final idx = mesas.indexWhere((m) => m.id == mesa.id);
             MesaLoja mesaEfetiva = mesa;

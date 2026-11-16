@@ -144,7 +144,8 @@ class ChatMensagensService {
       }
     }
 
-    final resumo = ChatMediaService.gerarResumoMensagem(mensagemPersistida);
+    // Gera o resumo da última mensagem usando o texto claro original (nunca o envelope cifrado e2ee:v1:...)
+    final resumo = ChatMediaService.gerarResumoMensagem(mensagem);
 
     await db.insert('mensagens_chat', {
       'id': mensagemPersistida.id,
@@ -166,7 +167,7 @@ class ChatMensagensService {
       'dados_pedido_json': mensagemPersistida.dadosPedidoJson,
       'editada': 0,
       'historico_edicoes': jsonEncode(mensagemPersistida.historicoEdicoes),
-      'status_envio': 'enviada',
+      'status_envio': 'pendente',
       'entregue': mensagemPersistida.entregue ? 1 : 0,
       'favorita': mensagemPersistida.favorita ? 1 : 0,
       'fixada': mensagemPersistida.fixada ? 1 : 0,
@@ -361,6 +362,31 @@ class ChatMensagensService {
           reacoesEx == jsonEncode(mensagem.reacoes)) {
         return false;
       }
+
+      // Nunca rebaixa o estado de leitura ou entrega de uma mensagem já persistida
+      int pesoStatus(String s) {
+        switch (s) {
+          case 'lida':
+            return 3;
+          case 'entregue':
+            return 2;
+          case 'enviada':
+            return 1;
+          default:
+            return 0;
+        }
+      }
+
+      final lidaFinal = lidaEx || mensagem.lida;
+      final entregueFinal = entEx || mensagem.entregue;
+      final statusFinal = pesoStatus(stEx) > pesoStatus(mensagem.statusEnvio)
+          ? stEx
+          : mensagem.statusEnvio;
+      mensagem = mensagem.copyWith(
+        lida: lidaFinal,
+        entregue: entregueFinal,
+        statusEnvio: statusFinal,
+      );
     }
 
     DateTime dataHoraAjustada = mensagem.dataHora.toLocal();
@@ -398,7 +424,17 @@ class ChatMensagensService {
       mensagem = mensagem.copyWith(dataHora: dataHoraAjustada);
     }
 
-    final resumo = ChatMediaService.gerarResumoMensagem(mensagem);
+    MensagemChat msgParaResumo = mensagem;
+    if (CriptografiaService.ehTextoCifrado(mensagem.texto) && meuCpf.length == 11) {
+      msgParaResumo = await ChatE2eeService.decifrarMensagemSeAplicavel(
+        mensagem,
+        cpfVisualizador: meuCpf,
+      );
+    }
+    final resumoBruto = ChatMediaService.gerarResumoMensagem(msgParaResumo);
+    final resumo = CriptografiaService.ehTextoCifrado(resumoBruto)
+        ? '[Mensagem Cifrada Protegida]'
+        : resumoBruto;
 
     await db.insert('mensagens_chat', {
       'id': mensagem.id,

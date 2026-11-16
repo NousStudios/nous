@@ -67,11 +67,16 @@ class ResolvedorUrlRede {
     final ehNuvem = ehHostNuvem(limpo);
     final params = queryParameters ?? parametros;
 
-    if (limpo.startsWith('http://') || limpo.startsWith('https://')) {
+    if (limpo.startsWith('http://') ||
+        limpo.startsWith('https://') ||
+        limpo.startsWith('ws://') ||
+        limpo.startsWith('wss://')) {
       final uriBase = Uri.parse(limpo);
+      final schemeHttp =
+          (uriBase.scheme == 'https' || uriBase.scheme == 'wss') ? 'https' : 'http';
       final queryFinal = params?.map((k, v) => MapEntry(k, v.toString()));
       return Uri(
-        scheme: uriBase.scheme,
+        scheme: schemeHttp,
         host: uriBase.host,
         port: uriBase.hasPort ? uriBase.port : null,
         path: pathNormalizado,

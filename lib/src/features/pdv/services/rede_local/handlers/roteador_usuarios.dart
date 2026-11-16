@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:nous/src/core/utils/json_isolate_utils.dart';
 import 'package:nous/src/features/auth/models/usuario_nous.dart';
+import 'package:nous/src/features/auth/services/contas_excluidas_service.dart';
 import 'package:nous/src/features/auth/services/contas_nous_service.dart';
 import 'package:nous/src/features/pdv/models/loja.dart';
 import 'package:nous/src/features/pdv/models/referencia_loja.dart';
@@ -35,7 +36,8 @@ class RoteadorUsuarios {
       }
 
       var conta = await ContasNousService.buscarPorCpf(cpfParam.trim());
-      if (conta == null) {
+      if (conta == null &&
+          !await ContasExcluidasService.estaExcluido(cpfParam.trim())) {
         final dadosAuto =
             await DadosLocaisService.buscarPorDocumento(cpfParam.trim());
         if (dadosAuto != null && dadosAuto.nome.trim().isNotEmpty) {
@@ -95,7 +97,8 @@ class RoteadorUsuarios {
     }
 
     // 2. Salvar ou atualizar Identidade do Usuário
-    if (path == '/api/usuario' && request.method == 'POST') {
+    if ((path == '/api/usuario' || path == '/api/usuario/atualizar') &&
+        request.method == 'POST') {
       try {
         final body = await utf8.decodeStream(request);
         final dados = await decodificarJsonMapaSeguro(body);
@@ -111,11 +114,15 @@ class RoteadorUsuarios {
 
         final contaExistente =
             await ContasNousService.buscarPorCpf(usuario.cpf);
-        if (contaExistente != null &&
-            contaExistente.foto.isNotEmpty &&
-            ImagemService.existe(contaExistente.foto) &&
-            (usuario.foto.isEmpty || !ImagemService.existe(usuario.foto))) {
-          usuario = usuario.copyWith(foto: contaExistente.foto);
+        if (contaExistente != null) {
+          final fotoLocalValida = contaExistente.foto.isNotEmpty &&
+              ImagemService.existe(contaExistente.foto);
+          final fotoRemotaValida =
+              usuario.foto.isNotEmpty && ImagemService.existe(usuario.foto);
+          usuario = contaExistente.mesclarCom(usuario, priorizarOutro: true);
+          if (!fotoRemotaValida && fotoLocalValida) {
+            usuario = usuario.copyWith(foto: contaExistente.foto);
+          }
         }
 
         await ContasNousService.salvar(usuario);
@@ -153,6 +160,8 @@ class RoteadorUsuarios {
 
     // 3. Sincronização em massa de contas de usuários (GET)
     if (path == '/api/usuarios' && request.method == 'GET') {
+      await ContasNousService.varrerECorrigirBanco();
+      final excluidos = await ContasExcluidasService.carregarTodas();
       final contas = await ContasNousService.carregarTodas();
       final contasValidas = contas.where((c) {
         final cpfLimpo = c.cpf.replaceAll(RegExp(r'\D'), '');
@@ -162,6 +171,7 @@ class RoteadorUsuarios {
       ServidorRedeLocal.responderJson(request, {
         'sucesso': true,
         'usuarios': contasValidas.map((c) => c.toJson()).toList(),
+        'excluidos': excluidos.map((e) => e.toJson()).toList(),
       });
       return true;
     }
@@ -171,6 +181,20 @@ class RoteadorUsuarios {
       try {
         final body = await utf8.decodeStream(request);
         final dados = await decodificarJsonMapaSeguro(body);
+        final excluidosRecebidos = (dados['excluidos'] as List<dynamic>?) ?? [];
+        var houveExclusao = false;
+        for (final ex in excluidosRecebidos) {
+          if (ex is Map<String, dynamic>) {
+            await ContasExcluidasService.salvarRegistro(
+              ContaExcluidaNous.fromMap(ex),
+            );
+            houveExclusao = true;
+          }
+        }
+        if (houveExclusao) {
+          await ContasNousService.varrerECorrigirBanco();
+          await servidor.authProvider?.carregarCacheContas();
+        }
         final lista = (dados['usuarios'] as List<dynamic>?) ?? [];
         for (final item in lista) {
           if (item is Map<String, dynamic>) {
@@ -182,19 +206,11 @@ class RoteadorUsuarios {
                 await ContasNousService.salvar(u);
                 servidor.pdvProvider?.sincronizarDadosUsuarioEmLojas(u);
               } else {
-                final mesclada = existente.copyWith(
-                  nome: (existente.nome.isEmpty ||
-                          existente.nome.toLowerCase() == 'blackview')
-                      ? u.nome
-                      : existente.nome,
-                  nomeDeUsuario: existente.nomeDeUsuario.isEmpty
-                      ? u.nomeDeUsuario
-                      : existente.nomeDeUsuario,
-                  apelido:
-                      existente.apelido.isEmpty ? u.apelido : existente.apelido,
-                  foto: existente.foto.isEmpty ? u.foto : existente.foto,
-                  emails: {...existente.emails, ...u.emails}.toList(),
-                );
+                var mesclada = existente.mesclarCom(u);
+                if (existente.foto.isNotEmpty &&
+                    ImagemService.existe(existente.foto)) {
+                  mesclada = mesclada.copyWith(foto: existente.foto);
+                }
                 await ContasNousService.salvar(mesclada);
                 servidor.pdvProvider?.sincronizarDadosUsuarioEmLojas(mesclada);
               }
@@ -377,15 +393,19 @@ class RoteadorUsuarios {
   }
 
   static Future<void> _extrairContasNousDeLoja(Loja loja) async {
+    if (loja.id == 'loja_nous_coletiva') return;
     try {
       for (final m in loja.membros) {
         final mCpf = m.cpf.replaceAll(RegExp(r'\D'), '');
+        final nomeLower = m.nome.trim().toLowerCase();
         if (mCpf.length == 11) {
           final existente = await ContasNousService.buscarPorCpf(mCpf);
           if (existente == null &&
               m.nome.trim().isNotEmpty &&
-              m.nome.toLowerCase() != 'blackview' &&
-              m.nome.toLowerCase() != 'celular') {
+              nomeLower != 'blackview' &&
+              nomeLower != 'celular' &&
+              nomeLower != 'usuário nous' &&
+              nomeLower != 'usuario nous') {
             await ContasNousService.salvar(
               UsuarioNous(
                 cpf: mCpf,

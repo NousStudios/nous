@@ -26,6 +26,7 @@ import 'package:nous/src/features/chat/views/dialogs/dialog_renomear_conversa.da
 import 'package:nous/src/features/chat/views/widgets/lista_conversas_widget.dart';
 import 'package:nous/src/features/chat/views/widgets/painel_conversa_ativa_widget.dart';
 import 'package:nous/src/features/pdv/providers/pdv_provider.dart';
+import 'package:nous/src/features/pdv/views/widgets/estado_vazio_container.dart';
 
 class MensageriaView extends StatefulWidget {
   final bool modoLoja;
@@ -65,6 +66,7 @@ class _MensageriaViewState extends State<MensageriaView> {
   final MensageriaController _controller = MensageriaController();
   bool _inicializado = false;
   Timer? _debounceAtualizarChat;
+  AuthProvider? _authProviderObservado;
 
   @override
   void initState() {
@@ -89,17 +91,29 @@ class _MensageriaViewState extends State<MensageriaView> {
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
+    final auth = context.read<AuthProvider>();
+    if (_authProviderObservado != auth) {
+      _authProviderObservado?.removeListener(_aoAtualizarAuth);
+      _authProviderObservado = auth;
+      _authProviderObservado?.addListener(_aoAtualizarAuth);
+    }
     if (!_inicializado) {
-      final auth = context.read<AuthProvider>();
       final pdv = context.read<PdvProvider>();
       _controller.inicializar(auth: auth, pdv: pdv);
       _inicializado = true;
     }
   }
 
+  void _aoAtualizarAuth() {
+    if (mounted && !_controller.isDisposed) {
+      setState(() {});
+    }
+  }
+
   @override
   void dispose() {
     _debounceAtualizarChat?.cancel();
+    _authProviderObservado?.removeListener(_aoAtualizarAuth);
     ChatService.alteracoesChatNotifier.removeListener(_aoAtualizarChat);
     _controller.removeListener(_aoAtualizarController);
     GravadorAudioService.instancia.cancelarGravacao();
@@ -488,32 +502,53 @@ class _MensageriaViewState extends State<MensageriaView> {
               },
             ),
             body: SafeArea(
-              child: desktop
-                  ? Row(
-                      children: [
-                        SizedBox(
-                          width: 320,
-                          child: Container(
-                            decoration: BoxDecoration(
-                              border: Border(
-                                right: BorderSide(
-                                  color: theme.borderColor.withValues(
-                                    alpha: 0.5,
-                                  ),
-                                ),
-                              ),
-                            ),
-                            child: _buildListaConversas(theme),
+              child: Builder(
+                builder: (context) {
+                  final auth = context.watch<AuthProvider>();
+                  if (auth.modoVisitante || auth.perfilIsolado) {
+                    return Center(
+                      child: Padding(
+                        padding: const EdgeInsets.all(24),
+                        child: ConstrainedBox(
+                          constraints: const BoxConstraints(maxWidth: 460),
+                          child: EstadoVazioContainer(
+                            theme: theme,
+                            mensagem: auth.modoVisitante
+                                ? 'Você está no Modo Visitante. Entre com sua Conta Nous verificada para acessar as mensagens.'
+                                : 'Seu perfil está em Modo Isolado aguardando verificação. As mensagens com outros usuários serão liberadas após a primeira validação.',
                           ),
                         ),
-                        Expanded(
-                          child: _buildPainelConversa(theme, desktop: true),
-                        ),
-                      ],
-                    )
-                  : (_controller.conversaSelecionada != null
-                      ? _buildPainelConversa(theme, desktop: false)
-                      : _buildListaConversas(theme)),
+                      ),
+                    );
+                  }
+                  return desktop
+                      ? Row(
+                          children: [
+                            SizedBox(
+                              width: 320,
+                              child: Container(
+                                decoration: BoxDecoration(
+                                  border: Border(
+                                    right: BorderSide(
+                                      color: theme.borderColor.withValues(
+                                        alpha: 0.5,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                                child: _buildListaConversas(theme),
+                              ),
+                            ),
+                            Expanded(
+                              child: _buildPainelConversa(theme, desktop: true),
+                            ),
+                          ],
+                        )
+                      : (_controller.conversaSelecionada != null
+                          ? _buildPainelConversa(theme, desktop: false)
+                          : _buildListaConversas(theme));
+                },
+              ),
             ),
             bottomNavigationBar:
                 (!widget.modoLoja &&

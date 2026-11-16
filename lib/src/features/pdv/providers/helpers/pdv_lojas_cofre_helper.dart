@@ -139,16 +139,16 @@ class PdvLojasCofreHelper {
 
       if (!membrosSocios.any((m) => mesmoCpf(m.cpf, cpfUsuario))) {
         final contaAtual = await ContasNousService.buscarPorCpf(cpfUsuario);
-        membrosSocios.add(
-          MembroLoja(
-            cpf: cpfUsuario,
-            nome: (contaAtual != null && contaAtual.nome.trim().isNotEmpty)
-                ? contaAtual.nome.trim()
-                : 'Usuário Nous',
-            papel: PapelMembro.socio,
-            desde: DateTime.now(),
-          ),
-        );
+        if (contaAtual != null && contaAtual.nome.trim().isNotEmpty) {
+          membrosSocios.add(
+            MembroLoja(
+              cpf: cpfUsuario,
+              nome: contaAtual.nome.trim(),
+              papel: PapelMembro.socio,
+              desde: DateTime.now(),
+            ),
+          );
+        }
       }
 
       var lojaColetiva = await LojasService.carregarLojaPorId(idLojaColetivaNous);

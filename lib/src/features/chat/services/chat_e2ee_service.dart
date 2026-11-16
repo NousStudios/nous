@@ -41,11 +41,11 @@ class ChatE2eeService {
 
     try {
       final contaDest = await ContasNousService.buscarPorCpf(destCpf);
-      var chaveDest = contaDest?.chaveTrocaPublica ?? '';
-      if (chaveDest.isEmpty) {
-        chaveDest = await CriptografiaService.obterOuGerarChaveTroca(destCpf);
-      }
+      final chaveDest = contaDest?.chaveTrocaPublica ?? '';
 
+      // Nunca inventar/gerar localmente uma chave de troca para outro CPF:
+      // se o destinatário ainda não publicou sua chave pública X25519,
+      // envia a mensagem assinada sem E2EE para evitar corromper o texto.
       if (chaveDest.isEmpty) {
         return mensagem;
       }
@@ -133,10 +133,7 @@ class ChatE2eeService {
 
     try {
       final contaOutro = await ContasNousService.buscarPorCpf(outroCpf);
-      var chaveOutro = contaOutro?.chaveTrocaPublica ?? '';
-      if (chaveOutro.isEmpty) {
-        chaveOutro = await CriptografiaService.obterOuGerarChaveTroca(outroCpf);
-      }
+      final chaveOutro = contaOutro?.chaveTrocaPublica ?? '';
 
       if (chaveOutro.isEmpty) {
         return mensagem.copyWith(texto: '[Mensagem Cifrada Protegida]');
@@ -298,9 +295,6 @@ class ChatE2eeService {
       if (chaveOutro == null) {
         final contaOutro = await ContasNousService.buscarPorCpf(outroCpf);
         chaveOutro = contaOutro?.chaveTrocaPublica ?? '';
-        if (chaveOutro.isEmpty) {
-          chaveOutro = await CriptografiaService.obterOuGerarChaveTroca(outroCpf);
-        }
         cacheChaves[outroCpf] = chaveOutro;
       }
 

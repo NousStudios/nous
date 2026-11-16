@@ -51,7 +51,7 @@ class LojasService {
       final db = await BancoDadosService.db;
       final lojasFalsas = await db.query(
         'lojas',
-        where: "id LIKE 'host_%' OR tags LIKE '%host_pessoal%' OR nome LIKE 'Host:%'",
+        where: "id LIKE 'host_%' OR dados_json LIKE '%host_pessoal%' OR nome LIKE 'Host:%'",
       );
       for (final row in lojasFalsas) {
         final id = row['id'] as String;
@@ -111,6 +111,34 @@ class LojasService {
       listaLojas.add(loja);
     }
 
+    return listaLojas;
+  }
+
+  /// Carrega apenas os dados públicos das lojas comerciais para exploração
+  /// no Modo Visitante (sem pedidos privados, caixa ou pagamentos).
+  static Future<List<Loja>> carregarTodasComerciaisParaVisitante() async {
+    final db = await BancoDadosService.db;
+    final rows = await db.query('lojas');
+    if (rows.isEmpty) return [];
+
+    final listaLojas = <Loja>[];
+    for (final row in rows) {
+      final lojaMap =
+          jsonDecode(row['dados_json'] as String) as Map<String, dynamic>;
+      final lojaId = row['id'] as String;
+
+      if (lojaId == 'loja_nous_coletiva' ||
+          ehLojaHostFalsa(
+            lojaId,
+            lojaMap['tags'] as String?,
+            lojaMap['nome'] as String?,
+          )) {
+        continue;
+      }
+
+      final loja = sanitizarCaminhosImagens(Loja.fromJson(lojaMap));
+      listaLojas.add(loja);
+    }
     return listaLojas;
   }
 
@@ -487,6 +515,12 @@ class LojasService {
         }
       }
 
+      if (backups.length > 3) {
+        backups.sort((a, b) => b.lastModifiedSync().compareTo(a.lastModifiedSync()));
+        backups.removeRange(3, backups.length);
+      }
+      final cacheBackups = <String, Map<String, dynamic>>{};
+
       for (final row in rows) {
         final id = row['id'] as String;
         final dadosJson = row['dados_json'] as String;
@@ -501,7 +535,7 @@ class LojasService {
             map['logo'] = resolvida;
             houveCorrecao = true;
           } else if (resolvida == null) {
-            final doBackup = await _buscarFotoNoBackup(backups, id, 'logo', null);
+            final doBackup = await _buscarFotoNoBackup(backups, id, 'logo', null, cacheBackups);
             if (doBackup != null) {
               final resolvidaBackup = ImagemService.resolverCaminhoExistente(doBackup);
               if (resolvidaBackup != null) {
@@ -523,7 +557,7 @@ class LojasService {
               houveCorrecao = true;
             } else if (resolvida == null) {
               final catId = c['id'] as String? ?? '';
-              final doBackup = await _buscarFotoNoBackup(backups, id, 'categoria', catId);
+              final doBackup = await _buscarFotoNoBackup(backups, id, 'categoria', catId, cacheBackups);
               if (doBackup != null) {
                 final resolvidaBackup = ImagemService.resolverCaminhoExistente(doBackup);
                 if (resolvidaBackup != null) {
@@ -549,7 +583,7 @@ class LojasService {
               if (resolvida != img) itemCorrigido = true;
             } else {
               final itemId = it['id'] as String? ?? '';
-              final doBackup = await _buscarFotoNoBackup(backups, id, 'item', itemId);
+              final doBackup = await _buscarFotoNoBackup(backups, id, 'item', itemId, cacheBackups);
               if (doBackup != null) {
                 final resolvidaBackup = ImagemService.resolverCaminhoExistente(doBackup);
                 if (resolvidaBackup != null) {
@@ -628,11 +662,17 @@ class LojasService {
     String lojaId,
     String tipo,
     String? elementoId,
+    Map<String, Map<String, dynamic>> cacheBackups,
   ) async {
     for (final b in backups) {
       try {
-        final content = await b.readAsString();
-        final json = jsonDecode(content) as Map<String, dynamic>;
+        Map<String, dynamic>? json = cacheBackups[b.path];
+        if (json == null) {
+          if (await b.length() > 20 * 1024 * 1024) continue;
+          final content = await b.readAsString();
+          json = jsonDecode(content) as Map<String, dynamic>;
+          cacheBackups[b.path] = json;
+        }
         final cofres = json['cofres'] as List<dynamic>? ?? [];
         for (final c in cofres) {
           final lojas = c['lojas'] as List<dynamic>? ?? [];

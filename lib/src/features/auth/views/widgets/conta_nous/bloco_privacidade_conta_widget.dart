@@ -300,6 +300,16 @@ class BlocoPrivacidadeContaWidget extends StatelessWidget {
           _itemPrivacidade(
             context: context,
             theme: theme,
+            titulo: 'Apelido Público',
+            subtitulo: 'Exibir seu apelido para outros usuários e visitantes',
+            privado: conta?.dadoEstaPrivado('apelido') ?? false,
+            chaves: const ['apelido'],
+            conta: conta,
+            onAlternar: () => auth.alternarPrivacidadeDado('apelido'),
+          ),
+          _itemPrivacidade(
+            context: context,
+            theme: theme,
             titulo: 'CPF do Cidadão',
             subtitulo: 'Exibir seu CPF publicamente em lojas',
             privado: conta?.dadoEstaPrivado('cpf') ?? false,

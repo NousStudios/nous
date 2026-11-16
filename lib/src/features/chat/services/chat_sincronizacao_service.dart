@@ -6,6 +6,7 @@ import 'package:nous/src/features/chat/models/conversa_chat.dart';
 import 'package:nous/src/features/chat/models/mensagem_chat.dart';
 import 'package:nous/src/features/chat/services/chat_e2ee_service.dart';
 import 'package:nous/src/features/chat/services/chat_media_service.dart';
+import 'package:nous/src/features/chat/services/chat_outbox_e_recibos_service.dart';
 import 'package:nous/src/features/chat/services/chat_repositorio_sqlite.dart';
 import 'package:nous/src/features/pdv/services/imagem_service.dart';
 import 'package:nous/src/features/pdv/services/rede_local/cliente_rede_local.dart';
@@ -15,7 +16,8 @@ import 'package:nous/src/features/pdv/services/rede_local/servidor_rede_local.da
 class ChatSincronizacaoService {
   ChatSincronizacaoService._();
 
-  /// Despacha qualquer evento para a rede local (seja via servidor balcão ou cliente terminal)
+  /// Despacha qualquer evento para a rede local (seja via servidor balcão ou cliente terminal).
+  /// Caso o dispositivo esteja offline no momento, persiste eventos duráveis na fila Outbox.
   static void despacharEventoRede(Map<String, dynamic> evento) {
     try {
       final servidor = ServidorRedeLocal();
@@ -26,6 +28,13 @@ class ChatSincronizacaoService {
       final cliente = ClienteRedeLocal();
       if (cliente.conectado) {
         cliente.enviarEventoWs(evento);
+        return;
+      }
+
+      final tipo = evento['tipo']?.toString() ?? '';
+      const tiposEfemeros = {'digitando', 'typing', 'webrtc_sinal', 'ping', 'pong'};
+      if (tipo.isNotEmpty && !tiposEfemeros.contains(tipo)) {
+        unawaited(ChatOutboxERecibosService.enfileirarEvento(evento));
       }
     } catch (e) {
       debugPrint('[ChatSincronizacaoService] Erro ao despachar evento para a rede: $e');
@@ -136,9 +145,15 @@ class ChatSincronizacaoService {
     });
   }
 
-  /// Drena mensagens pendentes na fila offline assim que uma conexão for restabelecida
+  /// Drena mensagens e eventos Outbox pendentes na fila offline assim que uma conexão for restabelecida
   static Future<bool> drenarFilaDeSaida() async {
     try {
+      final servidor = ServidorRedeLocal();
+      final cliente = ClienteRedeLocal();
+      if (!servidor.ativo && !cliente.conectado && cliente.ipServidor == null) {
+        return false;
+      }
+
       final db = await ChatRepositorioSqlite.obterDb();
       final rows = await db.query(
         'mensagens_chat',
@@ -146,13 +161,6 @@ class ChatSincronizacaoService {
         whereArgs: ['pendente'],
         orderBy: 'data_hora ASC',
       );
-      if (rows.isEmpty) return false;
-
-      final servidor = ServidorRedeLocal();
-      final cliente = ClienteRedeLocal();
-      if (!servidor.ativo && !cliente.conectado && cliente.ipServidor == null) {
-        return false;
-      }
 
       bool alterou = false;
       for (final r in rows) {
@@ -168,7 +176,10 @@ class ChatSincronizacaoService {
           );
         }
       }
-      return alterou;
+
+      final drenouOutbox =
+          (await ChatOutboxERecibosService.drenarEventosPendentes()) > 0;
+      return alterou || drenouOutbox;
     } catch (e) {
       debugPrint('[ChatSincronizacaoService] Erro ao drenar fila de saída: $e');
       return false;

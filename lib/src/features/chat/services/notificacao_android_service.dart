@@ -9,6 +9,7 @@ import 'package:nous/src/core/services/navigator_key_service.dart';
 import 'package:nous/src/features/auth/services/contas_nous_service.dart';
 import 'package:nous/src/features/chat/models/mensagem_chat.dart';
 import 'package:nous/src/features/chat/services/chat_media_service.dart';
+import 'package:nous/src/features/chat/services/chat_repositorio_sqlite.dart';
 import 'package:nous/src/features/chat/services/chat_service.dart';
 import 'package:nous/src/features/chat/views/mensageria_view.dart';
 import 'package:nous/src/features/pdv/providers/pdv_provider.dart';
@@ -146,13 +147,20 @@ class NotificacaoAndroidService {
 
         bool ehRespostaDeLoja = false;
         String idLojaConv = '';
+        String cpfUsuarioConv = '';
         if (conversaId.startsWith('loja_') && conversaId.contains('_usuario_')) {
           final antesUsuario =
               conversaId.substring(0, conversaId.indexOf('_usuario_'));
           idLojaConv = PdvProvider.normalizarIdLoja(antesUsuario);
+          cpfUsuarioConv = ChatService.normalizarCpf(
+            conversaId.split('_usuario_').last,
+          );
+          final destEhLoja = destinatarioId.startsWith('loja_') ||
+              PdvProvider.normalizarIdLoja(destinatarioId) == idLojaConv;
           ehRespostaDeLoja = !remOriginalEhLoja &&
-              (destinatarioId.startsWith('loja_') ||
-                  (cpfLogado.isEmpty && !remetenteOriginalId.startsWith('loja_')));
+              (destEhLoja ||
+                  (cpfLogado.isEmpty && !remetenteOriginalId.startsWith('loja_')) ||
+                  (cpfUsuarioConv.isNotEmpty && cpfLogado != cpfUsuarioConv));
         } else {
           ehRespostaDeLoja = destinatarioId.startsWith('loja_');
           if (ehRespostaDeLoja) {
@@ -171,6 +179,9 @@ class NotificacaoAndroidService {
               ? idLojaConv
               : PdvProvider.normalizarIdLoja(destinatarioId);
           remetenteIdFinal = 'loja_$idLimpo';
+          if (destinatarioFinal.isEmpty && cpfUsuarioConv.isNotEmpty) {
+            destinatarioFinal = cpfUsuarioConv;
+          }
           final loja = await LojasService.carregarLojaPorId(idLimpo);
           if (loja != null) {
             remetenteNome = loja.nome;
@@ -179,7 +190,9 @@ class NotificacaoAndroidService {
             remetenteNome = 'Loja';
           }
         } else {
-          final cpfBusca = ChatService.normalizarCpf(remetenteIdFinal);
+          final cpfBusca = ChatService.normalizarCpf(
+            remetenteIdFinal.isNotEmpty ? remetenteIdFinal : cpfUsuarioConv,
+          );
           if (cpfBusca.length == 11) {
             remetenteIdFinal = cpfBusca;
             final conta = await ContasNousService.buscarPorCpf(cpfBusca);
@@ -188,9 +201,7 @@ class NotificacaoAndroidService {
                 : (conta?.nome.isNotEmpty == true ? conta!.nome : 'Usuário');
             remetenteFoto = conta?.fotoExibicao ?? (conta?.foto ?? '');
           }
-          if (destinatarioFinal.isEmpty &&
-              conversaId.startsWith('loja_') &&
-              idLojaConv.isNotEmpty) {
+          if (conversaId.startsWith('loja_') && idLojaConv.isNotEmpty) {
             destinatarioFinal = 'loja_$idLojaConv';
           } else if (destinatarioFinal.isEmpty && cpfBusca.isNotEmpty) {
             destinatarioFinal =
@@ -209,12 +220,21 @@ class NotificacaoAndroidService {
           dataHora: DateTime.now(),
           enviadaPorMim: true,
           lida: false,
-          statusEnvio: 'enviada',
+          statusEnvio: 'pendente',
         );
 
         final msgPersistida =
             await ChatService.enviarMensagemInstantanea(novaMensagem);
-        await _despacharMensagemEmBackground(msgPersistida);
+        final entregueRede = await _despacharMensagemEmBackground(msgPersistida);
+        try {
+          final db = await ChatRepositorioSqlite.obterDb();
+          await db.update(
+            'mensagens_chat',
+            {'status_envio': entregueRede ? 'enviada' : 'pendente'},
+            where: 'id = ?',
+            whereArgs: [msgPersistida.id],
+          );
+        } catch (_) {}
         await ChatService.marcarComoLidas(conversaId, remetenteIdFinal);
         await cancelarNotificacaoConversa(conversaId);
         return;
@@ -569,7 +589,8 @@ class NotificacaoAndroidService {
 
   /// Despacha a mensagem respondida via Direct Reply mesmo quando executado
   /// no isolate isolado em background do Android.
-  static Future<void> _despacharMensagemEmBackground(MensagemChat msg) async {
+  /// Retorna `true` apenas se o servidor local/balcão confirmou recebimento HTTP 200.
+  static Future<bool> _despacharMensagemEmBackground(MensagemChat msg) async {
     final dadosEnvio = {
       'tipo': 'mensagem_chat',
       'mensagem': msg.toJson(),
@@ -588,7 +609,7 @@ class NotificacaoAndroidService {
         final resp = await req.close().timeout(const Duration(seconds: 2));
         await resp.drain<void>();
         if (resp.statusCode == HttpStatus.ok) {
-          return;
+          return true;
         }
       } catch (_) {}
 
@@ -614,10 +635,14 @@ class NotificacaoAndroidService {
           req.write(jsonEncode(dadosEnvio));
           final resp = await req.close().timeout(const Duration(seconds: 3));
           await resp.drain<void>();
+          if (resp.statusCode == HttpStatus.ok) {
+            return true;
+          }
         }
       } catch (_) {}
     } finally {
       client.close(force: true);
     }
+    return false;
   }
 }

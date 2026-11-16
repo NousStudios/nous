@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
+import 'package:nous/src/core/services/criptografia_service.dart';
 import 'package:nous/src/core/services/som_service.dart';
 import 'package:nous/src/core/utils/json_isolate_utils.dart';
 import 'package:nous/src/features/auth/models/usuario_nous.dart';
@@ -21,6 +22,7 @@ import 'package:nous/src/features/pdv/models/terminal_conectado_info.dart';
 import 'package:nous/src/features/pdv/providers/pdv_provider.dart';
 import 'package:nous/src/features/pdv/services/imagem_service.dart';
 import 'package:nous/src/features/pdv/services/lojas_service.dart';
+import 'package:nous/src/features/pdv/services/rede_local/handlers/autorizador_loja_balcao.dart';
 
 /// Contexto de execução para processamento de mensagens WebSocket no Servidor de Rede Local.
 class ServidorWsContext {
@@ -399,6 +401,27 @@ class ServidorWsMessageHandler {
         } catch (e) {
           debugPrint('[ServidorRedeLocal] Erro ao sincronizar convites com terminal: $e');
         }
+
+        // Portabilidade automática de chaves E2EE/Ed25519 entre aparelhos do MESMO CPF
+        final cpfBalcao = ChatService.normalizarCpf(
+          ctx.authProvider?.contaAtual?.cpf ?? ctx.authProvider?.cpf ?? '',
+        );
+        if (cpfBalcao.isNotEmpty && cpfBalcao == cpfLimpoTerm) {
+          try {
+            final pacoteChaves = await CriptografiaService.exportarChavesDoCpf(
+              cpfLimpoTerm,
+            );
+            if (pacoteChaves != null) {
+              ws.add(jsonEncode({
+                'tipo': 'chaves_proprias_cpf',
+                'cpf': cpfLimpoTerm,
+                'pacote': pacoteChaves,
+              }));
+            }
+          } catch (e) {
+            debugPrint('[ServidorRedeLocal] Erro ao sincronizar chaves do mesmo CPF: $e');
+          }
+        }
       }
 
       // Drena quaisquer mensagens que estavam retidas na fila aguardando a conexão deste terminal
@@ -455,7 +478,21 @@ class ServidorWsMessageHandler {
   ) async {
     if (dados['usuario'] != null) {
       try {
-        final usuario = UsuarioNous.fromJson(dados['usuario'] as Map<String, dynamic>);
+        var usuario = UsuarioNous.fromJson(dados['usuario'] as Map<String, dynamic>);
+        if (await ContasExcluidasService.estaExcluido(usuario.cpf)) {
+          return;
+        }
+        final local = await ContasNousService.buscarPorCpf(usuario.cpf);
+        if (local != null) {
+          final fotoFinal = (usuario.foto.isNotEmpty && ImagemService.existe(usuario.foto))
+              ? usuario.foto
+              : (local.foto.isNotEmpty && ImagemService.existe(local.foto)
+                  ? local.foto
+                  : usuario.foto);
+          usuario = local
+              .mesclarCom(usuario, priorizarOutro: true)
+              .copyWith(foto: fotoFinal);
+        }
         await ContasNousService.salvar(usuario);
         ctx.authProvider?.atualizarContaNoCache(usuario);
         await ctx.authProvider?.carregarCacheContas();
@@ -519,12 +556,19 @@ class ServidorWsMessageHandler {
     if (dados['pedido'] != null && ctx.pdvProvider != null) {
       final pedido = PedidoLoja.fromJson(dados['pedido'] as Map<String, dynamic>);
       final lojaAtiva = ctx.obterLojaAtiva();
-      final lojaIdAlvo = pedido.lojaId.isNotEmpty
+      final lojaIdExplicito = pedido.lojaId.isNotEmpty
           ? pedido.lojaId
-          : (dados['lojaId'] as String? ?? lojaAtiva?.id ?? '');
-      if (lojaIdAlvo.isEmpty) return;
+          : (dados['lojaId'] as String? ?? '');
+      final lojaIdAlvo = lojaIdExplicito.isNotEmpty
+          ? lojaIdExplicito
+          : (lojaAtiva?.id ?? '');
 
-      final lojaAtual = ctx.pdvProvider!.buscarPorId(lojaIdAlvo);
+      final lojaAtual = AutorizadorLojaBalcao.obterLojaHospedada(
+        lojaIdBruto: lojaIdAlvo,
+        lojaAtiva: lojaAtiva,
+        pdvProvider: ctx.pdvProvider,
+        cpfOperadorBalcao: ctx.authProvider?.contaAtual?.cpf,
+      );
       if (lojaAtual != null) {
         final pedidos = List<PedidoLoja>.from(lojaAtual.pedidosLoja);
         final idx = pedidos.indexWhere((p) => p.id == pedido.id);
@@ -549,6 +593,10 @@ class ServidorWsMessageHandler {
           'pedido': pedido.toJson(),
         });
         ctx.retransmitirParaOutros(payload, exceto: ws);
+      } else {
+        debugPrint(
+          '[ServidorRedeLocal] Pedido ignorado: loja "$lojaIdAlvo" não é hospedada por este balcão.',
+        );
       }
     }
   }
@@ -561,12 +609,17 @@ class ServidorWsMessageHandler {
     if (dados['cliente'] != null && ctx.pdvProvider != null) {
       final cliente = Cliente.fromJson(dados['cliente'] as Map<String, dynamic>);
       final lojaAtiva = ctx.obterLojaAtiva();
-      final lojaIdAlvo = (dados['lojaId'] as String?)?.trim().isNotEmpty == true
-          ? (dados['lojaId'] as String).trim()
+      final lojaIdExplicito = (dados['lojaId'] as String?)?.trim() ?? '';
+      final lojaIdAlvo = lojaIdExplicito.isNotEmpty
+          ? lojaIdExplicito
           : (lojaAtiva?.id ?? '');
-      if (lojaIdAlvo.isEmpty) return;
 
-      final lojaAtual = ctx.pdvProvider!.buscarPorId(lojaIdAlvo);
+      final lojaAtual = AutorizadorLojaBalcao.obterLojaHospedada(
+        lojaIdBruto: lojaIdAlvo,
+        lojaAtiva: lojaAtiva,
+        pdvProvider: ctx.pdvProvider,
+        cpfOperadorBalcao: ctx.authProvider?.contaAtual?.cpf,
+      );
       if (lojaAtual != null) {
         final clientes = List<Cliente>.from(lojaAtual.clientesLoja);
         final idx = clientes.indexWhere((c) => c.id == cliente.id);
@@ -593,9 +646,15 @@ class ServidorWsMessageHandler {
     ServidorWsContext ctx,
   ) async {
     final lojaId = dados['lojaId'] as String?;
-    if (lojaId != null && ctx.pdvProvider != null) {
-      await ctx.pdvProvider!.excluirLoja(lojaId, originadaDaRede: true);
-      final payload = jsonEncode({'tipo': 'loja_excluida', 'lojaId': lojaId});
+    final lojaAtual = AutorizadorLojaBalcao.obterLojaHospedada(
+      lojaIdBruto: lojaId,
+      lojaAtiva: ctx.obterLojaAtiva(),
+      pdvProvider: ctx.pdvProvider,
+      cpfOperadorBalcao: ctx.authProvider?.contaAtual?.cpf,
+    );
+    if (lojaAtual != null && ctx.pdvProvider != null) {
+      await ctx.pdvProvider!.excluirLoja(lojaAtual.id, originadaDaRede: true);
+      final payload = jsonEncode({'tipo': 'loja_excluida', 'lojaId': lojaAtual.id});
       ctx.retransmitirParaOutros(payload, exceto: ws);
     }
   }

@@ -1,9 +1,11 @@
+import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 import 'package:flutter/widgets.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
+import 'package:nous/src/core/services/banco_dados_service.dart';
 import 'package:nous/src/core/services/gerador_id.dart';
 
 class ImagemService {
@@ -14,6 +16,25 @@ class ImagemService {
 
   static Directory? _diretorioBaseCache;
   static final Map<String, String?> _cacheResolucaoCaminhos = {};
+
+  /// Gera um nome de arquivo determinístico entre sessões e dispositivos
+  /// usando hash FNV-1a 64-bit sobre UTF-8 (em vez de `String.hashCode`, que varia por execução).
+  static String gerarNomeRemotoDeterministico(
+    String chave,
+    String extensao,
+  ) {
+    final extLimpa = extensao.replaceAll('.', '').toLowerCase();
+    final extensaoFinal =
+        extensoesImagem.contains(extLimpa) ? extLimpa : 'jpg';
+    final bytes = utf8.encode(chave.replaceAll('\\', '/').trim());
+    var hash = 0xcbf29ce484222325;
+    const prime = 0x100000001b3;
+    for (final b in bytes) {
+      hash ^= b;
+      hash = (hash * prime) & 0x7fffffffffffffff;
+    }
+    return 'remota_${hash.toRadixString(16).padLeft(15, '0')}.$extensaoFinal';
+  }
 
   static Future<void> inicializar() async {
     await obterDiretorioBase();
@@ -565,6 +586,74 @@ class ImagemService {
       }
     } catch (_) {}
     return bytesLiberados;
+  }
+
+  /// Remove com segurança arquivos `remota_*` órfãos (não referenciados em nenhuma tabela do SQLite
+  /// e com mais de 24h desde a última modificação), evitando acúmulo de duplicatas no disco.
+  static Future<int> limparMidiasRemotasOrfas() async {
+    var removidos = 0;
+    try {
+      final db = await BancoDadosService.db;
+      final lojasRows = await db.query('lojas', columns: ['id', 'dados_json']);
+      final contasRows =
+          await db.query('contas_usuarios', columns: ['cpf', 'dados_json']);
+      if (lojasRows.isEmpty && contasRows.isEmpty) return 0;
+
+      final buffer = StringBuffer();
+      for (final r in lojasRows) {
+        buffer.writeln(r['dados_json'] ?? '');
+      }
+      for (final r in contasRows) {
+        buffer.writeln(r['dados_json'] ?? '');
+      }
+
+      for (final tabela in const [
+        'mensagens_chat',
+        'conversas_chat',
+        'pedidos',
+        'movimentos_estoque',
+        'pagamentos_funcionarios',
+        'convites',
+      ]) {
+        try {
+          final rows = await db.query(tabela);
+          for (final r in rows) {
+            buffer.writeln(r.values.join(' '));
+          }
+        } catch (_) {}
+      }
+
+      final tudoNoBanco = buffer.toString();
+      if (tudoNoBanco.isEmpty) return 0;
+
+      final base = await obterDiretorioBase();
+      final limiteIdade = DateTime.now().subtract(const Duration(hours: 24));
+      for (final sub in const ['imagens', 'anexos']) {
+        final pasta = Directory('${base.path}/$sub');
+        if (!await pasta.exists()) continue;
+        await for (final entidade
+            in pasta.list(recursive: true, followLinks: false)) {
+          if (entidade is! File) continue;
+          final nome = p.basename(entidade.path);
+          if (!nome.startsWith('remota_')) continue;
+          if (tudoNoBanco.contains(nome)) continue;
+          try {
+            final mod = await entidade.lastModified();
+            if (mod.isBefore(limiteIdade)) {
+              await entidade.delete();
+              removidos++;
+            }
+          } catch (_) {}
+        }
+      }
+
+      if (removidos > 0) {
+        debugPrint(
+          '[ImagemService] Limpeza de mídias órfãs removeu $removidos arquivo(s) remota_* sem referência.',
+        );
+      }
+    } catch (_) {}
+    return removidos;
   }
 }
 

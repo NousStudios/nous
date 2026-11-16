@@ -721,9 +721,10 @@ void main() {
     });
 
     test('ChatService.marcarComoLidas atualiza lida=1 e status_envio=lida', () async {
-      final convId = 'teste_lidas_${DateTime.now().millisecondsSinceEpoch}';
+      final ts = DateTime.now().millisecondsSinceEpoch;
+      final convId = 'teste_lidas_$ts';
       final msg = MensagemChat(
-        id: 'msg_lida_1',
+        id: 'msg_lida_$ts',
         conversaId: convId,
         remetenteId: '99999999999',
         remetenteNome: 'Remetente Teste',

@@ -293,8 +293,9 @@ class ChatProcessadorRedeService {
 
         if (remEhLoja) {
           // Mensagem enviada pela Loja: se este aparelho pertence ao cliente da conversa
-          // e não é o servidor balcão enviando para si mesmo, deve notificar o cliente!
-          if (souClienteDaConversa && !operaComoServidorBalcao) {
+          // (mesmo que ele também opere o balcão), deve receber/confirmar como cliente
+          // quando não foi o próprio balcão local que acabou de enviar a mensagem.
+          if (souClienteDaConversa && (!operaComoServidorBalcao || !jaExisteLocal)) {
             ehMinhaPropriaMensagem = false;
             souDestinatarioReal = true;
           } else {

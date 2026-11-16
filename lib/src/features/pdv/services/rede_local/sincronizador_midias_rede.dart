@@ -76,8 +76,10 @@ class SincronizadorMidiasRede {
         final ext = caminhoLimpo.split('.').last.toLowerCase();
         final extensaoFinal =
             ImagemService.extensoesImagem.contains(ext) ? ext : 'jpg';
-        final nomeArquivoLocal =
-            'remota_${caminhoLimpo.hashCode.abs()}.$extensaoFinal';
+        final nomeArquivoLocal = ImagemService.gerarNomeRemotoDeterministico(
+          caminhoLimpo,
+          extensaoFinal,
+        );
         final arquivoLocal = File('${pastaImagens.path}/$nomeArquivoLocal');
 
         if (arquivoLocal.existsSync() && arquivoLocal.lengthSync() > 0) {

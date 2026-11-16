@@ -9,6 +9,7 @@ import 'package:nous/src/features/pdv/models/membro_loja.dart';
 import 'package:nous/src/features/pdv/providers/pdv_provider.dart';
 import 'package:nous/src/features/pdv/services/imagem_service.dart';
 import 'package:nous/src/features/pdv/views/widgets/usuarios/dialog_central_contrato_trabalhador.dart';
+import 'package:nous/src/features/chat/services/chat_service.dart';
 import 'package:nous/src/features/chat/views/mensageria_view.dart';
 
 String _rotuloPapel(PapelMembro papel) {
@@ -166,40 +167,51 @@ class _CardMembroLojaWidgetState extends State<CardMembroLojaWidget> {
               icon: Icon(Icons.chat_bubble_outline, size: 16, color: theme.textColor),
               onPressed: () {
                 final lId = widget.lojaId ?? '';
+                final ehPessoal = widget.ehLojaColetivaNous ||
+                    lId.isEmpty ||
+                    lId == PdvProvider.idLojaColetivaNous;
                 Navigator.of(context).push(
                   MaterialPageRoute(
                     builder: (context) => MensageriaView(
-                      modoLoja: lId.isNotEmpty,
-                      lojaId: lId.isNotEmpty ? lId : null,
-                      nomeLoja: widget.nomeLoja,
+                      modoLoja: !ehPessoal,
+                      lojaId: ehPessoal ? null : lId,
+                      nomeLoja: ehPessoal ? null : widget.nomeLoja,
                       operadorCpf: widget.cpfLogado,
                       usuarioCpf: membro.cpf,
                       usuarioNome: membro.nome,
                       usuarioFoto: contaMembro?.foto ?? foto,
                       usuarioApelido: contaMembro?.apelido ?? '',
+                      conversaInicialId: ehPessoal
+                          ? ChatService.conversaIdEntreUsuarios(
+                              widget.cpfLogado,
+                              membro.cpf,
+                            )
+                          : null,
                     ),
                   ),
                 );
               },
             ),
-          const SizedBox(width: 2),
-          IconButton(
-            tooltip: 'Contrato e Trabalho',
-            padding: const EdgeInsets.all(4),
-            constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
-            icon: Icon(Icons.description_outlined, size: 16, color: theme.textColor),
-            onPressed: () {
-              final lId = widget.lojaId ?? '';
-              CentralContratoTrabalhadorDialog.mostrar(
-                context: context,
-                theme: theme,
-                lojaId: lId,
-                membro: membro,
-                cpfLogado: widget.cpfLogado,
-                podeGerenciar: widget.podeGerenciar,
-              );
-            },
-          ),
+          if (!widget.ehLojaColetivaNous) ...[
+            const SizedBox(width: 2),
+            IconButton(
+              tooltip: 'Contrato e Trabalho',
+              padding: const EdgeInsets.all(4),
+              constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+              icon: Icon(Icons.description_outlined, size: 16, color: theme.textColor),
+              onPressed: () {
+                final lId = widget.lojaId ?? '';
+                CentralContratoTrabalhadorDialog.mostrar(
+                  context: context,
+                  theme: theme,
+                  lojaId: lId,
+                  membro: membro,
+                  cpfLogado: widget.cpfLogado,
+                  podeGerenciar: widget.podeGerenciar,
+                );
+              },
+            ),
+          ],
           if (podeEditarPapel) ...[
             const SizedBox(width: 2),
             IconButton(
@@ -327,7 +339,13 @@ class _CardMembroLojaWidgetState extends State<CardMembroLojaWidget> {
                             Builder(
                               builder: (context) {
                                 final String rotuloCargo;
-                                if (membro.cargoPersonalizadoId == 'desenvolvedor') {
+                                if (widget.ehLojaColetivaNous) {
+                                  if (membro.cargoPersonalizadoId == 'desenvolvedor') {
+                                    rotuloCargo = 'Cidadão Nous • Desenvolvedor';
+                                  } else {
+                                    rotuloCargo = 'Cidadão Nous';
+                                  }
+                                } else if (membro.cargoPersonalizadoId == 'desenvolvedor') {
                                   rotuloCargo = '${_rotuloPapel(membro.papel)} • Desenvolvedor';
                                 } else {
                                   final cargoNome = widget.cargosPersonalizados

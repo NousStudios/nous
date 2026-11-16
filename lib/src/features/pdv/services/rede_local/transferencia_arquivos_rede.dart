@@ -178,8 +178,10 @@ class TransferenciaArquivosRede {
       final extensaoFinal =
           ImagemService.extensoesImagem.contains(ext) ? ext : 'jpg';
       final nomeBase = p.basename(caminhoNormalizado);
-      final nomeHash =
-          'remota_${(caminhoLimpo.isNotEmpty ? caminhoLimpo : (cpf ?? '')).hashCode.abs()}.$extensaoFinal';
+      final nomeHash = ImagemService.gerarNomeRemotoDeterministico(
+        caminhoLimpo.isNotEmpty ? caminhoLimpo : (cpf ?? ''),
+        extensaoFinal,
+      );
 
       final arquivoHash = File('${pastaImagens.path}/$nomeHash');
       if (arquivoHash.existsSync() && arquivoHash.lengthSync() > 0) {

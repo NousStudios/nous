@@ -82,10 +82,14 @@ class _BuscaMapaViewState extends State<BuscaMapaView> {
         final pdv = context.watch<PdvProvider>();
         final termo = _buscaController.text.trim().toLowerCase();
 
-        // Filtra lojas
+        // Filtra lojas comerciais (exclui a Comunidade/Perfil Coletivo Nous)
         final lojasFiltradas = (_filtro == FiltroBusca.perfis)
             ? <Loja>[]
             : pdv.lojas.where((l) {
+                if (l.id == PdvProvider.idLojaColetivaNous ||
+                    l.id == 'loja_nous_coletiva') {
+                  return false;
+                }
                 if (termo.isEmpty) return true;
                 final nome = l.nome.toLowerCase();
                 final doc = l.cnpj.toLowerCase();
@@ -99,13 +103,19 @@ class _BuscaMapaViewState extends State<BuscaMapaView> {
                     end.contains(termo);
               }).toList();
 
-        // Filtra perfis Nous
-        final perfisFiltrados = (_filtro == FiltroBusca.lojas)
+        final ehVisitante = auth.modoVisitante;
+        final ehIsolado = auth.perfilIsolado;
+
+        // Filtra perfis Nous (ocultos no Modo Visitante e no Modo Isolado)
+        final perfisFiltrados = (_filtro == FiltroBusca.lojas ||
+                ehVisitante ||
+                ehIsolado)
             ? <UsuarioNous>[]
             : _todosUsuarios.where((u) {
                 if (termo.isEmpty) return true;
                 final nome = u.nome.toLowerCase();
-                final apelido = u.apelido.toLowerCase();
+                final apelido =
+                    u.dadoEstaPrivado('apelido') ? '' : u.apelido.toLowerCase();
                 final username = u.nomeDeUsuario.toLowerCase();
                 final cpfDigitos = u.cpf.replaceAll(RegExp(r'\D'), '');
                 return nome.contains(termo) ||
@@ -236,8 +246,14 @@ class _BuscaMapaViewState extends State<BuscaMapaView> {
                                       children: [
                                         EstadoVazioContainer(
                                           theme: theme,
-                                          mensagem:
-                                              'Nenhuma loja ou perfil encontrado para esta busca.',
+                                          mensagem: ehVisitante &&
+                                                  _filtro == FiltroBusca.perfis
+                                              ? 'Perfis de usuários ficam ocultos no Modo Visitante.'
+                                              : ehIsolado &&
+                                                      _filtro ==
+                                                          FiltroBusca.perfis
+                                                  ? 'Seu perfil está em Modo Isolado aguardando verificação.'
+                                                  : 'Nenhuma loja ou perfil encontrado para esta busca.',
                                         ),
                                         const SizedBox(height: 12),
                                         TextButton.icon(

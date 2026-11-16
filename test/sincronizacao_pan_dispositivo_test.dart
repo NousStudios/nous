@@ -405,5 +405,70 @@ void main() {
       // Mais recente primeiro: p3 (11:30, num 3), depois p2 (11:30, num 2), depois p1 (10:00, num 1)
       expect(lista.map((p) => p.numero).toList(), equals([3, 2, 1]));
     });
+
+    test('UsuarioNous.mesclarCom preserva selos de validacao, chaves e perfil social', () {
+      const local = UsuarioNous(
+        cpf: '11122233344',
+        nome: 'Maria Silva',
+        dataNascimento: '01/01/1990',
+        chavePublica: 'pub_ed25519_local',
+        chaveTrocaPublica: 'x25519_local',
+        criadoEm: '2026-01-01T10:00:00.000',
+        verificado: true,
+        validadoPorCpf: '99988877766',
+        validadoPorNome: 'Validador 1',
+        validadoEm: '2026-10-01T10:00:00.000',
+        validacoes: [
+          {
+            'cpf': '99988877766',
+            'nome': 'Validador 1',
+            'dataHora': '2026-10-01T10:00:00.000',
+            'assinatura': 'sig1',
+          },
+        ],
+        links: ['https://nous.org.br'],
+        coresPerfil: {'fundo': '#112233'},
+      );
+
+      const remoto = UsuarioNous(
+        cpf: '11122233344',
+        nome: 'Maria Silva',
+        dataNascimento: '01/01/1990',
+        biografia: 'Nova bio atualizada',
+        verificado: true,
+        validacoes: [
+          {
+            'cpf': '55544433322',
+            'nome': 'Validador 2',
+            'dataHora': '2026-11-01T12:00:00.000',
+            'assinatura': 'sig2',
+          },
+        ],
+        links: ['https://coop.br'],
+        coresPerfil: {'destaque': '#AABBCC'},
+      );
+
+      final reconciliado = local.mesclarCom(remoto);
+      expect(reconciliado.verificado, isTrue);
+      expect(reconciliado.totalValidacoes, equals(2));
+      expect(reconciliado.validadoPorCpf, equals('99988877766'));
+      expect(reconciliado.chavePublica, equals('pub_ed25519_local'));
+      expect(reconciliado.chaveTrocaPublica, equals('x25519_local'));
+      expect(reconciliado.criadoEm, equals('2026-01-01T10:00:00.000'));
+      expect(reconciliado.biografia, equals('Nova bio atualizada'));
+      expect(reconciliado.links, containsAll(['https://nous.org.br', 'https://coop.br']));
+      expect(reconciliado.coresPerfil['fundo'], equals('#112233'));
+      expect(reconciliado.coresPerfil['destaque'], equals('#AABBCC'));
+
+      // Em atualização explícita (priorizarOutro: true), edições sociais do remoto prevalecem,
+      // mas as validações comunitárias continuam unificadas sem perda.
+      final atualizado = local.mesclarCom(remoto, priorizarOutro: true);
+      expect(atualizado.verificado, isTrue);
+      expect(atualizado.totalValidacoes, equals(2));
+      expect(atualizado.biografia, equals('Nova bio atualizada'));
+      expect(atualizado.links, equals(['https://coop.br']));
+      expect(atualizado.coresPerfil, equals({'destaque': '#AABBCC'}));
+      expect(atualizado.chavePublica, equals('pub_ed25519_local'));
+    });
   });
 }

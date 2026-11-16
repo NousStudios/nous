@@ -194,7 +194,9 @@ class _PainelConversaAtivaWidgetState extends State<PainelConversaAtivaWidget> {
     final texto = _mensagemController.text.trim();
     if (texto.isEmpty) return;
     final conv = widget.controller.conversaSelecionada;
-    if (conv != null && widget.controller.ehSolicitacao(conv)) {
+    final contaLogada = context.read<AuthProvider>().contaAtual;
+    if (conv != null &&
+        widget.controller.ehSolicitacao(conv, contaLogada: contaLogada)) {
       widget.controller.aceitarSolicitacao(conv);
     }
     _mensagemController.clear();

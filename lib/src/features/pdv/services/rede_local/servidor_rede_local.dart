@@ -12,6 +12,7 @@ import 'package:nous/src/features/pdv/views/widgets/rede_local/dialog_autorizaca
 import 'package:nous/src/features/pdv/models/loja.dart';
 import 'package:nous/src/features/pdv/providers/pdv_provider.dart';
 import 'package:nous/src/features/pdv/services/lojas_service.dart';
+import 'package:nous/src/features/pdv/services/rede_local/helpers/delta_loja_helper.dart';
 import 'package:nous/src/features/pdv/services/rede_local/helpers/anunciador_udp_servidor.dart';
 import 'package:nous/src/features/pdv/services/rede_local/helpers/consolidador_conta_terminal.dart';
 import 'package:nous/src/features/pdv/services/rede_local/handlers/servidor_ws_upgrade_handler.dart';
@@ -568,15 +569,18 @@ class ServidorRedeLocal {
     }
   }
 
-  /// Notifica todos os terminais conectados que a loja foi alterada
+  /// Notifica todos os terminais conectados que a loja foi alterada.
+  /// Só atualiza `_lojaAtiva` se o servidor já estiver hospedando aquela mesma loja,
+  /// evitando sequestrar um servidor iniciado em Modo Usuário Nous.
   void notificarLojaAtualizada(Loja loja) {
     if (!ativo) return;
-    if (_lojaAtiva == null || _lojaAtiva!.id == loja.id) {
+    if (_lojaAtiva != null && _lojaAtiva!.id == loja.id) {
       _lojaAtiva = loja;
     }
+    final lojaCompacta = DeltaLojaHelper.compactarParaRede(loja);
     notificarTodos({
       'tipo': 'loja_atualizada',
-      'loja': loja.toJson(),
+      'loja': lojaCompacta.toJson(),
     });
     debugPrint(
       '[ServidorRedeLocal] Transmitida atualização da loja "${loja.nome}" para ${_clientesWs.length} terminais',

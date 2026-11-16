@@ -5,6 +5,7 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:nous/src/features/auth/models/usuario_nous.dart';
 import 'package:nous/src/features/auth/providers/auth_provider.dart';
+import 'package:nous/src/features/auth/services/contas_excluidas_service.dart';
 import 'package:nous/src/features/auth/services/contas_nous_service.dart';
 import 'package:nous/src/features/chat/services/resolvedor_foto_chat.dart';
 import 'package:nous/src/features/pdv/models/loja.dart';
@@ -32,56 +33,16 @@ class SincronizadorUsuariosRede {
   })  : _transferencia = transferencia ?? TransferenciaArquivosRede(),
         _reconciliador = reconciliador ?? ReconciliadorLojaRede();
 
-  /// Mescla duas fichas de usuário preservando dados preenchidos de ambas as pontas
+  /// Mescla duas fichas de usuário preservando dados preenchidos, validações
+  /// criptográficas, chaves e personalizações sociais de ambas as pontas.
   UsuarioNous mesclarUsuarios(UsuarioNous local, UsuarioNous remoto) {
-    return UsuarioNous(
-      cpf: local.cpf.isNotEmpty ? local.cpf : remoto.cpf,
-      nome: (local.nome.isNotEmpty && local.nome.toLowerCase() != 'blackview')
-          ? local.nome
-          : remoto.nome,
-      apelido: local.apelido.isNotEmpty ? local.apelido : remoto.apelido,
-      nomeDeUsuario: local.nomeDeUsuario.isNotEmpty
-          ? local.nomeDeUsuario
-          : remoto.nomeDeUsuario,
-      dataNascimento: local.dataNascimento.isNotEmpty
-          ? local.dataNascimento
-          : remoto.dataNascimento,
-      emails: {...local.emails, ...remoto.emails}.toList(),
-      foto: local.foto.isNotEmpty && ImagemService.existe(local.foto)
-          ? local.foto
-          : remoto.foto,
-      nomePai: local.nomePai.isNotEmpty ? local.nomePai : remoto.nomePai,
-      nomeMae: local.nomeMae.isNotEmpty ? local.nomeMae : remoto.nomeMae,
-      localNascimento: local.localNascimento.isNotEmpty
-          ? local.localNascimento
-          : remoto.localNascimento,
-      tipoSanguineo: local.tipoSanguineo.isNotEmpty
-          ? local.tipoSanguineo
-          : remoto.tipoSanguineo,
-      estadoCivil: local.estadoCivil.isNotEmpty
-          ? local.estadoCivil
-          : remoto.estadoCivil,
-      biografia:
-          local.biografia.isNotEmpty ? local.biografia : remoto.biografia,
-      nomePublico: local.nomePublico.isNotEmpty
-          ? local.nomePublico
-          : remoto.nomePublico,
-      apelidoPublico: local.apelidoPublico.isNotEmpty
-          ? local.apelidoPublico
-          : remoto.apelidoPublico,
-      fotoPublica: local.fotoPublica.isNotEmpty
-          ? local.fotoPublica
-          : remoto.fotoPublica,
-      dadosPrivados: local.dadosPrivados.isNotEmpty
-          ? local.dadosPrivados
-          : remoto.dadosPrivados,
-      dadosAutorizadosPorCpf: {
-        ...local.dadosAutorizadosPorCpf,
-        ...remoto.dadosAutorizadosPorCpf
-      }.toList(),
-      seguindo: {...local.seguindo, ...remoto.seguindo}.toList(),
-      seguidores: {...local.seguidores, ...remoto.seguidores}.toList(),
-    );
+    final mesclada = local.mesclarCom(remoto);
+    final fotoFinal = (local.foto.isNotEmpty && ImagemService.existe(local.foto))
+        ? local.foto
+        : (remoto.foto.isNotEmpty ? remoto.foto : mesclada.foto);
+    return fotoFinal == mesclada.foto
+        ? mesclada
+        : mesclada.copyWith(foto: fotoFinal);
   }
 
   /// Obtém o caminho físico existente e válido de uma foto local para um CPF específico
@@ -189,7 +150,7 @@ class SincronizadorUsuariosRede {
       final uri = ResolvedorUrlRede.montarUriHttp(
         hostOuIp: ipServidor,
         porta: portaServidor,
-        caminho: '/api/usuario/atualizar',
+        caminho: '/api/usuario',
       );
       final req = await client.postUrl(uri);
       req.headers.contentType = ContentType.json;
@@ -235,7 +196,8 @@ class SincronizadorUsuariosRede {
       if (resp.statusCode == HttpStatus.ok) {
         final body = await utf8.decodeStream(resp);
         final dados = jsonDecode(body) as Map<String, dynamic>;
-        if (dados['encontrado'] == true && dados['usuario'] != null) {
+        if ((dados['sucesso'] == true || dados['encontrado'] == true) &&
+            dados['usuario'] != null) {
           final usuarioRemoto =
               UsuarioNous.fromJson(dados['usuario'] as Map<String, dynamic>);
 
@@ -311,7 +273,8 @@ class SincronizadorUsuariosRede {
       if (resp.statusCode == HttpStatus.ok) {
         final body = await utf8.decodeStream(resp);
         final dados = jsonDecode(body) as Map<String, dynamic>;
-        if (dados['encontrado'] == true && dados['usuario'] != null) {
+        if ((dados['sucesso'] == true || dados['encontrado'] == true) &&
+            dados['usuario'] != null) {
           final usuarioRemoto =
               UsuarioNous.fromJson(dados['usuario'] as Map<String, dynamic>);
           final contaLocal = await ContasNousService.buscarPorCpf(cpf);
@@ -384,6 +347,48 @@ class SincronizadorUsuariosRede {
           final bodyUsuarios = await utf8.decodeStream(respUsuarios);
           final dadosUsuarios =
               jsonDecode(bodyUsuarios) as Map<String, dynamic>;
+
+          final listaExcluidos =
+              (dadosUsuarios['excluidos'] as List<dynamic>?) ?? [];
+          final cpfsExcluidosServidor = <String>{};
+          for (final ex in listaExcluidos) {
+            if (ex is Map<String, dynamic>) {
+              final reg = ContaExcluidaNous.fromMap(ex);
+              final cNorm = reg.cpf.replaceAll(RegExp(r'\D'), '');
+              if (cNorm.isNotEmpty) {
+                cpfsExcluidosServidor.add(cNorm);
+                await ContasExcluidasService.salvarRegistro(reg);
+              }
+            }
+          }
+
+          // Envia para o servidor eventuais exclusões locais que ele ainda não conhece
+          final excluidosLocais = await ContasExcluidasService.carregarTodas();
+          final faltantesNoServidor = excluidosLocais
+              .where((e) => !cpfsExcluidosServidor
+                  .contains(e.cpf.replaceAll(RegExp(r'\D'), '')))
+              .toList();
+          if (faltantesNoServidor.isNotEmpty) {
+            try {
+              final clientPostEx =
+                  HttpClient()..connectionTimeout = const Duration(seconds: 4);
+              final reqPostEx = await clientPostEx.postUrl(uriUsuarios);
+              reqPostEx.headers.contentType = ContentType.json;
+              reqPostEx.add(
+                utf8.encode(
+                  jsonEncode({
+                    'excluidos':
+                        faltantesNoServidor.map((e) => e.toJson()).toList(),
+                  }),
+                ),
+              );
+              await reqPostEx.close();
+            } catch (_) {}
+          }
+
+          await ContasNousService.varrerECorrigirBanco();
+          await authProvider?.carregarCacheContas();
+
           final listaUsuarios =
               (dadosUsuarios['usuarios'] as List<dynamic>?) ?? [];
           for (final uJson in listaUsuarios) {
@@ -594,15 +599,19 @@ class SincronizadorUsuariosRede {
   }
 
   static Future<void> _extrairContasNousDeLoja(Loja loja) async {
+    if (loja.id == 'loja_nous_coletiva') return;
     try {
       for (final m in loja.membros) {
         final mCpf = m.cpf.replaceAll(RegExp(r'\D'), '');
+        final nomeLower = m.nome.trim().toLowerCase();
         if (mCpf.length == 11) {
           final existente = await ContasNousService.buscarPorCpf(mCpf);
           if (existente == null &&
               m.nome.trim().isNotEmpty &&
-              m.nome.toLowerCase() != 'blackview' &&
-              m.nome.toLowerCase() != 'celular') {
+              nomeLower != 'blackview' &&
+              nomeLower != 'celular' &&
+              nomeLower != 'usuário nous' &&
+              nomeLower != 'usuario nous') {
             await ContasNousService.salvar(
               UsuarioNous(
                 cpf: mCpf,

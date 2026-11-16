@@ -186,32 +186,39 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
             final conta = authProvider.contaAtual;
             final mostrarGrupoConta = conta != null || onLogout != null;
 
-            return AlertDialog(
+            return Dialog(
               backgroundColor: currentTheme.cardBackgroundColor,
+              insetPadding: const EdgeInsets.all(16),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(16.0),
                 side: BorderSide(color: currentTheme.borderColor),
               ),
-              titlePadding:
-                  const EdgeInsets.fromLTRB(24.0, 24.0, 24.0, 8.0),
-              title: Text(
-                'Configurações',
-                textAlign: TextAlign.center,
-                style: currentTheme.getTextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                  color: currentTheme.textColor,
-                ),
-              ),
-              content: ConstrainedBox(
+              child: ConstrainedBox(
                 constraints: BoxConstraints(
-                  maxWidth: 500,
+                  maxWidth: 440,
                   maxHeight: MediaQuery.sizeOf(context).height * 0.85,
                 ),
-                child: SingleChildScrollView(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 20, 20, 12),
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
+                      Text(
+                        'Configurações',
+                        textAlign: TextAlign.center,
+                        style: currentTheme.getTextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: currentTheme.textColor,
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      Flexible(
+                        child: SingleChildScrollView(
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
                       ListTile(
                         leading: Icon(Icons.palette_outlined,
                             color: currentTheme.secondaryTextColor),
@@ -464,16 +471,22 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
               ),
             ),
           ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.of(context).pop(),
-                  child: Text(
-                    'Fechar',
-                    style: currentTheme.getTextStyle(
-                        color: currentTheme.secondaryTextColor),
+                      const SizedBox(height: 8),
+                      Align(
+                        alignment: Alignment.centerRight,
+                        child: TextButton(
+                          onPressed: () => Navigator.of(context).pop(),
+                          child: Text(
+                            'Fechar',
+                            style: currentTheme.getTextStyle(
+                                color: currentTheme.secondaryTextColor),
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-              ],
+              ),
             );
           },
         );
@@ -511,7 +524,8 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
                         !notificacoes.estaDispensadaNaSessao('convite_${c.id}'))
                     .length
                 : 0;
-            final totalEstoqueBaixo = (lojaId == null)
+            final ehLojaColetiva = lojaId == PdvProvider.idLojaColetivaNous;
+            final totalEstoqueBaixo = (lojaId == null || ehLojaColetiva)
                 ? 0
                 : pdv
                     .itensEstoqueBaixoPorLoja(lojaId!)

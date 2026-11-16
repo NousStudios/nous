@@ -12,6 +12,7 @@ import 'package:nous/src/features/chat/models/mensagem_chat.dart';
 import 'package:nous/src/features/chat/services/chat_service.dart';
 import 'package:nous/src/features/chat/services/mensageria_acoes_delegate.dart';
 import 'package:nous/src/features/chat/services/montador_conversas_chat.dart';
+import 'package:nous/src/features/chat/services/notificacao_android_service.dart';
 import 'package:nous/src/features/chat/services/resolvedor_foto_chat.dart';
 import 'package:nous/src/features/pdv/providers/pdv_provider.dart';
 import 'package:nous/src/features/pdv/services/rede_local/cliente_rede_local.dart';
@@ -399,7 +400,7 @@ class MensageriaController extends ChangeNotifier {
       unawaited(ChatService.marcarComoLidas(
         _conversaSelecionada!.id,
         idVisualizador,
-        notificar: false,
+        notificar: true,
       ));
     }
 
@@ -514,6 +515,15 @@ class MensageriaController extends ChangeNotifier {
       if (_conversaSelecionada?.id == convId) {
         _conversaSelecionada = conversa;
       }
+      final meuNorm = ChatService.normalizarCpf(usuarioCpf ?? '');
+      if (!modoLoja &&
+          meuNorm.isNotEmpty &&
+          msgs.any((m) => ChatService.normalizarCpf(m.remetenteId) == meuNorm)) {
+        unawaited(MensageriaSolicitacoesHelper.aceitarSolicitacao(
+          conversaId: convId,
+          meuCpf: meuNorm,
+        ));
+      }
       ChatService.despacharConversaAtualizada(conversa);
       await marcarComoLida(conversa);
       if (!_disposed) {
@@ -542,6 +552,7 @@ class MensageriaController extends ChangeNotifier {
     );
     _conversaSelecionada = conversaAtualizada;
     ChatService.idConversaAtiva = c.id;
+    NotificacaoAndroidService.cancelarNotificacaoConversa(c.id);
 
     final idx = _conversas.indexWhere((item) => item.id == c.id);
     if (idx != -1) {
@@ -675,10 +686,11 @@ class MensageriaController extends ChangeNotifier {
   }
 
   Future<void> marcarComoLida(ConversaChat conversa) async {
+    NotificacaoAndroidService.cancelarNotificacaoConversa(conversa.id);
     await ChatService.marcarComoLidas(
       conversa.id,
       idVisualizador,
-      notificar: false,
+      notificar: true,
     );
     if (_disposed) return;
     final idx = _conversas.indexWhere((c) => c.id == conversa.id);

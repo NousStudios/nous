@@ -115,6 +115,21 @@ class ContasExcluidasService {
     return rows.map(ContaExcluidaNous.fromMap).toList();
   }
 
+  static Future<bool> estaExcluido(String cpf) async {
+    final cpfLimpo = CpfValidator.onlyDigits(cpf);
+    if (cpfLimpo.isEmpty) return false;
+    final db = await BancoDadosService.db;
+    await _garantirTabela(db);
+    final rows = await db.query(
+      'contas_excluidas_nous',
+      columns: ['cpf'],
+      where: 'cpf = ?',
+      whereArgs: [cpfLimpo],
+      limit: 1,
+    );
+    return rows.isNotEmpty;
+  }
+
   static Future<void> removerPorCpf(String cpf) async {
     final cpfLimpo = CpfValidator.onlyDigits(cpf);
     if (cpfLimpo.isEmpty) return;

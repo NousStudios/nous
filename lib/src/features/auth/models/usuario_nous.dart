@@ -5,6 +5,7 @@ class UsuarioNous {
   final String nomeDeUsuario;
   final String dataNascimento;
   final List<String> emails;
+  final List<String> emailsVerificados;
   final String foto;
   final String nomePai;
   final String nomeMae;
@@ -38,6 +39,7 @@ class UsuarioNous {
     this.nomeDeUsuario = '',
     required this.dataNascimento,
     this.emails = const [],
+    this.emailsVerificados = const [],
     this.foto = '',
     this.nomePai = '',
     this.nomeMae = '',
@@ -204,12 +206,19 @@ class UsuarioNous {
     return seguindo.any((s) => s.replaceAll(RegExp(r'\D'), '') == limpo);
   }
 
+  bool emailEstaVerificado(String email) {
+    final norm = email.trim().toLowerCase();
+    if (norm.isEmpty) return false;
+    return emailsVerificados.any((e) => e.trim().toLowerCase() == norm);
+  }
+
   UsuarioNous copyWith({
     String? nome,
     String? apelido,
     String? nomeDeUsuario,
     String? dataNascimento,
     List<String>? emails,
+    List<String>? emailsVerificados,
     String? foto,
     String? nomePai,
     String? nomeMae,
@@ -243,6 +252,7 @@ class UsuarioNous {
       nomeDeUsuario: nomeDeUsuario ?? this.nomeDeUsuario,
       dataNascimento: dataNascimento ?? this.dataNascimento,
       emails: emails ?? this.emails,
+      emailsVerificados: emailsVerificados ?? this.emailsVerificados,
       foto: foto ?? this.foto,
       nomePai: nomePai ?? this.nomePai,
       nomeMae: nomeMae ?? this.nomeMae,
@@ -281,6 +291,7 @@ class UsuarioNous {
       'nomeDeUsuario': nomeDeUsuario,
       'dataNascimento': dataNascimento,
       'emails': emails,
+      'emailsVerificados': emailsVerificados,
       'foto': foto,
       'nomePai': nomePai,
       'nomeMae': nomeMae,
@@ -319,6 +330,10 @@ class UsuarioNous {
       emails: (json['emails'] as List<dynamic>? ?? const [])
           .map((item) => item as String)
           .toList(),
+      emailsVerificados:
+          (json['emailsVerificados'] as List<dynamic>? ?? const [])
+              .map((item) => item.toString())
+              .toList(),
       foto: json['foto'] as String? ?? '',
       nomePai: json['nomePai'] as String? ?? '',
       nomeMae: json['nomeMae'] as String? ?? '',
@@ -376,6 +391,118 @@ class UsuarioNous {
             (k, v) => MapEntry(k.toString(), v?.toString() ?? ''),
           ) ??
           const {},
+    );
+  }
+
+  /// Mescla esta ficha com outra recebida da rede sem perder validações,
+  /// chaves criptográficas ou personalizações do perfil social.
+  /// Quando [priorizarOutro] é true (ex.: evento em tempo real ou POST de
+  /// atualização explícita), edições feitas em [outro] prevalecem nos campos
+  /// mutáveis (bio, links, cores, privacidade, seguindo/seguidores).
+  UsuarioNous mesclarCom(UsuarioNous outro, {bool priorizarOutro = false}) {
+    String escolher(String localVal, String outroVal, {bool permitirVazioNoOutro = false}) {
+      if (priorizarOutro) {
+        if (permitirVazioNoOutro) return outroVal;
+        return outroVal.isNotEmpty ? outroVal : localVal;
+      }
+      return localVal.isNotEmpty ? localVal : outroVal;
+    }
+
+    // União deduplicada de validações por CPF do validador (ou cpf_dataHora).
+    final mapaVal = <String, Map<String, String>>{};
+    for (final v in [...validacoes, ...outro.validacoes]) {
+      final cpfVal = (v['cpf'] ?? '').replaceAll(RegExp(r'\D'), '');
+      final chave = cpfVal.isNotEmpty ? cpfVal : '${v['cpf'] ?? ''}_${v['dataHora'] ?? ''}';
+      final anterior = mapaVal[chave];
+      if (anterior == null ||
+          ((anterior['assinatura'] ?? '').isEmpty &&
+              (v['assinatura'] ?? '').isNotEmpty)) {
+        mapaVal[chave] = Map<String, String>.from(v);
+      }
+    }
+    final validacoesMescladas = mapaVal.values.toList();
+    final verificadoFinal =
+        verificado || outro.verificado || validacoesMescladas.isNotEmpty;
+
+    final nomeFinal = priorizarOutro
+        ? ((outro.nome.isNotEmpty && outro.nome.toLowerCase() != 'blackview')
+            ? outro.nome
+            : nome)
+        : ((nome.isNotEmpty && nome.toLowerCase() != 'blackview')
+            ? nome
+            : outro.nome);
+
+    final validadoPorCpfFinal = validadoPorCpf.isNotEmpty
+        ? validadoPorCpf
+        : (outro.validadoPorCpf.isNotEmpty
+            ? outro.validadoPorCpf
+            : (validacoesMescladas.isNotEmpty
+                ? (validacoesMescladas.first['cpf'] ?? '')
+                : ''));
+    final validadoPorNomeFinal = validadoPorNome.isNotEmpty
+        ? validadoPorNome
+        : (outro.validadoPorNome.isNotEmpty
+            ? outro.validadoPorNome
+            : (validacoesMescladas.isNotEmpty
+                ? (validacoesMescladas.first['nome'] ?? '')
+                : ''));
+    final validadoEmFinal = validadoEm.isNotEmpty
+        ? validadoEm
+        : (outro.validadoEm.isNotEmpty
+            ? outro.validadoEm
+            : (validacoesMescladas.isNotEmpty
+                ? (validacoesMescladas.first['dataHora'] ?? '')
+                : ''));
+
+    return UsuarioNous(
+      cpf: cpf.isNotEmpty ? cpf : outro.cpf,
+      nome: nomeFinal,
+      apelido: escolher(apelido, outro.apelido, permitirVazioNoOutro: true),
+      nomeDeUsuario: escolher(nomeDeUsuario, outro.nomeDeUsuario, permitirVazioNoOutro: true),
+      dataNascimento: escolher(dataNascimento, outro.dataNascimento),
+      emails: priorizarOutro
+          ? (outro.emails.isNotEmpty ? outro.emails : emails)
+          : {...emails, ...outro.emails}.toList(),
+      emailsVerificados:
+          {...emailsVerificados, ...outro.emailsVerificados}.toList(),
+      foto: escolher(foto, outro.foto),
+      nomePai: escolher(nomePai, outro.nomePai),
+      nomeMae: escolher(nomeMae, outro.nomeMae),
+      localNascimento: escolher(localNascimento, outro.localNascimento),
+      tipoSanguineo: escolher(tipoSanguineo, outro.tipoSanguineo),
+      estadoCivil: escolher(estadoCivil, outro.estadoCivil),
+      biografia: escolher(biografia, outro.biografia, permitirVazioNoOutro: true),
+      nomePublico: escolher(nomePublico, outro.nomePublico, permitirVazioNoOutro: true),
+      apelidoPublico: escolher(apelidoPublico, outro.apelidoPublico, permitirVazioNoOutro: true),
+      fotoPublica: escolher(fotoPublica, outro.fotoPublica, permitirVazioNoOutro: true),
+      dadosPrivados: priorizarOutro ? outro.dadosPrivados : dadosPrivados,
+      dadosAutorizadosPorCpf: priorizarOutro
+          ? outro.dadosAutorizadosPorCpf
+          : {...dadosAutorizadosPorCpf, ...outro.dadosAutorizadosPorCpf}.toList(),
+      seguindo: priorizarOutro
+          ? outro.seguindo
+          : {...seguindo, ...outro.seguindo}.toList(),
+      seguidores: priorizarOutro
+          ? outro.seguidores
+          : {...seguidores, ...outro.seguidores}.toList(),
+      chavePublica: escolher(chavePublica, outro.chavePublica),
+      chaveTrocaPublica: escolher(chaveTrocaPublica, outro.chaveTrocaPublica),
+      quemPodeEnviarMensagens: escolher(
+        quemPodeEnviarMensagens,
+        outro.quemPodeEnviarMensagens,
+      ),
+      criadoEm: criadoEm.isNotEmpty ? criadoEm : outro.criadoEm,
+      validadoPorCpf: validadoPorCpfFinal,
+      validadoPorNome: validadoPorNomeFinal,
+      validadoEm: validadoEmFinal,
+      verificado: verificadoFinal,
+      validacoes: validacoesMescladas,
+      links: priorizarOutro
+          ? outro.links
+          : {...links, ...outro.links}.toList(),
+      coresPerfil: priorizarOutro
+          ? outro.coresPerfil
+          : {...outro.coresPerfil, ...coresPerfil},
     );
   }
 }

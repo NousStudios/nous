@@ -3,7 +3,7 @@ description: "Um novo projeto Flutter."
 
 publish_to: 'none'
 
-version: 1.1.16+118
+version: 1.1.21+123
 
 environment:
   sdk: ^3.11.4
@@ -31,6 +31,7 @@ dependencies:
   record: ^7.1.2
   flutter_webrtc: ^1.6.3
   cryptography: ^2.9.0
+  url_launcher: ^6.3.3
 
 dev_dependencies:
   flutter_test:

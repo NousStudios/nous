@@ -53,7 +53,10 @@ class ComunidadeChatService {
         if (!participa) continue;
       }
 
-      final msgs = await ChatService.carregarMensagens(convId);
+      final msgs = await ChatService.carregarMensagens(
+        convId,
+        idVisualizador: cpfUsuario,
+      );
       resultado.add(
         ConversaChat(
           id: convId,

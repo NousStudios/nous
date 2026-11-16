@@ -44,10 +44,7 @@ class PersistenciaLojaHelper {
 
   static void notificarLojaAtualizada(Loja loja) {
     if (ServidorRedeLocal().ativo) {
-      ServidorRedeLocal().notificarTodos({
-        'tipo': 'loja_atualizada',
-        'loja': loja.toJson(),
-      });
+      ServidorRedeLocal().notificarLojaAtualizada(loja);
     }
 
     if (ClienteRedeLocal().conectado &&

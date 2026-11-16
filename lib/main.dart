@@ -43,7 +43,9 @@ Future<void> main() async {
 
   // Consolida e unifica imagens de pastas legadas em segundo plano
   ImagemService.unificarDiretoriosImagens();
-  LojasService.autocuraImagensDeLojas();
+  LojasService.autocuraImagensDeLojas().then((_) {
+    ImagemService.limparMidiasRemotasOrfas();
+  });
 
   // Inicializa o serviço de notificações nativas no Android
   NotificacaoAndroidService.inicializar();

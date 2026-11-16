@@ -253,7 +253,13 @@ class _BlocoTrabalhadoresStatusWidgetState
             ),
           ],
           const SizedBox(height: 12),
-          if (membros.isEmpty)
+          if (auth.modoVisitante)
+            EstadoVazioContainer(
+              theme: theme,
+              mensagem:
+                  'A identidade dos integrantes desta loja fica oculta no Modo Visitante.',
+            )
+          else if (membros.isEmpty)
             EstadoVazioContainer(
               theme: theme,
               mensagem: msgVazia,
@@ -336,22 +342,29 @@ class _LinhaTrabalhadorStatusWidgetState
   void _abrirMensagens(BuildContext context, String foto, String? apelido) {
     final pdv = context.read<PdvProvider>();
     final loja = pdv.buscarPorId(widget.lojaId);
+    final ehPessoal = widget.lojaId == PdvProvider.idLojaColetivaNous ||
+        widget.lojaId == ChatService.idLojaColetivaNous;
     Navigator.of(context).push(
       MaterialPageRoute(
         builder: (context) => MensageriaView(
-          modoLoja: true,
-          lojaId: widget.lojaId,
-          nomeLoja: loja?.nome,
-          logoLoja: loja?.logo,
+          modoLoja: !ehPessoal,
+          lojaId: ehPessoal ? null : widget.lojaId,
+          nomeLoja: ehPessoal ? null : loja?.nome,
+          logoLoja: ehPessoal ? null : loja?.logo,
           operadorCpf: widget.cpfLogado,
           usuarioCpf: widget.membro.cpf,
           usuarioNome: widget.membro.nome,
           usuarioFoto: foto,
           usuarioApelido: apelido ?? '',
-          conversaInicialId: ChatService.conversaIdLojaUsuario(
-            widget.lojaId,
-            widget.membro.cpf,
-          ),
+          conversaInicialId: ehPessoal
+              ? ChatService.conversaIdEntreUsuarios(
+                  widget.cpfLogado,
+                  widget.membro.cpf,
+                )
+              : ChatService.conversaIdLojaUsuario(
+                  widget.lojaId,
+                  widget.membro.cpf,
+                ),
         ),
       ),
     );
@@ -487,6 +500,9 @@ class _LinhaTrabalhadorStatusWidgetState
     final contaMembro = auth.buscarContaPorCpf(membro.cpf);
     final ehEuMesmo = ChatService.normalizarCpf(widget.cpfLogado) ==
         ChatService.normalizarCpf(membro.cpf);
+    final ehLojaColetivaNous =
+        widget.lojaId == PdvProvider.idLojaColetivaNous ||
+            widget.lojaId == ChatService.idLojaColetivaNous;
 
     // Hierarquia Soberana de Identidade
     final nomeExibido = contaMembro?.nomeExibicaoPara(
@@ -502,9 +518,13 @@ class _LinhaTrabalhadorStatusWidgetState
             .where((c) => c.id == membro.cargoPersonalizadoId)
             .firstOrNull
         : null;
-    final rotuloCargo = cargoPers != null
-        ? '${_rotuloPapel(membro.papel)} (${cargoPers.nome})'
-        : _rotuloPapel(membro.papel);
+    final rotuloCargo = ehLojaColetivaNous
+        ? (membro.cargoPersonalizadoId == 'desenvolvedor'
+            ? 'Cidadão Nous • Desenvolvedor'
+            : 'Cidadão Nous')
+        : (cargoPers != null
+            ? '${_rotuloPapel(membro.papel)} (${cargoPers.nome})'
+            : _rotuloPapel(membro.papel));
 
     Widget construirBotoesAcao() {
       return Row(
@@ -538,22 +558,24 @@ class _LinhaTrabalhadorStatusWidgetState
               }
             },
           ),
-          const SizedBox(width: 2),
-          IconButton(
-            icon: Icon(
-              _mostrarPontoEEscala
-                  ? Icons.expand_less_rounded
-                  : Icons.schedule_rounded,
-              size: 16,
-              color: _mostrarPontoEEscala ? theme.textColor : theme.secondaryTextColor,
+          if (!ehLojaColetivaNous) ...[
+            const SizedBox(width: 2),
+            IconButton(
+              icon: Icon(
+                _mostrarPontoEEscala
+                    ? Icons.expand_less_rounded
+                    : Icons.schedule_rounded,
+                size: 16,
+                color: _mostrarPontoEEscala ? theme.textColor : theme.secondaryTextColor,
+              ),
+              tooltip: 'Horários e Escala de Trabalho',
+              padding: const EdgeInsets.all(4),
+              constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+              onPressed: () {
+                setState(() => _mostrarPontoEEscala = !_mostrarPontoEEscala);
+              },
             ),
-            tooltip: 'Horários e Escala de Trabalho',
-            padding: const EdgeInsets.all(4),
-            constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
-            onPressed: () {
-              setState(() => _mostrarPontoEEscala = !_mostrarPontoEEscala);
-            },
-          ),
+          ],
         ],
       );
     }
@@ -821,8 +843,9 @@ class _LinhaTrabalhadorStatusWidgetState
                 ],
               ),
             ],
-            // Gaveta de Horários e Escala de Trabalho
-            if (_mostrarPontoEEscala) _secaoPontoEEscala(context),
+            // Gaveta de Horários e Escala de Trabalho (apenas em lojas comerciais)
+            if (!ehLojaColetivaNous && _mostrarPontoEEscala)
+              _secaoPontoEEscala(context),
           ],
         ),
       ),

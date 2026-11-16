@@ -41,10 +41,12 @@ import 'package:nous/src/features/pdv/providers/helpers/pdv_gestao_loja_helper.d
 class PdvProvider extends ChangeNotifier {
   final List<Loja> _lojas = [];
   String? _cpfAtual;
+  bool _modoVisitante = false;
   bool _layoutDesktopGlobal = false;
   String _tipoLayoutDesktopGlobal = 'balcao_operacional';
 
   String? get cpfAtual => _cpfAtual;
+  bool get modoVisitante => _modoVisitante;
   List<Loja> get lojas => List.unmodifiable(_lojas);
   bool get layoutDesktopGlobal => _layoutDesktopGlobal;
   String get tipoLayoutDesktopGlobal => _tipoLayoutDesktopGlobal;
@@ -148,6 +150,7 @@ class PdvProvider extends ChangeNotifier {
       PdvPermissoesHelper.podeExcluirLoja(buscarPorId(lojaId), _cpfAtual);
 
   Future<void> entrarComCpf(String cpf) async {
+    _modoVisitante = false;
     _cpfAtual = cpf;
     final lojasCompletas = await PdvLojasCofreHelper.carregarLojasCompletas(cpf);
     _lojas
@@ -197,9 +200,28 @@ class PdvProvider extends ChangeNotifier {
     }
   }
 
-  void entrarComoVisitante() => limparSessao();
+  Future<void> entrarComoVisitante() async {
+    _modoVisitante = true;
+    _cpfAtual = null;
+    _lojas.clear();
+    notifyListeners();
+
+    try {
+      final lojasPublicas =
+          await LojasService.carregarTodasComerciaisParaVisitante();
+      if (_modoVisitante) {
+        _lojas
+          ..clear()
+          ..addAll(lojasPublicas);
+        notifyListeners();
+      }
+    } catch (e) {
+      debugPrint('[PdvProvider] Erro ao carregar lojas para visitante: $e');
+    }
+  }
 
   void limparSessao() {
+    _modoVisitante = false;
     _cpfAtual = null;
     _lojas.clear();
     notifyListeners();

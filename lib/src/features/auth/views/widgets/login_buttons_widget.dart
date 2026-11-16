@@ -97,9 +97,10 @@ class LoginButtonsWidget extends StatelessWidget {
     );
   }
 
-  void _entrarComoVisitante(BuildContext context) {
-    context.read<AuthProvider>().sair();
-    context.read<PdvProvider>().entrarComoVisitante();
+  Future<void> _entrarComoVisitante(BuildContext context) async {
+    context.read<AuthProvider>().entrarComoVisitante();
+    await context.read<PdvProvider>().entrarComoVisitante();
+    if (!context.mounted) return;
     context.read<NotificacoesProvider>().limpar();
     Navigator.pushAndRemoveUntil(
       context,

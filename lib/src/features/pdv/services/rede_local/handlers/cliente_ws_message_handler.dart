@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
+import 'package:nous/src/core/services/criptografia_service.dart';
 import 'package:nous/src/core/utils/json_isolate_utils.dart';
 import 'package:nous/src/features/auth/models/usuario_nous.dart';
 import 'package:nous/src/features/auth/providers/auth_provider.dart';
@@ -229,6 +230,22 @@ class ClienteWsMessageHandler {
         return;
       }
 
+      if (tipo == 'chaves_proprias_cpf') {
+        final cpfRecebido = ChatService.normalizarCpf(dados['cpf']?.toString() ?? '');
+        final cpfLocal = ChatService.normalizarCpf(
+          ctx.authProvider?.contaAtual?.cpf ?? ctx.authProvider?.cpf ?? '',
+        );
+        final pacote = dados['pacote'];
+        if (cpfRecebido.isNotEmpty &&
+            cpfRecebido == cpfLocal &&
+            pacote is Map) {
+          await CriptografiaService.importarChavesDoCpf(
+            Map<String, dynamic>.from(pacote),
+          );
+        }
+        return;
+      }
+
       if (tipo == 'convite_loja_removido') {
         final cpf = dados['cpf'] as String?;
         final conviteId = dados['conviteId'] as String?;
@@ -352,6 +369,60 @@ class ClienteWsMessageHandler {
           .toList();
       ctx.curarFotosUsuariosAusentesNoServidor(ausentes);
     }
+
+    if (dados['contasSincronizadas'] is List) {
+      await _mesclarContasSincronizadas(
+        dados['contasSincronizadas'] as List<dynamic>,
+        ctx,
+      );
+    }
+  }
+
+  static Future<void> _mesclarContasSincronizadas(
+    List<dynamic> contasJson,
+    ClienteWsContext ctx,
+  ) async {
+    var houveMudanca = false;
+    for (final item in contasJson) {
+      if (item is! Map<String, dynamic>) continue;
+      try {
+        var remota = UsuarioNous.fromJson(item);
+        if (remota.cpf.trim().isEmpty) continue;
+        if (await ContasExcluidasService.estaExcluido(remota.cpf)) continue;
+
+        final local = await ContasNousService.buscarPorCpf(remota.cpf);
+        if (local == null) {
+          if (remota.foto.isNotEmpty) {
+            final novaFoto = await ctx.baixarImagemRemota(remota.foto);
+            remota = remota.copyWith(foto: novaFoto);
+          }
+          await ContasNousService.salvar(remota);
+          ctx.authProvider?.atualizarContaNoCache(remota);
+          houveMudanca = true;
+          continue;
+        }
+
+        final fotoFinal = (local.foto.isNotEmpty && ImagemService.existe(local.foto))
+            ? local.foto
+            : (remota.foto.isNotEmpty
+                ? await ctx.baixarImagemRemota(remota.foto)
+                : '');
+
+        final mesclada = local
+            .mesclarCom(remota, priorizarOutro: true)
+            .copyWith(foto: fotoFinal);
+
+        await ContasNousService.salvar(mesclada);
+        ctx.authProvider?.atualizarContaNoCache(mesclada);
+        houveMudanca = true;
+      } catch (e) {
+        debugPrint('[ClienteRedeLocal] Erro ao mesclar conta sincronizada: $e');
+      }
+    }
+    if (houveMudanca) {
+      await ctx.authProvider?.carregarCacheContas();
+      ctx.pdvProvider?.notificarMudanca();
+    }
   }
 
   static void _processarPedido(Map<String, dynamic> dados, ClienteWsContext ctx) {
@@ -473,13 +544,20 @@ class ClienteWsMessageHandler {
         }
 
         final local = await ContasNousService.buscarPorCpf(usuarioRemoto.cpf);
-        if (local != null &&
-            local.foto.isNotEmpty &&
-            ImagemService.existe(local.foto) &&
-            (usuarioRemoto.foto.isEmpty || !ImagemService.existe(usuarioRemoto.foto))) {
-          usuarioRemoto = usuarioRemoto.copyWith(foto: local.foto);
+        if (local != null) {
+          final fotoLocalValida =
+              local.foto.isNotEmpty && ImagemService.existe(local.foto);
+          final fotoRemotaValida = usuarioRemoto.foto.isNotEmpty &&
+              ImagemService.existe(usuarioRemoto.foto);
+          usuarioRemoto = local.mesclarCom(usuarioRemoto, priorizarOutro: true);
+          if (!fotoRemotaValida && fotoLocalValida) {
+            usuarioRemoto = usuarioRemoto.copyWith(foto: local.foto);
+          }
         }
 
+        if (await ContasExcluidasService.estaExcluido(usuarioRemoto.cpf)) {
+          return;
+        }
         await ContasNousService.salvar(usuarioRemoto);
         ctx.authProvider?.atualizarContaNoCache(usuarioRemoto);
         ctx.pdvProvider?.notificarMudanca();

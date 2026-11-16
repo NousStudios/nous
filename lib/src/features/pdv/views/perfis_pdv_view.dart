@@ -58,6 +58,63 @@ class _PerfisPdvViewState extends State<PerfisPdvView> {
     });
   }
 
+  Future<void> _aoTentarCriarPerfil(BuildContext context, AppTheme theme) async {
+    final auth = context.read<AuthProvider>();
+    if (auth.modoVisitante) {
+      await showDialog<void>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          backgroundColor: theme.cardBackgroundColor,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(14),
+            side: BorderSide(color: theme.borderColor),
+          ),
+          title: Text(
+            'Modo Visitante',
+            style: theme.getTextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.bold,
+              color: theme.textColor,
+            ),
+          ),
+          content: Text(
+            'Você está no modo visitante. Entre com sua Conta Nous para criar ou administrar uma loja.',
+            style: theme.getTextStyle(
+              fontSize: 13,
+              color: theme.secondaryTextColor,
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(),
+              child: Text(
+                'Entendi',
+                style: theme.getTextStyle(color: theme.secondaryTextColor),
+              ),
+            ),
+            TextButton(
+              onPressed: () {
+                Navigator.of(ctx).pop();
+                auth.sair();
+                context.read<PdvProvider>().limparSessao();
+                _handleLogout(context);
+              },
+              child: Text(
+                'Fazer Login',
+                style: theme.getTextStyle(
+                  fontWeight: FontWeight.bold,
+                  color: theme.textColor,
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+      return;
+    }
+    showCriarPerfilDialog(context);
+  }
+
   void _handleLogout(BuildContext context) {
     Navigator.of(context).pushAndRemoveUntil(
       MaterialPageRoute(builder: (context) => const LoginView()),
@@ -143,26 +200,39 @@ class _PerfisPdvViewState extends State<PerfisPdvView> {
         child: ValueListenableBuilder<AppTheme>(
           valueListenable: ThemeController.currentTheme,
           builder: (context, theme, child) {
+            final authProvider = context.watch<AuthProvider>();
+            final ehVisitante = authProvider.modoVisitante;
+            final ehIsolado = authProvider.perfilIsolado;
+            final lojasVisiveisAdmin = ehVisitante
+                ? pdvProvider.lojas
+                    .where((l) => l.id != PdvProvider.idLojaColetivaNous)
+                    .toList()
+                : pdvProvider.lojasQueAdministro;
+
             final larguraDaTela = MediaQuery.sizeOf(context).width;
             final expandido =
                 pdvProvider.layoutDesktopGlobal && larguraDaTela > 850;
 
             final blocoAdministro = _blocoComTitulo(
               theme: theme,
-              titulo: 'Meus Perfis Profissionais',
+              titulo: ehVisitante
+                  ? 'Lojas na Rede (Modo Visitante)'
+                  : 'Meus Perfis Profissionais',
               conteudo: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  if (pdvProvider.lojasQueAdministro.isEmpty)
+                  if (lojasVisiveisAdmin.isEmpty)
                     EstadoVazioContainer(
                       theme: theme,
-                      mensagem: 'Nenhum perfil profissional ainda.',
+                      mensagem: ehVisitante
+                          ? 'Nenhuma loja disponível na rede local ainda.'
+                          : 'Nenhum perfil profissional ainda.',
                     )
                   else
                     _wrapDeLojas(
                       context: context,
                       theme: theme,
-                      lojas: pdvProvider.lojasQueAdministro,
+                      lojas: lojasVisiveisAdmin,
                     ),
                   const SizedBox(height: 16),
                   Center(
@@ -178,9 +248,7 @@ class _PerfisPdvViewState extends State<PerfisPdvView> {
                           borderRadius: BorderRadius.circular(10),
                         ),
                       ),
-                      onPressed: () {
-                        showCriarPerfilDialog(context);
-                      },
+                      onPressed: () => _aoTentarCriarPerfil(context, theme),
                       icon: Icon(
                         Icons.add,
                         color: theme.textColor,
@@ -215,10 +283,47 @@ class _PerfisPdvViewState extends State<PerfisPdvView> {
                     ),
             );
 
+            final bannerAvisoModo = (ehVisitante || ehIsolado)
+                ? Container(
+                    margin: const EdgeInsets.only(bottom: 16),
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: theme.cardBackgroundColor,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: theme.borderColor.withValues(alpha: 0.7),
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(
+                          ehVisitante
+                              ? Icons.visibility_outlined
+                              : Icons.shield_outlined,
+                          size: 20,
+                          color: theme.secondaryTextColor,
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            ehVisitante
+                                ? 'Você está no Modo Visitante: pode explorar as lojas da rede, mas as identidades dos usuários ficam ocultas.'
+                                : 'Perfil em Modo Isolado: você pode criar e configurar sua loja normalmente. A interação com outros usuários será liberada após a primeira verificação.',
+                            style: theme.getTextStyle(
+                              fontSize: 12,
+                              color: theme.secondaryTextColor,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  )
+                : const SizedBox.shrink();
+
             return Scaffold(
               backgroundColor: theme.backgroundColor,
               appBar: CustomAppBar(
-                title: 'Meus Perfis',
+                title: ehVisitante ? 'Explorar (Visitante)' : 'Meus Perfis',
                 showBackButton: false,
                 onLogout: () => _handleLogout(context),
               ),
@@ -237,31 +342,39 @@ class _PerfisPdvViewState extends State<PerfisPdvView> {
                                   : _larguraMaximaConteudo,
                             ),
                             child: SingleChildScrollView(
-                              child: expandido
-                                  ? Row(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      children: [
-                                        Expanded(
-                                          flex: 5,
-                                          child: blocoAdministro,
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.stretch,
+                                children: [
+                                  bannerAvisoModo,
+                                  expandido && !ehVisitante
+                                      ? Row(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
+                                            Expanded(
+                                              flex: 5,
+                                              child: blocoAdministro,
+                                            ),
+                                            const SizedBox(width: 16),
+                                            Expanded(
+                                              flex: 5,
+                                              child: blocoParticipo,
+                                            ),
+                                          ],
+                                        )
+                                      : Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.stretch,
+                                          children: [
+                                            blocoAdministro,
+                                            if (!ehVisitante) ...[
+                                              const SizedBox(height: 16),
+                                              blocoParticipo,
+                                            ],
+                                          ],
                                         ),
-                                        const SizedBox(width: 16),
-                                        Expanded(
-                                          flex: 5,
-                                          child: blocoParticipo,
-                                        ),
-                                      ],
-                                    )
-                                  : Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.stretch,
-                                      children: [
-                                        blocoAdministro,
-                                        const SizedBox(height: 16),
-                                        blocoParticipo,
-                                      ],
-                                    ),
+                                ],
+                              ),
                             ),
                           ),
                         ),
