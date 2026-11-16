@@ -32,12 +32,13 @@ Dois estados mudam o comportamento de várias telas:
 - **Botão "Entrar"**: abre primeiramente o diálogo de **Sincronização em Rede Wi-Fi** (`SincronizacaoRedeDialog`). Ao se conectar ao balcão ou continuar, consulta a conta na rede local. Se for uma conta totalmente nova sem registro, abre `CadastrarNomeUsuarioDialog` para escolha do `@username` soberano e, em seguida, o diálogo completo de Onboarding (`DialogOnboardingIdentidadeNous`), onde o cidadão personaliza foto, nome, apelido, biografia e as **Regras de Transparência** iniciais de sua nova conta. Se for conta antiga sem `@username`, solicita o nome de usuário. Em seguida, avança para a tela de triagem de e-mails (`ContasUsuarioView`).
 - **Ao digitar um CPF que já existe** (neste aparelho ou em outro da rede): recupera nome, nome de usuário, data de nascimento e foto via Wi-Fi do balcão. Se faltar nome de usuário, solicita a criação imediata.
 - **Ao digitar um CPF novo** (sem ficha em lugar nenhum): abre `CadastrarNomeUsuarioDialog` pedindo o **Nome de Usuário (@)** e em seguida `DialogOnboardingIdentidadeNous` para configuração soberana de foto, nome civil, apelido e visibilidade de dados pessoais. Ao confirmar, cria a conta Nous com o par de chaves assimétricas Ed25519 e X25519, registra o selo de verificação comunitária e associa o cidadão como membro sócio da loja coletiva "Nous". 📄 `auth/views/dialogs/dialog_onboarding_identidade_nous.dart`
-- Outras telas de acesso: `terms_view.dart` (termos de uso), `adicionar_email_dialog.dart` (adicionar e-mail à conta).
+- **Botão "Entrar como visitante"**: abre `PerfisPdvView` em **Modo Visitante** sem CPF nem e-mail, exibindo apenas lojas comerciais públicas da rede; tocar em qualquer loja abre a **Vitrine da Loja** (`VitrineLojaView`), nunca a gestão interna. Tentar criar uma loja exibe o aviso `"Você está no modo visitante"`.
+- Outras telas de acesso: `terms_view.dart` (termos de uso), `adicionar_email_dialog.dart` (vincular e-mail via Google OAuth 2.0).
 
 ### 1.2 Triagem de E-mails do Usuário (pós-sincronia)
 📄 `auth/views/contas_usuario_view.dart`
-- Lista os e-mails associados ao CPF da conta Nous. Tocar em um e-mail define-o como `emailAtivo` da sessão e avança diretamente para Meus Perfis (`PerfisPdvView`).
-- Inclui botão para adicionar novo e-mail (`AdicionarEmailDialog`) e ação de contingência para "Continuar sem e-mail".
+- Lista os e-mails associados ao CPF da conta Nous. Todos os e-mails exigem autenticação real pelo Google (`emailsVerificados`): tocar em um e-mail já autenticado entra diretamente na sessão (inclusive offline), enquanto e-mails legados não autenticados disparam o login Google (`login_hint`) e exigem correspondência exata do endereço.
+- Inclui botão direto **"Conectar com Google"** e botão para adicionar outro e-mail via Google OAuth (`AdicionarEmailDialog`). Usuários ainda não verificados (`verificado == false`) entram em **Modo Isolado**, podendo criar e configurar sua própria loja localmente sem interagir com terceiros até a primeira verificação. Membros Fundadores registrados em `fundadores_nous.dart` recebem selo oficial do sistema.
 
 ### 1.3 Janela "Identidade do Usuário"
 📄 `auth/views/widgets/ficha_usuario_dialog.dart` · subcomponentes: `bloco_dados_pessoais_usuario.dart`, `bloco_emails_usuario.dart`, `bloco_lojas_usuario.dart`, `bloco_registro_conta_usuario.dart`, `linha_info_usuario.dart`
@@ -72,7 +73,7 @@ Dois estados mudam o comportamento de várias telas:
 - **Transição Vertical Fluida:** A troca de telas pela barra universal utiliza `PageRouteBuilder` com animação suave de deslize vertical (`SlideTransition` em `Curves.easeOutCubic`) e esmaecimento (`FadeTransition`), simulando com leveza física a impressão de subida ou descida da tela.
 - **Botões Duplos com Rolagem Vertical:** Cada um dos 5 botões da barra possui dois modos e pode ser rolado para cima ou para baixo (arraste com o dedo ou rodinha do mouse), alternando os ícones e os destinos com animação vertical suave:
   1. **Slot 0 (Compras / Lojas):**
-     - Modo Carrinho (`shopping_cart`): abre a tela **Compras & Carteira** (`ComprasUsuarioView`), com os containers "Carteira Soberana", "Carrinho de Compras" e "Histórico de Compras" (com `TextoRolante` e aviso de em construção).
+     - Modo Carrinho (`shopping_cart`): abre a tela **Compras e Carteira** (`ComprasUsuarioView`), com os containers "Carteira Soberana" (em construção), "Carrinho de Compras" (carrinhos pendentes salvos nas vitrines das lojas com acesso rápido e limpeza) e "Histórico de Compras" (pedidos e comandas do CPF nas lojas e no chat, com detalhes e status).
      - Modo Lojinha (`storefront`): abre a tela **Meus Perfis** (`PerfisPdvView`).
   2. **Slot 1 (Social / Comunicação):**
      - Modo Pessoinha (`person`): abre o **Perfil Social do Usuário** (`PerfilSocialView`).

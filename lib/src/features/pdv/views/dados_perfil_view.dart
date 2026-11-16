@@ -9,6 +9,7 @@ import 'package:nous/src/features/chat/services/chat_service.dart';
 import 'package:nous/src/features/pdv/models/loja.dart';
 import 'package:nous/src/features/pdv/models/pedido_loja.dart';
 import 'package:nous/src/features/pdv/providers/pdv_provider.dart';
+import 'package:nous/src/features/pdv/views/vitrine_loja_view.dart';
 import 'package:nous/src/features/pdv/views/widgets/abas_loja/barra_acoes_loja_widget.dart';
 import 'package:nous/src/features/pdv/views/widgets/loja/dados_perfil_loja_controller.dart';
 import 'package:nous/src/features/pdv/views/widgets/loja/layout_principal_loja_widget.dart';
@@ -390,8 +391,23 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
 
   @override
   Widget build(BuildContext context) {
+    final auth = context.watch<AuthProvider>();
     final pdv = context.watch<PdvProvider>();
     final lojaAtual = pdv.buscarPorId(widget.lojaId);
+    final cpfLimpo = auth.cpf.replaceAll(RegExp(r'\D'), '');
+    final ehMembro = !auth.modoVisitante &&
+        cpfLimpo.isNotEmpty &&
+        (widget.lojaId == PdvProvider.idLojaColetivaNous ||
+            (lojaAtual?.membros.any(
+                  (m) => m.cpf.replaceAll(RegExp(r'\D'), '') == cpfLimpo,
+                ) ??
+                false));
+    if (!ehMembro) {
+      return VitrineLojaView(
+        lojaId: widget.lojaId,
+        lojaFallback: lojaAtual,
+      );
+    }
     final larguraDinamica = _obterLarguraMaxima(lojaAtual);
 
     return LayoutPrincipalLojaWidget(

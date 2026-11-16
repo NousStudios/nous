@@ -1,5 +1,6 @@
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:nous/src/core/services/guarda_acao_ui.dart';
 import 'package:nous/src/core/theme/theme_controller.dart';
 import 'package:nous/src/core/views/em_construcao_view.dart';
 import 'package:nous/src/features/auth/views/perfil_social_view.dart';
@@ -56,7 +57,7 @@ class _FloatingBottomNavBarState extends State<FloatingBottomNavBar> {
     _ItemSlotDuplo(
       icone0: Icons.shopping_cart_outlined,
       icone1: Icons.storefront_outlined,
-      label0: 'Compras & Carteira',
+      label0: 'Compras e Carteira',
       label1: 'Meus Perfis',
     ),
     // Slot 1: Perfil Social / Mensagens
@@ -143,6 +144,17 @@ class _FloatingBottomNavBarState extends State<FloatingBottomNavBar> {
   }
 
   void _navegarPara(int slot, int subIndice, {bool? paraCima}) {
+    if (slot == widget.slotSelecionado &&
+        subIndice == widget.subIndiceSelecionado &&
+        paraCima == null) {
+      return;
+    }
+    GuardaAcaoUi.executarSincrono('nav_universal', () {
+      _executarNavegacao(slot, subIndice, paraCima: paraCima);
+    });
+  }
+
+  void _executarNavegacao(int slot, int subIndice, {bool? paraCima}) {
     Widget pagina;
 
     if (slot == 0) {

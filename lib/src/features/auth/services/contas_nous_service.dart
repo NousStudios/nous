@@ -65,9 +65,13 @@ class ContasNousService {
   }
 
   static Future<String?> buscarCpfDoEmail(String email) async {
+    final emailLimpo = email.trim().toLowerCase();
+    if (emailLimpo.isEmpty) return null;
     final contas = await carregarTodas();
     for (final conta in contas) {
-      if (conta.emails.contains(email)) return conta.cpf;
+      if (conta.emails.any((e) => e.trim().toLowerCase() == emailLimpo)) {
+        return conta.cpf;
+      }
     }
     return null;
   }

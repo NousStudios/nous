@@ -258,25 +258,7 @@ class SeloVerificadoWidget extends StatefulWidget {
   State<SeloVerificadoWidget> createState() => _SeloVerificadoWidgetState();
 }
 
-class _SeloVerificadoWidgetState extends State<SeloVerificadoWidget>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _animCtrl;
-
-  @override
-  void initState() {
-    super.initState();
-    _animCtrl = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 1800),
-    )..repeat(reverse: true);
-  }
-
-  @override
-  void dispose() {
-    _animCtrl.dispose();
-    super.dispose();
-  }
-
+class _SeloVerificadoWidgetState extends State<SeloVerificadoWidget> {
   @override
   Widget build(BuildContext context) {
     if (!widget.usuario.possuiValidacao) return const SizedBox.shrink();
@@ -285,6 +267,7 @@ class _SeloVerificadoWidgetState extends State<SeloVerificadoWidget>
     final corBase = SeloVerificadoWidget.corParaQuantidade(total);
     final fundoClaro = widget.theme.cardBackgroundColor.computeLuminance() > 0.6;
     final ehBranco = corBase == const Color(0xFFFFFFFF);
+    final corExibida = total >= 1000 ? const Color(0xFFFFD700) : corBase;
 
     return Tooltip(
       message:
@@ -296,58 +279,38 @@ class _SeloVerificadoWidgetState extends State<SeloVerificadoWidget>
           usuario: widget.usuario,
           theme: widget.theme,
         ),
-        child: AnimatedBuilder(
-          animation: _animCtrl,
-          builder: (context, _) {
-            final t = _animCtrl.value;
-            final corAnimada = total >= 1000
-                ? Color.lerp(
-                      const Color(0xFFFFD700),
-                      const Color(0xFF00E5FF),
-                      t,
-                    ) ??
-                    corBase
-                : Color.lerp(
-                      corBase,
-                      corBase.withValues(alpha: 0.72),
-                      t,
-                    ) ??
-                    corBase;
-
-            return Container(
-              padding: const EdgeInsets.all(2),
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                boxShadow: [
-                  BoxShadow(
-                    color: (ehBranco && fundoClaro
-                            ? widget.theme.textColor
-                            : corBase)
-                        .withValues(alpha: 0.25 + (t * 0.2)),
-                    blurRadius: 6 + (t * 4),
-                  ),
-                ],
+        child: Container(
+          padding: const EdgeInsets.all(2),
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            boxShadow: [
+              BoxShadow(
+                color: (ehBranco && fundoClaro
+                        ? widget.theme.textColor
+                        : corExibida)
+                    .withValues(alpha: 0.3),
+                blurRadius: 7,
               ),
-              child: Stack(
-                alignment: Alignment.center,
-                children: [
-                  if (ehBranco && fundoClaro)
-                    Icon(
-                      Icons.verified_rounded,
-                      size: widget.tamanho + 2,
-                      color: widget.theme.textColor,
-                    ),
-                  Icon(
-                    Icons.verified_rounded,
-                    size: widget.tamanho,
-                    color: ehBranco && fundoClaro
-                        ? widget.theme.cardBackgroundColor
-                        : corAnimada,
-                  ),
-                ],
+            ],
+          ),
+          child: Stack(
+            alignment: Alignment.center,
+            children: [
+              if (ehBranco && fundoClaro)
+                Icon(
+                  Icons.verified_rounded,
+                  size: widget.tamanho + 2,
+                  color: widget.theme.textColor,
+                ),
+              Icon(
+                Icons.verified_rounded,
+                size: widget.tamanho,
+                color: ehBranco && fundoClaro
+                    ? widget.theme.cardBackgroundColor
+                    : corExibida,
               ),
-            );
-          },
+            ],
+          ),
         ),
       ),
     );

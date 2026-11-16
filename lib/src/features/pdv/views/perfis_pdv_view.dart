@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+import 'package:nous/src/core/services/guarda_acao_ui.dart';
 import 'package:nous/src/core/theme/theme_controller.dart';
 import 'package:nous/src/core/services/janela_windows_service.dart';
 import 'package:nous/src/core/widgets/custom_app_bar.dart';
@@ -11,6 +12,7 @@ import 'package:nous/src/features/auth/views/login_view.dart';
 import 'package:nous/src/features/pdv/models/loja.dart';
 import 'package:nous/src/features/pdv/providers/pdv_provider.dart';
 import 'package:nous/src/features/pdv/views/dados_perfil_view.dart';
+import 'package:nous/src/features/pdv/views/vitrine_loja_view.dart';
 import 'package:nous/src/features/pdv/views/widgets/criar_perfil_dialog.dart';
 import 'package:nous/src/features/pdv/views/widgets/estado_vazio_container.dart';
 import 'package:nous/src/features/pdv/views/widgets/sincronizacao_rede_dialog.dart';
@@ -116,6 +118,8 @@ class _PerfisPdvViewState extends State<PerfisPdvView> {
   }
 
   void _handleLogout(BuildContext context) {
+    context.read<AuthProvider>().sair();
+    context.read<PdvProvider>().limparSessao();
     Navigator.of(context).pushAndRemoveUntil(
       MaterialPageRoute(builder: (context) => const LoginView()),
       (route) => false,
@@ -161,24 +165,39 @@ class _PerfisPdvViewState extends State<PerfisPdvView> {
     required AppTheme theme,
     required List<Loja> lojas,
   }) {
+    final auth = context.read<AuthProvider>();
+    final cpfLimpo = auth.cpf.replaceAll(RegExp(r'\D'), '');
     return Wrap(
       spacing: 12,
       runSpacing: 12,
       children: lojas.map((loja) {
+        final ehMembro = !auth.modoVisitante &&
+            cpfLimpo.isNotEmpty &&
+            (loja.id == PdvProvider.idLojaColetivaNous ||
+                loja.membros.any(
+                  (m) => m.cpf.replaceAll(RegExp(r'\D'), '') == cpfLimpo,
+                ));
         return _PerfilCard(
           theme: theme,
           icon: Icons.storefront,
           label: loja.nome,
           logoUrl: loja.logo,
           onTap: () {
-            Navigator.of(context).push(
-              MaterialPageRoute(
-                builder: (context) => DadosPerfilView(
-                  lojaId: loja.id,
-                  abaInicial: AbaLoja.gestao,
+            GuardaAcaoUi.executarSincrono('abrir_loja_${loja.id}', () {
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (context) => ehMembro
+                      ? DadosPerfilView(
+                          lojaId: loja.id,
+                          abaInicial: AbaLoja.gestao,
+                        )
+                      : VitrineLojaView(
+                          lojaId: loja.id,
+                          lojaFallback: loja,
+                        ),
                 ),
-              ),
-            );
+              );
+            });
           },
         );
       }).toList(),
@@ -248,7 +267,10 @@ class _PerfisPdvViewState extends State<PerfisPdvView> {
                           borderRadius: BorderRadius.circular(10),
                         ),
                       ),
-                      onPressed: () => _aoTentarCriarPerfil(context, theme),
+                      onPressed: () => GuardaAcaoUi.executarUnico(
+                        'criar_perfil_dialog',
+                        () => _aoTentarCriarPerfil(context, theme),
+                      ),
                       icon: Icon(
                         Icons.add,
                         color: theme.textColor,

@@ -1,6 +1,6 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:nous/src/core/services/preferencias_soberanas_service.dart';
 import 'package:nous/src/features/auth/models/usuario_nous.dart';
 import 'package:nous/src/features/auth/providers/auth_provider.dart';
 import 'package:nous/src/features/chat/controllers/helpers/mensageria_acoes_mensagem_helper.dart';
@@ -193,104 +193,116 @@ class MensageriaController extends ChangeNotifier {
   }
 
   bool _conversaInicialConsumida = false;
+  static bool _manutencaoChatExecutadaNaSessao = false;
 
   Future<void> inicializar({
     required AuthProvider auth,
     required PdvProvider pdv,
   }) async {
     if (_disposed) return;
-    final conta = auth.contaAtual;
-    if (usuarioCpf == null || usuarioCpf!.trim().isEmpty) {
-      final cpfCandidato = conta?.cpf ??
-          (auth.cpf.trim().isNotEmpty
-              ? auth.cpf.trim()
-              : (pdv.cpfAtual?.trim() ?? ''));
-      if (cpfCandidato.isNotEmpty) {
-        usuarioCpf = cpfCandidato;
-      } else {
-        final cpfLocal = await ChatService.obterCpfLogadoLocal();
-        if (_disposed) return;
-        if (cpfLocal.isNotEmpty) usuarioCpf = cpfLocal;
-      }
-    }
-    if (usuarioNome == null || usuarioNome!.isEmpty) {
-      usuarioNome = conta?.nomeExibicao ?? conta?.nome;
-      if ((usuarioNome == null || usuarioNome!.isEmpty) &&
-          usuarioCpf != null &&
-          usuarioCpf!.isNotEmpty) {
-        final u = auth.buscarContaPorCpf(usuarioCpf!);
-        if (u != null) {
-          usuarioNome = u.nomeExibicao.isNotEmpty ? u.nomeExibicao : u.nome;
-          usuarioFoto ??= u.fotoExibicao.isNotEmpty ? u.fotoExibicao : u.foto;
-          usuarioApelido ??=
-              u.apelidoExibicao.isNotEmpty ? u.apelidoExibicao : u.apelido;
+    try {
+      final conta = auth.contaAtual;
+      if (usuarioCpf == null || usuarioCpf!.trim().isEmpty) {
+        final cpfCandidato = conta?.cpf ??
+            (auth.cpf.trim().isNotEmpty
+                ? auth.cpf.trim()
+                : (pdv.cpfAtual?.trim() ?? ''));
+        if (cpfCandidato.isNotEmpty) {
+          usuarioCpf = cpfCandidato;
+        } else {
+          final cpfLocal = await ChatService.obterCpfLogadoLocal();
+          if (_disposed) return;
+          if (cpfLocal.isNotEmpty) usuarioCpf = cpfLocal;
         }
       }
-    }
-    if (usuarioFoto == null || usuarioFoto!.isEmpty) {
-      usuarioFoto = conta?.fotoExibicao ?? conta?.foto;
-    }
-    if (usuarioApelido == null || usuarioApelido!.isEmpty) {
-      usuarioApelido = conta?.apelidoExibicao ?? conta?.apelido;
-    }
-
-    _carregando = true;
-    notifyListeners();
-
-    await ChatService.curarTimestampsAnomalosDoPassado();
-    await ChatService.consolidarConversasDuplicadas();
-    if (usuarioCpf != null && usuarioCpf!.isNotEmpty) {
-      await MensageriaSolicitacoesHelper.carregarAceitas(usuarioCpf!);
-    }
-    if (_disposed) return;
-    await recarregarConversas(auth: auth, pdv: pdv, manterSelecionada: false);
-    if (_disposed) return;
-
-    if (conversaInicialId != null &&
-        conversaInicialId!.isNotEmpty &&
-        !_conversaInicialConsumida) {
-      _conversaInicialConsumida = true;
-      final idAlvo = conversaInicialId!;
-      final encontrada = _conversas.cast<ConversaChat?>().firstWhere(
-        (c) => c?.id == idAlvo || c?.identificador == idAlvo,
-        orElse: () =>
-            _todosContatosDisponiveis.cast<ConversaChat?>().firstWhere(
-              (c) => c?.id == idAlvo || c?.identificador == idAlvo,
-              orElse: () => null,
-            ),
-      );
-      if (encontrada != null) {
-        await selecionarOuIniciarConversa(
-          convId: encontrada.id,
-          titulo: encontrada.titulo,
-          subtitulo: encontrada.subtitulo,
-          identificador: encontrada.identificador,
-          foto: encontrada.foto,
-          ehLoja: encontrada.ehLoja,
-        );
-      } else if (idAlvo.startsWith('user_')) {
-        final meuCpfLimpo = ChatService.normalizarCpf(usuarioCpf ?? auth.contaAtual?.cpf ?? '');
-        final outroCpfLimpo = ChatService.extrairOutroCpf(idAlvo, meuCpfLimpo);
-        final contaAlvo = auth.buscarContaPorCpf(outroCpfLimpo);
-        final tituloAlvo = contaAlvo?.nomeExibicao.isNotEmpty == true
-            ? contaAlvo!.nomeExibicao
-            : (contaAlvo?.nome.isNotEmpty == true ? contaAlvo!.nome : 'Usuário Nous');
-        await selecionarOuIniciarConversa(
-          convId: idAlvo,
-          titulo: tituloAlvo,
-          subtitulo: contaAlvo?.usernameExibicao ?? '',
-          identificador: outroCpfLimpo,
-          foto: contaAlvo?.fotoExibicao ?? (contaAlvo?.foto ?? ''),
-          ehLoja: false,
-        );
+      if (usuarioNome == null || usuarioNome!.isEmpty) {
+        usuarioNome = conta?.nomeExibicao ?? conta?.nome;
+        if ((usuarioNome == null || usuarioNome!.isEmpty) &&
+            usuarioCpf != null &&
+            usuarioCpf!.isNotEmpty) {
+          final u = auth.buscarContaPorCpf(usuarioCpf!);
+          if (u != null) {
+            usuarioNome = u.nomeExibicao.isNotEmpty ? u.nomeExibicao : u.nome;
+            usuarioFoto ??= u.fotoExibicao.isNotEmpty ? u.fotoExibicao : u.foto;
+            usuarioApelido ??=
+                u.apelidoExibicao.isNotEmpty ? u.apelidoExibicao : u.apelido;
+          }
+        }
       }
+      if (usuarioFoto == null || usuarioFoto!.isEmpty) {
+        usuarioFoto = conta?.fotoExibicao ?? conta?.foto;
+      }
+      if (usuarioApelido == null || usuarioApelido!.isEmpty) {
+        usuarioApelido = conta?.apelidoExibicao ?? conta?.apelido;
+      }
+
+      _carregando = true;
+      notifyListeners();
+
+      if (usuarioCpf != null && usuarioCpf!.isNotEmpty) {
+        await MensageriaSolicitacoesHelper.carregarAceitas(usuarioCpf!);
+      }
+      if (_disposed) return;
+      await recarregarConversas(auth: auth, pdv: pdv, manterSelecionada: false);
+      if (_disposed) return;
+
+      if (conversaInicialId != null &&
+          conversaInicialId!.isNotEmpty &&
+          !_conversaInicialConsumida) {
+        _conversaInicialConsumida = true;
+        final idAlvo = conversaInicialId!;
+        final encontrada = _conversas.cast<ConversaChat?>().firstWhere(
+          (c) => c?.id == idAlvo || c?.identificador == idAlvo,
+          orElse: () =>
+              _todosContatosDisponiveis.cast<ConversaChat?>().firstWhere(
+                (c) => c?.id == idAlvo || c?.identificador == idAlvo,
+                orElse: () => null,
+              ),
+        );
+        if (encontrada != null) {
+          await selecionarOuIniciarConversa(
+            convId: encontrada.id,
+            titulo: encontrada.titulo,
+            subtitulo: encontrada.subtitulo,
+            identificador: encontrada.identificador,
+            foto: encontrada.foto,
+            ehLoja: encontrada.ehLoja,
+          );
+        } else if (idAlvo.startsWith('user_')) {
+          final meuCpfLimpo =
+              ChatService.normalizarCpf(usuarioCpf ?? auth.contaAtual?.cpf ?? '');
+          final outroCpfLimpo = ChatService.extrairOutroCpf(idAlvo, meuCpfLimpo);
+          final contaAlvo = auth.buscarContaPorCpf(outroCpfLimpo);
+          final tituloAlvo = contaAlvo?.nomeExibicao.isNotEmpty == true
+              ? contaAlvo!.nomeExibicao
+              : (contaAlvo?.nome.isNotEmpty == true
+                  ? contaAlvo!.nome
+                  : 'Usuário Nous');
+          await selecionarOuIniciarConversa(
+            convId: idAlvo,
+            titulo: tituloAlvo,
+            subtitulo: contaAlvo?.usernameExibicao ?? '',
+            identificador: outroCpfLimpo,
+            foto: contaAlvo?.fotoExibicao ?? (contaAlvo?.foto ?? ''),
+            ehLoja: false,
+          );
+        }
+      }
+
+      sincronizarComRedeLocal(auth: auth, pdv: pdv);
+      _iniciarPollingLeve(auth: auth, pdv: pdv);
+
+      if (!_manutencaoChatExecutadaNaSessao) {
+        _manutencaoChatExecutadaNaSessao = true;
+        unawaited(() async {
+          await ChatService.curarTimestampsAnomalosDoPassado();
+          await ChatService.consolidarConversasDuplicadas();
+        }());
+      }
+    } finally {
+      _carregando = false;
+      notifyListeners();
     }
-
-    sincronizarComRedeLocal(auth: auth, pdv: pdv);
-    _iniciarPollingLeve(auth: auth, pdv: pdv);
-
-    _carregando = false;
-    notifyListeners();
   }
 
   void _iniciarPollingLeve({
@@ -675,13 +687,9 @@ class MensageriaController extends ChangeNotifier {
 
   Future<void> _salvarUltimaConversaAberta(String convId) async {
     try {
-      final prefs = await SharedPreferences.getInstance();
-      final chave = 'chat_ultima_conversa_${modoLoja ? (lojaId ?? "loja") : (usuarioCpf ?? "usr")}';
-      if (convId.isEmpty) {
-        await prefs.remove(chave);
-      } else {
-        await prefs.setString(chave, convId);
-      }
+      final chave =
+          'chat_ultima_conversa_${modoLoja ? (lojaId ?? "loja") : (usuarioCpf ?? "usr")}';
+      await PreferenciasSoberanasService.salvarTexto(chave, convId);
     } catch (_) {}
   }
 

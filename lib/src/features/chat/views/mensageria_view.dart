@@ -66,7 +66,6 @@ class _MensageriaViewState extends State<MensageriaView> {
   final MensageriaController _controller = MensageriaController();
   bool _inicializado = false;
   Timer? _debounceAtualizarChat;
-  AuthProvider? _authProviderObservado;
 
   @override
   void initState() {
@@ -91,29 +90,17 @@ class _MensageriaViewState extends State<MensageriaView> {
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    final auth = context.read<AuthProvider>();
-    if (_authProviderObservado != auth) {
-      _authProviderObservado?.removeListener(_aoAtualizarAuth);
-      _authProviderObservado = auth;
-      _authProviderObservado?.addListener(_aoAtualizarAuth);
-    }
     if (!_inicializado) {
+      final auth = context.read<AuthProvider>();
       final pdv = context.read<PdvProvider>();
       _controller.inicializar(auth: auth, pdv: pdv);
       _inicializado = true;
     }
   }
 
-  void _aoAtualizarAuth() {
-    if (mounted && !_controller.isDisposed) {
-      setState(() {});
-    }
-  }
-
   @override
   void dispose() {
     _debounceAtualizarChat?.cancel();
-    _authProviderObservado?.removeListener(_aoAtualizarAuth);
     ChatService.alteracoesChatNotifier.removeListener(_aoAtualizarChat);
     _controller.removeListener(_aoAtualizarController);
     GravadorAudioService.instancia.cancelarGravacao();
@@ -289,17 +276,50 @@ class _MensageriaViewState extends State<MensageriaView> {
             );
           },
           onEncaminhar: () {
+            final mapaDestinos = <String, ConversaChat>{
+              for (final c in _controller.conversas) c.id: c,
+            };
+            for (final c in _controller.todosContatosDisponiveis) {
+              mapaDestinos.putIfAbsent(c.id, () => c);
+            }
+            final destinos = mapaDestinos.values
+                .where(
+                  (c) =>
+                      c.id != _controller.conversaSelecionada?.id &&
+                      c.identificador != PdvProvider.idLojaColetivaNous &&
+                      !c.id.contains(PdvProvider.idLojaColetivaNous),
+                )
+                .toList();
             DialogEncaminharMensagem.mostrar(
               context,
               theme: theme,
               msg: msg,
-              conversasDisponiveis: _controller.conversas,
-              onEncaminhar: (destino) {
+              conversasDisponiveis: destinos,
+              onEncaminhar: (destino) async {
                 final auth = context.read<AuthProvider>();
-                return _controller.encaminharMensagem(
+                final pdv = context.read<PdvProvider>();
+                await _controller.encaminharMensagem(
                   msgOriginal: msg,
                   destino: destino,
                   auth: auth,
+                );
+                await _controller.recarregarConversas(
+                  auth: auth,
+                  pdv: pdv,
+                  manterSelecionada: true,
+                );
+                if (!mounted) return;
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    backgroundColor: theme.cardBackgroundColor,
+                    content: Text(
+                      'Mensagem encaminhada para ${destino.titulo}.',
+                      style: theme.getTextStyle(
+                        fontSize: 12.5,
+                        color: theme.textColor,
+                      ),
+                    ),
+                  ),
                 );
               },
             );
@@ -504,8 +524,14 @@ class _MensageriaViewState extends State<MensageriaView> {
             body: SafeArea(
               child: Builder(
                 builder: (context) {
-                  final auth = context.watch<AuthProvider>();
-                  if (auth.modoVisitante || auth.perfilIsolado) {
+                  final estadoAcesso = context.select<AuthProvider,
+                      ({bool visitante, bool isolado})>(
+                    (a) => (
+                      visitante: a.modoVisitante,
+                      isolado: a.perfilIsolado,
+                    ),
+                  );
+                  if (estadoAcesso.visitante || estadoAcesso.isolado) {
                     return Center(
                       child: Padding(
                         padding: const EdgeInsets.all(24),
@@ -513,7 +539,7 @@ class _MensageriaViewState extends State<MensageriaView> {
                           constraints: const BoxConstraints(maxWidth: 460),
                           child: EstadoVazioContainer(
                             theme: theme,
-                            mensagem: auth.modoVisitante
+                            mensagem: estadoAcesso.visitante
                                 ? 'Você está no Modo Visitante. Entre com sua Conta Nous verificada para acessar as mensagens.'
                                 : 'Seu perfil está em Modo Isolado aguardando verificação. As mensagens com outros usuários serão liberadas após a primeira validação.',
                           ),

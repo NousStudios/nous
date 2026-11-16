@@ -60,7 +60,6 @@ class _TextoRolanteState extends State<TextoRolante> {
 
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       while (mounted && cicloAtual == _cicloId) {
-        // Pausa no início para leitura
         await Future.delayed(widget.pausaBordas);
         if (!mounted || cicloAtual != _cicloId || !_scrollController.hasClients) break;
 
@@ -72,7 +71,6 @@ class _TextoRolanteState extends State<TextoRolante> {
           milliseconds: ((targetScroll / widget.velocidadePxPorSegundo) * 1000).toInt(),
         );
 
-        // Desliza lentamente da direita para a esquerda
         await _scrollController.animateTo(
           targetScroll,
           duration: duracaoIda,
@@ -81,11 +79,9 @@ class _TextoRolanteState extends State<TextoRolante> {
 
         if (!mounted || cicloAtual != _cicloId || !_scrollController.hasClients) break;
 
-        // Pausa no final para ler o término
         await Future.delayed(widget.pausaBordas);
         if (!mounted || cicloAtual != _cicloId || !_scrollController.hasClients) break;
 
-        // Retorna suavemente para o início
         final duracaoVolta = Duration(
           milliseconds: ((targetScroll / (widget.velocidadePxPorSegundo * 1.5)) * 1000).toInt().clamp(400, 1500),
         );
@@ -128,32 +124,34 @@ class _TextoRolanteState extends State<TextoRolante> {
           _iniciarAnimacaoSeNecessario(maxScroll);
         }
 
-        return ShaderMask(
-          shaderCallback: (rect) {
-            return const LinearGradient(
-              begin: Alignment.centerLeft,
-              end: Alignment.centerRight,
-              colors: [
-                Colors.transparent,
-                Colors.black,
-                Colors.black,
-                Colors.transparent,
-              ],
-              stops: [0.0, 0.08, 0.92, 1.0],
-            ).createShader(rect);
-          },
-          blendMode: BlendMode.dstIn,
-          child: SingleChildScrollView(
-            controller: _scrollController,
-            scrollDirection: Axis.horizontal,
-            physics: const NeverScrollableScrollPhysics(),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 4.0),
-              child: Text(
-                widget.texto,
-                style: widget.style,
-                maxLines: 1,
-                softWrap: false,
+        return RepaintBoundary(
+          child: ShaderMask(
+            shaderCallback: (rect) {
+              return const LinearGradient(
+                begin: Alignment.centerLeft,
+                end: Alignment.centerRight,
+                colors: [
+                  Colors.transparent,
+                  Colors.black,
+                  Colors.black,
+                  Colors.transparent,
+                ],
+                stops: [0.0, 0.08, 0.92, 1.0],
+              ).createShader(rect);
+            },
+            blendMode: BlendMode.dstIn,
+            child: SingleChildScrollView(
+              controller: _scrollController,
+              scrollDirection: Axis.horizontal,
+              physics: const NeverScrollableScrollPhysics(),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 4.0),
+                child: Text(
+                  widget.texto,
+                  style: widget.style,
+                  maxLines: 1,
+                  softWrap: false,
+                ),
               ),
             ),
           ),

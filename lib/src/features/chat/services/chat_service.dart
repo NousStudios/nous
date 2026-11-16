@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:nous/src/core/services/preferencias_soberanas_service.dart';
+import 'package:nous/src/features/auth/models/usuario_nous.dart';
 import 'package:nous/src/features/chat/models/conversa_chat.dart';
 import 'package:nous/src/features/chat/models/mensagem_chat.dart';
 import 'package:nous/src/features/chat/services/chat_conversas_service.dart';
@@ -88,11 +89,13 @@ class ChatService {
     String? cpfUsuario,
     String? lojaId,
     bool incluirArquivadas = false,
+    Map<String, UsuarioNous>? mapaContasPreCarregado,
   }) =>
       ChatConversasService.obterTodasConversas(
         cpfUsuario: cpfUsuario,
         lojaId: lojaId,
         incluirArquivadas: incluirArquivadas,
+        mapaContasPreCarregado: mapaContasPreCarregado,
         aoNotificar: notificarAlteracao,
       );
 
@@ -393,12 +396,16 @@ class ChatService {
       limite: limite,
       offset: offset,
     );
-    if (idVisualizador == null || idVisualizador.isEmpty) {
+    var cpfVis = normalizarCpf(idVisualizador ?? '');
+    if (cpfVis.length != 11) {
+      cpfVis = normalizarCpf(await obterCpfLogadoLocal());
+    }
+    if (cpfVis.length != 11) {
       return msgs;
     }
     return ChatE2eeService.decifrarListaMensagens(
       msgs,
-      cpfVisualizador: idVisualizador,
+      cpfVisualizador: cpfVis,
     );
   }
 

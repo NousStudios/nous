@@ -5,6 +5,7 @@ import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import 'package:nous/src/core/services/banco_dados_service.dart';
+import 'package:nous/src/features/auth/services/contas_nous_service.dart';
 import 'package:nous/src/features/pdv/models/loja.dart';
 import 'package:nous/src/features/pdv/models/pedido_loja.dart';
 import 'package:nous/src/features/pdv/models/referencia_loja.dart';
@@ -121,6 +122,12 @@ class LojasService {
     final rows = await db.query('lojas');
     if (rows.isEmpty) return [];
 
+    final contas = await ContasNousService.carregarTodas();
+    final mapaVerificadas = <String, bool>{
+      for (final c in contas)
+        c.cpf.replaceAll(RegExp(r'\D'), ''): c.possuiValidacao,
+    };
+
     final listaLojas = <Loja>[];
     for (final row in rows) {
       final lojaMap =
@@ -137,7 +144,12 @@ class LojasService {
       }
 
       final loja = sanitizarCaminhosImagens(Loja.fromJson(lojaMap));
-      listaLojas.add(loja);
+      final cpfDonoLimpo =
+          loja.cpfDonoOriginal.replaceAll(RegExp(r'\D'), '');
+      if (cpfDonoLimpo.isNotEmpty && mapaVerificadas[cpfDonoLimpo] == false) {
+        continue;
+      }
+      listaLojas.add(loja.toVisaoPublica());
     }
     return listaLojas;
   }

@@ -255,7 +255,7 @@ class ChatAutoatendimentoService {
     required List<ItemVendido> carrinho,
     required String observacaoGeral,
     required String formaPagamento,
-    required MensageriaController controller,
+    MensageriaController? controller,
     bool geradoPelaLoja = false,
     String? identificadorClienteConversa,
     String? nomeClienteConversa,
@@ -430,16 +430,56 @@ class ChatAutoatendimentoService {
         ? 'Proposta de comanda #${pedido.numero.toString().padLeft(4, '0')} para ${cliente.nome} • R\$ ${pedido.valor.toStringAsFixed(2)}'
         : 'Novo pedido de autoatendimento #${pedido.numero.toString().padLeft(4, '0')} • R\$ ${pedido.valor.toStringAsFixed(2)}';
 
-    await controller.enviarMensagem(
-      texto: textoMsg,
-      tipo: 'comanda',
-      caminhoAnexo: '',
-      nomeAnexo: 'Pedido #${pedido.numero.toString().padLeft(4, '0')}',
-      tamanhoAnexo: 0,
-      pedidoId: pedido.id,
-      dadosPedidoJson: payloadPedidoJson,
-      auth: auth,
-    );
+    if (controller != null) {
+      await controller.enviarMensagem(
+        texto: textoMsg,
+        tipo: 'comanda',
+        caminhoAnexo: '',
+        nomeAnexo: 'Pedido #${pedido.numero.toString().padLeft(4, '0')}',
+        tamanhoAnexo: 0,
+        pedidoId: pedido.id,
+        dadosPedidoJson: payloadPedidoJson,
+        auth: auth,
+      );
+    } else {
+      final cpfRem = ChatService.normalizarCpf(usuario.cpf);
+      final convId = ChatService.conversaIdLojaUsuario(loja.id, cpfRem);
+      await ChatService.obterOuCriarConversa(
+        id: convId,
+        titulo: loja.nome,
+        subtitulo: 'Loja',
+        foto: loja.logo,
+        identificador: loja.id,
+        ehLoja: true,
+        lojaId: loja.id,
+        cpfUsuario: cpfRem,
+      );
+      final msgComanda = MensagemChat(
+        id: '${RelogioRedeService.agora().millisecondsSinceEpoch}_$cpfRem',
+        conversaId: convId,
+        remetenteId: cpfRem,
+        remetenteNome: usuario.nomeExibicao.isNotEmpty
+            ? usuario.nomeExibicao
+            : usuario.nome,
+        remetenteFoto: usuario.fotoExibicao.isNotEmpty
+            ? usuario.fotoExibicao
+            : usuario.foto,
+        destinatarioId: 'loja_${loja.id}',
+        texto: textoMsg,
+        dataHora: RelogioRedeService.agora(),
+        enviadaPorMim: true,
+        lida: true,
+        tipo: 'comanda',
+        nomeAnexo: 'Pedido #${pedido.numero.toString().padLeft(4, '0')}',
+        pedidoId: pedido.id,
+        dadosPedidoJson: payloadPedidoJson,
+      );
+      await ChatService.salvarMensagem(
+        msgComanda,
+        notificar: true,
+      );
+      unawaited(ChatService.despacharMensagemParaRede(msgComanda));
+    }
 
     return pedido;
   }

@@ -3,6 +3,8 @@ import 'package:nous/src/features/auth/models/usuario_nous.dart';
 import 'package:nous/src/features/auth/services/contas_nous_service.dart';
 import 'package:nous/src/features/chat/models/conversa_chat.dart';
 import 'package:nous/src/features/chat/models/mensagem_chat.dart';
+import 'package:nous/src/features/chat/services/chat_e2ee_service.dart';
+import 'package:nous/src/features/chat/services/chat_media_service.dart';
 import 'package:nous/src/features/chat/services/chat_repositorio_sqlite.dart';
 import 'package:nous/src/features/pdv/models/loja.dart';
 import 'package:nous/src/features/pdv/services/imagem_service.dart';
@@ -18,6 +20,7 @@ class ChatConversasHidratadorService {
     String? cpfUsuario,
     String? lojaId,
     bool incluirArquivadas = false,
+    Map<String, UsuarioNous>? mapaContasPreCarregado,
     required Future<Map<String, String>> Function([String? cpfLogado]) obterTitulosCustomizados,
   }) async {
     final db = await ChatRepositorioSqlite.obterDb();
@@ -72,10 +75,11 @@ class ChatConversasHidratadorService {
 
     final cpfNormUsuario =
         cpfUsuario != null ? ChatRepositorioSqlite.normalizarCpf(cpfUsuario) : '';
-    final todasContas = await ContasNousService.carregarTodas();
-    final mapaContasPorCpf = <String, UsuarioNous>{
-      for (final c in todasContas) ChatRepositorioSqlite.normalizarCpf(c.cpf): c,
-    };
+    final mapaContasPorCpf = mapaContasPreCarregado ??
+        <String, UsuarioNous>{
+          for (final c in await ContasNousService.carregarTodas())
+            ChatRepositorioSqlite.normalizarCpf(c.cpf): c,
+        };
     final contaLogada = mapaContasPorCpf[cpfNormUsuario];
 
     final mapaLojasPorId = <String, Loja?>{};
@@ -179,6 +183,31 @@ class ChatConversasHidratadorService {
     for (final r in rows) {
       final convId = r['id'] as String;
       var ultMsg = r['ultima_mensagem'] as String? ?? '';
+      if ((ultMsg.startsWith('e2ee:v1:') ||
+              ultMsg == '[Mensagem Cifrada Protegida]') &&
+          cpfNormUsuario.length == 11) {
+        try {
+          final ultMsgs = await ChatRepositorioSqlite.carregarMensagens(
+            convId,
+            idVisualizador: cpfNormUsuario,
+            limite: 1,
+          );
+          if (ultMsgs.isNotEmpty) {
+            final msgBruta = ultMsgs.last;
+            final msgDecifrada =
+                await ChatE2eeService.decifrarMensagemSeAplicavel(
+              msgBruta,
+              cpfVisualizador: cpfNormUsuario,
+            );
+            final resumoLimpo =
+                ChatMediaService.gerarResumoMensagem(msgDecifrada);
+            if (!resumoLimpo.startsWith('e2ee:v1:') &&
+                resumoLimpo != '[Mensagem Cifrada Protegida]') {
+              ultMsg = resumoLimpo;
+            }
+          }
+        } catch (_) {}
+      }
       if (ultMsg.startsWith('e2ee:v1:')) {
         ultMsg = '[Mensagem Cifrada Protegida]';
       }

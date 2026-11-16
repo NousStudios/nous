@@ -185,6 +185,7 @@ class AuthProvider extends ChangeNotifier {
   Future<bool> buscarConta() async {
     if (!isValid) return false;
 
+    _modoVisitante = false;
     _carregando = true;
     notifyListeners();
 
@@ -414,6 +415,7 @@ class AuthProvider extends ChangeNotifier {
     required String biografia,
     required List<String> dadosPrivados,
   }) async {
+    _modoVisitante = false;
     final apelidoLimpo = apelido.trim().isNotEmpty ? apelido.trim() : nome.trim();
     final usernameLimpo = nomeDeUsuario
         .trim()

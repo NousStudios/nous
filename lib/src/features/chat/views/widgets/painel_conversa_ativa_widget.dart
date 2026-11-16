@@ -75,9 +75,6 @@ class _PainelConversaAtivaWidgetState extends State<PainelConversaAtivaWidget> {
   @override
   void initState() {
     super.initState();
-    _mensagemController.addListener(() {
-      if (mounted) setState(() {});
-    });
     _buscaConversaController.addListener(() {
       if (mounted) setState(() {});
     });
@@ -757,14 +754,19 @@ class _PainelConversaAtivaWidgetState extends State<PainelConversaAtivaWidget> {
               );
             }
 
-            return BarraEnvioMensagemWidget(
-              controller: widget.controller,
-              theme: theme,
-              mensagemController: _mensagemController,
-              onEnviarTexto: _enviarTexto,
-              onEnviarAudio: widget.onEnviarAudio,
-              onCapturarFotoCamera: widget.onCapturarFotoCamera,
-              onAbrirMenuAnexo: _abrirMenuAnexo,
+            return ValueListenableBuilder<TextEditingValue>(
+              valueListenable: _mensagemController,
+              builder: (context, _, _) {
+                return BarraEnvioMensagemWidget(
+                  controller: widget.controller,
+                  theme: theme,
+                  mensagemController: _mensagemController,
+                  onEnviarTexto: _enviarTexto,
+                  onEnviarAudio: widget.onEnviarAudio,
+                  onCapturarFotoCamera: widget.onCapturarFotoCamera,
+                  onAbrirMenuAnexo: _abrirMenuAnexo,
+                );
+              },
             );
           },
         ),

@@ -6,6 +6,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:path/path.dart' as p;
 import 'package:provider/provider.dart';
 import 'package:nous/src/core/services/gerador_id.dart';
+import 'package:nous/src/core/services/relogio_rede_service.dart';
 import 'package:nous/src/core/theme/theme_controller.dart';
 import 'package:nous/src/features/auth/providers/auth_provider.dart';
 import 'package:nous/src/features/chat/controllers/mensageria_controller.dart';
@@ -598,9 +599,13 @@ class MensageriaAcoesDelegate {
     String? usuarioNome,
   }) async {
     final conta = auth.contaAtual;
+    final cpfLimpo = ChatService.normalizarCpf(usuarioCpf ?? conta?.cpf ?? '');
+    final lidLimpo = (lojaId ?? '').startsWith('loja_')
+        ? (lojaId ?? '').substring(5)
+        : (lojaId ?? '');
     final remetenteId = modoLoja
-        ? (lojaId ?? 'loja')
-        : (usuarioCpf ?? conta?.cpf ?? 'usuario');
+        ? (lidLimpo.isNotEmpty ? 'loja_$lidLimpo' : 'loja')
+        : (cpfLimpo.isNotEmpty ? cpfLimpo : 'usuario');
     final remetenteNome = modoLoja
         ? (nomeLoja ?? 'Loja')
         : (usuarioNome ?? conta?.nomeExibicao ?? 'Usuário');
@@ -608,33 +613,40 @@ class MensageriaAcoesDelegate {
         ? (logoLoja ?? '')
         : (conta?.fotoExibicao ?? auth.buscarFotoPorCpf(conta?.cpf ?? ''));
 
-    final agora = DateTime.now();
+    final destinoGarantido = await ChatService.obterOuCriarConversa(
+      id: destino.id,
+      titulo: destino.titulo,
+      subtitulo: destino.subtitulo,
+      foto: destino.foto,
+      identificador: destino.identificador,
+      ehLoja: destino.ehLoja,
+      ehGrupo: destino.ehGrupo,
+      lojaId: destino.lojaId ?? (modoLoja ? lidLimpo : null),
+      cpfUsuario: cpfLimpo.isNotEmpty ? cpfLimpo : null,
+      participantesIds: destino.participantesIds,
+    );
+
+    final agora = RelogioRedeService.agora();
     final encaminhada = MensagemChat(
       id: 'msg_${agora.millisecondsSinceEpoch}_${msgOriginal.id.hashCode.abs()}',
-      conversaId: destino.id,
+      conversaId: destinoGarantido.id,
       remetenteId: remetenteId,
       remetenteNome: remetenteNome,
       remetenteFoto: remetenteFoto,
-      destinatarioId: destino.identificador,
+      destinatarioId: destinoGarantido.identificador.isNotEmpty
+          ? destinoGarantido.identificador
+          : destinoGarantido.id,
       texto: msgOriginal.texto,
       dataHora: agora,
       enviadaPorMim: true,
+      lida: true,
       tipo: msgOriginal.tipo,
       caminhoAnexo: msgOriginal.caminhoAnexo,
       nomeAnexo: msgOriginal.nomeAnexo,
       tamanhoAnexo: msgOriginal.tamanhoAnexo,
       pedidoId: msgOriginal.pedidoId,
       dadosPedidoJson: msgOriginal.dadosPedidoJson,
-      statusEnvio: 'pendente',
-    );
-
-    await ChatService.salvarConversa(
-      destino.copyWith(
-        ultimaMensagem: encaminhada.texto.isNotEmpty
-            ? encaminhada.texto
-            : (encaminhada.caminhoAnexo.isNotEmpty ? '📷 Foto' : 'Mensagem'),
-        dataHoraUltimaMensagem: agora,
-      ),
+      statusEnvio: 'enviada',
     );
 
     await ChatService.enviarMensagemInstantanea(encaminhada);

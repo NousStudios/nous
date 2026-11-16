@@ -80,7 +80,7 @@ class BancoDadosService {
   }
 
   static void _executarManutencaoEmSegundoPlano(Database banco) {
-    Future.microtask(() async {
+    Future.delayed(const Duration(seconds: 20), () async {
       try {
         await executarManutencaoPreventiva(bancoInstancia: banco);
       } catch (e) {

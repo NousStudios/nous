@@ -4,6 +4,7 @@ import 'dart:ui';
 import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:nous/src/core/services/guarda_acao_ui.dart';
 import 'package:nous/src/core/theme/theme_controller.dart';
 import 'package:nous/src/features/auth/models/usuario_nous.dart';
 import 'package:nous/src/features/auth/providers/auth_provider.dart';
@@ -26,26 +27,29 @@ class FichaUsuarioDialog {
     required UsuarioNous usuario,
     bool? somenteLeitura,
   }) {
-    return showDialog<void>(
-      context: context,
-      builder: (dialogContext) {
-        return Dialog(
-          backgroundColor: theme.cardBackgroundColor,
-          insetPadding: const EdgeInsets.all(16),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-            side: BorderSide(color: theme.borderColor),
-          ),
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 500),
-            child: _FichaUsuarioConteudo(
-              theme: theme,
-              usuarioInicial: usuario,
-              somenteLeitura: somenteLeitura,
+    return GuardaAcaoUi.executarUnico<void>(
+      'dialog_ficha_${usuario.cpf}',
+      () => showDialog<void>(
+        context: context,
+        builder: (dialogContext) {
+          return Dialog(
+            backgroundColor: theme.cardBackgroundColor,
+            insetPadding: const EdgeInsets.all(16),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+              side: BorderSide(color: theme.borderColor),
             ),
-          ),
-        );
-      },
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 500),
+              child: _FichaUsuarioConteudo(
+                theme: theme,
+                usuarioInicial: usuario,
+                somenteLeitura: somenteLeitura,
+              ),
+            ),
+          );
+        },
+      ),
     );
   }
 }

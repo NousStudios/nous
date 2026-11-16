@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
+import 'package:nous/src/features/auth/models/usuario_nous.dart';
 import 'package:nous/src/features/auth/services/contas_nous_service.dart';
 import 'package:nous/src/features/chat/models/conversa_chat.dart';
 import 'package:nous/src/features/chat/services/chat_conversas_hidratador_service.dart';
@@ -15,12 +16,14 @@ class ChatConversasService {
     String? cpfUsuario,
     String? lojaId,
     bool incluirArquivadas = false,
+    Map<String, UsuarioNous>? mapaContasPreCarregado,
     required VoidCallback aoNotificar,
   }) async {
     return ChatConversasHidratadorService.obterTodasConversas(
       cpfUsuario: cpfUsuario,
       lojaId: lojaId,
       incluirArquivadas: incluirArquivadas,
+      mapaContasPreCarregado: mapaContasPreCarregado,
       obterTitulosCustomizados: obterTitulosCustomizados,
     );
   }

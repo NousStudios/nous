@@ -81,6 +81,7 @@ class MontadorConversasChat {
     final conversasPersistidas = await ChatService.obterTodasConversas(
       cpfUsuario: modoLoja ? null : cpfLogadoNorm,
       lojaId: modoLoja ? lojaId : null,
+      mapaContasPreCarregado: usuariosNousPorCpf,
     );
     final Map<String, ConversaChat> persistidasMap = {
       for (final c in conversasPersistidas) c.id: c,

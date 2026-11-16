@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:nous/src/core/services/guarda_acao_ui.dart';
 import 'package:nous/src/core/theme/theme_controller.dart';
 import 'package:nous/src/core/widgets/custom_app_bar.dart';
 import 'package:nous/src/core/widgets/floating_bottom_nav_bar.dart';
@@ -15,7 +16,7 @@ import 'package:nous/src/features/pdv/models/loja.dart';
 import 'package:nous/src/features/pdv/providers/pdv_provider.dart';
 import 'package:nous/src/features/pdv/services/imagem_service.dart';
 import 'package:nous/src/features/pdv/services/rede_local/cliente_rede_local.dart';
-import 'package:nous/src/features/pdv/views/dados_perfil_view.dart';
+import 'package:nous/src/features/pdv/views/vitrine_loja_view.dart';
 import 'package:nous/src/features/pdv/views/widgets/estado_vazio_container.dart';
 
 enum FiltroBusca { todos, lojas, perfis }
@@ -476,11 +477,16 @@ class _BuscaMapaViewState extends State<BuscaMapaView> {
               ),
             ),
             onPressed: () {
-              Navigator.of(context).push(
-                MaterialPageRoute(
-                  builder: (_) => DadosPerfilView(lojaId: loja.id),
-                ),
-              );
+              GuardaAcaoUi.executarSincrono('visitar_loja_${loja.id}', () {
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => VitrineLojaView(
+                      lojaId: loja.id,
+                      lojaFallback: loja,
+                    ),
+                  ),
+                );
+              });
             },
             child: Text(
               'Visitar',

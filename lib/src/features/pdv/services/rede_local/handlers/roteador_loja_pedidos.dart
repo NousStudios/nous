@@ -197,13 +197,30 @@ class RoteadorLojaPedidos {
         }
       }
 
+      if (ehCliente && lojaRetorno.cpfDonoOriginal.trim().isNotEmpty) {
+        final contaDono =
+            await ContasNousService.buscarPorCpf(lojaRetorno.cpfDonoOriginal);
+        if (contaDono != null && !contaDono.possuiValidacao) {
+          ServidorRedeLocal.responderJson(
+            request,
+            {
+              'sucesso': false,
+              'erro':
+                  'Esta loja pertence a um perfil em Modo Isolado aguardando verificação.',
+            },
+            statusCode: HttpStatus.forbidden,
+          );
+          return true;
+        }
+      }
+
       final lojaParaEnvio = ehCliente ? lojaRetorno.toVisaoPublica() : lojaRetorno;
 
       ServidorRedeLocal.responderJson(request, {
         'sucesso': true,
         'loja': lojaParaEnvio.toJson(),
         'papelConexao': ehCliente ? 'cliente' : 'membro',
-        'imagensAusentes': imagensAusentes,
+        'imagensAusentes': ehCliente ? <String>[] : imagensAusentes,
         'fotosUsuariosAusentes': ehCliente ? <String>[] : fotosUsuariosAusentes,
         'notificacoesDispensadasLoja': ehCliente
             ? <String>[]

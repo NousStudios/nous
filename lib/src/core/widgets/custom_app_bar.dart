@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:nous/src/core/services/guarda_acao_ui.dart';
 import 'package:nous/src/core/theme/theme_controller.dart';
 import 'package:nous/src/core/theme/theme_customizer_dialog.dart';
 import 'package:nous/src/features/auth/providers/auth_provider.dart';
@@ -49,7 +50,9 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
   });
 
   void _showThemeSelector(BuildContext context) {
-    showDialog(
+    GuardaAcaoUi.executarUnico<void>(
+      'dialog_theme_selector',
+      () => showDialog<void>(
       context: context,
       builder: (BuildContext context) {
         return ValueListenableBuilder<AppTheme>(
@@ -167,6 +170,7 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
           },
         );
       },
+    ),
     );
   }
 
@@ -174,7 +178,9 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
     final authProvider = context.read<AuthProvider>();
     var mostrarCpf = false;
 
-    showDialog(
+    GuardaAcaoUi.executarUnico<void>(
+      'dialog_settings',
+      () => showDialog<void>(
       context: context,
       barrierDismissible: true,
       builder: (BuildContext context) {
@@ -490,10 +496,11 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
             );
           },
         );
+          },
+        );
       },
+    ),
     );
-  },
-);
   }
 
   Widget _botaoNotificacoes(BuildContext context, AppTheme theme) {
@@ -554,8 +561,10 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
                         ? theme.dangerColor
                         : theme.secondaryTextColor,
                   ),
-                  onPressed: () =>
-                      NotificacoesDialog.mostrar(context, lojaId: lojaId),
+                  onPressed: () => GuardaAcaoUi.executarUnico<void>(
+                    'dialog_notificacoes',
+                    () => NotificacoesDialog.mostrar(context, lojaId: lojaId),
+                  ),
                 ),
                 if (quantidadeBadge > 0)
                   Positioned(

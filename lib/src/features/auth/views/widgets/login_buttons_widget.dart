@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:nous/src/core/services/guarda_acao_ui.dart';
 import 'package:nous/src/core/theme/theme_controller.dart';
 import 'package:nous/src/features/auth/providers/auth_provider.dart';
 import 'package:nous/src/features/auth/views/dialogs/dialog_onboarding_identidade_nous.dart';
@@ -139,7 +140,9 @@ class LoginButtonsWidget extends StatelessWidget {
                   borderRadius: BorderRadius.circular(30),
                 ),
               ),
-              onPressed: canSubmit ? () => _entrar(context) : null,
+              onPressed: canSubmit
+                  ? () => GuardaAcaoUi.executarUnico('auth_entrar', () => _entrar(context))
+                  : null,
               child: authProvider.carregando
                   ? SizedBox(
                       height: 20,
@@ -171,7 +174,10 @@ class LoginButtonsWidget extends StatelessWidget {
                   borderRadius: BorderRadius.circular(30),
                 ),
               ),
-              onPressed: () => _entrarComoVisitante(context),
+              onPressed: () => GuardaAcaoUi.executarUnico(
+                'auth_visitante',
+                () => _entrarComoVisitante(context),
+              ),
               child: Text(
                 'Entrar como visitante',
                 style: theme.getTextStyle(
