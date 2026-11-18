@@ -5,8 +5,10 @@ import 'package:provider/provider.dart';
 import 'package:nous/src/core/services/preferencias_soberanas_service.dart';
 import 'package:nous/src/core/theme/theme_controller.dart';
 import 'package:nous/src/core/widgets/custom_app_bar.dart';
+import 'package:nous/src/features/auth/models/usuario_nous.dart';
 import 'package:nous/src/features/auth/providers/auth_provider.dart';
 import 'package:nous/src/features/auth/views/login_view.dart';
+import 'package:nous/src/features/auth/views/widgets/cabecalho_perfil_publico_widget.dart';
 import 'package:nous/src/features/chat/services/chat_autoatendimento_service.dart';
 import 'package:nous/src/features/chat/services/chat_service.dart';
 import 'package:nous/src/features/chat/views/dialogs/widgets/fazer_pedido/barra_categorias_e_pesquisa_chat_widget.dart';
@@ -15,6 +17,7 @@ import 'package:nous/src/features/chat/views/dialogs/widgets/fazer_pedido/rodape
 import 'package:nous/src/features/chat/views/dialogs/widgets/fazer_pedido/visao_carrinho_chat_widget.dart';
 import 'package:nous/src/features/chat/views/dialogs/widgets/modal_personalizar_item_autoatendimento.dart';
 import 'package:nous/src/features/chat/views/mensageria_view.dart';
+import 'package:nous/src/features/chat/views/widgets/visualizador_imagem_chat_dialog.dart';
 import 'package:nous/src/features/pdv/models/categoria_loja.dart';
 import 'package:nous/src/features/pdv/models/item_loja.dart';
 import 'package:nous/src/features/pdv/models/loja.dart';
@@ -23,6 +26,11 @@ import 'package:nous/src/features/pdv/providers/pdv_provider.dart';
 import 'package:nous/src/features/pdv/services/compras_usuario_service.dart';
 import 'package:nous/src/features/pdv/services/imagem_service.dart';
 import 'package:nous/src/features/pdv/views/widgets/estado_vazio_container.dart';
+import 'package:nous/src/features/timeline/models/story_social.dart';
+import 'package:nous/src/features/timeline/services/timeline_service.dart';
+import 'package:nous/src/features/timeline/views/dialogs/dialog_denuncia_social.dart';
+import 'package:nous/src/features/timeline/views/dialogs/dialog_stories.dart';
+import 'package:nous/src/features/timeline/views/widgets/timeline_perfil_section.dart';
 
 /// Vitrine pública de uma loja comercial para clientes, visitantes e não-membros.
 /// Exibe apenas dados públicos e catálogo configurado, enviando pedidos ao Chat com a Loja.
@@ -51,7 +59,18 @@ class _VitrineLojaViewState extends State<VitrineLojaView> {
   bool _enviando = false;
   bool _vendoCarrinho = false;
   bool _carregandoLoja = true;
+  bool _exibindoTimelineSocial = false;
   Loja? _lojaResolvida;
+  List<StorySocial> _storiesLoja24h = [];
+  int _totalPostsLoja = 0;
+
+  static String _cpfSocialDaLoja(String idLoja) {
+    var hash = 0;
+    for (final code in idLoja.codeUnits) {
+      hash = ((hash * 31) + code) & 0x7fffffff;
+    }
+    return '99${(hash % 1000000000).toString().padLeft(9, '0')}';
+  }
 
   @override
   void initState() {
@@ -82,8 +101,14 @@ class _VitrineLojaViewState extends State<VitrineLojaView> {
       }
     } catch (_) {}
     if (mounted) {
+      final cpfLoja = _cpfSocialDaLoja( (loja ?? _lojaResolvida)?.id ?? widget.lojaId );
+      final stories = await TimelineService.listarStoriesAtivos24h(cpfLoja);
+      final posts = await TimelineService.contarPublicacoesDoUsuario(cpfLoja);
+      if (!mounted) return;
       setState(() {
         _lojaResolvida = loja ?? _lojaResolvida;
+        _storiesLoja24h = stories;
+        _totalPostsLoja = posts;
         if (_carrinho.isEmpty && carrinhoRestaurado.isNotEmpty) {
           _carrinho.addAll(carrinhoRestaurado);
         }
@@ -398,80 +423,249 @@ class _VitrineLojaViewState extends State<VitrineLojaView> {
   }
 
   Widget _buildCabecalhoPublico(AppTheme theme, Loja loja) {
-    final temLogo = ImagemService.existe(loja.logo);
-    final infoSecundaria = [
-      if (loja.categorias.trim().isNotEmpty) loja.categorias.trim(),
+    final auth = context.watch<AuthProvider>();
+    final meuCpf = auth.cpf.replaceAll(RegExp(r'\D'), '');
+    final ehMembroLoja = meuCpf.isNotEmpty &&
+        (loja.cpfDonoOriginal.replaceAll(RegExp(r'\D'), '') == meuCpf ||
+            loja.membros.any(
+              (m) => m.cpf.replaceAll(RegExp(r'\D'), '') == meuCpf,
+            ));
+    final provLogo = ImagemService.obterImageProvider(loja.logo);
+    final temLogo = provLogo != null;
+    final subtituloHandle = loja.categorias.trim().isNotEmpty
+        ? '@${loja.categorias.trim().toLowerCase().replaceAll(' ', '_')}'
+        : '@loja_nous';
+    final biografiaLoja = [
       if (loja.endereco.trim().isNotEmpty) loja.endereco.trim(),
+      if (loja.telefone.trim().isNotEmpty) 'Tel: ${loja.telefone.trim()}',
+      if (loja.cnpj.trim().isNotEmpty) 'CNPJ: ${loja.cnpj.trim()}',
     ].join(' • ');
 
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: theme.cardBackgroundColor,
-        border: Border(
-          bottom: BorderSide(color: theme.borderColor.withValues(alpha: 0.5)),
-        ),
-      ),
-      child: Row(
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 10, 16, 6),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          if (temLogo)
-            ImagemService.construirImagem(
-              loja.logo,
-              width: 52,
-              height: 52,
-              fit: BoxFit.cover,
-              borderRadius: BorderRadius.circular(12),
-              fallback: Icon(
-                Icons.storefront_rounded,
-                size: 32,
-                color: theme.secondaryTextColor,
+          CabecalhoPerfilPublicoWidget(
+            theme: theme,
+            providerFoto: provLogo,
+            temFoto: temLogo,
+            temStoryAtivo: _storiesLoja24h.isNotEmpty,
+            corDestaqueAnel: theme.buttonColor,
+            iconeFallback: Icons.storefront_rounded,
+            raioAvatar: 44,
+            tooltipFoto: _storiesLoja24h.isNotEmpty
+                ? 'Toque para ver o Story da Loja • Segure para ampliar a logo'
+                : (temLogo ? 'Toque ou segure para ampliar a logo' : ''),
+            onTapFoto: () {
+              if (_storiesLoja24h.isNotEmpty) {
+                DialogVisualizarStory.mostrar(
+                  context,
+                  theme: theme,
+                  story: _storiesLoja24h.first,
+                  stories: _storiesLoja24h,
+                  ehAutor: ehMembroLoja,
+                  usuarioLogado: auth.contaAtual,
+                );
+              } else if (temLogo) {
+                final resolvido =
+                    ImagemService.resolverCaminhoExistente(loja.logo);
+                if (resolvido != null) {
+                  VisualizadorImagemChatDialog.abrir(
+                    context,
+                    caminho: resolvido,
+                    theme: theme,
+                    permitirDownload: true,
+                  );
+                }
+              }
+            },
+            onLongPressFoto: () {
+              if (temLogo) {
+                final resolvido =
+                    ImagemService.resolverCaminhoExistente(loja.logo);
+                if (resolvido != null) {
+                  VisualizadorImagemChatDialog.abrir(
+                    context,
+                    caminho: resolvido,
+                    theme: theme,
+                    permitirDownload: true,
+                  );
+                }
+              }
+            },
+            handleTexto: subtituloHandle,
+            nomeTexto: loja.nome,
+            metricas: [
+              MetricaPerfilPublico(
+                valor: '${loja.itensLoja.length}',
+                rotulo: 'Itens',
               ),
-            )
-          else
-            Container(
-              width: 52,
-              height: 52,
-              decoration: BoxDecoration(
-                color: theme.backgroundColor,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: theme.borderColor),
+              MetricaPerfilPublico(
+                valor: '$_totalPostsLoja',
+                rotulo: 'Posts',
               ),
-              child: Icon(
-                Icons.storefront_rounded,
-                size: 28,
+              MetricaPerfilPublico(
+                valor: '${loja.membros.length}',
+                rotulo: 'Equipe',
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Center(
+            child: Text(
+              biografiaLoja.isNotEmpty
+                  ? biografiaLoja
+                  : 'Comércio Soberano na Rede Nous • Autoatendimento e Catálogo',
+              textAlign: TextAlign.center,
+              style: theme.getTextStyle(
+                fontSize: 11.5,
                 color: theme.secondaryTextColor,
               ),
             ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  loja.nome,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: theme.getTextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                    color: theme.textColor,
-                  ),
-                ),
-                if (infoSecundaria.isNotEmpty) ...[
-                  const SizedBox(height: 2),
-                  Text(
-                    infoSecundaria,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: theme.getTextStyle(
-                      fontSize: 12,
-                      color: theme.secondaryTextColor,
+          ),
+          const SizedBox(height: 12),
+          // Fila rolante de botões + escudinho de denúncia no final
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final larguraBotao = (constraints.maxWidth - 16) / 3;
+              return SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: Row(
+                  children: [
+                    SizedBox(
+                      width: larguraBotao,
+                      height: 34,
+                      child: OutlinedButton(
+                        style: OutlinedButton.styleFrom(
+                          backgroundColor: !_exibindoTimelineSocial
+                              ? theme.buttonColor
+                              : Colors.transparent,
+                          side: BorderSide(color: theme.borderColor),
+                          padding: EdgeInsets.zero,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                        ),
+                        onPressed: () => setState(
+                          () => _exibindoTimelineSocial = false,
+                        ),
+                        child: Text(
+                          'Compras',
+                          style: theme.getTextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                            color: !_exibindoTimelineSocial
+                                ? theme.buttonTextColor
+                                : theme.textColor,
+                          ),
+                        ),
+                      ),
                     ),
-                  ),
-                ],
-              ],
-            ),
+                    const SizedBox(width: 8),
+                    SizedBox(
+                      width: larguraBotao,
+                      height: 34,
+                      child: OutlinedButton(
+                        style: OutlinedButton.styleFrom(
+                          backgroundColor: _exibindoTimelineSocial
+                              ? theme.buttonColor
+                              : Colors.transparent,
+                          side: BorderSide(color: theme.borderColor),
+                          padding: EdgeInsets.zero,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                        ),
+                        onPressed: () => setState(
+                          () => _exibindoTimelineSocial = true,
+                        ),
+                        child: Text(
+                          'Publicações',
+                          style: theme.getTextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                            color: _exibindoTimelineSocial
+                                ? theme.buttonTextColor
+                                : theme.textColor,
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    SizedBox(
+                      width: larguraBotao,
+                      height: 34,
+                      child: OutlinedButton(
+                        style: OutlinedButton.styleFrom(
+                          side: BorderSide(color: theme.borderColor),
+                          padding: EdgeInsets.zero,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                        ),
+                        onPressed: () {
+                          final convId = ChatService.conversaIdLojaUsuario(
+                            loja.id,
+                            meuCpf.isNotEmpty ? meuCpf : 'visitante',
+                          );
+                          Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (_) => MensageriaView(
+                                modoLoja: false,
+                                conversaInicialId: convId,
+                              ),
+                            ),
+                          );
+                        },
+                        child: Text(
+                          'Mensagens',
+                          style: theme.getTextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                            color: theme.textColor,
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Tooltip(
+                      message: 'Denunciar',
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(10),
+                        onTap: auth.contaAtual == null
+                            ? null
+                            : () {
+                                DialogDenunciaSocial.mostrar(
+                                  context,
+                                  theme: theme,
+                                  denunciante: auth.contaAtual!,
+                                  alvoCpf: _cpfSocialDaLoja(loja.id),
+                                  alvoNome: loja.nome,
+                                );
+                              },
+                        child: Container(
+                          width: 34,
+                          height: 34,
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(
+                              color: theme.borderColor.withValues(alpha: 0.6),
+                            ),
+                          ),
+                          alignment: Alignment.center,
+                          child: Icon(
+                            Icons.shield_outlined,
+                            size: 16,
+                            color: theme.secondaryTextColor,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            },
           ),
         ],
       ),
@@ -571,184 +765,226 @@ class _VitrineLojaViewState extends State<VitrineLojaView> {
                 constraints: const BoxConstraints(maxWidth: 820),
                 child: Column(
                   children: [
-                    _buildCabecalhoPublico(theme, loja),
                     Expanded(
-                      child: _vendoCarrinho
-                          ? VisaoCarrinhoChatWidget(
-                              theme: theme,
-                              loja: loja,
-                              carrinho: _carrinho,
-                              formaPagamento: _formaPagamento,
-                              observacaoController: _observacaoController,
-                              trocoController: _trocoController,
-                              onDecrementarOuRemover: (i) {
-                                setState(() {
-                                  if (_carrinho[i].quantidade > 1) {
-                                    _carrinho[i] = _carrinho[i].copyWith(
-                                      quantidade: _carrinho[i].quantidade - 1,
-                                    );
-                                  } else {
-                                    _carrinho.removeAt(i);
-                                  }
-                                });
-                                unawaited(
-                                  ComprasUsuarioService.salvarCarrinhoPendente(
-                                    widget.lojaId,
-                                    _carrinho,
-                                  ),
-                                );
-                              },
-                              onIncrementar: (i) {
-                                setState(() {
-                                  _carrinho[i] = _carrinho[i].copyWith(
-                                    quantidade: _carrinho[i].quantidade + 1,
+                      child: CustomScrollView(
+                        slivers: [
+                          SliverToBoxAdapter(
+                            child: _buildCabecalhoPublico(theme, loja),
+                          ),
+                          if (_exibindoTimelineSocial)
+                            SliverToBoxAdapter(
+                              child: Builder(
+                                builder: (context) {
+                                  final auth = context.watch<AuthProvider>();
+                                  final meuCpf =
+                                      auth.cpf.replaceAll(RegExp(r'\D'), '');
+                                  final ehMembroLoja =
+                                      meuCpf.isNotEmpty &&
+                                      (loja.cpfDonoOriginal.replaceAll(
+                                                RegExp(r'\D'),
+                                                '',
+                                              ) ==
+                                              meuCpf ||
+                                          loja.membros.any(
+                                            (m) =>
+                                                m.cpf.replaceAll(
+                                                  RegExp(r'\D'),
+                                                  '',
+                                                ) ==
+                                                meuCpf,
+                                          ));
+                                  return Padding(
+                                    padding: const EdgeInsets.all(16),
+                                    child: TimelinePerfilSection(
+                                      theme: theme,
+                                      contaPerfil: UsuarioNous(
+                                        cpf: _cpfSocialDaLoja(loja.id),
+                                        nome: loja.nome,
+                                        dataNascimento: '',
+                                        foto: loja.logo,
+                                      ),
+                                      usuarioLogado: auth.contaAtual,
+                                      ehProprioUsuario: ehMembroLoja,
+                                    ),
                                   );
-                                });
-                                unawaited(
-                                  ComprasUsuarioService.salvarCarrinhoPendente(
-                                    widget.lojaId,
-                                    _carrinho,
-                                  ),
-                                );
-                              },
-                              onSelecionarFormaPagamento: (fp) =>
-                                  setState(() => _formaPagamento = fp),
+                                },
+                              ),
                             )
-                          : Column(
-                              children: [
-                                BarraCategoriasEPesquisaChatWidget(
-                                  theme: theme,
-                                  categorias: categorias,
-                                  categoriaSelecionadaId:
-                                      _categoriaSelecionadaId,
-                                  buscaController: _buscaItensController,
-                                  termoBusca: _termoBuscaItens,
-                                  onSelecionarCategoria: (catId) => setState(
-                                    () => _categoriaSelecionadaId = catId,
-                                  ),
-                                  onChangedBusca: (v) => setState(
-                                    () => _termoBuscaItens =
-                                        v.trim().toLowerCase(),
-                                  ),
-                                  onLimparBusca: () {
-                                    _buscaItensController.clear();
-                                    setState(() => _termoBuscaItens = '');
-                                  },
+                          else if (_vendoCarrinho)
+                            SliverFillRemaining(
+                              hasScrollBody: true,
+                              child: VisaoCarrinhoChatWidget(
+                                theme: theme,
+                                loja: loja,
+                                carrinho: _carrinho,
+                                formaPagamento: _formaPagamento,
+                                observacaoController: _observacaoController,
+                                trocoController: _trocoController,
+                                onDecrementarOuRemover: (i) {
+                                  setState(() {
+                                    if (_carrinho[i].quantidade > 1) {
+                                      _carrinho[i] = _carrinho[i].copyWith(
+                                        quantidade:
+                                            _carrinho[i].quantidade - 1,
+                                      );
+                                    } else {
+                                      _carrinho.removeAt(i);
+                                    }
+                                  });
+                                  unawaited(
+                                    ComprasUsuarioService
+                                        .salvarCarrinhoPendente(
+                                      widget.lojaId,
+                                      _carrinho,
+                                    ),
+                                  );
+                                },
+                                onIncrementar: (i) {
+                                  setState(() {
+                                    _carrinho[i] = _carrinho[i].copyWith(
+                                      quantidade: _carrinho[i].quantidade + 1,
+                                    );
+                                  });
+                                  unawaited(
+                                    ComprasUsuarioService
+                                        .salvarCarrinhoPendente(
+                                      widget.lojaId,
+                                      _carrinho,
+                                    ),
+                                  );
+                                },
+                                onSelecionarFormaPagamento: (fp) =>
+                                    setState(() => _formaPagamento = fp),
+                              ),
+                            )
+                          else ...[
+                            SliverToBoxAdapter(
+                              child: BarraCategoriasEPesquisaChatWidget(
+                                theme: theme,
+                                categorias: categorias,
+                                categoriaSelecionadaId: _categoriaSelecionadaId,
+                                buscaController: _buscaItensController,
+                                termoBusca: _termoBuscaItens,
+                                onSelecionarCategoria: (catId) => setState(
+                                  () => _categoriaSelecionadaId = catId,
                                 ),
-                                Expanded(
-                                  child: (itensExibidos.isEmpty &&
-                                          categoriasBaseDiretas.isEmpty)
-                                      ? Center(
-                                          child: Padding(
-                                            padding: const EdgeInsets.all(20),
-                                            child: EstadoVazioContainer(
-                                              theme: theme,
-                                              mensagem: _termoBuscaItens
-                                                      .isNotEmpty
-                                                  ? 'Nenhum item encontrado para "$_termoBuscaItens".'
-                                                  : 'Esta loja ainda não publicou itens no catálogo.',
-                                            ),
-                                          ),
-                                        )
-                                      : ListView(
-                                          padding: const EdgeInsets.all(10),
-                                          children: [
-                                            for (final catBase
-                                                in categoriasBaseDiretas)
-                                              ItensCatalogoChatWidget
-                                                  .buildCardCategoriaDireta(
-                                                theme: theme,
-                                                cat: catBase,
-                                                loja: loja,
-                                                onTap: () =>
-                                                    _abrirPersonalizacao(
-                                                  null,
-                                                  loja,
-                                                  catBase,
-                                                ),
-                                              ),
-                                            for (final item in itensExibidos)
-                                              Builder(
-                                                builder: (context) {
-                                                  final catResolvida =
-                                                      categoriaAtiva ??
-                                                          (_parsePreco(
-                                                                    item.preco,
-                                                                  ) >
-                                                                  0
-                                                              ? null
-                                                              : categorias
-                                                                  .where(
-                                                                    (c) => c
-                                                                        .itemIds
-                                                                        .contains(
-                                                                      item.id,
-                                                                    ),
-                                                                  )
-                                                                  .firstOrNull);
-                                                  return ItensCatalogoChatWidget
-                                                      .buildCardItemInterativo(
-                                                    theme: theme,
-                                                    item: item,
-                                                    loja: loja,
-                                                    cat: catResolvida,
-                                                    categoriaSelecionadaId:
-                                                        _categoriaSelecionadaId,
-                                                    carrinho: _carrinho,
-                                                    onInteragir: () =>
-                                                        _interagirComItem(
-                                                      item,
-                                                      loja,
-                                                      catResolvida,
-                                                    ),
-                                                    onPersonalizar: () =>
-                                                        _abrirPersonalizacao(
-                                                      item,
-                                                      loja,
-                                                      catResolvida,
-                                                    ),
-                                                    onDecrementar: () {
-                                                      setState(() {
-                                                        final idx = _carrinho
-                                                            .lastIndexWhere(
-                                                          (c) =>
-                                                              c.itemId ==
-                                                              item.id,
-                                                        );
-                                                        if (idx != -1) {
-                                                          if (_carrinho[idx]
-                                                                  .quantidade >
-                                                              1) {
-                                                            _carrinho[idx] =
-                                                                _carrinho[idx]
-                                                                    .copyWith(
-                                                              quantidade:
-                                                                  _carrinho[idx]
-                                                                          .quantidade -
-                                                                      1,
-                                                            );
-                                                          } else {
-                                                            _carrinho
-                                                                .removeAt(idx);
-                                                          }
-                                                        }
-                                                      });
-                                                      unawaited(
-                                                        ComprasUsuarioService
-                                                            .salvarCarrinhoPendente(
-                                                          widget.lojaId,
-                                                          _carrinho,
-                                                        ),
-                                                      );
-                                                    },
-                                                  );
-                                                },
-                                              ),
-                                          ],
-                                        ),
+                                onChangedBusca: (v) => setState(
+                                  () => _termoBuscaItens =
+                                      v.trim().toLowerCase(),
                                 ),
-                              ],
+                                onLimparBusca: () {
+                                  _buscaItensController.clear();
+                                  setState(() => _termoBuscaItens = '');
+                                },
+                              ),
                             ),
+                            if (itensExibidos.isEmpty &&
+                                categoriasBaseDiretas.isEmpty)
+                              SliverToBoxAdapter(
+                                child: Padding(
+                                  padding: const EdgeInsets.all(20),
+                                  child: EstadoVazioContainer(
+                                    theme: theme,
+                                    mensagem: _termoBuscaItens.isNotEmpty
+                                        ? 'Nenhum item encontrado para "$_termoBuscaItens".'
+                                        : 'Esta loja ainda não publicou itens no catálogo.',
+                                  ),
+                                ),
+                              )
+                            else
+                              SliverPadding(
+                                padding: const EdgeInsets.all(10),
+                                sliver: SliverList(
+                                  delegate: SliverChildListDelegate([
+                                    for (final catBase
+                                        in categoriasBaseDiretas)
+                                      ItensCatalogoChatWidget
+                                          .buildCardCategoriaDireta(
+                                        theme: theme,
+                                        cat: catBase,
+                                        loja: loja,
+                                        onTap: () => _abrirPersonalizacao(
+                                          null,
+                                          loja,
+                                          catBase,
+                                        ),
+                                      ),
+                                    for (final item in itensExibidos)
+                                      Builder(
+                                        builder: (context) {
+                                          final catResolvida =
+                                              categoriaAtiva ??
+                                                  (_parsePreco(item.preco) > 0
+                                                      ? null
+                                                      : categorias
+                                                          .where(
+                                                            (c) => c.itemIds
+                                                                .contains(
+                                                              item.id,
+                                                            ),
+                                                          )
+                                                          .firstOrNull);
+                                          return ItensCatalogoChatWidget
+                                              .buildCardItemInterativo(
+                                            theme: theme,
+                                            item: item,
+                                            loja: loja,
+                                            cat: catResolvida,
+                                            categoriaSelecionadaId:
+                                                _categoriaSelecionadaId,
+                                            carrinho: _carrinho,
+                                            onInteragir: () =>
+                                                _interagirComItem(
+                                              item,
+                                              loja,
+                                              catResolvida,
+                                            ),
+                                            onPersonalizar: () =>
+                                                _abrirPersonalizacao(
+                                              item,
+                                              loja,
+                                              catResolvida,
+                                            ),
+                                            onDecrementar: () {
+                                              setState(() {
+                                                final idx =
+                                                    _carrinho.lastIndexWhere(
+                                                  (c) => c.itemId == item.id,
+                                                );
+                                                if (idx != -1) {
+                                                  if (_carrinho[idx]
+                                                          .quantidade >
+                                                      1) {
+                                                    _carrinho[idx] =
+                                                        _carrinho[idx]
+                                                            .copyWith(
+                                                      quantidade:
+                                                          _carrinho[idx]
+                                                                  .quantidade -
+                                                              1,
+                                                    );
+                                                  } else {
+                                                    _carrinho.removeAt(idx);
+                                                  }
+                                                }
+                                              });
+                                              unawaited(
+                                                ComprasUsuarioService
+                                                    .salvarCarrinhoPendente(
+                                                  widget.lojaId,
+                                                  _carrinho,
+                                                ),
+                                              );
+                                            },
+                                          );
+                                        },
+                                      ),
+                                  ]),
+                                ),
+                              ),
+                          ],
+                        ],
+                      ),
                     ),
                     RodapeResumoPedidoChatWidget(
                       theme: theme,

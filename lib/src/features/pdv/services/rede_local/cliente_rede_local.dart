@@ -28,6 +28,7 @@ import 'package:nous/src/features/pdv/services/rede_local/helpers/resolvedor_url
 import 'package:nous/src/features/pdv/services/rede_local/handlers/cliente_pos_conexao_orquestrador.dart';
 import 'package:nous/src/features/pdv/services/rede_local/handlers/cliente_ws_message_handler.dart';
 import 'package:nous/src/features/pdv/services/rede_local/handlers/snapshot_loja_cliente_handler.dart';
+import 'package:nous/src/features/timeline/services/timeline_service.dart';
 
 export 'package:nous/src/features/pdv/models/dispositivo_loja_info.dart';
 
@@ -353,7 +354,10 @@ class ClienteRedeLocal {
         porta: _portaServidor,
         caminho: '/api/ws',
       );
-      _ws = await WebSocket.connect(wsUrl).timeout(const Duration(seconds: 4));
+      final wsTimeout = Duration(
+        seconds: ResolvedorUrlRede.ehHostNuvem(_ipServidor!) ? 12 : 4,
+      );
+      _ws = await WebSocket.connect(wsUrl).timeout(wsTimeout);
 
       estaConectado.value = true;
       debugPrint('[ClienteRedeLocal] Conectado ao servidor via WebSocket em $wsUrl');
@@ -561,6 +565,9 @@ class ClienteRedeLocal {
         lojaId: lojaId ?? _lojaSincronizada?.id,
       );
 
+  Future<String> enviarUploadImagem(String caminhoLocal) =>
+      _enviarUploadImagemParaServidor(caminhoLocal);
+
   Future<String> _enviarUploadImagemParaServidor(String caminhoLocal) {
     return _transferencia.enviarUploadImagemParaServidor(
       ipServidor: _ipServidor,
@@ -608,6 +615,10 @@ class ClienteRedeLocal {
           ),
         );
         request.headers.contentType = ContentType.json;
+        final cpfRem = (_pdvProvider?.cpfAtual ?? '').replaceAll(RegExp(r'\D'), '');
+        if (cpfRem.isNotEmpty) {
+          request.headers.set('x-cpf-remetente', cpfRem);
+        }
         request.write(jsonEncode(lojaParaEnvio.toJson()));
         final response = await request.close();
         final ok = response.statusCode == HttpStatus.ok;
@@ -823,6 +834,22 @@ class ClienteRedeLocal {
         debugPrint('[ClienteRedeLocal] Erro ao enviar mensagem raw via WebSocket: $e');
       }
     }
+  }
+
+  /// Sincroniza bidirecionalmente a Timeline Social com o servidor balcão.
+  Future<bool> sincronizarTimelineComServidor() async {
+    final ip = _ipServidor ??
+        (lojasEncontradas.value.isNotEmpty
+            ? lojasEncontradas.value.first.ip
+            : null);
+    final porta = _portaServidor ??
+        (lojasEncontradas.value.isNotEmpty
+            ? lojasEncontradas.value.first.porta
+            : null);
+    if (ip != null && porta != null) {
+      return TimelineService.sincronizarComServidorHttp(ip: ip, porta: porta);
+    }
+    return false;
   }
 
   /// Sincroniza o relógio deste dispositivo com o balcão da rede local sob demanda

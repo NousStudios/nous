@@ -12,6 +12,7 @@ import 'package:nous/src/features/auth/services/contas_nous_service.dart';
 import 'package:nous/src/features/chat/controllers/helpers/mensageria_solicitacoes_helper.dart';
 import 'package:nous/src/features/chat/models/mensagem_chat.dart';
 import 'package:nous/src/features/chat/services/chat_service.dart';
+import 'package:nous/src/features/timeline/services/timeline_service.dart';
 import 'package:nous/src/features/notificacoes/models/convite_loja.dart';
 import 'package:nous/src/features/notificacoes/providers/notificacoes_provider.dart';
 import 'package:nous/src/features/notificacoes/services/convites_service.dart';
@@ -289,6 +290,12 @@ class ServidorWsMessageHandler {
 
       if (tipo != null && tipo.startsWith('chamada_')) {
         ctx.processarSinalChamadaLocal(dados);
+        ctx.retransmitirParaOutros(jsonEncode(dados), exceto: ws);
+        return;
+      }
+
+      if (tipo != null && tipo.startsWith('timeline_')) {
+        await TimelineService.processarEventoRemoto(dados);
         ctx.retransmitirParaOutros(jsonEncode(dados), exceto: ws);
         return;
       }

@@ -317,19 +317,24 @@ class ImagemService {
       final img = frameInfo.image;
       final w = img.width;
       final h = img.height;
+      img.dispose();
 
-      if (w <= maxDimensao && h <= maxDimensao) {
+      final limiteDim = (bytes.lengthInBytes > 512 * 1024 && maxDimensao > 960)
+          ? 960
+          : maxDimensao;
+
+      if (w <= limiteDim && h <= limiteDim) {
         return bytes;
       }
 
       int targetW = w;
       int targetH = h;
       if (w >= h) {
-        targetW = maxDimensao;
-        targetH = (h * maxDimensao / w).round().clamp(1, maxDimensao);
+        targetW = limiteDim;
+        targetH = (h * limiteDim / w).round().clamp(1, limiteDim);
       } else {
-        targetH = maxDimensao;
-        targetW = (w * maxDimensao / h).round().clamp(1, maxDimensao);
+        targetH = limiteDim;
+        targetW = (w * limiteDim / h).round().clamp(1, limiteDim);
       }
 
       final resizedCodec = await ui.instantiateImageCodec(
@@ -341,6 +346,7 @@ class ImagemService {
       final byteData = await resizedFrame.image.toByteData(
         format: ui.ImageByteFormat.png,
       );
+      resizedFrame.image.dispose();
       if (byteData != null) {
         final resizedBytes = byteData.buffer.asUint8List();
         if (resizedBytes.lengthInBytes < bytes.lengthInBytes) {

@@ -5,6 +5,7 @@ import 'package:nous/src/core/services/criptografia_service.dart';
 import 'package:nous/src/core/services/preferencias_soberanas_service.dart';
 import 'package:nous/src/core/theme/theme_controller.dart';
 import 'package:nous/src/features/auth/models/usuario_nous.dart';
+import 'package:nous/src/features/auth/providers/helpers/auth_social_operacoes_helper.dart';
 import 'package:nous/src/features/auth/services/contas_excluidas_service.dart';
 import 'package:nous/src/features/auth/services/contas_nous_service.dart';
 import 'package:nous/src/features/auth/services/cpf_validator.dart';
@@ -414,6 +415,8 @@ class AuthProvider extends ChangeNotifier {
     required String foto,
     required String biografia,
     required List<String> dadosPrivados,
+    String termosAceitosVersao = '',
+    String termosAceitosEm = '',
   }) async {
     _modoVisitante = false;
     final apelidoLimpo = apelido.trim().isNotEmpty ? apelido.trim() : nome.trim();
@@ -438,6 +441,8 @@ class AuthProvider extends ChangeNotifier {
       validadoPorNome: 'Rede Soberana Nous',
       validadoEm: hojeIso,
       verificado: true,
+      termosAceitosVersao: termosAceitosVersao,
+      termosAceitosEm: termosAceitosEm,
     );
 
     final chavePub = await CriptografiaService.obterOuGerarChavePublica(_cpf);
@@ -684,58 +689,15 @@ class AuthProvider extends ChangeNotifier {
   /// e registra na lista cronológica de validações do alvo.
   Future<UsuarioNous?> validarIdentidadeUsuario(UsuarioNous alvo) async {
     final validador = _contaAtual;
-    if (validador == null || !validador.possuiValidacao) return null;
-
-    final cpfValidador = CpfValidator.onlyDigits(validador.cpf);
-    final cpfAlvo = CpfValidator.onlyDigits(alvo.cpf);
-    if (cpfValidador.isEmpty || cpfAlvo.isEmpty || cpfValidador == cpfAlvo) {
-      return null;
-    }
-
-    final alvoVivo = buscarContaPorCpf(cpfAlvo) ?? alvo;
-    if (alvoVivo.jaValidadoPor(cpfValidador)) {
-      return alvoVivo;
-    }
-
-    final agoraIso = DateTime.now().toIso8601String();
-    final assinatura = await CriptografiaService.assinarDados(
-          cpf: cpfValidador,
-          mensagem: 'validar_identidade:$cpfAlvo:$cpfValidador:$agoraIso',
-        ) ??
-        '';
-
-    final novaValidacao = <String, String>{
-      'cpf': cpfValidador,
-      'nome': validador.nome.isNotEmpty
-          ? validador.nome
-          : validador.nomeExibicao,
-      'dataHora': agoraIso,
-      'assinatura': assinatura,
-    };
-
-    final listaAtualizada = List<Map<String, String>>.from(
-      alvoVivo.validacoesOrdenadas,
-    )..add(novaValidacao);
-
-    final primeiro = listaAtualizada.first;
-    final alvoAtualizado = alvoVivo.copyWith(
-      verificado: true,
-      validacoes: listaAtualizada,
-      validadoPorCpf: alvoVivo.validadoPorCpf.isNotEmpty
-          ? alvoVivo.validadoPorCpf
-          : (primeiro['cpf'] ?? cpfValidador),
-      validadoPorNome: alvoVivo.validadoPorNome.isNotEmpty
-          ? alvoVivo.validadoPorNome
-          : (primeiro['nome'] ?? novaValidacao['nome']!),
-      validadoEm: alvoVivo.validadoEm.isNotEmpty
-          ? alvoVivo.validadoEm
-          : (primeiro['dataHora'] ?? agoraIso),
+    if (validador == null) return null;
+    final resultado = await AuthSocialOperacoesHelper.validarIdentidadeUsuario(
+      validador: validador,
+      alvo: alvo,
+      buscarContaPorCpf: buscarContaPorCpf,
+      propagarUsuarioAtualizado: _propagarUsuarioAtualizado,
     );
-
-    await ContasNousService.salvar(alvoAtualizado);
-    _propagarUsuarioAtualizado(alvoAtualizado);
-    notifyListeners();
-    return alvoAtualizado;
+    if (resultado != null) notifyListeners();
+    return resultado;
   }
 
   Future<void> atualizarNomeDeUsuario(String novoUsername) async {
@@ -800,37 +762,11 @@ class AuthProvider extends ChangeNotifier {
   Future<void> alternarSeguir(String cpfAlvo) async {
     final conta = _contaAtual;
     if (conta == null) return;
-
-    final alvoLimpo = cpfAlvo.replaceAll(RegExp(r'\D'), '');
-    final novaListaSeguindo = List<String>.from(conta.seguindo);
-
-    final jaSegue = novaListaSeguindo.any((s) => s.replaceAll(RegExp(r'\D'), '') == alvoLimpo);
-    if (jaSegue) {
-      novaListaSeguindo.removeWhere((s) => s.replaceAll(RegExp(r'\D'), '') == alvoLimpo);
-    } else {
-      novaListaSeguindo.add(alvoLimpo);
-    }
-
-    final atualizado = conta.copyWith(seguindo: novaListaSeguindo);
-    await ContasNousService.salvar(atualizado);
-    _contaAtual = atualizado;
-
-    // Atualiza também a conta alvo se existir localmente e propaga para a rede
-    final contaAlvo = await ContasNousService.buscarPorCpf(alvoLimpo);
-    if (contaAlvo != null) {
-      final meuCpfLimpo = conta.cpf.replaceAll(RegExp(r'\D'), '');
-      final seguidoresAlvo = List<String>.from(contaAlvo.seguidores);
-      if (jaSegue) {
-        seguidoresAlvo.removeWhere((s) => s.replaceAll(RegExp(r'\D'), '') == meuCpfLimpo);
-      } else {
-        if (!seguidoresAlvo.contains(meuCpfLimpo)) seguidoresAlvo.add(meuCpfLimpo);
-      }
-      final alvoAtualizado = contaAlvo.copyWith(seguidores: seguidoresAlvo);
-      await ContasNousService.salvar(alvoAtualizado);
-      _propagarUsuarioAtualizado(alvoAtualizado);
-    }
-
-    _propagarUsuarioAtualizado(atualizado);
+    _contaAtual = await AuthSocialOperacoesHelper.alternarSeguir(
+      conta: conta,
+      cpfAlvo: cpfAlvo,
+      propagarUsuarioAtualizado: _propagarUsuarioAtualizado,
+    );
     notifyListeners();
   }
 
@@ -842,6 +778,20 @@ class AuthProvider extends ChangeNotifier {
     await ContasNousService.salvar(atualizado);
     _contaAtual = atualizado;
     _fotosPorCpf[conta.cpf] = novaFoto;
+    _propagarUsuarioAtualizado(atualizado);
+    notifyListeners();
+  }
+
+  /// Atualiza exclusivamente a foto do Perfil Público (`fotoPublica`),
+  /// preservando intacta a foto da Identidade do Usuário (`foto`).
+  Future<void> atualizarFotoPublica(String novaFoto) async {
+    final conta = _contaAtual;
+    if (conta == null) return;
+
+    final atualizado = conta.copyWith(fotoPublica: novaFoto.trim());
+    await ContasNousService.salvar(atualizado);
+    _contaAtual = atualizado;
+    _fotosPorCpf[conta.cpf] = atualizado.fotoExibicao;
     _propagarUsuarioAtualizado(atualizado);
     notifyListeners();
   }

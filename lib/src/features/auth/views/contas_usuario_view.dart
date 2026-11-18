@@ -33,10 +33,17 @@ class _ContasUsuarioViewState extends State<ContasUsuarioView> {
   @override
   void initState() {
     super.initState();
+    ThemeController.entrarTelaLogin();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _verificarNomeDeUsuarioSeNecessario();
       _sincronizarFotoSeNecessario();
     });
+  }
+
+  @override
+  void dispose() {
+    ThemeController.sairTelaLogin();
+    super.dispose();
   }
 
   Future<void> _verificarNomeDeUsuarioSeNecessario() async {

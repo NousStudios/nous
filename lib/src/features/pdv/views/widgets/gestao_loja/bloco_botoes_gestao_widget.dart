@@ -16,6 +16,7 @@ class BlocoBotoesGestaoWidget extends StatelessWidget {
   final VoidCallback? aoMensagens;
   final bool temNovasMensagens;
   final VoidCallback? aoStatus;
+  final VoidCallback? aoPerfilPublico;
 
   const BlocoBotoesGestaoWidget({
     super.key,
@@ -33,6 +34,7 @@ class BlocoBotoesGestaoWidget extends StatelessWidget {
     this.aoMensagens,
     this.temNovasMensagens = false,
     this.aoStatus,
+    this.aoPerfilPublico,
   });
 
   void _emConstrucao(BuildContext context, String rotulo) {
@@ -195,17 +197,56 @@ class BlocoBotoesGestaoWidget extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 8),
-          Row(
-            children: [
-              _botaoDeGestao(
-                context,
-                'Mensagens',
-                aoPressionar: aoMensagens,
-                temPontoVermelho: temNovasMensagens,
-              ),
-              espaco,
-              _blocoStatus(context),
-            ],
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final larguraColuna = (constraints.maxWidth - 16) / 3;
+              final larguraStatus = (larguraColuna * 2) + 8;
+
+              return SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: Row(
+                  children: [
+                    SizedBox(
+                      width: larguraColuna,
+                      child: Row(
+                        children: [
+                          _botaoDeGestao(
+                            context,
+                            'Mensagens',
+                            aoPressionar: aoMensagens,
+                            temPontoVermelho: temNovasMensagens,
+                          ),
+                        ],
+                      ),
+                    ),
+                    espaco,
+                    SizedBox(
+                      width: larguraStatus,
+                      child: Row(
+                        children: [
+                          _blocoStatus(context),
+                        ],
+                      ),
+                    ),
+                    if (aoPerfilPublico != null) ...[
+                      espaco,
+                      SizedBox(
+                        width: larguraColuna,
+                        child: Row(
+                          children: [
+                            _botaoDeGestao(
+                              context,
+                              'Perfil Público',
+                              aoPressionar: aoPerfilPublico,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              );
+            },
           ),
         ],
       ),

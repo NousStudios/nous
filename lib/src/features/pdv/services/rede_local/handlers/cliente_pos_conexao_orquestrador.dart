@@ -6,6 +6,7 @@ import 'package:nous/src/features/pdv/models/loja.dart';
 import 'package:nous/src/features/pdv/models/referencia_loja.dart';
 import 'package:nous/src/features/pdv/providers/pdv_provider.dart';
 import 'package:nous/src/features/pdv/services/lojas_service.dart';
+import 'package:nous/src/features/timeline/services/timeline_service.dart';
 
 /// Orquestrador de tarefas assíncronas executadas logo após a conexão do cliente ao balcão.
 class ClientePosConexaoOrquestrador {
@@ -30,9 +31,14 @@ class ClientePosConexaoOrquestrador {
       }
 
       if (!ehMembro) {
-        debugPrint(
-          '[ClientePosConexaoOrquestrador] Usuário $cpfLimpo não é membro nem dono da loja "${loja.nome}". Não vinculando aos perfis profissionais.',
-        );
+        final refs = await LojasService.carregarReferencias(cpfLogado);
+        if (refs.any((r) => r.lojaId == loja.id)) {
+          await LojasService.removerReferencia(cpfLogado, loja.id);
+          await pdvProvider.entrarComCpf(cpfLogado);
+          debugPrint(
+            '[ClientePosConexaoOrquestrador] Usuário $cpfLimpo não é mais membro da loja "${loja.nome}". Referência removida.',
+          );
+        }
         return;
       }
 
@@ -107,6 +113,7 @@ class ClientePosConexaoOrquestrador {
         lojaId: idLojaSincronizada,
       );
       if (idLojaSincronizada != PdvProvider.idLojaColetivaNous) {
+        await Future.delayed(const Duration(milliseconds: 600));
         await ChatService.sincronizarMensagensComBalcao(
           ipServidor: ipServidor,
           portaServidor: portaServidor,
@@ -114,7 +121,16 @@ class ClientePosConexaoOrquestrador {
         );
       }
       await ChatService.drenarFilaDeSaida();
-      verificarAtualizacaoLocal();
+      await TimelineService.sincronizarComServidorHttp(
+        ip: ipServidor,
+        porta: portaServidor,
+      );
+      unawaited(
+        Future.delayed(
+          const Duration(seconds: 3),
+          () => verificarAtualizacaoLocal(),
+        ),
+      );
     } catch (e) {
       debugPrint('[ClientePosConexaoOrquestrador] Erro na sincronização pós-conexão: $e');
     }

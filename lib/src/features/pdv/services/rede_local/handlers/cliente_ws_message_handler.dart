@@ -8,6 +8,7 @@ import 'package:nous/src/features/auth/services/contas_excluidas_service.dart';
 import 'package:nous/src/features/auth/services/contas_nous_service.dart';
 import 'package:nous/src/features/chat/controllers/helpers/mensageria_solicitacoes_helper.dart';
 import 'package:nous/src/features/chat/services/chamada_webrtc_service.dart';
+import 'package:nous/src/features/timeline/services/timeline_service.dart';
 import 'package:nous/src/features/chat/services/chat_service.dart';
 import 'package:nous/src/features/notificacoes/models/convite_loja.dart';
 import 'package:nous/src/features/notificacoes/providers/notificacoes_provider.dart';
@@ -258,6 +259,11 @@ class ClienteWsMessageHandler {
 
       if (tipo != null && tipo.startsWith('chamada_')) {
         ctx.processarSinalChamada(dados);
+        return;
+      }
+
+      if (tipo != null && tipo.startsWith('timeline_')) {
+        await TimelineService.processarEventoRemoto(dados);
         return;
       }
     } catch (e) {
@@ -743,6 +749,13 @@ class ClienteWsMessageHandler {
         final sdp = dados['sdp'] as Map<String, dynamic>?;
         if (sdp != null) {
           ChamadaWebRtcService.instancia.receberRespostaAceita(sdp);
+        }
+      } else if (tipo == 'chamada_renegociar_oferta') {
+        ChamadaWebRtcService.instancia.receberRenegociacaoOferta(dados);
+      } else if (tipo == 'chamada_renegociar_resposta') {
+        final sdp = dados['sdp'] as Map<String, dynamic>?;
+        if (sdp != null) {
+          ChamadaWebRtcService.instancia.receberRenegociacaoResposta(sdp);
         }
       } else if (tipo == 'chamada_candidato_ice') {
         final candidate = dados['candidate'] as Map<String, dynamic>?;

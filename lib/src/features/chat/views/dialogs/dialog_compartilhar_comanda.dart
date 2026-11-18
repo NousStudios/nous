@@ -12,138 +12,154 @@ class DialogCompartilharComanda {
     showDialog(
       context: context,
       builder: (ctx) {
-        return AlertDialog(
+        return Dialog(
           backgroundColor: theme.cardBackgroundColor,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(16),
             side: BorderSide(color: theme.borderColor),
           ),
-          title: Row(
-            children: [
-              Icon(
-                Icons.receipt_long_rounded,
-                color: theme.textColor,
-                size: 20,
-              ),
-              const SizedBox(width: 8),
-              Text(
-                'Selecionar Comanda',
-                style: theme.getTextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                  color: theme.textColor,
-                ),
-              ),
-            ],
-          ),
-          content: ConstrainedBox(
+          child: ConstrainedBox(
             constraints: BoxConstraints(
-              maxWidth: 380,
-              maxHeight: MediaQuery.sizeOf(ctx).height * 0.70,
+              maxWidth: 400,
+              maxHeight: MediaQuery.sizeOf(ctx).height * 0.78,
             ),
-            child: pedidos.isEmpty
-                ? Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 24),
-                    child: Center(
-                      child: Text(
-                        'Nenhum pedido encontrado para compartilhar.',
-                        textAlign: TextAlign.center,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(20, 18, 20, 12),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Row(
+                    children: [
+                      Icon(
+                        Icons.receipt_long_rounded,
+                        color: theme.textColor,
+                        size: 20,
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        'Selecionar Comanda',
                         style: theme.getTextStyle(
-                          fontSize: 13,
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: theme.textColor,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  if (pedidos.isEmpty)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 24),
+                      child: Center(
+                        child: Text(
+                          'Nenhum pedido encontrado para compartilhar.',
+                          textAlign: TextAlign.center,
+                          style: theme.getTextStyle(
+                            fontSize: 13,
+                            color: theme.secondaryTextColor,
+                          ),
+                        ),
+                      ),
+                    )
+                  else
+                    Flexible(
+                      child: ListView.separated(
+                        itemCount: pedidos.length,
+                        separatorBuilder: (dialogCtx, index) => Divider(
+                          height: 1,
+                          color: theme.borderColor.withValues(alpha: 0.3),
+                        ),
+                        itemBuilder: (dialogCtx, index) {
+                          final p = pedidos[index];
+                          final numStr = p.numero.toString().padLeft(4, '0');
+                          return ListTile(
+                            dense: true,
+                            contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 4,
+                              vertical: 2,
+                            ),
+                            leading: CircleAvatar(
+                              backgroundColor: theme.buttonColor.withValues(
+                                alpha: 0.15,
+                              ),
+                              child: Icon(
+                                Icons.receipt_rounded,
+                                color: theme.buttonColor,
+                                size: 18,
+                              ),
+                            ),
+                            title: Row(
+                              children: [
+                                Text(
+                                  'Pedido #$numStr',
+                                  style: theme.getTextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.bold,
+                                    color: theme.textColor,
+                                  ),
+                                ),
+                                const Spacer(),
+                                Text(
+                                  'R\$ ${p.valor.toStringAsFixed(2)}',
+                                  style: theme.getTextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.bold,
+                                    color: theme.textColor,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            subtitle: Row(
+                              children: [
+                                Expanded(
+                                  child: Text(
+                                    p.clienteNome.isNotEmpty
+                                        ? p.clienteNome
+                                        : 'Balcão',
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: theme.getTextStyle(
+                                      fontSize: 11,
+                                      color: theme.secondaryTextColor,
+                                    ),
+                                  ),
+                                ),
+                                Text(
+                                  p.status.name.toUpperCase(),
+                                  style: theme.getTextStyle(
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.bold,
+                                    color: theme.secondaryTextColor,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            onTap: () {
+                              Navigator.pop(ctx);
+                              onCompartilhar(p);
+                            },
+                          );
+                        },
+                      ),
+                    ),
+                  const SizedBox(height: 8),
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: TextButton(
+                      onPressed: () => Navigator.pop(ctx),
+                      child: Text(
+                        'Cancelar',
+                        style: theme.getTextStyle(
                           color: theme.secondaryTextColor,
                         ),
                       ),
                     ),
-                  )
-                : ListView.separated(
-                    shrinkWrap: true,
-                    itemCount: pedidos.length,
-                    separatorBuilder: (dialogCtx, index) => Divider(
-                      height: 1,
-                      color: theme.borderColor.withValues(alpha: 0.3),
-                    ),
-                    itemBuilder: (dialogCtx, index) {
-                      final p = pedidos[index];
-                      final numStr = p.numero.toString().padLeft(4, '0');
-                      return ListTile(
-                        dense: true,
-                        contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 4,
-                          vertical: 2,
-                        ),
-                        leading: CircleAvatar(
-                          backgroundColor: theme.buttonColor.withValues(
-                            alpha: 0.15,
-                          ),
-                          child: Icon(
-                            Icons.receipt_rounded,
-                            color: theme.buttonColor,
-                            size: 18,
-                          ),
-                        ),
-                        title: Row(
-                          children: [
-                            Text(
-                              'Pedido #$numStr',
-                              style: theme.getTextStyle(
-                                fontSize: 13,
-                                fontWeight: FontWeight.bold,
-                                color: theme.textColor,
-                              ),
-                            ),
-                            const Spacer(),
-                            Text(
-                              'R\$ ${p.valor.toStringAsFixed(2)}',
-                              style: theme.getTextStyle(
-                                fontSize: 13,
-                                fontWeight: FontWeight.bold,
-                                color: theme.textColor,
-                              ),
-                            ),
-                          ],
-                        ),
-                        subtitle: Row(
-                          children: [
-                            Expanded(
-                              child: Text(
-                                p.clienteNome.isNotEmpty
-                                    ? p.clienteNome
-                                    : 'Balcão',
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: theme.getTextStyle(
-                                  fontSize: 11,
-                                  color: theme.secondaryTextColor,
-                                ),
-                              ),
-                            ),
-                            Text(
-                              p.status.name.toUpperCase(),
-                              style: theme.getTextStyle(
-                                fontSize: 10,
-                                fontWeight: FontWeight.bold,
-                                color: theme.secondaryTextColor,
-                              ),
-                            ),
-                          ],
-                        ),
-                        onTap: () {
-                          Navigator.pop(ctx);
-                          onCompartilhar(p);
-                        },
-                      );
-                    },
                   ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: Text(
-                'Cancelar',
-                style: theme.getTextStyle(color: theme.secondaryTextColor),
+                ],
               ),
             ),
-          ],
+          ),
         );
       },
     );

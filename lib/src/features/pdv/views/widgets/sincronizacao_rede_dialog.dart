@@ -282,7 +282,10 @@ class _SincronizacaoRedeDialogState extends State<SincronizacaoRedeDialog> {
       child: ConstrainedBox(
         constraints: BoxConstraints(
           maxWidth: 520,
-          maxHeight: MediaQuery.sizeOf(context).height * 0.90,
+          maxHeight: ((MediaQuery.sizeOf(context).height -
+                      MediaQuery.viewInsetsOf(context).bottom) *
+                  0.90)
+              .clamp(240.0, MediaQuery.sizeOf(context).height * 0.90),
         ),
         child: Padding(
           padding: const EdgeInsets.all(20),

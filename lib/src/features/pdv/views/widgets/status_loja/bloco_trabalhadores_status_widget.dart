@@ -5,6 +5,7 @@ import 'package:nous/src/core/widgets/texto_rolante.dart';
 import 'package:nous/src/features/auth/providers/auth_provider.dart';
 import 'package:nous/src/features/auth/services/contas_excluidas_service.dart';
 import 'package:nous/src/features/auth/services/cpf_validator.dart';
+import 'package:nous/src/features/auth/views/perfil_social_view.dart';
 import 'package:nous/src/features/auth/views/widgets/contas_excluidas_dialog.dart';
 import 'package:nous/src/features/auth/views/widgets/ficha_usuario_dialog.dart';
 import 'package:nous/src/features/chat/services/chat_service.dart';
@@ -17,6 +18,7 @@ import 'package:nous/src/features/pdv/services/imagem_service.dart';
 import 'package:nous/src/features/pdv/services/rede_local/cliente_rede_local.dart';
 import 'package:nous/src/features/pdv/services/rede_local/servidor_rede_local.dart';
 import 'package:nous/src/features/pdv/views/widgets/estado_vazio_container.dart';
+import 'package:nous/src/features/pdv/views/widgets/status_loja/badges_dispositivos_membro_widget.dart';
 
 String _rotuloPapel(PapelMembro papel) {
   switch (papel) {
@@ -352,10 +354,7 @@ class _LinhaTrabalhadorStatusWidgetState
           nomeLoja: ehPessoal ? null : loja?.nome,
           logoLoja: ehPessoal ? null : loja?.logo,
           operadorCpf: widget.cpfLogado,
-          usuarioCpf: widget.membro.cpf,
-          usuarioNome: widget.membro.nome,
-          usuarioFoto: foto,
-          usuarioApelido: apelido ?? '',
+          usuarioCpf: widget.cpfLogado,
           conversaInicialId: ehPessoal
               ? ChatService.conversaIdEntreUsuarios(
                   widget.cpfLogado,
@@ -631,10 +630,27 @@ class _LinhaTrabalhadorStatusWidgetState
       builder: (context, constraints) {
         final ehModoCelular = constraints.maxWidth < 560;
 
+        final podeVisitarPerfil = ehLojaColetivaNous && contaMembro != null;
+
         return MouseRegion(
+          cursor: podeVisitarPerfil
+              ? SystemMouseCursors.click
+              : MouseCursor.defer,
           onEnter: (_) => setState(() => _hover = true),
           onExit: (_) => setState(() => _hover = false),
-          child: Container(
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: podeVisitarPerfil
+                ? () => Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => PerfilSocialView(
+                          usuarioAlvo: contaMembro,
+                          mostrarBotaoVoltar: true,
+                        ),
+                      ),
+                    )
+                : null,
+            child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
             margin: const EdgeInsets.only(bottom: 8),
             decoration: BoxDecoration(
@@ -774,81 +790,18 @@ class _LinhaTrabalhadorStatusWidgetState
                 ],
             const SizedBox(height: 8),
             // Dispositivos conectados na rede local (exibição original com IP e tipo)
-            if (estaOnline) ...[
-              Wrap(
-                spacing: 6,
-                runSpacing: 4,
-                children: dispositivos.map((disp) {
-                  final ehBalcao = disp.nome.toLowerCase().contains('balcão') ||
-                      disp.id.contains('balcao');
-                  final icone = ehBalcao
-                      ? Icons.computer_rounded
-                      : Icons.smartphone_rounded;
-
-                  return Container(
-                    constraints: const BoxConstraints(maxWidth: 240),
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 3,
-                    ),
-                    decoration: BoxDecoration(
-                      color: theme.backgroundColor.withValues(alpha: 0.3),
-                      borderRadius: BorderRadius.circular(6),
-                      border: Border.all(
-                        color: theme.borderColor.withValues(alpha: 0.4),
-                        width: 0.8,
-                      ),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          icone,
-                          size: 12,
-                          color: theme.textColor,
-                        ),
-                        const SizedBox(width: 4),
-                        Flexible(
-                          child: TextoRolante(
-                            texto: '${disp.nome}${disp.ip.isNotEmpty && disp.ip != "Local" ? " (${disp.ip})" : ""}',
-                            textAlign: TextAlign.start,
-                            style: theme.getTextStyle(
-                              fontSize: 10,
-                              color: theme.textColor,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  );
-                }).toList(),
-              ),
-            ] else ...[
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(
-                    Icons.wifi_off_rounded,
-                    size: 11,
-                    color: theme.secondaryTextColor.withValues(alpha: 0.7),
-                  ),
-                  const SizedBox(width: 4),
-                  Text(
-                    'Nenhum dispositivo conectado na rede local',
-                    style: theme.getTextStyle(
-                      fontSize: 10,
-                      color: theme.secondaryTextColor.withValues(alpha: 0.7),
-                    ),
-                  ),
-                ],
-              ),
-            ],
+            BadgesDispositivosMembroWidget(
+              estaOnline: estaOnline,
+              dispositivos: dispositivos,
+              theme: theme,
+            ),
             // Gaveta de Horários e Escala de Trabalho (apenas em lojas comerciais)
             if (!ehLojaColetivaNous && _mostrarPontoEEscala)
               _secaoPontoEEscala(context),
           ],
         ),
       ),
+    ),
     );
   },
 );

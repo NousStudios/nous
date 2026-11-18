@@ -14,6 +14,8 @@ class CriptografiaService {
   static final X25519 _x25519 = X25519();
   static final AesGcm _aesGcm = AesGcm.with256bits();
   static bool _tabelaChavesCriada = false;
+  static final Map<String, SimpleKeyPairData> _cacheChaveTrocaLocal = {};
+  static final Map<String, SecretKey> _cacheSegredoCompartilhado = {};
 
   /// Prefixo identificador de mensagens cifradas de ponta a ponta
   static const String prefixoE2ee = 'e2ee:v1:';
@@ -198,6 +200,54 @@ class CriptografiaService {
     return pubHex;
   }
 
+  static Future<SecretKey?> _obterSegredoCompartilhado({
+    required String cpfLimpo,
+    required String chavePublicaOutroHex,
+  }) async {
+    final chaveCacheSegredo = '$cpfLimpo:$chavePublicaOutroHex';
+    final segredoEmCache = _cacheSegredoCompartilhado[chaveCacheSegredo];
+    if (segredoEmCache != null) return segredoEmCache;
+
+    var meuKeyPair = _cacheChaveTrocaLocal[cpfLimpo];
+    if (meuKeyPair == null) {
+      final db = await BancoDadosService.db;
+      await _garantirTabela(db);
+      await obterOuGerarChaveTroca(cpfLimpo);
+
+      final registros = await db.query(
+        'cofre_chaves_troca',
+        columns: ['chave_privada_hex', 'chave_publica_hex'],
+        where: 'cpf = ?',
+        whereArgs: [cpfLimpo],
+        limit: 1,
+      );
+      if (registros.isEmpty) return null;
+
+      final minhavPrivHex = registros.first['chave_privada_hex']?.toString() ?? '';
+      final minhaPubHex = registros.first['chave_publica_hex']?.toString() ?? '';
+      if (minhavPrivHex.isEmpty || minhaPubHex.isEmpty) return null;
+
+      meuKeyPair = SimpleKeyPairData(
+        _hexParaBytes(minhavPrivHex),
+        publicKey: SimplePublicKey(_hexParaBytes(minhaPubHex), type: KeyPairType.x25519),
+        type: KeyPairType.x25519,
+      );
+      _cacheChaveTrocaLocal[cpfLimpo] = meuKeyPair;
+    }
+
+    final remotePublicKey = SimplePublicKey(
+      _hexParaBytes(chavePublicaOutroHex),
+      type: KeyPairType.x25519,
+    );
+
+    final sharedSecret = await _x25519.sharedSecretKey(
+      keyPair: meuKeyPair,
+      remotePublicKey: remotePublicKey,
+    );
+    _cacheSegredoCompartilhado[chaveCacheSegredo] = sharedSecret;
+    return sharedSecret;
+  }
+
   /// Cifra um texto de ponta a ponta para o destinatário usando X25519 + AES-GCM (256-bit).
   /// Retorna o pacote empacotado com prefixo `e2ee:v1:`.
   static Future<String> cifrarTextoPara({
@@ -211,41 +261,11 @@ class CriptografiaService {
       final cpfLimpo = meuCpf.replaceAll(RegExp(r'\D'), '');
       if (cpfLimpo.isEmpty) return texto;
 
-      final db = await BancoDadosService.db;
-      await _garantirTabela(db);
-
-      // Garante que minha chave de troca existe
-      await obterOuGerarChaveTroca(cpfLimpo);
-
-      final registros = await db.query(
-        'cofre_chaves_troca',
-        columns: ['chave_privada_hex', 'chave_publica_hex'],
-        where: 'cpf = ?',
-        whereArgs: [cpfLimpo],
-        limit: 1,
+      final sharedSecret = await _obterSegredoCompartilhado(
+        cpfLimpo: cpfLimpo,
+        chavePublicaOutroHex: chavePublicaDestinatarioHex,
       );
-
-      if (registros.isEmpty) return texto;
-
-      final minhavPrivHex = registros.first['chave_privada_hex']?.toString() ?? '';
-      final minhaPubHex = registros.first['chave_publica_hex']?.toString() ?? '';
-      if (minhavPrivHex.isEmpty || minhaPubHex.isEmpty) return texto;
-
-      final meuKeyPair = SimpleKeyPairData(
-        _hexParaBytes(minhavPrivHex),
-        publicKey: SimplePublicKey(_hexParaBytes(minhaPubHex), type: KeyPairType.x25519),
-        type: KeyPairType.x25519,
-      );
-
-      final remotePublicKey = SimplePublicKey(
-        _hexParaBytes(chavePublicaDestinatarioHex),
-        type: KeyPairType.x25519,
-      );
-
-      final sharedSecret = await _x25519.sharedSecretKey(
-        keyPair: meuKeyPair,
-        remotePublicKey: remotePublicKey,
-      );
+      if (sharedSecret == null) return texto;
 
       final dadosBytes = utf8.encode(texto);
       final secretBox = await _aesGcm.encrypt(
@@ -275,40 +295,11 @@ class CriptografiaService {
       final cpfLimpo = meuCpf.replaceAll(RegExp(r'\D'), '');
       if (cpfLimpo.isEmpty) return '[Mensagem Cifrada Protegida]';
 
-      final db = await BancoDadosService.db;
-      await _garantirTabela(db);
-
-      await obterOuGerarChaveTroca(cpfLimpo);
-
-      final registros = await db.query(
-        'cofre_chaves_troca',
-        columns: ['chave_privada_hex', 'chave_publica_hex'],
-        where: 'cpf = ?',
-        whereArgs: [cpfLimpo],
-        limit: 1,
+      final sharedSecret = await _obterSegredoCompartilhado(
+        cpfLimpo: cpfLimpo,
+        chavePublicaOutroHex: chavePublicaRemetenteHex,
       );
-
-      if (registros.isEmpty) return '[Mensagem Cifrada Protegida]';
-
-      final minhavPrivHex = registros.first['chave_privada_hex']?.toString() ?? '';
-      final minhaPubHex = registros.first['chave_publica_hex']?.toString() ?? '';
-      if (minhavPrivHex.isEmpty || minhaPubHex.isEmpty) return '[Mensagem Cifrada Protegida]';
-
-      final meuKeyPair = SimpleKeyPairData(
-        _hexParaBytes(minhavPrivHex),
-        publicKey: SimplePublicKey(_hexParaBytes(minhaPubHex), type: KeyPairType.x25519),
-        type: KeyPairType.x25519,
-      );
-
-      final remotePublicKey = SimplePublicKey(
-        _hexParaBytes(chavePublicaRemetenteHex),
-        type: KeyPairType.x25519,
-      );
-
-      final sharedSecret = await _x25519.sharedSecretKey(
-        keyPair: meuKeyPair,
-        remotePublicKey: remotePublicKey,
-      );
+      if (sharedSecret == null) return '[Mensagem Cifrada Protegida]';
 
       final base64Payload = textoCifrado.substring(prefixoE2ee.length);
       final bytesConcatenados = base64Decode(base64Payload);

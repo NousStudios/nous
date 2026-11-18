@@ -24,6 +24,7 @@ import 'package:nous/src/features/pdv/views/dialogs/estoque_dialog.dart';
 import 'package:nous/src/features/pdv/views/financeiro_view.dart';
 import 'package:nous/src/features/pdv/views/perfis_pdv_view.dart';
 import 'package:nous/src/features/pdv/views/status_loja_view.dart';
+import 'package:nous/src/features/pdv/views/vitrine_loja_view.dart';
 import 'package:nous/src/features/pdv/views/widgets/caixa_dialog.dart';
 import 'package:nous/src/features/pdv/views/widgets/clientes_dialog.dart';
 import 'package:nous/src/features/pdv/views/widgets/fornecedores_dialog.dart';
@@ -519,6 +520,20 @@ class GerenciadorDialogsLoja {
     );
   }
 
+  void abrirPerfilPublicoLoja() {
+    final context = obterContext();
+    final pdv = context.read<PdvProvider>();
+    final lojaAtual = pdv.buscarPorId(lojaId);
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => VitrineLojaView(
+          lojaId: lojaId,
+          lojaFallback: lojaAtual,
+        ),
+      ),
+    );
+  }
+
   void executarAcaoPorNome(String acao) {
     switch (acao) {
       case 'Nova Venda':
@@ -544,6 +559,9 @@ class GerenciadorDialogsLoja {
         break;
       case 'Status da Loja':
         abrirStatusLoja();
+        break;
+      case 'Perfil Público':
+        abrirPerfilPublicoLoja();
         break;
       case 'Modo Balcão':
         alternarModoBalcao(true);

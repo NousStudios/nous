@@ -1,8 +1,7 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
 import 'package:nous/src/features/chat/models/chamada_sessao.dart';
+import 'package:nous/src/features/chat/services/chamada_historico_service.dart';
 import 'package:nous/src/features/chat/services/chamada_webrtc_service.dart';
 import 'package:nous/src/features/pdv/services/imagem_service.dart';
 
@@ -29,13 +28,11 @@ class ChamadaAtivaView extends StatefulWidget {
 
 class _ChamadaAtivaViewState extends State<ChamadaAtivaView> {
   final _service = ChamadaWebRtcService.instancia;
-  Timer? _timerDuracao;
-  int _segundosChamada = 0;
 
   @override
   void initState() {
     super.initState();
-    _iniciarTimerDuracao();
+    _service.chamadaMinimizada.value = false;
 
     _service.onChamadaEncerrada = () {
       if (mounted) {
@@ -44,28 +41,15 @@ class _ChamadaAtivaViewState extends State<ChamadaAtivaView> {
     };
   }
 
-  void _iniciarTimerDuracao() {
-    _timerDuracao?.cancel();
-    _timerDuracao = Timer.periodic(const Duration(seconds: 1), (_) {
-      if (!mounted) return;
-      final sessao = _service.sessaoAtiva.value;
-      if (sessao != null && sessao.estado == EstadoChamada.conectada) {
-        setState(() {
-          _segundosChamada++;
-        });
-      }
-    });
-  }
-
-  String _formatarDuracao(int segundos) {
-    final m = (segundos ~/ 60).toString().padLeft(2, '0');
-    final s = (segundos % 60).toString().padLeft(2, '0');
-    return '$m:$s';
-  }
-
   @override
   void dispose() {
-    _timerDuracao?.cancel();
+    if (_service.sessaoAtiva.value != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (_service.sessaoAtiva.value != null) {
+          _service.chamadaMinimizada.value = true;
+        }
+      });
+    }
     super.dispose();
   }
 
@@ -75,7 +59,9 @@ class _ChamadaAtivaViewState extends State<ChamadaAtivaView> {
       valueListenable: _service.sessaoAtiva,
       builder: (context, sessao, _) {
         final sessaoAtual = sessao ?? widget.sessao;
-        final ehVideo = sessaoAtual.tipo == TipoChamada.video || sessaoAtual.videoHabilitado;
+        final ehVideo = sessaoAtual.tipo == TipoChamada.video ||
+            sessaoAtual.videoHabilitado ||
+            sessaoAtual.compartilhandoTela;
         final estaConectada = sessaoAtual.estado == EstadoChamada.conectada;
 
         return Scaffold(
@@ -83,21 +69,43 @@ class _ChamadaAtivaViewState extends State<ChamadaAtivaView> {
           body: SafeArea(
             child: Stack(
               children: [
-                // 1. Área Principal (Vídeo Remoto ou Avatar Central de Voz)
-                if (ehVideo && estaConectada)
-                  Positioned.fill(
-                    child: RTCVideoView(
-                      _service.renderizadorRemoto,
-                      mirror: false,
-                      objectFit:
-                          RTCVideoViewObjectFit.RTCVideoViewObjectFitCover,
-                    ),
-                  )
-                else
-                  _buildFundoVoz(sessaoAtual, estaConectada),
+                // 1. Área Principal (Vídeo/Tela Remoto ou Avatar Central de Voz)
+                ValueListenableBuilder<bool>(
+                  valueListenable: _service.videoRemotoAtivo,
+                  builder: (context, videoRemoto, _) {
+                    if ((ehVideo || videoRemoto) && estaConectada) {
+                      return Positioned.fill(
+                        child: ValueListenableBuilder<bool>(
+                          valueListenable: _service.telaRemotaAtiva,
+                          builder: (context, telaRemota, _) {
+                            final videoView = RTCVideoView(
+                              _service.renderizadorRemoto,
+                              mirror: false,
+                              objectFit: telaRemota
+                                  ? RTCVideoViewObjectFit
+                                      .RTCVideoViewObjectFitContain
+                                  : RTCVideoViewObjectFit
+                                      .RTCVideoViewObjectFitCover,
+                            );
+                            if (telaRemota) {
+                              return InteractiveViewer(
+                                minScale: 1.0,
+                                maxScale: 4.0,
+                                child: videoView,
+                              );
+                            }
+                            return videoView;
+                          },
+                        ),
+                      );
+                    }
+                    return _buildFundoVoz(sessaoAtual, estaConectada);
+                  },
+                ),
 
-                // 2. PiP do Vídeo Local (Câmera do próprio usuário - apenas frontal espelhada)
-                if (ehVideo && sessaoAtual.videoHabilitado)
+                // 2. PiP do Vídeo Local (Câmera ou Prévia da Tela Transmitida)
+                if (sessaoAtual.videoHabilitado ||
+                    sessaoAtual.compartilhandoTela)
                   Positioned(
                     top: 20,
                     right: 20,
@@ -125,68 +133,128 @@ class _ChamadaAtivaViewState extends State<ChamadaAtivaView> {
                         builder: (context, ehFrontal, _) {
                           return RTCVideoView(
                             _service.renderizadorLocal,
-                            mirror: ehFrontal,
-                            objectFit:
-                                RTCVideoViewObjectFit.RTCVideoViewObjectFitCover,
+                            mirror: ehFrontal && !sessaoAtual.compartilhandoTela,
+                            objectFit: sessaoAtual.compartilhandoTela
+                                ? RTCVideoViewObjectFit
+                                    .RTCVideoViewObjectFitContain
+                                : RTCVideoViewObjectFit
+                                    .RTCVideoViewObjectFitCover,
                           );
                         },
                       ),
                     ),
                   ),
 
-                // 3. Barra Superior com Informações do Contato e Status
+                // 3. Barra Superior com Botão Minimizar, Nome e Status/Qualidade
                 Positioned(
                   top: 20,
-                  left: 20,
+                  left: 12,
                   right: ehVideo ? 140 : 20,
-                  child: Column(
+                  child: Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        sessaoAtual.destinatarioNome.isNotEmpty
-                            ? sessaoAtual.destinatarioNome
-                            : sessaoAtual.remetenteNome,
-                        style: const TextStyle(
+                      IconButton(
+                        tooltip: 'Minimizar Chamada',
+                        onPressed: () {
+                          _service.chamadaMinimizada.value = true;
+                          Navigator.of(context).maybePop();
+                        },
+                        icon: const Icon(
+                          Icons.keyboard_arrow_down_rounded,
                           color: Colors.white,
-                          fontSize: 20,
-                          fontWeight: FontWeight.bold,
-                          shadows: [
-                            Shadow(color: Colors.black87, blurRadius: 6),
+                          size: 30,
+                        ),
+                      ),
+                      const SizedBox(width: 4),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              sessaoAtual.destinatarioNome.isNotEmpty
+                                  ? sessaoAtual.destinatarioNome
+                                  : sessaoAtual.remetenteNome,
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 20,
+                                fontWeight: FontWeight.bold,
+                                shadows: [
+                                  Shadow(color: Colors.black87, blurRadius: 6),
+                                ],
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            const SizedBox(height: 4),
+                            ValueListenableBuilder<String>(
+                              valueListenable: _service.statusConexao,
+                              builder: (context, statusRede, _) {
+                                final reconectando = statusRede == 'reconectando';
+                                return Row(
+                                  children: [
+                                    Container(
+                                      width: 8,
+                                      height: 8,
+                                      decoration: BoxDecoration(
+                                        color: reconectando
+                                            ? Colors.orangeAccent
+                                            : (estaConectada
+                                                ? Colors.greenAccent
+                                                : Colors.amberAccent),
+                                        shape: BoxShape.circle,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    if (reconectando)
+                                      Text(
+                                        'Reconectando Wi-Fi...',
+                                        style: TextStyle(
+                                          color: Colors.orangeAccent
+                                              .withValues(alpha: 0.95),
+                                          fontSize: 13,
+                                          fontWeight: FontWeight.w600,
+                                          shadows: const [
+                                            Shadow(
+                                              color: Colors.black87,
+                                              blurRadius: 6,
+                                            ),
+                                          ],
+                                        ),
+                                      )
+                                    else
+                                      ValueListenableBuilder<int>(
+                                        valueListenable:
+                                            _service.segundosChamada,
+                                        builder: (context, segundos, _) {
+                                          return Text(
+                                            estaConectada
+                                                ? ChamadaHistoricoService
+                                                    .formatarDuracao(segundos)
+                                                : (sessaoAtual.estado ==
+                                                        EstadoChamada.chamando
+                                                    ? 'Chamando...'
+                                                    : 'Conectando na rede local...'),
+                                            style: TextStyle(
+                                              color: Colors.white
+                                                  .withValues(alpha: 0.8),
+                                              fontSize: 13,
+                                              fontWeight: FontWeight.w500,
+                                              shadows: const [
+                                                Shadow(
+                                                  color: Colors.black87,
+                                                  blurRadius: 6,
+                                                ),
+                                              ],
+                                            ),
+                                          );
+                                        },
+                                      ),
+                                  ],
+                                );
+                              },
+                            ),
                           ],
                         ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      const SizedBox(height: 4),
-                      Row(
-                        children: [
-                          Container(
-                            width: 8,
-                            height: 8,
-                            decoration: BoxDecoration(
-                              color: estaConectada
-                                  ? Colors.greenAccent
-                                  : Colors.amberAccent,
-                              shape: BoxShape.circle,
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          Text(
-                            estaConectada
-                                ? _formatarDuracao(_segundosChamada)
-                                : (sessaoAtual.estado == EstadoChamada.chamando
-                                    ? 'Chamando...'
-                                    : 'Conectando na rede local...'),
-                            style: TextStyle(
-                              color: Colors.white.withValues(alpha: 0.8),
-                              fontSize: 13,
-                              fontWeight: FontWeight.w500,
-                              shadows: const [
-                                Shadow(color: Colors.black87, blurRadius: 6),
-                              ],
-                            ),
-                          ),
-                        ],
                       ),
                     ],
                   ),
@@ -364,24 +432,55 @@ class _ChamadaAtivaViewState extends State<ChamadaAtivaView> {
             },
           ),
 
-          // 3. Alternar Câmera / Ligar Câmera se vídeo
-          if (ehVideo) ...[
-            _botaoAcao(
-              icone: _service.cameraDesativada
-                  ? Icons.videocam_off_rounded
-                  : Icons.videocam_rounded,
-              ativo: !_service.cameraDesativada,
-              corAtiva: Colors.white24,
-              corIcone:
-                  _service.cameraDesativada ? Colors.redAccent : Colors.white,
-              tooltip:
-                  _service.cameraDesativada ? 'Ligar Câmera' : 'Desligar Câmera',
-              onTap: () {
-                setState(() {
-                  _service.alternarCamera();
-                });
-              },
-            ),
+          // 3. Mudar para Chamada de Vídeo / Ligar ou Desligar Câmera (disponível em toda chamada)
+          _botaoAcao(
+            icone: (_service.cameraDesativada || !sessao.videoHabilitado || sessao.compartilhandoTela)
+                ? Icons.videocam_off_rounded
+                : Icons.videocam_rounded,
+            ativo: sessao.videoHabilitado && !sessao.compartilhandoTela && !_service.cameraDesativada,
+            corAtiva: Colors.white24,
+            corIcone: (sessao.videoHabilitado && !sessao.compartilhandoTela && !_service.cameraDesativada)
+                ? Colors.white
+                : Colors.white70,
+            tooltip: (sessao.videoHabilitado && !sessao.compartilhandoTela && !_service.cameraDesativada)
+                ? 'Desligar Vídeo'
+                : 'Mudar para Vídeo',
+            onTap: () async {
+              await _service.alternarCamera();
+              if (mounted) setState(() {});
+            },
+          ),
+
+          // 4. Transmitir Tela (estilo Discord - Windows e Android)
+          _botaoAcao(
+            icone: sessao.compartilhandoTela
+                ? Icons.stop_screen_share_rounded
+                : Icons.screen_share_rounded,
+            ativo: sessao.compartilhandoTela,
+            corAtiva: const Color(0xFF2E7D32),
+            corIcone: Colors.white,
+            tooltip: sessao.compartilhandoTela
+                ? 'Parar Transmissão de Tela'
+                : 'Transmitir Tela',
+            onTap: () async {
+              final estavaCompartilhando = sessao.compartilhandoTela;
+              final ativo = await _service.alternarCompartilhamentoTela();
+              if (!mounted) return;
+              if (!estavaCompartilhando && !ativo) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Não foi possível iniciar o compartilhamento de tela.'),
+                  ),
+                );
+              }
+              setState(() {});
+            },
+          ),
+
+          // 5. Inverter Câmera (apenas quando a câmera estiver ativa)
+          if (sessao.videoHabilitado &&
+              !_service.cameraDesativada &&
+              !sessao.compartilhandoTela)
             _botaoAcao(
               icone: Icons.cameraswitch_rounded,
               ativo: true,
@@ -392,7 +491,6 @@ class _ChamadaAtivaViewState extends State<ChamadaAtivaView> {
                 _service.alternarCameraFrontalTraseira();
               },
             ),
-          ],
 
           // 4. Encerrar Chamada (Botão Vermelho)
           InkWell(

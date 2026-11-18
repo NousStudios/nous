@@ -311,7 +311,35 @@ class _ListaConversasWidgetState extends State<ListaConversasWidget> {
 
         // Lista de chats
         Expanded(
-          child: filtradas.isEmpty
+          child: (widget.controller.carregando && filtradas.isEmpty)
+              ? Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(24),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        SizedBox(
+                          width: 26,
+                          height: 26,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2.5,
+                            color: theme.textColor,
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        Text(
+                          'Carregando conversas...',
+                          textAlign: TextAlign.center,
+                          style: theme.getTextStyle(
+                            fontSize: 13,
+                            color: theme.secondaryTextColor,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                )
+              : filtradas.isEmpty
               ? Center(
                   child: Padding(
                     padding: const EdgeInsets.all(20),

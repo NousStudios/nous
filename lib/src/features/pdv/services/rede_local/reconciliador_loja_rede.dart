@@ -46,6 +46,10 @@ class ReconciliadorLojaRede {
         ),
       );
       request.headers.contentType = ContentType.json;
+      final cpfRem = lojaCurada.cpfDonoOriginal.replaceAll(RegExp(r'\D'), '');
+      if (cpfRem.isNotEmpty) {
+        request.headers.set('x-cpf-remetente', cpfRem);
+      }
       request.write(jsonEncode(lojaCurada.toJson()));
       final response = await request.close();
       final ok = response.statusCode == HttpStatus.ok;

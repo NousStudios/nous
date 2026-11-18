@@ -11,18 +11,40 @@ import 'package:nous/src/features/pdv/models/loja.dart';
 class ContasNousService {
   ContasNousService._();
 
+  static List<UsuarioNous>? _cacheTodas;
+  static final Map<String, UsuarioNous> _cachePorCpf = {};
+
+  static void invalidarCache() {
+    _cacheTodas = null;
+    _cachePorCpf.clear();
+  }
+
   static Future<List<UsuarioNous>> carregarTodas() async {
+    if (_cacheTodas != null) {
+      return List<UsuarioNous>.from(_cacheTodas!);
+    }
     final db = await BancoDadosService.db;
     final rows = await db.query('contas_usuarios');
-    return rows
+    final lista = rows
         .map((r) => FundadoresNous.aplicarSeloFundadorSeAplicavel(
             UsuarioNous.fromJson(jsonDecode(r['dados_json'] as String))))
         .toList();
+    _cacheTodas = lista;
+    for (final u in lista) {
+      final cpfLimpo = u.cpf.replaceAll(RegExp(r'\D'), '');
+      if (cpfLimpo.isNotEmpty) {
+        _cachePorCpf[cpfLimpo] = u;
+      }
+    }
+    return List<UsuarioNous>.from(lista);
   }
 
   static Future<UsuarioNous?> buscarPorCpf(String cpf) async {
-    final db = await BancoDadosService.db;
     final cpfLimpo = cpf.replaceAll(RegExp(r'\D'), '');
+    if (cpfLimpo.isNotEmpty && _cachePorCpf.containsKey(cpfLimpo)) {
+      return _cachePorCpf[cpfLimpo];
+    }
+    final db = await BancoDadosService.db;
     final rows = await db.query(
       'contas_usuarios',
       where:
@@ -31,9 +53,13 @@ class ContasNousService {
       limit: 1,
     );
     if (rows.isEmpty) return null;
-    return FundadoresNous.aplicarSeloFundadorSeAplicavel(
+    final usuario = FundadoresNous.aplicarSeloFundadorSeAplicavel(
       UsuarioNous.fromJson(jsonDecode(rows.first['dados_json'] as String)),
     );
+    if (cpfLimpo.isNotEmpty) {
+      _cachePorCpf[cpfLimpo] = usuario;
+    }
+    return usuario;
   }
 
   static Future<List<UsuarioNous>> buscarPorTermo(String termo) async {
@@ -101,6 +127,7 @@ class ContasNousService {
       },
       conflictAlgorithm: ConflictAlgorithm.replace,
     );
+    invalidarCache();
   }
 
   static Future<void> excluir(String cpf) async {
@@ -112,6 +139,7 @@ class ContasNousService {
           "cpf = ? OR cpf = ? OR REPLACE(REPLACE(REPLACE(cpf, '.', ''), '-', ''), ' ', '') = ?",
       whereArgs: [cpf, cpfLimpo, cpfLimpo],
     );
+    invalidarCache();
   }
 
   /// Varre o SQLite em busca de contas excluídas ou órfãs e corrige inconsistências:
@@ -257,6 +285,7 @@ class ContasNousService {
       }
 
       if (removidos > 0) {
+        invalidarCache();
         debugPrint(
           '[ContasNousService] Varredura SQLite concluiu e removeu $removidos registro(s) excluído(s)/órfão(s).',
         );

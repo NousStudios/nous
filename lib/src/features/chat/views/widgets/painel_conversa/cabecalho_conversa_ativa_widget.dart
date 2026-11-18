@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import 'package:nous/src/core/theme/theme_controller.dart';
 import 'package:nous/src/core/widgets/texto_rolante.dart';
 import 'package:nous/src/features/auth/providers/auth_provider.dart';
+import 'package:nous/src/features/chat/controllers/helpers/mensageria_solicitacoes_helper.dart';
 import 'package:nous/src/features/chat/models/chamada_sessao.dart';
 import 'package:nous/src/features/chat/models/conversa_chat.dart';
 import 'package:nous/src/features/chat/services/chamada_webrtc_service.dart';
@@ -197,7 +198,7 @@ class CabecalhoConversaAtivaWidget extends StatelessWidget {
                             builder: (context, _) {
                               final servidor = ServidorRedeLocal();
                               final cliente = ClienteRedeLocal();
-                              final auth = context.watch<AuthProvider>();
+                              final auth = context.read<AuthProvider>();
                               final meuCpf =
                                   ChatService.normalizarCpf(auth.cpf);
 
@@ -367,7 +368,13 @@ class CabecalhoConversaAtivaWidget extends StatelessWidget {
                   conversa.id != PdvProvider.idLojaColetivaNous &&
                   !(conversa.ehLoja &&
                       conversa.lojaId ==
-                          PdvProvider.idLojaColetivaNous)) ...[
+                          PdvProvider.idLojaColetivaNous) &&
+                  !MensageriaSolicitacoesHelper.ehSolicitacao(
+                    conversa: conversa,
+                    modoLoja: conversa.ehLoja,
+                    meuCpf: context.read<AuthProvider>().cpf,
+                    contaLogada: context.read<AuthProvider>().contaAtual,
+                  )) ...[
                 IconButton(
                   icon: Icon(
                     Icons.videocam_rounded,

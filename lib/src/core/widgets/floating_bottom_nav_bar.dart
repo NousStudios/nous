@@ -8,6 +8,7 @@ import 'package:nous/src/features/busca/views/busca_mapa_view.dart';
 import 'package:nous/src/features/chat/views/mensageria_view.dart';
 import 'package:nous/src/features/pdv/views/compras_usuario_view.dart';
 import 'package:nous/src/features/pdv/views/perfis_pdv_view.dart';
+import 'package:nous/src/features/timeline/views/feed_descoberta_view.dart';
 
 class _ItemSlotDuplo {
   final IconData icone0;
@@ -67,11 +68,11 @@ class _FloatingBottomNavBarState extends State<FloatingBottomNavBar> {
       label0: 'Perfil Social',
       label1: 'Mensagens',
     ),
-    // Slot 2: Busca & Mapa / Player Universal
+    // Slot 2: Busca e Mapa / Player Universal
     _ItemSlotDuplo(
       icone0: Icons.search,
       icone1: Icons.play_circle_outline,
-      label0: 'Busca & Mapa',
+      label0: 'Busca e Mapa',
       label1: 'Player Universal',
     ),
     // Slot 3: Feed Descoberta / Feed Amigos
@@ -186,21 +187,9 @@ class _FloatingBottomNavBarState extends State<FloatingBottomNavBar> {
       }
     } else if (slot == 3) {
       if (subIndice == 0) {
-        pagina = const EmConstrucaoView(
-          titulo: 'Feed de Descoberta',
-          subtitulo: 'Memes, novidades e publicações de toda a rede local',
-          icone: Icons.explore_outlined,
-          slotSelecionado: 3,
-          subIndiceSelecionado: 0,
-        );
+        pagina = const FeedDescobertaView(apenasAmigos: false);
       } else {
-        pagina = const EmConstrucaoView(
-          titulo: 'Feed de Amigos',
-          subtitulo: 'Publicações da sua rede de confiança e conexões',
-          icone: Icons.people_alt_outlined,
-          slotSelecionado: 3,
-          subIndiceSelecionado: 1,
-        );
+        pagina = const FeedDescobertaView(apenasAmigos: true);
       }
     } else {
       if (subIndice == 0) {

@@ -12,6 +12,20 @@ import 'package:nous/src/features/pdv/services/imagem_service.dart';
 class ChatE2eeService {
   ChatE2eeService._();
 
+  static final Map<String, ({String texto, String? caminhoAnexo})>
+      _cacheDecifradas = {};
+
+  static void _salvarCacheDecifrada(
+    String chave,
+    String texto,
+    String? caminhoAnexo,
+  ) {
+    if (_cacheDecifradas.length >= 1000) {
+      _cacheDecifradas.remove(_cacheDecifradas.keys.first);
+    }
+    _cacheDecifradas[chave] = (texto: texto, caminhoAnexo: caminhoAnexo);
+  }
+
   /// Verifica se uma conversa é elegível para criptografia E2EE (conversa direta entre usuários)
   static bool ehConversaElegivelE2ee(String conversaId) {
     return conversaId.startsWith('user_') && conversaId.contains('_user_');
@@ -272,6 +286,16 @@ class ChatE2eeService {
         continue;
       }
 
+      final chaveCacheMsg = '$visNorm:${m.id}:${m.texto.hashCode}:${m.caminhoAnexo}';
+      final emCache = _cacheDecifradas[chaveCacheMsg];
+      if (emCache != null) {
+        resultado.add(m.copyWith(
+          texto: emCache.texto,
+          caminhoAnexo: emCache.caminhoAnexo ?? m.caminhoAnexo,
+        ));
+        continue;
+      }
+
       final remNorm = ChatRepositorioSqlite.normalizarCpf(m.remetenteId);
       final destNorm = ChatRepositorioSqlite.normalizarCpf(m.destinatarioId);
 
@@ -328,6 +352,11 @@ class ChatE2eeService {
             }
           }
         } catch (_) {}
+      }
+
+      if (textoDecifradoBruto != '[Mensagem Cifrada Protegida]' &&
+          !textoDecifradoBruto.startsWith('[Erro')) {
+        _salvarCacheDecifrada(chaveCacheMsg, textoReal, novoCaminhoAnexo);
       }
 
       resultado.add(m.copyWith(

@@ -476,6 +476,13 @@ class ServidorRedeLocal {
         if (sdp != null) {
           ChamadaWebRtcService.instancia.receberRespostaAceita(sdp);
         }
+      } else if (tipo == 'chamada_renegociar_oferta') {
+        ChamadaWebRtcService.instancia.receberRenegociacaoOferta(dados);
+      } else if (tipo == 'chamada_renegociar_resposta') {
+        final sdp = dados['sdp'] as Map<String, dynamic>?;
+        if (sdp != null) {
+          ChamadaWebRtcService.instancia.receberRenegociacaoResposta(sdp);
+        }
       } else if (tipo == 'chamada_candidato_ice') {
         final candidate = dados['candidate'] as Map<String, dynamic>?;
         if (candidate != null) {

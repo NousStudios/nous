@@ -258,6 +258,29 @@ class RoteadorLojaPedidos {
           );
 
           if (lojaAtual != null) {
+            final cpfRemetente = (request.headers.value('x-cpf-remetente') ?? '')
+                .replaceAll(RegExp(r'\D'), '');
+            if (cpfRemetente.isNotEmpty) {
+              final donoNorm =
+                  lojaAtual.cpfDonoOriginal.replaceAll(RegExp(r'\D'), '');
+              final ehMembroAutorizado = cpfRemetente == donoNorm ||
+                  lojaAtual.membros.any(
+                    (m) => m.cpf.replaceAll(RegExp(r'\D'), '') == cpfRemetente,
+                  );
+              if (!ehMembroAutorizado) {
+                ServidorRedeLocal.responderJson(
+                  request,
+                  {
+                    'sucesso': false,
+                    'mensagem':
+                        'Apenas membros autorizados podem atualizar esta loja.',
+                  },
+                  statusCode: HttpStatus.forbidden,
+                );
+                return true;
+              }
+            }
+
             for (final m in lojaAtual.membros) {
               final aindaExiste =
                   lojaRemota.membros.any((rm) => rm.cpf == m.cpf);

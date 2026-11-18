@@ -273,6 +273,13 @@ class DesktopSidebarWidget extends StatelessWidget {
                   ),
                   _BotaoAtalhoSidebar(
                     theme: theme,
+                    tecla: _obterTeclaParaAcao('Perfil Público'),
+                    rotulo: 'Perfil Público',
+                    icone: Icons.public_rounded,
+                    onTap: () => _executar('Perfil Público'),
+                  ),
+                  _BotaoAtalhoSidebar(
+                    theme: theme,
                     tecla: _obterTeclaParaAcao('Modo Balcão'),
                     rotulo: 'Modo Balcão',
                     icone: Icons.point_of_sale_rounded,

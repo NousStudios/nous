@@ -3,7 +3,9 @@ import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
 import 'package:nous/src/core/theme/theme_controller.dart';
 import 'package:nous/src/core/widgets/themed_text_field.dart';
+import 'package:nous/src/features/auth/models/usuario_nous.dart';
 import 'package:nous/src/features/auth/services/cpf_validator.dart';
+import 'package:nous/src/features/auth/views/terms_view.dart';
 import 'package:nous/src/features/pdv/services/imagem_service.dart';
 
 /// Resultado do onboarding para salvar a nova conta
@@ -13,6 +15,8 @@ class ResultadoOnboardingIdentidade {
   final String foto;
   final String biografia;
   final List<String> dadosPrivados;
+  final String termosAceitosVersao;
+  final String termosAceitosEm;
 
   const ResultadoOnboardingIdentidade({
     required this.nome,
@@ -20,6 +24,8 @@ class ResultadoOnboardingIdentidade {
     required this.foto,
     required this.biografia,
     required this.dadosPrivados,
+    required this.termosAceitosVersao,
+    required this.termosAceitosEm,
   });
 }
 
@@ -74,6 +80,7 @@ class _DialogOnboardingIdentidadeNousState
   bool _emailsPublicos = false;
   bool _dataNascimentoPublica = false;
   bool _filiacaoPublica = false;
+  bool _termosAceitos = false;
 
   @override
   void initState() {
@@ -113,13 +120,28 @@ class _DialogOnboardingIdentidadeNousState
       setState(() => _erro = 'Informe seu nome completo para a sua identidade.');
       return;
     }
+    if (!_termosAceitos) {
+      setState(
+        () => _erro =
+            'Aceite os Termos de Uso e Política de Privacidade (LGPD) para continuar.',
+      );
+      return;
+    }
 
-    final dadosPrivados = <String>['cpf']; // CPF sempre protegido
-    if (!_nomePublico) dadosPrivados.add('nome');
-    if (!_fotoPublica) dadosPrivados.add('foto');
-    if (!_emailsPublicos) dadosPrivados.add('emails');
-    if (!_dataNascimentoPublica) dadosPrivados.add('dataNascimento');
-    if (!_filiacaoPublica) dadosPrivados.add('filiacao');
+    final dadosPrivados = List<String>.from(UsuarioNous.dadosPrivadosPadrao);
+    if (!_nomePublico && !dadosPrivados.contains('nome')) {
+      dadosPrivados.add('nome');
+    }
+    if (!_fotoPublica && !dadosPrivados.contains('foto')) {
+      dadosPrivados.add('foto');
+    }
+    if (_emailsPublicos) dadosPrivados.remove('emails');
+    if (_dataNascimentoPublica) dadosPrivados.remove('dataNascimento');
+    if (_filiacaoPublica) {
+      dadosPrivados.remove('filiacao');
+      dadosPrivados.remove('nomeMae');
+      dadosPrivados.remove('nomePai');
+    }
 
     Navigator.of(context).pop(
       ResultadoOnboardingIdentidade(
@@ -130,6 +152,8 @@ class _DialogOnboardingIdentidadeNousState
         foto: _fotoCaminho,
         biografia: _biografiaController.text.trim(),
         dadosPrivados: dadosPrivados,
+        termosAceitosVersao: TermsView.versaoAtual,
+        termosAceitosEm: DateTime.now().toIso8601String(),
       ),
     );
   }
@@ -450,7 +474,76 @@ class _DialogOnboardingIdentidadeNousState
                   ),
                 ],
 
-                const SizedBox(height: 18),
+                const SizedBox(height: 12),
+
+                // Aceite explícito LGPD
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: theme.backgroundColor.withValues(alpha: 0.35),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(
+                      color: _termosAceitos
+                          ? theme.borderColor
+                          : theme.borderColor.withValues(alpha: 0.5),
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      Checkbox(
+                        value: _termosAceitos,
+                        activeColor: theme.buttonColor,
+                        checkColor: theme.buttonTextColor,
+                        onChanged: (v) {
+                          setState(() {
+                            _termosAceitos = v ?? false;
+                            _erro = null;
+                          });
+                        },
+                      ),
+                      Expanded(
+                        child: Wrap(
+                          crossAxisAlignment: WrapCrossAlignment.center,
+                          children: [
+                            Text(
+                              'Li e concordo com os ',
+                              style: theme.getTextStyle(
+                                fontSize: 11.5,
+                                color: theme.textColor,
+                              ),
+                            ),
+                            InkWell(
+                              onTap: () async {
+                                final aceitou = await Navigator.push<bool>(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) => const TermsView(),
+                                  ),
+                                );
+                                if (aceitou == true && mounted) {
+                                  setState(() {
+                                    _termosAceitos = true;
+                                    _erro = null;
+                                  });
+                                }
+                              },
+                              child: Text(
+                                'Termos de Uso e Política de Privacidade (LGPD)',
+                                style: theme.getTextStyle(
+                                  fontSize: 11.5,
+                                  fontWeight: FontWeight.bold,
+                                  color: theme.buttonColor,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+
+                const SizedBox(height: 16),
 
                 // Botão de Criar Conta
                 ElevatedButton(

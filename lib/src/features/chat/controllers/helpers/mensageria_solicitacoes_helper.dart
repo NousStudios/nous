@@ -61,8 +61,14 @@ class MensageriaSolicitacoesHelper {
       return false;
     }
 
-    // Se tem mensagens recebidas de quem não seguimos, é solicitação
-    return conversa.mensagens.isNotEmpty || conversa.ultimaMensagem.isNotEmpty;
+    // Só é solicitação se existir pelo menos uma mensagem recebida do outro usuário.
+    // Conversa vazia (aberta agora para enviar a 1ª mensagem) não é solicitação.
+    if (conversa.mensagens.isEmpty) {
+      return false;
+    }
+    return conversa.mensagens.any(
+      (m) => ChatService.normalizarCpf(m.remetenteId) == outroCpf,
+    );
   }
 
   static Future<void> aceitarSolicitacao({

@@ -2,6 +2,7 @@ package com.example.nous
 
 import android.content.Intent
 import android.net.Uri
+import android.os.Build
 import androidx.core.content.FileProvider
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
@@ -10,9 +11,62 @@ import java.io.File
 
 class MainActivity : FlutterActivity() {
     private val CHANNEL = "com.nous.app/instalador"
+    private val CAPTURA_TELA_CHANNEL = "com.nous.app/captura_tela"
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CAPTURA_TELA_CHANNEL).setMethodCallHandler { call, result ->
+            when (call.method) {
+                "iniciarServicoTela" -> {
+                    try {
+                        val intent = Intent(this, TelaCapturaService::class.java)
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                            startForegroundService(intent)
+                        } else {
+                            startService(intent)
+                        }
+                        result.success(true)
+                    } catch (e: Exception) {
+                        result.error("ERRO_SERVICO_TELA", e.message, null)
+                    }
+                }
+                "pararServicoTela" -> {
+                    try {
+                        stopService(Intent(this, TelaCapturaService::class.java))
+                        result.success(true)
+                    } catch (e: Exception) {
+                        result.error("ERRO_SERVICO_TELA", e.message, null)
+                    }
+                }
+                "iniciarServicoChamada" -> {
+                    try {
+                        val nomeContato = call.argument<String>("nomeContato") ?: "Contato Nous"
+                        val ehVideo = call.argument<Boolean>("ehVideo") ?: false
+                        val intent = Intent(this, ChamadaAtivaService::class.java).apply {
+                            putExtra(ChamadaAtivaService.EXTRA_NOME_CONTATO, nomeContato)
+                            putExtra(ChamadaAtivaService.EXTRA_EH_VIDEO, ehVideo)
+                        }
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                            startForegroundService(intent)
+                        } else {
+                            startService(intent)
+                        }
+                        result.success(true)
+                    } catch (e: Exception) {
+                        result.error("ERRO_SERVICO_CHAMADA", e.message, null)
+                    }
+                }
+                "pararServicoChamada" -> {
+                    try {
+                        stopService(Intent(this, ChamadaAtivaService::class.java))
+                        result.success(true)
+                    } catch (e: Exception) {
+                        result.error("ERRO_SERVICO_CHAMADA", e.message, null)
+                    }
+                }
+                else -> result.notImplemented()
+            }
+        }
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CHANNEL).setMethodCallHandler { call, result ->
             when (call.method) {
                 "abrirUrl" -> {

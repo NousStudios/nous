@@ -26,6 +26,7 @@ class ChamadaSessao {
   final List<String> participantesIds;
   final bool videoHabilitado;
   final bool audioHabilitado;
+  final bool compartilhandoTela;
   final DateTime iniciadaEm;
 
   const ChamadaSessao({
@@ -43,6 +44,7 @@ class ChamadaSessao {
     this.participantesIds = const [],
     this.videoHabilitado = true,
     this.audioHabilitado = true,
+    this.compartilhandoTela = false,
     required this.iniciadaEm,
   });
 
@@ -61,6 +63,7 @@ class ChamadaSessao {
     List<String>? participantesIds,
     bool? videoHabilitado,
     bool? audioHabilitado,
+    bool? compartilhandoTela,
     DateTime? iniciadaEm,
   }) {
     return ChamadaSessao(
@@ -78,6 +81,7 @@ class ChamadaSessao {
       participantesIds: participantesIds ?? this.participantesIds,
       videoHabilitado: videoHabilitado ?? this.videoHabilitado,
       audioHabilitado: audioHabilitado ?? this.audioHabilitado,
+      compartilhandoTela: compartilhandoTela ?? this.compartilhandoTela,
       iniciadaEm: iniciadaEm ?? this.iniciadaEm,
     );
   }
@@ -98,6 +102,7 @@ class ChamadaSessao {
       'participantesIds': participantesIds,
       'videoHabilitado': videoHabilitado,
       'audioHabilitado': audioHabilitado,
+      'compartilhandoTela': compartilhandoTela,
       'iniciadaEm': iniciadaEm.toIso8601String(),
     };
   }
@@ -124,6 +129,7 @@ class ChamadaSessao {
           const [],
       videoHabilitado: json['videoHabilitado'] as bool? ?? true,
       audioHabilitado: json['audioHabilitado'] as bool? ?? true,
+      compartilhandoTela: json['compartilhandoTela'] as bool? ?? false,
       iniciadaEm: json['iniciadaEm'] != null
           ? DateTime.tryParse(json['iniciadaEm'] as String) ?? DateTime.now()
           : DateTime.now(),

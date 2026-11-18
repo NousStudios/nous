@@ -47,6 +47,7 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
     'Impressora',
     'Financeiro',
     'Status da Loja',
+    'Perfil Público',
     'Modo Balcão',
     'Desativado',
   ];

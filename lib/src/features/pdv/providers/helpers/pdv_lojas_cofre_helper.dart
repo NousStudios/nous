@@ -279,14 +279,36 @@ class PdvLojasCofreHelper {
         cpfUsuario,
         cofreAntigo.where((l) => l.id != loja.id).toList(),
       );
+
+      if (ServidorRedeLocal().ativo) {
+        if (ServidorRedeLocal().lojaAtiva?.id == lojaTransferida.id) {
+          ServidorRedeLocal().lojaAtiva = lojaTransferida;
+        }
+        ServidorRedeLocal().notificarLojaAtualizada(lojaTransferida);
+      } else if (ClienteRedeLocal().conectado ||
+          (ClienteRedeLocal().ipServidor != null &&
+              ClienteRedeLocal().ipServidor!.isNotEmpty)) {
+        await ClienteRedeLocal().enviarLojaAtualizada(lojaTransferida, imediato: true);
+        await ClienteRedeLocal().notificarSaidaLoja(loja.id, cpfUsuario);
+      }
     } else {
       final lojaAtualizada = loja.copyWith(membros: outros);
       await LojasService.salvarLojaIndividual(lojaAtualizada);
       await LojasService.removerReferencia(cpfUsuario, loja.id);
-      final db = await BancoDadosService.db;
-      await db.delete('lojas', where: 'id = ?', whereArgs: [loja.id]);
-      if (ClienteRedeLocal().conectado) {
-        await ClienteRedeLocal().notificarSaidaLoja(loja.id, cpfUsuario);
+
+      if (ServidorRedeLocal().ativo) {
+        if (ServidorRedeLocal().lojaAtiva?.id == loja.id) {
+          ServidorRedeLocal().lojaAtiva = lojaAtualizada;
+        }
+        ServidorRedeLocal().notificarLojaAtualizada(lojaAtualizada);
+      } else {
+        final db = await BancoDadosService.db;
+        await db.delete('lojas', where: 'id = ?', whereArgs: [loja.id]);
+        if (ClienteRedeLocal().conectado ||
+            (ClienteRedeLocal().ipServidor != null &&
+                ClienteRedeLocal().ipServidor!.isNotEmpty)) {
+          await ClienteRedeLocal().notificarSaidaLoja(loja.id, cpfUsuario);
+        }
       }
     }
   }

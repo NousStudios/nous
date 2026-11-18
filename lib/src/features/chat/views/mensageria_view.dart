@@ -62,14 +62,18 @@ class MensageriaView extends StatefulWidget {
   State<MensageriaView> createState() => _MensageriaViewState();
 }
 
-class _MensageriaViewState extends State<MensageriaView> {
+class _MensageriaViewState extends State<MensageriaView>
+    with WidgetsBindingObserver {
   final MensageriaController _controller = MensageriaController();
   bool _inicializado = false;
   Timer? _debounceAtualizarChat;
+  AuthProvider? _authProvider;
+  String _ultimoCpfAuth = '';
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _controller.configurar(
       modoLoja: widget.modoLoja,
       lojaId: widget.lojaId,
@@ -93,14 +97,50 @@ class _MensageriaViewState extends State<MensageriaView> {
     if (!_inicializado) {
       final auth = context.read<AuthProvider>();
       final pdv = context.read<PdvProvider>();
+      _authProvider = auth;
+      _ultimoCpfAuth = (auth.contaAtual?.cpf ?? auth.cpf).trim();
+      auth.addListener(_aoAtualizarAuth);
       _controller.inicializar(auth: auth, pdv: pdv);
       _inicializado = true;
     }
   }
 
+  void _aoAtualizarAuth() {
+    if (!mounted || _controller.isDisposed || _authProvider == null) return;
+    final novoCpf = (_authProvider!.contaAtual?.cpf ?? _authProvider!.cpf).trim();
+    if (novoCpf.isNotEmpty && novoCpf != _ultimoCpfAuth) {
+      _ultimoCpfAuth = novoCpf;
+      if (!widget.modoLoja) {
+        _controller.usuarioCpf = novoCpf;
+      }
+      _controller.recarregarConversas(
+        auth: _authProvider!,
+        pdv: context.read<PdvProvider>(),
+        manterSelecionada: true,
+      );
+    }
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed &&
+        mounted &&
+        !_controller.isDisposed) {
+      final auth = context.read<AuthProvider>();
+      final pdv = context.read<PdvProvider>();
+      _controller.recarregarConversas(
+        auth: auth,
+        pdv: pdv,
+        manterSelecionada: true,
+      );
+    }
+  }
+
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _debounceAtualizarChat?.cancel();
+    _authProvider?.removeListener(_aoAtualizarAuth);
     ChatService.alteracoesChatNotifier.removeListener(_aoAtualizarChat);
     _controller.removeListener(_aoAtualizarController);
     GravadorAudioService.instancia.cancelarGravacao();
@@ -119,9 +159,9 @@ class _MensageriaViewState extends State<MensageriaView> {
     if (_controller.conversaSelecionada != null) {
       _controller.recarregarMensagensConversaAtiva();
     }
-    // 2. Debounce na recarga da lista geral de contatos e lojas
+    // 2. Debounce na recarga da lista geral de contatos e lojas (evita travamentos em rajada)
     _debounceAtualizarChat?.cancel();
-    _debounceAtualizarChat = Timer(const Duration(milliseconds: 300), () {
+    _debounceAtualizarChat = Timer(const Duration(milliseconds: 650), () {
       if (!mounted || _controller.isDisposed) return;
       final auth = context.read<AuthProvider>();
       final pdv = context.read<PdvProvider>();

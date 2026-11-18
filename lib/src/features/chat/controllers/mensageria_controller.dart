@@ -6,6 +6,7 @@ import 'package:nous/src/features/auth/providers/auth_provider.dart';
 import 'package:nous/src/features/chat/controllers/helpers/mensageria_acoes_mensagem_helper.dart';
 import 'package:nous/src/features/chat/controllers/helpers/mensageria_busca_helper.dart';
 import 'package:nous/src/features/chat/controllers/helpers/mensageria_mensagem_helper.dart';
+import 'package:nous/src/features/chat/controllers/helpers/mensageria_selecao_helper.dart';
 import 'package:nous/src/features/chat/controllers/helpers/mensageria_solicitacoes_helper.dart';
 import 'package:nous/src/features/chat/models/conversa_chat.dart';
 import 'package:nous/src/features/chat/models/mensagem_chat.dart';
@@ -55,6 +56,7 @@ class MensageriaController extends ChangeNotifier {
   bool _disposed = false;
   bool get isDisposed => _disposed;
   Timer? _timerPollingLeve;
+  int _versaoRecargaConversas = 0;
 
   @override
   void dispose() {
@@ -286,6 +288,22 @@ class MensageriaController extends ChangeNotifier {
             foto: contaAlvo?.fotoExibicao ?? (contaAlvo?.foto ?? ''),
             ehLoja: false,
           );
+        } else if (idAlvo.startsWith('loja_')) {
+          final idLojaExtraido = idAlvo.contains('_usuario_')
+              ? idAlvo.substring(5, idAlvo.indexOf('_usuario_'))
+              : idAlvo.substring(5);
+          final lojaAlvo = pdv.buscarPorId(idLojaExtraido) ??
+              (ClienteRedeLocal().lojaSincronizada?.id == idLojaExtraido
+                  ? ClienteRedeLocal().lojaSincronizada
+                  : null);
+          await selecionarOuIniciarConversa(
+            convId: idAlvo,
+            titulo: lojaAlvo?.nome ?? 'Loja',
+            subtitulo: 'Loja',
+            identificador: lojaAlvo?.id ?? idLojaExtraido,
+            foto: lojaAlvo?.logo ?? '',
+            ehLoja: true,
+          );
         }
       }
 
@@ -362,61 +380,66 @@ class MensageriaController extends ChangeNotifier {
     bool manterSelecionada = true,
   }) async {
     if (_disposed) return;
-    final contaLogada = auth.contaAtual;
-    if (usuarioCpf == null || usuarioCpf!.trim().isEmpty) {
-      final cpfCandidato = contaLogada?.cpf ??
-          (auth.cpf.trim().isNotEmpty
-              ? auth.cpf.trim()
-              : (pdv.cpfAtual?.trim() ?? ''));
-      if (cpfCandidato.isNotEmpty) {
-        usuarioCpf = cpfCandidato;
-      } else {
-        final cpfLocal = await ChatService.obterCpfLogadoLocal();
-        if (_disposed) return;
-        if (cpfLocal.isNotEmpty) usuarioCpf = cpfLocal;
+    final minhaVersao = ++_versaoRecargaConversas;
+    try {
+      final contaLogada = auth.contaAtual;
+      if (usuarioCpf == null || usuarioCpf!.trim().isEmpty) {
+        final cpfCandidato = contaLogada?.cpf ??
+            (auth.cpf.trim().isNotEmpty
+                ? auth.cpf.trim()
+                : (pdv.cpfAtual?.trim() ?? ''));
+        if (cpfCandidato.isNotEmpty) {
+          usuarioCpf = cpfCandidato;
+        } else {
+          final cpfLocal = await ChatService.obterCpfLogadoLocal();
+          if (_disposed || minhaVersao != _versaoRecargaConversas) return;
+          if (cpfLocal.isNotEmpty) usuarioCpf = cpfLocal;
+        }
       }
-    }
 
-    final resultado = await MontadorConversasChat.montarConversas(
-      auth: auth,
-      pdv: pdv,
-      modoLoja: modoLoja,
-      lojaId: lojaId,
-      operadorCpf: operadorCpf,
-      usuarioCpf: usuarioCpf,
-      conversaSelecionada: _conversaSelecionada,
-    );
-    if (_disposed) return;
-
-    _conversas = resultado.conversas;
-    _todosContatosDisponiveis = resultado.todosDisponiveis;
-    _usuariosNousPorCpf.clear();
-    _usuariosNousPorCpf.addAll(resultado.usuariosNousPorCpf);
-    _titulosCustomizados = resultado.titulosCustomizados;
-
-    if (manterSelecionada && _conversaSelecionada != null) {
-      final index = _conversas.indexWhere(
-        (c) => c.id == _conversaSelecionada!.id,
+      final resultado = await MontadorConversasChat.montarConversas(
+        auth: auth,
+        pdv: pdv,
+        modoLoja: modoLoja,
+        lojaId: lojaId,
+        operadorCpf: operadorCpf,
+        usuarioCpf: usuarioCpf,
+        conversaSelecionada: _conversaSelecionada,
       );
-      if (index != -1) {
-        final msgsAtuais = _conversaSelecionada!.mensagens;
-        final novasMsgs = _conversas[index].mensagens;
-        final msgsFinais = novasMsgs.isNotEmpty ? novasMsgs : msgsAtuais;
-        _conversaSelecionada = _conversas[index].copyWith(
-          naoLidasCount: 0,
-          mensagens: msgsFinais,
-        );
-        _conversas[index] = _conversaSelecionada!;
-      }
-      ChatService.idConversaAtiva = _conversaSelecionada!.id;
-      unawaited(ChatService.marcarComoLidas(
-        _conversaSelecionada!.id,
-        idVisualizador,
-        notificar: true,
-      ));
-    }
+      if (_disposed || minhaVersao != _versaoRecargaConversas) return;
 
-    notifyListeners();
+      _conversas = resultado.conversas;
+      _todosContatosDisponiveis = resultado.todosDisponiveis;
+      _usuariosNousPorCpf.clear();
+      _usuariosNousPorCpf.addAll(resultado.usuariosNousPorCpf);
+      _titulosCustomizados = resultado.titulosCustomizados;
+
+      if (manterSelecionada && _conversaSelecionada != null) {
+        final index = _conversas.indexWhere(
+          (c) => c.id == _conversaSelecionada!.id,
+        );
+        if (index != -1) {
+          final msgsAtuais = _conversaSelecionada!.mensagens;
+          final novasMsgs = _conversas[index].mensagens;
+          final msgsFinais = novasMsgs.isNotEmpty ? novasMsgs : msgsAtuais;
+          _conversaSelecionada = _conversas[index].copyWith(
+            naoLidasCount: 0,
+            mensagens: msgsFinais,
+          );
+          _conversas[index] = _conversaSelecionada!;
+        }
+        ChatService.idConversaAtiva = _conversaSelecionada!.id;
+        unawaited(ChatService.marcarComoLidas(
+          _conversaSelecionada!.id,
+          idVisualizador,
+          notificar: false,
+        ));
+      }
+
+      notifyListeners();
+    } catch (e) {
+      debugPrint('[MensageriaController] Erro ao recarregar conversas: $e');
+    }
   }
 
   Future<void> selecionarOuIniciarConversa({
@@ -469,79 +492,33 @@ class MensageriaController extends ChangeNotifier {
     _salvarUltimaConversaAberta(convId);
     notifyListeners();
 
-    unawaited(_carregarOuPersistirConversaNovaEmBackground(
-      convId: convId,
-      titulo: titulo,
-      subtitulo: subtitulo,
-      identificador: identificador,
-      foto: foto,
-      ehLoja: ehLoja || ehConvLojaUsuario,
-      lojaIdOverride: lojaIdResolvido,
-    ));
-  }
-
-  Future<void> _carregarOuPersistirConversaNovaEmBackground({
-    required String convId,
-    required String titulo,
-    required String subtitulo,
-    required String identificador,
-    required String foto,
-    required bool ehLoja,
-    String? lojaIdOverride,
-  }) async {
-    try {
-      await ChatService.desmarcarConversaExcluida(convId);
-      final conversaBase = await ChatService.obterOuCriarConversa(
-        id: convId,
+    unawaited(
+      MensageriaSelecaoHelper.carregarOuPersistirConversaNova(
+        convId: convId,
         titulo: titulo,
         subtitulo: subtitulo,
         identificador: identificador,
         foto: foto,
-        ehLoja: ehLoja,
-        lojaId: lojaIdOverride ?? (modoLoja ? lojaId : null),
-        cpfUsuario: modoLoja ? null : usuarioCpf,
-      );
-      if (_disposed) return;
-
-      final msgs = await ChatService.carregarMensagens(
-        convId,
+        ehLoja: ehLoja || ehConvLojaUsuario,
+        modoLoja: modoLoja,
+        lojaId: lojaIdResolvido ?? (modoLoja ? lojaId : null),
+        usuarioCpf: usuarioCpf,
         idVisualizador: idVisualizador,
-      );
-      if (_disposed) return;
-
-      final conversa = conversaBase.copyWith(
-        mensagens: msgs,
-        ultimaMensagem: msgs.isNotEmpty
-            ? resumoMensagem(msgs.last)
-            : conversaBase.ultimaMensagem,
-        dataHoraUltimaMensagem: msgs.isNotEmpty
-            ? msgs.last.dataHora
-            : conversaBase.dataHoraUltimaMensagem,
-        naoLidasCount: 0,
-      );
-
-      final index = _conversas.indexWhere((c) => c.id == convId);
-      if (index != -1) {
-        _conversas[index] = conversa;
-      }
-      if (_conversaSelecionada?.id == convId) {
-        _conversaSelecionada = conversa;
-      }
-      final meuNorm = ChatService.normalizarCpf(usuarioCpf ?? '');
-      if (!modoLoja &&
-          meuNorm.isNotEmpty &&
-          msgs.any((m) => ChatService.normalizarCpf(m.remetenteId) == meuNorm)) {
-        unawaited(MensageriaSolicitacoesHelper.aceitarSolicitacao(
-          conversaId: convId,
-          meuCpf: meuNorm,
-        ));
-      }
-      ChatService.despacharConversaAtualizada(conversa);
-      await marcarComoLida(conversa);
-      if (!_disposed) {
-        notifyListeners();
-      }
-    } catch (_) {}
+        resumoMensagem: resumoMensagem,
+        isDisposed: () => _disposed,
+        onConversaHidratada: (conversa) {
+          final index = _conversas.indexWhere((c) => c.id == convId);
+          if (index != -1) {
+            _conversas[index] = conversa;
+          }
+          if (_conversaSelecionada?.id == convId) {
+            _conversaSelecionada = conversa;
+          }
+          notifyListeners();
+        },
+        onMarcarComoLida: marcarComoLida,
+      ),
+    );
   }
 
   void selecionarConversa(ConversaChat? c) {
@@ -612,6 +589,8 @@ class MensageriaController extends ChangeNotifier {
       final i = _conversas.indexWhere((item) => item.id == c.id);
       if (i != -1) _conversas[i] = comMsgs;
       notifyListeners();
+    }).catchError((Object e) {
+      debugPrint('[MensageriaController] Erro ao carregar mensagens da conversa: $e');
     });
   }
 

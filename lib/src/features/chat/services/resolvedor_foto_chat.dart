@@ -9,6 +9,9 @@ import 'package:nous/src/features/chat/services/chat_service.dart';
 import 'package:nous/src/features/pdv/providers/pdv_provider.dart';
 import 'package:nous/src/features/pdv/services/imagem_service.dart';
 import 'package:nous/src/features/pdv/services/rede_local/cliente_rede_local.dart';
+import 'package:nous/src/features/timeline/models/story_social.dart';
+import 'package:nous/src/features/timeline/services/timeline_service.dart';
+import 'package:nous/src/features/timeline/views/dialogs/dialog_stories.dart';
 import 'package:provider/provider.dart';
 
 /// Serviço centralizado para resolução e cache rápido de fotos no chat e perfis.
@@ -268,25 +271,37 @@ class ResolvedorFotoChat {
       }
     }
 
+    final Widget avatarBase;
     if (providerFoto != null) {
-      return CircleAvatar(
+      avatarBase = CircleAvatar(
         radius: raio,
         backgroundColor: theme.borderColor.withValues(alpha: 0.3),
         backgroundImage: providerFoto,
       );
+    } else {
+      // Retorna avatar com autocura ativa: se a imagem remota não existe fisicamente no aparelho (ex.: Rosa),
+      // baixa imediatamente em background via WiFi e faz transição automática sem travar a interface
+      avatarBase = _AvatarComAutocura(
+        conversa: conversa,
+        theme: theme,
+        raio: raio,
+        fotoRemota: fotoRecuperada.isNotEmpty ? fotoRecuperada : fotoUsar,
+        cpf: idParaFoto.length == 11 ? idParaFoto : null,
+        ehGrupo: false,
+        ehLoja: ehContatoLoja,
+      );
     }
 
-    // Retorna avatar com autocura ativa: se a imagem remota não existe fisicamente no aparelho (ex.: Rosa),
-    // baixa imediatamente em background via WiFi e faz transição automática sem travar a interface
-    return _AvatarComAutocura(
-      conversa: conversa,
-      theme: theme,
-      raio: raio,
-      fotoRemota: fotoRecuperada.isNotEmpty ? fotoRecuperada : fotoUsar,
-      cpf: idParaFoto.length == 11 ? idParaFoto : null,
-      ehGrupo: false,
-      ehLoja: ehContatoLoja,
-    );
+    if (!ehContatoLoja && !conversa.ehGrupo && idParaFoto.length == 11) {
+      return _AvatarComAnelStoryChat(
+        cpfAlvo: idParaFoto,
+        theme: theme,
+        usuarioLogado: auth?.contaAtual,
+        child: avatarBase,
+      );
+    }
+
+    return avatarBase;
   }
 
   void limpar() {
@@ -413,6 +428,105 @@ class _AvatarComAutocuraState extends State<_AvatarComAutocura> {
         widget.ehLoja ? Icons.storefront_outlined : Icons.person_outline,
         size: widget.raio * 1.1,
         color: widget.theme.textColor,
+      ),
+    );
+  }
+}
+
+class _AvatarComAnelStoryChat extends StatefulWidget {
+  final String cpfAlvo;
+  final AppTheme theme;
+  final UsuarioNous? usuarioLogado;
+  final Widget child;
+
+  const _AvatarComAnelStoryChat({
+    required this.cpfAlvo,
+    required this.theme,
+    required this.usuarioLogado,
+    required this.child,
+  });
+
+  @override
+  State<_AvatarComAnelStoryChat> createState() =>
+      _AvatarComAnelStoryChatState();
+}
+
+class _AvatarComAnelStoryChatState extends State<_AvatarComAnelStoryChat> {
+  List<StorySocial> _stories = [];
+
+  @override
+  void initState() {
+    super.initState();
+    TimelineService.alteracoesTimelineNotifier.addListener(_carregarStories);
+    _carregarStories();
+  }
+
+  @override
+  void didUpdateWidget(covariant _AvatarComAnelStoryChat oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.cpfAlvo != widget.cpfAlvo) {
+      _carregarStories();
+    }
+  }
+
+  @override
+  void dispose() {
+    TimelineService.alteracoesTimelineNotifier.removeListener(_carregarStories);
+    super.dispose();
+  }
+
+  Future<void> _carregarStories() async {
+    final s = await TimelineService.listarStoriesAtivos24h(widget.cpfAlvo);
+    if (!mounted) return;
+    setState(() => _stories = s);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_stories.isEmpty) return widget.child;
+
+    final meuCpf =
+        (widget.usuarioLogado?.cpf ?? '').replaceAll(RegExp(r'\D'), '');
+    final ehAutor =
+        meuCpf.isNotEmpty &&
+        meuCpf == widget.cpfAlvo.replaceAll(RegExp(r'\D'), '');
+    final todosVistos =
+        meuCpf.isNotEmpty &&
+        _stories.every(
+          (s) => s.visualizadoPorCpfs
+              .map((c) => c.replaceAll(RegExp(r'\D'), ''))
+              .contains(meuCpf),
+        );
+
+    final corAnel = todosVistos && !ehAutor
+        ? widget.theme.secondaryTextColor.withValues(alpha: 0.55)
+        : widget.theme.buttonColor;
+
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: () {
+        DialogVisualizarStory.mostrar(
+          context,
+          theme: widget.theme,
+          story: _stories.first,
+          stories: _stories,
+          ehAutor: ehAutor,
+          usuarioLogado: widget.usuarioLogado,
+        );
+      },
+      child: Tooltip(
+        message: 'Toque para ver o Story (24h)',
+        child: Container(
+          padding: const EdgeInsets.all(2.2),
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            border: Border.all(
+              color: corAnel,
+              width: 2.2,
+            ),
+          ),
+          child: widget.child,
+        ),
       ),
     );
   }

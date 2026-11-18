@@ -14,17 +14,23 @@ import '../../services/chat_service.dart';
 class VisualizadorImagemChatDialog extends StatefulWidget {
   final String caminhoImagem;
   final AppTheme theme;
+  final bool permitirDownload;
+  final bool permitirEncaminhar;
 
   const VisualizadorImagemChatDialog({
     super.key,
     required this.caminhoImagem,
     required this.theme,
+    this.permitirDownload = true,
+    this.permitirEncaminhar = true,
   });
 
   static Future<void> abrir(
     BuildContext context, {
     required String caminho,
     required AppTheme theme,
+    bool permitirDownload = true,
+    bool permitirEncaminhar = true,
   }) async {
     final resolvido =
         ImagemService.resolverCaminhoExistente(caminho) ?? caminho;
@@ -41,8 +47,12 @@ class VisualizadorImagemChatDialog extends StatefulWidget {
     await showDialog(
       context: context,
       barrierColor: Colors.black.withValues(alpha: 0.85),
-      builder: (_) =>
-          VisualizadorImagemChatDialog(caminhoImagem: resolvido, theme: theme),
+      builder: (_) => VisualizadorImagemChatDialog(
+        caminhoImagem: resolvido,
+        theme: theme,
+        permitirDownload: permitirDownload,
+        permitirEncaminhar: permitirEncaminhar,
+      ),
     );
   }
 
@@ -153,33 +163,37 @@ class _VisualizadorImagemChatDialogState
       backgroundColor: Colors.transparent,
       body: Stack(
         children: [
-          // Área principal com InteractiveViewer (Zoom / Pan)
+          // Área principal com InteractiveViewer (Zoom / Pan) — tocar fora da foto fecha
           Positioned.fill(
             child: GestureDetector(
-              onTap: () {},
+              behavior: HitTestBehavior.translucent,
+              onTap: () => Navigator.of(context).pop(),
               child: Center(
-                child: InteractiveViewer(
-                  minScale: 0.5,
-                  maxScale: 4.5,
-                  child: Image.file(
-                    file,
-                    fit: BoxFit.contain,
-                    errorBuilder: (_, _, _) => Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          Icons.broken_image_rounded,
-                          size: 64,
-                          color: theme.secondaryTextColor,
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          'Não foi possível carregar a imagem',
-                          style: theme.getTextStyle(
+                child: GestureDetector(
+                  onTap: () {},
+                  child: InteractiveViewer(
+                    minScale: 0.5,
+                    maxScale: 4.5,
+                    child: Image.file(
+                      file,
+                      fit: BoxFit.contain,
+                      errorBuilder: (_, _, _) => Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            Icons.broken_image_rounded,
+                            size: 64,
                             color: theme.secondaryTextColor,
                           ),
-                        ),
-                      ],
+                          const SizedBox(height: 8),
+                          Text(
+                            'Não foi possível carregar a imagem',
+                            style: theme.getTextStyle(
+                              color: theme.secondaryTextColor,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                 ),
@@ -211,33 +225,35 @@ class _VisualizadorImagemChatDialogState
                     onPressed: () => Navigator.pop(context),
                   ),
                   const Spacer(),
-                  IconButton(
-                    icon: _salvando
-                        ? const SizedBox(
-                            width: 18,
-                            height: 18,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
+                  if (widget.permitirDownload)
+                    IconButton(
+                      icon: _salvando
+                          ? const SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: Colors.white,
+                              ),
+                            )
+                          : const Icon(
+                              Icons.file_download_outlined,
                               color: Colors.white,
+                              size: 22,
                             ),
-                          )
-                        : const Icon(
-                            Icons.file_download_outlined,
-                            color: Colors.white,
-                            size: 22,
-                          ),
-                    tooltip: 'Baixar imagem',
-                    onPressed: _salvando ? null : _baixarImagem,
-                  ),
-                  IconButton(
-                    icon: const Icon(
-                      Icons.reply_rounded,
-                      color: Colors.white,
-                      size: 22,
+                      tooltip: 'Baixar imagem',
+                      onPressed: _salvando ? null : _baixarImagem,
                     ),
-                    tooltip: 'Encaminhar imagem',
-                    onPressed: _abrirDialogEncaminhar,
-                  ),
+                  if (widget.permitirEncaminhar)
+                    IconButton(
+                      icon: const Icon(
+                        Icons.reply_rounded,
+                        color: Colors.white,
+                        size: 22,
+                      ),
+                      tooltip: 'Encaminhar imagem',
+                      onPressed: _abrirDialogEncaminhar,
+                    ),
                 ],
               ),
             ),

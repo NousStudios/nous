@@ -105,6 +105,11 @@ class _EditarPerfilDialogState extends State<EditarPerfilDialog> {
     }
     final nome = _nomeController.text.trim();
     final biografia = _biografiaController.text.trim();
+    final linkPendente = _novoLinkController.text.trim();
+    if (linkPendente.isNotEmpty && !_links.contains(linkPendente)) {
+      _links.add(linkPendente);
+      _novoLinkController.clear();
+    }
 
     await auth.atualizarPerfilSocial(
       nome: nome,
@@ -338,6 +343,14 @@ class _EditarPerfilDialogState extends State<EditarPerfilDialog> {
                       Expanded(
                         child: TextField(
                           controller: _novoLinkController,
+                          onSubmitted: (val) {
+                            final link = val.trim();
+                            if (link.isEmpty || _links.contains(link)) return;
+                            setState(() {
+                              _links.add(link);
+                              _novoLinkController.clear();
+                            });
+                          },
                           style: theme.getTextStyle(
                             fontSize: 13,
                             color: theme.textColor,

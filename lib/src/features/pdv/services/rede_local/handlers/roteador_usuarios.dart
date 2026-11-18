@@ -12,6 +12,7 @@ import 'package:nous/src/features/pdv/services/dados_locais_service.dart';
 import 'package:nous/src/features/pdv/services/imagem_service.dart';
 import 'package:nous/src/features/pdv/services/lojas_service.dart';
 import 'package:nous/src/features/pdv/services/rede_local/servidor_rede_local.dart';
+import 'package:nous/src/features/timeline/services/timeline_service.dart';
 
 /// Roteador responsável pelos endpoints REST de Identidade, Usuários e Perfis no Servidor Local.
 class RoteadorUsuarios {
@@ -380,6 +381,36 @@ class RoteadorUsuarios {
         debugPrint(
           '[ServidorRedeLocal] Erro em /api/sincronizar_perfis_usuario: $e',
         );
+        ServidorRedeLocal.responderJson(
+          request,
+          {'sucesso': false, 'erro': e.toString()},
+          statusCode: HttpStatus.internalServerError,
+        );
+        return true;
+      }
+    }
+
+    if (path == '/api/timeline/sincronizar' && request.method == 'POST') {
+      try {
+        final corpo = await utf8.decoder.bind(request).join();
+        DateTime? desde;
+        if (corpo.trim().isNotEmpty) {
+          final snapshotCliente = await decodificarJsonMapaSeguro(corpo);
+          final rawDesde = snapshotCliente['desde'] as String?;
+          if (rawDesde != null && rawDesde.isNotEmpty) {
+            desde = DateTime.tryParse(rawDesde);
+          }
+          await TimelineService.mesclarSnapshotSocial(snapshotCliente);
+        }
+        final snapshotServidor =
+            await TimelineService.exportarSnapshotSocial(desde: desde);
+        ServidorRedeLocal.responderJson(request, {
+          'sucesso': true,
+          'snapshot': snapshotServidor,
+        });
+        return true;
+      } catch (e) {
+        debugPrint('[ServidorRedeLocal] Erro em /api/timeline/sincronizar: $e');
         ServidorRedeLocal.responderJson(
           request,
           {'sucesso': false, 'erro': e.toString()},

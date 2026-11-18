@@ -26,20 +26,27 @@ class ServidorWsUpgradeHandler {
     required void Function(WebSocket ws, dynamic msg) onMensagem,
   }) async {
     try {
-      final ipRemoto = request.connectionInfo?.remoteAddress.address ?? '127.0.0.1';
+      final ipBruto = request.connectionInfo?.remoteAddress.address ?? '127.0.0.1';
       final ehLoopback = request.connectionInfo?.remoteAddress.isLoopback ?? false;
-      final ehIpLocal = ipRemoto == '127.0.0.1' ||
-          ipRemoto == '::1' ||
-          (ipServidor != null && ipRemoto == ipServidor);
+      final cfIp = request.headers.value('cf-connecting-ip')?.trim() ?? '';
+      final xff =
+          request.headers.value('x-forwarded-for')?.split(',').first.trim() ?? '';
+      final veioViaTunel =
+          cfIp.isNotEmpty || xff.isNotEmpty || request.headers.value('cf-ray') != null;
+      final ehIpLocal = ipBruto == '127.0.0.1' ||
+          ipBruto == '::1' ||
+          (ipServidor != null && ipBruto == ipServidor);
 
-      if (ehLoopback || ehIpLocal) {
+      if (!veioViaTunel && (ehLoopback || ehIpLocal)) {
         debugPrint(
-          '[ServidorWsUpgradeHandler] Rejeitando conexão WebSocket loopback da própria máquina ($ipRemoto).',
+          '[ServidorWsUpgradeHandler] Rejeitando conexão WebSocket loopback da própria máquina ($ipBruto).',
         );
         request.response.statusCode = HttpStatus.badRequest;
         await request.response.close();
         return;
       }
+
+      final ipRemoto = cfIp.isNotEmpty ? cfIp : (xff.isNotEmpty ? xff : ipBruto);
 
       final ws = await WebSocketTransformer.upgrade(request);
 

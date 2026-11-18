@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -10,6 +11,8 @@ import 'package:nous/src/features/auth/models/usuario_nous.dart';
 import 'package:nous/src/features/auth/providers/auth_provider.dart';
 import 'package:nous/src/features/auth/services/contas_nous_service.dart';
 import 'package:nous/src/features/auth/views/dialogs/dialog_lista_conexoes.dart';
+import 'package:nous/src/features/auth/views/helpers/perfil_foto_publica_helper.dart';
+import 'package:nous/src/features/auth/views/widgets/cabecalho_perfil_publico_widget.dart';
 import 'package:nous/src/features/auth/views/widgets/compartilhar_perfil_dialog.dart';
 import 'package:nous/src/features/auth/views/widgets/editar_perfil_dialog.dart';
 import 'package:nous/src/features/auth/views/widgets/selo_verificado_widget.dart';
@@ -17,8 +20,17 @@ import 'package:nous/src/features/auth/views/widgets/validacao_identidade_dialog
 import 'package:nous/src/features/chat/services/chat_service.dart';
 import 'package:nous/src/features/chat/services/resolvedor_foto_chat.dart';
 import 'package:nous/src/features/chat/views/mensageria_view.dart';
+import 'package:nous/src/features/chat/views/widgets/visualizador_imagem_chat_dialog.dart';
 import 'package:nous/src/features/pdv/services/imagem_service.dart';
 import 'package:nous/src/features/pdv/services/rede_local/cliente_rede_local.dart';
+import 'package:url_launcher/url_launcher.dart';
+import 'package:nous/src/features/timeline/models/story_social.dart';
+import 'package:nous/src/features/timeline/services/timeline_service.dart';
+import 'package:nous/src/features/timeline/views/central_conta_social_view.dart';
+import 'package:nous/src/features/timeline/views/dialogs/dialog_denuncia_social.dart';
+import 'package:nous/src/features/timeline/views/dialogs/dialog_stories.dart';
+import 'package:nous/src/features/timeline/views/widgets/camera_criacao_view.dart';
+import 'package:nous/src/features/timeline/views/widgets/timeline_perfil_section.dart';
 
 class PerfilSocialView extends StatefulWidget {
   final UsuarioNous? usuarioAlvo;
@@ -36,16 +48,69 @@ class PerfilSocialView extends StatefulWidget {
 
 class _PerfilSocialViewState extends State<PerfilSocialView> {
   static const double _larguraMaximaConteudo = 600;
-  int _abaConteudoSelecionada = 0; // 0: Grade, 1: Vídeo, 2: Documento, 3: Música
+  static const double _offsetInicialBotaoConta = 86.0;
+  final PageController _pageController = PageController(initialPage: 1);
+  final ScrollController _botoesAcaoScrollCtrl = ScrollController();
+  bool _offsetInicialAplicado = false;
+  int _paginaAtual = 1;
   UsuarioNous? _contaAlvoAtualizada;
   String? _fotoLocalResolvida;
   bool _baixandoFoto = false;
+  List<StorySocial> _storiesAtivos24h = [];
+  int _totalPosts = 0;
 
   @override
   void initState() {
     super.initState();
     _contaAlvoAtualizada = widget.usuarioAlvo;
+    TimelineService.alteracoesTimelineNotifier.addListener(_recarregarResumoSocial);
     _inicializarEAutocurarPerfil();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _recarregarResumoSocial());
+  }
+
+  @override
+  void dispose() {
+    TimelineService.alteracoesTimelineNotifier
+        .removeListener(_recarregarResumoSocial);
+    _botoesAcaoScrollCtrl.dispose();
+    _pageController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _recarregarResumoSocial() async {
+    if (!mounted) return;
+    final auth = context.read<AuthProvider>();
+    final cpf = (_contaAlvoAtualizada ?? widget.usuarioAlvo ?? auth.contaAtual)?.cpf ?? '';
+    if (cpf.isEmpty) return;
+    final stories = await TimelineService.listarStoriesAtivos24h(cpf);
+    final posts = await TimelineService.contarPublicacoesDoUsuario(cpf);
+    if (!mounted) return;
+    setState(() {
+      _storiesAtivos24h = stories;
+      _totalPosts = posts;
+    });
+  }
+
+  Future<void> _aoPuxarParaAtualizar() async {
+    try {
+      final cliente = ClienteRedeLocal();
+      if (cliente.estaConectado.value) {
+        final auth = context.read<AuthProvider>();
+        await Future.wait([
+          cliente.sincronizarIdentidadeUsuario(auth: auth),
+          cliente.sincronizarTimelineComServidor(),
+        ]).timeout(const Duration(seconds: 3));
+      }
+    } catch (_) {
+    } finally {
+      try {
+        await _inicializarEAutocurarPerfil().timeout(
+          const Duration(seconds: 2),
+        );
+      } catch (_) {}
+      await _recarregarResumoSocial();
+      TimelineService.notificarAlteracao();
+    }
   }
 
   @override
@@ -219,78 +284,187 @@ class _PerfilSocialViewState extends State<PerfilSocialView> {
     return val != null ? Color(val) : null;
   }
 
-  Widget _buildBotaoPerfil({
-    required AppTheme theme,
-    required String rotulo,
-    required VoidCallback onTap,
-  }) {
-    return Expanded(
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(10),
-        child: Container(
-          height: 34,
-          padding: const EdgeInsets.symmetric(horizontal: 4),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(10),
-            border: Border.all(
-              color: theme.borderColor.withValues(alpha: 0.8),
-              width: 1.2,
-            ),
+  Future<void> _abrirOuCopiarLink(
+    BuildContext context,
+    AppTheme theme,
+    String link,
+  ) async {
+    final uri = Uri.tryParse(
+      link.startsWith('http://') || link.startsWith('https://')
+          ? link
+          : 'https://$link',
+    );
+    if (uri != null && await canLaunchUrl(uri)) {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+      return;
+    }
+    if (!context.mounted) return;
+    Clipboard.setData(ClipboardData(text: link));
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        backgroundColor: theme.cardBackgroundColor,
+        content: Text(
+          'Link copiado: $link',
+          style: theme.getTextStyle(color: theme.textColor),
+        ),
+        duration: const Duration(seconds: 2),
+      ),
+    );
+  }
+
+  void _abrirJanelaTodosLinks(
+    BuildContext context,
+    AppTheme theme,
+    List<String> links,
+    Color corBorda,
+  ) {
+    showDialog<void>(
+      context: context,
+      builder: (ctx) => Dialog(
+        backgroundColor: theme.cardBackgroundColor,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+          side: BorderSide(color: theme.borderColor),
+        ),
+        child: ConstrainedBox(
+          constraints: BoxConstraints(
+            maxWidth: 400,
+            maxHeight: MediaQuery.sizeOf(ctx).height * 0.70,
           ),
-          alignment: Alignment.center,
-          child: TextoRolante(
-            texto: rotulo,
-            textAlign: TextAlign.center,
-            style: theme.getTextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
-              color: theme.textColor,
-            ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 14, 8, 8),
+                child: Row(
+                  children: [
+                    const SizedBox(width: 32),
+                    Expanded(
+                      child: Text(
+                        'Links',
+                        textAlign: TextAlign.center,
+                        style: theme.getTextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: theme.textColor,
+                        ),
+                      ),
+                    ),
+                    IconButton(
+                      icon: Icon(Icons.close, color: theme.secondaryTextColor),
+                      onPressed: () => Navigator.of(ctx).pop(),
+                    ),
+                  ],
+                ),
+              ),
+              Divider(height: 1, color: theme.borderColor.withValues(alpha: 0.4)),
+              Flexible(
+                child: ListView.separated(
+                  shrinkWrap: true,
+                  padding: const EdgeInsets.all(14),
+                  itemCount: links.length,
+                  separatorBuilder: (_, _) => const SizedBox(height: 8),
+                  itemBuilder: (_, i) {
+                    final link = links[i];
+                    return InkWell(
+                      borderRadius: BorderRadius.circular(10),
+                      onTap: () => _abrirOuCopiarLink(context, theme, link),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 10,
+                        ),
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(
+                            color: corBorda.withValues(alpha: 0.5),
+                          ),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(
+                              Icons.link_rounded,
+                              size: 16,
+                              color: theme.buttonColor,
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Text(
+                                link,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: theme.getTextStyle(
+                                  fontSize: 13,
+                                  color: theme.textColor,
+                                ),
+                              ),
+                            ),
+                            IconButton(
+                              tooltip: 'Copiar link',
+                              icon: Icon(
+                                Icons.copy_rounded,
+                                size: 16,
+                                color: theme.secondaryTextColor,
+                              ),
+                              onPressed: () {
+                                Clipboard.setData(ClipboardData(text: link));
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text('Link copiado: $link'),
+                                    duration: const Duration(seconds: 2),
+                                  ),
+                                );
+                              },
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ],
           ),
         ),
       ),
     );
   }
 
-  Widget _buildMetricaItem(
-    AppTheme theme,
-    String valor,
-    String rotulo, {
-    VoidCallback? onTap,
+  Widget _buildBotaoPerfil({
+    required AppTheme theme,
+    required String rotulo,
+    required VoidCallback onTap,
+    double? largura,
   }) {
-    final item = Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Text(
-          valor,
+    final conteudo = InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(10),
+      child: Container(
+        height: 34,
+        padding: const EdgeInsets.symmetric(horizontal: 4),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(
+            color: theme.borderColor.withValues(alpha: 0.8),
+            width: 1.2,
+          ),
+        ),
+        alignment: Alignment.center,
+        child: TextoRolante(
+          texto: rotulo,
+          textAlign: TextAlign.center,
           style: theme.getTextStyle(
-            fontSize: 13,
-            fontWeight: FontWeight.bold,
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
             color: theme.textColor,
           ),
         ),
-        const SizedBox(height: 2),
-        Text(
-          rotulo,
-          style: theme.getTextStyle(
-            fontSize: 11,
-            color: theme.secondaryTextColor,
-          ),
-        ),
-      ],
-    );
-
-    if (onTap == null) return item;
-
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(8),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
-        child: item,
       ),
     );
+    if (largura != null) {
+      return SizedBox(width: largura, child: conteudo);
+    }
+    return Expanded(child: conteudo);
   }
 
   @override
@@ -350,7 +524,7 @@ class _PerfilSocialViewState extends State<PerfilSocialView> {
             : theme.secondaryTextColor;
         final corBordaPerfil = corDestaqueCustom ?? theme.borderColor;
 
-        return Scaffold(
+        final perfilScaffold = Scaffold(
           backgroundColor: fundoFinal,
           appBar: CustomAppBar(
             title: '',
@@ -360,125 +534,123 @@ class _PerfilSocialViewState extends State<PerfilSocialView> {
             child: Center(
               child: ConstrainedBox(
                 constraints: const BoxConstraints(maxWidth: _larguraMaximaConteudo),
-                child: SingleChildScrollView(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                child: RefreshIndicator(
+                  color: theme.buttonColor,
+                  backgroundColor: theme.cardBackgroundColor,
+                  onRefresh: _aoPuxarParaAtualizar,
+                  child: SingleChildScrollView(
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      // Cabeçalho Social Centralizado com Imagem Unificada e Autocura
-                      Center(
-                        child: CircleAvatar(
-                          radius: 50,
-                          backgroundColor:
-                              theme.borderColor.withValues(alpha: 0.3),
-                          backgroundImage: providerFoto,
-                          child: !temFoto
-                              ? (_baixandoFoto
-                                  ? SizedBox(
-                                      width: 32,
-                                      height: 32,
-                                      child: CircularProgressIndicator(
-                                        strokeWidth: 2.5,
-                                        color: theme.textColor,
-                                      ),
-                                    )
-                                  : Icon(
-                                      Icons.person,
-                                      size: 52,
-                                      color: theme.textColor,
-                                    ))
-                              : null,
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      Center(
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Flexible(
-                              child: TextoRolante(
-                                texto: apelidoExibicao,
-                                textAlign: TextAlign.center,
-                                style: theme.getTextStyle(
-                                  fontSize: 13,
-                                  color: theme.secondaryTextColor,
-                                ),
-                              ),
-                            ),
-                            if (conta.possuiValidacao) ...[
-                              const SizedBox(width: 5),
-                              SeloVerificadoWidget(
+                      // Cabeçalho Social Unificado
+                      CabecalhoPerfilPublicoWidget(
+                        theme: theme,
+                        providerFoto: providerFoto,
+                        temFoto: temFoto,
+                        carregandoFoto: _baixandoFoto,
+                        temStoryAtivo: _storiesAtivos24h.isNotEmpty,
+                        corDestaqueAnel: corDestaqueCustom ?? theme.buttonColor,
+                        tooltipFoto: _storiesAtivos24h.isNotEmpty
+                            ? 'Toque para ver o Story • Segure para ampliar a foto'
+                            : (temFoto
+                                  ? 'Toque ou segure para ampliar a foto'
+                                  : (ehProprioUsuario
+                                        ? 'Toque para definir a foto do perfil público'
+                                        : '')),
+                        onTapFoto: () {
+                          if (_storiesAtivos24h.isNotEmpty) {
+                            DialogVisualizarStory.mostrar(
+                              context,
+                              theme: theme,
+                              story: _storiesAtivos24h.first,
+                              stories: _storiesAtivos24h,
+                              ehAutor: ehProprioUsuario,
+                              usuarioLogado: auth.contaAtual,
+                            );
+                          } else if (temFoto) {
+                            VisualizadorImagemChatDialog.abrir(
+                              context,
+                              caminho: fotoResolvida,
+                              theme: theme,
+                              permitirDownload: ehProprioUsuario,
+                              permitirEncaminhar: ehProprioUsuario,
+                            );
+                          } else if (ehProprioUsuario) {
+                            PerfilFotoPublicaHelper.gerenciar(
+                              context,
+                              theme: theme,
+                              conta: conta,
+                              onAtualizada: (salvo) {
+                                if (!mounted) return;
+                                setState(() {
+                                  _fotoLocalResolvida = salvo;
+                                });
+                              },
+                            );
+                          }
+                        },
+                        onLongPressFoto: () {
+                          if (temFoto) {
+                            VisualizadorImagemChatDialog.abrir(
+                              context,
+                              caminho: fotoResolvida,
+                              theme: theme,
+                              permitirDownload: ehProprioUsuario,
+                              permitirEncaminhar: ehProprioUsuario,
+                            );
+                          } else if (ehProprioUsuario) {
+                            PerfilFotoPublicaHelper.gerenciar(
+                              context,
+                              theme: theme,
+                              conta: conta,
+                              onAtualizada: (salvo) {
+                                if (!mounted) return;
+                                setState(() {
+                                  _fotoLocalResolvida = salvo;
+                                });
+                              },
+                            );
+                          }
+                        },
+                        handleTexto: apelidoExibicao,
+                        nomeTexto: nomeExibicao,
+                        seloVerificado: conta.possuiValidacao
+                            ? SeloVerificadoWidget(
                                 usuario: conta,
                                 theme: theme,
                                 tamanho: 17,
-                              ),
-                            ],
-                          ],
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Center(
-                        child: TextoRolante(
-                          texto: nomeExibicao,
-                          textAlign: TextAlign.center,
-                          style: theme.getTextStyle(
-                            fontSize: 17,
-                            fontWeight: FontWeight.bold,
-                            color: theme.textColor,
+                              )
+                            : null,
+                        metricas: [
+                          MetricaPerfilPublico(
+                            valor: '$_totalPosts',
+                            rotulo: 'Posts',
                           ),
-                        ),
-                      ),
-                      const SizedBox(height: 14),
-                      Center(
-                        child: ConstrainedBox(
-                          constraints: const BoxConstraints(maxWidth: 330),
-                          child: Row(
-                            children: [
-                              Expanded(
-                                child: Center(
-                                  child: _buildMetricaItem(theme, '0', 'Posts'),
-                                ),
-                              ),
-                              Expanded(
-                                child: Center(
-                                  child: _buildMetricaItem(
-                                    theme,
-                                    '${conta.seguidores.length}',
-                                    'Seguidores',
-                                    onTap: () {
-                                      DialogListaConexoes.exibir(
-                                        context: context,
-                                        titulo: 'Seguidores',
-                                        cpfs: conta.seguidores,
-                                        theme: theme,
-                                        usuarioDonoLista: conta,
-                                      );
-                                    },
-                                  ),
-                                ),
-                              ),
-                              Expanded(
-                                child: Center(
-                                  child: _buildMetricaItem(
-                                    theme,
-                                    '${conta.seguindo.length}',
-                                    'Seguindo',
-                                    onTap: () {
-                                      DialogListaConexoes.exibir(
-                                        context: context,
-                                        titulo: 'Seguindo',
-                                        cpfs: conta.seguindo,
-                                        theme: theme,
-                                        usuarioDonoLista: conta,
-                                      );
-                                    },
-                                  ),
-                                ),
-                              ),
-                            ],
+                          MetricaPerfilPublico(
+                            valor: '${conta.seguidores.length}',
+                            rotulo: 'Seguidores',
+                            onTap: () => DialogListaConexoes.exibir(
+                              context: context,
+                              titulo: 'Seguidores',
+                              cpfs: conta.seguidores,
+                              theme: theme,
+                              usuarioDonoLista: conta,
+                            ),
                           ),
-                        ),
+                          MetricaPerfilPublico(
+                            valor: '${conta.seguindo.length}',
+                            rotulo: 'Seguindo',
+                            onTap: () => DialogListaConexoes.exibir(
+                              context: context,
+                              titulo: 'Seguindo',
+                              cpfs: conta.seguindo,
+                              theme: theme,
+                              usuarioDonoLista: conta,
+                            ),
+                          ),
+                        ],
                       ),
 
                       const SizedBox(height: 16),
@@ -509,106 +681,195 @@ class _PerfilSocialViewState extends State<PerfilSocialView> {
                       ),
                       if (conta.links.isNotEmpty) ...[
                         const SizedBox(height: 10),
-                        Wrap(
-                          alignment: WrapAlignment.center,
-                          spacing: 8,
-                          runSpacing: 6,
-                          children: [
-                            for (final link in conta.links)
-                              InkWell(
+                        Center(
+                          child: InkWell(
+                            borderRadius: BorderRadius.circular(16),
+                            onTap: () {
+                              if (conta.links.length == 1) {
+                                _abrirOuCopiarLink(
+                                  context,
+                                  theme,
+                                  conta.links.first,
+                                );
+                              } else {
+                                _abrirJanelaTodosLinks(
+                                  context,
+                                  theme,
+                                  conta.links,
+                                  corBordaPerfil,
+                                );
+                              }
+                            },
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 5,
+                              ),
+                              decoration: BoxDecoration(
                                 borderRadius: BorderRadius.circular(16),
-                                onTap: () {
-                                  Clipboard.setData(ClipboardData(text: link));
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(
-                                      backgroundColor:
-                                          theme.cardBackgroundColor,
-                                      content: Text(
-                                        'Link copiado: $link',
-                                        style: theme.getTextStyle(
-                                          color: theme.textColor,
-                                        ),
-                                      ),
-                                      duration: const Duration(seconds: 2),
-                                    ),
-                                  );
-                                },
-                                child: Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 10,
-                                    vertical: 4,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    borderRadius: BorderRadius.circular(16),
-                                    border: Border.all(
-                                      color: corBordaPerfil
-                                          .withValues(alpha: 0.65),
-                                    ),
-                                  ),
-                                  child: Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      Icon(
-                                        Icons.link_rounded,
-                                        size: 13,
-                                        color: corDestaqueCustom ??
-                                            textoSobreFundo,
-                                      ),
-                                      const SizedBox(width: 4),
-                                      Text(
-                                        link,
-                                        style: theme.getTextStyle(
-                                          fontSize: 11.5,
-                                          fontWeight: FontWeight.w600,
-                                          color: textoSobreFundo,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
+                                border: Border.all(
+                                  color: corBordaPerfil.withValues(alpha: 0.65),
                                 ),
                               ),
-                          ],
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(
+                                    Icons.link_rounded,
+                                    size: 14,
+                                    color: corDestaqueCustom ?? textoSobreFundo,
+                                  ),
+                                  const SizedBox(width: 5),
+                                  Flexible(
+                                    child: Text(
+                                      conta.links.length == 1
+                                          ? conta.links.first
+                                          : '${conta.links.first}  •  +${conta.links.length - 1} link(s)',
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: theme.getTextStyle(
+                                        fontSize: 11.5,
+                                        fontWeight: FontWeight.w600,
+                                        color: textoSobreFundo,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
                         ),
                       ],
 
                       const SizedBox(height: 16),
 
-                      // Botões de ação
-                      Row(
-                        children: [
-                          if (ehProprioUsuario) ...[
-                            _buildBotaoPerfil(
-                              theme: theme,
-                              rotulo: 'Editar Perfil',
-                              onTap: () => _abrirEdicaoPerfil(context, theme, conta),
+                      // Botões de ação em fila rolante (Conta à esquerda + 3 botões em destaque + escudinho de denúncia à direita)
+                      LayoutBuilder(
+                        builder: (context, constraints) {
+                          final qtdPrincipais =
+                              (ehProprioUsuario || contaPropria != null) ? 3 : 2;
+                          final larguraBotao =
+                              (constraints.maxWidth - ((qtdPrincipais - 1) * 8)) /
+                                  qtdPrincipais;
+
+                          if (ehProprioUsuario && !_offsetInicialAplicado) {
+                            WidgetsBinding.instance.addPostFrameCallback((_) {
+                              if (!mounted) return;
+                              if (_botoesAcaoScrollCtrl.hasClients) {
+                                _offsetInicialAplicado = true;
+                                _botoesAcaoScrollCtrl.jumpTo(
+                                  _offsetInicialBotaoConta,
+                                );
+                              }
+                            });
+                          }
+
+                          return SingleChildScrollView(
+                            controller: _botoesAcaoScrollCtrl,
+                            scrollDirection: Axis.horizontal,
+                            child: Row(
+                              children: [
+                                if (ehProprioUsuario) ...[
+                                  _buildBotaoPerfil(
+                                    theme: theme,
+                                    rotulo: 'Conta',
+                                    largura: 76,
+                                    onTap: () => CentralContaSocialView.abrir(
+                                      context,
+                                      theme: theme,
+                                      usuario: conta,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 10),
+                                  _buildBotaoPerfil(
+                                    theme: theme,
+                                    rotulo: 'Editar Perfil',
+                                    largura: larguraBotao,
+                                    onTap: () =>
+                                        _abrirEdicaoPerfil(context, theme, conta),
+                                  ),
+                                  const SizedBox(width: 8),
+                                ] else if (contaPropria != null) ...[
+                                  _buildBotaoPerfil(
+                                    theme: theme,
+                                    rotulo: contaPropria.estaSeguindo(conta.cpf)
+                                        ? 'Seguindo'
+                                        : 'Seguir',
+                                    largura: larguraBotao,
+                                    onTap: () async {
+                                      await auth.alternarSeguir(conta.cpf);
+                                      if (mounted) setState(() {});
+                                    },
+                                  ),
+                                  const SizedBox(width: 8),
+                                ],
+                                _buildBotaoPerfil(
+                                  theme: theme,
+                                  rotulo: 'Compartilhar',
+                                  largura: larguraBotao,
+                                  onTap: () =>
+                                      _compartilharPerfil(context, theme, conta),
+                                ),
+                                const SizedBox(width: 8),
+                                _buildBotaoPerfil(
+                                  theme: theme,
+                                  rotulo: 'Mensagens',
+                                  largura: larguraBotao,
+                                  onTap: () =>
+                                      _abrirMensagensUsuario(context, conta),
+                                ),
+                                const SizedBox(width: 10),
+                                Tooltip(
+                                  message: 'Denunciar',
+                                  child: InkWell(
+                                    borderRadius: BorderRadius.circular(10),
+                                    onTap: contaPropria == null
+                                        ? null
+                                        : () async {
+                                            final ok =
+                                                await DialogDenunciaSocial
+                                                    .mostrar(
+                                              context,
+                                              theme: theme,
+                                              denunciante: contaPropria,
+                                              alvoCpf: conta.cpf,
+                                              alvoNome: conta.nomeExibicao,
+                                            );
+                                            if (ok == true && context.mounted) {
+                                              ScaffoldMessenger.of(context)
+                                                  .showSnackBar(
+                                                const SnackBar(
+                                                  content: Text(
+                                                    'Denúncia registrada.',
+                                                  ),
+                                                ),
+                                              );
+                                            }
+                                          },
+                                    child: Container(
+                                      width: 34,
+                                      height: 34,
+                                      decoration: BoxDecoration(
+                                        borderRadius: BorderRadius.circular(10),
+                                        border: Border.all(
+                                          color: theme.borderColor
+                                              .withValues(alpha: 0.6),
+                                          width: 1.0,
+                                        ),
+                                      ),
+                                      alignment: Alignment.center,
+                                      child: Icon(
+                                        Icons.shield_outlined,
+                                        size: 16,
+                                        color: theme.secondaryTextColor,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ],
                             ),
-                            const SizedBox(width: 8),
-                          ] else if (contaPropria != null) ...[
-                            _buildBotaoPerfil(
-                              theme: theme,
-                              rotulo: contaPropria.estaSeguindo(conta.cpf)
-                                  ? 'Seguindo'
-                                  : 'Seguir',
-                              onTap: () async {
-                                await auth.alternarSeguir(conta.cpf);
-                                if (mounted) setState(() {});
-                              },
-                            ),
-                            const SizedBox(width: 8),
-                          ],
-                          _buildBotaoPerfil(
-                            theme: theme,
-                            rotulo: 'Compartilhar',
-                            onTap: () =>
-                                _compartilharPerfil(context, theme, conta),
-                          ),
-                          const SizedBox(width: 8),
-                          _buildBotaoPerfil(
-                            theme: theme,
-                            rotulo: 'Mensagens',
-                            onTap: () => _abrirMensagensUsuario(context, conta),
-                          ),
-                        ],
+                          );
+                        },
                       ),
                       if (!ehProprioUsuario &&
                           contaPropria != null &&
@@ -660,92 +921,18 @@ class _PerfilSocialViewState extends State<PerfilSocialView> {
 
                       const SizedBox(height: 18),
 
-                      // Destaques / Stories (Carrossel Horizontal de Círculos)
-                      SizedBox(
-                        height: 64,
-                        child: ListView.separated(
-                          scrollDirection: Axis.horizontal,
-                          itemCount: 8,
-                          separatorBuilder: (context, index) =>
-                              const SizedBox(width: 10),
-                          itemBuilder: (context, index) {
-                            return Container(
-                              width: 58,
-                              height: 58,
-                              decoration: BoxDecoration(
-                                shape: BoxShape.circle,
-                                color: theme.cardBackgroundColor,
-                                border: Border.all(
-                                  color: theme.borderColor.withValues(alpha: 0.5),
-                                  width: 1.2,
-                                ),
-                              ),
-                              child: Icon(
-                                Icons.add,
-                                size: 20,
-                                color: theme.secondaryTextColor.withValues(alpha: 0.6),
-                              ),
-                            );
-                          },
-                        ),
-                      ),
-
-                      const SizedBox(height: 14),
-
-                      // Divisor
-                      Divider(
-                        height: 1,
-                        thickness: 1,
-                        color: theme.borderColor.withValues(alpha: 0.4),
-                      ),
-
-                      // Abas de Conteúdo (Grade | Vídeo | Documento | Música)
-                      Row(
-                        children: [
-                          _buildAbaIcone(theme, 0, Icons.grid_on_sharp),
-                          _buildAbaIcone(theme, 1, Icons.play_circle_outline_rounded),
-                          _buildAbaIcone(theme, 2, Icons.description_outlined),
-                          _buildAbaIcone(theme, 3, Icons.music_note_outlined),
-                        ],
-                      ),
-
-                      const SizedBox(height: 8),
-
-                      // Grade de Conteúdo Social (3 colunas estilo protótipo)
-                      GridView.builder(
-                        shrinkWrap: true,
-                        physics: const NeverScrollableScrollPhysics(),
-                        itemCount: 9,
-                        gridDelegate:
-                            const SliverGridDelegateWithFixedCrossAxisCount(
-                          crossAxisCount: 3,
-                          crossAxisSpacing: 4,
-                          mainAxisSpacing: 4,
-                          childAspectRatio: 1.0,
-                        ),
-                        itemBuilder: (context, index) {
-                          return Container(
-                            decoration: BoxDecoration(
-                              color: theme.cardBackgroundColor.withValues(alpha: 0.4),
-                              border: Border.all(
-                                color: theme.borderColor.withValues(alpha: 0.4),
-                                width: 0.8,
-                              ),
-                            ),
-                            child: Center(
-                              child: Icon(
-                                Icons.image_outlined,
-                                size: 22,
-                                color: theme.secondaryTextColor.withValues(alpha: 0.3),
-                              ),
-                            ),
-                          );
-                        },
+                      // Rede Social Nous: Stories + Carrossel Horizontal de Feeds
+                      TimelinePerfilSection(
+                        theme: theme,
+                        contaPerfil: conta,
+                        usuarioLogado: auth.contaAtual,
+                        ehProprioUsuario: ehProprioUsuario,
                       ),
 
                       const SizedBox(height: 80), // Espaço para a barra flutuante
                     ],
                   ),
+                ),
                 ),
               ),
             ),
@@ -758,32 +945,37 @@ class _PerfilSocialViewState extends State<PerfilSocialView> {
                   subIndiceSelecionado: 0,
                 ),
         );
-      },
-    );
-  }
 
-  Widget _buildAbaIcone(AppTheme theme, int index, IconData icone) {
-    final selecionada = _abaConteudoSelecionada == index;
-    return Expanded(
-      child: InkWell(
-        onTap: () => setState(() => _abaConteudoSelecionada = index),
-        child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 10),
-          decoration: BoxDecoration(
-            border: Border(
-              bottom: BorderSide(
-                color: selecionada ? theme.textColor : Colors.transparent,
-                width: 2.0,
-              ),
+        final habilitarCameraPorArrasto = ehProprioUsuario &&
+            !kIsWeb &&
+            (Platform.isAndroid || Platform.isIOS);
+
+        if (!habilitarCameraPorArrasto) return perfilScaffold;
+
+        return PageView(
+          controller: _pageController,
+          onPageChanged: (index) {
+            if (mounted) setState(() => _paginaAtual = index);
+          },
+          children: [
+            CameraCriacaoView(
+              theme: theme,
+              autor: conta,
+              ativa: _paginaAtual == 0,
+              onVoltarPerfil: () {
+                if (_pageController.hasClients) {
+                  _pageController.animateToPage(
+                    1,
+                    duration: const Duration(milliseconds: 260),
+                    curve: Curves.easeOut,
+                  );
+                }
+              },
             ),
-          ),
-          child: Icon(
-            icone,
-            size: 20,
-            color: selecionada ? theme.textColor : theme.secondaryTextColor,
-          ),
-        ),
-      ),
+            perfilScaffold,
+          ],
+        );
+      },
     );
   }
 }

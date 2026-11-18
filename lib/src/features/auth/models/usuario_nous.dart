@@ -31,6 +31,29 @@ class UsuarioNous {
   final List<Map<String, String>> validacoes;
   final List<String> links;
   final Map<String, String> coresPerfil;
+  final String termosAceitosVersao;
+  final String termosAceitosEm;
+
+  /// Chaves ocultas por padrão ao criar/carregar uma Conta Nous (tudo privado exceto o nome).
+  static const List<String> dadosPrivadosPadrao = [
+    'apelido',
+    'cpf',
+    'dataNascimento',
+    'nomeMae',
+    'nomePai',
+    'filiacao',
+    'localNascimento',
+    'tipoSanguineo',
+    'estadoCivil',
+    'telefone',
+    'endereco',
+    'biografia',
+    'emails',
+    'pagamentosTrabalhador',
+    'escalaTrabalho',
+    'registroPonto',
+    'contratoTrabalho',
+  ];
 
   const UsuarioNous({
     required this.cpf,
@@ -50,7 +73,7 @@ class UsuarioNous {
     this.nomePublico = '',
     this.apelidoPublico = '',
     this.fotoPublica = '',
-    this.dadosPrivados = const ['cpf', 'emails', 'dataNascimento', 'filiacao'],
+    this.dadosPrivados = dadosPrivadosPadrao,
     this.dadosAutorizadosPorCpf = const [],
     this.seguindo = const [],
     this.seguidores = const [],
@@ -65,6 +88,8 @@ class UsuarioNous {
     this.validacoes = const [],
     this.links = const [],
     this.coresPerfil = const {},
+    this.termosAceitosVersao = '',
+    this.termosAceitosEm = '',
   });
 
   String get nomeExibicao =>
@@ -244,6 +269,8 @@ class UsuarioNous {
     List<Map<String, String>>? validacoes,
     List<String>? links,
     Map<String, String>? coresPerfil,
+    String? termosAceitosVersao,
+    String? termosAceitosEm,
   }) {
     return UsuarioNous(
       cpf: cpf,
@@ -280,6 +307,8 @@ class UsuarioNous {
       validacoes: validacoes ?? this.validacoes,
       links: links ?? this.links,
       coresPerfil: coresPerfil ?? this.coresPerfil,
+      termosAceitosVersao: termosAceitosVersao ?? this.termosAceitosVersao,
+      termosAceitosEm: termosAceitosEm ?? this.termosAceitosEm,
     );
   }
 
@@ -317,6 +346,8 @@ class UsuarioNous {
       'validacoes': validacoes,
       'links': links,
       'coresPerfil': coresPerfil,
+      'termosAceitosVersao': termosAceitosVersao,
+      'termosAceitosEm': termosAceitosEm,
     };
   }
 
@@ -345,7 +376,7 @@ class UsuarioNous {
       apelidoPublico: json['apelidoPublico'] as String? ?? '',
       fotoPublica: json['fotoPublica'] as String? ?? '',
       dadosPrivados: (json['dadosPrivados'] as List<dynamic>? ??
-              const ['cpf', 'emails', 'dataNascimento', 'filiacao'])
+              dadosPrivadosPadrao)
           .map((item) => item as String)
           .toList(),
       dadosAutorizadosPorCpf:
@@ -391,6 +422,8 @@ class UsuarioNous {
             (k, v) => MapEntry(k.toString(), v?.toString() ?? ''),
           ) ??
           const {},
+      termosAceitosVersao: json['termosAceitosVersao'] as String? ?? '',
+      termosAceitosEm: json['termosAceitosEm'] as String? ?? '',
     );
   }
 
@@ -503,6 +536,8 @@ class UsuarioNous {
       coresPerfil: priorizarOutro
           ? outro.coresPerfil
           : {...outro.coresPerfil, ...coresPerfil},
+      termosAceitosVersao: escolher(termosAceitosVersao, outro.termosAceitosVersao),
+      termosAceitosEm: escolher(termosAceitosEm, outro.termosAceitosEm),
     );
   }
 }

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:nous/src/core/services/guarda_acao_ui.dart';
 import 'package:nous/src/core/theme/theme_controller.dart';
 import 'package:nous/src/core/widgets/texto_rolante.dart';
 import 'package:nous/src/features/auth/models/usuario_nous.dart';
@@ -54,202 +55,214 @@ class SeloVerificadoWidget extends StatefulWidget {
     final total = validacoes.length;
     final cor = corParaQuantidade(total);
 
-    return showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: theme.cardBackgroundColor,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-          side: BorderSide(color: theme.borderColor),
-        ),
-        title: Column(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                color: theme.backgroundColor,
-                shape: BoxShape.circle,
-                border: Border.all(
-                  color: cor == const Color(0xFFFFFFFF)
-                      ? theme.borderColor
-                      : cor,
-                  width: 1.8,
-                ),
-              ),
-              child: Icon(
-                Icons.verified_rounded,
-                size: 28,
-                color: cor == const Color(0xFFFFFFFF) &&
-                        theme.backgroundColor.computeLuminance() > 0.5
-                    ? theme.textColor
-                    : cor,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Validações de Identidade',
-              textAlign: TextAlign.center,
-              style: theme.getTextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-                color: theme.textColor,
-              ),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              '$total ${total == 1 ? 'validação registrada' : 'validações registradas'}',
-              textAlign: TextAlign.center,
-              style: theme.getTextStyle(
-                fontSize: 12,
-                color: theme.secondaryTextColor,
-              ),
-            ),
-            const SizedBox(height: 2),
-            Text(
-              rotuloNivel(total),
-              textAlign: TextAlign.center,
-              style: theme.getTextStyle(
-                fontSize: 11,
-                fontWeight: FontWeight.w600,
-                color: theme.secondaryTextColor,
-              ),
-            ),
-          ],
-        ),
-        content: ConstrainedBox(
-          constraints: BoxConstraints(
-            maxWidth: 420,
-            maxHeight: MediaQuery.sizeOf(ctx).height * 0.55,
+    return GuardaAcaoUi.executarUnico<void>(
+      'dialog_historico_validacoes_${usuario.cpf}',
+      () => showDialog<void>(
+        context: context,
+        builder: (ctx) => Dialog(
+          backgroundColor: theme.cardBackgroundColor,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+            side: BorderSide(color: theme.borderColor),
           ),
-          child: validacoes.isEmpty
-              ? Center(
-                  child: Text(
-                    'Identidade ainda sem histórico detalhado de validadores.',
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              maxWidth: 440,
+              maxHeight: MediaQuery.sizeOf(ctx).height * 0.85,
+            ),
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(20, 20, 20, 12),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: theme.backgroundColor,
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color: cor == const Color(0xFFFFFFFF)
+                            ? theme.borderColor
+                            : cor,
+                        width: 1.8,
+                      ),
+                    ),
+                    child: Icon(
+                      Icons.verified_rounded,
+                      size: 28,
+                      color: cor == const Color(0xFFFFFFFF) &&
+                              theme.backgroundColor.computeLuminance() > 0.5
+                          ? theme.textColor
+                          : cor,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Validações de Identidade',
+                    textAlign: TextAlign.center,
+                    style: theme.getTextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: theme.textColor,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    '$total ${total == 1 ? 'validação registrada' : 'validações registradas'}',
                     textAlign: TextAlign.center,
                     style: theme.getTextStyle(
                       fontSize: 12,
                       color: theme.secondaryTextColor,
                     ),
                   ),
-                )
-              : ListView.separated(
-                  shrinkWrap: true,
-                  itemCount: validacoes.length,
-                  separatorBuilder: (_, _) => Divider(
-                    color: theme.borderColor.withValues(alpha: 0.4),
-                    height: 12,
+                  const SizedBox(height: 2),
+                  Text(
+                    rotuloNivel(total),
+                    textAlign: TextAlign.center,
+                    style: theme.getTextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                      color: theme.secondaryTextColor,
+                    ),
                   ),
-                  itemBuilder: (_, index) {
-                    final v = validacoes[index];
-                    final nome = (v['nome'] ?? '').isNotEmpty
-                        ? v['nome']!
-                        : 'Usuário Nous';
-                    final cpf = v['cpf'] ?? '';
-                    final cpfMask = cpf.length >= 3
-                        ? '${cpf.substring(0, 3)}.***.***-**'
-                        : '***';
-                    final dt = DateTime.tryParse(v['dataHora'] ?? '');
-                    final dataFmt = dt != null
-                        ? '${dt.day.toString().padLeft(2, '0')}/${dt.month.toString().padLeft(2, '0')}/${dt.year} ${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}'
-                        : '';
-                    final ehPrimeiro = index == 0;
-
-                    return Row(
-                      children: [
-                        Container(
-                          width: 28,
-                          height: 28,
-                          alignment: Alignment.center,
-                          decoration: BoxDecoration(
-                            color: ehPrimeiro
-                                ? theme.buttonColor
-                                : theme.backgroundColor,
-                            shape: BoxShape.circle,
-                            border: Border.all(color: theme.borderColor),
-                          ),
-                          child: Text(
-                            '${index + 1}º',
-                            style: theme.getTextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.bold,
-                              color: ehPrimeiro
-                                  ? theme.buttonTextColor
-                                  : theme.textColor,
-                            ),
-                          ),
+                  const SizedBox(height: 16),
+                  if (validacoes.isEmpty)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 20),
+                      child: Text(
+                        'Identidade ainda sem histórico detalhado de validadores.',
+                        textAlign: TextAlign.center,
+                        style: theme.getTextStyle(
+                          fontSize: 12,
+                          color: theme.secondaryTextColor,
                         ),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
+                      ),
+                    )
+                  else
+                    Flexible(
+                      child: ListView.separated(
+                        itemCount: validacoes.length,
+                        separatorBuilder: (_, _) => Divider(
+                          color: theme.borderColor.withValues(alpha: 0.4),
+                          height: 12,
+                        ),
+                        itemBuilder: (_, index) {
+                          final v = validacoes[index];
+                          final nome = (v['nome'] ?? '').isNotEmpty
+                              ? v['nome']!
+                              : 'Usuário Nous';
+                          final cpf = v['cpf'] ?? '';
+                          final cpfMask = cpf.length >= 3
+                              ? '${cpf.substring(0, 3)}.***.***-**'
+                              : '***';
+                          final dt = DateTime.tryParse(v['dataHora'] ?? '');
+                          final dataFmt = dt != null
+                              ? '${dt.day.toString().padLeft(2, '0')}/${dt.month.toString().padLeft(2, '0')}/${dt.year} ${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}'
+                              : '';
+                          final ehPrimeiro = index == 0;
+
+                          return Row(
                             children: [
-                              Row(
-                                children: [
-                                  Expanded(
-                                    child: TextoRolante(
-                                      texto: nome,
-                                      style: theme.getTextStyle(
-                                        fontSize: 13,
-                                        fontWeight: FontWeight.bold,
-                                        color: theme.textColor,
-                                      ),
-                                    ),
+                              Container(
+                                width: 28,
+                                height: 28,
+                                alignment: Alignment.center,
+                                decoration: BoxDecoration(
+                                  color: ehPrimeiro
+                                      ? theme.buttonColor
+                                      : theme.backgroundColor,
+                                  shape: BoxShape.circle,
+                                  border: Border.all(color: theme.borderColor),
+                                ),
+                                child: Text(
+                                  '${index + 1}º',
+                                  style: theme.getTextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.bold,
+                                    color: ehPrimeiro
+                                        ? theme.buttonTextColor
+                                        : theme.textColor,
                                   ),
-                                  if (ehPrimeiro)
-                                    Container(
-                                      margin: const EdgeInsets.only(left: 6),
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 6,
-                                        vertical: 2,
-                                      ),
-                                      decoration: BoxDecoration(
-                                        color: theme.backgroundColor,
-                                        borderRadius: BorderRadius.circular(6),
-                                        border: Border.all(
-                                          color: theme.borderColor,
+                                ),
+                              ),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Row(
+                                      children: [
+                                        Expanded(
+                                          child: TextoRolante(
+                                            texto: nome,
+                                            style: theme.getTextStyle(
+                                              fontSize: 13,
+                                              fontWeight: FontWeight.bold,
+                                              color: theme.textColor,
+                                            ),
+                                          ),
                                         ),
-                                      ),
-                                      child: Text(
-                                        '1º Validador',
-                                        style: theme.getTextStyle(
-                                          fontSize: 9.5,
-                                          fontWeight: FontWeight.bold,
-                                          color: theme.textColor,
-                                        ),
+                                        if (ehPrimeiro)
+                                          Container(
+                                            margin: const EdgeInsets.only(left: 6),
+                                            padding: const EdgeInsets.symmetric(
+                                              horizontal: 6,
+                                              vertical: 2,
+                                            ),
+                                            decoration: BoxDecoration(
+                                              color: theme.backgroundColor,
+                                              borderRadius: BorderRadius.circular(6),
+                                              border: Border.all(
+                                                color: theme.borderColor,
+                                              ),
+                                            ),
+                                            child: Text(
+                                              '1º Validador',
+                                              style: theme.getTextStyle(
+                                                fontSize: 9.5,
+                                                fontWeight: FontWeight.bold,
+                                                color: theme.textColor,
+                                              ),
+                                            ),
+                                          ),
+                                      ],
+                                    ),
+                                    Text(
+                                      dataFmt.isNotEmpty
+                                          ? 'CPF $cpfMask • $dataFmt'
+                                          : 'CPF $cpfMask',
+                                      style: theme.getTextStyle(
+                                        fontSize: 11,
+                                        color: theme.secondaryTextColor,
                                       ),
                                     ),
-                                ],
-                              ),
-                              Text(
-                                dataFmt.isNotEmpty
-                                    ? 'CPF $cpfMask • $dataFmt'
-                                    : 'CPF $cpfMask',
-                                style: theme.getTextStyle(
-                                  fontSize: 11,
-                                  color: theme.secondaryTextColor,
+                                  ],
                                 ),
                               ),
                             ],
-                          ),
+                          );
+                        },
+                      ),
+                    ),
+                  const SizedBox(height: 12),
+                  Align(
+                    alignment: Alignment.center,
+                    child: TextButton(
+                      onPressed: () => Navigator.pop(ctx),
+                      child: Text(
+                        'Fechar',
+                        style: theme.getTextStyle(
+                          color: theme.textColor,
+                          fontWeight: FontWeight.bold,
                         ),
-                      ],
-                    );
-                  },
-                ),
-        ),
-        actionsAlignment: MainAxisAlignment.center,
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: Text(
-              'Fechar',
-              style: theme.getTextStyle(
-                color: theme.textColor,
-                fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
           ),
-        ],
+        ),
       ),
     );
   }

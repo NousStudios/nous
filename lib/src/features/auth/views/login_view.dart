@@ -29,7 +29,7 @@ class _LoginViewState extends State<LoginView> {
   @override
   void initState() {
     super.initState();
-    ThemeController.isLoginScreen = true;
+    ThemeController.entrarTelaLogin();
     _timerFrases = Timer.periodic(const Duration(seconds: 15), (_) {
       if (mounted) {
         setState(() {
@@ -42,7 +42,7 @@ class _LoginViewState extends State<LoginView> {
   @override
   void dispose() {
     _timerFrases?.cancel();
-    ThemeController.isLoginScreen = false;
+    ThemeController.sairTelaLogin();
     super.dispose();
   }
 

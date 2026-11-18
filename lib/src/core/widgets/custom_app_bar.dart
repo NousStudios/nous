@@ -5,11 +5,10 @@ import 'package:provider/provider.dart';
 import 'package:nous/src/core/services/guarda_acao_ui.dart';
 import 'package:nous/src/core/theme/theme_controller.dart';
 import 'package:nous/src/core/theme/theme_customizer_dialog.dart';
+import 'package:nous/src/core/widgets/botao_notificacoes_app_bar.dart';
 import 'package:nous/src/features/auth/providers/auth_provider.dart';
 import 'package:nous/src/features/auth/views/conta_nous_view.dart';
 import 'package:nous/src/features/auth/views/login_view.dart';
-import 'package:nous/src/features/notificacoes/providers/notificacoes_provider.dart';
-import 'package:nous/src/features/notificacoes/views/widgets/notificacoes_dialog.dart';
 import 'package:nous/src/core/services/atualizacao_service.dart';
 import 'package:nous/src/core/widgets/atualizacao_dialog.dart';
 import 'package:nous/src/features/pdv/providers/pdv_provider.dart';
@@ -18,8 +17,6 @@ import 'package:nous/src/features/pdv/services/rede_local/cliente_rede_local.dar
 import 'package:nous/src/features/pdv/services/rede_local/servidor_rede_local.dart';
 import 'package:nous/src/features/pdv/views/widgets/sincronizacao_rede_dialog.dart';
 import 'package:nous/src/core/widgets/texto_rolante.dart';
-import 'package:nous/src/features/chat/models/mensagem_chat.dart';
-import 'package:nous/src/features/chat/services/chat_service.dart';
 
 String _formatarCpf(String cpf, {bool mascarado = false}) {
   final limpo = cpf.replaceAll(RegExp(r'\D'), '');
@@ -504,110 +501,12 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
   }
 
   Widget _botaoNotificacoes(BuildContext context, AppTheme theme) {
-    final notificacoes = context.watch<NotificacoesProvider>();
-    final pdv = context.watch<PdvProvider>();
     final auth = context.watch<AuthProvider>();
     final cpfUsuario = auth.contaAtual?.cpf ?? '';
-
-    return ValueListenableBuilder<int>(
-      valueListenable: ChatService.alteracoesChatNotifier,
-      builder: (context, _, child) {
-        return FutureBuilder<List<MensagemChat>>(
-          future: (lojaId != null)
-              ? ChatService.obterMensagensNaoLidasDaLoja(lojaId!)
-              : (cpfUsuario.isNotEmpty
-                  ? ChatService.obterMensagensNaoLidasDoUsuario(cpfUsuario)
-                  : Future.value(const <MensagemChat>[])),
-          builder: (context, snapshotMsg) {
-            final msgsNaoLidas = (snapshotMsg.data ?? const <MensagemChat>[])
-                .where((m) => lojaId != null
-                    ? !notificacoes.estaDispensadaNaLoja(lojaId!, 'msg_${m.id}')
-                    : !notificacoes.estaDispensadaNaSessao('msg_${m.id}'))
-                .toList();
-            final temMensagens = msgsNaoLidas.isNotEmpty;
-            final quantidadeConvites = (lojaId == null)
-                ? notificacoes.convites
-                    .where((c) =>
-                        !notificacoes.estaDispensadaNaSessao('convite_${c.id}'))
-                    .length
-                : 0;
-            final ehLojaColetiva = lojaId == PdvProvider.idLojaColetivaNous;
-            final totalEstoqueBaixo = (lojaId == null || ehLojaColetiva)
-                ? 0
-                : pdv
-                    .itensEstoqueBaixoPorLoja(lojaId!)
-                    .where((a) => !notificacoes
-                        .estaDispensadaNaLoja(lojaId!, 'alerta_estoque_${a.lojaId}_${a.item.id}'))
-                    .length;
-            final temNotificacaoAtiva =
-                quantidadeConvites > 0 || totalEstoqueBaixo > 0 || temMensagens;
-            final quantidadeBadge = quantidadeConvites + totalEstoqueBaixo;
-
-            return Stack(
-              clipBehavior: Clip.none,
-              alignment: Alignment.center,
-              children: [
-                IconButton(
-                  tooltip: totalEstoqueBaixo > 0
-                      ? 'Notificações ($totalEstoqueBaixo item(ns) com estoque baixo/esgotado)'
-                      : 'Notificações',
-                  icon: Icon(
-                    temNotificacaoAtiva
-                        ? Icons.notifications_active_outlined
-                        : Icons.notifications_none,
-                    color: (totalEstoqueBaixo > 0 ||
-                            temMensagens ||
-                            quantidadeConvites > 0)
-                        ? theme.dangerColor
-                        : theme.secondaryTextColor,
-                  ),
-                  onPressed: () => GuardaAcaoUi.executarUnico<void>(
-                    'dialog_notificacoes',
-                    () => NotificacoesDialog.mostrar(context, lojaId: lojaId),
-                  ),
-                ),
-                if (quantidadeBadge > 0)
-                  Positioned(
-                    top: 6,
-                    right: 6,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 5, vertical: 1),
-                      constraints:
-                          const BoxConstraints(minWidth: 16, minHeight: 16),
-                      decoration: BoxDecoration(
-                        color: theme.dangerColor,
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Text(
-                        quantidadeBadge > 9 ? '9+' : '$quantidadeBadge',
-                        textAlign: TextAlign.center,
-                        style: theme.getTextStyle(
-                          fontSize: 10,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.white,
-                        ),
-                      ),
-                    ),
-                  )
-                else if (temMensagens)
-                  Positioned(
-                    top: 8,
-                    right: 8,
-                    child: Container(
-                      width: 8,
-                      height: 8,
-                      decoration: BoxDecoration(
-                        color: theme.dangerColor,
-                        shape: BoxShape.circle,
-                      ),
-                    ),
-                  ),
-              ],
-            );
-          },
-        );
-      },
+    return BotaoNotificacoesAppBar(
+      lojaId: lojaId,
+      cpfUsuario: cpfUsuario,
+      theme: theme,
     );
   }
 

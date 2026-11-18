@@ -196,7 +196,9 @@ class DespachanteClienteRede {
   }) async {
     if (ipServidor == null || portaServidor == null) return;
     try {
-      final client = HttpClient()..connectionTimeout = const Duration(seconds: 4);
+      final ehNuvem = ResolvedorUrlRede.ehHostNuvem(ipServidor);
+      final client = HttpClient()
+        ..connectionTimeout = Duration(seconds: ehNuvem ? 12 : 5);
       final uri = ResolvedorUrlRede.montarUriHttp(
         hostOuIp: ipServidor,
         porta: portaServidor,
@@ -205,7 +207,7 @@ class DespachanteClienteRede {
       final req = await client.postUrl(uri);
       req.headers.contentType = ContentType.json;
       req.write(jsonEncode({'cpf': cpf, 'lojaId': lojaId}));
-      final resp = await req.close();
+      final resp = await req.close().timeout(Duration(seconds: ehNuvem ? 12 : 5));
       await resp.drain();
       debugPrint('[DespachanteClienteRede] Saída da loja $lojaId notificada ao balcão com sucesso.');
     } catch (e) {

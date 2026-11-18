@@ -397,25 +397,60 @@ class ChatMensagensService {
       dataHoraAjustada = agoraRede;
     }
 
-    final ultimas = await db.query(
-      'mensagens_chat',
-      columns: ['data_hora'],
-      where: 'conversa_id = ? AND id != ?',
-      whereArgs: [mensagem.conversaId, mensagem.id],
-      orderBy: 'data_hora DESC, id DESC',
-      limit: 1,
-    );
-    if (ultimas.isNotEmpty) {
-      final ultimaStr = ultimas.first['data_hora'] as String?;
-      if (ultimaStr != null && ultimaStr.isNotEmpty) {
-        final ultimaData = DateTime.tryParse(ultimaStr)?.toLocal();
-        if (ultimaData != null && !dataHoraAjustada.isAfter(ultimaData)) {
-          // Se ultimaData no banco estiver no futuro além de 30 segundos de agoraRede,
-          // trata como anomalia de timezone legado e não propaga o erro
-          if (ultimaData.difference(agoraRede).inSeconds > 30) {
-            dataHoraAjustada = agoraRede;
-          } else {
-            dataHoraAjustada = ultimaData.add(const Duration(milliseconds: 5));
+    // Se é atualização de uma mensagem já existente, preserva o timestamp original já consolidado
+    if (existentes.isNotEmpty) {
+      final rowsDataExistente = await db.query(
+        'mensagens_chat',
+        columns: ['data_hora'],
+        where: 'id = ?',
+        whereArgs: [mensagem.id],
+        limit: 1,
+      );
+      if (rowsDataExistente.isNotEmpty) {
+        final dtEx = DateTime.tryParse(
+          rowsDataExistente.first['data_hora'] as String? ?? '',
+        )?.toLocal();
+        if (dtEx != null) {
+          dataHoraAjustada = dtEx;
+        }
+      }
+    } else {
+      final ultimas = await db.query(
+        'mensagens_chat',
+        columns: ['data_hora', 'remetente_id'],
+        where: 'conversa_id = ? AND id != ?',
+        whereArgs: [mensagem.conversaId, mensagem.id],
+        orderBy: 'data_hora DESC, id DESC',
+        limit: 1,
+      );
+      if (ultimas.isNotEmpty) {
+        final ultimaStr = ultimas.first['data_hora'] as String?;
+        final ultimoRem = ChatRepositorioSqlite.normalizarCpf(
+          ultimas.first['remetente_id'] as String? ?? '',
+        );
+        final atualRem = ChatRepositorioSqlite.normalizarCpf(
+          mensagem.remetenteId,
+        );
+        final mesmoRemetente = (atualRem.isNotEmpty && ultimoRem == atualRem) ||
+            ultimas.first['remetente_id'] == mensagem.remetenteId;
+        final ehMidiaAtrasadaDaRede = originadaDaRede &&
+            mensagem.tipo != 'texto' &&
+            agoraRede.difference(dataHoraAjustada).inSeconds.abs() <= 120;
+
+        if (ultimaStr != null && ultimaStr.isNotEmpty) {
+          final ultimaData = DateTime.tryParse(ultimaStr)?.toLocal();
+          if (ultimaData != null && !dataHoraAjustada.isAfter(ultimaData)) {
+            // Não inverte a ordem quando a mensagem é do mesmo remetente (ex: foto/áudio
+            // que demorou mais no upload e chegou depois de um texto) ou mídia recente da rede.
+            if (!(originadaDaRede && (mesmoRemetente || ehMidiaAtrasadaDaRede))) {
+              // Se ultimaData no banco estiver no futuro além de 30 segundos de agoraRede,
+              // trata como anomalia de timezone legado e não propaga o erro
+              if (ultimaData.difference(agoraRede).inSeconds > 30) {
+                dataHoraAjustada = agoraRede;
+              } else {
+                dataHoraAjustada = ultimaData.add(const Duration(milliseconds: 5));
+              }
+            }
           }
         }
       }

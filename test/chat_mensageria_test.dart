@@ -700,6 +700,66 @@ void main() {
       expect(msgs[1].dataHora.isAfter(msgs[0].dataHora), isTrue);
     });
 
+    test('salvarMensagem preserva ordem original quando foto e áudio chegam após texto via rede', () async {
+      final baseId = 'conv_midia_ordem_${DateTime.now().millisecondsSinceEpoch}';
+      final tFoto = DateTime.now().subtract(const Duration(seconds: 10));
+      final tAudio = tFoto.add(const Duration(seconds: 2));
+      final tTexto = tFoto.add(const Duration(seconds: 4));
+
+      // Texto chega primeiro pela rede
+      await ChatService.salvarMensagem(
+        MensagemChat(
+          id: 'msg_txt_$baseId',
+          conversaId: baseId,
+          remetenteId: '43334347850',
+          remetenteNome: 'Carol',
+          destinatarioId: '47192956813',
+          texto: 'Olha isso aqui',
+          tipo: 'texto',
+          dataHora: tTexto,
+        ),
+        originadaDaRede: true,
+      );
+
+      // Áudio termina upload depois
+      await ChatService.salvarMensagem(
+        MensagemChat(
+          id: 'msg_aud_$baseId',
+          conversaId: baseId,
+          remetenteId: '43334347850',
+          remetenteNome: 'Carol',
+          destinatarioId: '47192956813',
+          texto: '',
+          tipo: 'audio',
+          caminhoAnexo: 'audios/teste.m4a',
+          dataHora: tAudio,
+        ),
+        originadaDaRede: true,
+      );
+
+      // Foto termina upload por último
+      await ChatService.salvarMensagem(
+        MensagemChat(
+          id: 'msg_img_$baseId',
+          conversaId: baseId,
+          remetenteId: '43334347850',
+          remetenteNome: 'Carol',
+          destinatarioId: '47192956813',
+          texto: '',
+          tipo: 'imagem',
+          caminhoAnexo: 'imagens/foto.jpg',
+          dataHora: tFoto,
+        ),
+        originadaDaRede: true,
+      );
+
+      final msgs = await ChatService.carregarMensagens(baseId);
+      expect(msgs.length, equals(3));
+      expect(msgs[0].id, equals('msg_img_$baseId'));
+      expect(msgs[1].id, equals('msg_aud_$baseId'));
+      expect(msgs[2].id, equals('msg_txt_$baseId'));
+    });
+
     test('ConversaChat temTituloConversa descarta títulos que replicam o nome do contato', () {
       final conversaComNomeDuplicado = ConversaChat(
         id: 'user_1_user_2',

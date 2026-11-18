@@ -27,6 +27,9 @@ class _TextoRolanteState extends State<TextoRolante> {
   late final ScrollController _scrollController;
   bool _animando = false;
   int _cicloId = 0;
+  String? _textoMedido;
+  double? _larguraMedida;
+  double _maxScrollMedido = 0.0;
 
   @override
   void initState() {
@@ -100,16 +103,8 @@ class _TextoRolanteState extends State<TextoRolante> {
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        final textPainter = TextPainter(
-          text: TextSpan(text: widget.texto, style: widget.style),
-          maxLines: 1,
-          textDirection: Directionality.maybeOf(context) ?? TextDirection.ltr,
-        )..layout();
-
-        final textWidth = textPainter.size.width;
         final maxWidth = constraints.maxWidth;
-
-        if (!maxWidth.isFinite || textWidth <= maxWidth) {
+        if (!maxWidth.isFinite) {
           return Text(
             widget.texto,
             style: widget.style,
@@ -119,10 +114,31 @@ class _TextoRolanteState extends State<TextoRolante> {
           );
         }
 
-        final maxScroll = (textWidth - maxWidth).clamp(0.0, double.infinity);
-        if (maxScroll > 0) {
-          _iniciarAnimacaoSeNecessario(maxScroll);
+        if (_textoMedido != widget.texto || _larguraMedida != maxWidth) {
+          final textPainter = TextPainter(
+            text: TextSpan(text: widget.texto, style: widget.style),
+            maxLines: 1,
+            textDirection:
+                Directionality.maybeOf(context) ?? TextDirection.ltr,
+          )..layout();
+          _textoMedido = widget.texto;
+          _larguraMedida = maxWidth;
+          _maxScrollMedido =
+              (textPainter.size.width - maxWidth).clamp(0.0, double.infinity);
         }
+
+        final maxScroll = _maxScrollMedido;
+        if (maxScroll <= 0) {
+          return Text(
+            widget.texto,
+            style: widget.style,
+            textAlign: widget.textAlign,
+            maxLines: 1,
+            overflow: TextOverflow.clip,
+          );
+        }
+
+        _iniciarAnimacaoSeNecessario(maxScroll);
 
         return RepaintBoundary(
           child: ShaderMask(

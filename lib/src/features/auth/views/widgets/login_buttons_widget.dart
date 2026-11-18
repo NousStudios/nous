@@ -65,6 +65,8 @@ class LoginButtonsWidget extends StatelessWidget {
         foto: dadosIdentidade.foto,
         biografia: dadosIdentidade.biografia,
         dadosPrivados: dadosIdentidade.dadosPrivados,
+        termosAceitosVersao: dadosIdentidade.termosAceitosVersao,
+        termosAceitosEm: dadosIdentidade.termosAceitosEm,
       );
     } else {
       // Conta antiga existente: verifica se possui nome de usuário cadastrado

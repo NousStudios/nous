@@ -7,8 +7,10 @@ import 'package:nous/src/core/theme/theme_controller.dart';
 // IMPORT DO NOSSO COMPONENTE: Traz a barra superior customizada com o botão de configurações
 import 'package:nous/src/core/widgets/custom_app_bar.dart';
 
-// Widget principal da tela de Termos de Uso (Stateless pois não altera estado internamente)
+// Widget principal da tela de Termos de Uso e Política de Privacidade (LGPD)
 class TermsView extends StatelessWidget {
+  static const String versaoAtual = '1.0-lgpd-2026';
+
   const TermsView({super.key});
 
   @override
@@ -19,7 +21,7 @@ class TermsView extends StatelessWidget {
         return Scaffold(
           backgroundColor: theme.backgroundColor,
           appBar: const CustomAppBar(
-            title: 'Termos de Uso',
+            title: 'Termos e Privacidade (LGPD)',
           ),
           body: Center(
             child: ConstrainedBox(
@@ -34,17 +36,17 @@ class TermsView extends StatelessWidget {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              'Termos e Condições de Uso - Nous',
+                              'Termos de Uso e Política de Privacidade (LGPD) — Nous',
                               style: theme.getTextStyle(
                                 fontSize: 20,
                                 fontWeight: FontWeight.bold,
                                 color: theme.textColor,
                               ),
                             ),
-                            const SizedBox(height: 16),
+                            const SizedBox(height: 12),
 
                             Text(
-                              'Última atualização: Setembro de 2026',
+                              'Versão $versaoAtual • Atualizado em Novembro de 2026',
                               style: theme.getTextStyle(
                                 fontSize: 12,
                                 color: theme.secondaryTextColor,
@@ -52,27 +54,45 @@ class TermsView extends StatelessWidget {
                             ),
                             const SizedBox(height: 24),
 
-                            _SectionTitle(title: '1. Aceitação dos Termos', theme: theme),
+                            _SectionTitle(title: '1. Aceitação e Escopo', theme: theme),
                             _SectionBody(
-                              text: 'Ao acessar e utilizar a plataforma Nous, você concorda em cumprir e respeitar os presentes Termos de Uso. Caso não concorde com qualquer disposição, você não deve utilizar a aplicação.',
+                              text: 'Ao criar sua Conta Nous ou utilizar a plataforma, você concorda com estes Termos de Uso e com esta Política de Privacidade, elaborada em conformidade com a Lei Geral de Proteção de Dados (Lei nº 13.709/2018 — LGPD).',
                               theme: theme,
                             ),
 
-                            _SectionTitle(title: '2. Sobre o Serviço', theme: theme),
+                            _SectionTitle(title: '2. Arquitetura Local-First e Soberania', theme: theme),
                             _SectionBody(
-                              text: 'O Nous é uma plataforma de autogestão comercial e social focada em autonomia local, descentralização de serviços e privacidade dos dados do usuário.',
+                              text: 'O Nous é um software livre e local-first. Seus dados são armazenados localmente no banco SQLite do seu próprio dispositivo, sem servidores centrais de Big Techs, sem venda de dados e sem rastreadores de publicidade.',
                               theme: theme,
                             ),
 
-                            _SectionTitle(title: '3. Privacidade e Proteção de Dados', theme: theme),
+                            _SectionTitle(title: '3. Dados Pessoais Tratados e Finalidades (Art. 9º LGPD)', theme: theme),
                             _SectionBody(
-                              text: 'Seus dados e informações de identificação (como CPF) são tratados com foco em segurança e confidencialidade, sendo utilizados estritamente para o funcionamento das ferramentas da plataforma.',
+                              text: '• Identificação (CPF e Nome): usados como identidade única soberana para vincular seu perfil, lojas e histórico sem depender de hardware.\n• Contato e Perfil (e-mail, @username, foto, biografia): usados para autenticação, recuperação de acesso e interação social.\n• Dados Trabalhistas e Comerciais (ponto, escala, pagamentos, vendas, clientes): usados exclusivamente para autogestão e transparência dentro das lojas de que você participa.',
                               theme: theme,
                             ),
 
-                            _SectionTitle(title: '4. Modificações dos Termos', theme: theme),
+                            _SectionTitle(title: '4. Privacidade por Padrão e Rede Local Wi-Fi', theme: theme),
                             _SectionBody(
-                              text: 'Reservamo-nos o direito de alterar estes termos a qualquer momento. Alterações significativas serão notificadas na própria aplicação.',
+                              text: 'Todas as informações pessoais e trabalhistas da sua Conta Nous nascem ocultas por padrão, exceto o nome. Você decide o que tornar público e para qual CPF autorizar acesso. Na mesma rede Wi-Fi local, os dados necessários à operação da loja ou conversa são sincronizados diretamente entre os dispositivos participantes, com criptografia ponta a ponta (E2EE) nas mensagens diretas.',
+                              theme: theme,
+                            ),
+
+                            _SectionTitle(title: '5. Seus Direitos como Titular (Art. 18 LGPD)', theme: theme),
+                            _SectionBody(
+                              text: 'Você pode, a qualquer momento diretamente no app:\n• Acessar e corrigir seus dados na Conta Nous;\n• Exportar todos os seus dados em arquivo JSON único (Portabilidade/Backup);\n• Revogar autorizações de visualização concedidas a outros CPFs;\n• Excluir permanentemente sua conta e seus dados locais ("Excluir Conta").',
+                              theme: theme,
+                            ),
+
+                            _SectionTitle(title: '6. Retenção, Segurança e Encarregado (DPO)', theme: theme),
+                            _SectionBody(
+                              text: 'Os dados permanecem armazenados localmente enquanto você mantiver sua conta ou loja ativa, observando obrigações legais fiscais/trabalhistas quando aplicável. Dúvidas ou solicitações sobre privacidade podem ser encaminhadas pelo canal oficial do projeto Nous junto ao administrador da rede ou mantenedor responsável.',
+                              theme: theme,
+                            ),
+
+                            _SectionTitle(title: '7. Atualizações desta Política', theme: theme),
+                            _SectionBody(
+                              text: 'Alterações relevantes nesta política serão versionadas e apresentadas no próprio aplicativo para ciência e novo registro de consentimento quando necessário.',
                               theme: theme,
                             ),
                             const SizedBox(height: 32),
@@ -94,7 +114,7 @@ class TermsView extends StatelessWidget {
                           borderRadius: BorderRadius.circular(30),
                         ),
                       ),
-                      onPressed: () => Navigator.pop(context),
+                      onPressed: () => Navigator.pop(context, true),
                       child: Text(
                         'Entendi e Concordo',
                         style: theme.getTextStyle(

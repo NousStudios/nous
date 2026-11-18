@@ -218,8 +218,21 @@ class ThemeController {
   static final ValueNotifier<AppTheme> currentTheme =
       ValueNotifier<AppTheme>(AppTheme.dark);
 
-  /// Controla se a tela atual é a tela de login, que mantém a escala base 1.0 (antigo 100%)
-  static bool isLoginScreen = false;
+  /// Controla se o usuário está no fluxo de login, mantendo a escala base 1.0 (antigo 100%).
+  /// Usa contador para evitar oscilação durante transições Navigator.pushReplacement.
+  static int _loginScreenDepth = 0;
+  static bool get isLoginScreen => _loginScreenDepth > 0;
+  static set isLoginScreen(bool value) {
+    _loginScreenDepth = value ? 1 : 0;
+  }
+
+  static void entrarTelaLogin() {
+    _loginScreenDepth++;
+  }
+
+  static void sairTelaLogin() {
+    if (_loginScreenDepth > 0) _loginScreenDepth--;
+  }
 
   static final ValueNotifier<List<SavedTheme>> savedThemes =
       ValueNotifier<List<SavedTheme>>([]);

@@ -130,7 +130,7 @@ class _BuscaMapaViewState extends State<BuscaMapaView> {
         return Scaffold(
           backgroundColor: theme.backgroundColor,
           appBar: const CustomAppBar(
-            title: 'Busca & Mapa',
+            title: 'Busca e Mapa',
             showBackButton: false,
           ),
           bottomNavigationBar: const FloatingBottomNavBar(

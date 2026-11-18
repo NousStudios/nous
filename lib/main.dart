@@ -17,6 +17,7 @@ import 'package:nous/src/features/pdv/services/imagem_service.dart';
 import 'package:nous/src/features/pdv/services/lojas_service.dart';
 import 'package:nous/src/features/pdv/services/rede_local/cliente_rede_local.dart';
 import 'package:nous/src/features/chat/services/notificacao_android_service.dart';
+import 'package:nous/src/features/chat/views/widgets/barra_chamada_minimizada.dart';
 
 class AppScrollBehavior extends MaterialScrollBehavior {
   @override
@@ -108,6 +109,14 @@ class MyApp extends StatelessWidget {
               ),
             ),
             home: const LoginView(),
+            builder: (context, child) {
+              return Stack(
+                children: [
+                  child ?? const SizedBox.shrink(),
+                  const BarraChamadaMinimizada(),
+                ],
+              );
+            },
           );
         },
       ),

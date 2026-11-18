@@ -8,6 +8,7 @@ import 'package:nous/src/features/pdv/models/loja.dart';
 import 'package:nous/src/features/pdv/models/membro_loja.dart';
 import 'package:nous/src/features/pdv/providers/pdv_provider.dart';
 import 'package:nous/src/features/pdv/services/lojas_service.dart';
+import 'package:nous/src/features/pdv/services/rede_local/helpers/resolvedor_url_rede.dart';
 import 'package:nous/src/features/pdv/services/rede_local/servidor_rede_local.dart';
 
 /// Resultado da obtenção e consolidação inicial do snapshot da loja do balcão.
@@ -46,22 +47,24 @@ class SnapshotLojaClienteHandler {
     required PdvProvider pdvProvider,
     required Future<void> Function(Loja loja) vincularLojaSeNecessario,
   }) async {
-    final client = HttpClient()..connectionTimeout = const Duration(seconds: 3);
-    final uriLoja = Uri(
-      scheme: 'http',
-      host: ipServidor,
-      port: portaServidor,
-      path: '/api/loja',
-      queryParameters: {
+    final ehNuvem = ResolvedorUrlRede.ehHostNuvem(ipServidor);
+    final timeout = Duration(seconds: ehNuvem ? 12 : 4);
+    final client = HttpClient()..connectionTimeout = timeout;
+    final uriLoja = ResolvedorUrlRede.montarUriHttp(
+      hostOuIp: ipServidor,
+      porta: portaServidor,
+      caminho: '/api/loja',
+      parametros: {
         if (cpfLogado.isNotEmpty) 'cpf': cpfLogado,
         if (nomeUsuario != null && nomeUsuario.isNotEmpty) 'nome': nomeUsuario,
-        if (apelidoUsuario != null && apelidoUsuario.isNotEmpty) 'apelido': apelidoUsuario,
+        if (apelidoUsuario != null && apelidoUsuario.isNotEmpty)
+          'apelido': apelidoUsuario,
         'dispositivo': nomeDispositivo,
       },
     );
 
-    final request = await client.getUrl(uriLoja).timeout(const Duration(seconds: 4));
-    final response = await request.close().timeout(const Duration(seconds: 4));
+    final request = await client.getUrl(uriLoja).timeout(timeout);
+    final response = await request.close().timeout(timeout);
 
     if (response.statusCode == HttpStatus.forbidden) {
       debugPrint('[SnapshotLojaClienteHandler] Conexão recusada pelo Administrador do Balcão.');

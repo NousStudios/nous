@@ -38,9 +38,9 @@ class MensageriaAcoesDelegate {
         final picker = ImagePicker();
         final foto = await picker.pickImage(
           source: ImageSource.camera,
-          maxWidth: 1280,
-          maxHeight: 1280,
-          imageQuality: 82,
+          maxWidth: 1080,
+          maxHeight: 1080,
+          imageQuality: 70,
         );
         if (foto != null) {
           caminhoFoto = foto.path;
@@ -108,9 +108,9 @@ class MensageriaAcoesDelegate {
         final picker = ImagePicker();
         final foto = await picker.pickImage(
           source: ImageSource.gallery,
-          maxWidth: 1280,
-          maxHeight: 1280,
-          imageQuality: 82,
+          maxWidth: 1080,
+          maxHeight: 1080,
+          imageQuality: 70,
         );
         if (foto != null) {
           caminhoFoto = foto.path;
@@ -189,60 +189,78 @@ class MensageriaAcoesDelegate {
     final selecionado = await showDialog<ConversaChat>(
       context: context,
       builder: (ctx) {
-        return AlertDialog(
+        return Dialog(
           backgroundColor: theme.cardBackgroundColor,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(16),
             side: BorderSide(color: theme.borderColor),
           ),
-          title: Text(
-            'Compartilhar Contato',
-            style: theme.getTextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.bold,
-              color: theme.textColor,
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              maxWidth: 380,
+              maxHeight: MediaQuery.sizeOf(ctx).height * 0.78,
             ),
-          ),
-          content: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 360, maxHeight: 380),
-            child: ListView.separated(
-              shrinkWrap: true,
-              itemCount: contatos.length,
-              separatorBuilder: (context, index) => Divider(
-                color: theme.borderColor.withValues(alpha: 0.3),
-              ),
-              itemBuilder: (_, idx) {
-                final c = contatos[idx];
-                return ListTile(
-                  title: Text(
-                    c.titulo,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(20, 18, 20, 12),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Text(
+                    'Compartilhar Contato',
                     style: theme.getTextStyle(
-                      fontSize: 13,
+                      fontSize: 16,
                       fontWeight: FontWeight.bold,
                       color: theme.textColor,
                     ),
                   ),
-                  subtitle: Text(
-                    c.subtitulo,
-                    style: theme.getTextStyle(
-                      fontSize: 11,
-                      color: theme.secondaryTextColor,
+                  const SizedBox(height: 12),
+                  Flexible(
+                    child: ListView.separated(
+                      itemCount: contatos.length,
+                      separatorBuilder: (context, index) => Divider(
+                        color: theme.borderColor.withValues(alpha: 0.3),
+                      ),
+                      itemBuilder: (_, idx) {
+                        final c = contatos[idx];
+                        return ListTile(
+                          title: Text(
+                            c.titulo,
+                            style: theme.getTextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.bold,
+                              color: theme.textColor,
+                            ),
+                          ),
+                          subtitle: Text(
+                            c.subtitulo,
+                            style: theme.getTextStyle(
+                              fontSize: 11,
+                              color: theme.secondaryTextColor,
+                            ),
+                          ),
+                          onTap: () => Navigator.pop(ctx, c),
+                        );
+                      },
                     ),
                   ),
-                  onTap: () => Navigator.pop(ctx, c),
-                );
-              },
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: Text(
-                'Cancelar',
-                style: theme.getTextStyle(color: theme.secondaryTextColor),
+                  const SizedBox(height: 8),
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: TextButton(
+                      onPressed: () => Navigator.pop(ctx),
+                      child: Text(
+                        'Cancelar',
+                        style: theme.getTextStyle(
+                          color: theme.secondaryTextColor,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
-          ],
+          ),
         );
       },
     );

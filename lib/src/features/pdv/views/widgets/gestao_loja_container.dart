@@ -4,6 +4,7 @@ import 'package:nous/src/features/pdv/models/cliente.dart';
 import 'package:nous/src/features/pdv/models/item_loja.dart';
 import 'package:nous/src/features/pdv/models/mesa_loja.dart';
 import 'package:nous/src/features/pdv/models/pedido_loja.dart';
+import 'package:nous/src/features/pdv/views/vitrine_loja_view.dart';
 import 'package:nous/src/features/pdv/views/widgets/gestao_loja/bloco_botoes_gestao_widget.dart';
 import 'package:nous/src/features/pdv/views/widgets/gestao_loja/bloco_pedidos_gestao_widget.dart';
 import 'package:nous/src/features/pdv/views/widgets/mesas/mesas_container.dart';
@@ -109,6 +110,13 @@ class GestaoLojaContainer extends StatelessWidget {
             aoMensagens: aoMensagens,
             temNovasMensagens: temNovasMensagens,
             aoStatus: aoStatus,
+            aoPerfilPublico: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => VitrineLojaView(lojaId: lojaId),
+                ),
+              );
+            },
           ),
           const SizedBox(height: 16),
         ],
