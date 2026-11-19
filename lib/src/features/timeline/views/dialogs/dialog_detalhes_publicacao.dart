@@ -13,9 +13,12 @@ import 'package:nous/src/features/timeline/views/dialogs/dialog_enviar_publicaca
 import 'package:nous/src/features/timeline/views/dialogs/dialog_mapa_comentarios.dart';
 import 'package:nous/src/features/timeline/views/dialogs/dialog_opcoes_publicacao.dart';
 import 'package:nous/src/features/timeline/views/dialogs/dialog_salvar_publicacao.dart';
+import 'package:nous/src/features/timeline/views/insights_publicacao_view.dart';
 import 'package:nous/src/features/timeline/views/widgets/arvore_comentarios_widget.dart';
+import 'package:nous/src/features/timeline/views/widgets/texto_com_hashtags_widget.dart';
 import 'package:nous/src/features/timeline/views/widgets/cabecalho_autor_colaboradores_widget.dart';
 import 'package:nous/src/features/timeline/views/widgets/carrossel_fotos_publicacao.dart';
+import 'package:nous/src/features/timeline/views/widgets/widget_midia_publicacao.dart';
 
 class DialogDetalhesPublicacao extends StatefulWidget {
   final AppTheme theme;
@@ -323,8 +326,29 @@ class _DialogDetalhesPublicacaoState extends State<DialogDetalhesPublicacao> {
     );
 
     if (!mounted || acao == null) return;
-    if (acao == 'editar') {
+    if (acao == 'fixar') {
+      final atualizada = await TimelineService.alternarFixarPublicacao(_pub);
+      if (mounted) {
+        setState(() => _pub = atualizada);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              atualizada.fixada
+                  ? 'Publicação fixada no topo!'
+                  : 'Publicação desafixada.',
+            ),
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      }
+    } else if (acao == 'editar') {
       await _editarPublicacao();
+    } else if (acao == 'arquivar') {
+      await TimelineService.arquivarPublicacao(
+        _pub,
+        arquivar: !_pub.arquivada,
+      );
+      if (mounted) Navigator.of(context).pop();
     } else if (acao == 'excluir') {
       await _excluirPublicacao();
     } else if (acao == 'baixar') {
@@ -352,6 +376,379 @@ class _DialogDetalhesPublicacaoState extends State<DialogDetalhesPublicacao> {
       theme: widget.theme,
       reacoes: _reacoes,
       tipo: tipo,
+    );
+  }
+
+  String _formatarDataHora(DateTime dt) {
+    final l = dt.toLocal();
+    final d = l.day.toString().padLeft(2, '0');
+    final m = l.month.toString().padLeft(2, '0');
+    final h = l.hour.toString().padLeft(2, '0');
+    final min = l.minute.toString().padLeft(2, '0');
+    return '$d/$m/${l.year} • $h:$min';
+  }
+
+  Widget _buildBotaoReacaoSemBorda({
+    required AppTheme theme,
+    required IconData icone,
+    required int contagem,
+    required VoidCallback onTapIcone,
+    required VoidCallback onTapContagem,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          InkWell(
+            borderRadius: BorderRadius.circular(14),
+            onTap: onTapIcone,
+            child: Padding(
+              padding: const EdgeInsets.all(2),
+              child: Icon(icone, size: 19, color: theme.textColor),
+            ),
+          ),
+          const SizedBox(width: 4),
+          InkWell(
+            borderRadius: BorderRadius.circular(10),
+            onTap: onTapContagem,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 2),
+              child: Text(
+                '$contagem',
+                style: theme.getTextStyle(
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w600,
+                  color: theme.textColor,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildBarraAcoes({
+    required AppTheme theme,
+    required PublicacaoSocial pub,
+    required UsuarioNous? usuarioEfetivo,
+    required int likes,
+    required int deslikes,
+    required ReacaoSocial? minhaReacao,
+  }) {
+    return Row(
+      children: [
+        Expanded(
+          child: SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _buildBotaoReacaoSemBorda(
+                  theme: theme,
+                  icone: minhaReacao?.tipo == TipoReacaoSocial.like
+                      ? Icons.thumb_up_alt_rounded
+                      : Icons.thumb_up_off_alt_rounded,
+                  contagem: likes,
+                  onTapIcone: () => _reagir(TipoReacaoSocial.like),
+                  onTapContagem: () =>
+                      _mostrarListaReacoes(TipoReacaoSocial.like),
+                ),
+                const SizedBox(width: 4),
+                _buildBotaoReacaoSemBorda(
+                  theme: theme,
+                  icone: minhaReacao?.tipo == TipoReacaoSocial.deslike
+                      ? Icons.thumb_down_alt_rounded
+                      : Icons.thumb_down_off_alt_rounded,
+                  contagem: deslikes,
+                  onTapIcone: () => _reagir(TipoReacaoSocial.deslike),
+                  onTapContagem: () =>
+                      _mostrarListaReacoes(TipoReacaoSocial.deslike),
+                ),
+                IconButton(
+                  visualDensity: VisualDensity.compact,
+                  constraints: const BoxConstraints(),
+                  padding: const EdgeInsets.all(6),
+                  tooltip: 'Republicar no meu perfil',
+                  icon: Icon(
+                    Icons.repeat_rounded,
+                    size: 19,
+                    color: theme.textColor,
+                  ),
+                  onPressed: _republicar,
+                ),
+                if (usuarioEfetivo != null)
+                  IconButton(
+                    visualDensity: VisualDensity.compact,
+                    constraints: const BoxConstraints(),
+                    padding: const EdgeInsets.all(6),
+                    tooltip: 'Salvar conteúdo',
+                    icon: Icon(
+                      Icons.bookmark_border_rounded,
+                      size: 19,
+                      color: theme.textColor,
+                    ),
+                    onPressed: () async {
+                      final salvo = await DialogSalvarPublicacao.mostrar(
+                        context,
+                        theme: theme,
+                        usuarioCpf: usuarioEfetivo.cpf,
+                        publicacaoId: pub.id,
+                      );
+                      if (salvo == true && mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Conteúdo salvo!'),
+                          ),
+                        );
+                      }
+                    },
+                  ),
+                IconButton(
+                  visualDensity: VisualDensity.compact,
+                  constraints: const BoxConstraints(),
+                  padding: const EdgeInsets.all(6),
+                  tooltip: 'Enviar pelo chat',
+                  icon: Icon(
+                    Icons.send_rounded,
+                    size: 18,
+                    color: theme.textColor,
+                  ),
+                  onPressed: _enviarNoChat,
+                ),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(width: 4),
+        InkWell(
+          borderRadius: BorderRadius.circular(10),
+          onTap: () => InsightsPublicacaoView.abrir(
+            context,
+            theme: theme,
+            publicacao: pub,
+            totalCurtidas: likes,
+            totalDeslikes: deslikes,
+            totalComentarios: _comentarios.length,
+          ),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 3),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  Icons.visibility_outlined,
+                  size: 13,
+                  color: theme.secondaryTextColor,
+                ),
+                const SizedBox(width: 3),
+                Text(
+                  '${pub.visualizacoes}',
+                  style: theme.getTextStyle(
+                    fontSize: 10.5,
+                    fontWeight: FontWeight.w600,
+                    color: theme.secondaryTextColor,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(width: 6),
+        Text(
+          _formatarDataHora(pub.criadaEm),
+          style: theme.getTextStyle(
+            fontSize: 10.5,
+            color: theme.secondaryTextColor,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildSecaoComentarios({
+    required AppTheme theme,
+    required PublicacaoSocial pub,
+    required List<ComentarioSocial> comentariosRaiz,
+    required bool ehAutor,
+    required String meuCpf,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              'Comentários (${_comentarios.length})',
+              style: theme.getTextStyle(
+                fontSize: 13.5,
+                fontWeight: FontWeight.bold,
+                color: theme.textColor,
+              ),
+            ),
+            TextButton.icon(
+              onPressed: () => DialogMapaComentarios.mostrar(
+                context,
+                theme: theme,
+                publicacao: pub,
+                comentarios: _comentarios,
+                ehAutorPublicacao: ehAutor,
+                meuCpfLimpo: meuCpf,
+                onResponder: (c) {
+                  setState(() => _respondendoAComentario = c);
+                  _comentarioFocus.requestFocus();
+                },
+                onAlternarFixar: (c) async {
+                  await TimelineService.alternarFixarComentario(c);
+                  await _carregarInteracoes();
+                },
+                onExcluir: (c) async {
+                  await TimelineService.excluirComentario(c);
+                  await _carregarInteracoes();
+                },
+              ),
+              icon: Icon(
+                Icons.account_tree_outlined,
+                size: 16,
+                color: theme.buttonColor,
+              ),
+              label: Text(
+                'Mapa da Conversa',
+                style: theme.getTextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold,
+                  color: theme.buttonColor,
+                ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 6),
+        for (final c in comentariosRaiz)
+          ArvoreComentariosWidget(
+            theme: theme,
+            todosComentarios: _comentarios,
+            comentario: c,
+            ehAutorPublicacao: ehAutor,
+            meuCpf: meuCpf,
+            onResponder: (alvo) {
+              setState(() => _respondendoAComentario = alvo);
+              _comentarioFocus.requestFocus();
+            },
+            onAlternarFixar: (alvo) async {
+              await TimelineService.alternarFixarComentario(alvo);
+              await _carregarInteracoes();
+            },
+            onExcluir: (alvo) async {
+              await TimelineService.excluirComentario(alvo);
+              await _carregarInteracoes();
+            },
+          ),
+      ],
+    );
+  }
+
+  Widget _buildBarraInputComentario(AppTheme theme) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
+      decoration: BoxDecoration(
+        color: theme.cardBackgroundColor,
+        border: Border(
+          top: BorderSide(color: theme.borderColor.withValues(alpha: 0.4)),
+        ),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (_respondendoAComentario != null)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 6),
+              child: Row(
+                children: [
+                  Icon(Icons.reply_rounded, size: 15, color: theme.buttonColor),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      'Respondendo a ${_respondendoAComentario!.autorNome}',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.getTextStyle(
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.w600,
+                        color: theme.buttonColor,
+                      ),
+                    ),
+                  ),
+                  InkWell(
+                    onTap: () =>
+                        setState(() => _respondendoAComentario = null),
+                    child: Icon(
+                      Icons.close,
+                      size: 16,
+                      color: theme.secondaryTextColor,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: _comentarioCtrl,
+                  focusNode: _comentarioFocus,
+                  onSubmitted: (_) => _enviarComentario(),
+                  style: theme.getTextStyle(
+                    fontSize: 13.5,
+                    color: theme.textColor,
+                  ),
+                  decoration: InputDecoration(
+                    hintText: _respondendoAComentario != null
+                        ? 'Escrever sub-resposta...'
+                        : 'Escrever um comentário...',
+                    hintStyle: theme.getTextStyle(
+                      fontSize: 12.5,
+                      color: theme.secondaryTextColor,
+                    ),
+                    filled: true,
+                    fillColor: theme.backgroundColor,
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 10,
+                    ),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(20),
+                      borderSide: BorderSide(color: theme.borderColor),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(20),
+                      borderSide: BorderSide(color: theme.borderColor),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: theme.buttonColor,
+                  foregroundColor: theme.buttonTextColor,
+                  shape: const CircleBorder(),
+                  padding: const EdgeInsets.all(11),
+                  minimumSize: const Size(42, 42),
+                ),
+                onPressed: _enviarComentario,
+                child: Icon(
+                  Icons.send_rounded,
+                  size: 18,
+                  color: theme.buttonTextColor,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
     );
   }
 
@@ -387,33 +784,38 @@ class _DialogDetalhesPublicacaoState extends State<DialogDetalhesPublicacao> {
         return a.criadaEm.compareTo(b.criadaEm);
       });
 
+    final ehDesktop = MediaQuery.sizeOf(context).width >= 820;
+
     return Scaffold(
       backgroundColor: theme.backgroundColor,
       body: SafeArea(
         child: Center(
           child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 760),
+            constraints: BoxConstraints(maxWidth: ehDesktop ? 1080 : 760),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                // Cabeçalho com Avatar do Autor + Colaboradores e botão Fechar
+                // Linha superior: seta à esquerda + nome da página
                 Padding(
-                  padding: const EdgeInsets.fromLTRB(14, 10, 8, 8),
+                  padding: const EdgeInsets.fromLTRB(6, 6, 12, 4),
                   child: Row(
                     children: [
-                      Expanded(
-                        child: CabecalhoAutorColaboradoresWidget(
-                          theme: theme,
-                          publicacao: pub,
-                          coautoresResolvidos: _coautoresResolvidos,
-                        ),
-                      ),
                       IconButton(
+                        tooltip: 'Voltar',
                         icon: Icon(
-                          Icons.close,
-                          color: theme.secondaryTextColor,
+                          Icons.arrow_back_rounded,
+                          color: theme.textColor,
                         ),
                         onPressed: () => Navigator.of(context).pop(),
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        'Publicação',
+                        style: theme.getTextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: theme.textColor,
+                        ),
                       ),
                     ],
                   ),
@@ -423,404 +825,191 @@ class _DialogDetalhesPublicacaoState extends State<DialogDetalhesPublicacao> {
                   color: theme.borderColor.withValues(alpha: 0.4),
                 ),
 
-                Expanded(
-                  child: SingleChildScrollView(
-                    padding: const EdgeInsets.all(16),
-                    child: Column(
+                if (ehDesktop)
+                  Expanded(
+                    child: Row(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        if (pub.midias.isNotEmpty) ...[
-                          _buildMidias(theme, pub),
-                          const SizedBox(height: 10),
-                        ],
-
-                        // Linha de Ícones de Interação + Ícone de Mais Opções (Editar/Excluir) à direita (acima da legenda)
-                        Row(
-                          children: [
-                            Expanded(
-                              child: Wrap(
-                                spacing: 8,
-                                runSpacing: 8,
-                                crossAxisAlignment: WrapCrossAlignment.center,
-                                children: [
-                                  // Pílula Like
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 10,
-                                      vertical: 6,
-                                    ),
-                                    decoration: BoxDecoration(
-                                      color:
-                                          Colors.black.withValues(alpha: 0.35),
-                                      borderRadius: BorderRadius.circular(20),
-                                      border: Border.all(
-                                        color: theme.borderColor.withValues(
-                                          alpha: 0.5,
-                                        ),
+                        if (pub.midias.isNotEmpty)
+                          Expanded(
+                            flex: 3,
+                            child: Container(
+                              color: theme.cardBackgroundColor
+                                  .withValues(alpha: 0.3),
+                              alignment: Alignment.center,
+                              padding: const EdgeInsets.all(12),
+                              child: _buildMidias(
+                                theme,
+                                pub,
+                                ajustarTelaCheia: true,
+                              ),
+                            ),
+                          ),
+                        Expanded(
+                          flex: 2,
+                          child: Container(
+                            decoration: BoxDecoration(
+                              border: pub.midias.isNotEmpty
+                                  ? Border(
+                                      left: BorderSide(
+                                        color: theme.borderColor
+                                            .withValues(alpha: 0.4),
                                       ),
-                                    ),
-                                    child: Row(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        InkWell(
-                                          onTap: () =>
-                                              _reagir(TipoReacaoSocial.like),
-                                          child: Icon(
-                                            minhaReacao?.tipo ==
-                                                    TipoReacaoSocial.like
-                                                ? Icons.thumb_up_alt_rounded
-                                                : Icons
-                                                    .thumb_up_off_alt_rounded,
-                                            size: 18,
-                                            color: Colors.white,
-                                          ),
-                                        ),
-                                        const SizedBox(width: 6),
-                                        InkWell(
-                                          onTap: () => _mostrarListaReacoes(
-                                            TipoReacaoSocial.like,
-                                          ),
-                                          child: Text(
-                                            '$likes',
-                                            style: theme.getTextStyle(
-                                              fontSize: 12.5,
-                                              fontWeight: FontWeight.w600,
-                                              color: Colors.white,
-                                            ),
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                  // Pílula Deslike
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 10,
-                                      vertical: 6,
-                                    ),
-                                    decoration: BoxDecoration(
-                                      color:
-                                          Colors.black.withValues(alpha: 0.35),
-                                      borderRadius: BorderRadius.circular(20),
-                                      border: Border.all(
-                                        color: theme.borderColor.withValues(
-                                          alpha: 0.5,
-                                        ),
-                                      ),
-                                    ),
-                                    child: Row(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        InkWell(
-                                          onTap: () =>
-                                              _reagir(TipoReacaoSocial.deslike),
-                                          child: Icon(
-                                            minhaReacao?.tipo ==
-                                                    TipoReacaoSocial.deslike
-                                                ? Icons.thumb_down_alt_rounded
-                                                : Icons
-                                                    .thumb_down_off_alt_rounded,
-                                            size: 18,
-                                            color: Colors.white,
-                                          ),
-                                        ),
-                                        const SizedBox(width: 6),
-                                        InkWell(
-                                          onTap: () => _mostrarListaReacoes(
-                                            TipoReacaoSocial.deslike,
-                                          ),
-                                          child: Text(
-                                            '$deslikes',
-                                            style: theme.getTextStyle(
-                                              fontSize: 12.5,
-                                              fontWeight: FontWeight.w600,
-                                              color: Colors.white,
-                                            ),
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                  IconButton(
-                                    tooltip: 'Republicar no meu perfil',
-                                    icon: Icon(
-                                      Icons.repeat_rounded,
-                                      color: theme.textColor,
-                                    ),
-                                    onPressed: _republicar,
-                                  ),
-                                  if (usuarioEfetivo != null)
-                                    IconButton(
-                                      tooltip: 'Salvar conteúdo',
+                                    )
+                                  : null,
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                Padding(
+                                  padding:
+                                      const EdgeInsets.fromLTRB(12, 10, 6, 8),
+                                  child: CabecalhoAutorColaboradoresWidget(
+                                    theme: theme,
+                                    publicacao: pub,
+                                    coautoresResolvidos: _coautoresResolvidos,
+                                    trailing: IconButton(
+                                      visualDensity: VisualDensity.compact,
+                                      tooltip: 'Mais opções da publicação',
                                       icon: Icon(
-                                        Icons.bookmark_border_rounded,
+                                        Icons.more_horiz_rounded,
                                         color: theme.textColor,
                                       ),
-                                      onPressed: () async {
-                                        final salvo =
-                                            await DialogSalvarPublicacao
-                                                .mostrar(
-                                          context,
-                                          theme: theme,
-                                          usuarioCpf: usuarioEfetivo.cpf,
-                                          publicacaoId: pub.id,
-                                        );
-                                        if (salvo == true && context.mounted) {
-                                          ScaffoldMessenger.of(context)
-                                              .showSnackBar(
-                                            const SnackBar(
-                                              content: Text('Conteúdo salvo!'),
-                                            ),
-                                          );
-                                        }
-                                      },
+                                      onPressed: () =>
+                                          _abrirMenuOpcoesPublicacao(ehAutor),
                                     ),
-                                  IconButton(
-                                    tooltip: 'Enviar pelo chat',
-                                    icon: Icon(
-                                      Icons.send_rounded,
-                                      color: theme.textColor,
-                                    ),
-                                    onPressed: _enviarNoChat,
                                   ),
-                                ],
-                              ),
-                            ),
-                            // Ícone à direita na mesma linha dos ícones de interação (Editar/Excluir/Opções)
-                            IconButton(
-                              tooltip: 'Mais opções da publicação',
-                              icon: Icon(
-                                Icons.more_horiz_rounded,
-                                color: theme.textColor,
-                              ),
-                              onPressed: () =>
-                                  _abrirMenuOpcoesPublicacao(ehAutor),
-                            ),
-                          ],
-                        ),
-
-                        const SizedBox(height: 10),
-                        if (pub.texto.isNotEmpty) ...[
-                          Text(
-                            pub.texto,
-                            style: theme.getTextStyle(
-                              fontSize: 14,
-                              color: theme.textColor,
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                        ],
-                        Builder(
-                          builder: (_) {
-                            final l = pub.criadaEm.toLocal();
-                            final d = l.day.toString().padLeft(2, '0');
-                            final m = l.month.toString().padLeft(2, '0');
-                            final h = l.hour.toString().padLeft(2, '0');
-                            final min = l.minute.toString().padLeft(2, '0');
-                            return Text(
-                              '$d/$m/${l.year} às $h:$min',
-                              style: theme.getTextStyle(
-                                fontSize: 11,
-                                color: theme.secondaryTextColor,
-                              ),
-                            );
-                          },
-                        ),
-
-                        const SizedBox(height: 16),
-
-                        // Cabeçalho de Comentários + Botão Mapa Mental
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Text(
-                              'Comentários (${_comentarios.length})',
-                              style: theme.getTextStyle(
-                                fontSize: 13.5,
-                                fontWeight: FontWeight.bold,
-                                color: theme.textColor,
-                              ),
-                            ),
-                            TextButton.icon(
-                              onPressed: () => DialogMapaComentarios.mostrar(
-                                context,
-                                theme: theme,
-                                publicacao: pub,
-                                comentarios: _comentarios,
-                                ehAutorPublicacao: ehAutor,
-                                meuCpfLimpo: meuCpf,
-                                onResponder: (c) {
-                                  setState(() => _respondendoAComentario = c);
-                                  _comentarioFocus.requestFocus();
-                                },
-                                onAlternarFixar: (c) async {
-                                  await TimelineService.alternarFixarComentario(
-                                    c,
-                                  );
-                                  await _carregarInteracoes();
-                                },
-                                onExcluir: (c) async {
-                                  await TimelineService.excluirComentario(c);
-                                  await _carregarInteracoes();
-                                },
-                              ),
-                              icon: Icon(
-                                Icons.account_tree_outlined,
-                                size: 16,
-                                color: theme.buttonColor,
-                              ),
-                              label: Text(
-                                'Mapa da Conversa',
-                                style: theme.getTextStyle(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.bold,
-                                  color: theme.buttonColor,
                                 ),
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 8),
-
-                        for (final c in comentariosRaiz)
-                          ArvoreComentariosWidget(
-                            theme: theme,
-                            todosComentarios: _comentarios,
-                            comentario: c,
-                            ehAutorPublicacao: ehAutor,
-                            meuCpf: meuCpf,
-                            onResponder: (alvo) {
-                              setState(() => _respondendoAComentario = alvo);
-                              _comentarioFocus.requestFocus();
-                            },
-                            onAlternarFixar: (alvo) async {
-                              await TimelineService.alternarFixarComentario(
-                                alvo,
-                              );
-                              await _carregarInteracoes();
-                            },
-                            onExcluir: (alvo) async {
-                              await TimelineService.excluirComentario(alvo);
-                              await _carregarInteracoes();
-                            },
-                          ),
-                      ],
-                    ),
-                  ),
-                ),
-
-                // Barra de envio de comentário ou sub-resposta
-                if (usuarioEfetivo != null)
-                  Container(
-                    padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
-                    decoration: BoxDecoration(
-                      color: theme.cardBackgroundColor,
-                      border: Border(
-                        top: BorderSide(
-                          color: theme.borderColor.withValues(alpha: 0.4),
-                        ),
-                      ),
-                    ),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        if (_respondendoAComentario != null)
-                          Padding(
-                            padding: const EdgeInsets.only(bottom: 6),
-                            child: Row(
-                              children: [
-                                Icon(
-                                  Icons.reply_rounded,
-                                  size: 15,
-                                  color: theme.buttonColor,
+                                Divider(
+                                  height: 1,
+                                  color:
+                                      theme.borderColor.withValues(alpha: 0.3),
                                 ),
-                                const SizedBox(width: 6),
                                 Expanded(
-                                  child: Text(
-                                    'Respondendo a ${_respondendoAComentario!.autorNome}',
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: theme.getTextStyle(
-                                      fontSize: 11.5,
-                                      fontWeight: FontWeight.w600,
-                                      color: theme.buttonColor,
+                                  child: SingleChildScrollView(
+                                    padding: const EdgeInsets.all(14),
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.stretch,
+                                      children: [
+                                        if (pub.texto.isNotEmpty) ...[
+                                          TextoComHashtagsWidget(
+                                            theme: theme,
+                                            texto: pub.texto,
+                                            fontSize: 13.5,
+                                          ),
+                                          const SizedBox(height: 12),
+                                        ],
+                                        _buildSecaoComentarios(
+                                          theme: theme,
+                                          pub: pub,
+                                          comentariosRaiz: comentariosRaiz,
+                                          ehAutor: ehAutor,
+                                          meuCpf: meuCpf,
+                                        ),
+                                      ],
                                     ),
                                   ),
                                 ),
-                                InkWell(
-                                  onTap: () => setState(
-                                    () => _respondendoAComentario = null,
-                                  ),
-                                  child: Icon(
-                                    Icons.close,
-                                    size: 16,
-                                    color: theme.secondaryTextColor,
+                                Divider(
+                                  height: 1,
+                                  color:
+                                      theme.borderColor.withValues(alpha: 0.3),
+                                ),
+                                Padding(
+                                  padding:
+                                      const EdgeInsets.fromLTRB(10, 4, 12, 4),
+                                  child: _buildBarraAcoes(
+                                    theme: theme,
+                                    pub: pub,
+                                    usuarioEfetivo: usuarioEfetivo,
+                                    likes: likes,
+                                    deslikes: deslikes,
+                                    minhaReacao: minhaReacao,
                                   ),
                                 ),
+                                if (usuarioEfetivo != null)
+                                  _buildBarraInputComentario(theme),
                               ],
                             ),
                           ),
-                        Row(
-                          children: [
-                            Expanded(
-                              child: TextField(
-                                controller: _comentarioCtrl,
-                                focusNode: _comentarioFocus,
-                                onSubmitted: (_) => _enviarComentario(),
-                                style: theme.getTextStyle(
-                                  fontSize: 13.5,
-                                  color: theme.textColor,
-                                ),
-                                decoration: InputDecoration(
-                                  hintText: _respondendoAComentario != null
-                                      ? 'Escrever sub-resposta...'
-                                      : 'Escrever um comentário...',
-                                  hintStyle: theme.getTextStyle(
-                                    fontSize: 12.5,
-                                    color: theme.secondaryTextColor,
-                                  ),
-                                  filled: true,
-                                  fillColor: theme.backgroundColor,
-                                  contentPadding: const EdgeInsets.symmetric(
-                                    horizontal: 14,
-                                    vertical: 10,
-                                  ),
-                                  border: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(20),
-                                    borderSide: BorderSide(
-                                      color: theme.borderColor,
-                                    ),
-                                  ),
-                                  enabledBorder: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(20),
-                                    borderSide: BorderSide(
-                                      color: theme.borderColor,
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ),
-                            const SizedBox(width: 8),
-                            ElevatedButton(
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: theme.buttonColor,
-                                foregroundColor: theme.buttonTextColor,
-                                shape: const CircleBorder(),
-                                padding: const EdgeInsets.all(11),
-                                minimumSize: const Size(42, 42),
-                              ),
-                              onPressed: _enviarComentario,
-                              child: Icon(
-                                Icons.send_rounded,
-                                size: 18,
-                                color: theme.buttonTextColor,
-                              ),
-                            ),
-                          ],
                         ),
                       ],
                     ),
+                  )
+                else ...[
+                  // Cabeçalho Autor + Colaboradores + 3 pontos à direita
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(14, 10, 6, 8),
+                    child: CabecalhoAutorColaboradoresWidget(
+                      theme: theme,
+                      publicacao: pub,
+                      coautoresResolvidos: _coautoresResolvidos,
+                      trailing: IconButton(
+                        visualDensity: VisualDensity.compact,
+                        tooltip: 'Mais opções da publicação',
+                        icon: Icon(
+                          Icons.more_horiz_rounded,
+                          color: theme.textColor,
+                        ),
+                        onPressed: () => _abrirMenuOpcoesPublicacao(ehAutor),
+                      ),
+                    ),
                   ),
+                  Divider(
+                    height: 1,
+                    color: theme.borderColor.withValues(alpha: 0.4),
+                  ),
+                  Expanded(
+                    child: SingleChildScrollView(
+                      padding: const EdgeInsets.all(16),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          if (pub.midias.isNotEmpty) ...[
+                            ConstrainedBox(
+                              constraints: BoxConstraints(
+                                maxHeight:
+                                    MediaQuery.sizeOf(context).height * 0.50,
+                              ),
+                              child: _buildMidias(
+                                theme,
+                                pub,
+                                ajustarTelaCheia: true,
+                              ),
+                            ),
+                            const SizedBox(height: 10),
+                          ],
+                          _buildBarraAcoes(
+                            theme: theme,
+                            pub: pub,
+                            usuarioEfetivo: usuarioEfetivo,
+                            likes: likes,
+                            deslikes: deslikes,
+                            minhaReacao: minhaReacao,
+                          ),
+                          const SizedBox(height: 10),
+                          if (pub.texto.isNotEmpty) ...[
+                            TextoComHashtagsWidget(
+                              theme: theme,
+                              texto: pub.texto,
+                              fontSize: 14,
+                            ),
+                            const SizedBox(height: 14),
+                          ],
+                          _buildSecaoComentarios(
+                            theme: theme,
+                            pub: pub,
+                            comentariosRaiz: comentariosRaiz,
+                            ehAutor: ehAutor,
+                            meuCpf: meuCpf,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  if (usuarioEfetivo != null) _buildBarraInputComentario(theme),
+                ],
               ],
             ),
           ),
@@ -829,35 +1018,31 @@ class _DialogDetalhesPublicacaoState extends State<DialogDetalhesPublicacao> {
     );
   }
 
-  Widget _buildMidias(AppTheme theme, PublicacaoSocial pub) {
-    if (pub.tipo == TipoFeedSocial.fotos) {
+  Widget _buildMidias(
+    AppTheme theme,
+    PublicacaoSocial pub, {
+    bool ajustarTelaCheia = false,
+  }) {
+    final todasFotos = pub.midias.every((m) {
+      final ext = m.mimeTipo.toLowerCase();
+      return ext == 'jpg' ||
+          ext == 'jpeg' ||
+          ext == 'png' ||
+          ext == 'webp' ||
+          (ext.isEmpty && pub.tipo == TipoFeedSocial.fotos);
+    });
+    if (todasFotos) {
       return CarrosselFotosPublicacao(
         theme: theme,
         midias: pub.midias,
         aspectRatio: pub.aspectRatioEfetivo,
         alignment: Alignment(pub.alinhamentoX, pub.alinhamentoY),
         escalaZoomPadrao: pub.escalaZoom,
+        ajustarTelaCheia: ajustarTelaCheia,
         onDoubleTapLike: () => _reagir(TipoReacaoSocial.like),
       );
     }
 
-    return Column(
-      children: pub.midias.map((m) {
-        return ListTile(
-          leading: Icon(
-            pub.tipo == TipoFeedSocial.videos
-                ? Icons.play_circle_outline_rounded
-                : pub.tipo == TipoFeedSocial.musicas
-                    ? Icons.music_note_outlined
-                    : Icons.description_outlined,
-            color: theme.buttonColor,
-          ),
-          title: Text(
-            m.nomeArquivo,
-            style: theme.getTextStyle(fontSize: 13, color: theme.textColor),
-          ),
-        );
-      }).toList(),
-    );
+    return WidgetMidiaPublicacao(theme: theme, publicacao: pub);
   }
 }

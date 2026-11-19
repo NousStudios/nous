@@ -366,8 +366,12 @@ class _PainelConversaAtivaWidgetState extends State<PainelConversaAtivaWidget> {
     if (_ultimoIdConversa != conversa.id) {
       _ultimoIdConversa = conversa.id;
       _pesquisaAtiva = false;
-      _buscaConversaController.clear();
       _mostrarBotaoDescer = false;
+      if (_buscaConversaController.text.isNotEmpty) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) _buscaConversaController.clear();
+        });
+      }
     }
 
     final termoBusca = _buscaConversaController.text.trim().toLowerCase();

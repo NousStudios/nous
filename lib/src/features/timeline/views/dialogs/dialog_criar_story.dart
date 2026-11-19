@@ -8,6 +8,7 @@ import 'package:nous/src/core/widgets/themed_text_field.dart';
 import 'package:nous/src/features/auth/models/usuario_nous.dart';
 import 'package:nous/src/features/timeline/models/story_social.dart';
 import 'package:nous/src/features/timeline/services/timeline_service.dart';
+import 'package:nous/src/features/timeline/views/widgets/animacao_story_sugado_overlay.dart';
 
 /// Tela cheia animada para criação de novo Story (24h) ou Destaque permanente.
 class DialogCriarStory extends StatefulWidget {
@@ -104,7 +105,16 @@ class _DialogCriarStoryState extends State<DialogCriarStory> {
       ehDestaquePermanente: _destaquePermanente,
     );
 
-    if (mounted) Navigator.of(context).pop(story);
+    if (mounted) {
+      final overlay = Overlay.maybeOf(context, rootOverlay: true);
+      Navigator.of(context).pop(story);
+      AnimacaoStorySugadoOverlay.disparar(
+        overlay,
+        theme: widget.theme,
+        caminhoMidiaLocal: _caminhoImagem,
+        fotoPerfil: widget.autor.fotoExibicao,
+      );
+    }
   }
 
   @override

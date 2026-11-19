@@ -11,6 +11,7 @@ import 'package:nous/src/core/theme/theme_controller.dart';
 import 'package:nous/src/features/auth/models/usuario_nous.dart';
 import 'package:nous/src/features/timeline/models/publicacao_social.dart';
 import 'package:nous/src/features/timeline/services/timeline_service.dart';
+import 'package:nous/src/features/timeline/views/widgets/animacao_story_sugado_overlay.dart';
 import 'package:nous/src/features/timeline/views/dialogs/dialog_criar_publicacao.dart';
 
 enum DestinoCapturaCamera {
@@ -319,6 +320,14 @@ class _CameraCriacaoViewState extends State<CameraCriacaoView> {
         caminhoMidia: midia.caminhoRelativo,
         tipoMidia: ehVideo ? 'video' : 'imagem',
       );
+      if (mounted) {
+        AnimacaoStorySugadoOverlay.disparar(
+          Overlay.maybeOf(context, rootOverlay: true),
+          theme: widget.theme,
+          caminhoMidiaLocal: caminho,
+          fotoPerfil: widget.autor.fotoExibicao,
+        );
+      }
     } else {
       final tipo = switch (_destino) {
         DestinoCapturaCamera.fotos => TipoFeedSocial.fotos,

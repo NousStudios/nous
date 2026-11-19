@@ -310,22 +310,23 @@ class ClienteWsMessageHandler {
           );
         }
 
-        if (lojaLocalExistente != null) {
+        if (lojaLocalExistente != null &&
+            dados['tipo'] == 'dados_iniciais') {
           final servidorTinhaMenosPedidos = lojaLocalExistente.pedidosLoja.any(
-            (pLoc) => !lojaBruta.pedidosLoja.any((pRem) => pRem.id == pLoc.id),
+            (pLoc) =>
+                pLoc.status != StatusPedido.concluido &&
+                pLoc.status != StatusPedido.cancelado &&
+                !lojaBruta.pedidosLoja.any((pRem) => pRem.id == pLoc.id),
           );
           final servidorTinhaMenosTurnos = lojaLocalExistente.turnosCaixa.any(
-            (tLoc) => !lojaBruta.turnosCaixa.any((tRem) => tRem.id == tLoc.id),
-          );
-          final servidorTinhaMenosEstoque = lojaLocalExistente.movimentosEstoque.any(
-            (mLoc) => !lojaBruta.movimentosEstoque.any((mRem) => mRem.id == mLoc.id),
+            (tLoc) =>
+                tLoc.status.name == 'aberto' &&
+                !lojaBruta.turnosCaixa.any((tRem) => tRem.id == tLoc.id),
           );
 
-          if (servidorTinhaMenosPedidos ||
-              servidorTinhaMenosTurnos ||
-              servidorTinhaMenosEstoque) {
+          if (servidorTinhaMenosPedidos || servidorTinhaMenosTurnos) {
             debugPrint(
-              '[ClienteRedeLocal] Novidades financeiras detectadas neste aparelho. Transmitindo ao balcão para cura mútua...',
+              '[ClienteRedeLocal] Novidades operacionais ativas detectadas neste aparelho. Transmitindo ao balcão para cura mútua...',
             );
             unawaited(ctx.enviarLojaCuradaParaServidor(lojaConsolidada));
           }
@@ -504,7 +505,12 @@ class ClienteWsMessageHandler {
         final movs = List<MovimentoEstoque>.from(lojaAtual.movimentosEstoque);
         if (!movs.any((m) => m.id == mov.id)) {
           movs.insert(0, mov);
-          ctx.pdvProvider!.atualizarListasLoja(lojaAtual.id, movimentosEstoque: movs);
+          ctx.definirAplicandoAtualizacaoRemota(true);
+          try {
+            ctx.pdvProvider!.atualizarListasLoja(lojaAtual.id, movimentosEstoque: movs);
+          } finally {
+            ctx.definirAplicandoAtualizacaoRemota(false);
+          }
         }
       }
     }
@@ -531,7 +537,12 @@ class ClienteWsMessageHandler {
         } else {
           mesas.add(mesa);
         }
-        ctx.pdvProvider!.atualizarListasLoja(lojaAtual.id, mesas: mesas);
+        ctx.definirAplicandoAtualizacaoRemota(true);
+        try {
+          ctx.pdvProvider!.atualizarListasLoja(lojaAtual.id, mesas: mesas);
+        } finally {
+          ctx.definirAplicandoAtualizacaoRemota(false);
+        }
       }
     }
   }

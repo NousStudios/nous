@@ -191,7 +191,7 @@ class ChatRepositorioSqlite {
         ],
       );
 
-      await db.delete('conversas_excluidas');
+      // Preserva conversas_excluidas entre reinicializações para não ressuscitar conversas apagadas.
 
       // Garante que toda conversa loja_<lojaId>_usuario_<cpf> tenha eh_loja = 1 e loja_id preenchido
       final lojaConvs = await db.query(

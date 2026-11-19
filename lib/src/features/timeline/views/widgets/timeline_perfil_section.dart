@@ -1,9 +1,12 @@
 import 'dart:io';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'package:nous/src/core/services/preferencias_soberanas_service.dart';
 import 'package:nous/src/core/theme/theme_controller.dart';
 import 'package:nous/src/features/auth/models/usuario_nous.dart';
+import 'package:nous/src/features/auth/providers/auth_provider.dart';
 import 'package:nous/src/features/pdv/views/widgets/estado_vazio_container.dart';
 import 'package:nous/src/features/timeline/models/interacao_social.dart';
 import 'package:nous/src/features/timeline/models/publicacao_social.dart';
@@ -15,6 +18,7 @@ import 'package:nous/src/features/timeline/views/dialogs/dialog_criar_publicacao
 import 'package:nous/src/features/timeline/views/dialogs/dialog_detalhes_publicacao.dart';
 import 'package:nous/src/features/timeline/views/dialogs/dialog_stories.dart';
 import 'package:nous/src/features/timeline/views/widgets/card_publicacao_completo_widget.dart';
+import 'package:nous/src/features/timeline/views/widgets/lista_interacoes_perfil_widget.dart';
 
 /// Seção modular da Rede Social no Perfil Público (Stories + Feeds Configuráveis).
 class TimelinePerfilSection extends StatefulWidget {
@@ -59,7 +63,13 @@ class _TimelinePerfilSectionState extends State<TimelinePerfilSection> {
   @override
   void didUpdateWidget(covariant TimelinePerfilSection oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.contaPerfil.cpf != widget.contaPerfil.cpf) {
+    if (oldWidget.contaPerfil.cpf != widget.contaPerfil.cpf ||
+        oldWidget.contaPerfil.modoFotosGaleria !=
+            widget.contaPerfil.modoFotosGaleria ||
+        !listEquals(
+          oldWidget.contaPerfil.timelinesVisiveis,
+          widget.contaPerfil.timelinesVisiveis,
+        )) {
       _carregarTudo();
     }
   }
@@ -79,13 +89,25 @@ class _TimelinePerfilSectionState extends State<TimelinePerfilSection> {
     setState(() => _carregando = true);
 
     final cpf = widget.contaPerfil.cpf;
-    final visiveis = await TimelineService.obterTimelinesVisiveis(cpf);
+    List<TipoFeedSocial> visiveis;
+    if (widget.contaPerfil.timelinesVisiveis.isNotEmpty) {
+      visiveis = widget.contaPerfil.timelinesVisiveis
+          .map(
+            (n) => TipoFeedSocial.values.where((e) => e.name == n).firstOrNull,
+          )
+          .whereType<TipoFeedSocial>()
+          .toList();
+      if (visiveis.isEmpty) {
+        visiveis = await TimelineService.obterTimelinesVisiveis(cpf);
+      }
+    } else {
+      visiveis = await TimelineService.obterTimelinesVisiveis(cpf);
+    }
     final stories = await TimelineService.listarStories(cpf);
+    final destaques =
+        stories.where((s) => s.ehDestaquePermanente && !s.arquivado).toList();
     final extras = await TimelineService.listarFeedsPersonalizados(cpf);
-    final modoSalvo = await PreferenciasSoberanasService.obterTexto(
-      'timeline_modo_exibicao_${cpf}_fotos',
-    );
-    _modoGaleria3Colunas = modoSalvo == 'galeria3';
+    _modoGaleria3Colunas = widget.contaPerfil.modoFotosGaleria;
 
     if (_feedExtraSelecionado == null &&
         (_tipoSelecionado == null || !visiveis.contains(_tipoSelecionado))) {
@@ -100,6 +122,7 @@ class _TimelinePerfilSectionState extends State<TimelinePerfilSection> {
       switch (_tipoSelecionado!) {
         case TipoFeedSocial.interacoes:
           interacoes = await TimelineService.listarInteracoesDoUsuario(cpf);
+          denuncias = await TimelineService.listarDenunciasDoUsuario(cpf);
           break;
         case TipoFeedSocial.salvos:
           pubs = await TimelineService.listarPublicacoesSalvas(
@@ -139,7 +162,7 @@ class _TimelinePerfilSectionState extends State<TimelinePerfilSection> {
     if (!mounted) return;
     setState(() {
       _timelinesVisiveis = visiveis;
-      _stories = stories;
+      _stories = destaques;
       _feedsExtras = extras;
       _publicacoes = pubs;
       _interacoes = interacoes;
@@ -240,6 +263,13 @@ class _TimelinePerfilSectionState extends State<TimelinePerfilSection> {
         'timeline_modo_exibicao_${widget.contaPerfil.cpf}_fotos',
         novoModoGaleria ? 'galeria3' : 'feed',
       );
+      if (mounted && widget.ehProprioUsuario) {
+        try {
+          await context.read<AuthProvider>().atualizarOrganizacaoTimelines(
+                modoFotosGaleria: novoModoGaleria,
+              );
+        } catch (_) {}
+      }
       if (mounted) {
         setState(() => _modoGaleria3Colunas = novoModoGaleria);
       }
@@ -296,6 +326,13 @@ class _TimelinePerfilSectionState extends State<TimelinePerfilSection> {
         widget.contaPerfil.cpf,
         nova,
       );
+      if (mounted && widget.ehProprioUsuario) {
+        try {
+          await context.read<AuthProvider>().atualizarOrganizacaoTimelines(
+                timelinesVisiveis: nova.map((e) => e.name).toList(),
+              );
+        } catch (_) {}
+      }
       await _carregarTudo();
     }
   }
@@ -544,12 +581,26 @@ class _TimelinePerfilSectionState extends State<TimelinePerfilSection> {
                       message: 'Criar timeline ou importar de outras redes',
                       child: InkWell(
                         onTap: () async {
+                          final auth = context.read<AuthProvider>();
                           final ok = await DialogAdicionarFeed.mostrar(
                             context,
                             theme: theme,
                             donoCpf: widget.contaPerfil.cpf,
                           );
-                          if (ok == true) await _carregarTudo();
+                          if (ok == true) {
+                            final novasVisiveis =
+                                await TimelineService.obterTimelinesVisiveis(
+                              widget.contaPerfil.cpf,
+                            );
+                            try {
+                              await auth.atualizarOrganizacaoTimelines(
+                                timelinesVisiveis: novasVisiveis
+                                    .map((e) => e.name)
+                                    .toList(),
+                              );
+                            } catch (_) {}
+                            await _carregarTudo();
+                          }
                         },
                         child: SizedBox(
                           width: 56,
@@ -647,36 +698,12 @@ class _TimelinePerfilSectionState extends State<TimelinePerfilSection> {
     }
 
     if (_tipoSelecionado == TipoFeedSocial.interacoes) {
-      if (_interacoes.isEmpty) {
-        return EstadoVazioContainer(
-          theme: theme,
-          mensagem: 'Nenhuma interação pública registrada na rede ainda.',
-        );
-      }
-      return Column(
-        children: _interacoes.map((item) {
-          return Card(
-            color: theme.cardBackgroundColor,
-            margin: const EdgeInsets.only(bottom: 8),
-            child: ListTile(
-              leading: Icon(
-                item.tipoAcao == 'like'
-                    ? Icons.thumb_up_alt_rounded
-                    : item.tipoAcao == 'deslike'
-                        ? Icons.thumb_down_alt_rounded
-                        : item.tipoAcao == 'comentario'
-                            ? Icons.chat_bubble_outline_rounded
-                            : Icons.repeat_rounded,
-                color: theme.buttonColor,
-                size: 18,
-              ),
-              title: Text(
-                item.resumo,
-                style: theme.getTextStyle(fontSize: 12.5, color: theme.textColor),
-              ),
-            ),
-          );
-        }).toList(),
+      return ListaInteracoesPerfilWidget(
+        theme: theme,
+        interacoes: _interacoes,
+        denuncias: _denuncias,
+        cpfPerfil: widget.contaPerfil.cpf,
+        usuarioLogado: widget.usuarioLogado,
       );
     }
 
@@ -724,6 +751,10 @@ class _TimelinePerfilSectionState extends State<TimelinePerfilSection> {
         theme: theme,
         mensagem: 'Nenhuma publicação neste feed ainda.',
       );
+    }
+
+    if (_tipoSelecionado == TipoFeedSocial.republicacoes) {
+      return _buildGaleria3Colunas(theme);
     }
 
     if (_tipoSelecionado == TipoFeedSocial.fotos) {
@@ -777,6 +808,60 @@ class _TimelinePerfilSectionState extends State<TimelinePerfilSection> {
     );
   }
 
+  Widget _buildTileGaleria(AppTheme theme, PublicacaoSocial pub) {
+    return Container(
+      color: theme.cardBackgroundColor.withValues(alpha: 0.6),
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          if (pub.midias.isEmpty)
+            Center(
+              child: Padding(
+                padding: const EdgeInsets.all(6),
+                child: Text(
+                  pub.texto,
+                  maxLines: 3,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.center,
+                  style: theme.getTextStyle(
+                    fontSize: 10.5,
+                    color: theme.textColor,
+                  ),
+                ),
+              ),
+            )
+          else
+            _renderImg(
+              pub.midias.first,
+              BoxFit.cover,
+              null,
+              Alignment(pub.alinhamentoX, pub.alinhamentoY),
+            ),
+          if (pub.fixada)
+            const Positioned(
+              top: 6,
+              left: 6,
+              child: Icon(
+                Icons.push_pin_rounded,
+                size: 16,
+                color: Colors.white,
+              ),
+            ),
+          if (pub.midias.length > 1)
+            const Positioned(
+              top: 6,
+              right: 6,
+              child: Icon(
+                Icons.collections_outlined,
+                size: 16,
+                color: Colors.white,
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildGaleria3Colunas(AppTheme theme) {
     return GridView.builder(
       shrinkWrap: true,
@@ -790,53 +875,75 @@ class _TimelinePerfilSectionState extends State<TimelinePerfilSection> {
       ),
       itemBuilder: (_, index) {
         final pub = _publicacoes[index];
-        return GestureDetector(
+        final tile = GestureDetector(
           onTap: () => DialogDetalhesPublicacao.mostrar(
             context,
             theme: theme,
             publicacao: pub,
             usuarioLogado: widget.usuarioLogado,
           ),
-          child: Container(
-            color: theme.cardBackgroundColor.withValues(alpha: 0.6),
-            child: pub.midias.isEmpty
-                ? Center(
-                    child: Padding(
-                      padding: const EdgeInsets.all(6),
-                      child: Text(
-                        pub.texto,
-                        maxLines: 3,
-                        overflow: TextOverflow.ellipsis,
-                        textAlign: TextAlign.center,
-                        style: theme.getTextStyle(
-                          fontSize: 10.5,
-                          color: theme.textColor,
+          child: _buildTileGaleria(theme, pub),
+        );
+
+        if (!widget.ehProprioUsuario) {
+          return KeyedSubtree(
+            key: ValueKey('galeria_pub_${pub.id}'),
+            child: tile,
+          );
+        }
+
+        return DragTarget<int>(
+          key: ValueKey('galeria_pub_${pub.id}'),
+          onWillAcceptWithDetails: (details) => details.data != index,
+          onAcceptWithDetails: (details) async {
+            await TimelineService.reordenarPublicacaoNaLista(
+              listaAtual: _publicacoes,
+              indiceAtual: details.data,
+              novoIndice: index,
+            );
+            await _carregarTudo();
+          },
+          builder: (ctx, candidateData, rejectedData) {
+            final emAlvo = candidateData.isNotEmpty;
+            return AnimatedScale(
+              duration: const Duration(milliseconds: 160),
+              scale: emAlvo ? 0.92 : 1.0,
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 160),
+                decoration: emAlvo
+                    ? BoxDecoration(
+                        border: Border.all(
+                          color: theme.buttonColor,
+                          width: 2.5,
+                        ),
+                      )
+                    : null,
+                child: LongPressDraggable<int>(
+                  data: index,
+                  feedback: Material(
+                    color: Colors.transparent,
+                    elevation: 10,
+                    child: SizedBox(
+                      width: 112,
+                      height: 112,
+                      child: Transform.scale(
+                        scale: 1.06,
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(8),
+                          child: _buildTileGaleria(theme, pub),
                         ),
                       ),
                     ),
-                  )
-                : Stack(
-                    fit: StackFit.expand,
-                    children: [
-                      _renderImg(
-                        pub.midias.first,
-                        BoxFit.cover,
-                        null,
-                        Alignment(pub.alinhamentoX, pub.alinhamentoY),
-                      ),
-                      if (pub.midias.length > 1)
-                        const Positioned(
-                          top: 6,
-                          right: 6,
-                          child: Icon(
-                            Icons.collections_outlined,
-                            size: 16,
-                            color: Colors.white,
-                          ),
-                        ),
-                    ],
                   ),
-          ),
+                  childWhenDragging: Opacity(
+                    opacity: 0.30,
+                    child: _buildTileGaleria(theme, pub),
+                  ),
+                  child: tile,
+                ),
+              ),
+            );
+          },
         );
       },
     );

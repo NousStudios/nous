@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:provider/provider.dart';
 import 'package:nous/src/core/theme/theme_controller.dart';
 import 'package:nous/src/core/widgets/custom_app_bar.dart';
@@ -28,16 +29,25 @@ class FeedDescobertaView extends StatefulWidget {
 
 class _FeedDescobertaViewState extends State<FeedDescobertaView> {
   final TextEditingController _buscaTagCtrl = TextEditingController();
+  final ScrollController _scrollCtrl = ScrollController();
   List<Map<String, dynamic>> _abas = TimelineService.abasDescobertaPadrao;
   int _abaSelecionada = 0;
   String? _tagFiltroAtiva;
   List<PublicacaoSocial> _publicacoes = [];
   Map<String, List<StorySocial>> _storiesPorAutor = {};
   bool _carregando = true;
+  bool _carregandoMais = false;
+  bool _temMais = true;
+  late bool _modoApenasAmigos;
+  bool _mostrarCabecalho = true;
+  double _ultimoOffsetScroll = 0;
+  static const int _tamanhoPagina = 30;
 
   @override
   void initState() {
     super.initState();
+    _modoApenasAmigos = widget.apenasAmigos;
+    _scrollCtrl.addListener(_onScroll);
     TimelineService.alteracoesTimelineNotifier.addListener(_aoAtualizar);
     WidgetsBinding.instance.addPostFrameCallback((_) => _carregar());
   }
@@ -45,8 +55,36 @@ class _FeedDescobertaViewState extends State<FeedDescobertaView> {
   @override
   void dispose() {
     TimelineService.alteracoesTimelineNotifier.removeListener(_aoAtualizar);
+    _scrollCtrl.removeListener(_onScroll);
+    _scrollCtrl.dispose();
     _buscaTagCtrl.dispose();
     super.dispose();
+  }
+
+  void _onScroll() {
+    if (!_scrollCtrl.hasClients) return;
+    final pos = _scrollCtrl.position;
+    final pixels = pos.pixels;
+    final delta = pixels - _ultimoOffsetScroll;
+    _ultimoOffsetScroll = pixels;
+
+    if (pixels <= 8 && !_mostrarCabecalho) {
+      setState(() => _mostrarCabecalho = true);
+    } else if (delta > 8 &&
+        pixels > 28 &&
+        pos.userScrollDirection == ScrollDirection.reverse &&
+        _mostrarCabecalho) {
+      setState(() => _mostrarCabecalho = false);
+    } else if (delta < -6 &&
+        pos.userScrollDirection == ScrollDirection.forward &&
+        !_mostrarCabecalho) {
+      setState(() => _mostrarCabecalho = true);
+    }
+
+    if (_carregando || _carregandoMais || !_temMais) return;
+    if (pixels >= pos.maxScrollExtent - 320) {
+      _carregarMais();
+    }
   }
 
   void _aoAtualizar() {
@@ -89,19 +127,35 @@ class _FeedDescobertaViewState extends State<FeedDescobertaView> {
       tags = const [];
     }
 
-    final autoresFiltro = widget.apenasAmigos
-        ? (contaAtual?.seguindo ?? const <String>[])
-        : const <String>[];
+    final autoresFiltro = _modoApenasAmigos
+        ? <String>{
+            if (meuCpf.isNotEmpty) meuCpf,
+            ...(contaAtual?.seguindo ?? const <String>[]),
+          }.toList()
+        : null;
 
     List<PublicacaoSocial> pubs;
-    if (widget.apenasAmigos && autoresFiltro.isEmpty) {
+    if (_modoApenasAmigos && (autoresFiltro == null || autoresFiltro.isEmpty)) {
       pubs = const [];
     } else {
       pubs = await TimelineService.listarPublicacoesDescoberta(
         tags: tags,
         apenasAutoresCpfs: autoresFiltro,
+        limit: _tamanhoPagina,
+        offset: 0,
       );
     }
+    final temMaisInicial = pubs.length >= _tamanhoPagina;
+
+    final bloqueadosOuSilenciados = <String>{
+      ...(contaAtual?.contasBloqueadas ?? const []),
+      ...(contaAtual?.contasSilenciadas ?? const []),
+    }.map((c) => c.replaceAll(RegExp(r'\D'), '')).toSet();
+
+    pubs = pubs.where((p) {
+      final cpfAutor = p.autorCpf.replaceAll(RegExp(r'\D'), '');
+      return !bloqueadosOuSilenciados.contains(cpfAutor);
+    }).toList();
 
     final termo = _buscaTagCtrl.text.trim().toLowerCase().replaceAll('#', '');
     if (termo.isNotEmpty && _tagFiltroAtiva == null) {
@@ -117,9 +171,9 @@ class _FeedDescobertaViewState extends State<FeedDescobertaView> {
     for (final s in todosStories) {
       final cpfAutor = s.autorCpf.replaceAll(RegExp(r'\D'), '');
       if (cpfAutor.isEmpty) continue;
-      if (widget.apenasAmigos &&
+      if (_modoApenasAmigos &&
           cpfAutor != meuCpf.replaceAll(RegExp(r'\D'), '') &&
-          !autoresFiltro
+          !(autoresFiltro ?? const [])
               .map((c) => c.replaceAll(RegExp(r'\D'), ''))
               .contains(cpfAutor)) {
         continue;
@@ -135,7 +189,74 @@ class _FeedDescobertaViewState extends State<FeedDescobertaView> {
       _abas = abas;
       _publicacoes = pubs;
       _storiesPorAutor = agrupados;
+      _temMais = temMaisInicial;
       _carregando = false;
+    });
+  }
+
+  Future<void> _carregarMais() async {
+    if (!mounted || _carregandoMais || !_temMais) return;
+    setState(() => _carregandoMais = true);
+
+    final auth = context.read<AuthProvider>();
+    final meuCpf = auth.cpf;
+    final contaAtual = auth.contaAtual;
+
+    final List<String> tags;
+    if (_tagFiltroAtiva != null && _tagFiltroAtiva!.isNotEmpty) {
+      tags = [_tagFiltroAtiva!];
+    } else if (_abas.isNotEmpty && _abaSelecionada < _abas.length) {
+      tags = ((_abas[_abaSelecionada]['tags'] as List?) ?? const [])
+          .map((e) => e.toString())
+          .toList();
+    } else {
+      tags = const [];
+    }
+
+    final autoresFiltro = _modoApenasAmigos
+        ? <String>{
+            if (meuCpf.isNotEmpty) meuCpf,
+            ...(contaAtual?.seguindo ?? const <String>[]),
+          }.toList()
+        : null;
+
+    var novas = await TimelineService.listarPublicacoesDescoberta(
+      tags: tags,
+      apenasAutoresCpfs: autoresFiltro,
+      limit: _tamanhoPagina,
+      offset: _publicacoes.length,
+    );
+    final temMaisProx = novas.length >= _tamanhoPagina;
+
+    final bloqueadosOuSilenciados = <String>{
+      ...(contaAtual?.contasBloqueadas ?? const []),
+      ...(contaAtual?.contasSilenciadas ?? const []),
+    }.map((c) => c.replaceAll(RegExp(r'\D'), '')).toSet();
+
+    novas = novas.where((p) {
+      final cpfAutor = p.autorCpf.replaceAll(RegExp(r'\D'), '');
+      return !bloqueadosOuSilenciados.contains(cpfAutor);
+    }).toList();
+
+    final termo = _buscaTagCtrl.text.trim().toLowerCase().replaceAll('#', '');
+    if (termo.isNotEmpty && _tagFiltroAtiva == null) {
+      novas = novas.where((p) {
+        return p.texto.toLowerCase().contains(termo) ||
+            p.autorNome.toLowerCase().contains(termo) ||
+            p.tags.any((t) => t.contains(termo));
+      }).toList();
+    }
+
+    if (!mounted) return;
+    setState(() {
+      final idsAtuais = _publicacoes.map((p) => p.id).toSet();
+      for (final p in novas) {
+        if (!idsAtuais.contains(p.id)) {
+          _publicacoes.add(p);
+        }
+      }
+      _temMais = temMaisProx;
+      _carregandoMais = false;
     });
   }
 
@@ -232,9 +353,9 @@ class _FeedDescobertaViewState extends State<FeedDescobertaView> {
         return Scaffold(
           backgroundColor: theme.backgroundColor,
           appBar: CustomAppBar(
-            title: widget.apenasAmigos
-                ? 'Feed de Amigos'
-                : 'Feed de Descoberta',
+            title: _modoApenasAmigos
+                ? 'Seguindo'
+                : 'Descoberta',
             showBackButton: false,
           ),
           body: SafeArea(
@@ -243,9 +364,21 @@ class _FeedDescobertaViewState extends State<FeedDescobertaView> {
                 constraints: const BoxConstraints(maxWidth: 620),
                 child: Column(
                   children: [
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(14, 10, 14, 6),
-                      child: ThemedTextField(
+                    AnimatedSize(
+                      duration: const Duration(milliseconds: 220),
+                      curve: Curves.easeOutCubic,
+                      child: _mostrarCabecalho
+                          ? Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Padding(
+                                  padding: const EdgeInsets.fromLTRB(
+                                    14,
+                                    8,
+                                    14,
+                                    6,
+                                  ),
+                                  child: ThemedTextField(
                         theme: theme,
                         controller: _buscaTagCtrl,
                         label: 'Buscar por #tag, assunto ou pessoa...',
@@ -256,7 +389,7 @@ class _FeedDescobertaViewState extends State<FeedDescobertaView> {
                       ),
                     ),
 
-                    if (!widget.apenasAmigos)
+                    if (!_modoApenasAmigos)
                       SizedBox(
                         height: 44,
                         child: ListView(
@@ -323,7 +456,7 @@ class _FeedDescobertaViewState extends State<FeedDescobertaView> {
                               tooltip: 'Adicionar timeline de #tag',
                               icon: Icon(
                                 Icons.add_circle_outline_rounded,
-                                color: theme.buttonColor,
+                                color: theme.textColor,
                               ),
                               onPressed: () => _adicionarAbaTag(theme),
                             ),
@@ -458,9 +591,13 @@ class _FeedDescobertaViewState extends State<FeedDescobertaView> {
                                   );
                                 },
                               ),
-                          ],
+                            ],
+                          ),
                         ),
-                      ),
+                      ],
+                    )
+                        : const SizedBox.shrink(),
+                    ),
 
                     Expanded(
                       child: _carregando
@@ -470,35 +607,51 @@ class _FeedDescobertaViewState extends State<FeedDescobertaView> {
                           : RefreshIndicator(
                               color: theme.buttonColor,
                               backgroundColor: theme.cardBackgroundColor,
+                              notificationPredicate: (n) => n.depth == 0,
                               onRefresh: _aoPuxarParaAtualizar,
                               child: _publicacoes.isEmpty
                                   ? ListView(
-                                      physics:
-                                          const AlwaysScrollableScrollPhysics(),
+                                      physics: const ClampingScrollPhysics(
+                                        parent: AlwaysScrollableScrollPhysics(),
+                                      ),
                                       padding: const EdgeInsets.all(20),
                                       children: [
                                         EstadoVazioContainer(
                                           theme: theme,
-                                          mensagem: widget.apenasAmigos
+                                          mensagem: _modoApenasAmigos
                                               ? 'Siga outros usuários Nous para acompanhar as publicações deles aqui.'
                                               : 'Nenhuma publicação encontrada para esta timeline ainda.',
                                         ),
                                       ],
                                     )
                                   : ListView.builder(
-                                      physics:
-                                          const AlwaysScrollableScrollPhysics(),
+                                      controller: _scrollCtrl,
+                                      physics: const ClampingScrollPhysics(
+                                        parent: AlwaysScrollableScrollPhysics(),
+                                      ),
                                       padding: const EdgeInsets.fromLTRB(
                                         12,
                                         4,
                                         12,
                                         90,
                                       ),
-                                      itemCount: _publicacoes.length,
+                                      itemCount: _publicacoes.length +
+                                          (_carregandoMais ? 1 : 0),
                                       itemBuilder: (context, index) {
+                                        if (index >= _publicacoes.length) {
+                                          return const Padding(
+                                            padding: EdgeInsets.all(16),
+                                            child: Center(
+                                              child:
+                                                  CircularProgressIndicator(),
+                                            ),
+                                          );
+                                        }
+                                        final pub = _publicacoes[index];
                                         return CardPublicacaoCompletoWidget(
+                                          key: ValueKey('pub_desc_${pub.id}'),
                                           theme: theme,
-                                          publicacao: _publicacoes[index],
+                                          publicacao: pub,
                                           usuarioLogado: auth.contaAtual,
                                           onTapTag: (tag) {
                                             setState(

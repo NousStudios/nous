@@ -20,6 +20,8 @@ class UsuarioNous {
   final List<String> dadosAutorizadosPorCpf;
   final List<String> seguindo;
   final List<String> seguidores;
+  final List<String> contasBloqueadas;
+  final List<String> contasSilenciadas;
   final String chavePublica;
   final String chaveTrocaPublica;
   final String quemPodeEnviarMensagens;
@@ -31,6 +33,8 @@ class UsuarioNous {
   final List<Map<String, String>> validacoes;
   final List<String> links;
   final Map<String, String> coresPerfil;
+  final List<String> timelinesVisiveis;
+  final bool modoFotosGaleria;
   final String termosAceitosVersao;
   final String termosAceitosEm;
 
@@ -77,6 +81,8 @@ class UsuarioNous {
     this.dadosAutorizadosPorCpf = const [],
     this.seguindo = const [],
     this.seguidores = const [],
+    this.contasBloqueadas = const [],
+    this.contasSilenciadas = const [],
     this.chavePublica = '',
     this.chaveTrocaPublica = '',
     this.quemPodeEnviarMensagens = 'todos',
@@ -88,9 +94,16 @@ class UsuarioNous {
     this.validacoes = const [],
     this.links = const [],
     this.coresPerfil = const {},
+    this.timelinesVisiveis = const [],
+    this.modoFotosGaleria = false,
     this.termosAceitosVersao = '',
     this.termosAceitosEm = '',
   });
+
+  String get corStoryHex {
+    final raw = coresPerfil['story']?.trim() ?? '';
+    return raw.isNotEmpty ? raw : '#2E7D32';
+  }
 
   String get nomeExibicao =>
       nomePublico.trim().isNotEmpty ? nomePublico.trim() : nome;
@@ -176,6 +189,16 @@ class UsuarioNous {
     return fallback;
   }
 
+  String fotoExibicaoPara(String cpfVisualizador) {
+    if (dadoAutorizadoPara('foto', cpfVisualizador)) return fotoExibicao;
+    return '';
+  }
+
+  String biografiaPara(String cpfVisualizador) {
+    if (dadoAutorizadoPara('biografia', cpfVisualizador)) return biografia;
+    return '';
+  }
+
   String get criadoEmFormatado {
     final dt = criadoEm.trim().isEmpty
         ? DateTime.now()
@@ -237,6 +260,16 @@ class UsuarioNous {
     return emailsVerificados.any((e) => e.trim().toLowerCase() == norm);
   }
 
+  bool estaBloqueado(String cpfOuId) {
+    final limpo = cpfOuId.replaceAll(RegExp(r'\D'), '');
+    return contasBloqueadas.any((s) => s.replaceAll(RegExp(r'\D'), '') == limpo);
+  }
+
+  bool estaSilenciado(String cpfOuId) {
+    final limpo = cpfOuId.replaceAll(RegExp(r'\D'), '');
+    return contasSilenciadas.any((s) => s.replaceAll(RegExp(r'\D'), '') == limpo);
+  }
+
   UsuarioNous copyWith({
     String? nome,
     String? apelido,
@@ -258,6 +291,8 @@ class UsuarioNous {
     List<String>? dadosAutorizadosPorCpf,
     List<String>? seguindo,
     List<String>? seguidores,
+    List<String>? contasBloqueadas,
+    List<String>? contasSilenciadas,
     String? chavePublica,
     String? chaveTrocaPublica,
     String? quemPodeEnviarMensagens,
@@ -269,6 +304,8 @@ class UsuarioNous {
     List<Map<String, String>>? validacoes,
     List<String>? links,
     Map<String, String>? coresPerfil,
+    List<String>? timelinesVisiveis,
+    bool? modoFotosGaleria,
     String? termosAceitosVersao,
     String? termosAceitosEm,
   }) {
@@ -295,6 +332,8 @@ class UsuarioNous {
           dadosAutorizadosPorCpf ?? this.dadosAutorizadosPorCpf,
       seguindo: seguindo ?? this.seguindo,
       seguidores: seguidores ?? this.seguidores,
+      contasBloqueadas: contasBloqueadas ?? this.contasBloqueadas,
+      contasSilenciadas: contasSilenciadas ?? this.contasSilenciadas,
       chavePublica: chavePublica ?? this.chavePublica,
       chaveTrocaPublica: chaveTrocaPublica ?? this.chaveTrocaPublica,
       quemPodeEnviarMensagens:
@@ -307,6 +346,8 @@ class UsuarioNous {
       validacoes: validacoes ?? this.validacoes,
       links: links ?? this.links,
       coresPerfil: coresPerfil ?? this.coresPerfil,
+      timelinesVisiveis: timelinesVisiveis ?? this.timelinesVisiveis,
+      modoFotosGaleria: modoFotosGaleria ?? this.modoFotosGaleria,
       termosAceitosVersao: termosAceitosVersao ?? this.termosAceitosVersao,
       termosAceitosEm: termosAceitosEm ?? this.termosAceitosEm,
     );
@@ -335,6 +376,8 @@ class UsuarioNous {
       'dadosAutorizadosPorCpf': dadosAutorizadosPorCpf,
       'seguindo': seguindo,
       'seguidores': seguidores,
+      'contasBloqueadas': contasBloqueadas,
+      'contasSilenciadas': contasSilenciadas,
       'chavePublica': chavePublica,
       'chaveTrocaPublica': chaveTrocaPublica,
       'quemPodeEnviarMensagens': quemPodeEnviarMensagens,
@@ -346,6 +389,8 @@ class UsuarioNous {
       'validacoes': validacoes,
       'links': links,
       'coresPerfil': coresPerfil,
+      'timelinesVisiveis': timelinesVisiveis,
+      'modoFotosGaleria': modoFotosGaleria,
       'termosAceitosVersao': termosAceitosVersao,
       'termosAceitosEm': termosAceitosEm,
     };
@@ -389,6 +434,14 @@ class UsuarioNous {
       seguidores: (json['seguidores'] as List<dynamic>? ?? const [])
           .map((item) => item as String)
           .toList(),
+      contasBloqueadas:
+          (json['contasBloqueadas'] as List<dynamic>? ?? const [])
+              .map((item) => item.toString())
+              .toList(),
+      contasSilenciadas:
+          (json['contasSilenciadas'] as List<dynamic>? ?? const [])
+              .map((item) => item.toString())
+              .toList(),
       chavePublica: json['chavePublica'] as String? ?? '',
       chaveTrocaPublica: json['chaveTrocaPublica'] as String? ??
           json['chave_troca_publica'] as String? ??
@@ -422,6 +475,12 @@ class UsuarioNous {
             (k, v) => MapEntry(k.toString(), v?.toString() ?? ''),
           ) ??
           const {},
+      timelinesVisiveis: (json['timelinesVisiveis'] as List<dynamic>? ?? const [])
+          .map((e) => e.toString())
+          .where((e) => e.trim().isNotEmpty)
+          .toList(),
+      modoFotosGaleria:
+          json['modoFotosGaleria'] == true || json['modoFotosGaleria'] == 1,
       termosAceitosVersao: json['termosAceitosVersao'] as String? ?? '',
       termosAceitosEm: json['termosAceitosEm'] as String? ?? '',
     );
@@ -518,6 +577,12 @@ class UsuarioNous {
       seguidores: priorizarOutro
           ? outro.seguidores
           : {...seguidores, ...outro.seguidores}.toList(),
+      contasBloqueadas: priorizarOutro
+          ? outro.contasBloqueadas
+          : {...contasBloqueadas, ...outro.contasBloqueadas}.toList(),
+      contasSilenciadas: priorizarOutro
+          ? outro.contasSilenciadas
+          : {...contasSilenciadas, ...outro.contasSilenciadas}.toList(),
       chavePublica: escolher(chavePublica, outro.chavePublica),
       chaveTrocaPublica: escolher(chaveTrocaPublica, outro.chaveTrocaPublica),
       quemPodeEnviarMensagens: escolher(
@@ -536,6 +601,16 @@ class UsuarioNous {
       coresPerfil: priorizarOutro
           ? outro.coresPerfil
           : {...outro.coresPerfil, ...coresPerfil},
+      timelinesVisiveis: priorizarOutro
+          ? (outro.timelinesVisiveis.isNotEmpty
+              ? outro.timelinesVisiveis
+              : timelinesVisiveis)
+          : (timelinesVisiveis.isNotEmpty
+              ? timelinesVisiveis
+              : outro.timelinesVisiveis),
+      modoFotosGaleria: priorizarOutro
+          ? outro.modoFotosGaleria
+          : modoFotosGaleria,
       termosAceitosVersao: escolher(termosAceitosVersao, outro.termosAceitosVersao),
       termosAceitosEm: escolher(termosAceitosEm, outro.termosAceitosEm),
     );

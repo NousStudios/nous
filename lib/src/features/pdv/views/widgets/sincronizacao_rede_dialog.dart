@@ -287,7 +287,7 @@ class _SincronizacaoRedeDialogState extends State<SincronizacaoRedeDialog> {
                   0.90)
               .clamp(240.0, MediaQuery.sizeOf(context).height * 0.90),
         ),
-        child: Padding(
+        child: SingleChildScrollView(
           padding: const EdgeInsets.all(20),
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -349,35 +349,31 @@ class _SincronizacaoRedeDialogState extends State<SincronizacaoRedeDialog> {
               ),
               const SizedBox(height: 16),
 
-              // Conteúdo com rolagem
-              Flexible(
-                child: SingleChildScrollView(
-                  child: _abaSelecionada == 0
-                      ? ServidorBalcaoWidget(
-                          theme: theme,
-                          servidor: _servidor,
-                          loja: widget.loja,
-                          perfilHostSelecionado: _perfilHostSelecionado,
-                          onPerfilHostChanged: (novoPerfil) {
-                            setState(() => _perfilHostSelecionado = novoPerfil);
-                          },
-                          onAlternarServidor: _alternarServidor,
-                        )
-                      : ClienteTerminalWidget(
-                          theme: theme,
-                          cliente: _cliente,
-                          servidor: _servidor,
-                          nomeTerminalController: _nomeTerminalController,
-                          ipManualController: _ipManualController,
-                          portaManualController: _portaManualController,
-                          buscaUsuariosClienteController:
-                              _buscaUsuariosClienteController,
-                          conectando: _conectando,
-                          onDesconectar: _desconectarCliente,
-                          onConectar: _conectarAoServidor,
-                        ),
-                ),
-              ),
+              // Conteúdo da aba ativa
+              _abaSelecionada == 0
+                  ? ServidorBalcaoWidget(
+                      theme: theme,
+                      servidor: _servidor,
+                      loja: widget.loja,
+                      perfilHostSelecionado: _perfilHostSelecionado,
+                      onPerfilHostChanged: (novoPerfil) {
+                        setState(() => _perfilHostSelecionado = novoPerfil);
+                      },
+                      onAlternarServidor: _alternarServidor,
+                    )
+                  : ClienteTerminalWidget(
+                      theme: theme,
+                      cliente: _cliente,
+                      servidor: _servidor,
+                      nomeTerminalController: _nomeTerminalController,
+                      ipManualController: _ipManualController,
+                      portaManualController: _portaManualController,
+                      buscaUsuariosClienteController:
+                          _buscaUsuariosClienteController,
+                      conectando: _conectando,
+                      onDesconectar: _desconectarCliente,
+                      onConectar: _conectarAoServidor,
+                    ),
 
               if (_mensagemStatus != null) ...[
                 const SizedBox(height: 12),

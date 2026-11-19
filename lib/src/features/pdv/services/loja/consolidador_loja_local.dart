@@ -363,15 +363,23 @@ class ConsolidadorLojaLocal {
     }).toList();
 
     // 15. Membros da Loja
-    final membrosMesclados = <String, MembroLoja>{};
-    for (final m in lojaLocal.membros) {
-      membrosMesclados[m.cpf.replaceAll(RegExp(r'\D'), '')] = m;
+    // Em lojas comerciais, a lista de membros da lojaNova é autoritativa para
+    // que remoções de funcionários persistam. Apenas na loja coletiva Nous (ou
+    // quando manterItensAusentes == true) fazemos união com a lista local.
+    final List<MembroLoja> listaMembros;
+    if (manterItensAusentes || lojaNova.id == 'loja_coletiva_nous') {
+      final membrosMesclados = <String, MembroLoja>{};
+      for (final m in lojaLocal.membros) {
+        membrosMesclados[m.cpf.replaceAll(RegExp(r'\D'), '')] = m;
+      }
+      for (final m in lojaNova.membros) {
+        final cpfNorm = m.cpf.replaceAll(RegExp(r'\D'), '');
+        membrosMesclados[cpfNorm] = m;
+      }
+      listaMembros = membrosMesclados.values.toList();
+    } else {
+      listaMembros = List<MembroLoja>.from(lojaNova.membros);
     }
-    for (final m in lojaNova.membros) {
-      final cpfNorm = m.cpf.replaceAll(RegExp(r'\D'), '');
-      membrosMesclados[cpfNorm] = m;
-    }
-    final listaMembros = membrosMesclados.values.toList();
 
     // 16. Cargos Personalizados
     final cargosMesclados = <String, CargoLoja>{};

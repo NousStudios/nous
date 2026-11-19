@@ -9,6 +9,7 @@ import 'package:nous/src/features/chat/services/chat_service.dart';
 import 'package:nous/src/features/pdv/providers/pdv_provider.dart';
 import 'package:nous/src/features/pdv/services/imagem_service.dart';
 import 'package:nous/src/features/pdv/services/rede_local/cliente_rede_local.dart';
+import 'package:nous/src/features/pdv/services/rede_local/helpers/resolvedor_url_rede.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
 /// Gerenciador dedicado à sincronização e reconciliação mútua
@@ -34,10 +35,11 @@ class SincronizadorChatBalcao {
 
       // 1. Baixar conversas e grupos registrados no balcão
       try {
-        final uriConversas = Uri.http(
-          '$ipServidor:$portaServidor',
-          '/api/chat/conversas',
-          queryParams,
+        final uriConversas = ResolvedorUrlRede.montarUriHttp(
+          hostOuIp: ipServidor,
+          porta: portaServidor,
+          path: '/api/chat/conversas',
+          queryParameters: queryParams,
         );
         final reqConv = await client.getUrl(uriConversas);
         final respConv = await reqConv.close();
@@ -87,10 +89,11 @@ class SincronizadorChatBalcao {
       }
 
       // 2. Baixar mensagens registradas no balcão
-      final uri = Uri.http(
-        '$ipServidor:$portaServidor',
-        '/api/chat/mensagens',
-        queryParams,
+      final uri = ResolvedorUrlRede.montarUriHttp(
+        hostOuIp: ipServidor,
+        porta: portaServidor,
+        path: '/api/chat/mensagens',
+        queryParameters: queryParams,
       );
       final req = await client.getUrl(uri);
       final resp = await req.close();
@@ -173,9 +176,10 @@ class SincronizadorChatBalcao {
         if (conversasLocais.isNotEmpty ||
             mensagensLocais.isNotEmpty ||
             excluidasLocais.isNotEmpty) {
-          final uriSync = Uri.http(
-            '$ipServidor:$portaServidor',
-            '/api/chat/conversas/sync',
+          final uriSync = ResolvedorUrlRede.montarUriHttp(
+            hostOuIp: ipServidor,
+            porta: portaServidor,
+            path: '/api/chat/conversas/sync',
           );
           final reqSync = await client.postUrl(uriSync);
           reqSync.headers.contentType = ContentType.json;

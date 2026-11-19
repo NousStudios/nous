@@ -394,16 +394,20 @@ class RoteadorUsuarios {
       try {
         final corpo = await utf8.decoder.bind(request).join();
         DateTime? desde;
+        int offset = 0;
         if (corpo.trim().isNotEmpty) {
           final snapshotCliente = await decodificarJsonMapaSeguro(corpo);
           final rawDesde = snapshotCliente['desde'] as String?;
           if (rawDesde != null && rawDesde.isNotEmpty) {
             desde = DateTime.tryParse(rawDesde);
           }
+          offset = (snapshotCliente['offset'] as num?)?.toInt() ?? 0;
           await TimelineService.mesclarSnapshotSocial(snapshotCliente);
         }
-        final snapshotServidor =
-            await TimelineService.exportarSnapshotSocial(desde: desde);
+        final snapshotServidor = await TimelineService.exportarSnapshotSocial(
+          desde: desde,
+          offset: offset,
+        );
         ServidorRedeLocal.responderJson(request, {
           'sucesso': true,
           'snapshot': snapshotServidor,

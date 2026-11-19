@@ -9,6 +9,7 @@ import 'package:nous/src/features/pdv/models/item_loja.dart';
 import 'package:nous/src/features/pdv/models/loja.dart';
 import 'package:nous/src/features/pdv/providers/pdv_provider.dart';
 import 'package:nous/src/features/pdv/services/imagem_service.dart';
+import 'package:nous/src/features/pdv/services/rede_local/helpers/resolvedor_url_rede.dart';
 import 'package:nous/src/features/pdv/services/rede_local/transferencia_arquivos_rede.dart';
 
 /// Especialista em baixar imagens e mídias remotas do servidor para o dispositivo local.
@@ -101,10 +102,11 @@ class SincronizadorMidiasRede {
             queryParams['cpf'] = cpf;
           }
 
-          final uri = Uri.http(
-            '$ipServidor:$portaServidor',
-            '/api/imagem',
-            queryParams,
+          final uri = ResolvedorUrlRede.montarUriHttp(
+            hostOuIp: ipServidor,
+            porta: portaServidor,
+            path: '/api/imagem',
+            queryParameters: queryParams,
           );
           final req = await clienteHttp.getUrl(uri);
           final resp = await req.close();

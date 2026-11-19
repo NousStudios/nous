@@ -44,6 +44,23 @@ class DialogOpcoesPublicacao {
                 Divider(color: theme.borderColor.withValues(alpha: 0.4)),
                 if (ehAutor) ...[
                   ListTile(
+                    leading: Icon(
+                      publicacao.fixada
+                          ? Icons.push_pin_outlined
+                          : Icons.push_pin_rounded,
+                      color: theme.textColor,
+                    ),
+                    title: Text(
+                      publicacao.fixada ? 'Desafixar do topo' : 'Fixar no topo',
+                      style: theme.getTextStyle(
+                        fontSize: 13.5,
+                        fontWeight: FontWeight.w600,
+                        color: theme.textColor,
+                      ),
+                    ),
+                    onTap: () => Navigator.of(ctx).pop('fixar'),
+                  ),
+                  ListTile(
                     leading: Icon(Icons.edit_outlined, color: theme.textColor),
                     title: Text(
                       'Editar publicação',
@@ -53,6 +70,24 @@ class DialogOpcoesPublicacao {
                       ),
                     ),
                     onTap: () => Navigator.of(ctx).pop('editar'),
+                  ),
+                  ListTile(
+                    leading: Icon(
+                      publicacao.arquivada
+                          ? Icons.unarchive_outlined
+                          : Icons.archive_outlined,
+                      color: theme.textColor,
+                    ),
+                    title: Text(
+                      publicacao.arquivada
+                          ? 'Desarquivar publicação'
+                          : 'Arquivar publicação',
+                      style: theme.getTextStyle(
+                        fontSize: 13.5,
+                        color: theme.textColor,
+                      ),
+                    ),
+                    onTap: () => Navigator.of(ctx).pop('arquivar'),
                   ),
                   ListTile(
                     leading: Icon(

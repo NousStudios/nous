@@ -12,14 +12,18 @@ import 'package:nous/src/features/auth/providers/auth_provider.dart';
 import 'package:nous/src/features/auth/services/contas_nous_service.dart';
 import 'package:nous/src/features/auth/views/perfil_social_view.dart';
 import 'package:nous/src/features/auth/views/widgets/ficha_usuario_dialog.dart';
+import 'package:nous/src/features/pdv/models/item_loja.dart';
 import 'package:nous/src/features/pdv/models/loja.dart';
 import 'package:nous/src/features/pdv/providers/pdv_provider.dart';
 import 'package:nous/src/features/pdv/services/imagem_service.dart';
 import 'package:nous/src/features/pdv/services/rede_local/cliente_rede_local.dart';
 import 'package:nous/src/features/pdv/views/vitrine_loja_view.dart';
 import 'package:nous/src/features/pdv/views/widgets/estado_vazio_container.dart';
+import 'package:nous/src/features/timeline/models/publicacao_social.dart';
+import 'package:nous/src/features/timeline/services/timeline_service.dart';
+import 'package:nous/src/features/timeline/views/dialogs/dialog_detalhes_publicacao.dart';
 
-enum FiltroBusca { todos, lojas, perfis }
+enum FiltroBusca { todos, lojas, produtos, perfis, publicacoes }
 
 /// Tela de Busca & Mapa do Nous.
 /// Permite localizar lojas soberanas e perfis de usuários na rede,
@@ -35,6 +39,7 @@ class _BuscaMapaViewState extends State<BuscaMapaView> {
   final TextEditingController _buscaController = TextEditingController();
   FiltroBusca _filtro = FiltroBusca.todos;
   List<UsuarioNous> _todosUsuarios = [];
+  List<PublicacaoSocial> _todasPublicacoes = [];
   bool _carregando = true;
 
   @override
@@ -59,6 +64,7 @@ class _BuscaMapaViewState extends State<BuscaMapaView> {
 
   Future<void> _carregarDados() async {
     final contas = await ContasNousService.carregarTodas();
+    final pubs = await TimelineService.listarPublicacoesDescoberta(limit: 80);
     final usuarios = contas.where((u) {
       final cpfLimpo = u.cpf.replaceAll(RegExp(r'\D'), '');
       return cpfLimpo.length == 11 &&
@@ -69,6 +75,7 @@ class _BuscaMapaViewState extends State<BuscaMapaView> {
     if (mounted) {
       setState(() {
         _todosUsuarios = usuarios;
+        _todasPublicacoes = pubs;
         _carregando = false;
       });
     }
@@ -84,31 +91,51 @@ class _BuscaMapaViewState extends State<BuscaMapaView> {
         final termo = _buscaController.text.trim().toLowerCase();
 
         // Filtra lojas comerciais (exclui a Comunidade/Perfil Coletivo Nous)
-        final lojasFiltradas = (_filtro == FiltroBusca.perfis)
+        final lojasComerciais = pdv.lojas.where((l) {
+          return l.id != PdvProvider.idLojaColetivaNous &&
+              l.id != 'loja_nous_coletiva';
+        }).toList();
+
+        final lojasFiltradas = (_filtro != FiltroBusca.todos &&
+                _filtro != FiltroBusca.lojas)
             ? <Loja>[]
-            : pdv.lojas.where((l) {
-                if (l.id == PdvProvider.idLojaColetivaNous ||
-                    l.id == 'loja_nous_coletiva') {
-                  return false;
-                }
+            : lojasComerciais.where((l) {
                 if (termo.isEmpty) return true;
                 final nome = l.nome.toLowerCase();
                 final doc = l.cnpj.toLowerCase();
                 final cat = l.categorias.toLowerCase();
                 final tags = l.tags.toLowerCase();
                 final end = l.endereco.toLowerCase();
+                final temProduto = l.itensLoja.any(
+                  (it) => it.nome.toLowerCase().contains(termo),
+                );
                 return nome.contains(termo) ||
                     doc.contains(termo) ||
                     cat.contains(termo) ||
                     tags.contains(termo) ||
-                    end.contains(termo);
+                    end.contains(termo) ||
+                    temProduto;
               }).toList();
+
+        final produtosFiltrados = (_filtro != FiltroBusca.todos &&
+                _filtro != FiltroBusca.produtos)
+            ? <({Loja loja, ItemLoja item})>[]
+            : [
+                if (termo.isNotEmpty || _filtro == FiltroBusca.produtos)
+                  for (final l in lojasComerciais)
+                    for (final it in l.itensLoja)
+                      if (termo.isEmpty ||
+                          it.nome.toLowerCase().contains(termo) ||
+                          it.descricao.toLowerCase().contains(termo))
+                        (loja: l, item: it),
+              ];
 
         final ehVisitante = auth.modoVisitante;
         final ehIsolado = auth.perfilIsolado;
 
         // Filtra perfis Nous (ocultos no Modo Visitante e no Modo Isolado)
-        final perfisFiltrados = (_filtro == FiltroBusca.lojas ||
+        final perfisFiltrados = ((_filtro != FiltroBusca.todos &&
+                    _filtro != FiltroBusca.perfis) ||
                 ehVisitante ||
                 ehIsolado)
             ? <UsuarioNous>[]
@@ -125,7 +152,25 @@ class _BuscaMapaViewState extends State<BuscaMapaView> {
                     cpfDigitos.contains(termo);
               }).toList();
 
-        final totalResultados = lojasFiltradas.length + perfisFiltrados.length;
+        final termoLimpoTag = termo.replaceAll('#', '');
+        final publicacoesFiltradas = ((_filtro != FiltroBusca.todos &&
+                    _filtro != FiltroBusca.publicacoes) ||
+                ehVisitante ||
+                ehIsolado)
+            ? <PublicacaoSocial>[]
+            : _todasPublicacoes.where((p) {
+                if (termoLimpoTag.isEmpty) {
+                  return _filtro == FiltroBusca.publicacoes;
+                }
+                return p.texto.toLowerCase().contains(termoLimpoTag) ||
+                    p.autorNome.toLowerCase().contains(termoLimpoTag) ||
+                    p.tags.any((t) => t.contains(termoLimpoTag));
+              }).toList();
+
+        final totalResultados = lojasFiltradas.length +
+            produtosFiltrados.length +
+            perfisFiltrados.length +
+            publicacoesFiltradas.length;
 
         return Scaffold(
           backgroundColor: theme.backgroundColor,
@@ -204,29 +249,46 @@ class _BuscaMapaViewState extends State<BuscaMapaView> {
                       const SizedBox(height: 10),
 
                       // Filtros (Chips)
-                      Row(
-                        children: [
-                          _buildFiltroChip(
-                            theme: theme,
-                            titulo: 'Todos',
-                            filtro: FiltroBusca.todos,
-                            icone: Icons.grid_view_rounded,
-                          ),
-                          const SizedBox(width: 8),
-                          _buildFiltroChip(
-                            theme: theme,
-                            titulo: 'Lojas (${lojasFiltradas.length})',
-                            filtro: FiltroBusca.lojas,
-                            icone: Icons.storefront_rounded,
-                          ),
-                          const SizedBox(width: 8),
-                          _buildFiltroChip(
-                            theme: theme,
-                            titulo: 'Perfis (${perfisFiltrados.length})',
-                            filtro: FiltroBusca.perfis,
-                            icone: Icons.people_alt_rounded,
-                          ),
-                        ],
+                      SingleChildScrollView(
+                        scrollDirection: Axis.horizontal,
+                        child: Row(
+                          children: [
+                            _buildFiltroChip(
+                              theme: theme,
+                              titulo: 'Todos',
+                              filtro: FiltroBusca.todos,
+                              icone: Icons.grid_view_rounded,
+                            ),
+                            const SizedBox(width: 8),
+                            _buildFiltroChip(
+                              theme: theme,
+                              titulo: 'Lojas (${lojasFiltradas.length})',
+                              filtro: FiltroBusca.lojas,
+                              icone: Icons.storefront_rounded,
+                            ),
+                            const SizedBox(width: 8),
+                            _buildFiltroChip(
+                              theme: theme,
+                              titulo: 'Produtos (${produtosFiltrados.length})',
+                              filtro: FiltroBusca.produtos,
+                              icone: Icons.shopping_bag_outlined,
+                            ),
+                            const SizedBox(width: 8),
+                            _buildFiltroChip(
+                              theme: theme,
+                              titulo: 'Perfis (${perfisFiltrados.length})',
+                              filtro: FiltroBusca.perfis,
+                              icone: Icons.people_alt_rounded,
+                            ),
+                            const SizedBox(width: 8),
+                            _buildFiltroChip(
+                              theme: theme,
+                              titulo: 'Posts (${publicacoesFiltradas.length})',
+                              filtro: FiltroBusca.publicacoes,
+                              icone: Icons.tag_rounded,
+                            ),
+                          ],
+                        ),
                       ),
 
                       const SizedBox(height: 12),
@@ -303,6 +365,119 @@ class _BuscaMapaViewState extends State<BuscaMapaView> {
                                             context: context,
                                             theme: theme,
                                             loja: loja,
+                                          ),
+                                        const SizedBox(height: 14),
+                                      ],
+
+                                      // Seção Produtos
+                                      if (produtosFiltrados.isNotEmpty) ...[
+                                        Padding(
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 4,
+                                            vertical: 6,
+                                          ),
+                                          child: Text(
+                                            'Produtos (${produtosFiltrados.length})',
+                                            style: theme.getTextStyle(
+                                              fontSize: 13,
+                                              fontWeight: FontWeight.bold,
+                                              color: theme.secondaryTextColor,
+                                            ),
+                                          ),
+                                        ),
+                                        for (final p in produtosFiltrados.take(30))
+                                          Card(
+                                            color: theme.cardBackgroundColor,
+                                            margin: const EdgeInsets.only(bottom: 8),
+                                            child: ListTile(
+                                              leading: Icon(
+                                                Icons.shopping_bag_outlined,
+                                                color: theme.buttonColor,
+                                              ),
+                                              title: Text(
+                                                p.item.nome,
+                                                style: theme.getTextStyle(
+                                                  fontSize: 13.5,
+                                                  fontWeight: FontWeight.bold,
+                                                  color: theme.textColor,
+                                                ),
+                                              ),
+                                              subtitle: Text(
+                                                '${p.loja.nome} • R\$ ${p.item.preco}',
+                                                style: theme.getTextStyle(
+                                                  fontSize: 12,
+                                                  color: theme.secondaryTextColor,
+                                                ),
+                                              ),
+                                              trailing: Icon(
+                                                Icons.chevron_right_rounded,
+                                                color: theme.secondaryTextColor,
+                                              ),
+                                              onTap: () => Navigator.of(context).push(
+                                                MaterialPageRoute(
+                                                  builder: (_) => VitrineLojaView(
+                                                    lojaId: p.loja.id,
+                                                  ),
+                                                ),
+                                              ),
+                                            ),
+                                          ),
+                                        const SizedBox(height: 14),
+                                      ],
+
+                                      // Seção Publicações / #Hashtags
+                                      if (publicacoesFiltradas.isNotEmpty) ...[
+                                        Padding(
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 4,
+                                            vertical: 6,
+                                          ),
+                                          child: Text(
+                                            'Publicações (${publicacoesFiltradas.length})',
+                                            style: theme.getTextStyle(
+                                              fontSize: 13,
+                                              fontWeight: FontWeight.bold,
+                                              color: theme.secondaryTextColor,
+                                            ),
+                                          ),
+                                        ),
+                                        for (final pub in publicacoesFiltradas.take(30))
+                                          Card(
+                                            color: theme.cardBackgroundColor,
+                                            margin: const EdgeInsets.only(bottom: 8),
+                                            child: ListTile(
+                                              leading: Icon(
+                                                Icons.article_outlined,
+                                                color: theme.buttonColor,
+                                              ),
+                                              title: Text(
+                                                pub.autorNome.isNotEmpty
+                                                    ? pub.autorNome
+                                                    : 'Publicação',
+                                                style: theme.getTextStyle(
+                                                  fontSize: 13.5,
+                                                  fontWeight: FontWeight.bold,
+                                                  color: theme.textColor,
+                                                ),
+                                              ),
+                                              subtitle: Text(
+                                                pub.texto.isNotEmpty
+                                                    ? pub.texto
+                                                    : 'Mídia publicada',
+                                                maxLines: 2,
+                                                overflow: TextOverflow.ellipsis,
+                                                style: theme.getTextStyle(
+                                                  fontSize: 12,
+                                                  color: theme.secondaryTextColor,
+                                                ),
+                                              ),
+                                              onTap: () => DialogDetalhesPublicacao.mostrar(
+                                                context,
+                                                theme: theme,
+                                                publicacao: pub,
+                                                usuarioLogado: auth.contaAtual,
+                                              ),
+                                            ),
                                           ),
                                         const SizedBox(height: 14),
                                       ],

@@ -533,6 +533,65 @@ class AuthProvider extends ChangeNotifier {
     }
   }
 
+  /// Atualiza e propaga na rede a organização das timelines e modo galeria do perfil.
+  Future<void> atualizarOrganizacaoTimelines({
+    List<String>? timelinesVisiveis,
+    bool? modoFotosGaleria,
+  }) async {
+    final conta = _contaAtual;
+    if (conta == null) return;
+    final atualizado = conta.copyWith(
+      timelinesVisiveis: timelinesVisiveis ?? conta.timelinesVisiveis,
+      modoFotosGaleria: modoFotosGaleria ?? conta.modoFotosGaleria,
+    );
+    await ContasNousService.salvar(atualizado);
+    _contaAtual = atualizado;
+    _propagarUsuarioAtualizado(atualizado);
+    notifyListeners();
+  }
+
+  Future<void> alternarBloquearUsuario(String cpfAlvo) async {
+    final conta = _contaAtual;
+    if (conta == null) return;
+    final alvo = CpfValidator.onlyDigits(cpfAlvo);
+    if (alvo.isEmpty || alvo == CpfValidator.onlyDigits(conta.cpf)) return;
+
+    final bloqueados = List<String>.from(conta.contasBloqueadas);
+    final jaBloqueado =
+        bloqueados.any((c) => CpfValidator.onlyDigits(c) == alvo);
+    if (jaBloqueado) {
+      bloqueados.removeWhere((c) => CpfValidator.onlyDigits(c) == alvo);
+    } else {
+      bloqueados.add(alvo);
+    }
+    final atualizado = conta.copyWith(contasBloqueadas: bloqueados);
+    await ContasNousService.salvar(atualizado);
+    _contaAtual = atualizado;
+    _propagarUsuarioAtualizado(atualizado);
+    notifyListeners();
+  }
+
+  Future<void> alternarSilenciarUsuario(String cpfAlvo) async {
+    final conta = _contaAtual;
+    if (conta == null) return;
+    final alvo = CpfValidator.onlyDigits(cpfAlvo);
+    if (alvo.isEmpty || alvo == CpfValidator.onlyDigits(conta.cpf)) return;
+
+    final silenciados = List<String>.from(conta.contasSilenciadas);
+    final jaSilenciado =
+        silenciados.any((c) => CpfValidator.onlyDigits(c) == alvo);
+    if (jaSilenciado) {
+      silenciados.removeWhere((c) => CpfValidator.onlyDigits(c) == alvo);
+    } else {
+      silenciados.add(alvo);
+    }
+    final atualizado = conta.copyWith(contasSilenciadas: silenciados);
+    await ContasNousService.salvar(atualizado);
+    _contaAtual = atualizado;
+    _propagarUsuarioAtualizado(atualizado);
+    notifyListeners();
+  }
+
   void definirEmailAtivo(String? email) {
     _emailAtivo = email;
     notifyListeners();

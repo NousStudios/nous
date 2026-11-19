@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:nous/src/core/services/preferencias_soberanas_service.dart';
 import 'package:nous/src/core/theme/theme_controller.dart';
@@ -25,6 +26,7 @@ import 'package:nous/src/features/pdv/models/pedido_loja.dart';
 import 'package:nous/src/features/pdv/providers/pdv_provider.dart';
 import 'package:nous/src/features/pdv/services/compras_usuario_service.dart';
 import 'package:nous/src/features/pdv/services/imagem_service.dart';
+import 'package:nous/src/features/pdv/views/dialogs/dialog_editar_perfil_publico_loja.dart';
 import 'package:nous/src/features/pdv/views/widgets/estado_vazio_container.dart';
 import 'package:nous/src/features/timeline/models/story_social.dart';
 import 'package:nous/src/features/timeline/services/timeline_service.dart';
@@ -422,6 +424,45 @@ class _VitrineLojaViewState extends State<VitrineLojaView> {
     }
   }
 
+  Color? _parseHexLoja(String hex) {
+    if (hex.trim().isEmpty) return null;
+    final limpo = hex.replaceAll('#', '').trim();
+    final val = int.tryParse(limpo, radix: 16);
+    if (val == null) return null;
+    return Color(limpo.length == 6 ? (0xFF000000 | val) : val);
+  }
+
+  void _copiarTextoVitrine(String valor, String mensagem) {
+    Clipboard.setData(ClipboardData(text: valor));
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(mensagem),
+        duration: const Duration(seconds: 2),
+      ),
+    );
+  }
+
+  String _formatarCategoriasLoja(String raw) {
+    final limpo = raw.trim();
+    if (limpo.isEmpty) return 'Loja Nous';
+    final partes = limpo
+        .split(RegExp(r'[,;•]+'))
+        .map((p) {
+          final semArroba = p.trim().replaceAll(RegExp(r'^@+'), '');
+          if (semArroba.isEmpty) return '';
+          final palavras = semArroba
+              .replaceAll('_', ' ')
+              .split(RegExp(r'\s+'))
+              .where((w) => w.isNotEmpty)
+              .map((w) => w[0].toUpperCase() + w.substring(1).toLowerCase())
+              .toList();
+          return palavras.join(' ');
+        })
+        .where((p) => p.isNotEmpty)
+        .toList();
+    return partes.isEmpty ? 'Loja Nous' : partes.join(' • ');
+  }
+
   Widget _buildCabecalhoPublico(AppTheme theme, Loja loja) {
     final auth = context.watch<AuthProvider>();
     final meuCpf = auth.cpf.replaceAll(RegExp(r'\D'), '');
@@ -432,14 +473,16 @@ class _VitrineLojaViewState extends State<VitrineLojaView> {
             ));
     final provLogo = ImagemService.obterImageProvider(loja.logo);
     final temLogo = provLogo != null;
-    final subtituloHandle = loja.categorias.trim().isNotEmpty
-        ? '@${loja.categorias.trim().toLowerCase().replaceAll(' ', '_')}'
-        : '@loja_nous';
-    final biografiaLoja = [
-      if (loja.endereco.trim().isNotEmpty) loja.endereco.trim(),
-      if (loja.telefone.trim().isNotEmpty) 'Tel: ${loja.telefone.trim()}',
-      if (loja.cnpj.trim().isNotEmpty) 'CNPJ: ${loja.cnpj.trim()}',
-    ].join(' • ');
+    final subtituloHandle = _formatarCategoriasLoja(loja.categorias);
+    final biografiaLoja = loja.biografiaPublica.trim().isNotEmpty
+        ? loja.biografiaPublica.trim()
+        : (loja.endereco.trim().isNotEmpty
+            ? loja.endereco.trim()
+            : 'Comércio Soberano na Rede Nous • Autoatendimento e Catálogo');
+    final podeEditarPerfilLoja =
+        ehMembroLoja && context.read<PdvProvider>().possoEditarDadosLoja(loja.id);
+    final corDestaqueCustom = _parseHexLoja(loja.corDestaquePerfilHex);
+    final corBotaoAtivo = corDestaqueCustom ?? theme.buttonColor;
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 10, 16, 6),
@@ -514,16 +557,122 @@ class _VitrineLojaViewState extends State<VitrineLojaView> {
           const SizedBox(height: 10),
           Center(
             child: Text(
-              biografiaLoja.isNotEmpty
-                  ? biografiaLoja
-                  : 'Comércio Soberano na Rede Nous • Autoatendimento e Catálogo',
+              biografiaLoja,
               textAlign: TextAlign.center,
               style: theme.getTextStyle(
-                fontSize: 11.5,
-                color: theme.secondaryTextColor,
+                fontSize: 12,
+                color: theme.textColor,
               ),
             ),
           ),
+          if (loja.linksPublicos.isNotEmpty) ...[
+            const SizedBox(height: 6),
+            Wrap(
+              alignment: WrapAlignment.center,
+              spacing: 8,
+              runSpacing: 4,
+              children: loja.linksPublicos.map((link) {
+                return InkWell(
+                  borderRadius: BorderRadius.circular(8),
+                  onTap: () => _copiarTextoVitrine(link, 'Link copiado!'),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 6,
+                      vertical: 2,
+                    ),
+                    child: Text(
+                      link,
+                      style: theme.getTextStyle(
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.w600,
+                        color: const Color(0xFF1D9BF0),
+                      ),
+                    ),
+                  ),
+                );
+              }).toList(),
+            ),
+          ],
+          if (loja.cnpj.trim().isNotEmpty) ...[
+            const SizedBox(height: 6),
+            Center(
+              child: InkWell(
+                borderRadius: BorderRadius.circular(8),
+                onTap: () => _copiarTextoVitrine(
+                  loja.cnpj.trim(),
+                  'CNPJ copiado!',
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 3,
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        Icons.badge_outlined,
+                        size: 13,
+                        color: theme.secondaryTextColor,
+                      ),
+                      const SizedBox(width: 5),
+                      Flexible(
+                        child: Text(
+                          'CNPJ: ${loja.cnpj.trim()}',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: theme.getTextStyle(
+                            fontSize: 11.5,
+                            color: theme.secondaryTextColor,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ],
+          if (loja.telefone.trim().isNotEmpty) ...[
+            const SizedBox(height: 2),
+            Center(
+              child: InkWell(
+                borderRadius: BorderRadius.circular(8),
+                onTap: () => _copiarTextoVitrine(
+                  loja.telefone.trim(),
+                  'Telefone copiado!',
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 3,
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        Icons.phone_outlined,
+                        size: 13,
+                        color: theme.secondaryTextColor,
+                      ),
+                      const SizedBox(width: 5),
+                      Flexible(
+                        child: Text(
+                          'Tel: ${loja.telefone.trim()}',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: theme.getTextStyle(
+                            fontSize: 11.5,
+                            color: theme.secondaryTextColor,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ],
           const SizedBox(height: 12),
           // Fila rolante de botões + escudinho de denúncia no final
           LayoutBuilder(
@@ -533,13 +682,43 @@ class _VitrineLojaViewState extends State<VitrineLojaView> {
                 scrollDirection: Axis.horizontal,
                 child: Row(
                   children: [
+                    if (podeEditarPerfilLoja) ...[
+                      SizedBox(
+                        width: larguraBotao,
+                        height: 34,
+                        child: OutlinedButton(
+                          style: OutlinedButton.styleFrom(
+                            backgroundColor: Colors.transparent,
+                            side: BorderSide(color: theme.borderColor),
+                            padding: EdgeInsets.zero,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                          ),
+                          onPressed: () => DialogEditarPerfilPublicoLoja.mostrar(
+                            context,
+                            theme: theme,
+                            loja: loja,
+                          ),
+                          child: Text(
+                            'Editar Perfil',
+                            style: theme.getTextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                              color: theme.textColor,
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                    ],
                     SizedBox(
                       width: larguraBotao,
                       height: 34,
                       child: OutlinedButton(
                         style: OutlinedButton.styleFrom(
                           backgroundColor: !_exibindoTimelineSocial
-                              ? theme.buttonColor
+                              ? corBotaoAtivo
                               : Colors.transparent,
                           side: BorderSide(color: theme.borderColor),
                           padding: EdgeInsets.zero,
@@ -756,8 +935,9 @@ class _VitrineLojaViewState extends State<VitrineLojaView> {
                 ? [categoriaAtiva]
                 : <CategoriaLoja>[];
 
+        final fundoCustom = _parseHexLoja(loja.corFundoPerfilHex);
         return Scaffold(
-          backgroundColor: theme.backgroundColor,
+          backgroundColor: fundoCustom ?? theme.backgroundColor,
           appBar: CustomAppBar(title: loja.nome),
           body: SafeArea(
             child: Center(

@@ -169,7 +169,12 @@ class GerenciadorMembrosLoja {
 
     await pdv.removerMembro(lojaId, cpf);
     if (!estaMontado()) return;
-    definirMembros(obterMembros().where((m) => m.cpf != cpf).toList());
+    final cpfNorm = cpf.replaceAll(RegExp(r'\D'), '');
+    definirMembros(
+      obterMembros()
+          .where((m) => m.cpf.replaceAll(RegExp(r'\D'), '') != cpfNorm)
+          .toList(),
+    );
 
     // Se conectado como terminal móvel ao balcão, garante envio prioritário imediato da exclusão
     if (ClienteRedeLocal().conectado &&

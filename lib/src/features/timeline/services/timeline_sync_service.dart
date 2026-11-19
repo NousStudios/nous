@@ -1,11 +1,15 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
+import 'package:nous/src/core/services/assinatura_rede_service.dart';
 import 'package:nous/src/core/services/preferencias_soberanas_service.dart';
 import 'package:nous/src/features/pdv/services/rede_local/cliente_rede_local.dart';
+import 'package:nous/src/features/pdv/services/rede_local/helpers/resolvedor_url_rede.dart';
 import 'package:nous/src/features/pdv/services/rede_local/servidor_rede_local.dart';
 import 'package:nous/src/features/timeline/models/interacao_social.dart';
+import 'package:nous/src/features/timeline/models/notificacao_social.dart';
 import 'package:nous/src/features/timeline/models/publicacao_social.dart';
 import 'package:nous/src/features/timeline/models/salvos_denuncia_social.dart';
 import 'package:nous/src/features/timeline/models/story_social.dart';
@@ -18,8 +22,12 @@ class TimelineSyncService {
 
   static Future<Map<String, dynamic>> exportarSnapshotSocial({
     DateTime? desde,
+    int offset = 0,
   }) {
-    return TimelineSyncRepositorio.exportarSnapshotSocial(desde: desde);
+    return TimelineSyncRepositorio.exportarSnapshotSocial(
+      desde: desde,
+      offset: offset,
+    );
   }
 
   static Future<void> mesclarSnapshotSocial(
@@ -50,32 +58,57 @@ class TimelineSyncService {
         }
       } catch (_) {}
 
-      final snapshotLocal = await exportarSnapshotSocial(desde: desde);
-      final payload = <String, dynamic>{
-        ...snapshotLocal,
-        if (desde != null) 'desde': desde.toIso8601String(),
-      };
+      int offset = 0;
+      bool temMais = true;
+      String? ultimoGeradoEm;
+      int paginas = 0;
 
-      final req = await client
-          .post(ip, porta, '/api/timeline/sincronizar')
-          .timeout(const Duration(seconds: 6));
-      req.headers.contentType = ContentType.json;
-      req.write(jsonEncode(payload));
-      final resp = await req.close().timeout(const Duration(seconds: 8));
-      final corpo = await utf8.decodeStream(resp);
-      if (resp.statusCode == HttpStatus.ok && corpo.isNotEmpty) {
+      while (temMais && paginas < 25) {
+        paginas++;
+        final snapshotLocal = offset == 0
+            ? await exportarSnapshotSocial(desde: desde, offset: 0)
+            : <String, dynamic>{};
+        final payload = <String, dynamic>{
+          ...snapshotLocal,
+          if (desde != null) 'desde': desde.toIso8601String(),
+          'offset': offset,
+        };
+
+        final uri = ResolvedorUrlRede.montarUriHttp(
+          hostOuIp: ip,
+          porta: porta,
+          path: '/api/timeline/sincronizar',
+        );
+        final req = await client
+            .postUrl(uri)
+            .timeout(const Duration(seconds: 6));
+        req.headers.contentType = ContentType.json;
+        req.write(jsonEncode(payload));
+        final resp = await req.close().timeout(const Duration(seconds: 8));
+        final corpo = await utf8.decodeStream(resp);
+        if (resp.statusCode != HttpStatus.ok || corpo.isEmpty) {
+          return paginas > 1;
+        }
         final json = jsonDecode(corpo);
         if (json is Map<String, dynamic> && json['snapshot'] is Map) {
           final snapRemoto = Map<String, dynamic>.from(json['snapshot'] as Map);
           await mesclarSnapshotSocial(snapRemoto, aoConcluir: aoConcluir);
-          final geradoEm = snapRemoto['geradoEm'] as String? ??
+          ultimoGeradoEm = snapRemoto['geradoEm'] as String? ??
               DateTime.now().toIso8601String();
-          await PreferenciasSoberanasService.salvarTexto(
-            chaveUltimaSync,
-            geradoEm,
-          );
-          return true;
+          temMais = snapRemoto['temMais'] == true;
+          offset = (snapRemoto['proximoOffset'] as num?)?.toInt() ??
+              (offset + 400);
+        } else {
+          break;
         }
+      }
+
+      if (ultimoGeradoEm != null) {
+        await PreferenciasSoberanasService.salvarTexto(
+          chaveUltimaSync,
+          ultimoGeradoEm,
+        );
+        return true;
       }
     } catch (e) {
       debugPrint(
@@ -92,15 +125,33 @@ class TimelineSyncService {
     Map<String, dynamic> payload,
   ) {
     final evento = <String, dynamic>{'tipo': tipo, ...payload};
-    final servidor = ServidorRedeLocal();
-    if (servidor.ativo) {
-      servidor.notificarTodos(evento);
-      return;
-    }
-    final cliente = ClienteRedeLocal();
-    if (cliente.conectado) {
-      cliente.enviarMensagemRaw(evento);
-    }
+    unawaited(() async {
+      String cpfAssinante = '';
+      if (payload['publicacao'] is Map) {
+        cpfAssinante = (payload['publicacao'] as Map)['autorCpf']?.toString() ?? '';
+      } else if (payload['comentario'] is Map) {
+        cpfAssinante = (payload['comentario'] as Map)['autorCpf']?.toString() ?? '';
+      } else if (payload['story'] is Map) {
+        cpfAssinante = (payload['story'] as Map)['autorCpf']?.toString() ?? '';
+      } else if (payload['reacao'] is Map) {
+        cpfAssinante = (payload['reacao'] as Map)['usuarioCpf']?.toString() ?? '';
+      } else if (payload['usuarioCpf'] != null) {
+        cpfAssinante = payload['usuarioCpf'].toString();
+      }
+      final eventoAssinado = cpfAssinante.isNotEmpty
+          ? await AssinaturaRedeService.assinarPayload(evento, cpfAssinante)
+          : evento;
+
+      final servidor = ServidorRedeLocal();
+      if (servidor.ativo) {
+        servidor.notificarTodos(eventoAssinado);
+        return;
+      }
+      final cliente = ClienteRedeLocal();
+      if (cliente.conectado) {
+        cliente.enviarMensagemRaw(eventoAssinado);
+      }
+    }());
   }
 
   static Future<void> processarEventoRemoto(
@@ -173,6 +224,14 @@ class TimelineSyncService {
         );
         if (den.id.isNotEmpty) {
           await TimelineRepositorioSqlite.salvarDenuncia(den);
+          aoConcluir?.call();
+        }
+      } else if (tipo == 'timeline_notificacao' && dados['notificacao'] is Map) {
+        final notif = NotificacaoSocial.fromJson(
+          Map<String, dynamic>.from(dados['notificacao'] as Map),
+        );
+        if (notif.id.isNotEmpty) {
+          await TimelineRepositorioSqlite.salvarNotificacaoSocial(notif);
           aoConcluir?.call();
         }
       } else if (tipo == 'timeline_config') {

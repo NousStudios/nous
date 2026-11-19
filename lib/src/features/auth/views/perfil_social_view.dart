@@ -289,14 +289,20 @@ class _PerfilSocialViewState extends State<PerfilSocialView> {
     AppTheme theme,
     String link,
   ) async {
+    final linkLimpo = link.trim();
     final uri = Uri.tryParse(
-      link.startsWith('http://') || link.startsWith('https://')
-          ? link
-          : 'https://$link',
+      linkLimpo.startsWith('http://') || linkLimpo.startsWith('https://')
+          ? linkLimpo
+          : 'https://$linkLimpo',
     );
-    if (uri != null && await canLaunchUrl(uri)) {
-      await launchUrl(uri, mode: LaunchMode.externalApplication);
-      return;
+    if (uri != null) {
+      try {
+        final abriu = await launchUrl(
+          uri,
+          mode: LaunchMode.externalApplication,
+        );
+        if (abriu) return;
+      } catch (_) {}
     }
     if (!context.mounted) return;
     Clipboard.setData(ClipboardData(text: link));
@@ -551,7 +557,12 @@ class _PerfilSocialViewState extends State<PerfilSocialView> {
                         temFoto: temFoto,
                         carregandoFoto: _baixandoFoto,
                         temStoryAtivo: _storiesAtivos24h.isNotEmpty,
-                        corDestaqueAnel: corDestaqueCustom ?? theme.buttonColor,
+                        corDestaqueAnel: (() {
+                          final h = conta.corStoryHex.replaceAll('#', '').trim();
+                          final v = int.tryParse(h, radix: 16);
+                          if (v == null) return const Color(0xFF2E7D32);
+                          return Color(h.length == 6 ? (0xFF000000 | v) : v);
+                        })(),
                         tooltipFoto: _storiesAtivos24h.isNotEmpty
                             ? 'Toque para ver o Story • Segure para ampliar a foto'
                             : (temFoto
@@ -668,15 +679,22 @@ class _PerfilSocialViewState extends State<PerfilSocialView> {
                       ),
                       const SizedBox(height: 4),
                       Center(
-                        child: Text(
-                          conta.biografia.isNotEmpty
-                              ? conta.biografia
-                              : 'Membro soberano da rede local Nous • SuperApp de Autogestão',
-                          textAlign: TextAlign.center,
-                          style: theme.getTextStyle(
-                            fontSize: 12,
-                            color: textoSecSobreFundo,
-                          ),
+                        child: Builder(
+                          builder: (_) {
+                            final bioExibida = ehProprioUsuario
+                                ? conta.biografia
+                                : conta.biografiaPara(contaPropria?.cpf ?? '');
+                            return Text(
+                              bioExibida.isNotEmpty
+                                  ? bioExibida
+                                  : 'Membro soberano da rede local Nous • SuperApp de Autogestão',
+                              textAlign: TextAlign.center,
+                              style: theme.getTextStyle(
+                                fontSize: 12,
+                                color: textoSecSobreFundo,
+                              ),
+                            );
+                          },
                         ),
                       ),
                       if (conta.links.isNotEmpty) ...[
@@ -818,14 +836,139 @@ class _PerfilSocialViewState extends State<PerfilSocialView> {
                                   onTap: () =>
                                       _abrirMensagensUsuario(context, conta),
                                 ),
-                                const SizedBox(width: 10),
-                                Tooltip(
-                                  message: 'Denunciar',
+                                const SizedBox(width: 8),
+                                if (contaPropria != null && !ehProprioUsuario)
+                                  Tooltip(
+                                    message: 'Silenciar ou Bloquear',
+                                    child: InkWell(
+                                      borderRadius: BorderRadius.circular(10),
+                                      onTap: () async {
+                                        final bloqueado =
+                                            contaPropria.estaBloqueado(conta.cpf);
+                                        final silenciado =
+                                            contaPropria.estaSilenciado(conta.cpf);
+                                        final acao = await showDialog<String>(
+                                          context: context,
+                                          builder: (ctx) => Dialog(
+                                            backgroundColor:
+                                                theme.cardBackgroundColor,
+                                            shape: RoundedRectangleBorder(
+                                              borderRadius:
+                                                  BorderRadius.circular(16),
+                                              side: BorderSide(
+                                                color: theme.borderColor,
+                                              ),
+                                            ),
+                                            child: ConstrainedBox(
+                                              constraints: const BoxConstraints(
+                                                maxWidth: 340,
+                                              ),
+                                              child: Padding(
+                                                padding:
+                                                    const EdgeInsets.all(14),
+                                                child: Column(
+                                                  mainAxisSize:
+                                                      MainAxisSize.min,
+                                                  children: [
+                                                    ListTile(
+                                                      leading: Icon(
+                                                        silenciado
+                                                            ? Icons.volume_up_outlined
+                                                            : Icons.volume_off_outlined,
+                                                        color: theme.textColor,
+                                                      ),
+                                                      title: Text(
+                                                        silenciado
+                                                            ? 'Dessilenciar usuário'
+                                                            : 'Silenciar usuário',
+                                                        style: theme.getTextStyle(
+                                                          fontSize: 13.5,
+                                                          color: theme.textColor,
+                                                        ),
+                                                      ),
+                                                      onTap: () => Navigator.pop(
+                                                        ctx,
+                                                        'silenciar',
+                                                      ),
+                                                    ),
+                                                    ListTile(
+                                                      leading: Icon(
+                                                        bloqueado
+                                                            ? Icons.lock_open_outlined
+                                                            : Icons.block_rounded,
+                                                        color: theme.dangerColor,
+                                                      ),
+                                                      title: Text(
+                                                        bloqueado
+                                                            ? 'Desbloquear usuário'
+                                                            : 'Bloquear usuário',
+                                                        style: theme.getTextStyle(
+                                                          fontSize: 13.5,
+                                                          fontWeight:
+                                                              FontWeight.bold,
+                                                          color: theme.dangerColor,
+                                                        ),
+                                                      ),
+                                                      onTap: () => Navigator.pop(
+                                                        ctx,
+                                                        'bloquear',
+                                                      ),
+                                                    ),
+                                                  ],
+                                                ),
+                                              ),
+                                            ),
+                                          ),
+                                        );
+                                        if (!context.mounted || acao == null) {
+                                          return;
+                                        }
+                                        if (acao == 'silenciar') {
+                                          await context
+                                              .read<AuthProvider>()
+                                              .alternarSilenciarUsuario(
+                                                conta.cpf,
+                                              );
+                                        } else if (acao == 'bloquear') {
+                                          await context
+                                              .read<AuthProvider>()
+                                              .alternarBloquearUsuario(
+                                                conta.cpf,
+                                              );
+                                        }
+                                      },
+                                      child: Container(
+                                        width: 34,
+                                        height: 34,
+                                        decoration: BoxDecoration(
+                                          borderRadius:
+                                              BorderRadius.circular(10),
+                                          border: Border.all(
+                                            color: theme.borderColor
+                                                .withValues(alpha: 0.6),
+                                            width: 1.0,
+                                          ),
+                                        ),
+                                        child: Icon(
+                                          contaPropria.estaBloqueado(conta.cpf)
+                                              ? Icons.block_rounded
+                                              : Icons.more_horiz_rounded,
+                                          size: 17,
+                                          color: contaPropria
+                                                  .estaBloqueado(conta.cpf)
+                                              ? theme.dangerColor
+                                              : textoSobreFundo,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                const SizedBox(width: 8),
+                                if (contaPropria != null && !ehProprioUsuario)
+                                  Tooltip(
+                                    message: 'Denunciar',
                                   child: InkWell(
                                     borderRadius: BorderRadius.circular(10),
-                                    onTap: contaPropria == null
-                                        ? null
-                                        : () async {
+                                    onTap: () async {
                                             final ok =
                                                 await DialogDenunciaSocial
                                                     .mostrar(

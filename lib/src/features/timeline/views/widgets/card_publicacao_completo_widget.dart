@@ -12,8 +12,11 @@ import 'package:nous/src/features/timeline/views/dialogs/dialog_detalhes_publica
 import 'package:nous/src/features/timeline/views/dialogs/dialog_enviar_publicacao_chat.dart';
 import 'package:nous/src/features/timeline/views/dialogs/dialog_opcoes_publicacao.dart';
 import 'package:nous/src/features/timeline/views/dialogs/dialog_salvar_publicacao.dart';
+import 'package:nous/src/features/timeline/views/insights_publicacao_view.dart';
 import 'package:nous/src/features/timeline/views/widgets/cabecalho_autor_colaboradores_widget.dart';
+import 'package:nous/src/features/timeline/views/widgets/texto_com_hashtags_widget.dart';
 import 'package:nous/src/features/timeline/views/widgets/carrossel_fotos_publicacao.dart';
+import 'package:nous/src/features/timeline/views/widgets/widget_midia_publicacao.dart';
 
 /// Card completo de publicação no mesmo padrão visual e interativo da tela de detalhes:
 /// cabeçalho (autor + colaboradores com nomes), carrossel horizontal arrastável,
@@ -88,9 +91,10 @@ class _CardPublicacaoCompletoWidgetState
   }
 
   Future<void> _carregarInteracoes() async {
-    final reacoes = await TimelineService.listarReacoes(_pub.id);
-    final comentarios = await TimelineService.listarComentarios(_pub.id);
-    if (!mounted) return;
+    final pubIdAlvo = _pub.id;
+    final reacoes = await TimelineService.listarReacoes(pubIdAlvo);
+    final comentarios = await TimelineService.listarComentarios(pubIdAlvo);
+    if (!mounted || _pub.id != pubIdAlvo) return;
     setState(() {
       _reacoes = reacoes;
       _totalComentarios = comentarios.where((c) => !c.excluido).length;
@@ -130,6 +134,24 @@ class _CardPublicacaoCompletoWidgetState
       podeDenunciar: u != null,
     );
     if (!mounted || acao == null) return;
+
+    if (acao == 'fixar') {
+      final atualizada = await TimelineService.alternarFixarPublicacao(_pub);
+      if (mounted) {
+        setState(() => _pub = atualizada);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              atualizada.fixada
+                  ? 'Publicação fixada no topo!'
+                  : 'Publicação desafixada.',
+            ),
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      }
+      return;
+    }
 
     if (acao == 'editar') {
       final editCtrl = TextEditingController(text: _pub.texto);
@@ -177,6 +199,22 @@ class _CardPublicacaoCompletoWidgetState
           novoTexto: novoTexto,
         );
         if (mounted) setState(() => _pub = atualizada);
+      }
+    } else if (acao == 'arquivar') {
+      await TimelineService.arquivarPublicacao(
+        _pub,
+        arquivar: !_pub.arquivada,
+      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              _pub.arquivada
+                  ? 'Publicação restaurada para o perfil.'
+                  : 'Publicação arquivada em Arquivos da Conta.',
+            ),
+          ),
+        );
       }
     } else if (acao == 'excluir') {
       final confirmar = await showDialog<bool>(
@@ -256,6 +294,9 @@ class _CardPublicacaoCompletoWidgetState
     final m = l.month.toString().padLeft(2, '0');
     final h = l.hour.toString().padLeft(2, '0');
     final min = l.minute.toString().padLeft(2, '0');
+    if (l.year != DateTime.now().year) {
+      return '$d/$m/${l.year} • $h:$min';
+    }
     return '$d/$m • $h:$min';
   }
 
@@ -266,31 +307,32 @@ class _CardPublicacaoCompletoWidgetState
     required VoidCallback onTapIcone,
     required VoidCallback onTapContagem,
   }) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
-      decoration: BoxDecoration(
-        color: Colors.black.withValues(alpha: 0.35),
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(
-          color: theme.borderColor.withValues(alpha: 0.45),
-        ),
-      ),
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
           InkWell(
+            borderRadius: BorderRadius.circular(14),
             onTap: onTapIcone,
-            child: Icon(icone, size: 16, color: Colors.white),
+            child: Padding(
+              padding: const EdgeInsets.all(2),
+              child: Icon(icone, size: 18, color: theme.textColor),
+            ),
           ),
-          const SizedBox(width: 5),
+          const SizedBox(width: 3),
           InkWell(
+            borderRadius: BorderRadius.circular(10),
             onTap: onTapContagem,
-            child: Text(
-              '$contagem',
-              style: theme.getTextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-                color: Colors.white,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 2),
+              child: Text(
+                '$contagem',
+                style: theme.getTextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: theme.textColor,
+                ),
               ),
             ),
           ),
@@ -323,44 +365,60 @@ class _CardPublicacaoCompletoWidgetState
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // 1. Cabeçalho completo com foto do autor + colaboradores + nomes + horário
+          // 1. Cabeçalho completo com foto do autor + colaboradores + botão (...) à direita
           Padding(
-            padding: const EdgeInsets.fromLTRB(12, 10, 12, 8),
+            padding: const EdgeInsets.fromLTRB(12, 8, 4, 6),
             child: CabecalhoAutorColaboradoresWidget(
               theme: theme,
               publicacao: pub,
-              trailing: Text(
-                _formatarDataHora(pub.criadaEm),
-                style: theme.getTextStyle(
-                  fontSize: 10.5,
-                  color: theme.secondaryTextColor,
-                ),
+              trailing: IconButton(
+                visualDensity: VisualDensity.compact,
+                constraints: const BoxConstraints(),
+                padding: const EdgeInsets.all(6),
+                tooltip: 'Mais opções',
+                icon: Icon(Icons.more_horiz_rounded, color: theme.textColor),
+                onPressed: () => _abrirMenuOpcoes(ehAutor),
               ),
             ),
           ),
 
-          // 2. Carrossel / Mídia interativa com duplo toque para Like
-          if (pub.midias.isNotEmpty &&
-              (pub.tipo == TipoFeedSocial.fotos ||
-                  pub.tipo == TipoFeedSocial.republicacoes))
-            CarrosselFotosPublicacao(
-              theme: theme,
-              midias: pub.midias,
-              aspectRatio: pub.aspectRatioEfetivo,
-              alignment: Alignment(pub.alinhamentoX, pub.alinhamentoY),
-              escalaZoomPadrao: pub.escalaZoom,
-              onDoubleTapLike: () => _reagir(TipoReacaoSocial.like),
-            ),
+          // 2. Carrossel / Mídia interativa com altura controlada (fotos vs vídeo/áudio/doc)
+          if (pub.midias.isNotEmpty)
+            if (pub.midias.every((m) {
+              final ext = m.mimeTipo.toLowerCase();
+              return ext == 'jpg' ||
+                  ext == 'jpeg' ||
+                  ext == 'png' ||
+                  ext == 'webp' ||
+                  (ext.isEmpty && pub.tipo == TipoFeedSocial.fotos);
+            }))
+              ConstrainedBox(
+                constraints: BoxConstraints(
+                  maxHeight: MediaQuery.sizeOf(context).width < 600 ? 310 : 440,
+                ),
+                child: CarrosselFotosPublicacao(
+                  theme: theme,
+                  midias: pub.midias,
+                  aspectRatio: pub.aspectRatioEfetivo,
+                  alignment: Alignment(pub.alinhamentoX, pub.alinhamentoY),
+                  escalaZoomPadrao: pub.escalaZoom,
+                  onTapFoto: _abrirDetalhes,
+                  onDoubleTapLike: () => _reagir(TipoReacaoSocial.like),
+                ),
+              )
+            else
+              WidgetMidiaPublicacao(theme: theme, publicacao: pub),
 
-          // 3. Barra de interações unificada + botão (...) à direita (acima da legenda)
+          // 3. Barra de interações unificada na mesma linha + data à direita
           Padding(
-            padding: const EdgeInsets.fromLTRB(10, 6, 4, 2),
+            padding: const EdgeInsets.fromLTRB(8, 4, 12, 2),
             child: Row(
               children: [
                 Expanded(
                   child: SingleChildScrollView(
                     scrollDirection: Axis.horizontal,
                     child: Row(
+                      mainAxisSize: MainAxisSize.min,
                       children: [
                         _buildPilulaReacao(
                           theme: theme,
@@ -377,7 +435,7 @@ class _CardPublicacaoCompletoWidgetState
                             tipo: TipoReacaoSocial.like,
                           ),
                         ),
-                        const SizedBox(width: 6),
+                        const SizedBox(width: 2),
                         _buildPilulaReacao(
                           theme: theme,
                           icone: minhaReacao?.tipo == TipoReacaoSocial.deslike
@@ -393,29 +451,43 @@ class _CardPublicacaoCompletoWidgetState
                             tipo: TipoReacaoSocial.deslike,
                           ),
                         ),
-                        const SizedBox(width: 4),
-                        TextButton.icon(
-                          onPressed: _abrirDetalhes,
-                          icon: Icon(
-                            Icons.mode_comment_outlined,
-                            size: 17,
-                            color: theme.textColor,
-                          ),
-                          label: Text(
-                            '$_totalComentarios',
-                            style: theme.getTextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600,
-                              color: theme.textColor,
+                        InkWell(
+                          borderRadius: BorderRadius.circular(14),
+                          onTap: _abrirDetalhes,
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 6,
+                              vertical: 4,
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  Icons.mode_comment_outlined,
+                                  size: 17,
+                                  color: theme.textColor,
+                                ),
+                                const SizedBox(width: 3),
+                                Text(
+                                  '$_totalComentarios',
+                                  style: theme.getTextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w600,
+                                    color: theme.textColor,
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
                         ),
                         IconButton(
                           visualDensity: VisualDensity.compact,
+                          constraints: const BoxConstraints(),
+                          padding: const EdgeInsets.all(6),
                           tooltip: 'Republicar',
                           icon: Icon(
                             Icons.repeat_rounded,
-                            size: 19,
+                            size: 18,
                             color: theme.textColor,
                           ),
                           onPressed: u == null
@@ -441,10 +513,12 @@ class _CardPublicacaoCompletoWidgetState
                         if (u != null)
                           IconButton(
                             visualDensity: VisualDensity.compact,
+                            constraints: const BoxConstraints(),
+                            padding: const EdgeInsets.all(6),
                             tooltip: 'Salvar',
                             icon: Icon(
                               Icons.bookmark_border_rounded,
-                              size: 19,
+                              size: 18,
                               color: theme.textColor,
                             ),
                             onPressed: () async {
@@ -466,10 +540,12 @@ class _CardPublicacaoCompletoWidgetState
                           ),
                         IconButton(
                           visualDensity: VisualDensity.compact,
+                          constraints: const BoxConstraints(),
+                          padding: const EdgeInsets.all(6),
                           tooltip: 'Enviar pelo chat',
                           icon: Icon(
                             Icons.send_rounded,
-                            size: 18,
+                            size: 17,
                             color: theme.textColor,
                           ),
                           onPressed: u == null
@@ -497,49 +573,67 @@ class _CardPublicacaoCompletoWidgetState
                     ),
                   ),
                 ),
-                IconButton(
-                  visualDensity: VisualDensity.compact,
-                  tooltip: 'Mais opções',
-                  icon: Icon(Icons.more_horiz_rounded, color: theme.textColor),
-                  onPressed: () => _abrirMenuOpcoes(ehAutor),
+                const SizedBox(width: 4),
+                InkWell(
+                  borderRadius: BorderRadius.circular(10),
+                  onTap: () => InsightsPublicacaoView.abrir(
+                    context,
+                    theme: theme,
+                    publicacao: pub,
+                    totalCurtidas: likes,
+                    totalDeslikes: deslikes,
+                    totalComentarios: _totalComentarios,
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 4,
+                      vertical: 3,
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons.visibility_outlined,
+                          size: 13,
+                          color: theme.secondaryTextColor,
+                        ),
+                        const SizedBox(width: 3),
+                        Text(
+                          '${pub.visualizacoes}',
+                          style: theme.getTextStyle(
+                            fontSize: 10.5,
+                            fontWeight: FontWeight.w600,
+                            color: theme.secondaryTextColor,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 6),
+                Text(
+                  _formatarDataHora(pub.criadaEm),
+                  style: theme.getTextStyle(
+                    fontSize: 10.5,
+                    color: theme.secondaryTextColor,
+                  ),
                 ),
               ],
             ),
           ),
 
-          // 4. Legenda + #tags clicáveis
+          // 4. Legenda com #tags em azul clicáveis
           if (pub.texto.isNotEmpty)
             InkWell(
               onTap: _abrirDetalhes,
               child: Padding(
-                padding: const EdgeInsets.fromLTRB(14, 4, 14, 8),
-                child: Text(
-                  pub.texto,
-                  style: theme.getTextStyle(
-                    fontSize: 13.5,
-                    color: theme.textColor,
-                  ),
+                padding: const EdgeInsets.fromLTRB(14, 4, 14, 10),
+                child: TextoComHashtagsWidget(
+                  theme: theme,
+                  texto: pub.texto,
+                  fontSize: 13.5,
+                  onTapTag: widget.onTapTag,
                 ),
-              ),
-            ),
-
-          if (pub.tags.isNotEmpty && widget.onTapTag != null)
-            Padding(
-              padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
-              child: Wrap(
-                spacing: 6,
-                children: pub.tags.map((tag) {
-                  return ActionChip(
-                    label: Text(
-                      '#$tag',
-                      style: theme.getTextStyle(
-                        fontSize: 11,
-                        color: theme.buttonColor,
-                      ),
-                    ),
-                    onPressed: () => widget.onTapTag!(tag),
-                  );
-                }).toList(),
               ),
             ),
         ],

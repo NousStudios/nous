@@ -144,8 +144,7 @@ class TimelineMidiaService {
     List<MidiaPublicacao> midias,
   ) async {
     if (!ClienteRedeLocal().conectado || midias.isEmpty) return midias;
-    final atualizadas = <MidiaPublicacao>[];
-    for (final m in midias) {
+    return Future.wait(midias.map((m) async {
       final ehImg = m.mimeTipo == 'jpg' ||
           m.mimeTipo == 'jpeg' ||
           m.mimeTipo == 'png' ||
@@ -156,15 +155,23 @@ class TimelineMidiaService {
           try {
             final remoto = await ClienteRedeLocal().enviarUploadImagem(local);
             if (remoto.isNotEmpty) {
-              atualizadas.add(m.copyWith(caminhoRelativo: remoto));
-              continue;
+              return m.copyWith(caminhoRelativo: remoto);
+            }
+          } catch (_) {}
+        }
+      } else {
+        final local = await resolverCaminhoMidia(m.caminhoRelativo);
+        if (local != null) {
+          try {
+            final remoto = await ClienteRedeLocal().enviarUploadAnexo(local);
+            if (remoto.isNotEmpty) {
+              return m.copyWith(caminhoRelativo: remoto);
             }
           } catch (_) {}
         }
       }
-      atualizadas.add(m);
-    }
-    return atualizadas;
+      return m;
+    }));
   }
 
   /// Baixa a mídia da publicação quando permitido pelo autor.

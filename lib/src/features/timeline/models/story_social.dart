@@ -13,6 +13,8 @@ class StorySocial {
   final DateTime? expiraEm;
   final List<String> visualizadoPorCpfs;
   final bool excluido;
+  final bool arquivado;
+  final DateTime? atualizadoEm;
   final String perguntaEnquete;
   final List<String> opcoesEnquete;
   final Map<String, int> votosEnquete; // cpf -> indice da opcao
@@ -36,6 +38,8 @@ class StorySocial {
     this.expiraEm,
     this.visualizadoPorCpfs = const [],
     this.excluido = false,
+    this.arquivado = false,
+    this.atualizadoEm,
     this.perguntaEnquete = '',
     this.opcoesEnquete = const [],
     this.votosEnquete = const {},
@@ -45,8 +49,10 @@ class StorySocial {
     this.itemLojaPrecoTag = '',
   });
 
+  DateTime get atualizadoEfetivo => atualizadoEm ?? criadoEm;
+
   bool get estaAtivo {
-    if (excluido) return false;
+    if (excluido || arquivado) return false;
     if (ehDestaquePermanente || expiraEm == null) return true;
     return DateTime.now().isBefore(expiraEm!);
   }
@@ -66,6 +72,8 @@ class StorySocial {
     DateTime? expiraEm,
     List<String>? visualizadoPorCpfs,
     bool? excluido,
+    bool? arquivado,
+    DateTime? atualizadoEm,
     String? perguntaEnquete,
     List<String>? opcoesEnquete,
     Map<String, int>? votosEnquete,
@@ -89,6 +97,8 @@ class StorySocial {
       expiraEm: expiraEm ?? this.expiraEm,
       visualizadoPorCpfs: visualizadoPorCpfs ?? this.visualizadoPorCpfs,
       excluido: excluido ?? this.excluido,
+      arquivado: arquivado ?? this.arquivado,
+      atualizadoEm: atualizadoEm ?? this.atualizadoEm,
       perguntaEnquete: perguntaEnquete ?? this.perguntaEnquete,
       opcoesEnquete: opcoesEnquete ?? this.opcoesEnquete,
       votosEnquete: votosEnquete ?? this.votosEnquete,
@@ -114,6 +124,8 @@ class StorySocial {
         'expiraEm': expiraEm?.toIso8601String(),
         'visualizadoPorCpfs': visualizadoPorCpfs,
         'excluido': excluido,
+        'arquivado': arquivado,
+        'atualizadoEm': (atualizadoEm ?? criadoEm).toIso8601String(),
         'perguntaEnquete': perguntaEnquete,
         'opcoesEnquete': opcoesEnquete,
         'votosEnquete': votosEnquete,
@@ -153,6 +165,10 @@ class StorySocial {
               .map((e) => e.toString())
               .toList(),
       excluido: json['excluido'] == true || json['excluido'] == 1,
+      arquivado: json['arquivado'] == true || json['arquivado'] == 1,
+      atualizadoEm: json['atualizadoEm'] != null
+          ? DateTime.tryParse(json['atualizadoEm'] as String)
+          : null,
       perguntaEnquete: json['perguntaEnquete'] as String? ?? '',
       opcoesEnquete: (json['opcoesEnquete'] as List<dynamic>? ?? const [])
           .map((e) => e.toString())

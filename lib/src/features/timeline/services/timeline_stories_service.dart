@@ -84,7 +84,10 @@ class TimelineStoriesService {
     if (norm.isEmpty) return story;
     final novosVotos = Map<String, int>.from(story.votosEnquete)
       ..[norm] = indiceOpcao;
-    final atualizado = story.copyWith(votosEnquete: novosVotos);
+    final atualizado = story.copyWith(
+      votosEnquete: novosVotos,
+      atualizadoEm: DateTime.now(),
+    );
     await TimelineRepositorioSqlite.salvarStory(atualizado);
     onNotificar?.call();
     TimelineSyncService.despacharEventoRede(
@@ -98,7 +101,10 @@ class TimelineStoriesService {
     StorySocial story, {
     VoidCallback? onNotificar,
   }) async {
-    final excluido = story.copyWith(excluido: true);
+    final excluido = story.copyWith(
+      excluido: true,
+      atualizadoEm: DateTime.now(),
+    );
     await TimelineRepositorioSqlite.salvarStory(excluido);
     onNotificar?.call();
     TimelineSyncService.despacharEventoRede(
@@ -136,6 +142,7 @@ class TimelineStoriesService {
 
     final atualizado = story.copyWith(
       visualizadoPorCpfs: [...story.visualizadoPorCpfs, norm],
+      atualizadoEm: DateTime.now(),
     );
     await TimelineRepositorioSqlite.salvarStory(atualizado);
     onNotificar?.call();

@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
+import 'package:nous/src/core/services/assinatura_rede_service.dart';
 import 'package:nous/src/core/services/criptografia_service.dart';
 import 'package:nous/src/core/services/som_service.dart';
 import 'package:nous/src/core/utils/json_isolate_utils.dart';
@@ -67,6 +68,17 @@ class ServidorWsContext {
       if (cliente == exceto) continue;
 
       final terminal = terminaisWs[cliente];
+
+      if (tipo != null && tipo.startsWith('timeline_')) {
+        // Não envia eventos sociais para sockets não autenticados/desconhecidos
+        final cpfTerminal = (terminal?.cpf ?? '').replaceAll(RegExp(r'\D'), '');
+        if (terminal == null ||
+            cpfTerminal.isEmpty ||
+            terminal.tipoConexao == 'desconhecido') {
+          continue;
+        }
+      }
+
       final ehCliente = terminal?.tipoConexao == 'cliente';
 
       if (ehCliente && dados != null) {
@@ -295,6 +307,12 @@ class ServidorWsMessageHandler {
       }
 
       if (tipo != null && tipo.startsWith('timeline_')) {
+        final assinaturaValida = await AssinaturaRedeService.verificarPayload(
+          dados,
+        );
+        if (!assinaturaValida) {
+          return;
+        }
         await TimelineService.processarEventoRemoto(dados);
         ctx.retransmitirParaOutros(jsonEncode(dados), exceto: ws);
         return;

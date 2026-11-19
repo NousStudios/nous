@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import 'package:nous/src/core/services/banco_dados_service.dart';
 import 'package:nous/src/features/timeline/models/interacao_social.dart';
+import 'package:nous/src/features/timeline/models/notificacao_social.dart';
 import 'package:nous/src/features/timeline/models/publicacao_social.dart';
 import 'package:nous/src/features/timeline/models/salvos_denuncia_social.dart';
 import 'package:nous/src/features/timeline/models/story_social.dart';
@@ -188,6 +189,98 @@ class TimelineRepositorioSqlite {
         abas_json TEXT NOT NULL
       );
     ''');
+
+    for (final tabela in const [
+      'publicacoes_sociais',
+      'stories_sociais',
+      'reacoes_sociais',
+      'comentarios_sociais',
+      'listas_salvos_sociais',
+      'itens_salvos_sociais',
+      'denuncias_sociais',
+    ]) {
+      try {
+        await db.execute('ALTER TABLE $tabela ADD COLUMN atualizada_em TEXT;');
+      } catch (_) {}
+      try {
+        await db.execute(
+          'CREATE INDEX IF NOT EXISTS idx_${tabela}_att ON $tabela (atualizada_em);',
+        );
+      } catch (_) {}
+    }
+
+    try {
+      await db.execute(
+        'ALTER TABLE publicacoes_sociais ADD COLUMN arquivada INTEGER NOT NULL DEFAULT 0;',
+      );
+    } catch (_) {}
+    try {
+      await db.execute(
+        'ALTER TABLE stories_sociais ADD COLUMN arquivado INTEGER NOT NULL DEFAULT 0;',
+      );
+    } catch (_) {}
+
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS notificacoes_sociais (
+        id TEXT PRIMARY KEY,
+        destinatario_cpf TEXT NOT NULL,
+        criada_em TEXT NOT NULL,
+        lida INTEGER NOT NULL DEFAULT 0,
+        dados_json TEXT NOT NULL
+      );
+    ''');
+    await db.execute(
+      'CREATE INDEX IF NOT EXISTS idx_notif_soc_dest ON notificacoes_sociais (destinatario_cpf, lida, criada_em DESC);',
+    );
+  }
+
+  static Future<void> salvarNotificacaoSocial(NotificacaoSocial notif) async {
+    final db = await obterDb();
+    await db.insert(
+      'notificacoes_sociais',
+      {
+        'id': notif.id,
+        'destinatario_cpf': normalizarCpf(notif.destinatarioCpf),
+        'criada_em': notif.criadaEm.toIso8601String(),
+        'lida': notif.lida ? 1 : 0,
+        'dados_json': jsonEncode(notif.toJson()),
+      },
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
+  }
+
+  static Future<List<NotificacaoSocial>> listarNotificacoesSociaisDoUsuario(
+    String cpf, {
+    int limit = 40,
+  }) async {
+    final db = await obterDb();
+    final cpfNorm = normalizarCpf(cpf);
+    if (cpfNorm.isEmpty) return const [];
+    final rows = await db.query(
+      'notificacoes_sociais',
+      where: 'destinatario_cpf = ? AND lida = 0',
+      whereArgs: [cpfNorm],
+      orderBy: 'criada_em DESC',
+      limit: limit,
+    );
+    return rows
+        .map(
+          (r) => NotificacaoSocial.fromJson(
+            jsonDecode(r['dados_json'] as String? ?? '{}')
+                as Map<String, dynamic>,
+          ),
+        )
+        .toList();
+  }
+
+  static Future<void> marcarNotificacaoSocialLida(String id) async {
+    final db = await obterDb();
+    await db.update(
+      'notificacoes_sociais',
+      {'lida': 1},
+      where: 'id = ?',
+      whereArgs: [id],
+    );
   }
 
   static String normalizarCpf(String cpf) =>
@@ -204,7 +297,9 @@ class TimelineRepositorioSqlite {
           'autor_cpf': autorNorm,
           'tipo': pub.tipo.name,
           'criada_em': pub.criadaEm.toIso8601String(),
+          'atualizada_em': pub.atualizadaEm.toIso8601String(),
           'excluida': pub.excluida ? 1 : 0,
+          'arquivada': pub.arquivada ? 1 : 0,
           'dados_json': jsonEncode(pub.toJson()),
         },
         conflictAlgorithm: ConflictAlgorithm.replace,
@@ -283,18 +378,64 @@ class TimelineRepositorioSqlite {
       FROM publicacoes_sociais p
       LEFT JOIN publicacoes_coautores c ON c.publicacao_id = p.id
       WHERE p.excluida = 0
+        AND COALESCE(p.arquivada, 0) = 0
         AND (p.autor_cpf = ? OR c.cpf = ?)
         $whereTipo
       ORDER BY p.criada_em DESC
       LIMIT ? OFFSET ?;
     ''', args);
 
-    return rows.map((r) {
-      final jsonStr = r['dados_json'] as String? ?? '{}';
-      return PublicacaoSocial.fromJson(
-        jsonDecode(jsonStr) as Map<String, dynamic>,
-      );
-    }).toList();
+    return rows
+        .map((r) {
+          final jsonStr = r['dados_json'] as String? ?? '{}';
+          return PublicacaoSocial.fromJson(
+            jsonDecode(jsonStr) as Map<String, dynamic>,
+          );
+        })
+        .where((p) => !p.excluida && !p.arquivada)
+        .toList();
+  }
+
+  static Future<List<PublicacaoSocial>> listarPublicacoesArquivadasDoUsuario(
+    String cpf,
+  ) async {
+    final db = await obterDb();
+    final cpfNorm = normalizarCpf(cpf);
+    if (cpfNorm.isEmpty) return const [];
+    final rows = await db.query(
+      'publicacoes_sociais',
+      where: 'excluida = 0 AND COALESCE(arquivada, 0) = 1 AND autor_cpf = ?',
+      whereArgs: [cpfNorm],
+      orderBy: 'criada_em DESC',
+    );
+    return rows
+        .map((r) => PublicacaoSocial.fromJson(
+              jsonDecode(r['dados_json'] as String? ?? '{}')
+                  as Map<String, dynamic>,
+            ))
+        .where((p) => !p.excluida && p.arquivada)
+        .toList();
+  }
+
+  static Future<List<PublicacaoSocial>> listarPublicacoesExcluidasDoUsuario(
+    String cpf,
+  ) async {
+    final db = await obterDb();
+    final cpfNorm = normalizarCpf(cpf);
+    if (cpfNorm.isEmpty) return const [];
+    final rows = await db.query(
+      'publicacoes_sociais',
+      where: 'excluida = 1 AND autor_cpf = ?',
+      whereArgs: [cpfNorm],
+      orderBy: 'atualizada_em DESC',
+    );
+    return rows
+        .map((r) => PublicacaoSocial.fromJson(
+              jsonDecode(r['dados_json'] as String? ?? '{}')
+                  as Map<String, dynamic>,
+            ))
+        .where((p) => p.excluida)
+        .toList();
   }
 
   static Future<void> salvarReacao(ReacaoSocial reacao) async {
@@ -319,11 +460,25 @@ class TimelineRepositorioSqlite {
   }) async {
     final db = await obterDb();
     final cpfNorm = normalizarCpf(usuarioCpf);
-    await db.delete(
+    final rows = await db.query(
       'reacoes_sociais',
       where: 'publicacao_id = ? AND usuario_cpf = ?',
       whereArgs: [publicacaoId, cpfNorm],
     );
+    final agora = DateTime.now();
+    for (final r in rows) {
+      try {
+        final reacao = ReacaoSocial.fromJson(
+          jsonDecode(r['dados_json'] as String? ?? '{}')
+              as Map<String, dynamic>,
+        );
+        final tombstone = reacao.copyWith(
+          excluida: true,
+          atualizadaEm: agora,
+        );
+        await salvarReacao(tombstone);
+      } catch (_) {}
+    }
   }
 
   static Future<List<ReacaoSocial>> listarReacoesDaPublicacao(
@@ -336,10 +491,15 @@ class TimelineRepositorioSqlite {
       whereArgs: [publicacaoId],
       orderBy: 'criada_em DESC',
     );
-    return rows.map((r) {
-      final jsonStr = r['dados_json'] as String? ?? '{}';
-      return ReacaoSocial.fromJson(jsonDecode(jsonStr) as Map<String, dynamic>);
-    }).toList();
+    return rows
+        .map((r) {
+          final jsonStr = r['dados_json'] as String? ?? '{}';
+          return ReacaoSocial.fromJson(
+            jsonDecode(jsonStr) as Map<String, dynamic>,
+          );
+        })
+        .where((r) => !r.excluida)
+        .toList();
   }
 
   static Future<List<ReacaoSocial>> listarReacoesDoUsuario(String cpf) async {
@@ -352,10 +512,15 @@ class TimelineRepositorioSqlite {
       orderBy: 'criada_em DESC',
       limit: 100,
     );
-    return rows.map((r) {
-      final jsonStr = r['dados_json'] as String? ?? '{}';
-      return ReacaoSocial.fromJson(jsonDecode(jsonStr) as Map<String, dynamic>);
-    }).toList();
+    return rows
+        .map((r) {
+          final jsonStr = r['dados_json'] as String? ?? '{}';
+          return ReacaoSocial.fromJson(
+            jsonDecode(jsonStr) as Map<String, dynamic>,
+          );
+        })
+        .where((r) => !r.excluida)
+        .toList();
   }
 
   static Future<void> salvarComentario(ComentarioSocial comentario) async {
@@ -422,6 +587,7 @@ class TimelineRepositorioSqlite {
         'criado_em': story.criadoEm.toIso8601String(),
         'expira_em': story.expiraEm?.toIso8601String(),
         'excluido': story.excluido ? 1 : 0,
+        'arquivado': story.arquivado ? 1 : 0,
         'dados_json': jsonEncode(story.toJson()),
       },
       conflictAlgorithm: ConflictAlgorithm.replace,
@@ -453,6 +619,7 @@ class TimelineRepositorioSqlite {
         .where(
           (s) =>
               !s.excluido &&
+              !s.arquivado &&
               s.estaAtivo &&
               agora.difference(s.criadoEm).inHours < 24,
         )
@@ -492,6 +659,8 @@ class TimelineRepositorioSqlite {
       FROM publicacoes_sociais p
       LEFT JOIN publicacoes_coautores c ON c.publicacao_id = p.id
       WHERE p.excluida = 0
+        AND COALESCE(p.arquivada, 0) = 0
+        AND p.tipo != 'republicacoes'
         AND (p.autor_cpf = ? OR c.cpf = ?);
     ''', [cpfNorm, cpfNorm]);
     if (rows.isEmpty) return 0;
@@ -699,8 +868,37 @@ class TimelineRepositorioSqlite {
     );
   }
 
+  static Future<Map<String, PublicacaoSocial>> buscarPublicacoesPorIds(
+    List<String> ids, {
+    bool incluirExcluidas = false,
+  }) async {
+    final unicos = ids.where((id) => id.trim().isNotEmpty).toSet().toList();
+    if (unicos.isEmpty) return {};
+    final db = await obterDb();
+    final placeholders = List.filled(unicos.length, '?').join(', ');
+    final rows = await db.query(
+      'publicacoes_sociais',
+      where: 'id IN ($placeholders)',
+      whereArgs: unicos,
+    );
+    final mapa = <String, PublicacaoSocial>{};
+    for (final r in rows) {
+      try {
+        final pub = PublicacaoSocial.fromJson(
+          jsonDecode(r['dados_json'] as String? ?? '{}')
+              as Map<String, dynamic>,
+        );
+        if (pub.id.isEmpty) continue;
+        if (!incluirExcluidas && (pub.excluida || pub.arquivada)) continue;
+        mapa[pub.id] = pub;
+      } catch (_) {}
+    }
+    return mapa;
+  }
+
   static Future<List<PublicacaoSocial>> listarPublicacoesDescoberta({
     List<String> tags = const [],
+    List<String>? apenasAutoresCpfs,
     int limit = 60,
     int offset = 0,
   }) async {
@@ -711,14 +909,37 @@ class TimelineRepositorioSqlite {
         .toSet()
         .toList();
 
-    if (tagsLimpas.isEmpty) {
-      final rows = await db.query(
-        'publicacoes_sociais',
-        where: "excluida = 0 AND tipo != 'republicacoes'",
-        orderBy: 'criada_em DESC',
-        limit: limit,
-        offset: offset,
+    final autoresNorm = apenasAutoresCpfs
+        ?.map(normalizarCpf)
+        .where((c) => c.isNotEmpty)
+        .toSet()
+        .toList();
+    if (autoresNorm != null && autoresNorm.isEmpty) {
+      return const [];
+    }
+
+    final args = <Object?>[];
+    final whereBuf = StringBuffer(
+      "p.excluida = 0 AND COALESCE(p.arquivada, 0) = 0 AND p.tipo != 'republicacoes'",
+    );
+    if (autoresNorm != null) {
+      final phAut = List.filled(autoresNorm.length, '?').join(', ');
+      whereBuf.write(
+        ' AND (p.autor_cpf IN ($phAut) OR p.id IN (SELECT publicacao_id FROM publicacoes_coautores WHERE cpf IN ($phAut)))',
       );
+      args.addAll(autoresNorm);
+      args.addAll(autoresNorm);
+    }
+
+    if (tagsLimpas.isEmpty) {
+      args.addAll([limit, offset]);
+      final rows = await db.rawQuery('''
+        SELECT p.dados_json
+        FROM publicacoes_sociais p
+        WHERE $whereBuf
+        ORDER BY p.criada_em DESC
+        LIMIT ? OFFSET ?;
+      ''', args);
       return rows
           .map(
             (r) => PublicacaoSocial.fromJson(
@@ -730,16 +951,16 @@ class TimelineRepositorioSqlite {
     }
 
     final placeholders = List.filled(tagsLimpas.length, '?').join(', ');
+    args.addAll([...tagsLimpas, limit, offset]);
     final rows = await db.rawQuery('''
       SELECT DISTINCT p.dados_json, p.criada_em
       FROM publicacoes_sociais p
       INNER JOIN publicacoes_tags t ON t.publicacao_id = p.id
-      WHERE p.excluida = 0
-        AND p.tipo != 'republicacoes'
+      WHERE $whereBuf
         AND t.tag IN ($placeholders)
       ORDER BY p.criada_em DESC
       LIMIT ? OFFSET ?;
-    ''', [...tagsLimpas, limit, offset]);
+    ''', args);
 
     return rows
         .map(

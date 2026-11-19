@@ -1,3 +1,5 @@
+import 'package:nous/src/features/timeline/models/publicacao_social.dart';
+
 enum TipoReacaoSocial {
   like,
   deslike,
@@ -11,6 +13,8 @@ class ReacaoSocial {
   final String usuarioFoto;
   final TipoReacaoSocial tipo;
   final DateTime criadaEm;
+  final DateTime? atualizadaEm;
+  final bool excluida;
 
   const ReacaoSocial({
     required this.id,
@@ -20,7 +24,11 @@ class ReacaoSocial {
     this.usuarioFoto = '',
     required this.tipo,
     required this.criadaEm,
+    this.atualizadaEm,
+    this.excluida = false,
   });
+
+  DateTime get atualizadaEfetiva => atualizadaEm ?? criadaEm;
 
   ReacaoSocial copyWith({
     String? id,
@@ -30,6 +38,8 @@ class ReacaoSocial {
     String? usuarioFoto,
     TipoReacaoSocial? tipo,
     DateTime? criadaEm,
+    DateTime? atualizadaEm,
+    bool? excluida,
   }) {
     return ReacaoSocial(
       id: id ?? this.id,
@@ -39,6 +49,8 @@ class ReacaoSocial {
       usuarioFoto: usuarioFoto ?? this.usuarioFoto,
       tipo: tipo ?? this.tipo,
       criadaEm: criadaEm ?? this.criadaEm,
+      atualizadaEm: atualizadaEm ?? this.atualizadaEm,
+      excluida: excluida ?? this.excluida,
     );
   }
 
@@ -50,6 +62,8 @@ class ReacaoSocial {
         'usuarioFoto': usuarioFoto,
         'tipo': tipo.name,
         'criadaEm': criadaEm.toIso8601String(),
+        'atualizadaEm': (atualizadaEm ?? criadaEm).toIso8601String(),
+        'excluida': excluida,
       };
 
   factory ReacaoSocial.fromJson(Map<String, dynamic> json) {
@@ -65,6 +79,10 @@ class ReacaoSocial {
       ),
       criadaEm:
           DateTime.tryParse(json['criadaEm'] as String? ?? '') ?? DateTime.now(),
+      atualizadaEm: json['atualizadaEm'] != null
+          ? DateTime.tryParse(json['atualizadaEm'] as String)
+          : null,
+      excluida: json['excluida'] == true || json['excluida'] == 1,
     );
   }
 }
@@ -78,6 +96,7 @@ class ComentarioSocial {
   final String texto;
   final String respostaDeId;
   final DateTime criadaEm;
+  final DateTime? atualizadaEm;
   final bool excluido;
   final bool fixado;
 
@@ -90,9 +109,12 @@ class ComentarioSocial {
     required this.texto,
     this.respostaDeId = '',
     required this.criadaEm,
+    this.atualizadaEm,
     this.excluido = false,
     this.fixado = false,
   });
+
+  DateTime get atualizadaEfetiva => atualizadaEm ?? criadaEm;
 
   ComentarioSocial copyWith({
     String? id,
@@ -103,6 +125,7 @@ class ComentarioSocial {
     String? texto,
     String? respostaDeId,
     DateTime? criadaEm,
+    DateTime? atualizadaEm,
     bool? excluido,
     bool? fixado,
   }) {
@@ -115,6 +138,7 @@ class ComentarioSocial {
       texto: texto ?? this.texto,
       respostaDeId: respostaDeId ?? this.respostaDeId,
       criadaEm: criadaEm ?? this.criadaEm,
+      atualizadaEm: atualizadaEm ?? this.atualizadaEm,
       excluido: excluido ?? this.excluido,
       fixado: fixado ?? this.fixado,
     );
@@ -129,6 +153,7 @@ class ComentarioSocial {
         'texto': texto,
         'respostaDeId': respostaDeId,
         'criadaEm': criadaEm.toIso8601String(),
+        'atualizadaEm': (atualizadaEm ?? criadaEm).toIso8601String(),
         'excluido': excluido,
         'fixado': fixado,
       };
@@ -144,6 +169,9 @@ class ComentarioSocial {
       respostaDeId: json['respostaDeId'] as String? ?? '',
       criadaEm:
           DateTime.tryParse(json['criadaEm'] as String? ?? '') ?? DateTime.now(),
+      atualizadaEm: json['atualizadaEm'] != null
+          ? DateTime.tryParse(json['atualizadaEm'] as String)
+          : null,
       excluido: json['excluido'] == true || json['excluido'] == 1,
       fixado: json['fixado'] == true || json['fixado'] == 1,
     );
@@ -153,10 +181,16 @@ class ComentarioSocial {
 /// Item consolidado para o feed público "Interações na Rede" do usuário.
 class RegistroInteracaoUsuario {
   final String id;
-  final String tipoAcao; // 'like', 'deslike', 'comentario', 'republicacao'
+  final String tipoAcao; // 'like', 'deslike', 'comentario', 'republicacao', 'salvo', 'denuncia'
   final String publicacaoId;
   final String resumo;
   final DateTime dataHora;
+  final String alvoCpf;
+  final String alvoNome;
+  final String alvoFoto;
+  final String tipoFeed;
+  final String trechoPost;
+  final PublicacaoSocial? publicacao;
 
   const RegistroInteracaoUsuario({
     required this.id,
@@ -164,5 +198,11 @@ class RegistroInteracaoUsuario {
     required this.publicacaoId,
     required this.resumo,
     required this.dataHora,
+    this.alvoCpf = '',
+    this.alvoNome = '',
+    this.alvoFoto = '',
+    this.tipoFeed = '',
+    this.trechoPost = '',
+    this.publicacao,
   });
 }

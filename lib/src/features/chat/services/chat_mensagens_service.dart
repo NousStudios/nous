@@ -675,7 +675,7 @@ class ChatMensagensService {
           'AND remetente_id NOT LIKE \'loja_%\' '
           'AND remetente_id != \'\' '
           'AND tipo NOT IN (\'mensagem_entregue\', \'mensagens_lidas\') '
-          'AND conversa_id NOT IN (SELECT conversa_id FROM conversas_excluidas) '
+          'AND conversa_id NOT IN (SELECT id FROM conversas_excluidas) '
           'AND lida = 0$condicaoAtiva',
       whereArgs: [
         idLimpo,
@@ -730,7 +730,7 @@ class ChatMensagensService {
           'AND remetente_id NOT IN (?, ?, ?) '
           'AND remetente_id != \'\' '
           'AND tipo NOT IN (\'mensagem_entregue\', \'mensagens_lidas\') '
-          'AND conversa_id NOT IN (SELECT conversa_id FROM conversas_excluidas) '
+          'AND conversa_id NOT IN (SELECT id FROM conversas_excluidas) '
           'AND lida = 0$condicaoAtiva',
       whereArgs: [
         cpfNorm,

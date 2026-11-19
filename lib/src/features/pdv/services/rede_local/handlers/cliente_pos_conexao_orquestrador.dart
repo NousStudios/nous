@@ -80,51 +80,51 @@ class ClientePosConexaoOrquestrador {
     try {
       unawaited(verificarAtualizacaoLocal());
 
-      await RelogioRedeService.instancia.sincronizarComServidor(
-        ip: ipServidor,
-        porta: portaServidor,
-      );
-
-      if (lojaBrutaParaReconciliar != null) {
-        try {
-          final lojaReconciliada = await reconciliarLojaMutua(
-            lojaBrutaParaReconciliar,
-            imagensAusentesParaReconciliar,
-          );
-          onLojaSincronizada(lojaReconciliada);
-          await pdvProvider?.adicionarOuAtualizarLoja(lojaReconciliada);
-          if (fotosUsuariosAusentesParaReconciliar.isNotEmpty) {
-            curarFotosUsuariosAusentesNoServidor(
-              fotosUsuariosAusentesParaReconciliar,
-            );
-          }
-        } catch (e) {
-          debugPrint('[ClientePosConexaoOrquestrador] Reconciliação mútua assíncrona de mídia: $e');
-        }
-      }
-
-      await sincronizarIdentidadeUsuario();
-      await reconciliarContasComServidor();
-      await sincronizarPerfisLojasComServidor();
-      await ChatService.sincronizarMensagensComBalcao(
-        ipServidor: ipServidor,
-        portaServidor: portaServidor,
-        cpfUsuario: cpfLogado,
-        lojaId: idLojaSincronizada,
-      );
-      if (idLojaSincronizada != PdvProvider.idLojaColetivaNous) {
-        await Future.delayed(const Duration(milliseconds: 600));
-        await ChatService.sincronizarMensagensComBalcao(
+      // Executa sincronizações independentes em paralelo para reduzir latência de conexão
+      await Future.wait([
+        RelogioRedeService.instancia.sincronizarComServidor(
+          ip: ipServidor,
+          porta: portaServidor,
+        ),
+        if (lojaBrutaParaReconciliar != null)
+          () async {
+            try {
+              final lojaReconciliada = await reconciliarLojaMutua(
+                lojaBrutaParaReconciliar,
+                imagensAusentesParaReconciliar,
+              );
+              onLojaSincronizada(lojaReconciliada);
+              await pdvProvider?.adicionarOuAtualizarLoja(lojaReconciliada);
+              if (fotosUsuariosAusentesParaReconciliar.isNotEmpty) {
+                curarFotosUsuariosAusentesNoServidor(
+                  fotosUsuariosAusentesParaReconciliar,
+                );
+              }
+            } catch (e) {
+              debugPrint('[ClientePosConexaoOrquestrador] Reconciliação mútua assíncrona de mídia: $e');
+            }
+          }(),
+        sincronizarIdentidadeUsuario(),
+        reconciliarContasComServidor(),
+        sincronizarPerfisLojasComServidor(),
+        ChatService.sincronizarMensagensComBalcao(
           ipServidor: ipServidor,
           portaServidor: portaServidor,
-          lojaId: PdvProvider.idLojaColetivaNous,
-        );
-      }
+          cpfUsuario: cpfLogado,
+          lojaId: idLojaSincronizada,
+        ),
+        if (idLojaSincronizada != PdvProvider.idLojaColetivaNous)
+          ChatService.sincronizarMensagensComBalcao(
+            ipServidor: ipServidor,
+            portaServidor: portaServidor,
+            lojaId: PdvProvider.idLojaColetivaNous,
+          ),
+        TimelineService.sincronizarComServidorHttp(
+          ip: ipServidor,
+          porta: portaServidor,
+        ),
+      ]);
       await ChatService.drenarFilaDeSaida();
-      await TimelineService.sincronizarComServidorHttp(
-        ip: ipServidor,
-        porta: portaServidor,
-      );
       unawaited(
         Future.delayed(
           const Duration(seconds: 3),

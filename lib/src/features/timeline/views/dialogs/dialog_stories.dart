@@ -1,11 +1,13 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:nous/src/core/theme/theme_controller.dart';
 import 'package:nous/src/features/auth/models/usuario_nous.dart';
 import 'package:nous/src/features/auth/services/contas_nous_service.dart';
 import 'package:nous/src/features/pdv/services/imagem_service.dart';
 import 'package:nous/src/features/timeline/models/story_social.dart';
+import 'package:nous/src/features/timeline/services/timeline_repositorio_sqlite.dart';
 import 'package:nous/src/features/timeline/services/timeline_service.dart';
 
 export 'dialog_criar_story.dart';
@@ -149,13 +151,22 @@ class _DialogVisualizarStoryState extends State<DialogVisualizarStory>
     }
   }
 
+  bool _fechando = false;
+
+  void _fecharSeguro() {
+    if (_fechando || !mounted) return;
+    _fechando = true;
+    _timerCtrl.stop();
+    Navigator.of(context).pop();
+  }
+
   void _avancarStory() {
-    if (!mounted) return;
+    if (!mounted || _fechando) return;
     if (_indiceAtual < _stories.length - 1) {
       setState(() => _indiceAtual++);
       _iniciarStoryAtual();
     } else {
-      Navigator.of(context).pop();
+      _fecharSeguro();
     }
   }
 
@@ -353,6 +364,36 @@ class _DialogVisualizarStoryState extends State<DialogVisualizarStory>
     }
   }
 
+  Future<void> _arquivarStory() async {
+    final arquivado = _storyAtual.copyWith(
+      arquivado: !_storyAtual.arquivado,
+      atualizadoEm: DateTime.now(),
+    );
+    await TimelineRepositorioSqlite.salvarStory(arquivado);
+    TimelineService.notificarAlteracao();
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          arquivado.arquivado
+              ? 'Story arquivado em Arquivos da Conta.'
+              : 'Story restaurado dos arquivos.',
+        ),
+      ),
+    );
+    if (_stories.length <= 1) {
+      Navigator.of(context).pop();
+    } else {
+      setState(() {
+        _stories.removeAt(_indiceAtual);
+        if (_indiceAtual >= _stories.length) {
+          _indiceAtual = _stories.length - 1;
+        }
+      });
+      _iniciarStoryAtual();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = widget.theme;
@@ -427,22 +468,67 @@ class _DialogVisualizarStoryState extends State<DialogVisualizarStory>
                             future: TimelineService.resolverCaminhoMidia(
                               story.caminhoMidia,
                             ),
-                            builder: (context, snap) {
-                              final path = snap.data;
-                              if (path == null) {
-                                return const Center(
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                    color: Colors.white,
+                              builder: (context, snap) {
+                                final path = snap.data;
+                                if (path == null) {
+                                  if (snap.connectionState ==
+                                      ConnectionState.done) {
+                                    return const Center(
+                                      child: Icon(
+                                        Icons.broken_image_outlined,
+                                        color: Colors.white54,
+                                        size: 48,
+                                      ),
+                                    );
+                                  }
+                                  return const Center(
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      color: Colors.white,
+                                    ),
+                                  );
+                                }
+                                if (story.tipoMidia == 'video') {
+                                  return Center(
+                                    child: ElevatedButton.icon(
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: theme.buttonColor,
+                                        foregroundColor: theme.buttonTextColor,
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 20,
+                                          vertical: 14,
+                                        ),
+                                      ),
+                                      icon: const Icon(
+                                        Icons.play_circle_fill_rounded,
+                                        size: 28,
+                                      ),
+                                      label: const Text('Reproduzir vídeo'),
+                                      onPressed: () async {
+                                        try {
+                                          await launchUrl(
+                                            Uri.file(path),
+                                            mode:
+                                                LaunchMode.externalApplication,
+                                          );
+                                        } catch (_) {}
+                                      },
+                                    ),
+                                  );
+                                }
+                                return Image.file(
+                                  File(path),
+                                  fit: BoxFit.contain,
+                                  cacheWidth: 1080,
+                                  errorBuilder: (_, _, _) => const Center(
+                                    child: Icon(
+                                      Icons.broken_image_outlined,
+                                      color: Colors.white54,
+                                      size: 48,
+                                    ),
                                   ),
                                 );
-                              }
-                              return Image.file(
-                                File(path),
-                                fit: BoxFit.contain,
-                                cacheWidth: 1080,
-                              );
-                            },
+                              },
                           )
                         else
                           Container(
@@ -601,51 +687,6 @@ class _DialogVisualizarStoryState extends State<DialogVisualizarStory>
                                         ],
                                       ),
                                     ),
-                                    if (widget.ehAutor) ...[
-                                      IconButton(
-                                        tooltip: 'Visualizações',
-                                        icon: Row(
-                                          mainAxisSize: MainAxisSize.min,
-                                          children: [
-                                            const Icon(
-                                              Icons.visibility_outlined,
-                                              color: Colors.white,
-                                              size: 18,
-                                            ),
-                                            const SizedBox(width: 3),
-                                            Text(
-                                              '${story.visualizadoPorCpfs.length}',
-                                              style: theme.getTextStyle(
-                                                fontSize: 11.5,
-                                                fontWeight: FontWeight.bold,
-                                                color: Colors.white,
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                        onPressed: _mostrarVisualizadores,
-                                      ),
-                                      IconButton(
-                                        tooltip: story.ehDestaquePermanente
-                                            ? 'Remover dos Destaques'
-                                            : 'Fixar nos Destaques',
-                                        icon: Icon(
-                                          story.ehDestaquePermanente
-                                              ? Icons.bookmark_rounded
-                                              : Icons.bookmark_border_rounded,
-                                          color: Colors.white,
-                                        ),
-                                        onPressed: _alternarDestaque,
-                                      ),
-                                      IconButton(
-                                        tooltip: 'Excluir story',
-                                        icon: Icon(
-                                          Icons.delete_outline,
-                                          color: theme.dangerColor,
-                                        ),
-                                        onPressed: _confirmarExclusao,
-                                      ),
-                                    ],
                                     IconButton(
                                       icon: const Icon(
                                         Icons.close,
@@ -661,7 +702,138 @@ class _DialogVisualizarStoryState extends State<DialogVisualizarStory>
                           ),
                         ),
 
-                        // 3. Rodapé: Resposta rápida e Reações no Chat (para visitantes)
+                        // 3. Rodapé estilo Instagram: Visualizadores + Destacar / Arquivar / Excluir (para autor)
+                        if (widget.ehAutor)
+                          Positioned(
+                            left: 12,
+                            right: 12,
+                            bottom: 10,
+                            child: AnimatedOpacity(
+                              duration: const Duration(milliseconds: 180),
+                              opacity: _ocultarChrome ? 0.0 : 1.0,
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  GestureDetector(
+                                    onTap: _mostrarVisualizadores,
+                                    child: Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 12,
+                                        vertical: 8,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color:
+                                            Colors.black.withValues(alpha: 0.55),
+                                        borderRadius: BorderRadius.circular(14),
+                                        border: Border.all(
+                                          color: Colors.white.withValues(
+                                            alpha: 0.22,
+                                          ),
+                                        ),
+                                      ),
+                                      child: Row(
+                                        children: [
+                                          Expanded(
+                                            child: FutureBuilder<List<UsuarioNous>>(
+                                              future:
+                                                  ContasNousService.carregarTodas(),
+                                              builder: (context, snap) {
+                                                final cpfs =
+                                                    story.visualizadoPorCpfs;
+                                                if (cpfs.isEmpty) {
+                                                  return Row(
+                                                    children: [
+                                                      const Icon(
+                                                        Icons
+                                                            .visibility_outlined,
+                                                        color: Colors.white,
+                                                        size: 16,
+                                                      ),
+                                                      const SizedBox(width: 6),
+                                                      Flexible(
+                                                        child: Text(
+                                                          '0 visualizações',
+                                                          overflow: TextOverflow
+                                                              .ellipsis,
+                                                          style: theme
+                                                              .getTextStyle(
+                                                            fontSize: 12,
+                                                            color: Colors.white
+                                                                .withValues(
+                                                              alpha: 0.85,
+                                                            ),
+                                                          ),
+                                                        ),
+                                                      ),
+                                                    ],
+                                                  );
+                                                }
+                                                return Row(
+                                                  children: [
+                                                    const Icon(
+                                                      Icons.visibility_outlined,
+                                                      color: Colors.white,
+                                                      size: 16,
+                                                    ),
+                                                    const SizedBox(width: 6),
+                                                    Text(
+                                                      '${cpfs.length} visualizações',
+                                                      style: theme.getTextStyle(
+                                                        fontSize: 12,
+                                                        fontWeight:
+                                                            FontWeight.bold,
+                                                        color: Colors.white,
+                                                      ),
+                                                    ),
+                                                  ],
+                                                );
+                                              },
+                                            ),
+                                          ),
+                                          IconButton(
+                                            visualDensity: VisualDensity.compact,
+                                            tooltip: story.ehDestaquePermanente
+                                                ? 'Remover destaque'
+                                                : 'Destacar',
+                                            icon: Icon(
+                                              story.ehDestaquePermanente
+                                                  ? Icons.bookmark_rounded
+                                                  : Icons
+                                                      .bookmark_border_rounded,
+                                              color: Colors.white,
+                                              size: 20,
+                                            ),
+                                            onPressed: _alternarDestaque,
+                                          ),
+                                          IconButton(
+                                            visualDensity: VisualDensity.compact,
+                                            tooltip: 'Arquivar story',
+                                            icon: const Icon(
+                                              Icons.archive_outlined,
+                                              color: Colors.white,
+                                              size: 20,
+                                            ),
+                                            onPressed: _arquivarStory,
+                                          ),
+                                          IconButton(
+                                            visualDensity: VisualDensity.compact,
+                                            tooltip: 'Excluir story',
+                                            icon: Icon(
+                                              Icons.delete_outline,
+                                              color: theme.dangerColor,
+                                              size: 20,
+                                            ),
+                                            onPressed: _confirmarExclusao,
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+
                         if (!widget.ehAutor && widget.usuarioLogado != null)
                           Positioned(
                             left: 12,

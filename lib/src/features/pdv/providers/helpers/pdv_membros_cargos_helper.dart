@@ -33,14 +33,20 @@ class PdvMembrosCargosHelper {
     );
   }
 
+  static String _normalizarCpf(String cpf) =>
+      cpf.replaceAll(RegExp(r'\D'), '');
+
   static Loja? adicionarMembro(Loja loja, MembroLoja membro) {
-    if (loja.membros.any((m) => m.cpf == membro.cpf)) return null;
+    final cpfNorm = _normalizarCpf(membro.cpf);
+    if (loja.membros.any((m) => _normalizarCpf(m.cpf) == cpfNorm)) return null;
     return loja.copyWith(membros: [...loja.membros, membro]);
   }
 
   static Loja removerMembro(Loja loja, String cpfMembro) {
-    final restantes =
-        loja.membros.where((m) => m.cpf != cpfMembro).toList();
+    final cpfNorm = _normalizarCpf(cpfMembro);
+    final restantes = loja.membros
+        .where((m) => _normalizarCpf(m.cpf) != cpfNorm)
+        .toList();
     return loja.copyWith(membros: restantes);
   }
 

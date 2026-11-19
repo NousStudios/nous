@@ -8,8 +8,10 @@ import 'package:nous/src/features/auth/views/widgets/editar_perfil_dialog.dart';
 import 'package:nous/src/features/pdv/views/widgets/estado_vazio_container.dart';
 import 'package:nous/src/features/timeline/models/publicacao_social.dart';
 import 'package:nous/src/features/timeline/models/story_social.dart';
+import 'package:nous/src/features/timeline/services/timeline_repositorio_sqlite.dart';
 import 'package:nous/src/features/timeline/services/timeline_service.dart';
 import 'package:nous/src/features/timeline/views/dialogs/dialog_stories.dart';
+import 'package:nous/src/features/timeline/views/widgets/abas_arquivos_conta_widget.dart';
 
 /// Central "Conta" do Perfil Social (inspirada no Arquivo/Calendário e Configurações do Instagram).
 class CentralContaSocialView extends StatefulWidget {
@@ -57,9 +59,11 @@ class _CentralContaSocialViewState extends State<CentralContaSocialView> {
     'Dezembro',
   ];
 
-  int _aba = 0; // 0: Calendário de Stories, 1: Arquivo & Destaques, 2: Conta & Timelines
+  int _aba = 0; // 0: Calendário, 1: Stories, 2: Arquivados, 3: Excluídos, 4: Config
   DateTime _mesVisivel = DateTime(DateTime.now().year, DateTime.now().month, 1);
   List<StorySocial> _historicoStories = [];
+  List<PublicacaoSocial> _publicacoesArquivadas = [];
+  List<PublicacaoSocial> _publicacoesExcluidas = [];
   List<TipoFeedSocial> _timelinesVisiveis = [];
   bool _carregando = true;
 
@@ -80,12 +84,18 @@ class _CentralContaSocialViewState extends State<CentralContaSocialView> {
     final stories = await TimelineService.listarTodosStoriesHistorico(
       widget.usuario.cpf,
     );
+    final pubArq = await TimelineRepositorioSqlite
+        .listarPublicacoesArquivadasDoUsuario(widget.usuario.cpf);
+    final pubExc = await TimelineRepositorioSqlite
+        .listarPublicacoesExcluidasDoUsuario(widget.usuario.cpf);
     final visiveis = await TimelineService.obterTimelinesVisiveis(
       widget.usuario.cpf,
     );
     if (!mounted) return;
     setState(() {
       _historicoStories = stories;
+      _publicacoesArquivadas = pubArq;
+      _publicacoesExcluidas = pubExc;
       _timelinesVisiveis = visiveis;
       _carregando = false;
     });
@@ -160,7 +170,7 @@ class _CentralContaSocialViewState extends State<CentralContaSocialView> {
                       ),
                       Expanded(
                         child: Text(
-                          'Conta e Arquivo de Stories',
+                          'Arquivos da Conta',
                           textAlign: TextAlign.center,
                           style: theme.getTextStyle(
                             fontSize: 16,
@@ -181,29 +191,46 @@ class _CentralContaSocialViewState extends State<CentralContaSocialView> {
                 // Abas superiores
                 Padding(
                   padding: const EdgeInsets.fromLTRB(12, 10, 12, 6),
-                  child: Row(
-                    children: [
-                      _buildBotaoAba(
-                        theme,
-                        0,
-                        Icons.calendar_month_outlined,
-                        'Calendário',
-                      ),
-                      const SizedBox(width: 8),
-                      _buildBotaoAba(
-                        theme,
-                        1,
-                        Icons.history_toggle_off_rounded,
-                        'Arquivo (${_historicoStories.length})',
-                      ),
-                      const SizedBox(width: 8),
-                      _buildBotaoAba(
-                        theme,
-                        2,
-                        Icons.tune_rounded,
-                        'Configurações',
-                      ),
-                    ],
+                  child: SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: Row(
+                      children: [
+                        _buildBotaoAba(
+                          theme,
+                          0,
+                          Icons.calendar_month_outlined,
+                          'Calendário',
+                        ),
+                        const SizedBox(width: 6),
+                        _buildBotaoAba(
+                          theme,
+                          1,
+                          Icons.history_toggle_off_rounded,
+                          'Stories (${_historicoStories.where((s) => !s.arquivado).length})',
+                        ),
+                        const SizedBox(width: 6),
+                        _buildBotaoAba(
+                          theme,
+                          2,
+                          Icons.archive_outlined,
+                          'Arquivados (${_publicacoesArquivadas.length + _historicoStories.where((s) => s.arquivado).length})',
+                        ),
+                        const SizedBox(width: 6),
+                        _buildBotaoAba(
+                          theme,
+                          3,
+                          Icons.delete_outline,
+                          'Excluídos (${_publicacoesExcluidas.length})',
+                        ),
+                        const SizedBox(width: 6),
+                        _buildBotaoAba(
+                          theme,
+                          4,
+                          Icons.tune_rounded,
+                          'Config',
+                        ),
+                      ],
+                    ),
                   ),
                 ),
 
@@ -216,7 +243,47 @@ class _CentralContaSocialViewState extends State<CentralContaSocialView> {
                           ? _buildAbaCalendario(theme)
                           : _aba == 1
                               ? _buildAbaArquivo(theme)
-                              : _buildAbaConfiguracoes(theme),
+                              : _aba == 2
+                                  ? AbaArquivadosContaWidget(
+                                      theme: theme,
+                                      publicacoesArquivadas:
+                                          _publicacoesArquivadas,
+                                      storiesArquivados: _historicoStories
+                                          .where((s) => s.arquivado)
+                                          .toList(),
+                                      onRestaurarPublicacao: (pub) async {
+                                        await TimelineService.arquivarPublicacao(
+                                          pub,
+                                          arquivar: false,
+                                        );
+                                        await _recarregar();
+                                      },
+                                      onRestaurarStory: (story) async {
+                                        await TimelineRepositorioSqlite
+                                            .salvarStory(
+                                          story.copyWith(
+                                            arquivado: false,
+                                            atualizadoEm: DateTime.now(),
+                                          ),
+                                        );
+                                        TimelineService.notificarAlteracao();
+                                        await _recarregar();
+                                      },
+                                    )
+                                  : _aba == 3
+                                      ? AbaExcluidosContaWidget(
+                                          theme: theme,
+                                          publicacoesExcluidas:
+                                              _publicacoesExcluidas,
+                                          onRecuperarPublicacao: (pub) async {
+                                            await TimelineService
+                                                .restaurarPublicacaoExcluida(
+                                              pub,
+                                            );
+                                            await _recarregar();
+                                          },
+                                        )
+                                      : _buildAbaConfiguracoes(theme),
                 ),
               ],
             ),
@@ -233,13 +300,12 @@ class _CentralContaSocialViewState extends State<CentralContaSocialView> {
     String rotulo,
   ) {
     final ativo = _aba == indice;
-    return Expanded(
-      child: InkWell(
-        borderRadius: BorderRadius.circular(10),
-        onTap: () => setState(() => _aba = indice),
-        child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 9, horizontal: 6),
-          decoration: BoxDecoration(
+    return InkWell(
+      borderRadius: BorderRadius.circular(10),
+      onTap: () => setState(() => _aba = indice),
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 9, horizontal: 12),
+        decoration: BoxDecoration(
             color: ativo ? theme.buttonColor : theme.cardBackgroundColor,
             borderRadius: BorderRadius.circular(10),
             border: Border.all(
@@ -257,21 +323,18 @@ class _CentralContaSocialViewState extends State<CentralContaSocialView> {
                 color: ativo ? theme.buttonTextColor : theme.textColor,
               ),
               const SizedBox(width: 5),
-              Flexible(
-                child: Text(
-                  rotulo,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: theme.getTextStyle(
-                    fontSize: 12,
-                    fontWeight: ativo ? FontWeight.bold : FontWeight.w500,
-                    color: ativo ? theme.buttonTextColor : theme.textColor,
-                  ),
+              Text(
+                rotulo,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: theme.getTextStyle(
+                  fontSize: 12,
+                  fontWeight: ativo ? FontWeight.bold : FontWeight.w500,
+                  color: ativo ? theme.buttonTextColor : theme.textColor,
                 ),
               ),
             ],
           ),
-        ),
       ),
     );
   }

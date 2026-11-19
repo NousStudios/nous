@@ -127,6 +127,12 @@ class PublicacaoSocial {
   final DateTime criadaEm;
   final DateTime atualizadaEm;
   final bool excluida;
+  final bool arquivada;
+  final bool fixada;
+  final int ordemManual;
+  final int visualizacoes;
+  final Map<String, int> visualizacoesPorOrigem;
+  final int tempoMedioVisualizacaoSegundos;
 
   const PublicacaoSocial({
     required this.id,
@@ -153,11 +159,28 @@ class PublicacaoSocial {
     required this.criadaEm,
     required this.atualizadaEm,
     this.excluida = false,
+    this.arquivada = false,
+    this.fixada = false,
+    this.ordemManual = 0,
+    this.visualizacoes = 0,
+    this.visualizacoesPorOrigem = const {},
+    this.tempoMedioVisualizacaoSegundos = 0,
   });
 
   /// Extrai #tags normalizadas (minúsculas, sem '#') de um texto.
   static List<String> extrairTags(String texto) {
     final regex = RegExp(r'#([\p{L}\p{N}_]+)', unicode: true);
+    return regex
+        .allMatches(texto)
+        .map((m) => (m.group(1) ?? '').toLowerCase())
+        .where((t) => t.isNotEmpty)
+        .toSet()
+        .toList();
+  }
+
+  /// Extrai @menções normalizadas (minúsculas, sem '@') de um texto.
+  static List<String> extrairMencoes(String texto) {
+    final regex = RegExp(r'@([a-zA-Z0-9._]+)');
     return regex
         .allMatches(texto)
         .map((m) => (m.group(1) ?? '').toLowerCase())
@@ -211,6 +234,12 @@ class PublicacaoSocial {
     DateTime? criadaEm,
     DateTime? atualizadaEm,
     bool? excluida,
+    bool? arquivada,
+    bool? fixada,
+    int? ordemManual,
+    int? visualizacoes,
+    Map<String, int>? visualizacoesPorOrigem,
+    int? tempoMedioVisualizacaoSegundos,
   }) {
     return PublicacaoSocial(
       id: id ?? this.id,
@@ -237,6 +266,14 @@ class PublicacaoSocial {
       criadaEm: criadaEm ?? this.criadaEm,
       atualizadaEm: atualizadaEm ?? this.atualizadaEm,
       excluida: excluida ?? this.excluida,
+      arquivada: arquivada ?? this.arquivada,
+      fixada: fixada ?? this.fixada,
+      ordemManual: ordemManual ?? this.ordemManual,
+      visualizacoes: visualizacoes ?? this.visualizacoes,
+      visualizacoesPorOrigem:
+          visualizacoesPorOrigem ?? this.visualizacoesPorOrigem,
+      tempoMedioVisualizacaoSegundos:
+          tempoMedioVisualizacaoSegundos ?? this.tempoMedioVisualizacaoSegundos,
     );
   }
 
@@ -265,6 +302,12 @@ class PublicacaoSocial {
         'criadaEm': criadaEm.toIso8601String(),
         'atualizadaEm': atualizadaEm.toIso8601String(),
         'excluida': excluida,
+        'arquivada': arquivada,
+        'fixada': fixada,
+        'ordemManual': ordemManual,
+        'visualizacoes': visualizacoes,
+        'visualizacoesPorOrigem': visualizacoesPorOrigem,
+        'tempoMedioVisualizacaoSegundos': tempoMedioVisualizacaoSegundos,
       };
 
   factory PublicacaoSocial.fromJson(Map<String, dynamic> json) {
@@ -310,6 +353,15 @@ class PublicacaoSocial {
       atualizadaEm:
           DateTime.tryParse(json['atualizadaEm'] as String? ?? '') ?? agora,
       excluida: json['excluida'] == true || json['excluida'] == 1,
+      arquivada: json['arquivada'] == true || json['arquivada'] == 1,
+      fixada: json['fixada'] == true || json['fixada'] == 1,
+      ordemManual: (json['ordemManual'] as num?)?.toInt() ?? 0,
+      visualizacoes: (json['visualizacoes'] as num?)?.toInt() ?? 0,
+      visualizacoesPorOrigem:
+          (json['visualizacoesPorOrigem'] as Map<dynamic, dynamic>? ?? const {})
+              .map((k, v) => MapEntry(k.toString(), (v as num?)?.toInt() ?? 0)),
+      tempoMedioVisualizacaoSegundos:
+          (json['tempoMedioVisualizacaoSegundos'] as num?)?.toInt() ?? 0,
     );
   }
 }

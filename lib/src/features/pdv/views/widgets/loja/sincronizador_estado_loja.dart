@@ -144,7 +144,7 @@ class SincronizadorEstadoLoja {
           novosFornecedores.map((f) => '${f.id}_${f.nome}_${f.cnpj}_${f.telefone}_${f.foto}').toList(),
         );
 
-    final logoMudou = lojaAtual.logo.isNotEmpty && logoAtual != lojaAtual.logo;
+    final logoMudou = logoAtual != lojaAtual.logo;
     final onlineMudou = lojaAtual.aberta != lojaOnlineAtual;
     final galeriaMudou = !listEquals(galeria, lojaAtual.galeria);
     final musicasMudaram = !listEquals(musicas, lojaAtual.musicas);

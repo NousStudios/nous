@@ -481,10 +481,19 @@ class _AvatarComAnelStoryChatState extends State<_AvatarComAnelStoryChat> {
     setState(() => _stories = s);
   }
 
+  Color _parseColor(String hex) {
+    final limpo = hex.replaceAll('#', '').trim();
+    final val = int.tryParse(limpo, radix: 16);
+    if (val == null) return const Color(0xFF2E7D32);
+    return Color(limpo.length == 6 ? (0xFF000000 | val) : val);
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_stories.isEmpty) return widget.child;
 
+    final authWatch = context.watch<AuthProvider?>();
+    final contaAlvo = authWatch?.buscarContaPorCpf(widget.cpfAlvo);
     final meuCpf =
         (widget.usuarioLogado?.cpf ?? '').replaceAll(RegExp(r'\D'), '');
     final ehAutor =
@@ -498,9 +507,10 @@ class _AvatarComAnelStoryChatState extends State<_AvatarComAnelStoryChat> {
               .contains(meuCpf),
         );
 
+    final corCustom = contaAlvo?.corStoryHex ?? '#2E7D32';
     final corAnel = todosVistos && !ehAutor
         ? widget.theme.secondaryTextColor.withValues(alpha: 0.55)
-        : widget.theme.buttonColor;
+        : _parseColor(corCustom);
 
     return GestureDetector(
       behavior: HitTestBehavior.opaque,

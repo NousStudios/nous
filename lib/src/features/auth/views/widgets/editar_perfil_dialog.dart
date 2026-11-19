@@ -52,6 +52,16 @@ class _EditarPerfilDialogState extends State<EditarPerfilDialog> {
     '#FFD700',
   ];
 
+  static const List<String> _paletaStory = [
+    '#2E7D32',
+    '#4CAF50',
+    '#34B7F1',
+    '#FF9800',
+    '#E91E63',
+    '#9C27B0',
+    '#FFD700',
+  ];
+
   @override
   void initState() {
     super.initState();
@@ -467,6 +477,13 @@ class _EditarPerfilDialogState extends State<EditarPerfilDialog> {
                     rotulo: 'Cor de Destaque',
                     chave: 'destaque',
                     paleta: _paletaDestaque,
+                  ),
+                  const SizedBox(height: 10),
+                  _seletorCorMinimalista(
+                    theme: theme,
+                    rotulo: 'Cor do Círculo do Story',
+                    chave: 'story',
+                    paleta: _paletaStory,
                   ),
                   const SizedBox(height: 16),
 

@@ -18,6 +18,7 @@ import 'package:nous/src/features/pdv/models/pedido_loja.dart';
 import 'package:nous/src/features/pdv/providers/pdv_provider.dart';
 import 'package:nous/src/features/pdv/services/lojas_service.dart';
 import 'package:nous/src/features/pdv/services/rede_local/cliente_rede_local.dart';
+import 'package:nous/src/features/pdv/services/rede_local/helpers/resolvedor_url_rede.dart';
 import 'package:nous/src/features/pdv/services/rede_local/servidor_rede_local.dart';
 
 /// Serviço desacoplado responsável pela orquestração do Autoatendimento no Chat:
@@ -67,7 +68,12 @@ class ChatAutoatendimentoService {
         try {
           final client = HttpClient()
             ..connectionTimeout = const Duration(seconds: 4);
-          final uri = Uri.http('$ip:$porta', '/api/loja', {'lojaId': idLimpo});
+          final uri = ResolvedorUrlRede.montarUriHttp(
+            hostOuIp: ip,
+            porta: porta,
+            path: '/api/loja',
+            queryParameters: {'lojaId': idLimpo},
+          );
           final req = await client.getUrl(uri);
           final resp = await req.close();
           if (resp.statusCode == HttpStatus.ok) {
@@ -88,11 +94,6 @@ class ChatAutoatendimentoService {
       }
     }
 
-    if (loja == null && pdv.lojas.isNotEmpty) {
-      loja = pdv.lojas
-          .where((l) => l.id != PdvProvider.idLojaColetivaNous)
-          .firstOrNull;
-    }
     return loja;
   }
 

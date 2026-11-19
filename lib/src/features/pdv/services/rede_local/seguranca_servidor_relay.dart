@@ -76,7 +76,10 @@ class SegurancaServidorRelay {
 
     // 2. Teto de tamanho do Payload HTTP (Content-Length)
     final path = request.uri.path;
-    final ehUploadMidia = path.contains('/upload_midia') || path.contains('/upload_arquivo');
+    final ehUploadMidia = path.contains('/upload_imagem') ||
+        path.contains('/upload_anexo') ||
+        path.contains('/upload_midia') ||
+        path.contains('/upload_arquivo');
     final limitePermitido = ehUploadMidia ? limiteBytesUploadMidia : limiteBytesHttpGeral;
 
     if (request.contentLength > limitePermitido) {

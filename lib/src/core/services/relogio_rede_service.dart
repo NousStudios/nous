@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
+import 'package:nous/src/features/pdv/services/rede_local/helpers/resolvedor_url_rede.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 /// Serviço soberano para sincronização de relógio da rede local (Uníssono).
@@ -98,7 +99,11 @@ class RelogioRedeService extends ChangeNotifier {
       for (int i = 0; i < 3; i++) {
         try {
           final t0 = DateTime.now().millisecondsSinceEpoch;
-          final uri = Uri.http('$ip:$porta', '/api/relogio');
+          final uri = ResolvedorUrlRede.montarUriHttp(
+            hostOuIp: ip,
+            porta: porta,
+            path: '/api/relogio',
+          );
           final req = await client.getUrl(uri);
           final resp = await req.close();
 

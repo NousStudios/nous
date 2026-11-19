@@ -22,6 +22,8 @@ class TimelineSyncRepositorio {
   /// tombstones). Quando [desde] é informado, retorna apenas o delta alterado.
   static Future<Map<String, dynamic>> exportarSnapshotSocial({
     DateTime? desde,
+    int offset = 0,
+    int limit = 400,
   }) async {
     final db = await TimelineRepositorioSqlite.obterDb();
     final corte = desde?.subtract(const Duration(seconds: 2));
@@ -44,26 +46,75 @@ class TimelineSyncRepositorio {
       return saida;
     }
 
-    final pubs = await db.query('publicacoes_sociais');
-    final stories = await db.query('stories_sociais');
-    final reacoes = await db.query('reacoes_sociais');
-    final comentarios = await db.query('comentarios_sociais');
-    final listas = await db.query('listas_salvos_sociais');
-    final itens = await db.query('itens_salvos_sociais');
-    final denuncias = await db.query('denuncias_sociais');
+    final corteIso = corte?.toIso8601String();
+    Future<List<Map<String, Object?>>> consultarDelta(String tabela) {
+      if (corteIso == null) {
+        return db.query(tabela, limit: limit, offset: offset);
+      }
+      return db.query(
+        tabela,
+        where: 'atualizada_em >= ? OR atualizada_em IS NULL',
+        whereArgs: [corteIso],
+        limit: limit,
+        offset: offset,
+      );
+    }
+
+    final resultados = await Future.wait([
+      consultarDelta('publicacoes_sociais'),
+      consultarDelta('stories_sociais'),
+      consultarDelta('reacoes_sociais'),
+      consultarDelta('comentarios_sociais'),
+      consultarDelta('listas_salvos_sociais'),
+      consultarDelta('itens_salvos_sociais'),
+      consultarDelta('denuncias_sociais'),
+    ]);
+    final pubs = resultados[0];
+    final stories = resultados[1];
+    final reacoes = resultados[2];
+    final comentarios = resultados[3];
+    final listas = resultados[4];
+    final itens = resultados[5];
+    final denuncias = resultados[6];
+
+    final temMais = pubs.length >= limit ||
+        stories.length >= limit ||
+        reacoes.length >= limit ||
+        comentarios.length >= limit ||
+        listas.length >= limit ||
+        itens.length >= limit ||
+        denuncias.length >= limit;
 
     return {
       'geradoEm': DateTime.now().toIso8601String(),
       'incremental': desde != null,
+      'offset': offset,
+      'proximoOffset': offset + limit,
+      'temMais': temMais,
       'publicacoes': decodificar(
         pubs,
         (d) => (d['atualizadaEm'] ?? d['criadaEm'])?.toString(),
       ),
-      'stories': decodificar(stories, (d) => d['criadoEm']?.toString()),
-      'reacoes': decodificar(reacoes, (d) => d['criadaEm']?.toString()),
-      'comentarios': decodificar(comentarios, (d) => d['criadaEm']?.toString()),
-      'listasSalvos': decodificar(listas, (d) => d['criadaEm']?.toString()),
-      'itensSalvos': decodificar(itens, (d) => d['salvoEm']?.toString()),
+      'stories': decodificar(
+        stories,
+        (d) => (d['atualizadoEm'] ?? d['criadoEm'])?.toString(),
+      ),
+      'reacoes': decodificar(
+        reacoes,
+        (d) => (d['atualizadaEm'] ?? d['criadaEm'])?.toString(),
+      ),
+      'comentarios': decodificar(
+        comentarios,
+        (d) => (d['atualizadaEm'] ?? d['criadaEm'])?.toString(),
+      ),
+      'listasSalvos': decodificar(
+        listas,
+        (d) => (d['atualizadaEm'] ?? d['criadaEm'])?.toString(),
+      ),
+      'itensSalvos': decodificar(
+        itens,
+        (d) => (d['atualizadaEm'] ?? d['salvoEm'])?.toString(),
+      ),
       'denuncias': decodificar(denuncias, (d) => d['criadaEm']?.toString()),
     };
   }
@@ -74,13 +125,16 @@ class TimelineSyncRepositorio {
     Map<String, dynamic> snapshot,
   ) async {
     final pubsBrutas = snapshot['publicacoes'] as List<dynamic>? ?? const [];
-    for (final item in pubsBrutas) {
-      if (item is! Map) continue;
-      final remota = PublicacaoSocial.fromJson(Map<String, dynamic>.from(item));
-      if (remota.id.isEmpty) continue;
-
-      final local =
-          await TimelineRepositorioSqlite.buscarPublicacaoPorId(remota.id);
+    final pubsRemotas = pubsBrutas
+        .whereType<Map>()
+        .map((m) => PublicacaoSocial.fromJson(Map<String, dynamic>.from(m)))
+        .where((p) => p.id.isNotEmpty)
+        .toList();
+    final mapaLocais = await TimelineRepositorioSqlite.buscarPublicacoesPorIds(
+      pubsRemotas.map((p) => p.id).toList(),
+    );
+    for (final remota in pubsRemotas) {
+      final local = mapaLocais[remota.id];
       if (local == null) {
         await TimelineRepositorioSqlite.salvarPublicacao(remota);
         continue;
@@ -96,12 +150,47 @@ class TimelineSyncRepositorio {
       }
     }
 
+    final db = await TimelineRepositorioSqlite.obterDb();
+
     final storiesBrutos = snapshot['stories'] as List<dynamic>? ?? const [];
     for (final item in storiesBrutos) {
       if (item is! Map) continue;
-      final story = StorySocial.fromJson(Map<String, dynamic>.from(item));
-      if (story.id.isNotEmpty) {
-        await TimelineRepositorioSqlite.salvarStory(story);
+      final remoto = StorySocial.fromJson(Map<String, dynamic>.from(item));
+      if (remoto.id.isEmpty) continue;
+      final rows = await db.query(
+        'stories_sociais',
+        where: 'id = ?',
+        whereArgs: [remoto.id],
+        limit: 1,
+      );
+      if (rows.isEmpty) {
+        await TimelineRepositorioSqlite.salvarStory(remoto);
+        continue;
+      }
+      final local = StorySocial.fromJson(
+        jsonDecode(rows.first['dados_json'] as String? ?? '{}')
+            as Map<String, dynamic>,
+      );
+      final maisNovo = remoto.atualizadoEfetivo.isAfter(local.atualizadoEfetivo);
+      final empateExcl =
+          !remoto.atualizadoEfetivo.isBefore(local.atualizadoEfetivo) &&
+              remoto.excluido &&
+              !local.excluido;
+      if (maisNovo || empateExcl) {
+        final visualizadoresMesclados = {
+          ...local.visualizadoPorCpfs,
+          ...remoto.visualizadoPorCpfs,
+        }.toList();
+        final votosMesclados = {
+          ...local.votosEnquete,
+          ...remoto.votosEnquete,
+        };
+        await TimelineRepositorioSqlite.salvarStory(
+          remoto.copyWith(
+            visualizadoPorCpfs: visualizadoresMesclados,
+            votosEnquete: votosMesclados,
+          ),
+        );
       }
     }
 
@@ -109,7 +198,25 @@ class TimelineSyncRepositorio {
     for (final item in reacoesBrutas) {
       if (item is! Map) continue;
       final r = ReacaoSocial.fromJson(Map<String, dynamic>.from(item));
-      if (r.id.isNotEmpty) {
+      if (r.id.isEmpty) continue;
+      final rows = await db.query(
+        'reacoes_sociais',
+        where: 'id = ?',
+        whereArgs: [r.id],
+        limit: 1,
+      );
+      if (rows.isEmpty) {
+        await TimelineRepositorioSqlite.salvarReacao(r);
+        continue;
+      }
+      final local = ReacaoSocial.fromJson(
+        jsonDecode(rows.first['dados_json'] as String? ?? '{}')
+            as Map<String, dynamic>,
+      );
+      if (r.atualizadaEfetiva.isAfter(local.atualizadaEfetiva) ||
+          (!r.atualizadaEfetiva.isBefore(local.atualizadaEfetiva) &&
+              r.excluida &&
+              !local.excluida)) {
         await TimelineRepositorioSqlite.salvarReacao(r);
       }
     }
@@ -118,7 +225,25 @@ class TimelineSyncRepositorio {
     for (final item in comBrutos) {
       if (item is! Map) continue;
       final c = ComentarioSocial.fromJson(Map<String, dynamic>.from(item));
-      if (c.id.isNotEmpty) {
+      if (c.id.isEmpty) continue;
+      final rows = await db.query(
+        'comentarios_sociais',
+        where: 'id = ?',
+        whereArgs: [c.id],
+        limit: 1,
+      );
+      if (rows.isEmpty) {
+        await TimelineRepositorioSqlite.salvarComentario(c);
+        continue;
+      }
+      final local = ComentarioSocial.fromJson(
+        jsonDecode(rows.first['dados_json'] as String? ?? '{}')
+            as Map<String, dynamic>,
+      );
+      if (c.atualizadaEfetiva.isAfter(local.atualizadaEfetiva) ||
+          (!c.atualizadaEfetiva.isBefore(local.atualizadaEfetiva) &&
+              c.excluido &&
+              !local.excluido)) {
         await TimelineRepositorioSqlite.salvarComentario(c);
       }
     }

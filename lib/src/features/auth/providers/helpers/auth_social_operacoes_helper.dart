@@ -1,6 +1,8 @@
 import 'package:nous/src/core/services/criptografia_service.dart';
 import 'package:nous/src/features/auth/models/usuario_nous.dart';
 import 'package:nous/src/features/auth/services/contas_nous_service.dart';
+import 'package:nous/src/features/timeline/models/notificacao_social.dart';
+import 'package:nous/src/features/timeline/services/timeline_service.dart';
 import 'package:nous/src/features/auth/services/cpf_validator.dart';
 
 /// Helper com operações sociais da conta Nous (validação de identidade e seguir/deixar de seguir).
@@ -101,6 +103,16 @@ class AuthSocialOperacoesHelper {
       final alvoAtualizado = contaAlvo.copyWith(seguidores: seguidoresAlvo);
       await ContasNousService.salvar(alvoAtualizado);
       propagarUsuarioAtualizado(alvoAtualizado);
+      if (!jaSegue) {
+        await TimelineService.emitirNotificacaoSocial(
+          destinatarioCpf: alvoLimpo,
+          autorCpf: conta.cpf,
+          autorNome: conta.nomeExibicao,
+          autorFoto: conta.fotoExibicao,
+          tipo: TipoNotificacaoSocial.novoSeguidor,
+          resumo: '${conta.nomeExibicao} começou a seguir você.',
+        );
+      }
     }
 
     propagarUsuarioAtualizado(atualizado);

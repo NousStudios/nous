@@ -9,7 +9,6 @@ import 'package:nous/src/core/services/navigator_key_service.dart';
 import 'package:nous/src/features/auth/services/contas_nous_service.dart';
 import 'package:nous/src/features/chat/models/mensagem_chat.dart';
 import 'package:nous/src/features/chat/services/chat_media_service.dart';
-import 'package:nous/src/features/chat/services/chat_repositorio_sqlite.dart';
 import 'package:nous/src/features/chat/services/chat_service.dart';
 import 'package:nous/src/features/chat/views/mensageria_view.dart';
 import 'package:nous/src/features/pdv/providers/pdv_provider.dart';
@@ -17,7 +16,6 @@ import 'package:nous/src/features/pdv/services/imagem_service.dart';
 import 'package:nous/src/features/pdv/services/lojas_service.dart';
 import 'package:nous/src/features/pdv/services/rede_local/cliente_rede_local.dart';
 import 'package:nous/src/features/pdv/services/rede_local/helpers/gerenciador_dispositivo_local.dart';
-import 'package:nous/src/features/pdv/services/rede_local/helpers/resolvedor_url_rede.dart';
 import 'package:nous/src/features/pdv/services/rede_local/servidor_rede_local.dart';
 
 /// Ponto de entrada nativo em background para respostas e ações no Android
@@ -223,18 +221,7 @@ class NotificacaoAndroidService {
           statusEnvio: 'pendente',
         );
 
-        final msgPersistida =
-            await ChatService.enviarMensagemInstantanea(novaMensagem);
-        final entregueRede = await _despacharMensagemEmBackground(msgPersistida);
-        try {
-          final db = await ChatRepositorioSqlite.obterDb();
-          await db.update(
-            'mensagens_chat',
-            {'status_envio': entregueRede ? 'enviada' : 'pendente'},
-            where: 'id = ?',
-            whereArgs: [msgPersistida.id],
-          );
-        } catch (_) {}
+        await ChatService.enviarMensagemInstantanea(novaMensagem);
         await ChatService.marcarComoLidas(conversaId, remetenteIdFinal);
         await cancelarNotificacaoConversa(conversaId);
         return;
@@ -587,62 +574,4 @@ class NotificacaoAndroidService {
     }
   }
 
-  /// Despacha a mensagem respondida via Direct Reply mesmo quando executado
-  /// no isolate isolado em background do Android.
-  /// Retorna `true` apenas se o servidor local/balcão confirmou recebimento HTTP 200.
-  static Future<bool> _despacharMensagemEmBackground(MensagemChat msg) async {
-    final dadosEnvio = {
-      'tipo': 'mensagem_chat',
-      'mensagem': msg.toJson(),
-    };
-    final client = HttpClient()..connectionTimeout = const Duration(seconds: 2);
-
-    try {
-      // 1. Tenta POST no loopback local 127.0.0.1:8080 (caso este aparelho seja o servidor balcão)
-      try {
-        final uriLocal = Uri.parse('http://127.0.0.1:8080/api/chat/mensagem');
-        final req = await client
-            .postUrl(uriLocal)
-            .timeout(const Duration(milliseconds: 1200));
-        req.headers.contentType = ContentType.json;
-        req.write(jsonEncode(dadosEnvio));
-        final resp = await req.close().timeout(const Duration(seconds: 2));
-        await resp.drain<void>();
-        if (resp.statusCode == HttpStatus.ok) {
-          return true;
-        }
-      } catch (_) {}
-
-      // 2. Tenta POST no IP do balcão configurado (caso este aparelho seja cliente terminal)
-      try {
-        final ultimo = await GerenciadorDispositivoLocal.obterUltimoBalcao();
-        final ip = (ultimo.ip != null && ultimo.ip!.isNotEmpty)
-            ? ultimo.ip
-            : ClienteRedeLocal().ipServidor;
-        final porta = ultimo.porta ??
-            ClienteRedeLocal().portaServidor ??
-            ServidorRedeLocal.portaPadraoHttp;
-        if (ip != null && ip.isNotEmpty) {
-          final uriRemota = ResolvedorUrlRede.montarUriHttp(
-            hostOuIp: ip,
-            porta: porta,
-            caminho: '/api/chat/mensagem',
-          );
-          final req = await client
-              .postUrl(uriRemota)
-              .timeout(const Duration(seconds: 3));
-          req.headers.contentType = ContentType.json;
-          req.write(jsonEncode(dadosEnvio));
-          final resp = await req.close().timeout(const Duration(seconds: 3));
-          await resp.drain<void>();
-          if (resp.statusCode == HttpStatus.ok) {
-            return true;
-          }
-        }
-      } catch (_) {}
-    } finally {
-      client.close(force: true);
-    }
-    return false;
-  }
 }

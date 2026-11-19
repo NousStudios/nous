@@ -8,6 +8,7 @@ import 'package:nous/src/features/auth/views/perfil_social_view.dart';
 import 'package:nous/src/features/pdv/services/imagem_service.dart';
 import 'package:nous/src/features/timeline/models/publicacao_social.dart';
 import 'package:nous/src/features/timeline/views/dialogs/dialog_colaboradores_publicacao.dart';
+import 'package:nous/src/features/timeline/views/widgets/avatar_com_story_widget.dart';
 
 /// Cabeçalho da publicação mostrando o avatar do autor + até 2 mini-avatares
 /// dos colaboradores e os nomes de todos ao lado (com toque para abrir
@@ -136,7 +137,6 @@ class _CabecalhoAutorColaboradoresWidgetState
     final fotoAutor = (contaAutor?.fotoExibicao.isNotEmpty ?? false)
         ? contaAutor!.fotoExibicao
         : publicacao.autorFoto;
-    final provAutor = ImagemService.obterImageProvider(fotoAutor);
     final temColabs = publicacao.coautoresCpfs.isNotEmpty;
     final colabsExibidos = _coautores.take(2).toList();
     final extrasCount = publicacao.coautoresCpfs.length - colabsExibidos.length;
@@ -177,13 +177,13 @@ class _CabecalhoAutorColaboradoresWidgetState
               clipBehavior: Clip.none,
               alignment: Alignment.centerLeft,
               children: [
-                CircleAvatar(
+                AvatarComStoryWidget(
+                  theme: theme,
+                  cpf: publicacao.autorCpf,
+                  nome: publicacao.autorNome,
+                  foto: fotoAutor,
                   radius: 18,
-                  backgroundColor: theme.borderColor.withValues(alpha: 0.35),
-                  backgroundImage: provAutor,
-                  child: provAutor == null
-                      ? Icon(Icons.person, size: 18, color: theme.textColor)
-                      : null,
+                  usuario: contaAutor,
                 ),
                 for (int i = 0; i < colabsExibidos.length; i++)
                   Positioned(

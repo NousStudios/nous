@@ -11,6 +11,8 @@ class ListaSalvosSocial {
   final VisibilidadeListaSalvos visibilidade;
   final List<String> colaboradoresCpfs;
   final DateTime criadaEm;
+  final DateTime? atualizadaEm;
+  final bool excluida;
 
   const ListaSalvosSocial({
     required this.id,
@@ -19,7 +21,11 @@ class ListaSalvosSocial {
     this.visibilidade = VisibilidadeListaSalvos.publicaFeed,
     this.colaboradoresCpfs = const [],
     required this.criadaEm,
+    this.atualizadaEm,
+    this.excluida = false,
   });
+
+  DateTime get atualizadaEfetiva => atualizadaEm ?? criadaEm;
 
   ListaSalvosSocial copyWith({
     String? id,
@@ -28,6 +34,8 @@ class ListaSalvosSocial {
     VisibilidadeListaSalvos? visibilidade,
     List<String>? colaboradoresCpfs,
     DateTime? criadaEm,
+    DateTime? atualizadaEm,
+    bool? excluida,
   }) {
     return ListaSalvosSocial(
       id: id ?? this.id,
@@ -36,6 +44,8 @@ class ListaSalvosSocial {
       visibilidade: visibilidade ?? this.visibilidade,
       colaboradoresCpfs: colaboradoresCpfs ?? this.colaboradoresCpfs,
       criadaEm: criadaEm ?? this.criadaEm,
+      atualizadaEm: atualizadaEm ?? this.atualizadaEm,
+      excluida: excluida ?? this.excluida,
     );
   }
 
@@ -46,6 +56,8 @@ class ListaSalvosSocial {
         'visibilidade': visibilidade.name,
         'colaboradoresCpfs': colaboradoresCpfs,
         'criadaEm': criadaEm.toIso8601String(),
+        'atualizadaEm': (atualizadaEm ?? criadaEm).toIso8601String(),
+        'excluida': excluida,
       };
 
   factory ListaSalvosSocial.fromJson(Map<String, dynamic> json) {
@@ -63,6 +75,10 @@ class ListaSalvosSocial {
           .toList(),
       criadaEm:
           DateTime.tryParse(json['criadaEm'] as String? ?? '') ?? DateTime.now(),
+      atualizadaEm: json['atualizadaEm'] != null
+          ? DateTime.tryParse(json['atualizadaEm'] as String)
+          : null,
+      excluida: json['excluida'] == true || json['excluida'] == 1,
     );
   }
 }
@@ -73,6 +89,8 @@ class ItemSalvoSocial {
   final String usuarioCpf;
   final String publicacaoId;
   final DateTime salvoEm;
+  final DateTime? atualizadaEm;
+  final bool excluida;
 
   const ItemSalvoSocial({
     required this.id,
@@ -80,7 +98,11 @@ class ItemSalvoSocial {
     required this.usuarioCpf,
     required this.publicacaoId,
     required this.salvoEm,
+    this.atualizadaEm,
+    this.excluida = false,
   });
+
+  DateTime get atualizadaEfetiva => atualizadaEm ?? salvoEm;
 
   ItemSalvoSocial copyWith({
     String? id,
@@ -88,6 +110,8 @@ class ItemSalvoSocial {
     String? usuarioCpf,
     String? publicacaoId,
     DateTime? salvoEm,
+    DateTime? atualizadaEm,
+    bool? excluida,
   }) {
     return ItemSalvoSocial(
       id: id ?? this.id,
@@ -95,6 +119,8 @@ class ItemSalvoSocial {
       usuarioCpf: usuarioCpf ?? this.usuarioCpf,
       publicacaoId: publicacaoId ?? this.publicacaoId,
       salvoEm: salvoEm ?? this.salvoEm,
+      atualizadaEm: atualizadaEm ?? this.atualizadaEm,
+      excluida: excluida ?? this.excluida,
     );
   }
 
@@ -104,6 +130,8 @@ class ItemSalvoSocial {
         'usuarioCpf': usuarioCpf,
         'publicacaoId': publicacaoId,
         'salvoEm': salvoEm.toIso8601String(),
+        'atualizadaEm': (atualizadaEm ?? salvoEm).toIso8601String(),
+        'excluida': excluida,
       };
 
   factory ItemSalvoSocial.fromJson(Map<String, dynamic> json) {
@@ -114,6 +142,10 @@ class ItemSalvoSocial {
       publicacaoId: json['publicacaoId'] as String? ?? '',
       salvoEm:
           DateTime.tryParse(json['salvoEm'] as String? ?? '') ?? DateTime.now(),
+      atualizadaEm: json['atualizadaEm'] != null
+          ? DateTime.tryParse(json['atualizadaEm'] as String)
+          : null,
+      excluida: json['excluida'] == true || json['excluida'] == 1,
     );
   }
 }

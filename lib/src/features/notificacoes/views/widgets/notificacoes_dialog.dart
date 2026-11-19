@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:nous/src/core/theme/theme_controller.dart';
 import 'package:nous/src/features/auth/providers/auth_provider.dart';
+import 'package:nous/src/features/auth/services/contas_nous_service.dart';
+import 'package:nous/src/features/auth/views/perfil_social_view.dart';
 import 'package:nous/src/features/chat/models/mensagem_chat.dart';
 import 'package:nous/src/features/chat/services/chat_service.dart';
 import 'package:nous/src/features/chat/views/mensageria_view.dart';
@@ -16,6 +18,9 @@ import 'package:nous/src/features/pdv/models/registro_acao.dart';
 import 'package:nous/src/features/pdv/providers/pdv_provider.dart';
 import 'package:nous/src/features/pdv/views/widgets/estado_vazio_container.dart';
 import 'package:nous/src/features/pdv/views/widgets/movimento_estoque_dialog.dart';
+import 'package:nous/src/features/timeline/models/notificacao_social.dart';
+import 'package:nous/src/features/timeline/services/timeline_repositorio_sqlite.dart';
+import 'package:nous/src/features/timeline/views/dialogs/dialog_detalhes_publicacao.dart';
 
 String _formatarQuantidade(double v) {
   if (v == v.truncateToDouble()) return v.toInt().toString();
@@ -213,21 +218,38 @@ class _NotificacoesConteudo extends StatelessWidget {
                 .estaDispensadaNaLoja(lojaId!, 'alerta_estoque_${a.lojaId}_${a.item.id}'))
             .toList();
 
-    return FutureBuilder<List<MensagemChat>>(
-      future: (lojaId != null)
-          ? ChatService.obterMensagensNaoLidasDaLoja(lojaId!)
-          : (cpfUsuario.isNotEmpty
-              ? ChatService.obterMensagensNaoLidasDoUsuario(cpfUsuario)
-              : Future.value(const <MensagemChat>[])),
+    return FutureBuilder<({List<MensagemChat> msgs, List<NotificacaoSocial> sociais})>(
+      future: () async {
+        final msgsFuture = (lojaId != null)
+            ? ChatService.obterMensagensNaoLidasDaLoja(lojaId!)
+            : (cpfUsuario.isNotEmpty
+                ? ChatService.obterMensagensNaoLidasDoUsuario(cpfUsuario)
+                : Future.value(const <MensagemChat>[]));
+        final sociaisFuture = (lojaId == null && cpfUsuario.isNotEmpty)
+            ? TimelineRepositorioSqlite.listarNotificacoesSociaisDoUsuario(
+                cpfUsuario,
+              )
+            : Future.value(const <NotificacaoSocial>[]);
+        final res = await Future.wait([msgsFuture, sociaisFuture]);
+        return (
+          msgs: res[0] as List<MensagemChat>,
+          sociais: res[1] as List<NotificacaoSocial>,
+        );
+      }(),
       builder: (context, snapshotMsgs) {
-        final todasMensagens = snapshotMsgs.data ?? const <MensagemChat>[];
+        final todasMensagens = snapshotMsgs.data?.msgs ?? const <MensagemChat>[];
         final mensagens = todasMensagens
             .where((m) => lojaId != null
                 ? !notificacoes.estaDispensadaNaLoja(lojaId!, 'msg_${m.id}')
                 : !notificacoes.estaDispensadaNaSessao('msg_${m.id}'))
             .toList();
-        final vazio =
-            convites.isEmpty && alertasEstoque.isEmpty && mensagens.isEmpty;
+        final sociais = (snapshotMsgs.data?.sociais ?? const <NotificacaoSocial>[])
+            .where((s) => !notificacoes.estaDispensadaNaSessao('nsoc_${s.id}'))
+            .toList();
+        final vazio = convites.isEmpty &&
+            alertasEstoque.isEmpty &&
+            mensagens.isEmpty &&
+            sociais.isEmpty;
 
         return ValueListenableBuilder<AppTheme>(
           valueListenable: ThemeController.currentTheme,
@@ -543,6 +565,112 @@ class _NotificacoesConteudo extends StatelessWidget {
                                     ),
                                   if (convites.isNotEmpty)
                                     const SizedBox(height: 8),
+                                ],
+                                if (sociais.isNotEmpty) ...[
+                                  Padding(
+                                    padding: const EdgeInsets.only(bottom: 8),
+                                    child: Text(
+                                      'Atividade Social (${sociais.length})',
+                                      style: theme.getTextStyle(
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.bold,
+                                        color: theme.textColor,
+                                      ),
+                                    ),
+                                  ),
+                                  for (final s in sociais)
+                                    Dismissible(
+                                      key: ValueKey('nsoc_${s.id}'),
+                                      direction: DismissDirection.horizontal,
+                                      background: _buildDismissibleFundo(),
+                                      secondaryBackground:
+                                          _buildDismissibleFundoSecundario(),
+                                      onDismissed: (_) async {
+                                        await TimelineRepositorioSqlite
+                                            .marcarNotificacaoSocialLida(s.id);
+                                        notificacoes.dispensarNaSessao(
+                                          'nsoc_${s.id}',
+                                        );
+                                      },
+                                      child: Card(
+                                        color: theme.backgroundColor
+                                            .withValues(alpha: 0.4),
+                                        margin:
+                                            const EdgeInsets.only(bottom: 8),
+                                        child: ListTile(
+                                          leading: Icon(
+                                            s.tipo ==
+                                                    TipoNotificacaoSocial.curtida
+                                                ? Icons.thumb_up_alt_rounded
+                                                : s.tipo ==
+                                                        TipoNotificacaoSocial
+                                                            .comentario
+                                                    ? Icons
+                                                        .chat_bubble_outline_rounded
+                                                    : s.tipo ==
+                                                            TipoNotificacaoSocial
+                                                                .novoSeguidor
+                                                        ? Icons
+                                                            .person_add_alt_1_rounded
+                                                        : Icons.alternate_email_rounded,
+                                            color: theme.buttonColor,
+                                            size: 20,
+                                          ),
+                                          title: Text(
+                                            s.resumo,
+                                            style: theme.getTextStyle(
+                                              fontSize: 12.5,
+                                              color: theme.textColor,
+                                            ),
+                                          ),
+                                          onTap: () async {
+                                            await TimelineRepositorioSqlite
+                                                .marcarNotificacaoSocialLida(
+                                              s.id,
+                                            );
+                                            notificacoes.dispensarNaSessao(
+                                              'nsoc_${s.id}',
+                                            );
+                                            if (!context.mounted) return;
+                                            if (s.publicacaoId.isNotEmpty) {
+                                              final pub =
+                                                  await TimelineRepositorioSqlite
+                                                      .buscarPublicacaoPorId(
+                                                s.publicacaoId,
+                                              );
+                                              if (pub != null &&
+                                                  context.mounted) {
+                                                await DialogDetalhesPublicacao
+                                                    .mostrar(
+                                                  context,
+                                                  theme: theme,
+                                                  publicacao: pub,
+                                                  usuarioLogado:
+                                                      auth.contaAtual,
+                                                );
+                                                return;
+                                              }
+                                            }
+                                            final alvo =
+                                                await ContasNousService
+                                                    .buscarPorCpf(s.autorCpf);
+                                            if (alvo != null &&
+                                                context.mounted) {
+                                              await Navigator.of(context).push(
+                                                MaterialPageRoute(
+                                                  builder: (_) =>
+                                                      PerfilSocialView(
+                                                    usuarioAlvo: alvo,
+                                                    mostrarBotaoVoltar: true,
+                                                  ),
+                                                ),
+                                              );
+                                            }
+                                          },
+                                        ),
+                                      ),
+                                    ),
+                                  const SizedBox(height: 8),
                                 ],
                                 if (convites.isNotEmpty) ...[
                                   if (alertasEstoque.isNotEmpty ||

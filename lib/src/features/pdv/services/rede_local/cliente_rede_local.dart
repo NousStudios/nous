@@ -568,6 +568,19 @@ class ClienteRedeLocal {
   Future<String> enviarUploadImagem(String caminhoLocal) =>
       _enviarUploadImagemParaServidor(caminhoLocal);
 
+  Future<String> enviarUploadAnexo(
+    String caminhoLocal, {
+    String subpasta = 'timeline_midias',
+  }) async {
+    if (!conectado || _ipServidor == null || _portaServidor == null) return '';
+    return _transferencia.enviarUploadAnexoParaServidor(
+      ipServidor: _ipServidor!,
+      portaServidor: _portaServidor!,
+      caminhoLocal: caminhoLocal,
+      subpasta: subpasta,
+    );
+  }
+
   Future<String> _enviarUploadImagemParaServidor(String caminhoLocal) {
     return _transferencia.enviarUploadImagemParaServidor(
       ipServidor: _ipServidor,

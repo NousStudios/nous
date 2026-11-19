@@ -70,6 +70,10 @@ class Loja {
   final bool layoutExpandido;
   final String tipoLayoutMaior;
   final bool aberta;
+  final String biografiaPublica;
+  final List<String> linksPublicos;
+  final String corFundoPerfilHex;
+  final String corDestaquePerfilHex;
 
   /// Retorna o estado real do layout expandido respeitando o dispositivo ativo.
   /// Em celulares (Android e iOS), retorna sempre falso para prevenir desaparecimento de botões.
@@ -127,6 +131,10 @@ class Loja {
     this.layoutExpandido = false,
     this.tipoLayoutMaior = 'painel_duplo',
     this.aberta = false,
+    this.biografiaPublica = '',
+    this.linksPublicos = const [],
+    this.corFundoPerfilHex = '',
+    this.corDestaquePerfilHex = '',
   });
 
   Loja copyWith({
@@ -174,6 +182,10 @@ class Loja {
     bool? layoutExpandido,
     String? tipoLayoutMaior,
     bool? aberta,
+    String? biografiaPublica,
+    List<String>? linksPublicos,
+    String? corFundoPerfilHex,
+    String? corDestaquePerfilHex,
   }) {
     return Loja(
       id: id,
@@ -226,6 +238,10 @@ class Loja {
       layoutExpandido: layoutExpandido ?? this.layoutExpandido,
       tipoLayoutMaior: tipoLayoutMaior ?? this.tipoLayoutMaior,
       aberta: aberta ?? this.aberta,
+      biografiaPublica: biografiaPublica ?? this.biografiaPublica,
+      linksPublicos: linksPublicos ?? this.linksPublicos,
+      corFundoPerfilHex: corFundoPerfilHex ?? this.corFundoPerfilHex,
+      corDestaquePerfilHex: corDestaquePerfilHex ?? this.corDestaquePerfilHex,
     );
   }
 
@@ -284,6 +300,10 @@ class Loja {
       'layoutExpandido': layoutExpandido,
       'tipoLayoutMaior': tipoLayoutMaior,
       'aberta': aberta,
+      'biografiaPublica': biografiaPublica,
+      'linksPublicos': linksPublicos,
+      'corFundoPerfilHex': corFundoPerfilHex,
+      'corDestaquePerfilHex': corDestaquePerfilHex,
     };
   }
 
@@ -413,6 +433,13 @@ class Loja {
       layoutExpandido: json['layoutExpandido'] as bool? ?? false,
       tipoLayoutMaior: json['tipoLayoutMaior'] as String? ?? 'painel_duplo',
       aberta: json['aberta'] as bool? ?? false,
+      biografiaPublica: json['biografiaPublica'] as String? ?? '',
+      linksPublicos: (json['linksPublicos'] as List<dynamic>? ?? const [])
+          .map((item) => item.toString())
+          .where((item) => item.isNotEmpty)
+          .toList(),
+      corFundoPerfilHex: json['corFundoPerfilHex'] as String? ?? '',
+      corDestaquePerfilHex: json['corDestaquePerfilHex'] as String? ?? '',
     );
   }
 

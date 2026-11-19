@@ -263,56 +263,57 @@ class _CentralContratoTrabalhadorDialogState
         .where((e) => e.cpf == widget.membro.cpf)
         .firstOrNull;
 
-    return AlertDialog(
+    return Dialog(
       backgroundColor: theme.cardBackgroundColor,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(16),
         side: BorderSide(color: theme.borderColor),
       ),
-      titlePadding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      title: Row(
-        children: [
-          Icon(Icons.badge_outlined, size: 22, color: theme.textColor),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                TextoRolante(
-                  texto: nomeSoberano,
-                  style: theme.getTextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                    color: theme.textColor,
-                  ),
-                ),
-                TextoRolante(
-                  texto: 'Gestão Soberana do Trabalhador • ${widget.membro.papel.name}',
-                  style: theme.getTextStyle(
-                    fontSize: 11,
-                    color: theme.secondaryTextColor,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          IconButton(
-            icon: Icon(Icons.close, color: theme.textColor, size: 20),
-            onPressed: () => Navigator.of(context).pop(),
-          ),
-        ],
-      ),
-      content: ConstrainedBox(
+      child: ConstrainedBox(
         constraints: BoxConstraints(
           maxWidth: 580,
-          maxHeight: MediaQuery.sizeOf(context).height * 0.85,
+          maxHeight: MediaQuery.sizeOf(context).height * 0.90,
         ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            SingleChildScrollView(
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
+                children: [
+                  Icon(Icons.badge_outlined, size: 22, color: theme.textColor),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        TextoRolante(
+                          texto: nomeSoberano,
+                          style: theme.getTextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            color: theme.textColor,
+                          ),
+                        ),
+                        TextoRolante(
+                          texto: 'Gestão Soberana do Trabalhador • ${widget.membro.papel.name}',
+                          style: theme.getTextStyle(
+                            fontSize: 11,
+                            color: theme.secondaryTextColor,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  IconButton(
+                    icon: Icon(Icons.close, color: theme.textColor, size: 20),
+                    onPressed: () => Navigator.of(context).pop(),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+              SingleChildScrollView(
               scrollDirection: Axis.horizontal,
               child: Row(
                 children: [
@@ -407,6 +408,7 @@ class _CentralContratoTrabalhadorDialogState
               ),
             ),
           ],
+        ),
         ),
       ),
     );

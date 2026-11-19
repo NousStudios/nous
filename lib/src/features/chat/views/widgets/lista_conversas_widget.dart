@@ -6,6 +6,7 @@ import 'package:nous/src/features/auth/providers/auth_provider.dart';
 import 'package:nous/src/features/chat/controllers/mensageria_controller.dart';
 import 'package:nous/src/features/chat/models/conversa_chat.dart';
 import 'package:nous/src/features/chat/services/resolvedor_foto_chat.dart';
+import 'package:nous/src/features/chat/views/widgets/barra_stories_mensageria_widget.dart';
 import 'package:nous/src/features/chat/views/widgets/item_conversa_tile.dart';
 
 class ListaConversasWidget extends StatefulWidget {
@@ -220,9 +221,13 @@ class _ListaConversasWidgetState extends State<ListaConversasWidget> {
                 ),
               ],
             ),
-          )
+          ),
+        // Barra horizontal de stories não vistos acima de Solicitações de Mensagens
+        if (!widget.controller.modoLoja && !emSolicitacoes)
+          BarraStoriesMensageriaWidget(theme: theme),
+
         // Banner estilo Instagram para Acessar Solicitações (sempre disponível no modo pessoal)
-        else if (!widget.controller.modoLoja)
+        if (!widget.controller.modoLoja && !emSolicitacoes)
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
             child: InkWell(

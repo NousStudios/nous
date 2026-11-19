@@ -303,7 +303,7 @@ class RoteadorLojaPedidos {
                 LojasService.consolidarLojaComImagensLocais(
               lojaRemota.copyWith(acoes: acoesMescladas),
               lojaAtual,
-              manterItensAusentes: false,
+              manterItensAusentes: true,
             );
 
             if (servidor.lojaAtiva?.id == lojaConsolidada.id) {

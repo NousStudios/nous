@@ -232,6 +232,9 @@ class _MovimentoEstoqueConteudoState
     if (novoCodigo != item.codigoBarras) {
       itemModificado = itemModificado.copyWith(codigoBarras: novoCodigo);
     }
+    if (_unidadeRapida != item.unidadeBase) {
+      itemModificado = itemModificado.copyWith(unidadeBase: _unidadeRapida);
+    }
     final dadosCadastraisAlterados =
         itemModificado.precoCusto != item.precoCusto ||
         itemModificado.preco != item.preco ||

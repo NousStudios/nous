@@ -591,7 +591,8 @@ class _MensageriaViewState extends State<MensageriaView>
                       ? Row(
                           children: [
                             SizedBox(
-                              width: 320,
+                              width: (MediaQuery.sizeOf(context).width * 0.36)
+                                  .clamp(380.0, 480.0),
                               child: Container(
                                 decoration: BoxDecoration(
                                   border: Border(

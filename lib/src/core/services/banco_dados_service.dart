@@ -45,6 +45,15 @@ class BancoDadosService {
       caminhoDb,
       options: OpenDatabaseOptions(
         version: 1,
+        onConfigure: (db) async {
+          await db.execute('PRAGMA busy_timeout = 5000;');
+        },
+        onOpen: (db) async {
+          try {
+            await db.rawQuery('PRAGMA journal_mode = WAL;');
+            await db.execute('PRAGMA synchronous = NORMAL;');
+          } catch (_) {}
+        },
         onCreate: (db, versao) async {
           await _criarTabelas(db);
         },
@@ -124,8 +133,10 @@ class BancoDadosService {
         ? integridadeRes.first.values.first?.toString() ?? 'ok'
         : 'ok';
 
-    // 2. Compactação e desfragmentação com devolução de espaço em disco ao sistema
-    await database.execute('VACUUM');
+    // 2. Checkpoint do WAL (evita bloqueio global de VACUUM em bancos grandes)
+    try {
+      await database.rawQuery('PRAGMA wal_checkpoint(TRUNCATE);');
+    } catch (_) {}
 
     // 3. Otimização dos índices e tabelas
     await database.execute('PRAGMA optimize');

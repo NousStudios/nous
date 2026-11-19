@@ -16,6 +16,8 @@ class CarrosselFotosPublicacao extends StatefulWidget {
   final Alignment alignment;
   final double escalaZoomPadrao;
   final VoidCallback? onDoubleTapLike;
+  final VoidCallback? onTapFoto;
+  final bool ajustarTelaCheia;
 
   const CarrosselFotosPublicacao({
     super.key,
@@ -25,6 +27,8 @@ class CarrosselFotosPublicacao extends StatefulWidget {
     this.alignment = Alignment.center,
     this.escalaZoomPadrao = 1.0,
     this.onDoubleTapLike,
+    this.onTapFoto,
+    this.ajustarTelaCheia = false,
   });
 
   @override
@@ -45,6 +49,21 @@ class _CarrosselFotosPublicacaoState extends State<CarrosselFotosPublicacao>
       vsync: this,
       duration: const Duration(milliseconds: 650),
     );
+  }
+
+  @override
+  void didUpdateWidget(covariant CarrosselFotosPublicacao oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.midias.length != widget.midias.length ||
+        (widget.midias.isNotEmpty &&
+            oldWidget.midias.isNotEmpty &&
+            oldWidget.midias.first.caminhoRelativo !=
+                widget.midias.first.caminhoRelativo)) {
+      _indiceAtual = 0;
+      if (_pageCtrl.hasClients) {
+        _pageCtrl.jumpToPage(0);
+      }
+    }
   }
 
   @override
@@ -75,13 +94,15 @@ class _CarrosselFotosPublicacaoState extends State<CarrosselFotosPublicacao>
       alignment: alignEfetivo,
       child: Image.file(
         File(path),
-        fit: widget.aspectRatio != null ? BoxFit.cover : BoxFit.contain,
+        fit: (!widget.ajustarTelaCheia && widget.aspectRatio != null)
+            ? BoxFit.cover
+            : BoxFit.contain,
         alignment: alignEfetivo,
         cacheWidth: 1080,
       ),
     );
 
-    if (widget.aspectRatio != null) {
+    if (!widget.ajustarTelaCheia && widget.aspectRatio != null) {
       return ClipRect(
         child: AspectRatio(
           aspectRatio: widget.aspectRatio!,
@@ -104,6 +125,19 @@ class _CarrosselFotosPublicacaoState extends State<CarrosselFotosPublicacao>
       builder: (context, snap) {
         final path = snap.data;
         if (path == null) {
+          if (snap.connectionState == ConnectionState.done) {
+            return Container(
+              height: 200,
+              color: widget.theme.cardBackgroundColor.withValues(alpha: 0.4),
+              child: Center(
+                child: Icon(
+                  Icons.broken_image_outlined,
+                  size: 36,
+                  color: widget.theme.secondaryTextColor,
+                ),
+              ),
+            );
+          }
           return Container(
             height: 240,
             color: widget.theme.cardBackgroundColor.withValues(alpha: 0.4),
@@ -122,6 +156,7 @@ class _CarrosselFotosPublicacaoState extends State<CarrosselFotosPublicacao>
 
   Widget _envolverComDoubleTap(Widget child) {
     return GestureDetector(
+      onTap: widget.onTapFoto,
       onDoubleTap: _dispararDoubleTapLike,
       child: Stack(
         alignment: Alignment.center,
@@ -173,80 +208,59 @@ class _CarrosselFotosPublicacaoState extends State<CarrosselFotosPublicacao>
     final total = widget.midias.length;
     final ratioEfetivo = widget.aspectRatio ?? 1.0;
 
+    final pageViewStack = Stack(
+      alignment: Alignment.center,
+      children: [
+        if (widget.ajustarTelaCheia)
+          PageView.builder(
+            controller: _pageCtrl,
+            itemCount: total,
+            onPageChanged: (i) => setState(() => _indiceAtual = i),
+            itemBuilder: (_, i) => _buildFoto(widget.midias[i]),
+          )
+        else
+          AspectRatio(
+            aspectRatio: ratioEfetivo,
+            child: PageView.builder(
+              controller: _pageCtrl,
+              itemCount: total,
+              onPageChanged: (i) => setState(() => _indiceAtual = i),
+              itemBuilder: (_, i) => _buildFoto(widget.midias[i]),
+            ),
+          ),
+        Positioned(
+          top: 10,
+          right: 10,
+          child: Container(
+            padding: const EdgeInsets.symmetric(
+              horizontal: 8,
+              vertical: 4,
+            ),
+            decoration: BoxDecoration(
+              color: Colors.black.withValues(alpha: 0.55),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Text(
+              '${_indiceAtual + 1}/$total',
+              style: widget.theme.getTextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+                color: Colors.white,
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+
     return _envolverComDoubleTap(
       Column(
-        mainAxisSize: MainAxisSize.min,
+        mainAxisSize: widget.ajustarTelaCheia ? MainAxisSize.max : MainAxisSize.min,
         children: [
-          Stack(
-            alignment: Alignment.center,
-            children: [
-              AspectRatio(
-                aspectRatio: ratioEfetivo,
-                child: PageView.builder(
-                  controller: _pageCtrl,
-                  itemCount: total,
-                  onPageChanged: (i) => setState(() => _indiceAtual = i),
-                  itemBuilder: (_, i) => _buildFoto(widget.midias[i]),
-                ),
-              ),
-              Positioned(
-                top: 10,
-                right: 10,
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 4,
-                  ),
-                  decoration: BoxDecoration(
-                    color: Colors.black.withValues(alpha: 0.55),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Text(
-                    '${_indiceAtual + 1}/$total',
-                    style: widget.theme.getTextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.white,
-                    ),
-                  ),
-                ),
-              ),
-              if (_indiceAtual > 0)
-                Positioned(
-                  left: 6,
-                  child: IconButton(
-                    style: IconButton.styleFrom(
-                      backgroundColor: Colors.black.withValues(alpha: 0.40),
-                    ),
-                    icon: const Icon(
-                      Icons.chevron_left_rounded,
-                      color: Colors.white,
-                    ),
-                    onPressed: () => _pageCtrl.previousPage(
-                      duration: const Duration(milliseconds: 220),
-                      curve: Curves.easeOut,
-                    ),
-                  ),
-                ),
-              if (_indiceAtual < total - 1)
-                Positioned(
-                  right: 6,
-                  child: IconButton(
-                    style: IconButton.styleFrom(
-                      backgroundColor: Colors.black.withValues(alpha: 0.40),
-                    ),
-                    icon: const Icon(
-                      Icons.chevron_right_rounded,
-                      color: Colors.white,
-                    ),
-                    onPressed: () => _pageCtrl.nextPage(
-                      duration: const Duration(milliseconds: 220),
-                      curve: Curves.easeOut,
-                    ),
-                  ),
-                ),
-            ],
-          ),
+          if (widget.ajustarTelaCheia)
+            Expanded(child: pageViewStack)
+          else
+            pageViewStack,
           const SizedBox(height: 8),
           Row(
             mainAxisAlignment: MainAxisAlignment.center,

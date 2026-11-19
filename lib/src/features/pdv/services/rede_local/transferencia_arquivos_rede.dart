@@ -210,7 +210,12 @@ class TransferenciaArquivosRede {
       if (caminhoLimpo.isNotEmpty) queryParams['caminho'] = caminhoLimpo;
       if (cpf != null && cpf.trim().isNotEmpty) queryParams['cpf'] = cpf.trim();
 
-      final uri = Uri.http('$ip:$porta', '/api/imagem', queryParams);
+      final uri = ResolvedorUrlRede.montarUriHttp(
+        hostOuIp: ip,
+        porta: porta,
+        path: '/api/imagem',
+        queryParameters: queryParams,
+      );
       final req = await clienteHttp.getUrl(uri);
       final resp = await req.close();
 

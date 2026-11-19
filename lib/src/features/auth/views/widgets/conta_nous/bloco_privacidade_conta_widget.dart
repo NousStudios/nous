@@ -336,9 +336,9 @@ class BlocoPrivacidadeContaWidget extends StatelessWidget {
                 (conta?.dadoEstaPrivado('nomePai') ?? false),
             chaves: const ['nomeMae', 'nomePai'],
             conta: conta,
-            onAlternar: () {
-              auth.alternarPrivacidadeDado('nomeMae');
-              auth.alternarPrivacidadeDado('nomePai');
+            onAlternar: () async {
+              await auth.alternarPrivacidadeDado('nomeMae');
+              await auth.alternarPrivacidadeDado('nomePai');
             },
           ),
           _itemPrivacidade(
@@ -380,10 +380,20 @@ class BlocoPrivacidadeContaWidget extends StatelessWidget {
                 (conta?.dadoEstaPrivado('endereco') ?? false),
             chaves: const ['telefone', 'endereco'],
             conta: conta,
-            onAlternar: () {
-              auth.alternarPrivacidadeDado('telefone');
-              auth.alternarPrivacidadeDado('endereco');
+            onAlternar: () async {
+              await auth.alternarPrivacidadeDado('telefone');
+              await auth.alternarPrivacidadeDado('endereco');
             },
+          ),
+          _itemPrivacidade(
+            context: context,
+            theme: theme,
+            titulo: 'Foto de Perfil',
+            subtitulo: 'Exibir sua foto de perfil para outros usuários',
+            privado: conta?.dadoEstaPrivado('foto') ?? false,
+            chaves: const ['foto'],
+            conta: conta,
+            onAlternar: () => auth.alternarPrivacidadeDado('foto'),
           ),
           _itemPrivacidade(
             context: context,

@@ -113,7 +113,7 @@ void main() {
               onVisualizarFotoAmpliada: (_) {},
               onVerComanda: (_) {},
               onEnviarTexto: (_) {},
-              onEnviarAudio: (_, __, ___) {},
+              onEnviarAudio: (_, _, _) {},
               onCapturarFotoCamera: () {},
               onAnexarFoto: () {},
               onAnexarArquivo: () {},
