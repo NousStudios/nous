@@ -1,7 +1,10 @@
+import 'dart:async';
+
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:nous/src/core/theme/theme_controller.dart';
-import 'package:nous/src/core/widgets/themed_text_field.dart';
+import 'package:nous/src/core/widgets/player_video_nous_widget.dart';
 import 'package:nous/src/features/auth/models/usuario_nous.dart';
 import 'package:nous/src/features/auth/providers/auth_provider.dart';
 import 'package:nous/src/features/auth/services/contas_nous_service.dart';
@@ -9,27 +12,34 @@ import 'package:nous/src/features/timeline/models/interacao_social.dart';
 import 'package:nous/src/features/timeline/models/publicacao_social.dart';
 import 'package:nous/src/features/timeline/services/timeline_service.dart';
 import 'package:nous/src/features/timeline/views/dialogs/dialog_denuncia_social.dart';
+import 'package:nous/src/features/timeline/views/dialogs/dialog_editar_publicacao.dart';
 import 'package:nous/src/features/timeline/views/dialogs/dialog_enviar_publicacao_chat.dart';
 import 'package:nous/src/features/timeline/views/dialogs/dialog_mapa_comentarios.dart';
 import 'package:nous/src/features/timeline/views/dialogs/dialog_opcoes_publicacao.dart';
+import 'package:nous/src/features/timeline/views/dialogs/dialog_republicar_opcoes.dart';
 import 'package:nous/src/features/timeline/views/dialogs/dialog_salvar_publicacao.dart';
 import 'package:nous/src/features/timeline/views/insights_publicacao_view.dart';
 import 'package:nous/src/features/timeline/views/widgets/arvore_comentarios_widget.dart';
 import 'package:nous/src/features/timeline/views/widgets/texto_com_hashtags_widget.dart';
 import 'package:nous/src/features/timeline/views/widgets/cabecalho_autor_colaboradores_widget.dart';
 import 'package:nous/src/features/timeline/views/widgets/carrossel_fotos_publicacao.dart';
+import 'package:nous/src/features/timeline/views/widgets/visualizador_reels_compacto_widget.dart';
 import 'package:nous/src/features/timeline/views/widgets/widget_midia_publicacao.dart';
 
 class DialogDetalhesPublicacao extends StatefulWidget {
   final AppTheme theme;
   final PublicacaoSocial publicacao;
   final UsuarioNous? usuarioLogado;
+  final List<PublicacaoSocial>? listaPublicacoes;
+  final int indiceInicial;
 
   const DialogDetalhesPublicacao({
     super.key,
     required this.theme,
     required this.publicacao,
     required this.usuarioLogado,
+    this.listaPublicacoes,
+    this.indiceInicial = 0,
   });
 
   static Future<void> mostrar(
@@ -37,6 +47,8 @@ class DialogDetalhesPublicacao extends StatefulWidget {
     required AppTheme theme,
     required PublicacaoSocial publicacao,
     required UsuarioNous? usuarioLogado,
+    List<PublicacaoSocial>? listaPublicacoes,
+    int indiceInicial = 0,
   }) {
     return Navigator.of(context).push<void>(
       MaterialPageRoute(
@@ -44,6 +56,8 @@ class DialogDetalhesPublicacao extends StatefulWidget {
           theme: theme,
           publicacao: publicacao,
           usuarioLogado: usuarioLogado,
+          listaPublicacoes: listaPublicacoes,
+          indiceInicial: indiceInicial,
         ),
       ),
     );
@@ -57,12 +71,35 @@ class DialogDetalhesPublicacao extends StatefulWidget {
 class _DialogDetalhesPublicacaoState extends State<DialogDetalhesPublicacao> {
   final TextEditingController _comentarioCtrl = TextEditingController();
   final FocusNode _comentarioFocus = FocusNode();
+  final GlobalKey _midiasKey = GlobalKey();
+  late List<PublicacaoSocial> _lista;
+  late int _indiceAtivo;
+  late PageController _desktopPageController;
   late PublicacaoSocial _pub;
   List<ReacaoSocial> _reacoes = [];
   List<ComentarioSocial> _comentarios = [];
+  List<PublicacaoSocial> _republicacoesPub = [];
   List<UsuarioNous> _coautoresResolvidos = [];
+  List<UsuarioNous> _todasContasMencao = [];
+  String? _termoMencaoAtivo;
   ComentarioSocial? _respondendoAComentario;
   bool _baixando = false;
+  bool _pdfEmTelaCheia = false;
+  DateTime _inicioVisualizacao = DateTime.now();
+
+  void _registrarTempoAtual() {
+    final seg = DateTime.now().difference(_inicioVisualizacao).inSeconds;
+    if (seg >= 1) {
+      unawaited(
+        TimelineService.registrarTempoVisualizacao(
+          _pub.id,
+          _obterUsuarioEfetivo()?.cpf,
+          seg,
+        ),
+      );
+    }
+    _inicioVisualizacao = DateTime.now();
+  }
 
   UsuarioNous? _obterUsuarioEfetivo() {
     if (widget.usuarioLogado != null) return widget.usuarioLogado;
@@ -83,20 +120,66 @@ class _DialogDetalhesPublicacaoState extends State<DialogDetalhesPublicacao> {
   @override
   void initState() {
     super.initState();
-    _pub = widget.publicacao;
+    _lista = (widget.listaPublicacoes != null &&
+            widget.listaPublicacoes!.isNotEmpty)
+        ? widget.listaPublicacoes!
+        : [widget.publicacao];
+    _indiceAtivo = widget.indiceInicial.clamp(0, _lista.length - 1);
+    _pub = _lista[_indiceAtivo];
+    _desktopPageController = PageController(initialPage: _indiceAtivo);
     _carregarInteracoes();
     _carregarCoautores();
+    _carregarContasMencao();
+    unawaited(
+      TimelineService.registrarVisualizacaoPublicacao(
+        _pub,
+        origem: 'detalhes',
+        visualizadorCpf: _obterUsuarioEfetivo()?.cpf,
+      ),
+    );
     TimelineService.alteracoesTimelineNotifier
         .addListener(_onTimelineAtualizada);
   }
 
   @override
   void dispose() {
+    _registrarTempoAtual();
     TimelineService.alteracoesTimelineNotifier
         .removeListener(_onTimelineAtualizada);
+    _desktopPageController.dispose();
     _comentarioCtrl.dispose();
     _comentarioFocus.dispose();
     super.dispose();
+  }
+
+  void _trocarPublicacao(int novoIndice) {
+    if (novoIndice < 0 ||
+        novoIndice >= _lista.length ||
+        novoIndice == _indiceAtivo) {
+      return;
+    }
+    PlayerVideoNousWidget.pausarTodos();
+    _registrarTempoAtual();
+    setState(() {
+      _indiceAtivo = novoIndice;
+      _pub = _lista[novoIndice];
+      _reacoes = [];
+      _comentarios = [];
+      _republicacoesPub = [];
+      _coautoresResolvidos = [];
+      _respondendoAComentario = null;
+      _termoMencaoAtivo = null;
+      _pdfEmTelaCheia = false;
+    });
+    _carregarInteracoes();
+    _carregarCoautores();
+    unawaited(
+      TimelineService.registrarVisualizacaoPublicacao(
+        _pub,
+        origem: 'detalhes',
+        visualizadorCpf: _obterUsuarioEfetivo()?.cpf,
+      ),
+    );
   }
 
   void _onTimelineAtualizada() {
@@ -129,10 +212,15 @@ class _DialogDetalhesPublicacaoState extends State<DialogDetalhesPublicacao> {
   Future<void> _carregarInteracoes() async {
     final reacoes = await TimelineService.listarReacoes(_pub.id);
     final comentarios = await TimelineService.listarComentarios(_pub.id);
+    final todasPubs = await TimelineService.listarPublicacoesDescoberta();
+    final republicacoes = todasPubs
+        .where((p) => !p.excluida && p.publicacaoOriginalId == _pub.id)
+        .toList();
     if (!mounted) return;
     setState(() {
       _reacoes = reacoes;
       _comentarios = comentarios;
+      _republicacoesPub = republicacoes;
     });
   }
 
@@ -149,13 +237,62 @@ class _DialogDetalhesPublicacaoState extends State<DialogDetalhesPublicacao> {
     await _carregarInteracoes();
   }
 
+  Future<void> _carregarContasMencao() async {
+    final contas = await ContasNousService.carregarTodas();
+    if (!mounted) return;
+    setState(() => _todasContasMencao = contas);
+  }
+
+  void _aoDigitarComentario(String texto) {
+    final sel = _comentarioCtrl.selection;
+    final pos = sel.isValid ? sel.baseOffset : texto.length;
+    final ateCursor = pos <= texto.length ? texto.substring(0, pos) : texto;
+    final match = RegExp(r'(?:^|\s)@([\p{L}\p{N}_\.]*)$', unicode: true)
+        .firstMatch(ateCursor);
+    final novoTermo = match?.group(1)?.toLowerCase();
+    if (novoTermo != _termoMencaoAtivo) {
+      setState(() => _termoMencaoAtivo = novoTermo);
+    }
+  }
+
+  void _inserirMencao(UsuarioNous usuario) {
+    final handle = usuario.usernameExibicao.isNotEmpty
+        ? usuario.usernameExibicao
+        : '@${usuario.nomeDeUsuario.replaceAll('@', '').trim()}';
+    if (handle.length <= 1) return;
+
+    final texto = _comentarioCtrl.text;
+    final sel = _comentarioCtrl.selection;
+    final pos = sel.isValid ? sel.baseOffset : texto.length;
+    final ateCursor = pos <= texto.length ? texto.substring(0, pos) : texto;
+    final aposCursor = pos <= texto.length ? texto.substring(pos) : '';
+    final match = RegExp(r'@([\p{L}\p{N}_\.]*)$', unicode: true)
+        .firstMatch(ateCursor);
+    if (match == null) return;
+
+    final inicioArroba = match.start;
+    final novoTexto =
+        '${ateCursor.substring(0, inicioArroba)}$handle $aposCursor';
+    final novaPos = inicioArroba + handle.length + 1;
+    _comentarioCtrl.value = TextEditingValue(
+      text: novoTexto,
+      selection: TextSelection.collapsed(offset: novaPos),
+    );
+    setState(() => _termoMencaoAtivo = null);
+    _comentarioFocus.requestFocus();
+  }
+
   Future<void> _enviarComentario() async {
     final u = _obterUsuarioEfetivo();
     final texto = _comentarioCtrl.text.trim();
     if (u == null || texto.isEmpty) return;
     final respId = _respondendoAComentario?.id ?? '';
     _comentarioCtrl.clear();
-    setState(() => _respondendoAComentario = null);
+    setState(() {
+      _respondendoAComentario = null;
+      _termoMencaoAtivo = null;
+      _pdfEmTelaCheia = false;
+    });
     await TimelineService.adicionarComentario(
       publicacaoId: _pub.id,
       autorCpf: u.cpf,
@@ -170,17 +307,12 @@ class _DialogDetalhesPublicacaoState extends State<DialogDetalhesPublicacao> {
   Future<void> _republicar() async {
     final u = _obterUsuarioEfetivo();
     if (u == null) return;
-    await TimelineService.republicar(
-      original: _pub,
-      meuCpf: u.cpf,
-      meuNome: u.nomeExibicao,
-      minhaFoto: u.fotoExibicao,
+    await DialogRepublicarOpcoes.mostrar(
+      context,
+      theme: widget.theme,
+      publicacao: _pub,
+      usuario: u,
     );
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Publicação republicada no seu perfil!')),
-      );
-    }
   }
 
   Future<void> _enviarNoChat() async {
@@ -218,52 +350,13 @@ class _DialogDetalhesPublicacaoState extends State<DialogDetalhesPublicacao> {
   }
 
   Future<void> _editarPublicacao() async {
-    final theme = widget.theme;
-    final editCtrl = TextEditingController(text: _pub.texto);
-    final novoTexto = await showDialog<String>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: theme.cardBackgroundColor,
-        title: Text(
-          'Editar Publicação',
-          textAlign: TextAlign.center,
-          style: theme.getTextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.bold,
-            color: theme.textColor,
-          ),
-        ),
-        content: ThemedTextField(
-          theme: theme,
-          controller: editCtrl,
-          linhas: 4,
-          label: 'Legenda ou texto',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(),
-            child: const Text('Cancelar'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(editCtrl.text),
-            child: Text(
-              'Salvar',
-              style: theme.getTextStyle(
-                color: theme.buttonColor,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ),
-        ],
-      ),
+    final atualizada = await DialogEditarPublicacao.mostrar(
+      context,
+      theme: widget.theme,
+      publicacao: _pub,
     );
-    editCtrl.dispose();
-    if (novoTexto != null) {
-      final atualizada = await TimelineService.editarPublicacao(
-        _pub,
-        novoTexto: novoTexto,
-      );
-      if (mounted) setState(() => _pub = atualizada);
+    if (atualizada != null && mounted) {
+      setState(() => _pub = atualizada);
     }
   }
 
@@ -470,6 +563,18 @@ class _DialogDetalhesPublicacaoState extends State<DialogDetalhesPublicacao> {
                   visualDensity: VisualDensity.compact,
                   constraints: const BoxConstraints(),
                   padding: const EdgeInsets.all(6),
+                  tooltip: 'Comentar',
+                  icon: Icon(
+                    Icons.mode_comment_outlined,
+                    size: 18,
+                    color: theme.textColor,
+                  ),
+                  onPressed: () => _comentarioFocus.requestFocus(),
+                ),
+                IconButton(
+                  visualDensity: VisualDensity.compact,
+                  constraints: const BoxConstraints(),
+                  padding: const EdgeInsets.all(6),
                   tooltip: 'Republicar no meu perfil',
                   icon: Icon(
                     Icons.repeat_rounded,
@@ -477,6 +582,18 @@ class _DialogDetalhesPublicacaoState extends State<DialogDetalhesPublicacao> {
                     color: theme.textColor,
                   ),
                   onPressed: _republicar,
+                ),
+                IconButton(
+                  visualDensity: VisualDensity.compact,
+                  constraints: const BoxConstraints(),
+                  padding: const EdgeInsets.all(6),
+                  tooltip: 'Enviar pelo chat',
+                  icon: Icon(
+                    Icons.send_rounded,
+                    size: 18,
+                    color: theme.textColor,
+                  ),
+                  onPressed: _enviarNoChat,
                 ),
                 if (usuarioEfetivo != null)
                   IconButton(
@@ -505,18 +622,6 @@ class _DialogDetalhesPublicacaoState extends State<DialogDetalhesPublicacao> {
                       }
                     },
                   ),
-                IconButton(
-                  visualDensity: VisualDensity.compact,
-                  constraints: const BoxConstraints(),
-                  padding: const EdgeInsets.all(6),
-                  tooltip: 'Enviar pelo chat',
-                  icon: Icon(
-                    Icons.send_rounded,
-                    size: 18,
-                    color: theme.textColor,
-                  ),
-                  onPressed: _enviarNoChat,
-                ),
               ],
             ),
           ),
@@ -567,6 +672,90 @@ class _DialogDetalhesPublicacaoState extends State<DialogDetalhesPublicacao> {
     );
   }
 
+  void _abrirMapaComentarios({
+    required AppTheme theme,
+    required PublicacaoSocial pub,
+    required bool ehAutor,
+    required String meuCpf,
+  }) {
+    DialogMapaComentarios.mostrar(
+      context,
+      theme: theme,
+      publicacao: pub,
+      comentarios: _comentarios,
+      ehAutorPublicacao: ehAutor,
+      meuCpfLimpo: meuCpf,
+      onResponder: (c) {
+        setState(() => _respondendoAComentario = c);
+        _comentarioFocus.requestFocus();
+      },
+      onAlternarFixar: (c) async {
+        await TimelineService.alternarFixarComentario(c);
+        await _carregarInteracoes();
+      },
+      onExcluir: (c) async {
+        await TimelineService.excluirComentario(c);
+        await _carregarInteracoes();
+      },
+      onReacaoAlterada: _carregarInteracoes,
+    );
+  }
+
+  Widget _buildListaComentariosArvore({
+    required AppTheme theme,
+    required List<ComentarioSocial> comentariosRaiz,
+    required bool ehAutor,
+    required String meuCpf,
+  }) {
+    if (comentariosRaiz.isEmpty) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 18),
+        child: Center(
+          child: Text(
+            'Nenhum comentário ainda. Seja o primeiro a comentar!',
+            style: theme.getTextStyle(
+              fontSize: 12.5,
+              color: theme.secondaryTextColor,
+            ),
+          ),
+        ),
+      );
+    }
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        for (final c in comentariosRaiz)
+          ArvoreComentariosWidget(
+            theme: theme,
+            todosComentarios: _comentarios,
+            comentario: c,
+            ehAutorPublicacao: ehAutor,
+            meuCpf: meuCpf,
+            onResponder: (alvo) {
+              setState(() => _respondendoAComentario = alvo);
+              _comentarioFocus.requestFocus();
+            },
+            onAlternarFixar: (alvo) async {
+              await TimelineService.alternarFixarComentario(alvo);
+              await _carregarInteracoes();
+            },
+            onExcluir: (alvo) async {
+              await TimelineService.excluirComentario(alvo);
+              await _carregarInteracoes();
+            },
+            onReagirComentario: (alvo, ehLike) async {
+              await TimelineService.alternarReacaoComentario(
+                comentario: alvo,
+                usuarioCpf: meuCpf,
+                ehLike: ehLike,
+              );
+              await _carregarInteracoes();
+            },
+          ),
+      ],
+    );
+  }
+
   Widget _buildSecaoComentarios({
     required AppTheme theme,
     required PublicacaoSocial pub,
@@ -589,63 +778,35 @@ class _DialogDetalhesPublicacaoState extends State<DialogDetalhesPublicacao> {
               ),
             ),
             TextButton.icon(
-              onPressed: () => DialogMapaComentarios.mostrar(
-                context,
+              onPressed: () => _abrirMapaComentarios(
                 theme: theme,
-                publicacao: pub,
-                comentarios: _comentarios,
-                ehAutorPublicacao: ehAutor,
-                meuCpfLimpo: meuCpf,
-                onResponder: (c) {
-                  setState(() => _respondendoAComentario = c);
-                  _comentarioFocus.requestFocus();
-                },
-                onAlternarFixar: (c) async {
-                  await TimelineService.alternarFixarComentario(c);
-                  await _carregarInteracoes();
-                },
-                onExcluir: (c) async {
-                  await TimelineService.excluirComentario(c);
-                  await _carregarInteracoes();
-                },
+                pub: pub,
+                ehAutor: ehAutor,
+                meuCpf: meuCpf,
               ),
               icon: Icon(
                 Icons.account_tree_outlined,
                 size: 16,
-                color: theme.buttonColor,
+                color: theme.textColor,
               ),
               label: Text(
                 'Mapa da Conversa',
                 style: theme.getTextStyle(
                   fontSize: 12,
-                  fontWeight: FontWeight.bold,
-                  color: theme.buttonColor,
+                  fontWeight: FontWeight.w600,
+                  color: theme.textColor,
                 ),
               ),
             ),
           ],
         ),
         const SizedBox(height: 6),
-        for (final c in comentariosRaiz)
-          ArvoreComentariosWidget(
-            theme: theme,
-            todosComentarios: _comentarios,
-            comentario: c,
-            ehAutorPublicacao: ehAutor,
-            meuCpf: meuCpf,
-            onResponder: (alvo) {
-              setState(() => _respondendoAComentario = alvo);
-              _comentarioFocus.requestFocus();
-            },
-            onAlternarFixar: (alvo) async {
-              await TimelineService.alternarFixarComentario(alvo);
-              await _carregarInteracoes();
-            },
-            onExcluir: (alvo) async {
-              await TimelineService.excluirComentario(alvo);
-              await _carregarInteracoes();
-            },
-          ),
+        _buildListaComentariosArvore(
+          theme: theme,
+          comentariosRaiz: comentariosRaiz,
+          ehAutor: ehAutor,
+          meuCpf: meuCpf,
+        ),
       ],
     );
   }
@@ -662,12 +823,59 @@ class _DialogDetalhesPublicacaoState extends State<DialogDetalhesPublicacao> {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
+          if (_termoMencaoAtivo != null)
+            Builder(
+              builder: (_) {
+                final q = _termoMencaoAtivo!;
+                final sugestoes = _todasContasMencao.where((u) {
+                  final un = u.usernameExibicao.replaceAll('@', '').toLowerCase();
+                  if (un.isEmpty) return false;
+                  if (q.isEmpty) return true;
+                  return un.contains(q) ||
+                      u.nomeExibicao.toLowerCase().contains(q);
+                }).take(4).toList();
+                if (sugestoes.isEmpty) return const SizedBox.shrink();
+                return Container(
+                  margin: const EdgeInsets.only(bottom: 8),
+                  decoration: BoxDecoration(
+                    color: theme.backgroundColor.withValues(alpha: 0.7),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      for (final u in sugestoes)
+                        ListTile(
+                          dense: true,
+                          visualDensity: VisualDensity.compact,
+                          onTap: () => _inserirMencao(u),
+                          title: Text(
+                            u.nomeExibicao,
+                            style: theme.getTextStyle(
+                              fontSize: 12.5,
+                              fontWeight: FontWeight.w600,
+                              color: theme.textColor,
+                            ),
+                          ),
+                          trailing: Text(
+                            u.usernameExibicao,
+                            style: theme.getTextStyle(
+                              fontSize: 11.5,
+                              color: const Color(0xFF1D9BF0),
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                );
+              },
+            ),
           if (_respondendoAComentario != null)
             Padding(
               padding: const EdgeInsets.only(bottom: 6),
               child: Row(
                 children: [
-                  Icon(Icons.reply_rounded, size: 15, color: theme.buttonColor),
+                  Icon(Icons.reply_rounded, size: 15, color: theme.textColor),
                   const SizedBox(width: 6),
                   Expanded(
                     child: Text(
@@ -677,7 +885,7 @@ class _DialogDetalhesPublicacaoState extends State<DialogDetalhesPublicacao> {
                       style: theme.getTextStyle(
                         fontSize: 11.5,
                         fontWeight: FontWeight.w600,
-                        color: theme.buttonColor,
+                        color: theme.textColor,
                       ),
                     ),
                   ),
@@ -699,6 +907,7 @@ class _DialogDetalhesPublicacaoState extends State<DialogDetalhesPublicacao> {
                 child: TextField(
                   controller: _comentarioCtrl,
                   focusNode: _comentarioFocus,
+                  onChanged: _aoDigitarComentario,
                   onSubmitted: (_) => _enviarComentario(),
                   style: theme.getTextStyle(
                     fontSize: 13.5,
@@ -786,6 +995,91 @@ class _DialogDetalhesPublicacaoState extends State<DialogDetalhesPublicacao> {
 
     final ehDesktop = MediaQuery.sizeOf(context).width >= 820;
 
+    if (_pdfEmTelaCheia) {
+      return Scaffold(
+        backgroundColor: theme.backgroundColor,
+        body: SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.all(8),
+            child: _buildMidias(
+              theme,
+              pub,
+              ajustarTelaCheia: true,
+            ),
+          ),
+        ),
+      );
+    }
+
+    final usarReelsCompacto = !ehDesktop &&
+        (pub.tipo == TipoFeedSocial.videos || pub.tipo == TipoFeedSocial.fotos) &&
+        pub.midias.isNotEmpty;
+
+    if (usarReelsCompacto) {
+      return Scaffold(
+        backgroundColor: theme.backgroundColor,
+        body: SafeArea(
+          child: VisualizadorReelsCompactoWidget(
+            theme: theme,
+            publicacoes: _lista,
+            indiceAtivo: _indiceAtivo,
+            pubAtiva: pub,
+            usuarioLogado: usuarioEfetivo,
+            reacoes: _reacoes,
+            republicacoes: _republicacoesPub,
+            comentarios: _comentarios,
+            coautoresResolvidos: _coautoresResolvidos,
+            minhaReacao: minhaReacao?.tipo,
+            likes: likes,
+            deslikes: deslikes,
+            baixando: _baixando,
+            onTrocarPublicacao: _trocarPublicacao,
+            onReagir: _reagir,
+            onRepublicar: _republicar,
+            onSalvar: () => DialogSalvarPublicacao.mostrar(
+              context,
+              theme: theme,
+              publicacaoId: pub.id,
+              usuarioCpf: meuCpf,
+            ),
+            onEnviarChat: _enviarNoChat,
+            onMaisOpcoes: () => _abrirMenuOpcoesPublicacao(ehAutor),
+            onDownload: _baixarPrimeiraMidia,
+            onAbrirMapaComentarios: () => _abrirMapaComentarios(
+              theme: theme,
+              pub: pub,
+              ehAutor: ehAutor,
+              meuCpf: meuCpf,
+            ),
+            buildMidia: (t, item, ehAtiva) => _buildMidias(
+              t,
+              item,
+              ajustarTelaCheia: true,
+              autoPlayVideo: ehAtiva,
+              usarGlobalKey: ehAtiva,
+            ),
+            buildConteudoComentarios: (t, item) => _buildListaComentariosArvore(
+              theme: t,
+              comentariosRaiz: comentariosRaiz,
+              ehAutor: ehAutor,
+              meuCpf: meuCpf,
+            ),
+            buildInputComentario: _buildBarraInputComentario,
+          ),
+        ),
+      );
+    }
+
+    if (ehDesktop &&
+        _desktopPageController.hasClients &&
+        _desktopPageController.page?.round() != _indiceAtivo) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && _desktopPageController.hasClients) {
+          _desktopPageController.jumpToPage(_indiceAtivo);
+        }
+      });
+    }
+
     return Scaffold(
       backgroundColor: theme.backgroundColor,
       body: SafeArea(
@@ -838,11 +1132,40 @@ class _DialogDetalhesPublicacaoState extends State<DialogDetalhesPublicacao> {
                                   .withValues(alpha: 0.3),
                               alignment: Alignment.center,
                               padding: const EdgeInsets.all(12),
-                              child: _buildMidias(
-                                theme,
-                                pub,
-                                ajustarTelaCheia: true,
-                              ),
+                              child: _lista.length > 1
+                                  ? PageView.builder(
+                                      controller: _desktopPageController,
+                                      scrollDirection: Axis.vertical,
+                                      scrollBehavior:
+                                          const MaterialScrollBehavior()
+                                              .copyWith(
+                                        dragDevices: {
+                                          PointerDeviceKind.touch,
+                                          PointerDeviceKind.mouse,
+                                          PointerDeviceKind.trackpad,
+                                        },
+                                      ),
+                                      itemCount: _lista.length,
+                                      onPageChanged: _trocarPublicacao,
+                                      itemBuilder: (ctx, idx) {
+                                        final item = _lista[idx];
+                                        final ehAtiva = idx == _indiceAtivo;
+                                        return Center(
+                                          child: _buildMidias(
+                                            theme,
+                                            item,
+                                            ajustarTelaCheia: true,
+                                            autoPlayVideo: ehAtiva,
+                                            usarGlobalKey: ehAtiva,
+                                          ),
+                                        );
+                                      },
+                                    )
+                                  : _buildMidias(
+                                      theme,
+                                      pub,
+                                      ajustarTelaCheia: true,
+                                    ),
                             ),
                           ),
                         Expanded(
@@ -967,17 +1290,32 @@ class _DialogDetalhesPublicacaoState extends State<DialogDetalhesPublicacao> {
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
                           if (pub.midias.isNotEmpty) ...[
-                            ConstrainedBox(
-                              constraints: BoxConstraints(
-                                maxHeight:
-                                    MediaQuery.sizeOf(context).height * 0.50,
+                            if (pub.midias.any(
+                              (m) =>
+                                  m.mimeTipo.toLowerCase() == 'pdf' ||
+                                  m.nomeArquivo.toLowerCase().endsWith('.pdf'),
+                            ))
+                              SizedBox(
+                                height:
+                                    MediaQuery.sizeOf(context).height * 0.46,
+                                child: _buildMidias(
+                                  theme,
+                                  pub,
+                                  ajustarTelaCheia: true,
+                                ),
+                              )
+                            else
+                              ConstrainedBox(
+                                constraints: BoxConstraints(
+                                  maxHeight:
+                                      MediaQuery.sizeOf(context).height * 0.50,
+                                ),
+                                child: _buildMidias(
+                                  theme,
+                                  pub,
+                                  ajustarTelaCheia: true,
+                                ),
                               ),
-                              child: _buildMidias(
-                                theme,
-                                pub,
-                                ajustarTelaCheia: true,
-                              ),
-                            ),
                             const SizedBox(height: 10),
                           ],
                           _buildBarraAcoes(
@@ -1022,6 +1360,8 @@ class _DialogDetalhesPublicacaoState extends State<DialogDetalhesPublicacao> {
     AppTheme theme,
     PublicacaoSocial pub, {
     bool ajustarTelaCheia = false,
+    bool autoPlayVideo = true,
+    bool usarGlobalKey = true,
   }) {
     final todasFotos = pub.midias.every((m) {
       final ext = m.mimeTipo.toLowerCase();
@@ -1033,6 +1373,7 @@ class _DialogDetalhesPublicacaoState extends State<DialogDetalhesPublicacao> {
     });
     if (todasFotos) {
       return CarrosselFotosPublicacao(
+        key: usarGlobalKey ? _midiasKey : ValueKey('carrossel_${pub.id}'),
         theme: theme,
         midias: pub.midias,
         aspectRatio: pub.aspectRatioEfetivo,
@@ -1043,6 +1384,14 @@ class _DialogDetalhesPublicacaoState extends State<DialogDetalhesPublicacao> {
       );
     }
 
-    return WidgetMidiaPublicacao(theme: theme, publicacao: pub);
+    return WidgetMidiaPublicacao(
+      key: usarGlobalKey ? _midiasKey : ValueKey('midia_${pub.id}'),
+      theme: theme,
+      publicacao: pub,
+      autoPlayVideo: autoPlayVideo,
+      modoLeitorPdfCompleto: true,
+      pdfFullScreen: _pdfEmTelaCheia,
+      onAlternarPdfFullScreen: (v) => setState(() => _pdfEmTelaCheia = v),
+    );
   }
 }

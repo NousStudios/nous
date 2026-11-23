@@ -9,6 +9,8 @@ import 'package:nous/src/features/pdv/services/imagem_service.dart';
 import 'package:nous/src/features/timeline/models/story_social.dart';
 import 'package:nous/src/features/timeline/services/timeline_repositorio_sqlite.dart';
 import 'package:nous/src/features/timeline/services/timeline_service.dart';
+import 'package:nous/src/features/timeline/views/widgets/editor_story_view.dart';
+import 'package:nous/src/features/timeline/views/widgets/texto_com_hashtags_widget.dart';
 
 export 'dialog_criar_story.dart';
 
@@ -63,7 +65,7 @@ class DialogVisualizarStory extends StatefulWidget {
           final curva = CurvedAnimation(
             parent: animation,
             curve: Curves.easeOutCubic,
-            reverseCurve: Curves.easeInBack,
+            reverseCurve: Curves.easeInCubic,
           );
           return AnimatedBuilder(
             animation: curva,
@@ -141,6 +143,7 @@ class _DialogVisualizarStoryState extends State<DialogVisualizarStory>
   }
 
   void _iniciarStoryAtual() {
+    _pausadoManual = false;
     _timerCtrl.stop();
     _timerCtrl.value = 0.0;
     _timerCtrl.forward();
@@ -152,6 +155,7 @@ class _DialogVisualizarStoryState extends State<DialogVisualizarStory>
   }
 
   bool _fechando = false;
+  bool _pausadoManual = false;
 
   void _fecharSeguro() {
     if (_fechando || !mounted) return;
@@ -394,6 +398,140 @@ class _DialogVisualizarStoryState extends State<DialogVisualizarStory>
     }
   }
 
+  Future<void> _encaminharNoChat(StorySocial story) async {
+    final usuario = widget.usuarioLogado;
+    if (usuario == null) return;
+    _timerCtrl.stop();
+    try {
+      final meuCpfNorm = TimelineRepositorioSqlite.normalizarCpf(usuario.cpf);
+      final todasContas = await ContasNousService.carregarTodas();
+      final contatos = todasContas
+          .where(
+            (c) =>
+                TimelineRepositorioSqlite.normalizarCpf(c.cpf) != meuCpfNorm &&
+                c.cpf.trim().isNotEmpty,
+          )
+          .toList();
+      if (!mounted) return;
+      final destino = await showDialog<UsuarioNous>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          backgroundColor: widget.theme.cardBackgroundColor,
+          title: Text(
+            'Enviar Story no Chat',
+            style: widget.theme.getTextStyle(
+              fontSize: 15,
+              fontWeight: FontWeight.bold,
+              color: widget.theme.textColor,
+            ),
+          ),
+          content: SizedBox(
+            width: 320,
+            height: 300,
+            child: contatos.isEmpty
+                ? Center(
+                    child: Text(
+                      'Nenhum contato encontrado na rede.',
+                      style: widget.theme.getTextStyle(
+                        fontSize: 13,
+                        color: widget.theme.secondaryTextColor,
+                      ),
+                    ),
+                  )
+                : ListView.builder(
+                    itemCount: contatos.length,
+                    itemBuilder: (_, i) {
+                      final c = contatos[i];
+                      final img = ImagemService.obterImageProvider(c.fotoExibicao);
+                      return ListTile(
+                        leading: CircleAvatar(
+                          backgroundImage: img,
+                          child: img == null
+                              ? Text(
+                                  c.nomeExibicao.isNotEmpty
+                                      ? c.nomeExibicao[0].toUpperCase()
+                                      : '?',
+                                )
+                              : null,
+                        ),
+                        title: Text(
+                          c.nomeExibicao,
+                          style: widget.theme.getTextStyle(
+                            fontSize: 13,
+                            color: widget.theme.textColor,
+                          ),
+                        ),
+                        subtitle: c.nomeDeUsuario.isNotEmpty
+                            ? Text(
+                                '@${c.nomeDeUsuario}',
+                                style: widget.theme.getTextStyle(
+                                  fontSize: 11,
+                                  color: widget.theme.secondaryTextColor,
+                                ),
+                              )
+                            : null,
+                        onTap: () => Navigator.of(ctx).pop(c),
+                      );
+                    },
+                  ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(),
+              child: Text(
+                'Cancelar',
+                style: widget.theme.getTextStyle(
+                  color: widget.theme.secondaryTextColor,
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+      if (destino != null) {
+        await TimelineService.encaminharStoryNoChat(
+          story: story,
+          meuCpf: usuario.cpf,
+          meuNome: usuario.nomeExibicao,
+          minhaFoto: usuario.fotoExibicao,
+          destinatarioCpf: destino.cpf,
+        );
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Story enviado para ${destino.nomeExibicao}!'),
+            ),
+          );
+        }
+      }
+    } finally {
+      if (mounted) _timerCtrl.forward();
+    }
+  }
+
+  Future<void> _repostarNoMeuStory(StorySocial story) async {
+    final usuario = widget.usuarioLogado;
+    if (usuario == null) return;
+    _timerCtrl.stop();
+    try {
+      final repostado = await EditorStoryView.mostrar(
+        context,
+        theme: widget.theme,
+        autor: usuario,
+        caminhoArquivo: story.caminhoMidia,
+        ehVideo: story.tipoMidia == 'video',
+        storyRepostOriginal: story,
+      );
+      if (repostado != null && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Story repostado no seu perfil!')),
+        );
+      }
+    } finally {
+      if (mounted) _timerCtrl.forward();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = widget.theme;
@@ -417,10 +555,10 @@ class _DialogVisualizarStoryState extends State<DialogVisualizarStory>
         },
         onVerticalDragEnd: (_) {
           if (_arrastoVerticalY > 85) {
-            Navigator.of(context).pop();
+            _fecharSeguro();
           } else {
             setState(() => _arrastoVerticalY = 0.0);
-            _timerCtrl.forward();
+            if (!_pausadoManual) _timerCtrl.forward();
           }
         },
         onLongPressStart: (_) {
@@ -534,24 +672,72 @@ class _DialogVisualizarStoryState extends State<DialogVisualizarStory>
                           Container(
                             padding: const EdgeInsets.symmetric(horizontal: 28),
                             alignment: Alignment.center,
-                            decoration: BoxDecoration(
-                              gradient: LinearGradient(
-                                begin: Alignment.topLeft,
-                                end: Alignment.bottomRight,
-                                colors: [
-                                  theme.buttonColor.withValues(alpha: 0.85),
-                                  theme.cardBackgroundColor,
-                                ],
-                              ),
-                            ),
-                            child: Text(
-                              story.texto,
-                              textAlign: TextAlign.center,
-                              style: theme.getTextStyle(
-                                fontSize: 22,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.white,
-                              ),
+                            decoration: story.corFundoHex.isNotEmpty
+                                ? BoxDecoration(
+                                    color: Color(
+                                      int.tryParse(
+                                            story.corFundoHex,
+                                            radix: 16,
+                                          ) ??
+                                          0xFF18181B,
+                                    ),
+                                  )
+                                : BoxDecoration(
+                                    gradient: LinearGradient(
+                                      begin: Alignment.topLeft,
+                                      end: Alignment.bottomRight,
+                                      colors: [
+                                        theme.buttonColor
+                                            .withValues(alpha: 0.85),
+                                        theme.cardBackgroundColor,
+                                      ],
+                                    ),
+                                  ),
+                            child: story.texto.isNotEmpty
+                                ? Text(
+                                    story.texto,
+                                    textAlign: TextAlign.center,
+                                    style: theme.getTextStyle(
+                                      fontSize: 22,
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.white,
+                                    ),
+                                  )
+                                : const SizedBox.shrink(),
+                          ),
+
+                        // Camadas de texto personalizadas (arrastadas pelo editor)
+                        if (story.camadasTexto.isNotEmpty)
+                          LayoutBuilder(
+                            builder: (ctx, box) => Stack(
+                              children: [
+                                for (final camada in story.camadasTexto)
+                                  Positioned(
+                                    left: (camada.x * box.maxWidth - 110)
+                                        .clamp(8.0, box.maxWidth - 120),
+                                    top: (camada.y * box.maxHeight - 24)
+                                        .clamp(56.0, box.maxHeight - 120),
+                                    child: CamadaTextoStoryWidget(
+                                      camada: camada,
+                                      onTapMencao: (handle) async {
+                                        _timerCtrl.stop();
+                                        try {
+                                          await TextoComHashtagsWidget
+                                              .abrirPerfilPorHandle(
+                                            context,
+                                            handle,
+                                          );
+                                        } finally {
+                                          if (mounted &&
+                                              !_pausadoManual &&
+                                              !_fechando) {
+                                            _timerCtrl.forward();
+                                          }
+                                        }
+                                      },
+                                    ),
+                                  ),
+                              ],
                             ),
                           ),
 
@@ -583,6 +769,68 @@ class _DialogVisualizarStoryState extends State<DialogVisualizarStory>
                                   style: theme.getTextStyle(
                                     fontSize: 14,
                                     color: Colors.white,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+
+                        // Setas laterais discretas para navegar entre Stories
+                        if (_indiceAtual > 0)
+                          Positioned(
+                            left: 8,
+                            top: 0,
+                            bottom: 0,
+                            child: Center(
+                              child: AnimatedOpacity(
+                                duration: const Duration(milliseconds: 180),
+                                opacity: _ocultarChrome ? 0.0 : 1.0,
+                                child: InkWell(
+                                  onTap: _voltarStory,
+                                  borderRadius: BorderRadius.circular(20),
+                                  child: Container(
+                                    width: 34,
+                                    height: 34,
+                                    decoration: BoxDecoration(
+                                      color:
+                                          Colors.black.withValues(alpha: 0.42),
+                                      shape: BoxShape.circle,
+                                    ),
+                                    child: const Icon(
+                                      Icons.chevron_left_rounded,
+                                      color: Colors.white,
+                                      size: 24,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        if (_stories.length > 1)
+                          Positioned(
+                            right: 8,
+                            top: 0,
+                            bottom: 0,
+                            child: Center(
+                              child: AnimatedOpacity(
+                                duration: const Duration(milliseconds: 180),
+                                opacity: _ocultarChrome ? 0.0 : 1.0,
+                                child: InkWell(
+                                  onTap: _avancarStory,
+                                  borderRadius: BorderRadius.circular(20),
+                                  child: Container(
+                                    width: 34,
+                                    height: 34,
+                                    decoration: BoxDecoration(
+                                      color:
+                                          Colors.black.withValues(alpha: 0.42),
+                                      shape: BoxShape.circle,
+                                    ),
+                                    child: const Icon(
+                                      Icons.chevron_right_rounded,
+                                      color: Colors.white,
+                                      size: 24,
+                                    ),
                                   ),
                                 ),
                               ),
@@ -675,6 +923,18 @@ class _DialogVisualizarStoryState extends State<DialogVisualizarStory>
                                               color: Colors.white,
                                             ),
                                           ),
+                                          if (story.storyOriginalId.isNotEmpty)
+                                            Text(
+                                              'Repostado de ${story.autorOriginalNome.isNotEmpty ? story.autorOriginalNome : "outro perfil"}',
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
+                                              style: theme.getTextStyle(
+                                                fontSize: 10.5,
+                                                color: Colors.white.withValues(
+                                                  alpha: 0.78,
+                                                ),
+                                              ),
+                                            ),
                                           Text(
                                             _formatarTempoStory(story),
                                             style: theme.getTextStyle(
@@ -688,12 +948,32 @@ class _DialogVisualizarStoryState extends State<DialogVisualizarStory>
                                       ),
                                     ),
                                     IconButton(
+                                      tooltip: _pausadoManual
+                                          ? 'Retomar story'
+                                          : 'Pausar story',
+                                      icon: Icon(
+                                        _pausadoManual
+                                            ? Icons.play_arrow_rounded
+                                            : Icons.pause_rounded,
+                                        color: Colors.white,
+                                      ),
+                                      onPressed: () {
+                                        setState(
+                                          () => _pausadoManual = !_pausadoManual,
+                                        );
+                                        if (_pausadoManual) {
+                                          _timerCtrl.stop();
+                                        } else {
+                                          _timerCtrl.forward();
+                                        }
+                                      },
+                                    ),
+                                    IconButton(
                                       icon: const Icon(
                                         Icons.close,
                                         color: Colors.white,
                                       ),
-                                      onPressed: () =>
-                                          Navigator.of(context).pop(),
+                                      onPressed: _fecharSeguro,
                                     ),
                                   ],
                                 ),
@@ -789,6 +1069,17 @@ class _DialogVisualizarStoryState extends State<DialogVisualizarStory>
                                                 );
                                               },
                                             ),
+                                          ),
+                                          IconButton(
+                                            visualDensity: VisualDensity.compact,
+                                            tooltip: 'Enviar no chat',
+                                            icon: const Icon(
+                                              Icons.send_outlined,
+                                              color: Colors.white,
+                                              size: 19,
+                                            ),
+                                            onPressed: () =>
+                                                _encaminharNoChat(story),
                                           ),
                                           IconButton(
                                             visualDensity: VisualDensity.compact,
@@ -899,6 +1190,7 @@ class _DialogVisualizarStoryState extends State<DialogVisualizarStory>
                                       ),
                                     ),
                                   IconButton(
+                                    tooltip: 'Enviar resposta',
                                     icon: const Icon(
                                       Icons.send_rounded,
                                       color: Colors.white,
@@ -906,6 +1198,24 @@ class _DialogVisualizarStoryState extends State<DialogVisualizarStory>
                                     ),
                                     onPressed: () =>
                                         _enviarResposta(_respostaCtrl.text),
+                                  ),
+                                  IconButton(
+                                    tooltip: 'Enviar no chat',
+                                    icon: const Icon(
+                                      Icons.share_outlined,
+                                      color: Colors.white,
+                                      size: 20,
+                                    ),
+                                    onPressed: () => _encaminharNoChat(story),
+                                  ),
+                                  IconButton(
+                                    tooltip: 'Repostar no meu Story',
+                                    icon: const Icon(
+                                      Icons.repeat_rounded,
+                                      color: Colors.white,
+                                      size: 20,
+                                    ),
+                                    onPressed: () => _repostarNoMeuStory(story),
                                   ),
                                 ],
                               ),

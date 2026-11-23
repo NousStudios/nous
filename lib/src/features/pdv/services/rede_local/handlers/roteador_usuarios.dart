@@ -81,10 +81,7 @@ class RoteadorUsuarios {
 
       if (conta.foto.isNotEmpty) {
         final resolvida = ImagemService.resolverCaminhoExistente(conta.foto);
-        if (resolvida == null) {
-          conta = conta.copyWith(foto: '');
-          await ContasNousService.salvar(conta);
-        } else if (resolvida != conta.foto) {
+        if (resolvida != null && resolvida != conta.foto) {
           conta = conta.copyWith(foto: resolvida);
           await ContasNousService.salvar(conta);
         }

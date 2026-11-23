@@ -99,6 +99,8 @@ class ComentarioSocial {
   final DateTime? atualizadaEm;
   final bool excluido;
   final bool fixado;
+  final List<String> curtidasCpfs;
+  final List<String> descurtidasCpfs;
 
   const ComentarioSocial({
     required this.id,
@@ -112,6 +114,8 @@ class ComentarioSocial {
     this.atualizadaEm,
     this.excluido = false,
     this.fixado = false,
+    this.curtidasCpfs = const [],
+    this.descurtidasCpfs = const [],
   });
 
   DateTime get atualizadaEfetiva => atualizadaEm ?? criadaEm;
@@ -128,6 +132,8 @@ class ComentarioSocial {
     DateTime? atualizadaEm,
     bool? excluido,
     bool? fixado,
+    List<String>? curtidasCpfs,
+    List<String>? descurtidasCpfs,
   }) {
     return ComentarioSocial(
       id: id ?? this.id,
@@ -141,6 +147,8 @@ class ComentarioSocial {
       atualizadaEm: atualizadaEm ?? this.atualizadaEm,
       excluido: excluido ?? this.excluido,
       fixado: fixado ?? this.fixado,
+      curtidasCpfs: curtidasCpfs ?? this.curtidasCpfs,
+      descurtidasCpfs: descurtidasCpfs ?? this.descurtidasCpfs,
     );
   }
 
@@ -156,6 +164,8 @@ class ComentarioSocial {
         'atualizadaEm': (atualizadaEm ?? criadaEm).toIso8601String(),
         'excluido': excluido,
         'fixado': fixado,
+        'curtidasCpfs': curtidasCpfs,
+        'descurtidasCpfs': descurtidasCpfs,
       };
 
   factory ComentarioSocial.fromJson(Map<String, dynamic> json) {
@@ -174,6 +184,12 @@ class ComentarioSocial {
           : null,
       excluido: json['excluido'] == true || json['excluido'] == 1,
       fixado: json['fixado'] == true || json['fixado'] == 1,
+      curtidasCpfs: (json['curtidasCpfs'] as List<dynamic>? ?? const [])
+          .map((e) => e.toString())
+          .toList(),
+      descurtidasCpfs: (json['descurtidasCpfs'] as List<dynamic>? ?? const [])
+          .map((e) => e.toString())
+          .toList(),
     );
   }
 }

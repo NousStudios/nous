@@ -10,7 +10,7 @@ class SegurancaServidorRelay {
 
   // Teto de tamanho seguro para payloads
   static const int limiteBytesHttpGeral = 2 * 1024 * 1024; // 2 MB
-  static const int limiteBytesUploadMidia = 15 * 1024 * 1024; // 15 MB
+  static const int limiteBytesUploadMidia = 150 * 1024 * 1024; // 150 MB
   static const int limiteBytesMensagemWs = 2 * 1024 * 1024; // 2 MB
 
   // Parâmetros de Rate Limiting

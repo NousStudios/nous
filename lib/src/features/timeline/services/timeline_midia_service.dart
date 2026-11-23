@@ -1,12 +1,15 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:file_selector/file_selector.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
+import 'package:printing/printing.dart';
 import 'package:nous/src/core/services/gerador_id.dart';
 import 'package:nous/src/features/pdv/services/imagem_service.dart';
 import 'package:nous/src/features/pdv/services/rede_local/cliente_rede_local.dart';
+import 'package:nous/src/features/pdv/services/rede_local/helpers/resolvedor_url_rede.dart';
 import 'package:nous/src/features/timeline/models/publicacao_social.dart';
 import 'package:nous/src/features/timeline/models/story_social.dart';
 import 'package:nous/src/features/timeline/services/timeline_repositorio_sqlite.dart';
@@ -18,6 +21,8 @@ class TimelineMidiaService {
 
   static final Map<String, String> _cacheCaminhosMidia = {};
   static final Map<String, Future<String?>> _downloadsEmAndamento = {};
+  static final Map<String, Uint8List> _cacheThumbsMemoria = {};
+  static final Set<String> _gerandoThumbPdf = {};
 
   /// Importa um arquivo local para a pasta soberana do Nous.
   /// Imagens menores que 1.5 MB são salvas diretamente para evitar travamento na UI.
@@ -47,8 +52,10 @@ class TimelineMidiaService {
       );
       if (caminhoSalvo != null) {
         _cacheCaminhosMidia[caminhoSalvo] = caminhoSalvo;
+        final canonico = ImagemService.paraCaminhoRelativoCanonico(caminhoSalvo);
+        _cacheCaminhosMidia[canonico] = caminhoSalvo;
         return MidiaPublicacao(
-          caminhoRelativo: caminhoSalvo,
+          caminhoRelativo: canonico,
           nomeArquivo: nomeArquivo.isNotEmpty
               ? nomeArquivo
               : p.basename(caminhoOrigem),
@@ -70,7 +77,7 @@ class TimelineMidiaService {
     await arquivo.copy(destino.path);
 
     final bytes = await destino.length();
-    final rel = p.join('timeline_midias', nomeFinal);
+    final rel = 'timeline_midias/$nomeFinal';
     _cacheCaminhosMidia[rel] = destino.path;
 
     return MidiaPublicacao(
@@ -97,6 +104,22 @@ class TimelineMidiaService {
       return resolvidoImg;
     }
     return null;
+  }
+
+  static String? obterUrlStreamingVideo(String caminho) {
+    if (caminho.trim().isEmpty) return null;
+    final cliente = ClienteRedeLocal();
+    final ip = cliente.ipServidor;
+    final porta = cliente.portaServidor;
+    if (!cliente.conectado || ip == null || ip.isEmpty || porta == null) {
+      return null;
+    }
+    return ResolvedorUrlRede.montarUriHttp(
+      hostOuIp: ip,
+      porta: porta,
+      path: '/api/video',
+      queryParameters: {'caminho': caminho.trim()},
+    ).toString();
   }
 
   static Future<String?> resolverCaminhoMidia(String caminho) async {
@@ -126,7 +149,22 @@ class TimelineMidiaService {
       }
     } catch (_) {}
 
-    if (ClienteRedeLocal().conectado) {
+    final ext = p.extension(caminho).toLowerCase();
+    const extensoesNaoImagem = {
+      '.mp4',
+      '.mov',
+      '.mkv',
+      '.webm',
+      '.avi',
+      '.3gp',
+      '.mp3',
+      '.wav',
+      '.m4a',
+      '.aac',
+      '.ogg',
+      '.pdf',
+    };
+    if (!extensoesNaoImagem.contains(ext) && ClienteRedeLocal().conectado) {
       try {
         final baixado = await ClienteRedeLocal()
             .baixarImagemRemota(caminho)
@@ -250,5 +288,95 @@ class TimelineMidiaService {
       } catch (_) {}
     }
     return removidos;
+  }
+
+  static String _chaveArquivoThumb(String chave) {
+    final hash = chave.codeUnits.fold<int>(
+      17,
+      (acc, c) => (acc * 31 + c) & 0x7fffffff,
+    );
+    return 'thumb_${hash}_${chave.length}.bin';
+  }
+
+  static Future<File?> _arquivoThumbDisco(String chave) async {
+    try {
+      final base = await getApplicationSupportDirectory();
+      final dir = Directory(p.join(base.path, 'Nous', 'timeline_thumbs'));
+      if (!dir.existsSync()) await dir.create(recursive: true);
+      return File(p.join(dir.path, _chaveArquivoThumb(chave)));
+    } catch (_) {
+      return null;
+    }
+  }
+
+  static Future<Uint8List?> lerThumbnailDisco(String chave) async {
+    final emMem = _cacheThumbsMemoria[chave];
+    if (emMem != null) return emMem;
+    final arq = await _arquivoThumbDisco(chave);
+    if (arq != null && arq.existsSync()) {
+      try {
+        final bytes = await arq.readAsBytes();
+        if (bytes.isNotEmpty) {
+          if (_cacheThumbsMemoria.length >= 120) {
+            _cacheThumbsMemoria.remove(_cacheThumbsMemoria.keys.first);
+          }
+          _cacheThumbsMemoria[chave] = bytes;
+          return bytes;
+        }
+      } catch (_) {}
+    }
+    return null;
+  }
+
+  static Future<void> salvarThumbnailDisco(String chave, Uint8List bytes) async {
+    if (bytes.isEmpty) return;
+    if (_cacheThumbsMemoria.length >= 120) {
+      _cacheThumbsMemoria.remove(_cacheThumbsMemoria.keys.first);
+    }
+    _cacheThumbsMemoria[chave] = bytes;
+    final arq = await _arquivoThumbDisco(chave);
+    if (arq != null) {
+      try {
+        await arq.writeAsBytes(bytes, flush: true);
+      } catch (_) {}
+    }
+  }
+
+  /// Gera (e salva em disco) a miniatura da 1ª página de um PDF em baixa resolução
+  /// para grades 3x3 sem precisar rasterizar o documento inteiro a cada scroll.
+  static Future<Uint8List?> obterOuGerarMiniaturaPdf(String caminhoPdf) async {
+    if (caminhoPdf.trim().isEmpty) return null;
+    final chave = 'pdf_$caminhoPdf';
+    final emCache = await lerThumbnailDisco(chave);
+    if (emCache != null) return emCache;
+    if (_gerandoThumbPdf.contains(chave)) return null;
+
+    _gerandoThumbPdf.add(chave);
+    try {
+      final caminhoLocal =
+          resolverCaminhoMidiaSync(caminhoPdf) ?? await resolverCaminhoMidia(caminhoPdf);
+      if (caminhoLocal == null || caminhoLocal.isEmpty) return null;
+      final file = File(caminhoLocal);
+      if (!file.existsSync()) return null;
+      final pdfBytes = await file.readAsBytes();
+      if (pdfBytes.isEmpty) return null;
+
+      await for (final page in Printing.raster(
+        pdfBytes,
+        pages: const [0],
+        dpi: 96,
+      )) {
+        final png = await page.toPng();
+        if (png.isNotEmpty) {
+          await salvarThumbnailDisco(chave, png);
+          return png;
+        }
+        break;
+      }
+    } catch (_) {
+    } finally {
+      _gerandoThumbPdf.remove(chave);
+    }
+    return null;
   }
 }

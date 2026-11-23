@@ -38,6 +38,7 @@ class _PerfisPdvViewState extends State<PerfisPdvView> {
   @override
   void initState() {
     super.initState();
+    ThemeController.isLoginScreen = false;
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       if (!mounted) return;
       final pdv = context.read<PdvProvider>();

@@ -1,14 +1,22 @@
+import 'dart:async';
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:media_kit/media_kit.dart';
+import 'package:media_kit_video/media_kit_video.dart';
 import 'package:nous/src/core/theme/theme_controller.dart';
+import 'package:nous/src/core/widgets/player_video_nous_widget.dart';
 import 'package:nous/src/core/widgets/themed_switch.dart';
 import 'package:nous/src/core/widgets/themed_text_field.dart';
 import 'package:nous/src/features/auth/models/usuario_nous.dart';
 import 'package:nous/src/features/auth/services/contas_nous_service.dart';
+import 'package:nous/src/features/pdv/services/imagem_service.dart';
 import 'package:nous/src/features/timeline/models/publicacao_social.dart';
 import 'package:nous/src/features/timeline/services/timeline_service.dart';
+import 'package:nous/src/features/timeline/views/dialogs/dialog_escolher_frame_video.dart';
 import 'package:nous/src/features/timeline/views/widgets/editor_fotos_carrossel_widget.dart';
 
 class DialogCriarPublicacao extends StatefulWidget {
@@ -46,11 +54,13 @@ class DialogCriarPublicacao extends StatefulWidget {
 
 class _DialogCriarPublicacaoState extends State<DialogCriarPublicacao> {
   final TextEditingController _textoCtrl = TextEditingController();
+  final TextEditingController _cifraCtrl = TextEditingController();
   final TextEditingController _larguraCtrl = TextEditingController(text: '4');
   final TextEditingController _alturaCtrl = TextEditingController(text: '5');
   final TextEditingController _buscaCoautorCtrl = TextEditingController();
 
   late TipoFeedSocial _tipo;
+  bool _interacaoFotoAtiva = false;
   PadraoExibicaoMidia _padrao = PadraoExibicaoMidia.original;
   final int _colunasMosaico = 3;
   double _alinhamentoX = 0.0;
@@ -63,10 +73,15 @@ class _DialogCriarPublicacaoState extends State<DialogCriarPublicacao> {
   bool _permitirDownload = true;
   bool _mostrarBuscaColab = false;
   bool _salvando = false;
+  bool _selecionandoArquivos = false;
 
   final List<XFile> _arquivosSelecionados = [];
+  XFile? _capaVideo;
+  Uint8List? _capaFrameBytes;
   final List<UsuarioNous> _coautoresSelecionados = [];
   List<UsuarioNous> _todosUsuarios = [];
+  List<UsuarioNous> _todasContasMencao = [];
+  String? _termoMencaoAtivo;
   String? _erro;
 
   @override
@@ -75,16 +90,23 @@ class _DialogCriarPublicacaoState extends State<DialogCriarPublicacao> {
     _tipo = (widget.tipoInicial == TipoFeedSocial.fotos ||
             widget.tipoInicial == TipoFeedSocial.videos ||
             widget.tipoInicial == TipoFeedSocial.documentos ||
+            widget.tipoInicial == TipoFeedSocial.livros ||
             widget.tipoInicial == TipoFeedSocial.musicas ||
             widget.tipoInicial == TipoFeedSocial.escritos)
         ? widget.tipoInicial
         : TipoFeedSocial.fotos;
+    if (_tipo == TipoFeedSocial.videos) {
+      _padrao = PadraoExibicaoMidia.paisagem16x9;
+    }
+    _textoCtrl.addListener(_aoDigitarTexto);
     _carregarUsuarios();
   }
 
   @override
   void dispose() {
+    _textoCtrl.removeListener(_aoDigitarTexto);
     _textoCtrl.dispose();
+    _cifraCtrl.dispose();
     _larguraCtrl.dispose();
     _alturaCtrl.dispose();
     _buscaCoautorCtrl.dispose();
@@ -96,42 +118,163 @@ class _DialogCriarPublicacaoState extends State<DialogCriarPublicacao> {
     final meuCpf = widget.autor.cpf.replaceAll(RegExp(r'\D'), '');
     if (!mounted) return;
     setState(() {
+      _todasContasMencao = todos;
       _todosUsuarios = todos
           .where((u) => u.cpf.replaceAll(RegExp(r'\D'), '') != meuCpf)
           .toList();
     });
   }
 
-  Future<void> _selecionarArquivos() async {
-    final List<String> extensoes;
-    final String label;
-    switch (_tipo) {
-      case TipoFeedSocial.fotos:
-        label = 'Imagens';
-        extensoes = ['png', 'jpg', 'jpeg', 'webp', 'gif'];
-        break;
-      case TipoFeedSocial.videos:
-        label = 'Vídeos';
-        extensoes = ['mp4', 'mov', 'mkv', 'webm', 'avi'];
-        break;
-      case TipoFeedSocial.musicas:
-        label = 'Áudios e Músicas';
-        extensoes = ['mp3', 'wav', 'm4a', 'ogg', 'flac'];
-        break;
-      default:
-        label = 'Documentos';
-        extensoes = ['pdf', 'txt', 'doc', 'docx', 'xls', 'xlsx', 'csv', 'zip'];
-        break;
+  void _aoDigitarTexto() {
+    final texto = _textoCtrl.text;
+    final sel = _textoCtrl.selection;
+    final pos = sel.isValid ? sel.baseOffset : texto.length;
+    final ateCursor = pos <= texto.length ? texto.substring(0, pos) : texto;
+    final match = RegExp(r'(?:^|\s)@([\p{L}\p{N}_\.]*)$', unicode: true)
+        .firstMatch(ateCursor);
+    final novoTermo = match?.group(1)?.toLowerCase();
+    if (novoTermo != _termoMencaoAtivo && mounted) {
+      setState(() => _termoMencaoAtivo = novoTermo);
     }
+  }
 
-    final files = await openFiles(
-      acceptedTypeGroups: [XTypeGroup(label: label, extensions: extensoes)],
+  void _inserirMencao(UsuarioNous usuario) {
+    final handle = usuario.usernameExibicao.isNotEmpty
+        ? usuario.usernameExibicao
+        : '@${usuario.nomeDeUsuario.replaceAll('@', '').trim()}';
+    if (handle.length <= 1) return;
+
+    final texto = _textoCtrl.text;
+    final sel = _textoCtrl.selection;
+    final pos = sel.isValid ? sel.baseOffset : texto.length;
+    final ateCursor = pos <= texto.length ? texto.substring(0, pos) : texto;
+    final aposCursor = pos <= texto.length ? texto.substring(pos) : '';
+    final match = RegExp(r'@([\p{L}\p{N}_\.]*)$', unicode: true)
+        .firstMatch(ateCursor);
+    if (match == null) return;
+
+    final inicioArroba = match.start;
+    final novoTexto =
+        '${ateCursor.substring(0, inicioArroba)}$handle $aposCursor';
+    final novaPos = inicioArroba + handle.length + 1;
+    _textoCtrl.value = TextEditingValue(
+      text: novoTexto,
+      selection: TextSelection.collapsed(offset: novaPos),
     );
-    if (files.isEmpty || !mounted) return;
-    setState(() {
-      _arquivosSelecionados.addAll(files);
-      _erro = null;
-    });
+    setState(() => _termoMencaoAtivo = null);
+  }
+
+  Future<void> _selecionarArquivos() async {
+    if (_selecionandoArquivos) return;
+    _selecionandoArquivos = true;
+    try {
+      await PlayerVideoNousWidget.pausarTodos();
+
+      if (_tipo == TipoFeedSocial.videos) {
+        XFile? videoSelecionado;
+        if (Platform.isAndroid || Platform.isIOS) {
+          try {
+            videoSelecionado = await ImagePicker().pickVideo(
+              source: ImageSource.gallery,
+            );
+          } catch (_) {
+            videoSelecionado = null;
+          }
+        }
+        videoSelecionado ??= await openFile(
+          acceptedTypeGroups: const [
+            XTypeGroup(
+              label: 'Vídeos',
+              extensions: ['mp4', 'mov', 'mkv', 'webm', 'avi'],
+            ),
+          ],
+        );
+        if (videoSelecionado == null || !mounted) return;
+        setState(() {
+          _arquivosSelecionados
+            ..clear()
+            ..add(videoSelecionado!);
+          _capaVideo = null;
+          _capaFrameBytes = null;
+          _erro = null;
+        });
+        unawaited(() async {
+          final bytes =
+              await _capturarPrimeiroFrameBytes(videoSelecionado!.path);
+          if (mounted &&
+              bytes != null &&
+              _capaVideo == null &&
+              _capaFrameBytes == null) {
+            setState(() => _capaFrameBytes = bytes);
+          }
+        }());
+        return;
+      }
+
+      final List<String> extensoes;
+      final String label;
+      switch (_tipo) {
+        case TipoFeedSocial.fotos:
+          label = 'Imagens';
+          extensoes = ['png', 'jpg', 'jpeg', 'webp', 'gif'];
+          break;
+        case TipoFeedSocial.musicas:
+          label = 'Áudios e Músicas';
+          extensoes = ['mp3', 'wav', 'm4a', 'ogg', 'flac'];
+          break;
+        default:
+          label = 'Documentos';
+          extensoes = ['pdf', 'txt', 'doc', 'docx', 'xls', 'xlsx', 'csv', 'zip'];
+          break;
+      }
+
+      final files = await openFiles(
+        acceptedTypeGroups: [XTypeGroup(label: label, extensions: extensoes)],
+      );
+      if (files.isEmpty || !mounted) return;
+      final aceitos = <XFile>[];
+      TipoFeedSocial? tipoSugerido;
+      for (final f in files) {
+        final ext = f.path.split('.').last.toLowerCase();
+        if (_tipo == TipoFeedSocial.fotos &&
+            ['pdf', 'txt', 'doc', 'docx', 'xls', 'xlsx', 'csv', 'zip', 'epub']
+                .contains(ext)) {
+          tipoSugerido ??= TipoFeedSocial.documentos;
+          aceitos.add(f);
+        } else if (extensoes.contains(ext) || ext.isEmpty) {
+          aceitos.add(f);
+        }
+      }
+      if (aceitos.isEmpty) {
+        setState(() {
+          _erro =
+              'Selecione apenas arquivos compatíveis com a timeline (${extensoes.join(", ")}).';
+        });
+        return;
+      }
+      setState(() {
+        if (tipoSugerido != null) {
+          _tipo = tipoSugerido;
+        }
+        _arquivosSelecionados.addAll(aceitos);
+        _erro = null;
+      });
+      if (tipoSugerido != null && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Arquivo de documento detectado: publicação direcionada para a timeline de Documentos.',
+            ),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _erro = 'Não foi possível abrir o seletor de arquivos: $e');
+      }
+    } finally {
+      _selecionandoArquivos = false;
+    }
   }
 
   double? _obterAspectRatioPrevia() {
@@ -210,6 +353,46 @@ class _DialogCriarPublicacaoState extends State<DialogCriarPublicacao> {
       }
 
       final primeiroAjuste = _ajustesPorFoto[0];
+      String capaCaminho = '';
+      if (_tipo == TipoFeedSocial.videos) {
+        if (_capaVideo != null) {
+          final capaImportada = await TimelineService.importarMidiaLocal(
+            _capaVideo!.path,
+            nomeArquivo: _capaVideo!.name,
+          );
+          if (capaImportada != null) {
+            capaCaminho = capaImportada.caminhoRelativo;
+          }
+        } else if (_capaFrameBytes != null && _capaFrameBytes!.isNotEmpty) {
+          final salvo = await ImagemService.salvarBytesImagemLocal(
+            _capaFrameBytes!,
+            extensaoOriginal: 'jpg',
+          );
+          if (salvo != null && salvo.isNotEmpty) {
+            capaCaminho = ImagemService.paraCaminhoRelativoCanonico(salvo);
+          }
+        } else if (_arquivosSelecionados.isNotEmpty) {
+          capaCaminho = await _capturarPrimeiroFrameVideo(
+            _arquivosSelecionados.first.path,
+          );
+        }
+      } else if ((_tipo == TipoFeedSocial.documentos ||
+              _tipo == TipoFeedSocial.livros) &&
+          midias.isNotEmpty &&
+          midias.first.nomeArquivo.toLowerCase().endsWith('.pdf')) {
+        final thumbBytes = await TimelineService.obterOuGerarMiniaturaPdf(
+          midias.first.caminhoRelativo,
+        );
+        if (thumbBytes != null && thumbBytes.isNotEmpty) {
+          final salvo = await ImagemService.salvarBytesImagemLocal(
+            thumbBytes,
+            extensaoOriginal: 'png',
+          );
+          if (salvo != null && salvo.isNotEmpty) {
+            capaCaminho = ImagemService.paraCaminhoRelativoCanonico(salvo);
+          }
+        }
+      }
       final pub = await TimelineService.criarPublicacao(
         autorCpf: widget.autor.cpf,
         autorNome: widget.autor.nomeExibicao,
@@ -225,6 +408,8 @@ class _DialogCriarPublicacaoState extends State<DialogCriarPublicacao> {
         alinhamentoX: primeiroAjuste?.x ?? _alinhamentoX,
         alinhamentoY: primeiroAjuste?.y ?? _alinhamentoY,
         escalaZoom: primeiroAjuste?.zoom ?? _escalaZoom,
+        capaCaminho: capaCaminho,
+        cifraLetra: _cifraCtrl.text.trim(),
       );
 
       if (mounted) Navigator.of(context).pop(pub);
@@ -311,6 +496,7 @@ class _DialogCriarPublicacaoState extends State<DialogCriarPublicacao> {
                     _abaCategoria(theme, TipoFeedSocial.fotos, Icons.grid_on_sharp, 'Fotos'),
                     _abaCategoria(theme, TipoFeedSocial.videos, Icons.play_circle_outline_rounded, 'Vídeos'),
                     _abaCategoria(theme, TipoFeedSocial.documentos, Icons.description_outlined, 'Docs'),
+                    _abaCategoria(theme, TipoFeedSocial.livros, Icons.menu_book_outlined, 'Livros'),
                     _abaCategoria(theme, TipoFeedSocial.musicas, Icons.music_note_outlined, 'Músicas'),
                     _abaCategoria(theme, TipoFeedSocial.escritos, Icons.article_outlined, 'Escrito'),
                   ],
@@ -321,6 +507,9 @@ class _DialogCriarPublicacaoState extends State<DialogCriarPublicacao> {
 
             Expanded(
               child: SingleChildScrollView(
+                physics: _interacaoFotoAtiva
+                    ? const NeverScrollableScrollPhysics()
+                    : null,
                 padding: const EdgeInsets.all(16),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -328,6 +517,12 @@ class _DialogCriarPublicacaoState extends State<DialogCriarPublicacao> {
                     // ETAPA 0: Mídia, Enquadramento e Música
                     if (_etapa == 0 && _tipo != TipoFeedSocial.escritos) ...[
                       _buildAreaSelecaoMidia(theme),
+                      if (_tipo == TipoFeedSocial.videos) ...[
+                        const SizedBox(height: 14),
+                        _buildSecaoCapaVideo(theme),
+                        const SizedBox(height: 14),
+                        _buildSeletorFormatoVisual(theme),
+                      ],
                       if (_tipo == TipoFeedSocial.fotos) ...[
                         const SizedBox(height: 14),
                         _buildSeletorFormatoVisual(theme),
@@ -387,6 +582,17 @@ class _DialogCriarPublicacaoState extends State<DialogCriarPublicacao> {
                                   alignment:
                                       Alignment(_alinhamentoX, _alinhamentoY),
                                 ),
+                              )
+                            else if (_tipo == TipoFeedSocial.videos &&
+                                _capaVideo != null)
+                              ClipRRect(
+                                borderRadius: BorderRadius.circular(8),
+                                child: Image.file(
+                                  File(_capaVideo!.path),
+                                  width: 56,
+                                  height: 56,
+                                  fit: BoxFit.cover,
+                                ),
                               ),
                             const SizedBox(width: 12),
                             Expanded(
@@ -407,9 +613,20 @@ class _DialogCriarPublicacaoState extends State<DialogCriarPublicacao> {
                         controller: _textoCtrl,
                         linhas: _tipo == TipoFeedSocial.escritos ? 7 : 3,
                         label: _tipo == TipoFeedSocial.escritos
-                            ? 'Escreva sua publicação...'
-                            : 'Escreva uma legenda ou #tags...',
+                            ? 'Escreva sua publicação (use @ para mencionar)...'
+                            : 'Escreva uma legenda, #tags ou @menções...',
                       ),
+                      if (_termoMencaoAtivo != null)
+                        _buildListaMencoes(theme),
+                      if (_tipo == TipoFeedSocial.musicas) ...[
+                        const SizedBox(height: 10),
+                        ThemedTextField(
+                          theme: theme,
+                          controller: _cifraCtrl,
+                          linhas: 5,
+                          label: 'Letra, Cifra ou Tablatura (opcional)...',
+                        ),
+                      ],
                       const SizedBox(height: 12),
                       Divider(
                         height: 1,
@@ -779,6 +996,11 @@ class _DialogCriarPublicacaoState extends State<DialogCriarPublicacao> {
             );
           });
         },
+        onInteracaoAtivaMudou: (ativa) {
+          if (_interacaoFotoAtiva != ativa) {
+            setState(() => _interacaoFotoAtiva = ativa);
+          }
+        },
         onScaleStart: () {
           _zoomBaseGestos = _escalaZoom;
         },
@@ -787,11 +1009,12 @@ class _DialogCriarPublicacaoState extends State<DialogCriarPublicacao> {
             if (details.scale != 1.0) {
               _escalaZoom = (_zoomBaseGestos * details.scale).clamp(1.0, 3.0);
             }
+            final divisor = 130.0 * _escalaZoom;
             _alinhamentoX =
-                (_alinhamentoX - details.focalPointDelta.dx / 110)
+                (_alinhamentoX - details.focalPointDelta.dx / divisor)
                     .clamp(-1.0, 1.0);
             _alinhamentoY =
-                (_alinhamentoY - details.focalPointDelta.dy / 110)
+                (_alinhamentoY - details.focalPointDelta.dy / divisor)
                     .clamp(-1.0, 1.0);
             _ajustesPorFoto[_indiceFotoPreview] = (
               x: _alinhamentoX,
@@ -857,14 +1080,324 @@ class _DialogCriarPublicacaoState extends State<DialogCriarPublicacao> {
     );
   }
 
+  Widget _buildListaMencoes(AppTheme theme) {
+    final termo = _termoMencaoAtivo ?? '';
+    final filtrados = _todasContasMencao.where((c) {
+      final nome = c.nomeExibicao.toLowerCase();
+      final user = c.nomeDeUsuario.toLowerCase().replaceAll('@', '');
+      if (termo.isEmpty) return user.isNotEmpty;
+      return nome.contains(termo) || user.contains(termo);
+    }).take(6).toList();
+
+    if (filtrados.isEmpty) return const SizedBox.shrink();
+
+    return Container(
+      margin: const EdgeInsets.only(top: 6),
+      constraints: const BoxConstraints(maxHeight: 170),
+      decoration: BoxDecoration(
+        color: theme.backgroundColor,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: theme.borderColor.withValues(alpha: 0.45),
+        ),
+      ),
+      child: ListView.separated(
+        shrinkWrap: true,
+        padding: const EdgeInsets.symmetric(vertical: 4),
+        itemCount: filtrados.length,
+        separatorBuilder: (_, _) => Divider(
+          height: 1,
+          color: theme.borderColor.withValues(alpha: 0.2),
+        ),
+        itemBuilder: (_, idx) {
+          final conta = filtrados[idx];
+          final handle = conta.usernameExibicao.isNotEmpty
+              ? conta.usernameExibicao
+              : '@${conta.nomeDeUsuario}';
+          return InkWell(
+            onTap: () => _inserirMencao(conta),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+              child: Row(
+                children: [
+                  CircleAvatar(
+                    radius: 13,
+                    backgroundColor: theme.buttonColor.withValues(alpha: 0.18),
+                    child: Text(
+                      conta.nomeExibicao.isNotEmpty
+                          ? conta.nomeExibicao[0].toUpperCase()
+                          : '@',
+                      style: theme.getTextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold,
+                        color: theme.textColor,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      conta.nomeExibicao,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.getTextStyle(
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w600,
+                        color: theme.textColor,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  Text(
+                    handle,
+                    style: theme.getTextStyle(
+                      fontSize: 11.5,
+                      color: theme.secondaryTextColor,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Future<Uint8List?> _capturarPrimeiroFrameBytes(String caminhoVideo) async {
+    Player? player;
+    try {
+      try {
+        MediaKit.ensureInitialized();
+      } catch (_) {}
+      player = Player();
+      VideoController(player);
+      await player.setVolume(0);
+      await player
+          .open(Media(caminhoVideo), play: true)
+          .timeout(const Duration(seconds: 5));
+      await player.stream.width
+          .firstWhere((w) => w != null && w > 0)
+          .timeout(const Duration(seconds: 3));
+      await Future.delayed(const Duration(milliseconds: 250));
+      await player.pause();
+      final bytes = await player
+          .screenshot(format: 'image/jpeg')
+          .timeout(const Duration(seconds: 3));
+      if (bytes != null && bytes.isNotEmpty) {
+        return bytes;
+      }
+    } catch (_) {
+    } finally {
+      try {
+        await player?.dispose();
+      } catch (_) {}
+    }
+    return null;
+  }
+
+  Future<String> _capturarPrimeiroFrameVideo(String caminhoVideo) async {
+    final bytes = await _capturarPrimeiroFrameBytes(caminhoVideo);
+    if (bytes != null && bytes.isNotEmpty) {
+      final salvo = await ImagemService.salvarBytesImagemLocal(
+        bytes,
+        extensaoOriginal: 'jpg',
+      );
+      if (salvo != null && salvo.isNotEmpty) {
+        return ImagemService.paraCaminhoRelativoCanonico(salvo);
+      }
+    }
+    return '';
+  }
+
+  Future<void> _selecionarCapaVideo() async {
+    final arq = await openFile(
+      acceptedTypeGroups: const [
+        XTypeGroup(
+          label: 'Capa do Vídeo',
+          extensions: ['png', 'jpg', 'jpeg', 'webp'],
+        ),
+      ],
+    );
+    if (arq == null || !mounted) return;
+    setState(() {
+      _capaVideo = arq;
+      _capaFrameBytes = null;
+    });
+  }
+
+  Future<void> _escolherFrameDoVideo() async {
+    if (_arquivosSelecionados.isEmpty) return;
+    final ratio = _obterAspectRatioPrevia() ?? (16 / 9);
+    final bytes = await DialogEscolherFrameVideo.mostrar(
+      context,
+      theme: widget.theme,
+      caminhoVideo: _arquivosSelecionados.first.path,
+      aspectRatio: ratio,
+    );
+    if (bytes != null && bytes.isNotEmpty && mounted) {
+      setState(() {
+        _capaFrameBytes = bytes;
+        _capaVideo = null;
+      });
+    }
+  }
+
+  Widget _buildSecaoCapaVideo(AppTheme theme) {
+    final ratio = _obterAspectRatioPrevia() ?? (16 / 9);
+    final temCapa = _capaVideo != null || _capaFrameBytes != null;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              'Capa do vídeo',
+              style: theme.getTextStyle(
+                fontSize: 12.5,
+                fontWeight: FontWeight.w600,
+                color: theme.textColor,
+              ),
+            ),
+            if (temCapa)
+              InkWell(
+                onTap: () => setState(() {
+                  _capaVideo = null;
+                  _capaFrameBytes = null;
+                }),
+                child: Text(
+                  'Remover',
+                  style: theme.getTextStyle(
+                    fontSize: 11.5,
+                    color: theme.dangerColor,
+                  ),
+                ),
+              ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        if (temCapa) ...[
+          Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxHeight: 180),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(12),
+                child: AspectRatio(
+                  aspectRatio: ratio,
+                  child: _capaVideo != null
+                      ? Image.file(
+                          File(_capaVideo!.path),
+                          fit: BoxFit.cover,
+                          cacheWidth: 720,
+                        )
+                      : Image.memory(
+                          _capaFrameBytes!,
+                          fit: BoxFit.cover,
+                          cacheWidth: 720,
+                        ),
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 8),
+        ],
+        Row(
+          children: [
+            if (_arquivosSelecionados.isNotEmpty) ...[
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: _escolherFrameDoVideo,
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: theme.textColor,
+                    side: BorderSide(
+                      color: theme.borderColor.withValues(alpha: 0.6),
+                    ),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 10,
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                  icon: const Icon(Icons.video_settings_outlined, size: 17),
+                  label: Text(
+                    'Escolher frame',
+                    style: theme.getTextStyle(
+                      fontSize: 12,
+                      color: theme.textColor,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+            ],
+            Expanded(
+              child: OutlinedButton.icon(
+                onPressed: _selecionarCapaVideo,
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: theme.textColor,
+                  side: BorderSide(
+                    color: theme.borderColor.withValues(alpha: 0.6),
+                  ),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 10,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+                icon: const Icon(Icons.image_outlined, size: 17),
+                label: Text(
+                  'Enviar imagem',
+                  style: theme.getTextStyle(
+                    fontSize: 12,
+                    color: theme.textColor,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
   Widget _buildSeletorFormatoVisual(AppTheme theme) {
-    final opcoes = <(PadraoExibicaoMidia, IconData, String)>[
-      (PadraoExibicaoMidia.original, Icons.crop_free_rounded, 'Original'),
-      (PadraoExibicaoMidia.quadrado1x1, Icons.crop_square_rounded, '1:1'),
-      (PadraoExibicaoMidia.retrato4x5, Icons.crop_portrait_rounded, '4:5'),
-      (PadraoExibicaoMidia.paisagem16x9, Icons.crop_16_9_rounded, '16:9'),
-      (PadraoExibicaoMidia.vertical9x16, Icons.smartphone_rounded, '9:16'),
-    ];
+    final opcoes = _tipo == TipoFeedSocial.videos
+        ? <(PadraoExibicaoMidia, IconData, String)>[
+            (
+              PadraoExibicaoMidia.paisagem16x9,
+              Icons.crop_16_9_rounded,
+              'Horizontal 16:9',
+            ),
+            (
+              PadraoExibicaoMidia.vertical9x16,
+              Icons.smartphone_rounded,
+              'Vertical 9:16',
+            ),
+          ]
+        : <(PadraoExibicaoMidia, IconData, String)>[
+            (PadraoExibicaoMidia.original, Icons.crop_free_rounded, 'Original'),
+            (PadraoExibicaoMidia.quadrado1x1, Icons.crop_square_rounded, '1:1'),
+            (
+              PadraoExibicaoMidia.retrato4x5,
+              Icons.crop_portrait_rounded,
+              '4:5',
+            ),
+            (
+              PadraoExibicaoMidia.paisagem16x9,
+              Icons.crop_16_9_rounded,
+              '16:9',
+            ),
+            (
+              PadraoExibicaoMidia.vertical9x16,
+              Icons.smartphone_rounded,
+              '9:16',
+            ),
+          ];
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -891,7 +1424,7 @@ class _DialogCriarPublicacaoState extends State<DialogCriarPublicacao> {
                 borderRadius: BorderRadius.circular(12),
                 onTap: () => setState(() => _padrao = padrao),
                 child: Container(
-                  width: 68,
+                  width: _tipo == TipoFeedSocial.videos ? 112 : 68,
                   padding: const EdgeInsets.symmetric(vertical: 8),
                   decoration: BoxDecoration(
                     color: ativo

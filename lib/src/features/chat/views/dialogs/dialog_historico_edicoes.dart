@@ -31,8 +31,9 @@ class DialogHistoricoEdicoes {
               ),
             ],
           ),
-          content: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 400, maxHeight: 380),
+          content: SizedBox(
+            width: 400,
+            height: 360,
             child: msg.historicoEdicoes.isEmpty
                 ? Center(
                     child: Text(

@@ -14,6 +14,7 @@ import 'package:nous/src/features/pdv/services/imagem_service.dart';
 import 'package:nous/src/features/pdv/services/lojas_service.dart';
 import 'package:nous/src/features/pdv/services/rede_local/cliente_rede_local.dart';
 import 'package:nous/src/features/pdv/services/rede_local/servidor_rede_local.dart';
+import 'package:nous/src/features/timeline/services/outbox_midia_service.dart';
 
 class AuthProvider extends ChangeNotifier {
   static const String _chaveUltimoCpf = 'ultimo_cpf_login';
@@ -837,6 +838,17 @@ class AuthProvider extends ChangeNotifier {
     await ContasNousService.salvar(atualizado);
     _contaAtual = atualizado;
     _fotosPorCpf[conta.cpf] = novaFoto;
+    if (novaFoto.isNotEmpty &&
+        !ClienteRedeLocal().conectado &&
+        !ServidorRedeLocal().ativo) {
+      unawaited(
+        OutboxMidiaService.enfileirar(
+          entidadeTipo: 'usuario',
+          entidadeId: conta.cpf,
+          caminhoLocal: novaFoto,
+        ),
+      );
+    }
     _propagarUsuarioAtualizado(atualizado);
     notifyListeners();
   }
@@ -851,6 +863,39 @@ class AuthProvider extends ChangeNotifier {
     await ContasNousService.salvar(atualizado);
     _contaAtual = atualizado;
     _fotosPorCpf[conta.cpf] = atualizado.fotoExibicao;
+    if (novaFoto.trim().isNotEmpty &&
+        !ClienteRedeLocal().conectado &&
+        !ServidorRedeLocal().ativo) {
+      unawaited(
+        OutboxMidiaService.enfileirar(
+          entidadeTipo: 'usuario',
+          entidadeId: conta.cpf,
+          caminhoLocal: novaFoto.trim(),
+        ),
+      );
+    }
+    _propagarUsuarioAtualizado(atualizado);
+    notifyListeners();
+  }
+
+  /// Atualiza a nota de pensamento (24h) exibida na nuvem da tela Mensagens.
+  Future<void> atualizarNotaPensamento(
+    String texto, {
+    String musica = '',
+  }) async {
+    final conta = _contaAtual;
+    if (conta == null) return;
+
+    final limpo = texto.trim();
+    final atualizado = conta.copyWith(
+      notaPensamento: limpo,
+      notaPensamentoCriadaEm:
+          limpo.isEmpty ? '' : DateTime.now().toIso8601String(),
+      notaPensamentoMusica: limpo.isEmpty ? '' : musica.trim(),
+    );
+    await ContasNousService.salvar(atualizado);
+    atualizarContaNoCache(atualizado);
+    _contaAtual = atualizado;
     _propagarUsuarioAtualizado(atualizado);
     notifyListeners();
   }

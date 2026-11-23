@@ -18,6 +18,8 @@ class ListaInteracoesPerfilWidget extends StatefulWidget {
   final List<RegistroInteracaoUsuario> interacoes;
   final List<DenunciaSocial> denuncias;
   final String cpfPerfil;
+  final String nomePerfil;
+  final String fotoPerfil;
   final UsuarioNous? usuarioLogado;
 
   const ListaInteracoesPerfilWidget({
@@ -26,6 +28,8 @@ class ListaInteracoesPerfilWidget extends StatefulWidget {
     required this.interacoes,
     this.denuncias = const [],
     this.cpfPerfil = '',
+    this.nomePerfil = '',
+    this.fotoPerfil = '',
     required this.usuarioLogado,
   });
 
@@ -76,8 +80,11 @@ class _ListaInteracoesPerfilWidgetState
       'like' => Icons.thumb_up_alt_rounded,
       'deslike' => Icons.thumb_down_alt_rounded,
       'comentario' => Icons.chat_bubble_outline_rounded,
+      'comentario_excluido' => Icons.speaker_notes_off_outlined,
       'salvo' => Icons.bookmark_rounded,
       'denuncia' => Icons.shield_outlined,
+      'publicacao' => Icons.post_add_rounded,
+      'publicacao_excluida' => Icons.delete_outline_rounded,
       _ => Icons.repeat_rounded,
     };
   }
@@ -199,7 +206,9 @@ class _ListaInteracoesPerfilWidgetState
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            grupo.alvoNome,
+                            widget.nomePerfil.isNotEmpty
+                                ? widget.nomePerfil
+                                : grupo.alvoNome,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: theme.getTextStyle(
@@ -242,7 +251,10 @@ class _ListaInteracoesPerfilWidgetState
                           Icon(
                             _iconePorTipo(ev.tipoAcao),
                             size: 16,
-                            color: theme.buttonColor,
+                            color: ev.tipoAcao == 'comentario_excluido' ||
+                                    ev.tipoAcao == 'publicacao_excluida'
+                                ? theme.dangerColor
+                                : theme.textColor,
                           ),
                           const SizedBox(width: 8),
                           Expanded(
@@ -303,29 +315,23 @@ class _ListaInteracoesPerfilWidgetState
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        // Sub-abas: Todos | Denúncias
+        // Sub-abas minimalistas: Todos | Denúncias
         Padding(
           padding: const EdgeInsets.only(bottom: 10),
           child: Row(
             children: [
-              Expanded(
-                child: ChoiceChip(
-                  label: Center(
-                    child: Text('Todos (${grupos.length})'),
-                  ),
-                  selected: _subAba == 0,
-                  onSelected: (_) => setState(() => _subAba = 0),
-                ),
+              _buildSubAbaMinimalista(
+                theme: theme,
+                titulo: 'Todos (${grupos.length})',
+                selecionada: _subAba == 0,
+                onTap: () => setState(() => _subAba = 0),
               ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: ChoiceChip(
-                  label: Center(
-                    child: Text('Denúncias (${widget.denuncias.length})'),
-                  ),
-                  selected: _subAba == 1,
-                  onSelected: (_) => setState(() => _subAba = 1),
-                ),
+              const SizedBox(width: 16),
+              _buildSubAbaMinimalista(
+                theme: theme,
+                titulo: 'Denúncias (${widget.denuncias.length})',
+                selecionada: _subAba == 1,
+                onTap: () => setState(() => _subAba = 1),
               ),
             ],
           ),
@@ -443,12 +449,18 @@ class _ListaInteracoesPerfilWidgetState
               ),
               const SizedBox(width: 10),
             ],
-            if (grupo.alvoCpf.isNotEmpty)
+            if (widget.cpfPerfil.isNotEmpty || grupo.alvoCpf.isNotEmpty)
               AvatarComStoryWidget(
                 theme: theme,
-                cpf: grupo.alvoCpf,
-                nome: grupo.alvoNome,
-                foto: grupo.alvoFoto,
+                cpf: widget.cpfPerfil.isNotEmpty
+                    ? widget.cpfPerfil
+                    : grupo.alvoCpf,
+                nome: widget.nomePerfil.isNotEmpty
+                    ? widget.nomePerfil
+                    : grupo.alvoNome,
+                foto: widget.fotoPerfil.isNotEmpty
+                    ? widget.fotoPerfil
+                    : grupo.alvoFoto,
                 radius: 18,
               )
             else
@@ -457,7 +469,7 @@ class _ListaInteracoesPerfilWidgetState
                 backgroundColor: theme.borderColor.withValues(alpha: 0.25),
                 child: Icon(
                   _iconePorTipo(grupo.eventos.first.tipoAcao),
-                  color: theme.buttonColor,
+                  color: theme.textColor,
                   size: 16,
                 ),
               ),
@@ -470,7 +482,9 @@ class _ListaInteracoesPerfilWidgetState
                     children: [
                       Expanded(
                         child: Text(
-                          grupo.alvoNome,
+                          widget.nomePerfil.isNotEmpty
+                              ? widget.nomePerfil
+                              : grupo.alvoNome,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: theme.getTextStyle(
@@ -519,6 +533,17 @@ class _ListaInteracoesPerfilWidgetState
                               ),
                             ),
                           ),
+                          if (ev.tipoAcao == 'marcacao' &&
+                              ev.alvoCpf.isNotEmpty) ...[
+                            const SizedBox(width: 6),
+                            AvatarComStoryWidget(
+                              theme: theme,
+                              cpf: ev.alvoCpf,
+                              nome: ev.alvoNome,
+                              foto: ev.alvoFoto,
+                              radius: 9,
+                            ),
+                          ],
                         ],
                       ),
                     ),
@@ -554,6 +579,37 @@ class _ListaInteracoesPerfilWidgetState
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSubAbaMinimalista({
+    required AppTheme theme,
+    required String titulo,
+    required bool selecionada,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(6),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+        decoration: BoxDecoration(
+          border: Border(
+            bottom: BorderSide(
+              color: selecionada ? theme.textColor : Colors.transparent,
+              width: 1.8,
+            ),
+          ),
+        ),
+        child: Text(
+          titulo,
+          style: theme.getTextStyle(
+            fontSize: 12.5,
+            fontWeight: selecionada ? FontWeight.w600 : FontWeight.normal,
+            color: selecionada ? theme.textColor : theme.secondaryTextColor,
+          ),
         ),
       ),
     );

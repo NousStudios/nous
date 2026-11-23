@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:nous/src/core/theme/theme_controller.dart';
 import 'package:nous/src/features/timeline/models/interacao_social.dart';
+import 'package:nous/src/features/timeline/views/dialogs/dialog_opcoes_publicacao.dart';
 import 'package:nous/src/features/timeline/views/widgets/avatar_com_story_widget.dart';
+import 'package:nous/src/features/timeline/views/widgets/container_hold_hover_comentario.dart';
 
 /// Renderiza um comentário e toda a sua árvore recursiva de sub-respostas,
 /// com suporte a múltiplos comentários fixados, resposta direta e exclusão.
@@ -15,6 +17,7 @@ class ArvoreComentariosWidget extends StatelessWidget {
   final ValueChanged<ComentarioSocial> onResponder;
   final ValueChanged<ComentarioSocial> onAlternarFixar;
   final ValueChanged<ComentarioSocial> onExcluir;
+  final void Function(ComentarioSocial, bool ehLike)? onReagirComentario;
 
   const ArvoreComentariosWidget({
     super.key,
@@ -27,6 +30,7 @@ class ArvoreComentariosWidget extends StatelessWidget {
     required this.onResponder,
     required this.onAlternarFixar,
     required this.onExcluir,
+    this.onReagirComentario,
   });
 
   List<ComentarioSocial> _filhosDeComentario(String parentId) {
@@ -53,7 +57,7 @@ class ArvoreComentariosWidget extends StatelessWidget {
   }
 
   List<InlineSpan> _montarSpansTextoComHashtags(String texto) {
-    final regex = RegExp(r'#[\p{L}\p{N}_]+', unicode: true);
+    final regex = RegExp(r'[#@][\p{L}\p{N}_\.]+', unicode: true);
     final spans = <InlineSpan>[];
     int ultimoIndice = 0;
     const corHashtag = Color(0xFF1D9BF0);
@@ -101,87 +105,17 @@ class ArvoreComentariosWidget extends StatelessWidget {
   Future<void> _mostrarMenuAcoesComentario(
     BuildContext context,
     Offset posicaoGlobal,
-  ) async {
-    final c = comentario;
-    final ehMeuComentario =
-        meuCpf.isNotEmpty &&
-        c.autorCpf.replaceAll(RegExp(r'\D'), '') == meuCpf;
-    if (!ehAutorPublicacao && !ehMeuComentario) return;
-
-    final box = Overlay.maybeOf(context)?.context.findRenderObject()
-        as RenderBox?;
-    final tamanhoTela = box?.size ?? MediaQuery.sizeOf(context);
-    final position = RelativeRect.fromLTRB(
-      posicaoGlobal.dx - 70,
-      (posicaoGlobal.dy - 92).clamp(8.0, tamanhoTela.height - 96),
-      tamanhoTela.width - posicaoGlobal.dx - 70,
-      tamanhoTela.height - posicaoGlobal.dy,
+  ) {
+    return ContainerHoldHoverComentario.mostrarMenuAcoesComentario(
+      context,
+      theme: theme,
+      comentario: comentario,
+      ehAutorPublicacao: ehAutorPublicacao,
+      meuCpfLimpo: meuCpf,
+      posicaoGlobal: posicaoGlobal,
+      onAlternarFixar: onAlternarFixar,
+      onExcluir: onExcluir,
     );
-
-    final acao = await showMenu<String>(
-      context: context,
-      color: theme.cardBackgroundColor,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-        side: BorderSide(color: theme.borderColor.withValues(alpha: 0.6)),
-      ),
-      position: position,
-      items: [
-        if (ehAutorPublicacao)
-          PopupMenuItem<String>(
-            value: 'fixar',
-            height: 36,
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(
-                  c.fixado ? Icons.push_pin_outlined : Icons.push_pin_rounded,
-                  size: 16,
-                  color: theme.textColor,
-                ),
-                const SizedBox(width: 8),
-                Text(
-                  c.fixado ? 'Desafixar' : 'Fixar',
-                  style: theme.getTextStyle(
-                    fontSize: 12.5,
-                    color: theme.textColor,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        if (ehAutorPublicacao || ehMeuComentario)
-          PopupMenuItem<String>(
-            value: 'excluir',
-            height: 36,
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(
-                  Icons.delete_outline,
-                  size: 16,
-                  color: theme.dangerColor,
-                ),
-                const SizedBox(width: 8),
-                Text(
-                  'Excluir',
-                  style: theme.getTextStyle(
-                    fontSize: 12.5,
-                    fontWeight: FontWeight.bold,
-                    color: theme.dangerColor,
-                  ),
-                ),
-              ],
-            ),
-          ),
-      ],
-    );
-
-    if (acao == 'fixar') {
-      onAlternarFixar(c);
-    } else if (acao == 'excluir') {
-      onExcluir(c);
-    }
   }
 
   @override
@@ -199,22 +133,29 @@ class ArvoreComentariosWidget extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Builder(
-            builder: (itemCtx) => GestureDetector(
-              onLongPressStart: (d) =>
-                  _mostrarMenuAcoesComentario(itemCtx, d.globalPosition),
-              onSecondaryTapUp: (d) =>
-                  _mostrarMenuAcoesComentario(itemCtx, d.globalPosition),
-              child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-            decoration: BoxDecoration(
-              color: c.fixado
-                  ? theme.buttonColor.withValues(alpha: 0.10)
-                  : Colors.transparent,
-              borderRadius: BorderRadius.circular(10),
-              border: c.fixado
-                  ? Border.all(color: theme.buttonColor.withValues(alpha: 0.6))
-                  : null,
-            ),
+            builder: (itemCtx) {
+              final podeAgir = ehAutorPublicacao ||
+                  (meuCpf.isNotEmpty &&
+                      c.autorCpf.replaceAll(RegExp(r'\D'), '') == meuCpf);
+              return ContainerHoldHoverComentario(
+                theme: theme,
+                habilitado: podeAgir,
+                borderRadius: BorderRadius.circular(10),
+                onAbrirMenu: (pos) => _mostrarMenuAcoesComentario(itemCtx, pos),
+                child: Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: c.fixado
+                        ? theme.textColor.withValues(alpha: 0.08)
+                        : Colors.transparent,
+                    borderRadius: BorderRadius.circular(10),
+                    border: c.fixado
+                        ? Border.all(
+                            color: theme.borderColor,
+                          )
+                        : null,
+                  ),
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -255,34 +196,128 @@ class ArvoreComentariosWidget extends StatelessWidget {
                               child: Icon(
                                 Icons.push_pin_rounded,
                                 size: 13,
-                                color: theme.buttonColor,
+                                color: theme.textColor,
                               ),
                             ),
                         ],
                       ),
                       const SizedBox(height: 4),
-                      Row(
-                        children: [
-                          Text(
-                            _formatarDataHora(c.criadaEm),
-                            style: theme.getTextStyle(
-                              fontSize: 10.5,
-                              color: theme.secondaryTextColor,
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          InkWell(
-                            onTap: () => onResponder(c),
-                            child: Text(
-                              'Responder',
-                              style: theme.getTextStyle(
-                                fontSize: 11,
-                                fontWeight: FontWeight.bold,
-                                color: theme.secondaryTextColor,
+                      Builder(
+                        builder: (_) {
+                          final meuLimpo = meuCpf.replaceAll(RegExp(r'\D'), '');
+                          final deuLike = meuLimpo.isNotEmpty &&
+                              c.curtidasCpfs
+                                  .map((e) => e.replaceAll(RegExp(r'\D'), ''))
+                                  .contains(meuLimpo);
+                          final deuDeslike = meuLimpo.isNotEmpty &&
+                              c.descurtidasCpfs
+                                  .map((e) => e.replaceAll(RegExp(r'\D'), ''))
+                                  .contains(meuLimpo);
+                          return Row(
+                            children: [
+                              Text(
+                                _formatarDataHora(c.criadaEm),
+                                style: theme.getTextStyle(
+                                  fontSize: 10.5,
+                                  color: theme.secondaryTextColor,
+                                ),
                               ),
-                            ),
-                          ),
-                        ],
+                              const SizedBox(width: 12),
+                              InkWell(
+                                onTap: () => onResponder(c),
+                                child: Text(
+                                  'Responder',
+                                  style: theme.getTextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.bold,
+                                    color: theme.secondaryTextColor,
+                                  ),
+                                ),
+                              ),
+                              const Spacer(),
+                              InkWell(
+                                borderRadius: BorderRadius.circular(10),
+                                onTap: onReagirComentario != null
+                                    ? () => onReagirComentario!(c, true)
+                                    : null,
+                                child: Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 4,
+                                    vertical: 2,
+                                  ),
+                                  child: Icon(
+                                    deuLike
+                                        ? Icons.thumb_up_alt_rounded
+                                        : Icons.thumb_up_off_alt_rounded,
+                                    size: 14,
+                                    color: deuLike
+                                        ? theme.textColor
+                                        : theme.secondaryTextColor,
+                                  ),
+                                ),
+                              ),
+                              if (c.curtidasCpfs.isNotEmpty)
+                                InkWell(
+                                  onTap: () => DialogOpcoesPublicacao
+                                      .mostrarListaCpfsReacao(
+                                    context,
+                                    theme: theme,
+                                    cpfs: c.curtidasCpfs,
+                                    ehLike: true,
+                                  ),
+                                  child: Padding(
+                                    padding: const EdgeInsets.only(right: 6),
+                                    child: Text(
+                                      '${c.curtidasCpfs.length}',
+                                      style: theme.getTextStyle(
+                                        fontSize: 10.5,
+                                        color: theme.secondaryTextColor,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              const SizedBox(width: 4),
+                              InkWell(
+                                borderRadius: BorderRadius.circular(10),
+                                onTap: onReagirComentario != null
+                                    ? () => onReagirComentario!(c, false)
+                                    : null,
+                                child: Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 4,
+                                    vertical: 2,
+                                  ),
+                                  child: Icon(
+                                    deuDeslike
+                                        ? Icons.thumb_down_alt_rounded
+                                        : Icons.thumb_down_off_alt_rounded,
+                                    size: 14,
+                                    color: deuDeslike
+                                        ? theme.textColor
+                                        : theme.secondaryTextColor,
+                                  ),
+                                ),
+                              ),
+                              if (c.descurtidasCpfs.isNotEmpty)
+                                InkWell(
+                                  onTap: () => DialogOpcoesPublicacao
+                                      .mostrarListaCpfsReacao(
+                                    context,
+                                    theme: theme,
+                                    cpfs: c.descurtidasCpfs,
+                                    ehLike: false,
+                                  ),
+                                  child: Text(
+                                    '${c.descurtidasCpfs.length}',
+                                    style: theme.getTextStyle(
+                                      fontSize: 10.5,
+                                      color: theme.secondaryTextColor,
+                                    ),
+                                  ),
+                                ),
+                            ],
+                          );
+                        },
                       ),
                     ],
                   ),
@@ -290,7 +325,8 @@ class ArvoreComentariosWidget extends StatelessWidget {
               ],
             ),
           ),
-            ),
+          );
+            },
           ),
           if (filhos.isNotEmpty) ...[
             const SizedBox(height: 6),
@@ -305,6 +341,7 @@ class ArvoreComentariosWidget extends StatelessWidget {
                 onResponder: onResponder,
                 onAlternarFixar: onAlternarFixar,
                 onExcluir: onExcluir,
+                onReagirComentario: onReagirComentario,
               ),
           ],
         ],

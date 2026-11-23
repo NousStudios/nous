@@ -2,6 +2,7 @@ enum TipoFeedSocial {
   fotos,
   videos,
   documentos,
+  livros,
   musicas,
   escritos,
   republicacoes,
@@ -108,6 +109,7 @@ class PublicacaoSocial {
   final String autorNome;
   final String autorFoto;
   final List<String> coautoresCpfs;
+  final List<String> coautoresPendentesCpfs;
   final TipoFeedSocial tipo;
   final String texto;
   final List<MidiaPublicacao> midias;
@@ -133,6 +135,10 @@ class PublicacaoSocial {
   final int visualizacoes;
   final Map<String, int> visualizacoesPorOrigem;
   final int tempoMedioVisualizacaoSegundos;
+  final String capaCaminho;
+  final String cifraLetra;
+  final List<String> visualizadoresCpfs;
+  final Map<String, int> tempoPorVisualizador;
 
   const PublicacaoSocial({
     required this.id,
@@ -140,6 +146,7 @@ class PublicacaoSocial {
     this.autorNome = '',
     this.autorFoto = '',
     this.coautoresCpfs = const [],
+    this.coautoresPendentesCpfs = const [],
     required this.tipo,
     this.texto = '',
     this.midias = const [],
@@ -165,6 +172,10 @@ class PublicacaoSocial {
     this.visualizacoes = 0,
     this.visualizacoesPorOrigem = const {},
     this.tempoMedioVisualizacaoSegundos = 0,
+    this.capaCaminho = '',
+    this.cifraLetra = '',
+    this.visualizadoresCpfs = const [],
+    this.tempoPorVisualizador = const {},
   });
 
   /// Extrai #tags normalizadas (minúsculas, sem '#') de um texto.
@@ -215,6 +226,7 @@ class PublicacaoSocial {
     String? autorNome,
     String? autorFoto,
     List<String>? coautoresCpfs,
+    List<String>? coautoresPendentesCpfs,
     TipoFeedSocial? tipo,
     String? texto,
     List<MidiaPublicacao>? midias,
@@ -240,6 +252,10 @@ class PublicacaoSocial {
     int? visualizacoes,
     Map<String, int>? visualizacoesPorOrigem,
     int? tempoMedioVisualizacaoSegundos,
+    String? capaCaminho,
+    String? cifraLetra,
+    List<String>? visualizadoresCpfs,
+    Map<String, int>? tempoPorVisualizador,
   }) {
     return PublicacaoSocial(
       id: id ?? this.id,
@@ -247,6 +263,8 @@ class PublicacaoSocial {
       autorNome: autorNome ?? this.autorNome,
       autorFoto: autorFoto ?? this.autorFoto,
       coautoresCpfs: coautoresCpfs ?? this.coautoresCpfs,
+      coautoresPendentesCpfs:
+          coautoresPendentesCpfs ?? this.coautoresPendentesCpfs,
       tipo: tipo ?? this.tipo,
       texto: texto ?? this.texto,
       midias: midias ?? this.midias,
@@ -274,6 +292,10 @@ class PublicacaoSocial {
           visualizacoesPorOrigem ?? this.visualizacoesPorOrigem,
       tempoMedioVisualizacaoSegundos:
           tempoMedioVisualizacaoSegundos ?? this.tempoMedioVisualizacaoSegundos,
+      capaCaminho: capaCaminho ?? this.capaCaminho,
+      cifraLetra: cifraLetra ?? this.cifraLetra,
+      visualizadoresCpfs: visualizadoresCpfs ?? this.visualizadoresCpfs,
+      tempoPorVisualizador: tempoPorVisualizador ?? this.tempoPorVisualizador,
     );
   }
 
@@ -283,6 +305,7 @@ class PublicacaoSocial {
         'autorNome': autorNome,
         'autorFoto': autorFoto,
         'coautoresCpfs': coautoresCpfs,
+        'coautoresPendentesCpfs': coautoresPendentesCpfs,
         'tipo': tipo.name,
         'texto': texto,
         'midias': midias.map((m) => m.toJson()).toList(),
@@ -308,6 +331,10 @@ class PublicacaoSocial {
         'visualizacoes': visualizacoes,
         'visualizacoesPorOrigem': visualizacoesPorOrigem,
         'tempoMedioVisualizacaoSegundos': tempoMedioVisualizacaoSegundos,
+        'capaCaminho': capaCaminho,
+        'cifraLetra': cifraLetra,
+        'visualizadoresCpfs': visualizadoresCpfs,
+        'tempoPorVisualizador': tempoPorVisualizador,
       };
 
   factory PublicacaoSocial.fromJson(Map<String, dynamic> json) {
@@ -321,6 +348,11 @@ class PublicacaoSocial {
           .map((e) => e.toString())
           .where((e) => e.isNotEmpty)
           .toList(),
+      coautoresPendentesCpfs:
+          (json['coautoresPendentesCpfs'] as List<dynamic>? ?? const [])
+              .map((e) => e.toString())
+              .where((e) => e.isNotEmpty)
+              .toList(),
       tipo: TipoFeedSocial.values.firstWhere(
         (e) => e.name == json['tipo'],
         orElse: () => TipoFeedSocial.fotos,
@@ -362,6 +394,16 @@ class PublicacaoSocial {
               .map((k, v) => MapEntry(k.toString(), (v as num?)?.toInt() ?? 0)),
       tempoMedioVisualizacaoSegundos:
           (json['tempoMedioVisualizacaoSegundos'] as num?)?.toInt() ?? 0,
+      capaCaminho: json['capaCaminho'] as String? ?? '',
+      cifraLetra: json['cifraLetra'] as String? ?? '',
+      visualizadoresCpfs:
+          (json['visualizadoresCpfs'] as List<dynamic>? ?? const [])
+              .map((e) => e.toString())
+              .where((e) => e.isNotEmpty)
+              .toList(),
+      tempoPorVisualizador:
+          (json['tempoPorVisualizador'] as Map<dynamic, dynamic>? ?? const {})
+              .map((k, v) => MapEntry(k.toString(), (v as num?)?.toInt() ?? 0)),
     );
   }
 }

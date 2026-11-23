@@ -1,18 +1,23 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/rendering.dart';
 import 'package:provider/provider.dart';
 import 'package:nous/src/core/theme/theme_controller.dart';
 import 'package:nous/src/core/widgets/custom_app_bar.dart';
 import 'package:nous/src/core/widgets/floating_bottom_nav_bar.dart';
 import 'package:nous/src/core/widgets/themed_text_field.dart';
+import 'package:nous/src/features/auth/models/usuario_nous.dart';
 import 'package:nous/src/features/auth/providers/auth_provider.dart';
+import 'package:nous/src/features/auth/services/contas_nous_service.dart';
+import 'package:nous/src/features/auth/views/perfil_social_view.dart';
 import 'package:nous/src/features/pdv/services/imagem_service.dart';
 import 'package:nous/src/features/pdv/services/rede_local/cliente_rede_local.dart';
 import 'package:nous/src/features/pdv/views/widgets/estado_vazio_container.dart';
 import 'package:nous/src/features/timeline/models/publicacao_social.dart';
 import 'package:nous/src/features/timeline/models/story_social.dart';
+import 'package:nous/src/features/timeline/services/outbox_midia_service.dart';
 import 'package:nous/src/features/timeline/services/timeline_service.dart';
 import 'package:nous/src/features/timeline/views/dialogs/dialog_stories.dart';
+import 'package:nous/src/features/timeline/views/widgets/avatar_com_story_widget.dart';
+import 'package:nous/src/features/timeline/views/widgets/card_escrito_widget.dart';
 import 'package:nous/src/features/timeline/views/widgets/card_publicacao_completo_widget.dart';
 
 class FeedDescobertaView extends StatefulWidget {
@@ -34,13 +39,12 @@ class _FeedDescobertaViewState extends State<FeedDescobertaView> {
   int _abaSelecionada = 0;
   String? _tagFiltroAtiva;
   List<PublicacaoSocial> _publicacoes = [];
+  List<UsuarioNous> _perfisEncontrados = [];
   Map<String, List<StorySocial>> _storiesPorAutor = {};
   bool _carregando = true;
   bool _carregandoMais = false;
   bool _temMais = true;
   late bool _modoApenasAmigos;
-  bool _mostrarCabecalho = true;
-  double _ultimoOffsetScroll = 0;
   static const int _tamanhoPagina = 30;
 
   @override
@@ -49,7 +53,10 @@ class _FeedDescobertaViewState extends State<FeedDescobertaView> {
     _modoApenasAmigos = widget.apenasAmigos;
     _scrollCtrl.addListener(_onScroll);
     TimelineService.alteracoesTimelineNotifier.addListener(_aoAtualizar);
-    WidgetsBinding.instance.addPostFrameCallback((_) => _carregar());
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      OutboxMidiaService.atualizarContagemPendencias();
+      _carregar();
+    });
   }
 
   @override
@@ -64,25 +71,8 @@ class _FeedDescobertaViewState extends State<FeedDescobertaView> {
   void _onScroll() {
     if (!_scrollCtrl.hasClients) return;
     final pos = _scrollCtrl.position;
-    final pixels = pos.pixels;
-    final delta = pixels - _ultimoOffsetScroll;
-    _ultimoOffsetScroll = pixels;
-
-    if (pixels <= 8 && !_mostrarCabecalho) {
-      setState(() => _mostrarCabecalho = true);
-    } else if (delta > 8 &&
-        pixels > 28 &&
-        pos.userScrollDirection == ScrollDirection.reverse &&
-        _mostrarCabecalho) {
-      setState(() => _mostrarCabecalho = false);
-    } else if (delta < -6 &&
-        pos.userScrollDirection == ScrollDirection.forward &&
-        !_mostrarCabecalho) {
-      setState(() => _mostrarCabecalho = true);
-    }
-
     if (_carregando || _carregandoMais || !_temMais) return;
-    if (pixels >= pos.maxScrollExtent - 320) {
+    if (pos.pixels >= pos.maxScrollExtent - 320) {
       _carregarMais();
     }
   }
@@ -157,12 +147,32 @@ class _FeedDescobertaViewState extends State<FeedDescobertaView> {
       return !bloqueadosOuSilenciados.contains(cpfAutor);
     }).toList();
 
-    final termo = _buscaTagCtrl.text.trim().toLowerCase().replaceAll('#', '');
+    final termo = _buscaTagCtrl.text
+        .trim()
+        .toLowerCase()
+        .replaceAll('#', '')
+        .replaceAll('@', '');
+    var perfisEncontrados = <UsuarioNous>[];
+    if (termo.isNotEmpty) {
+      final todasContas = await ContasNousService.carregarTodas();
+      perfisEncontrados = todasContas.where((c) {
+        final cpfNorm = c.cpf.replaceAll(RegExp(r'\D'), '');
+        if (bloqueadosOuSilenciados.contains(cpfNorm)) return false;
+        final nome = c.nomeExibicao.toLowerCase();
+        final user = c.nomeDeUsuario.toLowerCase().replaceAll('@', '');
+        return nome.contains(termo) || user.contains(termo);
+      }).take(8).toList();
+    }
+    final cpfsEncontrados = perfisEncontrados
+        .map((c) => c.cpf.replaceAll(RegExp(r'\D'), ''))
+        .toSet();
     if (termo.isNotEmpty && _tagFiltroAtiva == null) {
       pubs = pubs.where((p) {
+        final cpfAutor = p.autorCpf.replaceAll(RegExp(r'\D'), '');
         return p.texto.toLowerCase().contains(termo) ||
             p.autorNome.toLowerCase().contains(termo) ||
-            p.tags.any((t) => t.contains(termo));
+            p.tags.any((t) => t.contains(termo)) ||
+            cpfsEncontrados.contains(cpfAutor);
       }).toList();
     }
 
@@ -188,6 +198,7 @@ class _FeedDescobertaViewState extends State<FeedDescobertaView> {
     setState(() {
       _abas = abas;
       _publicacoes = pubs;
+      _perfisEncontrados = perfisEncontrados;
       _storiesPorAutor = agrupados;
       _temMais = temMaisInicial;
       _carregando = false;
@@ -359,316 +370,404 @@ class _FeedDescobertaViewState extends State<FeedDescobertaView> {
             showBackButton: false,
           ),
           body: SafeArea(
-            child: Center(
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 620),
-                child: Column(
-                  children: [
-                    AnimatedSize(
-                      duration: const Duration(milliseconds: 220),
-                      curve: Curves.easeOutCubic,
-                      child: _mostrarCabecalho
-                          ? Column(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Padding(
-                                  padding: const EdgeInsets.fromLTRB(
-                                    14,
-                                    8,
-                                    14,
-                                    6,
-                                  ),
-                                  child: ThemedTextField(
-                        theme: theme,
-                        controller: _buscaTagCtrl,
-                        label: 'Buscar por #tag, assunto ou pessoa...',
-                        onChanged: (_) {
-                          _tagFiltroAtiva = null;
-                          _carregar();
-                        },
-                      ),
-                    ),
-
-                    if (!_modoApenasAmigos)
-                      SizedBox(
-                        height: 44,
-                        child: ListView(
-                          scrollDirection: Axis.horizontal,
-                          padding: const EdgeInsets.symmetric(horizontal: 12),
+            child: RefreshIndicator(
+              color: theme.buttonColor,
+              backgroundColor: theme.cardBackgroundColor,
+              notificationPredicate: (n) => n.depth == 0,
+              onRefresh: _aoPuxarParaAtualizar,
+              child: CustomScrollView(
+                controller: _scrollCtrl,
+                physics: const AlwaysScrollableScrollPhysics(),
+                slivers: [
+                  SliverToBoxAdapter(
+                    child: Center(
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 620),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
                           children: [
-                            if (_tagFiltroAtiva != null)
-                              Padding(
-                                padding: const EdgeInsets.only(right: 6),
-                                child: InputChip(
-                                  label: Text('#$_tagFiltroAtiva'),
-                                  selected: true,
-                                  onDeleted: () {
-                                    _tagFiltroAtiva = null;
-                                    _carregar();
-                                  },
-                                ),
+                            Padding(
+                              padding: const EdgeInsets.fromLTRB(
+                                14,
+                                8,
+                                14,
+                                6,
                               ),
-                            for (int i = 0; i < _abas.length; i++)
-                              Padding(
-                                padding: const EdgeInsets.only(right: 6),
-                                child: GestureDetector(
-                                  onLongPress: (_abas[i]['ehPadrao'] == true)
-                                      ? null
-                                      : () async {
-                                          final nova =
-                                              List<Map<String, dynamic>>.from(
-                                            _abas,
-                                          )..removeAt(i);
-                                          await TimelineService
-                                              .salvarAbasDescoberta(
-                                            auth.cpf,
-                                            nova,
-                                          );
-                                          _abaSelecionada = 0;
-                                          await _carregar();
-                                        },
-                                  child: ChoiceChip(
-                                    label: Text(
-                                      _abas[i]['titulo'] as String? ?? 'Feed',
-                                      style: theme.getTextStyle(
-                                        fontSize: 12,
-                                        color: (_tagFiltroAtiva == null &&
-                                                _abaSelecionada == i)
-                                            ? theme.buttonTextColor
-                                            : theme.textColor,
-                                      ),
-                                    ),
-                                    selected: _tagFiltroAtiva == null &&
-                                        _abaSelecionada == i,
-                                    selectedColor: theme.buttonColor,
-                                    backgroundColor: theme.cardBackgroundColor,
-                                    onSelected: (_) {
-                                      setState(() {
-                                        _tagFiltroAtiva = null;
-                                        _abaSelecionada = i;
-                                      });
-                                      _carregar();
-                                    },
-                                  ),
-                                ),
+                              child: ThemedTextField(
+                                theme: theme,
+                                controller: _buscaTagCtrl,
+                                label: 'Buscar por #tag, assunto ou @pessoa...',
+                                onChanged: (_) {
+                                  _tagFiltroAtiva = null;
+                                  _carregar();
+                                },
                               ),
-                            IconButton(
-                              tooltip: 'Adicionar timeline de #tag',
-                              icon: Icon(
-                                Icons.add_circle_outline_rounded,
-                                color: theme.textColor,
-                              ),
-                              onPressed: () => _adicionarAbaTag(theme),
                             ),
-                          ],
-                        ),
-                      ),
-
-                    const SizedBox(height: 6),
-
-                    // Faixa horizontal de Stories ativos no topo do Feed
-                    if (_storiesPorAutor.isNotEmpty || auth.contaAtual != null)
-                      SizedBox(
-                        height: 76,
-                        child: ListView(
-                          scrollDirection: Axis.horizontal,
-                          padding: const EdgeInsets.symmetric(horizontal: 12),
-                          children: [
-                            if (auth.contaAtual != null)
-                              Padding(
-                                padding: const EdgeInsets.only(right: 10),
-                                child: GestureDetector(
-                                  onTap: () => DialogCriarStory.mostrar(
-                                    context,
-                                    theme: theme,
-                                    autor: auth.contaAtual!,
+                            if (_perfisEncontrados.isNotEmpty)
+                              SizedBox(
+                                height: 42,
+                                child: ListView.separated(
+                                  scrollDirection: Axis.horizontal,
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 14,
                                   ),
-                                  child: Column(
-                                    children: [
-                                      Container(
-                                        width: 52,
-                                        height: 52,
-                                        decoration: BoxDecoration(
-                                          shape: BoxShape.circle,
-                                          color: theme.cardBackgroundColor,
-                                          border: Border.all(
-                                            color: theme.borderColor
-                                                .withValues(alpha: 0.7),
-                                            width: 1.4,
-                                          ),
-                                        ),
-                                        child: Icon(
-                                          Icons.add,
-                                          size: 22,
+                                  itemCount: _perfisEncontrados.length,
+                                  separatorBuilder: (_, _) =>
+                                      const SizedBox(width: 8),
+                                  itemBuilder: (_, idx) {
+                                    final conta = _perfisEncontrados[idx];
+                                    return ActionChip(
+                                      backgroundColor:
+                                          theme.cardBackgroundColor,
+                                      side: BorderSide(
+                                        color: theme.borderColor
+                                            .withValues(alpha: 0.45),
+                                      ),
+                                      avatar: AvatarComStoryWidget(
+                                        theme: theme,
+                                        cpf: conta.cpf,
+                                        nome: conta.nomeExibicao,
+                                        foto: conta.fotoExibicao,
+                                        radius: 11,
+                                        usuario: conta,
+                                      ),
+                                      label: Text(
+                                        conta.usernameExibicao.isNotEmpty
+                                            ? '${conta.nomeExibicao} (${conta.usernameExibicao})'
+                                            : conta.nomeExibicao,
+                                        style: theme.getTextStyle(
+                                          fontSize: 11.5,
                                           color: theme.textColor,
                                         ),
                                       ),
-                                      const SizedBox(height: 3),
-                                      Text(
-                                        '+ Story',
-                                        style: theme.getTextStyle(
-                                          fontSize: 10,
-                                          color: theme.secondaryTextColor,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
+                                      onPressed: () {
+                                        Navigator.of(context).push(
+                                          MaterialPageRoute(
+                                            builder: (_) => PerfilSocialView(
+                                              usuarioAlvo: conta,
+                                              mostrarBotaoVoltar: true,
+                                            ),
+                                          ),
+                                        );
+                                      },
+                                    );
+                                  },
                                 ),
                               ),
-                            for (final entry in _storiesPorAutor.entries)
-                              Builder(
-                                builder: (_) {
-                                  final cpfAutor = entry.key;
-                                  final storiesAutor = entry.value;
-                                  final primeiro = storiesAutor.first;
-                                  final conta = auth.buscarContaPorCpf(
-                                    cpfAutor,
-                                  );
-                                  final foto =
-                                      (conta?.fotoExibicao.isNotEmpty ?? false)
-                                      ? conta!.fotoExibicao
-                                      : primeiro.autorFoto;
-                                  final nome =
-                                      (conta?.nomeExibicao.isNotEmpty ?? false)
-                                      ? conta!.nomeExibicao
-                                      : (primeiro.autorNome.isNotEmpty
-                                            ? primeiro.autorNome
-                                            : 'Story');
-                                  final meuCpfLimpo = auth.cpf.replaceAll(
-                                    RegExp(r'\D'),
-                                    '',
-                                  );
-                                  final ehEu =
-                                      meuCpfLimpo.isNotEmpty &&
-                                      meuCpfLimpo == cpfAutor;
-
-                                  return Padding(
-                                    padding: const EdgeInsets.only(right: 10),
-                                    child: GestureDetector(
-                                      onTap: () =>
-                                          DialogVisualizarStory.mostrar(
+                            if (!_modoApenasAmigos)
+                              SizedBox(
+                                height: 44,
+                                child: ListView(
+                                  scrollDirection: Axis.horizontal,
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 12),
+                                  children: [
+                                    if (_tagFiltroAtiva != null)
+                                      Padding(
+                                        padding:
+                                            const EdgeInsets.only(right: 6),
+                                        child: InputChip(
+                                          label: Text('#$_tagFiltroAtiva'),
+                                          selected: true,
+                                          onDeleted: () {
+                                            _tagFiltroAtiva = null;
+                                            _carregar();
+                                          },
+                                        ),
+                                      ),
+                                    for (int i = 0; i < _abas.length; i++)
+                                      Padding(
+                                        padding:
+                                            const EdgeInsets.only(right: 6),
+                                        child: GestureDetector(
+                                          onLongPress:
+                                              (_abas[i]['ehPadrao'] == true)
+                                                  ? null
+                                                  : () async {
+                                                      final nova = List<
+                                                          Map<String,
+                                                              dynamic>>.from(
+                                                        _abas,
+                                                      )..removeAt(i);
+                                                      await TimelineService
+                                                          .salvarAbasDescoberta(
+                                                        auth.cpf,
+                                                        nova,
+                                                      );
+                                                      _abaSelecionada = 0;
+                                                      await _carregar();
+                                                    },
+                                          child: ChoiceChip(
+                                            label: Text(
+                                              _abas[i]['titulo'] as String? ??
+                                                  'Feed',
+                                              style: theme.getTextStyle(
+                                                fontSize: 12,
+                                                color: (_tagFiltroAtiva ==
+                                                            null &&
+                                                        _abaSelecionada == i)
+                                                    ? theme.buttonTextColor
+                                                    : theme.textColor,
+                                              ),
+                                            ),
+                                            selected: _tagFiltroAtiva == null &&
+                                                _abaSelecionada == i,
+                                            selectedColor: theme.buttonColor,
+                                            backgroundColor:
+                                                theme.cardBackgroundColor,
+                                            onSelected: (_) {
+                                              setState(() {
+                                                _tagFiltroAtiva = null;
+                                                _abaSelecionada = i;
+                                              });
+                                              _carregar();
+                                            },
+                                          ),
+                                        ),
+                                      ),
+                                    IconButton(
+                                      tooltip: 'Adicionar timeline de #tag',
+                                      icon: Icon(
+                                        Icons.add_circle_outline_rounded,
+                                        color: theme.textColor,
+                                      ),
+                                      onPressed: () => _adicionarAbaTag(theme),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            const SizedBox(height: 6),
+                            if (_storiesPorAutor.isNotEmpty ||
+                                auth.contaAtual != null)
+                              SizedBox(
+                                height: 76,
+                                child: ListView(
+                                  scrollDirection: Axis.horizontal,
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 12),
+                                  children: [
+                                    if (auth.contaAtual != null)
+                                      Padding(
+                                        padding:
+                                            const EdgeInsets.only(right: 10),
+                                        child: GestureDetector(
+                                          onTap: () => DialogCriarStory.mostrar(
                                             context,
                                             theme: theme,
-                                            story: storiesAutor.first,
-                                            stories: storiesAutor,
-                                            ehAutor: ehEu,
-                                            usuarioLogado: auth.contaAtual,
+                                            autor: auth.contaAtual!,
                                           ),
-                                      child: SizedBox(
-                                        width: 58,
-                                        child: Column(
-                                          children: [
-                                            Container(
-                                              padding: const EdgeInsets.all(2),
-                                              decoration: BoxDecoration(
-                                                shape: BoxShape.circle,
-                                                border: Border.all(
-                                                  color: theme.buttonColor,
-                                                  width: 2.2,
+                                          child: Column(
+                                            children: [
+                                              Container(
+                                                width: 52,
+                                                height: 52,
+                                                decoration: BoxDecoration(
+                                                  shape: BoxShape.circle,
+                                                  color:
+                                                      theme.cardBackgroundColor,
+                                                  border: Border.all(
+                                                    color: theme.borderColor
+                                                        .withValues(alpha: 0.7),
+                                                    width: 1.4,
+                                                  ),
+                                                ),
+                                                child: Icon(
+                                                  Icons.add,
+                                                  size: 22,
+                                                  color: theme.textColor,
                                                 ),
                                               ),
-                                              child: _buildAvatarAutor(
-                                                theme,
-                                                foto,
-                                                nome,
-                                                raio: 22,
+                                              const SizedBox(height: 3),
+                                              Text(
+                                                '+ Story',
+                                                style: theme.getTextStyle(
+                                                  fontSize: 10,
+                                                  color:
+                                                      theme.secondaryTextColor,
+                                                ),
                                               ),
-                                            ),
-                                            const SizedBox(height: 3),
-                                            Text(
-                                              nome,
-                                              maxLines: 1,
-                                              overflow: TextOverflow.ellipsis,
-                                              style: theme.getTextStyle(
-                                                fontSize: 10,
-                                                color: theme.textColor,
-                                              ),
-                                            ),
-                                          ],
+                                            ],
+                                          ),
                                         ),
                                       ),
-                                    ),
-                                  );
-                                },
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    )
-                        : const SizedBox.shrink(),
-                    ),
+                                    for (final entry in _storiesPorAutor.entries)
+                                      Builder(
+                                        builder: (_) {
+                                          final cpfAutor = entry.key;
+                                          final storiesAutor = entry.value;
+                                          final primeiro = storiesAutor.first;
+                                          final conta =
+                                              auth.buscarContaPorCpf(cpfAutor);
+                                          final foto =
+                                              (conta?.fotoExibicao.isNotEmpty ??
+                                                      false)
+                                                  ? conta!.fotoExibicao
+                                                  : primeiro.autorFoto;
+                                          final nome =
+                                              (conta?.nomeExibicao.isNotEmpty ??
+                                                      false)
+                                                  ? conta!.nomeExibicao
+                                                  : (primeiro.autorNome
+                                                          .isNotEmpty
+                                                      ? primeiro.autorNome
+                                                      : 'Story');
+                                          final meuCpfLimpo =
+                                              auth.cpf.replaceAll(
+                                            RegExp(r'\D'),
+                                            '',
+                                          );
+                                          final ehEu = meuCpfLimpo.isNotEmpty &&
+                                              meuCpfLimpo == cpfAutor;
 
-                    Expanded(
-                      child: _carregando
-                          ? const Center(
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            )
-                          : RefreshIndicator(
-                              color: theme.buttonColor,
-                              backgroundColor: theme.cardBackgroundColor,
-                              notificationPredicate: (n) => n.depth == 0,
-                              onRefresh: _aoPuxarParaAtualizar,
-                              child: _publicacoes.isEmpty
-                                  ? ListView(
-                                      physics: const ClampingScrollPhysics(
-                                        parent: AlwaysScrollableScrollPhysics(),
-                                      ),
-                                      padding: const EdgeInsets.all(20),
-                                      children: [
-                                        EstadoVazioContainer(
-                                          theme: theme,
-                                          mensagem: _modoApenasAmigos
-                                              ? 'Siga outros usuários Nous para acompanhar as publicações deles aqui.'
-                                              : 'Nenhuma publicação encontrada para esta timeline ainda.',
-                                        ),
-                                      ],
-                                    )
-                                  : ListView.builder(
-                                      controller: _scrollCtrl,
-                                      physics: const ClampingScrollPhysics(
-                                        parent: AlwaysScrollableScrollPhysics(),
-                                      ),
-                                      padding: const EdgeInsets.fromLTRB(
-                                        12,
-                                        4,
-                                        12,
-                                        90,
-                                      ),
-                                      itemCount: _publicacoes.length +
-                                          (_carregandoMais ? 1 : 0),
-                                      itemBuilder: (context, index) {
-                                        if (index >= _publicacoes.length) {
-                                          return const Padding(
-                                            padding: EdgeInsets.all(16),
-                                            child: Center(
-                                              child:
-                                                  CircularProgressIndicator(),
+                                          return Padding(
+                                            padding: const EdgeInsets.only(
+                                                right: 10),
+                                            child: GestureDetector(
+                                              onTap: () =>
+                                                  DialogVisualizarStory.mostrar(
+                                                context,
+                                                theme: theme,
+                                                story: storiesAutor.first,
+                                                stories: storiesAutor,
+                                                ehAutor: ehEu,
+                                                usuarioLogado: auth.contaAtual,
+                                              ),
+                                              child: SizedBox(
+                                                width: 58,
+                                                child: Column(
+                                                  children: [
+                                                    Container(
+                                                      padding:
+                                                          const EdgeInsets.all(
+                                                              2),
+                                                      decoration: BoxDecoration(
+                                                        shape: BoxShape.circle,
+                                                        border: Border.all(
+                                                          color:
+                                                              theme.borderColor,
+                                                          width: 2.2,
+                                                        ),
+                                                      ),
+                                                      child: _buildAvatarAutor(
+                                                        theme,
+                                                        foto,
+                                                        nome,
+                                                        raio: 22,
+                                                      ),
+                                                    ),
+                                                    const SizedBox(height: 3),
+                                                    Text(
+                                                      nome,
+                                                      maxLines: 1,
+                                                      overflow:
+                                                          TextOverflow.ellipsis,
+                                                      style: theme.getTextStyle(
+                                                        fontSize: 10,
+                                                        color: theme.textColor,
+                                                      ),
+                                                    ),
+                                                  ],
+                                                ),
+                                              ),
                                             ),
                                           );
-                                        }
-                                        final pub = _publicacoes[index];
-                                        return CardPublicacaoCompletoWidget(
+                                        },
+                                      ),
+                                  ],
+                                ),
+                              ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                      SliverToBoxAdapter(
+                        child: SizedBox.shrink(),
+                      ),
+                      if (_carregando)
+                        const SliverFillRemaining(
+                          hasScrollBody: false,
+                          child: Center(
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          ),
+                        )
+                      else if (_publicacoes.isEmpty)
+                        SliverToBoxAdapter(
+                          child: Center(
+                            child: ConstrainedBox(
+                              constraints: const BoxConstraints(maxWidth: 620),
+                              child: Padding(
+                                padding: const EdgeInsets.all(20),
+                                child: EstadoVazioContainer(
+                                  theme: theme,
+                                  mensagem: _modoApenasAmigos
+                                      ? 'Siga outros usuários Nous para acompanhar as publicações deles aqui.'
+                                      : 'Nenhuma publicação encontrada para esta timeline ainda.',
+                                ),
+                              ),
+                            ),
+                          ),
+                        )
+                      else
+                        SliverPadding(
+                          padding: const EdgeInsets.fromLTRB(12, 4, 12, 90),
+                          sliver: SliverList.builder(
+                            itemCount: _publicacoes.length +
+                                (_carregandoMais ? 1 : 0),
+                            itemBuilder: (context, index) {
+                              if (index >= _publicacoes.length) {
+                                return const Padding(
+                                  padding: EdgeInsets.all(16),
+                                  child: Center(
+                                    child: CircularProgressIndicator(),
+                                  ),
+                                );
+                              }
+                              final pub = _publicacoes[index];
+                              return Center(
+                                child: ConstrainedBox(
+                                  constraints:
+                                      const BoxConstraints(maxWidth: 620),
+                                  child: pub.tipo == TipoFeedSocial.escritos
+                                      ? CardEscritoWidget(
                                           key: ValueKey('pub_desc_${pub.id}'),
                                           theme: theme,
                                           publicacao: pub,
                                           usuarioLogado: auth.contaAtual,
+                                          listaPublicacoes: _publicacoes,
+                                          indiceInicial: index,
+                                          abrirDetalhesAoTocarCabecalho: true,
                                           onTapTag: (tag) {
                                             setState(
                                               () => _tagFiltroAtiva = tag,
                                             );
                                             _carregar();
                                           },
-                                        );
-                                      },
-                                    ),
-                            ),
-                    ),
-                  ],
+                                        )
+                                      : CardPublicacaoCompletoWidget(
+                                          key: ValueKey('pub_desc_${pub.id}'),
+                                          theme: theme,
+                                          publicacao: pub,
+                                          usuarioLogado: auth.contaAtual,
+                                          listaPublicacoes: _publicacoes,
+                                          indiceInicial: index,
+                                          abrirDetalhesAoTocarCabecalho: true,
+                                          onTapTag: (tag) {
+                                            setState(
+                                              () => _tagFiltroAtiva = tag,
+                                            );
+                                            _carregar();
+                                          },
+                                        ),
+                                ),
+                              );
+                            },
+                          ),
+                        ),
+                    ],
+                  ),
                 ),
               ),
-            ),
-          ),
           bottomNavigationBar: FloatingBottomNavBar(
             maxWidth: 620,
             slotSelecionado: 3,

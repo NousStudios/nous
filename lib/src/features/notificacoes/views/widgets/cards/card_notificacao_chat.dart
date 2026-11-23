@@ -1,8 +1,10 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:nous/src/core/services/criptografia_service.dart';
 import 'package:nous/src/core/theme/theme_controller.dart';
 import 'package:nous/src/core/widgets/texto_rolante.dart';
 import 'package:nous/src/features/chat/models/mensagem_chat.dart';
+import 'package:nous/src/features/chat/services/chat_media_service.dart';
 import 'package:nous/src/features/pdv/services/imagem_service.dart';
 
 /// Card especializado para exibição de notificações de novas mensagens do chat.
@@ -94,7 +96,11 @@ class CardNotificacaoChat extends StatelessWidget {
                       ),
                       const SizedBox(height: 3),
                       TextoRolante(
-                        texto: msg.texto,
+                        texto: CriptografiaService.ehTextoCifrado(msg.texto)
+                            ? '🔒 Mensagem criptografada'
+                            : (msg.texto.trim().isNotEmpty
+                                ? msg.texto.trim()
+                                : ChatMediaService.gerarResumoMensagem(msg)),
                         style: theme.getTextStyle(
                           fontSize: 12,
                           color: theme.secondaryTextColor,
@@ -107,7 +113,7 @@ class CardNotificacaoChat extends StatelessWidget {
                 Icon(
                   Icons.chat_bubble_outline_rounded,
                   size: 18,
-                  color: theme.buttonColor,
+                  color: theme.textColor,
                 ),
               ],
             ),

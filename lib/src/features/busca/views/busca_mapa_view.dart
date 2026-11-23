@@ -688,7 +688,8 @@ class _BuscaMapaViewState extends State<BuscaMapaView> {
         contaPropria.cpf.replaceAll(RegExp(r'\D'), '') ==
             perfil.cpf.replaceAll(RegExp(r'\D'), '');
 
-    final fotoResolvida = ImagemService.resolverCaminhoExistente(perfil.foto);
+    final fotoResolvida =
+        ImagemService.resolverCaminhoExistente(perfil.fotoExibicao);
     final temFoto = fotoResolvida != null;
     final seguindo = contaPropria?.estaSeguindo(perfil.cpf) ?? false;
 

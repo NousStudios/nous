@@ -2,10 +2,13 @@ import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
+import 'package:nous/src/core/services/criptografia_service.dart';
 import 'package:nous/src/features/auth/models/usuario_nous.dart';
 import 'package:nous/src/features/auth/services/contas_nous_service.dart';
 import 'package:nous/src/features/chat/models/conversa_chat.dart';
+import 'package:nous/src/features/chat/models/mensagem_chat.dart';
 import 'package:nous/src/features/chat/services/chat_conversas_hidratador_service.dart';
+import 'package:nous/src/features/chat/services/chat_e2ee_service.dart';
 import 'package:nous/src/features/chat/services/chat_repositorio_sqlite.dart';
 import 'package:nous/src/features/chat/services/chat_sincronizacao_service.dart';
 
@@ -85,7 +88,29 @@ class ChatConversasService {
       if (ultimasMsgs.isNotEmpty) {
         final u = ultimasMsgs.first;
         final uTipo = u['tipo'] as String? ?? 'texto';
-        final uTexto = u['texto'] as String? ?? '';
+        var uTexto = u['texto'] as String? ?? '';
+        if (CriptografiaService.ehTextoCifrado(uTexto)) {
+          if (cpfUsuario != null && cpfUsuario.isNotEmpty) {
+            final msgTemp = MensagemChat(
+              id: 'preview_$id',
+              conversaId: id,
+              remetenteId: '',
+              remetenteNome: '',
+              destinatarioId: '',
+              texto: uTexto,
+              dataHora: DateTime.now(),
+              enviadaPorMim: false,
+            );
+            final dec = await ChatE2eeService.decifrarListaMensagens(
+              [msgTemp],
+              cpfVisualizador: ChatRepositorioSqlite.normalizarCpf(cpfUsuario),
+            );
+            uTexto = dec.isNotEmpty ? dec.first.texto : uTexto;
+          }
+          if (CriptografiaService.ehTextoCifrado(uTexto)) {
+            uTexto = '🔒 Mensagem criptografada';
+          }
+        }
         final uAnexo = u['nome_anexo'] as String? ?? '';
         ultMsg = uTipo == 'imagem'
             ? (uTexto.isNotEmpty ? '📷 $uTexto' : '📷 Foto')

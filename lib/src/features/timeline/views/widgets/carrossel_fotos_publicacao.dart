@@ -254,32 +254,44 @@ class _CarrosselFotosPublicacaoState extends State<CarrosselFotosPublicacao>
     );
 
     return _envolverComDoubleTap(
-      Column(
-        mainAxisSize: widget.ajustarTelaCheia ? MainAxisSize.max : MainAxisSize.min,
-        children: [
-          if (widget.ajustarTelaCheia)
-            Expanded(child: pageViewStack)
-          else
-            pageViewStack,
-          const SizedBox(height: 8),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: List.generate(total, (i) {
-              final ativo = i == _indiceAtual;
-              return Container(
-                width: ativo ? 8 : 6,
-                height: ativo ? 8 : 6,
-                margin: const EdgeInsets.symmetric(horizontal: 3),
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: ativo
-                      ? widget.theme.buttonColor
-                      : widget.theme.secondaryTextColor.withValues(alpha: 0.35),
-                ),
-              );
-            }),
-          ),
-        ],
+      LayoutBuilder(
+        builder: (context, constraints) {
+          final usarFlexible =
+              !widget.ajustarTelaCheia && constraints.hasBoundedHeight;
+          return Column(
+            mainAxisSize:
+                (widget.ajustarTelaCheia || usarFlexible)
+                    ? MainAxisSize.max
+                    : MainAxisSize.min,
+            children: [
+              if (widget.ajustarTelaCheia)
+                Expanded(child: pageViewStack)
+              else if (usarFlexible)
+                Flexible(child: pageViewStack)
+              else
+                pageViewStack,
+              const SizedBox(height: 8),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: List.generate(total, (i) {
+                  final ativo = i == _indiceAtual;
+                  return Container(
+                    width: ativo ? 8 : 6,
+                    height: ativo ? 8 : 6,
+                    margin: const EdgeInsets.symmetric(horizontal: 3),
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: ativo
+                          ? widget.theme.textColor
+                          : widget.theme.secondaryTextColor
+                              .withValues(alpha: 0.35),
+                    ),
+                  );
+                }),
+              ),
+            ],
+          );
+        },
       ),
     );
   }

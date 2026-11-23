@@ -1,6 +1,7 @@
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:media_kit/media_kit.dart';
 import 'package:provider/provider.dart';
 import 'package:nous/src/core/services/atualizacao_service.dart';
 import 'package:nous/src/core/services/banco_dados_service.dart';
@@ -37,6 +38,9 @@ class AppScrollBehavior extends MaterialScrollBehavior {
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  try {
+    MediaKit.ensureInitialized();
+  } catch (_) {}
   await AtualizacaoService.inicializar();
   await BancoDadosService.inicializar();
   await ImagemService.inicializar();

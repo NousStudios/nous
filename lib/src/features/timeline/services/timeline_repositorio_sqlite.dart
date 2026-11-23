@@ -357,6 +357,7 @@ class TimelineRepositorioSqlite {
   static Future<List<PublicacaoSocial>> listarPublicacoesDoUsuario({
     required String cpf,
     TipoFeedSocial? tipo,
+    bool incluirExcluidas = false,
     int limit = 60,
     int offset = 0,
   }) async {
@@ -365,6 +366,9 @@ class TimelineRepositorioSqlite {
     if (cpfNorm.isEmpty) return const [];
 
     final whereTipo = tipo != null ? 'AND p.tipo = ?' : '';
+    final whereExcluida = incluirExcluidas
+        ? ''
+        : 'p.excluida = 0 AND COALESCE(p.arquivada, 0) = 0 AND ';
     final args = <Object?>[
       cpfNorm,
       cpfNorm,
@@ -377,9 +381,7 @@ class TimelineRepositorioSqlite {
       SELECT DISTINCT p.dados_json, p.criada_em
       FROM publicacoes_sociais p
       LEFT JOIN publicacoes_coautores c ON c.publicacao_id = p.id
-      WHERE p.excluida = 0
-        AND COALESCE(p.arquivada, 0) = 0
-        AND (p.autor_cpf = ? OR c.cpf = ?)
+      WHERE $whereExcluida(p.autor_cpf = ? OR c.cpf = ?)
         $whereTipo
       ORDER BY p.criada_em DESC
       LIMIT ? OFFSET ?;
@@ -564,7 +566,7 @@ class TimelineRepositorioSqlite {
     final cpfNorm = normalizarCpf(cpf);
     final rows = await db.query(
       'comentarios_sociais',
-      where: 'autor_cpf = ? AND excluido = 0',
+      where: 'autor_cpf = ?',
       whereArgs: [cpfNorm],
       orderBy: 'criada_em DESC',
       limit: 100,

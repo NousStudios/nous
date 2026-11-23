@@ -28,6 +28,7 @@ import 'package:nous/src/features/timeline/models/story_social.dart';
 import 'package:nous/src/features/timeline/services/timeline_service.dart';
 import 'package:nous/src/features/timeline/views/central_conta_social_view.dart';
 import 'package:nous/src/features/timeline/views/dialogs/dialog_denuncia_social.dart';
+import 'package:nous/src/features/timeline/views/dialogs/dialog_posts_contabilizados.dart';
 import 'package:nous/src/features/timeline/views/dialogs/dialog_stories.dart';
 import 'package:nous/src/features/timeline/views/widgets/camera_criacao_view.dart';
 import 'package:nous/src/features/timeline/views/widgets/timeline_perfil_section.dart';
@@ -51,6 +52,7 @@ class _PerfilSocialViewState extends State<PerfilSocialView> {
   static const double _offsetInicialBotaoConta = 86.0;
   final PageController _pageController = PageController(initialPage: 1);
   final ScrollController _botoesAcaoScrollCtrl = ScrollController();
+  final ScrollController _perfilScrollCtrl = ScrollController();
   bool _offsetInicialAplicado = false;
   int _paginaAtual = 1;
   UsuarioNous? _contaAlvoAtualizada;
@@ -73,6 +75,7 @@ class _PerfilSocialViewState extends State<PerfilSocialView> {
     TimelineService.alteracoesTimelineNotifier
         .removeListener(_recarregarResumoSocial);
     _botoesAcaoScrollCtrl.dispose();
+    _perfilScrollCtrl.dispose();
     _pageController.dispose();
     super.dispose();
   }
@@ -391,7 +394,7 @@ class _PerfilSocialViewState extends State<PerfilSocialView> {
                             Icon(
                               Icons.link_rounded,
                               size: 16,
-                              color: theme.buttonColor,
+                              color: theme.textColor,
                             ),
                             const SizedBox(width: 10),
                             Expanded(
@@ -537,19 +540,22 @@ class _PerfilSocialViewState extends State<PerfilSocialView> {
             showBackButton: widget.mostrarBotaoVoltar,
           ),
           body: SafeArea(
-            child: Center(
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: _larguraMaximaConteudo),
-                child: RefreshIndicator(
-                  color: theme.buttonColor,
-                  backgroundColor: theme.cardBackgroundColor,
-                  onRefresh: _aoPuxarParaAtualizar,
-                  child: SingleChildScrollView(
-                    physics: const AlwaysScrollableScrollPhysics(),
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
+            child: RefreshIndicator(
+              color: theme.textColor,
+              backgroundColor: theme.cardBackgroundColor,
+              onRefresh: _aoPuxarParaAtualizar,
+              child: SingleChildScrollView(
+                controller: _perfilScrollCtrl,
+                physics: const AlwaysScrollableScrollPhysics(),
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                child: Center(
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(
+                      maxWidth: _larguraMaximaConteudo,
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
                       // Cabeçalho Social Unificado
                       CabecalhoPerfilPublicoWidget(
                         theme: theme,
@@ -638,6 +644,12 @@ class _PerfilSocialViewState extends State<PerfilSocialView> {
                           MetricaPerfilPublico(
                             valor: '$_totalPosts',
                             rotulo: 'Posts',
+                            onTap: () => DialogPostsContabilizados.mostrar(
+                              context,
+                              theme: theme,
+                              contaPerfil: conta,
+                              usuarioLogado: auth.contaAtual,
+                            ),
                           ),
                           MetricaPerfilPublico(
                             valor: '${conta.seguidores.length}',
@@ -1070,6 +1082,7 @@ class _PerfilSocialViewState extends State<PerfilSocialView> {
                         contaPerfil: conta,
                         usuarioLogado: auth.contaAtual,
                         ehProprioUsuario: ehProprioUsuario,
+                        scrollController: _perfilScrollCtrl,
                       ),
 
                       const SizedBox(height: 80), // Espaço para a barra flutuante

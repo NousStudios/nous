@@ -1,3 +1,71 @@
+class CamadaTextoStory {
+  final String texto;
+  final double x;
+  final double y;
+  final double escala;
+  final String fonte; // 'padrao', 'negrito', 'serif', 'mono'
+  final String corTextoHex;
+  final String corFundoHex;
+  final String alinhamento; // 'center', 'left', 'right'
+
+  const CamadaTextoStory({
+    required this.texto,
+    this.x = 0.5,
+    this.y = 0.5,
+    this.escala = 1.0,
+    this.fonte = 'padrao',
+    this.corTextoHex = 'FFFFFFFF',
+    this.corFundoHex = '99000000',
+    this.alinhamento = 'center',
+  });
+
+  CamadaTextoStory copyWith({
+    String? texto,
+    double? x,
+    double? y,
+    double? escala,
+    String? fonte,
+    String? corTextoHex,
+    String? corFundoHex,
+    String? alinhamento,
+  }) {
+    return CamadaTextoStory(
+      texto: texto ?? this.texto,
+      x: x ?? this.x,
+      y: y ?? this.y,
+      escala: escala ?? this.escala,
+      fonte: fonte ?? this.fonte,
+      corTextoHex: corTextoHex ?? this.corTextoHex,
+      corFundoHex: corFundoHex ?? this.corFundoHex,
+      alinhamento: alinhamento ?? this.alinhamento,
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+        'texto': texto,
+        'x': x,
+        'y': y,
+        'escala': escala,
+        'fonte': fonte,
+        'corTextoHex': corTextoHex,
+        'corFundoHex': corFundoHex,
+        'alinhamento': alinhamento,
+      };
+
+  factory CamadaTextoStory.fromJson(Map<String, dynamic> json) {
+    return CamadaTextoStory(
+      texto: json['texto'] as String? ?? '',
+      x: (json['x'] as num?)?.toDouble() ?? 0.5,
+      y: (json['y'] as num?)?.toDouble() ?? 0.5,
+      escala: (json['escala'] as num?)?.toDouble() ?? 1.0,
+      fonte: json['fonte'] as String? ?? 'padrao',
+      corTextoHex: json['corTextoHex'] as String? ?? 'FFFFFFFF',
+      corFundoHex: json['corFundoHex'] as String? ?? '99000000',
+      alinhamento: json['alinhamento'] as String? ?? 'center',
+    );
+  }
+}
+
 class StorySocial {
   final String id;
   final String autorCpf;
@@ -22,6 +90,9 @@ class StorySocial {
   final String itemLojaIdTag;
   final String itemLojaNomeTag;
   final String itemLojaPrecoTag;
+  final List<CamadaTextoStory> camadasTexto;
+  final String storyOriginalId;
+  final String autorOriginalNome;
 
   const StorySocial({
     required this.id,
@@ -47,6 +118,9 @@ class StorySocial {
     this.itemLojaIdTag = '',
     this.itemLojaNomeTag = '',
     this.itemLojaPrecoTag = '',
+    this.camadasTexto = const [],
+    this.storyOriginalId = '',
+    this.autorOriginalNome = '',
   });
 
   DateTime get atualizadoEfetivo => atualizadoEm ?? criadoEm;
@@ -81,6 +155,9 @@ class StorySocial {
     String? itemLojaIdTag,
     String? itemLojaNomeTag,
     String? itemLojaPrecoTag,
+    List<CamadaTextoStory>? camadasTexto,
+    String? storyOriginalId,
+    String? autorOriginalNome,
   }) {
     return StorySocial(
       id: id ?? this.id,
@@ -106,6 +183,9 @@ class StorySocial {
       itemLojaIdTag: itemLojaIdTag ?? this.itemLojaIdTag,
       itemLojaNomeTag: itemLojaNomeTag ?? this.itemLojaNomeTag,
       itemLojaPrecoTag: itemLojaPrecoTag ?? this.itemLojaPrecoTag,
+      camadasTexto: camadasTexto ?? this.camadasTexto,
+      storyOriginalId: storyOriginalId ?? this.storyOriginalId,
+      autorOriginalNome: autorOriginalNome ?? this.autorOriginalNome,
     );
   }
 
@@ -133,6 +213,9 @@ class StorySocial {
         'itemLojaIdTag': itemLojaIdTag,
         'itemLojaNomeTag': itemLojaNomeTag,
         'itemLojaPrecoTag': itemLojaPrecoTag,
+        'camadasTexto': camadasTexto.map((c) => c.toJson()).toList(),
+        'storyOriginalId': storyOriginalId,
+        'autorOriginalNome': autorOriginalNome,
       };
 
   factory StorySocial.fromJson(Map<String, dynamic> json) {
@@ -178,6 +261,12 @@ class StorySocial {
       itemLojaIdTag: json['itemLojaIdTag'] as String? ?? '',
       itemLojaNomeTag: json['itemLojaNomeTag'] as String? ?? '',
       itemLojaPrecoTag: json['itemLojaPrecoTag'] as String? ?? '',
+      camadasTexto: (json['camadasTexto'] as List<dynamic>? ?? const [])
+          .whereType<Map>()
+          .map((m) => CamadaTextoStory.fromJson(Map<String, dynamic>.from(m)))
+          .toList(),
+      storyOriginalId: json['storyOriginalId'] as String? ?? '',
+      autorOriginalNome: json['autorOriginalNome'] as String? ?? '',
     );
   }
 }

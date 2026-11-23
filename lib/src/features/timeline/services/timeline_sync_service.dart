@@ -5,14 +5,18 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:nous/src/core/services/assinatura_rede_service.dart';
 import 'package:nous/src/core/services/preferencias_soberanas_service.dart';
+import 'package:nous/src/features/pdv/services/imagem_service.dart';
 import 'package:nous/src/features/pdv/services/rede_local/cliente_rede_local.dart';
 import 'package:nous/src/features/pdv/services/rede_local/helpers/resolvedor_url_rede.dart';
 import 'package:nous/src/features/pdv/services/rede_local/servidor_rede_local.dart';
+import 'package:nous/src/features/pdv/services/rede_local/transferencia_arquivos_rede.dart';
 import 'package:nous/src/features/timeline/models/interacao_social.dart';
 import 'package:nous/src/features/timeline/models/notificacao_social.dart';
 import 'package:nous/src/features/timeline/models/publicacao_social.dart';
 import 'package:nous/src/features/timeline/models/salvos_denuncia_social.dart';
 import 'package:nous/src/features/timeline/models/story_social.dart';
+import 'package:nous/src/features/timeline/services/outbox_midia_service.dart';
+import 'package:nous/src/features/timeline/services/timeline_midia_service.dart';
 import 'package:nous/src/features/timeline/services/timeline_repositorio_sqlite.dart';
 import 'package:nous/src/features/timeline/services/timeline_sync_repositorio.dart';
 
@@ -65,6 +69,10 @@ class TimelineSyncService {
 
       while (temMais && paginas < 25) {
         paginas++;
+        if (paginas == 1) {
+          await OutboxMidiaService.drenarFila(ip: ip, porta: porta);
+          await _enviarMidiasLocaisPendentesParaServidor(ip: ip, porta: porta);
+        }
         final snapshotLocal = offset == 0
             ? await exportarSnapshotSocial(desde: desde, offset: 0)
             : <String, dynamic>{};
@@ -93,6 +101,7 @@ class TimelineSyncService {
         if (json is Map<String, dynamic> && json['snapshot'] is Map) {
           final snapRemoto = Map<String, dynamic>.from(json['snapshot'] as Map);
           await mesclarSnapshotSocial(snapRemoto, aoConcluir: aoConcluir);
+          _preAquecerMidiasSnapshotRemoto(snapRemoto);
           ultimoGeradoEm = snapRemoto['geradoEm'] as String? ??
               DateTime.now().toIso8601String();
           temMais = snapRemoto['temMais'] == true;
@@ -166,6 +175,7 @@ class TimelineSyncService {
         );
         if (pub.id.isNotEmpty) {
           await TimelineRepositorioSqlite.salvarPublicacao(pub);
+          _preAquecerMidiasPublicacao(pub);
           aoConcluir?.call();
         }
       } else if (tipo == 'timeline_reacao' && dados['reacao'] is Map) {
@@ -200,6 +210,12 @@ class TimelineSyncService {
         );
         if (story.id.isNotEmpty) {
           await TimelineRepositorioSqlite.salvarStory(story);
+          if (story.caminhoMidia.isNotEmpty) {
+            unawaited(TimelineMidiaService.resolverCaminhoMidia(story.caminhoMidia));
+          }
+          if (story.autorFoto.isNotEmpty) {
+            unawaited(TimelineMidiaService.resolverCaminhoMidia(story.autorFoto));
+          }
           aoConcluir?.call();
         }
       } else if (tipo == 'timeline_lista_salvos' && dados['lista'] is Map) {
@@ -248,6 +264,195 @@ class TimelineSyncService {
       debugPrint(
         '[TimelineSyncService] Erro ao processar evento remoto $tipo: $e',
       );
+    }
+  }
+
+  /// Faz upload para o servidor balcão de mídias de publicações e stories
+  /// criados offline no dispositivo antes de enviar o snapshot JSON.
+  static Future<void> _enviarMidiasLocaisPendentesParaServidor({
+    required String ip,
+    required int porta,
+  }) async {
+    try {
+      final transfer = TransferenciaArquivosRede();
+      final pubs = await TimelineRepositorioSqlite.listarPublicacoesDescoberta(
+        limit: 200,
+      );
+      for (final pub in pubs) {
+        bool alterou = false;
+        final novasMidias = <MidiaPublicacao>[];
+        for (final m in pub.midias) {
+          if (m.caminhoRelativo.isEmpty) {
+            novasMidias.add(m);
+            continue;
+          }
+          final local = TimelineMidiaService.resolverCaminhoMidiaSync(
+            m.caminhoRelativo,
+          );
+          if (local != null && File(local).existsSync()) {
+            final ext = m.mimeTipo.toLowerCase();
+            final ehImg = ext == 'jpg' ||
+                ext == 'jpeg' ||
+                ext == 'png' ||
+                ext == 'webp' ||
+                ext == 'gif';
+            final remoto = ehImg
+                ? await transfer.enviarUploadImagemParaServidor(
+                    ipServidor: ip,
+                    portaServidor: porta,
+                    caminhoLocal: local,
+                  )
+                : await transfer.enviarUploadAnexoParaServidor(
+                    ipServidor: ip,
+                    portaServidor: porta,
+                    caminhoLocal: local,
+                    subpasta: 'timeline_midias',
+                  );
+            if (remoto.isNotEmpty && remoto != m.caminhoRelativo) {
+              novasMidias.add(m.copyWith(caminhoRelativo: remoto));
+              alterou = true;
+              continue;
+            }
+          }
+          novasMidias.add(m);
+        }
+
+        var novaFotoAutor = pub.autorFoto;
+        if (novaFotoAutor.isNotEmpty && !ImagemService.ehAsset(novaFotoAutor)) {
+          final localFoto = ImagemService.resolverCaminhoExistente(novaFotoAutor);
+          if (localFoto != null && File(localFoto).existsSync()) {
+            final remotoFoto = await transfer.enviarUploadImagemParaServidor(
+              ipServidor: ip,
+              portaServidor: porta,
+              caminhoLocal: localFoto,
+            );
+            if (remotoFoto.isNotEmpty && remotoFoto != novaFotoAutor) {
+              novaFotoAutor = remotoFoto;
+              alterou = true;
+            }
+          }
+        }
+
+        var novaCapa = pub.capaCaminho;
+        if (novaCapa.isNotEmpty && !ImagemService.ehAsset(novaCapa)) {
+          final localCapa = ImagemService.resolverCaminhoExistente(novaCapa);
+          if (localCapa != null && File(localCapa).existsSync()) {
+            final remotoCapa = await transfer.enviarUploadImagemParaServidor(
+              ipServidor: ip,
+              portaServidor: porta,
+              caminhoLocal: localCapa,
+            );
+            if (remotoCapa.isNotEmpty && remotoCapa != novaCapa) {
+              novaCapa = remotoCapa;
+              alterou = true;
+            }
+          }
+        }
+
+        if (alterou) {
+          await TimelineRepositorioSqlite.salvarPublicacao(
+            pub.copyWith(
+              midias: novasMidias,
+              autorFoto: novaFotoAutor,
+              capaCaminho: novaCapa,
+              atualizadaEm: DateTime.now(),
+            ),
+          );
+        }
+      }
+
+      final stories = await TimelineRepositorioSqlite.listarStoriesAtivosDaRede();
+      for (final st in stories) {
+        bool alterou = false;
+        var novoCaminho = st.caminhoMidia;
+        if (novoCaminho.isNotEmpty && !ImagemService.ehAsset(novoCaminho)) {
+          final local = TimelineMidiaService.resolverCaminhoMidiaSync(novoCaminho);
+          if (local != null && File(local).existsSync()) {
+            final ehImg = st.tipoMidia == 'imagem';
+            final remoto = ehImg
+                ? await transfer.enviarUploadImagemParaServidor(
+                    ipServidor: ip,
+                    portaServidor: porta,
+                    caminhoLocal: local,
+                  )
+                : await transfer.enviarUploadAnexoParaServidor(
+                    ipServidor: ip,
+                    portaServidor: porta,
+                    caminhoLocal: local,
+                    subpasta: 'timeline_midias',
+                  );
+            if (remoto.isNotEmpty && remoto != novoCaminho) {
+              novoCaminho = remoto;
+              alterou = true;
+            }
+          }
+        }
+
+        var novaFotoAutor = st.autorFoto;
+        if (novaFotoAutor.isNotEmpty && !ImagemService.ehAsset(novaFotoAutor)) {
+          final localFoto = ImagemService.resolverCaminhoExistente(novaFotoAutor);
+          if (localFoto != null && File(localFoto).existsSync()) {
+            final remotoFoto = await transfer.enviarUploadImagemParaServidor(
+              ipServidor: ip,
+              portaServidor: porta,
+              caminhoLocal: localFoto,
+            );
+            if (remotoFoto.isNotEmpty && remotoFoto != novaFotoAutor) {
+              novaFotoAutor = remotoFoto;
+              alterou = true;
+            }
+          }
+        }
+
+        if (alterou) {
+          await TimelineRepositorioSqlite.salvarStory(
+            st.copyWith(
+              caminhoMidia: novoCaminho,
+              autorFoto: novaFotoAutor,
+              atualizadoEm: DateTime.now(),
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      debugPrint(
+        '[TimelineSyncService] Erro ao enviar mídias pendentes para servidor: $e',
+      );
+    }
+  }
+
+  static void _preAquecerMidiasPublicacao(PublicacaoSocial pub) {
+    if (!ClienteRedeLocal().conectado) return;
+    for (final m in pub.midias) {
+      if (m.caminhoRelativo.isNotEmpty) {
+        unawaited(TimelineMidiaService.resolverCaminhoMidia(m.caminhoRelativo));
+      }
+    }
+    if (pub.autorFoto.isNotEmpty) {
+      unawaited(TimelineMidiaService.resolverCaminhoMidia(pub.autorFoto));
+    }
+  }
+
+  static void _preAquecerMidiasSnapshotRemoto(Map<String, dynamic> snap) {
+    if (!ClienteRedeLocal().conectado) return;
+    final pubsRaw = snap['publicacoes'] as List<dynamic>? ?? const [];
+    for (final raw in pubsRaw.take(30)) {
+      if (raw is Map<String, dynamic>) {
+        final pub = PublicacaoSocial.fromJson(raw);
+        _preAquecerMidiasPublicacao(pub);
+      }
+    }
+    final storiesRaw = snap['stories'] as List<dynamic>? ?? const [];
+    for (final raw in storiesRaw.take(20)) {
+      if (raw is Map<String, dynamic>) {
+        final st = StorySocial.fromJson(raw);
+        if (st.caminhoMidia.isNotEmpty) {
+          unawaited(TimelineMidiaService.resolverCaminhoMidia(st.caminhoMidia));
+        }
+        if (st.autorFoto.isNotEmpty) {
+          unawaited(TimelineMidiaService.resolverCaminhoMidia(st.autorFoto));
+        }
+      }
     }
   }
 }

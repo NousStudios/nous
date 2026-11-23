@@ -12,6 +12,7 @@ import 'package:nous/src/features/auth/models/usuario_nous.dart';
 import 'package:nous/src/features/timeline/models/publicacao_social.dart';
 import 'package:nous/src/features/timeline/services/timeline_service.dart';
 import 'package:nous/src/features/timeline/views/widgets/animacao_story_sugado_overlay.dart';
+import 'package:nous/src/features/timeline/views/widgets/editor_story_view.dart';
 import 'package:nous/src/features/timeline/views/dialogs/dialog_criar_publicacao.dart';
 
 enum DestinoCapturaCamera {
@@ -59,7 +60,7 @@ class _CameraCriacaoViewState extends State<CameraCriacaoView> {
   @override
   void initState() {
     super.initState();
-    if (widget.ativa) {
+    if (widget.ativa && !kIsWeb && (Platform.isAndroid || Platform.isIOS)) {
       _iniciarPreview();
     }
   }
@@ -67,20 +68,47 @@ class _CameraCriacaoViewState extends State<CameraCriacaoView> {
   @override
   void didUpdateWidget(covariant CameraCriacaoView oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (widget.ativa && !oldWidget.ativa) {
-      _iniciarPreview();
-    } else if (!widget.ativa && oldWidget.ativa) {
-      _liberarPreview();
+    if (!kIsWeb && (Platform.isAndroid || Platform.isIOS)) {
+      if (widget.ativa && !oldWidget.ativa) {
+        _iniciarPreview();
+      } else if (!widget.ativa && oldWidget.ativa) {
+        _liberarPreview();
+      }
     }
   }
 
   @override
   void dispose() {
-    _liberarPreview();
-    if (_rendererInicializado) {
-      _renderer.dispose();
-    }
+    _liberarPreviewSync();
     super.dispose();
+  }
+
+  void _liberarPreviewSync() {
+    try {
+      if (_gravandoVideo && _recorder != null) {
+        _recorder!.stop();
+      }
+    } catch (_) {}
+    _gravandoVideo = false;
+    _recorder = null;
+
+    final stream = _streamPreview;
+    _streamPreview = null;
+    if (stream != null) {
+      try {
+        for (final t in stream.getTracks()) {
+          t.stop();
+        }
+        stream.dispose();
+      } catch (_) {}
+    }
+    if (_rendererInicializado) {
+      _rendererInicializado = false;
+      try {
+        _renderer.srcObject = null;
+        _renderer.dispose();
+      } catch (_) {}
+    }
   }
 
   Future<void> _iniciarPreview() async {
@@ -306,29 +334,42 @@ class _CameraCriacaoViewState extends State<CameraCriacaoView> {
     required bool ehVideo,
   }) async {
     if (!File(caminho).existsSync()) return;
+
+    if (_destino == DestinoCapturaCamera.story) {
+      if (!mounted) return;
+      final publicado = await EditorStoryView.mostrar(
+        context,
+        theme: widget.theme,
+        autor: widget.autor,
+        caminhoArquivo: caminho,
+        ehVideo: ehVideo,
+      );
+      if (publicado == null || !mounted) return;
+      final overlay = Overlay.maybeOf(context, rootOverlay: true);
+      final themeRef = widget.theme;
+      final fotoPerfilRef = widget.autor.fotoExibicao;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Publicado no Story!')),
+      );
+      widget.onVoltarPerfil();
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        AnimacaoStorySugadoOverlay.disparar(
+          overlay,
+          theme: themeRef,
+          caminhoMidiaLocal: caminho,
+          fotoPerfil: fotoPerfilRef,
+        );
+      });
+      return;
+    }
+
     final midia = await TimelineService.importarMidiaLocal(
       caminho,
       nomeArquivo: nome,
     );
     if (midia == null) return;
 
-    if (_destino == DestinoCapturaCamera.story) {
-      await TimelineService.criarStory(
-        autorCpf: widget.autor.cpf,
-        autorNome: widget.autor.nomeExibicao,
-        autorFoto: widget.autor.fotoExibicao,
-        caminhoMidia: midia.caminhoRelativo,
-        tipoMidia: ehVideo ? 'video' : 'imagem',
-      );
-      if (mounted) {
-        AnimacaoStorySugadoOverlay.disparar(
-          Overlay.maybeOf(context, rootOverlay: true),
-          theme: widget.theme,
-          caminhoMidiaLocal: caminho,
-          fotoPerfil: widget.autor.fotoExibicao,
-        );
-      }
-    } else {
+    {
       final tipo = switch (_destino) {
         DestinoCapturaCamera.fotos => TipoFeedSocial.fotos,
         DestinoCapturaCamera.videos => TipoFeedSocial.videos,
@@ -354,6 +395,38 @@ class _CameraCriacaoViewState extends State<CameraCriacaoView> {
       );
       widget.onVoltarPerfil();
     }
+  }
+
+  Widget _botaoLateralCamera({
+    required IconData icone,
+    required String tooltip,
+    required VoidCallback onTap,
+    bool ativo = true,
+  }) {
+    return Tooltip(
+      message: tooltip,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(22),
+        child: Container(
+          width: 42,
+          height: 42,
+          margin: const EdgeInsets.only(bottom: 10),
+          decoration: BoxDecoration(
+            color: Colors.black.withValues(alpha: ativo ? 0.58 : 0.32),
+            shape: BoxShape.circle,
+            border: Border.all(
+              color: Colors.white.withValues(alpha: ativo ? 0.45 : 0.18),
+            ),
+          ),
+          child: Icon(
+            icone,
+            size: 20,
+            color: ativo ? Colors.white : Colors.white54,
+          ),
+        ),
+      ),
+    );
   }
 
   String _rotuloDestino(DestinoCapturaCamera d) {
@@ -454,6 +527,77 @@ class _CameraCriacaoViewState extends State<CameraCriacaoView> {
                       color: Colors.white,
                     ),
                     onPressed: _alternarCamera,
+                  ),
+                ],
+              ),
+            ),
+
+            Positioned(
+              top: 74,
+              left: 12,
+              child: Column(
+                children: [
+                  _botaoLateralCamera(
+                    icone: Icons.title_rounded,
+                    tooltip: 'Criar Story com texto (Aa)',
+                    onTap: () async {
+                      final overlay = Overlay.maybeOf(
+                        context,
+                        rootOverlay: true,
+                      );
+                      final nav = Navigator.of(context);
+                      final publicado = await EditorStoryView.mostrar(
+                        context,
+                        theme: theme,
+                        autor: widget.autor,
+                        caminhoArquivo: '',
+                        abrirTextoAoEntrar: true,
+                      );
+                      if (publicado != null && mounted) {
+                        final themeRef = widget.theme;
+                        final fotoPerfilRef = widget.autor.fotoExibicao;
+                        if (nav.canPop()) {
+                          widget.onVoltarPerfil();
+                        }
+                        WidgetsBinding.instance.addPostFrameCallback((_) {
+                          AnimacaoStorySugadoOverlay.disparar(
+                            overlay,
+                            theme: themeRef,
+                            fotoPerfil: fotoPerfilRef,
+                          );
+                        });
+                      }
+                    },
+                  ),
+                  _botaoLateralCamera(
+                    icone: Icons.emoji_emotions_outlined,
+                    tooltip: 'Figurinhas (em breve)',
+                    ativo: false,
+                    onTap: () => ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Figurinhas chegarão em breve!'),
+                      ),
+                    ),
+                  ),
+                  _botaoLateralCamera(
+                    icone: Icons.brush_outlined,
+                    tooltip: 'Desenho (em breve)',
+                    ativo: false,
+                    onTap: () => ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Ferramenta de desenho em breve!'),
+                      ),
+                    ),
+                  ),
+                  _botaoLateralCamera(
+                    icone: Icons.music_note_outlined,
+                    tooltip: 'Música (em breve)',
+                    ativo: false,
+                    onTap: () => ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Músicas no Story em breve!'),
+                      ),
+                    ),
                   ),
                 ],
               ),

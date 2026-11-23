@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:nous/src/core/services/banco_dados_service.dart';
+import 'package:nous/src/core/services/criptografia_service.dart';
 import 'package:nous/src/core/services/navigator_key_service.dart';
 import 'package:nous/src/features/auth/services/contas_nous_service.dart';
 import 'package:nous/src/features/chat/models/mensagem_chat.dart';
@@ -365,8 +366,11 @@ class NotificacaoAndroidService {
         icon: avatarIcon,
       );
 
-      final textoCorpo = mensagem.texto.trim().isNotEmpty
-          ? mensagem.texto.trim()
+      final textoLimpo = mensagem.texto.trim();
+      final textoCorpo = textoLimpo.isNotEmpty
+          ? (CriptografiaService.ehTextoCifrado(textoLimpo)
+              ? '🔒 Mensagem criptografada'
+              : textoLimpo)
           : ChatMediaService.gerarResumoMensagem(mensagem);
 
       final ehGrupo = mensagem.conversaId.startsWith('grupo_');
@@ -487,7 +491,10 @@ class NotificacaoAndroidService {
             ultimaData = ult.timestamp;
           }
           final autor = ult.person?.name ?? 'Mensagem';
-          linhasResumo.add('$autor: ${ult.text}');
+          final textoLinha = CriptografiaService.ehTextoCifrado(ult.text)
+              ? '🔒 Mensagem criptografada'
+              : ult.text;
+          linhasResumo.add('$autor: $textoLinha');
         }
       }
 

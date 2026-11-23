@@ -469,42 +469,47 @@ class PainelCategoriasGruposWidget extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final termoCategorias = pesquisaCategorias.text.trim().toLowerCase();
-    final termoGrupos = pesquisaGrupos.text.trim().toLowerCase();
+    return ListenableBuilder(
+      listenable: Listenable.merge([pesquisaCategorias, pesquisaGrupos]),
+      builder: (context, _) {
+        final termoCategorias = pesquisaCategorias.text.trim().toLowerCase();
+        final termoGrupos = pesquisaGrupos.text.trim().toLowerCase();
 
-    final categoriasFiltradas = termoCategorias.isEmpty
-        ? categorias
-        : categorias
-            .where((c) => c.nome.toLowerCase().contains(termoCategorias))
-            .toList();
+        final categoriasFiltradas = termoCategorias.isEmpty
+            ? categorias
+            : categorias
+                .where((c) => c.nome.toLowerCase().contains(termoCategorias))
+                .toList();
 
-    final gruposFiltrados = termoGrupos.isEmpty
-        ? gruposComponentes
-        : gruposComponentes
-            .where((g) => g.nome.toLowerCase().contains(termoGrupos))
-            .toList();
+        final gruposFiltrados = termoGrupos.isEmpty
+            ? gruposComponentes
+            : gruposComponentes
+                .where((g) => g.nome.toLowerCase().contains(termoGrupos))
+                .toList();
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        _tituloDeSecao('Categorias'),
-        const SizedBox(height: 12),
-        _campoDePesquisa(
-          pesquisaCategorias,
-          'Pesquisar categorias...',
-        ),
-        const SizedBox(height: 12),
-        _listaCategorias(context, categoriasFiltradas),
-        const SizedBox(height: 24),
-        _tituloDeSecao('Grupos de Componentes'),
-        const SizedBox(height: 12),
-        _campoDePesquisa(
-          pesquisaGrupos,
-          'Pesquisar grupos...',
-        ),
-        const SizedBox(height: 12),
-        _listaGrupos(context, gruposFiltrados),
-      ],
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            _tituloDeSecao('Categorias'),
+            const SizedBox(height: 12),
+            _campoDePesquisa(
+              pesquisaCategorias,
+              'Pesquisar categorias...',
+            ),
+            const SizedBox(height: 12),
+            _listaCategorias(context, categoriasFiltradas),
+            const SizedBox(height: 24),
+            _tituloDeSecao('Grupos de Componentes'),
+            const SizedBox(height: 12),
+            _campoDePesquisa(
+              pesquisaGrupos,
+              'Pesquisar grupos...',
+            ),
+            const SizedBox(height: 12),
+            _listaGrupos(context, gruposFiltrados),
+          ],
+        );
+      },
     );
   }
 }

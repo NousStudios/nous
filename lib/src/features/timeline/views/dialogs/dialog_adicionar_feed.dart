@@ -91,6 +91,8 @@ class _DialogAdicionarFeedState extends State<DialogAdicionarFeed> {
         return 'Vídeos';
       case TipoFeedSocial.documentos:
         return 'Documentos';
+      case TipoFeedSocial.livros:
+        return 'Livros';
       case TipoFeedSocial.musicas:
         return 'Músicas';
       case TipoFeedSocial.escritos:

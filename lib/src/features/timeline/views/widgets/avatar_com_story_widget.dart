@@ -1,5 +1,3 @@
-import 'dart:io';
-
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:nous/src/core/theme/theme_controller.dart';
@@ -46,6 +44,7 @@ class _AvatarComStoryWidgetState extends State<AvatarComStoryWidget> {
 
   List<StorySocial> _storiesAtivos = const [];
   String _corHex = '#2E7D32';
+  String? _ultimaFotoTentada;
 
   static Future<void> _garantirCacheCompartilhado() async {
     final versaoAtual = TimelineService.alteracoesTimelineNotifier.value;
@@ -178,7 +177,20 @@ class _AvatarComStoryWidgetState extends State<AvatarComStoryWidget> {
         (contaWatch?.corStoryHex.isNotEmpty ?? false)
             ? contaWatch!.corStoryHex
             : _corHex;
-    final caminhoFoto = ImagemService.resolverCaminhoExistente(widget.foto);
+    final fotoBruta = (contaWatch?.fotoExibicao.isNotEmpty ?? false)
+        ? contaWatch!.fotoExibicao
+        : widget.foto;
+    final caminhoFoto = ImagemService.resolverCaminhoExistente(fotoBruta);
+    if (caminhoFoto == null &&
+        fotoBruta.isNotEmpty &&
+        _ultimaFotoTentada != fotoBruta) {
+      _ultimaFotoTentada = fotoBruta;
+      TimelineService.resolverCaminhoMidia(fotoBruta).then((resolvido) {
+        if (resolvido != null && mounted) {
+          setState(() {});
+        }
+      });
+    }
     final temStory = _storiesAtivos.isNotEmpty;
     final corAnel = _parseColor(corEfetivaHex);
     final espessuraAnel = widget.radius >= 30 ? 2.8 : 2.0;
@@ -186,8 +198,12 @@ class _AvatarComStoryWidgetState extends State<AvatarComStoryWidget> {
     final avatar = CircleAvatar(
       radius: widget.radius,
       backgroundColor: widget.theme.borderColor.withValues(alpha: 0.25),
-      backgroundImage:
-          caminhoFoto != null ? FileImage(File(caminhoFoto)) : null,
+      backgroundImage: caminhoFoto != null
+          ? ImagemService.obterImageProvider(
+              caminhoFoto,
+              cacheWidth: (widget.radius * 4).round().clamp(96, 320),
+            )
+          : null,
       child: caminhoFoto == null
           ? Text(
               widget.nome.isNotEmpty ? widget.nome[0].toUpperCase() : '?',

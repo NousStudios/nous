@@ -43,7 +43,7 @@ void main() {
       expect(restaurada.permitirDownload, false);
     });
 
-    test('Publicação colaborativa aparece para autor e todos coautores sem duplicar', () async {
+    test('Publicação colaborativa exige aceite para aparecer no perfil do marcado e não duplica', () async {
       final pub = await TimelineService.criarPublicacao(
         autorCpf: '111.222.333-44',
         autorNome: 'Leonardo',
@@ -57,13 +57,37 @@ void main() {
         cpf: '11122233344',
         tipo: TipoFeedSocial.fotos,
       );
-      final feedCoautor2 = await TimelineService.listarFeedDoUsuario(
+      final feedCoautor2Antes = await TimelineService.listarFeedDoUsuario(
         cpf: '33344455566',
         tipo: TipoFeedSocial.fotos,
       );
 
       expect(feedAutor.where((p) => p.id == pub.id).length, 1);
-      expect(feedCoautor2.where((p) => p.id == pub.id).length, 1);
+      expect(feedCoautor2Antes.where((p) => p.id == pub.id).length, 0);
+      expect(pub.coautoresPendentesCpfs, containsAll(['22233344455', '33344455566']));
+
+      await TimelineService.responderConviteColaboracao(
+        publicacaoId: pub.id,
+        usuarioCpf: '33344455566',
+        aceitar: true,
+      );
+      await TimelineService.responderConviteColaboracao(
+        publicacaoId: pub.id,
+        usuarioCpf: '22233344455',
+        aceitar: false,
+      );
+
+      final feedCoautor2Depois = await TimelineService.listarFeedDoUsuario(
+        cpf: '33344455566',
+        tipo: TipoFeedSocial.fotos,
+      );
+      final feedCoautor1Depois = await TimelineService.listarFeedDoUsuario(
+        cpf: '22233344455',
+        tipo: TipoFeedSocial.fotos,
+      );
+
+      expect(feedCoautor2Depois.where((p) => p.id == pub.id).length, 1);
+      expect(feedCoautor1Depois.where((p) => p.id == pub.id).length, 0);
     });
 
     test('Like e Deslike não duplicam e alternam corretamente por CPF', () async {

@@ -124,6 +124,8 @@ class _CentralContaSocialViewState extends State<CentralContaSocialView> {
         return 'Vídeos';
       case TipoFeedSocial.documentos:
         return 'Documentos';
+      case TipoFeedSocial.livros:
+        return 'Livros';
       case TipoFeedSocial.musicas:
         return 'Músicas';
       case TipoFeedSocial.escritos:

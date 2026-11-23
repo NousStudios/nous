@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:nous/src/core/theme/theme_controller.dart';
-import 'package:nous/src/core/widgets/themed_text_field.dart';
 import 'package:nous/src/features/auth/models/usuario_nous.dart';
 import 'package:nous/src/features/auth/providers/auth_provider.dart';
 import 'package:nous/src/features/timeline/models/interacao_social.dart';
@@ -9,8 +8,10 @@ import 'package:nous/src/features/timeline/models/publicacao_social.dart';
 import 'package:nous/src/features/timeline/services/timeline_service.dart';
 import 'package:nous/src/features/timeline/views/dialogs/dialog_denuncia_social.dart';
 import 'package:nous/src/features/timeline/views/dialogs/dialog_detalhes_publicacao.dart';
+import 'package:nous/src/features/timeline/views/dialogs/dialog_editar_publicacao.dart';
 import 'package:nous/src/features/timeline/views/dialogs/dialog_enviar_publicacao_chat.dart';
 import 'package:nous/src/features/timeline/views/dialogs/dialog_opcoes_publicacao.dart';
+import 'package:nous/src/features/timeline/views/dialogs/dialog_republicar_opcoes.dart';
 import 'package:nous/src/features/timeline/views/dialogs/dialog_salvar_publicacao.dart';
 import 'package:nous/src/features/timeline/views/insights_publicacao_view.dart';
 import 'package:nous/src/features/timeline/views/widgets/cabecalho_autor_colaboradores_widget.dart';
@@ -26,6 +27,10 @@ class CardPublicacaoCompletoWidget extends StatefulWidget {
   final PublicacaoSocial publicacao;
   final UsuarioNous? usuarioLogado;
   final ValueChanged<String>? onTapTag;
+  final List<PublicacaoSocial>? listaPublicacoes;
+  final int indiceInicial;
+  final bool abrirDetalhesAoTocarCabecalho;
+  final String? subtituloRepublicadoPor;
 
   const CardPublicacaoCompletoWidget({
     super.key,
@@ -33,6 +38,10 @@ class CardPublicacaoCompletoWidget extends StatefulWidget {
     required this.publicacao,
     required this.usuarioLogado,
     this.onTapTag,
+    this.listaPublicacoes,
+    this.indiceInicial = 0,
+    this.abrirDetalhesAoTocarCabecalho = false,
+    this.subtituloRepublicadoPor,
   });
 
   @override
@@ -120,6 +129,8 @@ class _CardPublicacaoCompletoWidgetState
       theme: widget.theme,
       publicacao: _pub,
       usuarioLogado: _obterUsuarioEfetivo(),
+      listaPublicacoes: widget.listaPublicacoes,
+      indiceInicial: widget.indiceInicial,
     );
   }
 
@@ -154,51 +165,13 @@ class _CardPublicacaoCompletoWidgetState
     }
 
     if (acao == 'editar') {
-      final editCtrl = TextEditingController(text: _pub.texto);
-      final novoTexto = await showDialog<String>(
-        context: context,
-        builder: (ctx) => AlertDialog(
-          backgroundColor: theme.cardBackgroundColor,
-          title: Text(
-            'Editar Publicação',
-            textAlign: TextAlign.center,
-            style: theme.getTextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.bold,
-              color: theme.textColor,
-            ),
-          ),
-          content: ThemedTextField(
-            theme: theme,
-            controller: editCtrl,
-            linhas: 4,
-            label: 'Legenda ou texto',
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(ctx).pop(),
-              child: const Text('Cancelar'),
-            ),
-            TextButton(
-              onPressed: () => Navigator.of(ctx).pop(editCtrl.text),
-              child: Text(
-                'Salvar',
-                style: theme.getTextStyle(
-                  color: theme.buttonColor,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ),
-          ],
-        ),
+      final atualizada = await DialogEditarPublicacao.mostrar(
+        context,
+        theme: theme,
+        publicacao: _pub,
       );
-      editCtrl.dispose();
-      if (novoTexto != null) {
-        final atualizada = await TimelineService.editarPublicacao(
-          _pub,
-          novoTexto: novoTexto,
-        );
-        if (mounted) setState(() => _pub = atualizada);
+      if (atualizada != null && mounted) {
+        setState(() => _pub = atualizada);
       }
     } else if (acao == 'arquivar') {
       await TimelineService.arquivarPublicacao(
@@ -365,12 +338,37 @@ class _CardPublicacaoCompletoWidgetState
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          if (widget.subtituloRepublicadoPor != null &&
+              widget.subtituloRepublicadoPor!.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.repeat_rounded,
+                    size: 13.5,
+                    color: theme.secondaryTextColor,
+                  ),
+                  const SizedBox(width: 6),
+                  Text(
+                    'Republicado por ${widget.subtituloRepublicadoPor}',
+                    style: theme.getTextStyle(
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.w600,
+                      color: theme.secondaryTextColor,
+                    ),
+                  ),
+                ],
+              ),
+            ),
           // 1. Cabeçalho completo com foto do autor + colaboradores + botão (...) à direita
           Padding(
             padding: const EdgeInsets.fromLTRB(12, 8, 4, 6),
             child: CabecalhoAutorColaboradoresWidget(
               theme: theme,
               publicacao: pub,
+              onTapCabecalho:
+                  widget.abrirDetalhesAoTocarCabecalho ? _abrirDetalhes : null,
               trailing: IconButton(
                 visualDensity: VisualDensity.compact,
                 constraints: const BoxConstraints(),
@@ -407,7 +405,19 @@ class _CardPublicacaoCompletoWidgetState
                 ),
               )
             else
-              WidgetMidiaPublicacao(theme: theme, publicacao: pub),
+              ConstrainedBox(
+                constraints: BoxConstraints(
+                  maxHeight: MediaQuery.sizeOf(context).width < 600
+                      ? 310
+                      : (MediaQuery.sizeOf(context).height * 0.56)
+                          .clamp(280.0, 440.0),
+                ),
+                child: WidgetMidiaPublicacao(
+                  theme: theme,
+                  publicacao: pub,
+                  onAbrirPublicacao: _abrirDetalhes,
+                ),
+              ),
 
           // 3. Barra de interações unificada na mesma linha + data à direita
           Padding(
@@ -492,23 +502,12 @@ class _CardPublicacaoCompletoWidgetState
                           ),
                           onPressed: u == null
                               ? null
-                              : () async {
-                                  await TimelineService.republicar(
-                                    original: pub,
-                                    meuCpf: u.cpf,
-                                    meuNome: u.nomeExibicao,
-                                    minhaFoto: u.fotoExibicao,
-                                  );
-                                  if (context.mounted) {
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      const SnackBar(
-                                        content: Text(
-                                          'Publicação republicada no seu perfil!',
-                                        ),
-                                      ),
-                                    );
-                                  }
-                                },
+                              : () => DialogRepublicarOpcoes.mostrar(
+                                    context,
+                                    theme: theme,
+                                    publicacao: pub,
+                                    usuario: u,
+                                  ),
                         ),
                         if (u != null)
                           IconButton(

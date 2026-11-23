@@ -688,7 +688,7 @@ class ChatMensagensService {
       ],
       orderBy: 'data_hora DESC',
     );
-    return rows
+    final msgs = rows
         .map(
           (r) => MensagemChat(
             id: r['id'] as String? ?? '',
@@ -698,6 +698,10 @@ class ChatMensagensService {
             remetenteFoto: r['remetente_foto'] as String? ?? '',
             destinatarioId: r['destinatario_id'] as String? ?? '',
             texto: r['texto'] as String? ?? '',
+            tipo: r['tipo'] as String? ?? 'texto',
+            caminhoAnexo: r['caminho_anexo'] as String? ?? '',
+            nomeAnexo: r['nome_anexo'] as String? ?? '',
+            tamanhoAnexo: r['tamanho_anexo'] as int? ?? 0,
             dataHora:
                 DateTime.tryParse(r['data_hora'] as String? ?? '') ??
                 DateTime.now(),
@@ -708,6 +712,10 @@ class ChatMensagensService {
           ),
         )
         .toList();
+    return ChatE2eeService.decifrarListaMensagens(
+      msgs,
+      cpfVisualizador: idLimpo,
+    );
   }
 
   static Future<List<MensagemChat>> obterMensagensNaoLidasDoUsuario(
@@ -744,7 +752,7 @@ class ChatMensagensService {
       ],
       orderBy: 'data_hora DESC',
     );
-    return rows
+    final msgs = rows
         .map(
           (r) => MensagemChat(
             id: r['id'] as String? ?? '',
@@ -754,6 +762,10 @@ class ChatMensagensService {
             remetenteFoto: r['remetente_foto'] as String? ?? '',
             destinatarioId: r['destinatario_id'] as String? ?? '',
             texto: r['texto'] as String? ?? '',
+            tipo: r['tipo'] as String? ?? 'texto',
+            caminhoAnexo: r['caminho_anexo'] as String? ?? '',
+            nomeAnexo: r['nome_anexo'] as String? ?? '',
+            tamanhoAnexo: r['tamanho_anexo'] as int? ?? 0,
             dataHora:
                 DateTime.tryParse(r['data_hora'] as String? ?? '') ??
                 DateTime.now(),
@@ -764,6 +776,10 @@ class ChatMensagensService {
           ),
         )
         .toList();
+    return ChatE2eeService.decifrarListaMensagens(
+      msgs,
+      cpfVisualizador: cpfNorm,
+    );
   }
 
   static Future<Map<String, ({String nome, String foto})>>

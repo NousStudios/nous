@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:file_selector/file_selector.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:nous/src/core/theme/theme_controller.dart';
 
@@ -20,6 +21,7 @@ class EditorFotosCarrosselWidget extends StatelessWidget {
   final void Function(double x, double y, double zoom) onAtualizarAjuste;
   final VoidCallback onScaleStart;
   final ValueChanged<ScaleUpdateDetails> onScaleUpdate;
+  final ValueChanged<bool>? onInteracaoAtivaMudou;
   final VoidCallback onAdicionarMais;
   final VoidCallback onLimparTudo;
 
@@ -37,6 +39,7 @@ class EditorFotosCarrosselWidget extends StatelessWidget {
     required this.onAtualizarAjuste,
     required this.onScaleStart,
     required this.onScaleUpdate,
+    this.onInteracaoAtivaMudou,
     required this.onAdicionarMais,
     required this.onLimparTudo,
   });
@@ -50,7 +53,7 @@ class EditorFotosCarrosselWidget extends StatelessWidget {
     final imgWidget = ClipRect(
       child: Transform.scale(
         scale: escalaZoom,
-        alignment: Alignment(alinhamentoX, alinhamentoY),
+        alignment: Alignment.center,
         child: Image.file(
           File(arquivoAtivo.path),
           fit: aspectRatio != null ? BoxFit.cover : BoxFit.contain,
@@ -67,95 +70,116 @@ class EditorFotosCarrosselWidget extends StatelessWidget {
           child: Container(
             constraints: const BoxConstraints(maxHeight: 290),
             color: theme.backgroundColor.withValues(alpha: 0.5),
-            child: GestureDetector(
-              onScaleStart: (_) => onScaleStart(),
-              onScaleUpdate: onScaleUpdate,
-              child: Stack(
-                alignment: Alignment.bottomCenter,
-                children: [
-                  aspectRatio != null
-                      ? AspectRatio(aspectRatio: aspectRatio!, child: imgWidget)
-                      : ConstrainedBox(
-                          constraints: const BoxConstraints(maxHeight: 280),
-                          child: imgWidget,
-                        ),
-                  if (totalFotos > 1)
-                    Positioned(
-                      top: 8,
-                      right: 8,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 8,
-                          vertical: 4,
-                        ),
-                        decoration: BoxDecoration(
-                          color: Colors.black.withValues(alpha: 0.60),
+            child: Listener(
+              onPointerDown: (_) => onInteracaoAtivaMudou?.call(true),
+              onPointerUp: (_) => onInteracaoAtivaMudou?.call(false),
+              onPointerCancel: (_) => onInteracaoAtivaMudou?.call(false),
+              onPointerSignal: (event) {
+                if (event is PointerScrollEvent) {
+                  GestureBinding.instance.pointerSignalResolver.register(
+                    event,
+                    (resolved) {
+                      final scroll = resolved as PointerScrollEvent;
+                      final delta = -scroll.scrollDelta.dy * 0.002;
+                      final novoZoom = (escalaZoom + delta).clamp(1.0, 3.0);
+                      if (novoZoom != escalaZoom) {
+                        onAtualizarAjuste(alinhamentoX, alinhamentoY, novoZoom);
+                      }
+                    },
+                  );
+                }
+              },
+              child: GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onScaleStart: (_) {
+                  onInteracaoAtivaMudou?.call(true);
+                  onScaleStart();
+                },
+                onScaleUpdate: onScaleUpdate,
+                onScaleEnd: (_) => onInteracaoAtivaMudou?.call(false),
+                child: Stack(
+                  alignment: Alignment.bottomCenter,
+                  children: [
+                    aspectRatio != null
+                        ? AspectRatio(aspectRatio: aspectRatio!, child: imgWidget)
+                        : ConstrainedBox(
+                            constraints: const BoxConstraints(maxHeight: 280),
+                            child: imgWidget,
+                          ),
+                    if (escalaZoom > 1.05 ||
+                        alinhamentoX.abs() > 0.05 ||
+                        alinhamentoY.abs() > 0.05)
+                      Positioned(
+                        top: 8,
+                        left: 8,
+                        child: InkWell(
+                          onTap: () => onAtualizarAjuste(0.0, 0.0, 1.0),
                           borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Text(
-                          'Foto ${idx + 1}/$totalFotos',
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 11,
-                            fontWeight: FontWeight.bold,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 4,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.black.withValues(alpha: 0.60),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: const Text(
+                              'Resetar',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 10.5,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
                           ),
                         ),
                       ),
-                    ),
-                  Positioned(
-                    bottom: 6,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 3,
+                    if (totalFotos > 1)
+                      Positioned(
+                        top: 8,
+                        right: 8,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 4,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.black.withValues(alpha: 0.60),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Text(
+                            'Foto ${idx + 1}/$totalFotos',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 11,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
                       ),
-                      decoration: BoxDecoration(
-                        color: Colors.black.withValues(alpha: 0.55),
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: const Text(
-                        'Arraste para os lados/cima/baixo ou dê zoom',
-                        style: TextStyle(color: Colors.white, fontSize: 10),
-                      ),
-                    ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
           ),
         ),
-        const SizedBox(height: 8),
-        Row(
-          children: [
-            Icon(
-              Icons.zoom_in_rounded,
-              size: 18,
-              color: theme.secondaryTextColor,
-            ),
-            Expanded(
-              child: Slider(
-                value: escalaZoom,
-                min: 1.0,
-                max: 3.0,
-                activeColor: theme.buttonColor,
-                onChanged: (v) =>
-                    onAtualizarAjuste(alinhamentoX, alinhamentoY, v),
-              ),
-            ),
-            Text(
-              '${escalaZoom.toStringAsFixed(1)}x',
-              style: theme.getTextStyle(
-                fontSize: 11.5,
-                color: theme.secondaryTextColor,
-              ),
-            ),
-            const SizedBox(width: 6),
-            TextButton(
+        if (escalaZoom > 1.05 ||
+            alinhamentoX.abs() > 0.02 ||
+            alinhamentoY.abs() > 0.02)
+          Align(
+            alignment: Alignment.centerRight,
+            child: TextButton(
               onPressed: () => onAtualizarAjuste(0.0, 0.0, 1.0),
-              child: const Text('Centralizar'),
+              child: Text(
+                'Centralizar enquadramento',
+                style: theme.getTextStyle(
+                  fontSize: 11.5,
+                  color: theme.buttonColor,
+                ),
+              ),
             ),
-          ],
-        ),
+          ),
         if (totalFotos > 1) ...[
           const SizedBox(height: 4),
           SizedBox(

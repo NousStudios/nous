@@ -9,6 +9,7 @@ import 'package:nous/src/features/chat/views/mensageria_view.dart';
 import 'package:nous/src/features/pdv/views/compras_usuario_view.dart';
 import 'package:nous/src/features/pdv/views/perfis_pdv_view.dart';
 import 'package:nous/src/features/timeline/views/feed_descoberta_view.dart';
+import 'package:nous/src/features/timeline/views/player_universal/player_universal_view.dart';
 
 class _ItemSlotDuplo {
   final IconData icone0;
@@ -177,13 +178,7 @@ class _FloatingBottomNavBarState extends State<FloatingBottomNavBar> {
       if (subIndice == 0) {
         pagina = const BuscaMapaView();
       } else {
-        pagina = const EmConstrucaoView(
-          titulo: 'Player Universal',
-          subtitulo: 'Vídeos, músicas e leitor de PDFs integrados na rede',
-          icone: Icons.play_circle_outline,
-          slotSelecionado: 2,
-          subIndiceSelecionado: 1,
-        );
+        pagina = const PlayerUniversalView();
       }
     } else if (slot == 3) {
       if (subIndice == 0) {

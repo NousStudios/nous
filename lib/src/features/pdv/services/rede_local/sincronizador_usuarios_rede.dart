@@ -144,6 +144,22 @@ class SincronizadorUsuariosRede {
           usuarioParaEnvio = usuarioParaEnvio.copyWith(foto: fotoNoServidor);
         }
       }
+      if (usuario.fotoPublica.isNotEmpty &&
+          usuario.fotoPublica != usuario.foto &&
+          !ImagemService.ehAsset(usuario.fotoPublica)) {
+        final fotoPublicaServidor =
+            await _transferencia.enviarUploadImagemParaServidor(
+          ipServidor: ipServidor,
+          portaServidor: portaServidor,
+          caminhoLocal: usuario.fotoPublica,
+        );
+        if (fotoPublicaServidor.isNotEmpty &&
+            fotoPublicaServidor != usuario.fotoPublica) {
+          usuarioParaEnvio = usuarioParaEnvio.copyWith(
+            fotoPublica: fotoPublicaServidor,
+          );
+        }
+      }
 
       final client =
           HttpClient()..connectionTimeout = const Duration(seconds: 4);
@@ -225,9 +241,23 @@ class SincronizadorUsuariosRede {
           }
 
           final local = await ContasNousService.buscarPorCpf(cpfLimpo);
-          final contaFinal = local != null
+          var contaFinal = local != null
               ? mesclarUsuarios(local, usuarioRemoto)
               : usuarioRemoto;
+
+          if (usuarioRemoto.fotoPublica.isNotEmpty &&
+              !ImagemService.existe(contaFinal.fotoPublica)) {
+            final fotoPubLocal = await _transferencia.baixarImagemRemota(
+              caminhoRemoto: usuarioRemoto.fotoPublica,
+              ipServidor: ipServidor,
+              portaServidor: portaServidor,
+              cpf: usuarioRemoto.cpf,
+            );
+            if (fotoPubLocal.isNotEmpty &&
+                ImagemService.existe(fotoPubLocal)) {
+              contaFinal = contaFinal.copyWith(fotoPublica: fotoPubLocal);
+            }
+          }
 
           await ContasNousService.salvar(contaFinal);
           authProvider?.atualizarContaNoCache(contaFinal);
@@ -414,6 +444,20 @@ class SincronizadorUsuariosRede {
                     mesclada = mesclada.copyWith(foto: fotoBaixada);
                     ResolvedorFotoChat.instancia
                         .registrarFoto(u.cpf, fotoBaixada);
+                  }
+                }
+                if (u.fotoPublica.isNotEmpty &&
+                    !ImagemService.existe(mesclada.fotoPublica)) {
+                  final fotoPubBaixada =
+                      await _transferencia.baixarImagemRemota(
+                    caminhoRemoto: u.fotoPublica,
+                    ipServidor: ipServidor,
+                    portaServidor: portaServidor,
+                    cpf: u.cpf,
+                  );
+                  if (fotoPubBaixada.isNotEmpty &&
+                      ImagemService.existe(fotoPubBaixada)) {
+                    mesclada = mesclada.copyWith(fotoPublica: fotoPubBaixada);
                   }
                 }
 

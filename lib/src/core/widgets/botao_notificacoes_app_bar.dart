@@ -9,6 +9,9 @@ import 'package:nous/src/features/chat/services/chat_service.dart';
 import 'package:nous/src/features/notificacoes/providers/notificacoes_provider.dart';
 import 'package:nous/src/features/notificacoes/views/widgets/notificacoes_dialog.dart';
 import 'package:nous/src/features/pdv/providers/pdv_provider.dart';
+import 'package:nous/src/features/timeline/models/notificacao_social.dart';
+import 'package:nous/src/features/timeline/services/timeline_repositorio_sqlite.dart';
+import 'package:nous/src/features/timeline/services/timeline_service.dart';
 
 /// Botão de notificações da AppBar com recarga reativa e debounce de alterações no chat.
 class BotaoNotificacoesAppBar extends StatefulWidget {
@@ -30,6 +33,7 @@ class BotaoNotificacoesAppBar extends StatefulWidget {
 
 class _BotaoNotificacoesAppBarState extends State<BotaoNotificacoesAppBar> {
   List<MensagemChat> _msgsNaoLidas = const [];
+  List<NotificacaoSocial> _sociaisNaoLidas = const [];
   Timer? _debounce;
   bool _carregando = false;
 
@@ -37,6 +41,7 @@ class _BotaoNotificacoesAppBarState extends State<BotaoNotificacoesAppBar> {
   void initState() {
     super.initState();
     ChatService.alteracoesChatNotifier.addListener(_agendarRecarga);
+    TimelineService.alteracoesTimelineNotifier.addListener(_agendarRecarga);
     _recarregar();
   }
 
@@ -53,6 +58,7 @@ class _BotaoNotificacoesAppBarState extends State<BotaoNotificacoesAppBar> {
   void dispose() {
     _debounce?.cancel();
     ChatService.alteracoesChatNotifier.removeListener(_agendarRecarga);
+    TimelineService.alteracoesTimelineNotifier.removeListener(_agendarRecarga);
     super.dispose();
   }
 
@@ -77,12 +83,29 @@ class _BotaoNotificacoesAppBarState extends State<BotaoNotificacoesAppBar> {
       } else {
         resultado = const <MensagemChat>[];
       }
+      final List<NotificacaoSocial> sociais =
+          (widget.lojaId == null && widget.cpfUsuario.isNotEmpty)
+              ? (await TimelineRepositorioSqlite
+                      .listarNotificacoesSociaisDoUsuario(
+                  widget.cpfUsuario,
+                ))
+                  .where((s) => !s.lida)
+                  .toList()
+              : const <NotificacaoSocial>[];
       if (!mounted) return;
-      if (resultado.length != _msgsNaoLidas.length ||
+      final mudouMsgs = resultado.length != _msgsNaoLidas.length ||
           (resultado.isNotEmpty &&
               _msgsNaoLidas.isNotEmpty &&
-              resultado.first.id != _msgsNaoLidas.first.id)) {
-        setState(() => _msgsNaoLidas = resultado);
+              resultado.first.id != _msgsNaoLidas.first.id);
+      final mudouSociais = sociais.length != _sociaisNaoLidas.length ||
+          (sociais.isNotEmpty &&
+              _sociaisNaoLidas.isNotEmpty &&
+              sociais.first.id != _sociaisNaoLidas.first.id);
+      if (mudouMsgs || mudouSociais) {
+        setState(() {
+          _msgsNaoLidas = resultado;
+          _sociaisNaoLidas = sociais;
+        });
       }
     } catch (_) {
     } finally {
@@ -108,6 +131,11 @@ class _BotaoNotificacoesAppBarState extends State<BotaoNotificacoesAppBar> {
             .where((c) => !notificacoes.estaDispensadaNaSessao('convite_${c.id}'))
             .length
         : 0;
+    final quantidadeSociais = (lojaId == null)
+        ? _sociaisNaoLidas
+            .where((s) => !notificacoes.estaDispensadaNaSessao('nsoc_${s.id}'))
+            .length
+        : 0;
     final ehLojaColetiva = lojaId == PdvProvider.idLojaColetivaNous;
     final totalEstoqueBaixo = (lojaId == null || ehLojaColetiva)
         ? 0
@@ -116,9 +144,12 @@ class _BotaoNotificacoesAppBarState extends State<BotaoNotificacoesAppBar> {
             .where((a) => !notificacoes.estaDispensadaNaLoja(
                 lojaId, 'alerta_estoque_${a.lojaId}_${a.item.id}'))
             .length;
-    final temNotificacaoAtiva =
-        quantidadeConvites > 0 || totalEstoqueBaixo > 0 || temMensagens;
-    final quantidadeBadge = quantidadeConvites + totalEstoqueBaixo;
+    final temNotificacaoAtiva = quantidadeConvites > 0 ||
+        quantidadeSociais > 0 ||
+        totalEstoqueBaixo > 0 ||
+        temMensagens;
+    final quantidadeBadge =
+        quantidadeConvites + quantidadeSociais + totalEstoqueBaixo;
 
     return Stack(
       clipBehavior: Clip.none,
@@ -132,9 +163,7 @@ class _BotaoNotificacoesAppBarState extends State<BotaoNotificacoesAppBar> {
             temNotificacaoAtiva
                 ? Icons.notifications_active_outlined
                 : Icons.notifications_none,
-            color: (totalEstoqueBaixo > 0 ||
-                    temMensagens ||
-                    quantidadeConvites > 0)
+            color: temNotificacaoAtiva
                 ? theme.dangerColor
                 : theme.secondaryTextColor,
           ),

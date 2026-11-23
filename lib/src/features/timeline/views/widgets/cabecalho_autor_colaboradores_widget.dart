@@ -18,6 +18,7 @@ class CabecalhoAutorColaboradoresWidget extends StatefulWidget {
   final PublicacaoSocial publicacao;
   final List<UsuarioNous> coautoresResolvidos;
   final Widget? trailing;
+  final VoidCallback? onTapCabecalho;
 
   const CabecalhoAutorColaboradoresWidget({
     super.key,
@@ -25,6 +26,7 @@ class CabecalhoAutorColaboradoresWidget extends StatefulWidget {
     required this.publicacao,
     this.coautoresResolvidos = const [],
     this.trailing,
+    this.onTapCabecalho,
   });
 
   @override
@@ -146,6 +148,10 @@ class _CabecalhoAutorColaboradoresWidgetState
     return InkWell(
       borderRadius: BorderRadius.circular(12),
       onTap: () async {
+        if (widget.onTapCabecalho != null) {
+          widget.onTapCabecalho!();
+          return;
+        }
         if (temColabs) {
           await DialogColaboradoresPublicacao.mostrar(
             context,
@@ -177,13 +183,17 @@ class _CabecalhoAutorColaboradoresWidgetState
               clipBehavior: Clip.none,
               alignment: Alignment.centerLeft,
               children: [
-                AvatarComStoryWidget(
-                  theme: theme,
-                  cpf: publicacao.autorCpf,
-                  nome: publicacao.autorNome,
-                  foto: fotoAutor,
-                  radius: 18,
-                  usuario: contaAutor,
+                IgnorePointer(
+                  ignoring: widget.onTapCabecalho != null,
+                  child: AvatarComStoryWidget(
+                    theme: theme,
+                    cpf: publicacao.autorCpf,
+                    nome: publicacao.autorNome,
+                    foto: fotoAutor,
+                    radius: 18,
+                    usuario: contaAutor,
+                    onTapSemStory: widget.onTapCabecalho,
+                  ),
                 ),
                 for (int i = 0; i < colabsExibidos.length; i++)
                   Positioned(
@@ -227,10 +237,10 @@ class _CabecalhoAutorColaboradoresWidgetState
                         vertical: 3,
                       ),
                       decoration: BoxDecoration(
-                        color: theme.buttonColor,
+                        color: theme.cardBackgroundColor,
                         borderRadius: BorderRadius.circular(10),
                         border: Border.all(
-                          color: theme.backgroundColor,
+                          color: theme.borderColor,
                           width: 1.5,
                         ),
                       ),
@@ -239,7 +249,7 @@ class _CabecalhoAutorColaboradoresWidgetState
                         style: theme.getTextStyle(
                           fontSize: 9.5,
                           fontWeight: FontWeight.bold,
-                          color: theme.buttonTextColor,
+                          color: theme.textColor,
                         ),
                       ),
                     ),
@@ -267,7 +277,7 @@ class _CabecalhoAutorColaboradoresWidgetState
                     'Toque para ver colaboradores',
                     style: theme.getTextStyle(
                       fontSize: 10.5,
-                      color: theme.buttonColor,
+                      color: theme.secondaryTextColor,
                     ),
                   ),
               ],

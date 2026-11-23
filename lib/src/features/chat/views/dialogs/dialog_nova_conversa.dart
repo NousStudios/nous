@@ -74,175 +74,198 @@ class DialogNovaConversa {
               return false;
             }).toList();
 
-            return AlertDialog(
+            return Dialog(
               backgroundColor: theme.cardBackgroundColor,
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(16),
                 side: BorderSide(color: theme.borderColor),
               ),
-              title: Row(
-                children: [
-                  Icon(
-                    Icons.chat_bubble_outline_rounded,
-                    color: theme.textColor,
-                    size: 20,
-                  ),
-                  const SizedBox(width: 8),
-                  Text(
-                    'Nova Conversa',
-                    style: theme.getTextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                      color: theme.textColor,
-                    ),
-                  ),
-                ],
-              ),
-              content: ConstrainedBox(
-                constraints: const BoxConstraints(
-                  maxWidth: 420,
-                  maxHeight: 460,
+              child: ConstrainedBox(
+                constraints: BoxConstraints(
+                  maxWidth: 440,
+                  maxHeight: MediaQuery.sizeOf(dialogCtx).height * 0.85,
                 ),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    TextField(
-                      controller: filtroController,
-                      onChanged: (val) {
-                        setDialogState(() {
-                          termo = val;
-                        });
-                      },
-                      style: theme.getTextStyle(
-                        fontSize: 13,
-                        color: theme.textColor,
-                      ),
-                      decoration: InputDecoration(
-                        hintText: 'Filtrar por nome, @usuario ou CPF...',
-                        hintStyle: theme.getTextStyle(
-                          fontSize: 12,
-                          color: theme.secondaryTextColor,
-                        ),
-                        prefixIcon: Icon(
-                          Icons.search,
-                          size: 18,
-                          color: theme.secondaryTextColor,
-                        ),
-                        suffixIcon: filtroController.text.isNotEmpty
-                            ? IconButton(
-                                icon: Icon(
-                                  Icons.clear,
-                                  size: 16,
-                                  color: theme.secondaryTextColor,
-                                ),
-                                onPressed: () {
-                                  filtroController.clear();
-                                  setDialogState(() {
-                                    termo = '';
-                                  });
-                                },
-                              )
-                            : null,
-                        filled: true,
-                        fillColor: theme.backgroundColor,
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(10),
-                          borderSide: BorderSide(color: theme.borderColor),
-                        ),
-                        contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 10,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 10),
-                    Expanded(
-                      child: contatosFiltrados.isEmpty
-                          ? Center(
-                              child: Text(
-                                'Nenhum contato encontrado.',
-                                style: theme.getTextStyle(
-                                  color: theme.secondaryTextColor,
-                                ),
+                child: Padding(
+                  padding: const EdgeInsets.all(18),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Row(
+                        children: [
+                          Icon(
+                            Icons.chat_bubble_outline_rounded,
+                            color: theme.textColor,
+                            size: 20,
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              'Nova Conversa',
+                              style: theme.getTextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                                color: theme.textColor,
                               ),
-                            )
-                          : ListView.separated(
-                              shrinkWrap: true,
-                              itemCount: contatosFiltrados.length,
-                              separatorBuilder: (context, index) => Divider(
-                                color: theme.borderColor.withValues(alpha: 0.3),
-                              ),
-                              itemBuilder: (_, index) {
-                                final c = contatosFiltrados[index];
-                                final tituloItem = (c.titulo.isNotEmpty &&
-                                        c.titulo != 'Conversa' &&
-                                        c.titulo != 'Nova Conversa' &&
-                                        c.titulo != 'Contato' &&
-                                        c.titulo != 'Contato Nous')
-                                    ? c.titulo
-                                    : (c.subtitulo.isNotEmpty &&
-                                            c.subtitulo != 'Conversa' &&
-                                            c.subtitulo != 'Contato Nous'
-                                        ? c.subtitulo
-                                        : 'Contato Nous');
-                                final subtituloItem = (c.subtitulo.isNotEmpty &&
-                                        c.subtitulo != tituloItem &&
-                                        c.subtitulo != 'Conversa' &&
-                                        c.subtitulo != 'Contato Nous')
-                                    ? c.subtitulo
-                                    : 'Usuário Nous';
-
-                                return ListTile(
-                                  leading: ResolvedorFotoChat.instancia
-                                      .buildAvatar(
-                                        ctx,
-                                        theme: theme,
-                                        conversa: c,
-                                        raio: 18,
-                                      ),
-                                  title: Text(
-                                    tituloItem,
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: theme.getTextStyle(
-                                      fontWeight: FontWeight.bold,
-                                      color: theme.textColor,
-                                    ),
+                            ),
+                          ),
+                          IconButton(
+                            icon: Icon(
+                              Icons.close,
+                              size: 18,
+                              color: theme.secondaryTextColor,
+                            ),
+                            onPressed: () => Navigator.pop(ctx),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 10),
+                      TextField(
+                        controller: filtroController,
+                        onChanged: (val) {
+                          setDialogState(() {
+                            termo = val;
+                          });
+                        },
+                        style: theme.getTextStyle(
+                          fontSize: 13,
+                          color: theme.textColor,
+                        ),
+                        decoration: InputDecoration(
+                          hintText: 'Filtrar por nome, @usuario ou CPF...',
+                          hintStyle: theme.getTextStyle(
+                            fontSize: 12,
+                            color: theme.secondaryTextColor,
+                          ),
+                          prefixIcon: Icon(
+                            Icons.search,
+                            size: 18,
+                            color: theme.secondaryTextColor,
+                          ),
+                          suffixIcon: filtroController.text.isNotEmpty
+                              ? IconButton(
+                                  icon: Icon(
+                                    Icons.clear,
+                                    size: 16,
+                                    color: theme.secondaryTextColor,
                                   ),
-                                  subtitle: Text(
-                                    subtituloItem,
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
+                                  onPressed: () {
+                                    filtroController.clear();
+                                    setDialogState(() {
+                                      termo = '';
+                                    });
+                                  },
+                                )
+                              : null,
+                          filled: true,
+                          fillColor: theme.backgroundColor,
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(10),
+                            borderSide: BorderSide(color: theme.borderColor),
+                          ),
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 10,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      Flexible(
+                        child: contatosFiltrados.isEmpty
+                            ? Padding(
+                                padding:
+                                    const EdgeInsets.symmetric(vertical: 28),
+                                child: Center(
+                                  child: Text(
+                                    'Nenhum contato encontrado.',
                                     style: theme.getTextStyle(
-                                      fontSize: 11,
                                       color: theme.secondaryTextColor,
                                     ),
                                   ),
-                                  onTap: () {
-                                    Navigator.pop(ctx);
-                                    onSelecionarContato(
-                                      c.copyWith(
-                                        titulo: tituloItem,
-                                        subtitulo: subtituloItem,
+                                ),
+                              )
+                            : ListView.separated(
+                                itemCount: contatosFiltrados.length,
+                                separatorBuilder: (context, index) => Divider(
+                                  color:
+                                      theme.borderColor.withValues(alpha: 0.3),
+                                ),
+                                itemBuilder: (_, index) {
+                                  final c = contatosFiltrados[index];
+                                  final tituloItem = (c.titulo.isNotEmpty &&
+                                          c.titulo != 'Conversa' &&
+                                          c.titulo != 'Nova Conversa' &&
+                                          c.titulo != 'Contato' &&
+                                          c.titulo != 'Contato Nous')
+                                      ? c.titulo
+                                      : (c.subtitulo.isNotEmpty &&
+                                              c.subtitulo != 'Conversa' &&
+                                              c.subtitulo != 'Contato Nous'
+                                          ? c.subtitulo
+                                          : 'Contato Nous');
+                                  final subtituloItem = (c.subtitulo.isNotEmpty &&
+                                          c.subtitulo != tituloItem &&
+                                          c.subtitulo != 'Conversa' &&
+                                          c.subtitulo != 'Contato Nous')
+                                      ? c.subtitulo
+                                      : 'Usuário Nous';
+
+                                  return ListTile(
+                                    leading: ResolvedorFotoChat.instancia
+                                        .buildAvatar(
+                                          ctx,
+                                          theme: theme,
+                                          conversa: c,
+                                          raio: 18,
+                                        ),
+                                    title: Text(
+                                      tituloItem,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: theme.getTextStyle(
+                                        fontWeight: FontWeight.bold,
+                                        color: theme.textColor,
                                       ),
-                                    );
-                                  },
-                                );
-                              },
+                                    ),
+                                    subtitle: Text(
+                                      subtituloItem,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: theme.getTextStyle(
+                                        fontSize: 11,
+                                        color: theme.secondaryTextColor,
+                                      ),
+                                    ),
+                                    onTap: () {
+                                      Navigator.pop(ctx);
+                                      onSelecionarContato(
+                                        c.copyWith(
+                                          titulo: tituloItem,
+                                          subtitulo: subtituloItem,
+                                        ),
+                                      );
+                                    },
+                                  );
+                                },
+                              ),
+                      ),
+                      const SizedBox(height: 8),
+                      Align(
+                        alignment: Alignment.centerRight,
+                        child: TextButton(
+                          onPressed: () => Navigator.pop(ctx),
+                          child: Text(
+                            'Fechar',
+                            style: theme.getTextStyle(
+                              color: theme.secondaryTextColor,
                             ),
-                    ),
-                  ],
-                ),
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(ctx),
-                  child: Text(
-                    'Fechar',
-                    style: theme.getTextStyle(color: theme.secondaryTextColor),
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-              ],
+              ),
             );
           },
         );

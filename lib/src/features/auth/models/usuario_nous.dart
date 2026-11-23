@@ -37,6 +37,9 @@ class UsuarioNous {
   final bool modoFotosGaleria;
   final String termosAceitosVersao;
   final String termosAceitosEm;
+  final String notaPensamento;
+  final String notaPensamentoCriadaEm;
+  final String notaPensamentoMusica;
 
   /// Chaves ocultas por padrão ao criar/carregar uma Conta Nous (tudo privado exceto o nome).
   static const List<String> dadosPrivadosPadrao = [
@@ -98,7 +101,17 @@ class UsuarioNous {
     this.modoFotosGaleria = false,
     this.termosAceitosVersao = '',
     this.termosAceitosEm = '',
+    this.notaPensamento = '',
+    this.notaPensamentoCriadaEm = '',
+    this.notaPensamentoMusica = '',
   });
+
+  bool get temNotaPensamentoAtiva {
+    if (notaPensamento.trim().isEmpty) return false;
+    final dt = DateTime.tryParse(notaPensamentoCriadaEm);
+    if (dt == null) return false;
+    return DateTime.now().difference(dt).inHours < 24;
+  }
 
   String get corStoryHex {
     final raw = coresPerfil['story']?.trim() ?? '';
@@ -308,6 +321,9 @@ class UsuarioNous {
     bool? modoFotosGaleria,
     String? termosAceitosVersao,
     String? termosAceitosEm,
+    String? notaPensamento,
+    String? notaPensamentoCriadaEm,
+    String? notaPensamentoMusica,
   }) {
     return UsuarioNous(
       cpf: cpf,
@@ -350,6 +366,10 @@ class UsuarioNous {
       modoFotosGaleria: modoFotosGaleria ?? this.modoFotosGaleria,
       termosAceitosVersao: termosAceitosVersao ?? this.termosAceitosVersao,
       termosAceitosEm: termosAceitosEm ?? this.termosAceitosEm,
+      notaPensamento: notaPensamento ?? this.notaPensamento,
+      notaPensamentoCriadaEm:
+          notaPensamentoCriadaEm ?? this.notaPensamentoCriadaEm,
+      notaPensamentoMusica: notaPensamentoMusica ?? this.notaPensamentoMusica,
     );
   }
 
@@ -393,6 +413,9 @@ class UsuarioNous {
       'modoFotosGaleria': modoFotosGaleria,
       'termosAceitosVersao': termosAceitosVersao,
       'termosAceitosEm': termosAceitosEm,
+      'notaPensamento': notaPensamento,
+      'notaPensamentoCriadaEm': notaPensamentoCriadaEm,
+      'notaPensamentoMusica': notaPensamentoMusica,
     };
   }
 
@@ -483,6 +506,9 @@ class UsuarioNous {
           json['modoFotosGaleria'] == true || json['modoFotosGaleria'] == 1,
       termosAceitosVersao: json['termosAceitosVersao'] as String? ?? '',
       termosAceitosEm: json['termosAceitosEm'] as String? ?? '',
+      notaPensamento: json['notaPensamento'] as String? ?? '',
+      notaPensamentoCriadaEm: json['notaPensamentoCriadaEm'] as String? ?? '',
+      notaPensamentoMusica: json['notaPensamentoMusica'] as String? ?? '',
     );
   }
 
@@ -545,6 +571,14 @@ class UsuarioNous {
             : (validacoesMescladas.isNotEmpty
                 ? (validacoesMescladas.first['dataHora'] ?? '')
                 : ''));
+
+    final dtNotaLocal = DateTime.tryParse(notaPensamentoCriadaEm);
+    final dtNotaOutro = DateTime.tryParse(outro.notaPensamentoCriadaEm);
+    final usarNotaOutro = priorizarOutro
+        ? (outro.notaPensamentoCriadaEm.isNotEmpty ||
+            (dtNotaLocal == null && dtNotaOutro != null))
+        : (dtNotaOutro != null &&
+            (dtNotaLocal == null || dtNotaOutro.isAfter(dtNotaLocal)));
 
     return UsuarioNous(
       cpf: cpf.isNotEmpty ? cpf : outro.cpf,
@@ -613,6 +647,11 @@ class UsuarioNous {
           : modoFotosGaleria,
       termosAceitosVersao: escolher(termosAceitosVersao, outro.termosAceitosVersao),
       termosAceitosEm: escolher(termosAceitosEm, outro.termosAceitosEm),
+      notaPensamento: usarNotaOutro ? outro.notaPensamento : notaPensamento,
+      notaPensamentoCriadaEm:
+          usarNotaOutro ? outro.notaPensamentoCriadaEm : notaPensamentoCriadaEm,
+      notaPensamentoMusica:
+          usarNotaOutro ? outro.notaPensamentoMusica : notaPensamentoMusica,
     );
   }
 }

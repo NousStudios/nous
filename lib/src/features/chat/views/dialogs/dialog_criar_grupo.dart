@@ -21,39 +21,52 @@ class DialogCriarGrupo {
       builder: (ctx) {
         return StatefulBuilder(
           builder: (dialogCtx, setDialogState) {
-            return AlertDialog(
+            return Dialog(
               backgroundColor: theme.cardBackgroundColor,
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(16),
                 side: BorderSide(color: theme.borderColor),
               ),
-              title: Row(
-                children: [
-                  Icon(
-                    Icons.group_add_outlined,
-                    color: theme.textColor,
-                    size: 22,
-                  ),
-                  const SizedBox(width: 10),
-                  Text(
-                    'Novo Grupo',
-                    style: theme.getTextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                      color: theme.textColor,
-                    ),
-                  ),
-                ],
-              ),
-              content: ConstrainedBox(
-                constraints: const BoxConstraints(
-                  maxWidth: 380,
-                  maxHeight: 420,
+              child: ConstrainedBox(
+                constraints: BoxConstraints(
+                  maxWidth: 420,
+                  maxHeight: MediaQuery.sizeOf(dialogCtx).height * 0.85,
                 ),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
+                child: Padding(
+                  padding: const EdgeInsets.all(18),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Row(
+                        children: [
+                          Icon(
+                            Icons.group_add_outlined,
+                            color: theme.textColor,
+                            size: 22,
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Text(
+                              'Novo Grupo',
+                              style: theme.getTextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                                color: theme.textColor,
+                              ),
+                            ),
+                          ),
+                          IconButton(
+                            icon: Icon(
+                              Icons.close,
+                              size: 18,
+                              color: theme.secondaryTextColor,
+                            ),
+                            onPressed: () => Navigator.pop(ctx),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
                     TextField(
                       controller: nomeGrupoController,
                       style: theme.getTextStyle(
@@ -91,19 +104,21 @@ class DialogCriarGrupo {
                       ),
                     ),
                     const SizedBox(height: 6),
-                    Expanded(
+                    Flexible(
                       child: participantesDisponiveis.isEmpty
-                          ? Center(
-                              child: Text(
-                                'Nenhum membro ou contato disponível.',
-                                style: theme.getTextStyle(
-                                  fontSize: 12,
-                                  color: theme.secondaryTextColor,
+                          ? Padding(
+                              padding: const EdgeInsets.symmetric(vertical: 24),
+                              child: Center(
+                                child: Text(
+                                  'Nenhum membro ou contato disponível.',
+                                  style: theme.getTextStyle(
+                                    fontSize: 12,
+                                    color: theme.secondaryTextColor,
+                                  ),
                                 ),
                               ),
                             )
                           : ListView.builder(
-                              shrinkWrap: true,
                               itemCount: participantesDisponiveis.length,
                               itemBuilder: (context, index) {
                                 final cpf = participantesDisponiveis.keys
@@ -148,63 +163,72 @@ class DialogCriarGrupo {
                               },
                             ),
                     ),
+                    const SizedBox(height: 14),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: [
+                        TextButton(
+                          onPressed: () => Navigator.pop(ctx),
+                          child: Text(
+                            'Cancelar',
+                            style: theme.getTextStyle(
+                              color: theme.secondaryTextColor,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        ElevatedButton(
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: theme.buttonColor,
+                            foregroundColor: theme.buttonTextColor,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                          ),
+                          onPressed: () async {
+                            final nomeGrupo = nomeGrupoController.text.trim();
+                            if (nomeGrupo.isEmpty) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text('Informe o nome do grupo.'),
+                                ),
+                              );
+                              return;
+                            }
+                            if (selecionados.isEmpty) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content:
+                                      Text('Selecione pelo menos 1 participante.'),
+                                ),
+                              );
+                              return;
+                            }
+
+                            Navigator.pop(ctx);
+                            final todosParticipantes = {...selecionados};
+                            if (criadorCpf != null && criadorCpf.isNotEmpty) {
+                              todosParticipantes.add(criadorCpf);
+                            }
+
+                            final grupoCriado = await ChatService.criarGrupo(
+                              nome: nomeGrupo,
+                              membrosCpfs: todosParticipantes.toList(),
+                              autorCpf: criadorCpf ?? '',
+                              autorNome: criadorNome ?? 'Usuário',
+                              lojaOrigemId: lojaId,
+                            );
+
+                            onCriado(grupoCriado);
+                          },
+                          child: const Text('Criar Grupo'),
+                        ),
+                      ],
+                    ),
                   ],
                 ),
               ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(ctx),
-                  child: Text(
-                    'Cancelar',
-                    style: theme.getTextStyle(color: theme.secondaryTextColor),
-                  ),
-                ),
-                ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: theme.buttonColor,
-                    foregroundColor: theme.buttonTextColor,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                  ),
-                  onPressed: () async {
-                    final nomeGrupo = nomeGrupoController.text.trim();
-                    if (nomeGrupo.isEmpty) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('Informe o nome do grupo.'),
-                        ),
-                      );
-                      return;
-                    }
-                    if (selecionados.isEmpty) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('Selecione pelo menos 1 participante.'),
-                        ),
-                      );
-                      return;
-                    }
-
-                    Navigator.pop(ctx);
-                    final todosParticipantes = {...selecionados};
-                    if (criadorCpf != null && criadorCpf.isNotEmpty) {
-                      todosParticipantes.add(criadorCpf);
-                    }
-
-                    final grupoCriado = await ChatService.criarGrupo(
-                      nome: nomeGrupo,
-                      membrosCpfs: todosParticipantes.toList(),
-                      autorCpf: criadorCpf ?? '',
-                      autorNome: criadorNome ?? 'Usuário',
-                      lojaOrigemId: lojaId,
-                    );
-
-                    onCriado(grupoCriado);
-                  },
-                  child: const Text('Criar Grupo'),
-                ),
-              ],
+              ),
             );
           },
         );

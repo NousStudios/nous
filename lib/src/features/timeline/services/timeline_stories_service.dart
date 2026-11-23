@@ -5,7 +5,9 @@ import 'package:nous/src/core/services/gerador_id.dart';
 import 'package:nous/src/features/chat/models/mensagem_chat.dart';
 import 'package:nous/src/features/chat/services/chat_service.dart';
 import 'package:nous/src/features/pdv/services/rede_local/cliente_rede_local.dart';
+import 'package:nous/src/features/pdv/services/rede_local/servidor_rede_local.dart';
 import 'package:nous/src/features/timeline/models/story_social.dart';
+import 'package:nous/src/features/timeline/services/outbox_midia_service.dart';
 import 'package:nous/src/features/timeline/services/timeline_midia_service.dart';
 import 'package:nous/src/features/timeline/services/timeline_repositorio_sqlite.dart';
 import 'package:nous/src/features/timeline/services/timeline_sync_service.dart';
@@ -23,9 +25,13 @@ class TimelineStoriesService {
     String caminhoMidia = '',
     String tipoMidia = 'texto',
     String texto = '',
+    String corFundoHex = '',
     bool ehDestaquePermanente = false,
     String perguntaEnquete = '',
     List<String> opcoesEnquete = const [],
+    List<CamadaTextoStory> camadasTexto = const [],
+    String storyOriginalId = '',
+    String autorOriginalNome = '',
     VoidCallback? onNotificar,
   }) async {
     final agora = DateTime.now();
@@ -38,12 +44,16 @@ class TimelineStoriesService {
       caminhoMidia: caminhoMidia,
       tipoMidia: tipoMidia,
       texto: texto.trim(),
+      corFundoHex: corFundoHex,
       ehDestaquePermanente: ehDestaquePermanente,
       criadoEm: agora,
       expiraEm:
           ehDestaquePermanente ? null : agora.add(const Duration(hours: 24)),
       perguntaEnquete: perguntaEnquete.trim(),
       opcoesEnquete: opcoesEnquete,
+      camadasTexto: camadasTexto,
+      storyOriginalId: storyOriginalId,
+      autorOriginalNome: autorOriginalNome,
     );
     await TimelineRepositorioSqlite.salvarStory(story);
     onNotificar?.call();
@@ -51,13 +61,22 @@ class TimelineStoriesService {
     unawaited(() async {
       try {
         var caminhoFinal = caminhoMidia;
-        if (caminhoFinal.isNotEmpty && ClienteRedeLocal().conectado) {
-          final local = await TimelineMidiaService.resolverCaminhoMidia(
-            caminhoFinal,
-          );
-          if (local != null) {
-            final remoto = await ClienteRedeLocal().enviarUploadImagem(local);
-            if (remoto.isNotEmpty) caminhoFinal = remoto;
+        if (caminhoFinal.isNotEmpty) {
+          if (ClienteRedeLocal().conectado) {
+            final local = await TimelineMidiaService.resolverCaminhoMidia(
+              caminhoFinal,
+            );
+            if (local != null) {
+              final remoto = await ClienteRedeLocal().enviarUploadImagem(local);
+              if (remoto.isNotEmpty) caminhoFinal = remoto;
+            }
+          } else if (!ServidorRedeLocal().ativo) {
+            await OutboxMidiaService.enfileirar(
+              entidadeTipo: 'story',
+              entidadeId: story.id,
+              caminhoLocal: caminhoFinal,
+              ehImagem: tipoMidia == 'imagem',
+            );
           }
         }
         final storyFinal = story.copyWith(caminhoMidia: caminhoFinal);
@@ -162,6 +181,7 @@ class TimelineStoriesService {
     final atualizado = story.copyWith(
       ehDestaquePermanente: novoDestaque,
       tituloDestaque: tituloDestaque ?? story.tituloDestaque,
+      atualizadoEm: DateTime.now(),
       expiraEm:
           novoDestaque ? null : story.criadoEm.add(const Duration(hours: 24)),
     );
@@ -208,6 +228,73 @@ class TimelineStoriesService {
       enviadaPorMim: true,
       lida: true,
       tipo: 'texto',
+    );
+    await ChatService.enviarMensagemInstantanea(msg);
+  }
+
+  static Future<StorySocial> repostarStory({
+    required StorySocial original,
+    required String meuCpf,
+    required String meuNome,
+    String minhaFoto = '',
+    List<CamadaTextoStory>? camadasExtras,
+    VoidCallback? onNotificar,
+  }) {
+    return criarStory(
+      autorCpf: meuCpf,
+      autorNome: meuNome,
+      autorFoto: minhaFoto,
+      caminhoMidia: original.caminhoMidia,
+      tipoMidia: original.tipoMidia,
+      texto: original.texto,
+      camadasTexto: [
+        ...original.camadasTexto,
+        ...?camadasExtras,
+      ],
+      storyOriginalId: original.id,
+      autorOriginalNome: original.autorOriginalNome.isNotEmpty
+          ? original.autorOriginalNome
+          : original.autorNome,
+      onNotificar: onNotificar,
+    );
+  }
+
+  static Future<void> encaminharStoryNoChat({
+    required StorySocial story,
+    required String meuCpf,
+    required String meuNome,
+    String minhaFoto = '',
+    required String destinatarioCpf,
+    String mensagemOpcional = '',
+  }) async {
+    final cpfDest = TimelineRepositorioSqlite.normalizarCpf(destinatarioCpf);
+    final cpfRemetente = TimelineRepositorioSqlite.normalizarCpf(meuCpf);
+    if (cpfDest.isEmpty || cpfRemetente.isEmpty) return;
+
+    final conversaId =
+        ChatService.conversaIdEntreUsuarios(cpfRemetente, cpfDest);
+    final textoBase = story.texto.isNotEmpty
+        ? 'Story de ${story.autorNome}: "${story.texto}"'
+        : 'Story de ${story.autorNome}';
+    final textoFinal = mensagemOpcional.trim().isNotEmpty
+        ? '$textoBase\n${mensagemOpcional.trim()}'
+        : textoBase;
+    final ehImagem =
+        story.tipoMidia == 'imagem' && story.caminhoMidia.isNotEmpty;
+
+    final msg = MensagemChat(
+      id: 'msg_${gerarIdUnico()}',
+      conversaId: conversaId,
+      remetenteId: cpfRemetente,
+      remetenteNome: meuNome,
+      remetenteFoto: minhaFoto,
+      destinatarioId: cpfDest,
+      texto: textoFinal,
+      caminhoAnexo: ehImagem ? story.caminhoMidia : '',
+      tipo: ehImagem ? 'imagem' : 'texto',
+      dataHora: DateTime.now(),
+      enviadaPorMim: true,
+      lida: true,
     );
     await ChatService.enviarMensagemInstantanea(msg);
   }

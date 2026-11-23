@@ -29,6 +29,7 @@ class _TextoRolanteState extends State<TextoRolante> {
   int _cicloId = 0;
   String? _textoMedido;
   double? _larguraMedida;
+  TextStyle? _estiloMedido;
   double _maxScrollMedido = 0.0;
 
   @override
@@ -40,7 +41,7 @@ class _TextoRolanteState extends State<TextoRolante> {
   @override
   void didUpdateWidget(covariant TextoRolante oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.texto != widget.texto) {
+    if (oldWidget.texto != widget.texto || oldWidget.style != widget.style) {
       _cicloId++;
       _animando = false;
       if (_scrollController.hasClients) {
@@ -114,7 +115,9 @@ class _TextoRolanteState extends State<TextoRolante> {
           );
         }
 
-        if (_textoMedido != widget.texto || _larguraMedida != maxWidth) {
+        if (_textoMedido != widget.texto ||
+            _larguraMedida != maxWidth ||
+            _estiloMedido != widget.style) {
           final textPainter = TextPainter(
             text: TextSpan(text: widget.texto, style: widget.style),
             maxLines: 1,
@@ -123,6 +126,7 @@ class _TextoRolanteState extends State<TextoRolante> {
           )..layout();
           _textoMedido = widget.texto;
           _larguraMedida = maxWidth;
+          _estiloMedido = widget.style;
           _maxScrollMedido =
               (textPainter.size.width - maxWidth).clamp(0.0, double.infinity);
         }

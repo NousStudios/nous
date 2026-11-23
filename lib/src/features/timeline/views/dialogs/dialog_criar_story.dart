@@ -9,6 +9,7 @@ import 'package:nous/src/features/auth/models/usuario_nous.dart';
 import 'package:nous/src/features/timeline/models/story_social.dart';
 import 'package:nous/src/features/timeline/services/timeline_service.dart';
 import 'package:nous/src/features/timeline/views/widgets/animacao_story_sugado_overlay.dart';
+import 'package:nous/src/features/timeline/views/widgets/editor_story_view.dart';
 
 /// Tela cheia animada para criação de novo Story (24h) ou Destaque permanente.
 class DialogCriarStory extends StatefulWidget {
@@ -182,6 +183,70 @@ class _DialogCriarStoryState extends State<DialogCriarStory> {
                                       ),
                                       Positioned(
                                         bottom: 12,
+                                        left: 12,
+                                        child: InkWell(
+                                          onTap: () async {
+                                            final nav = Navigator.of(context);
+                                            final overlay = Overlay.maybeOf(
+                                              context,
+                                              rootOverlay: true,
+                                            );
+                                            final publicado =
+                                                await EditorStoryView.mostrar(
+                                              context,
+                                              theme: theme,
+                                              autor: widget.autor,
+                                              caminhoArquivo: _caminhoImagem,
+                                            );
+                                            if (publicado != null && mounted) {
+                                              nav.pop(true);
+                                              AnimacaoStorySugadoOverlay
+                                                  .disparar(
+                                                overlay,
+                                                theme: theme,
+                                                caminhoMidiaLocal:
+                                                    _caminhoImagem,
+                                                fotoPerfil:
+                                                    widget.autor.fotoExibicao,
+                                              );
+                                            }
+                                          },
+                                          child: Container(
+                                            padding: const EdgeInsets.symmetric(
+                                              horizontal: 10,
+                                              vertical: 6,
+                                            ),
+                                            decoration: BoxDecoration(
+                                              color: Colors.black.withValues(
+                                                alpha: 0.65,
+                                              ),
+                                              borderRadius:
+                                                  BorderRadius.circular(16),
+                                            ),
+                                            child: Row(
+                                              mainAxisSize: MainAxisSize.min,
+                                              children: [
+                                                const Icon(
+                                                  Icons.title_rounded,
+                                                  size: 14,
+                                                  color: Colors.white,
+                                                ),
+                                                const SizedBox(width: 4),
+                                                Text(
+                                                  'Texto & Estilo',
+                                                  style: theme.getTextStyle(
+                                                    fontSize: 12,
+                                                    fontWeight: FontWeight.w600,
+                                                    color: Colors.white,
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                      Positioned(
+                                        bottom: 12,
                                         right: 12,
                                         child: Container(
                                           padding: const EdgeInsets.symmetric(
@@ -214,7 +279,7 @@ class _DialogCriarStoryState extends State<DialogCriarStory> {
                                       Icon(
                                         Icons.add_a_photo_outlined,
                                         size: 42,
-                                        color: theme.buttonColor,
+                                        color: theme.textColor,
                                       ),
                                       const SizedBox(height: 10),
                                       Text(

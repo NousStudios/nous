@@ -5,11 +5,14 @@ import 'package:nous/src/core/services/gerador_id.dart';
 import 'package:nous/src/features/auth/services/contas_nous_service.dart';
 import 'package:nous/src/features/chat/models/mensagem_chat.dart';
 import 'package:nous/src/features/chat/services/chat_service.dart';
+import 'package:nous/src/features/pdv/services/rede_local/cliente_rede_local.dart';
+import 'package:nous/src/features/pdv/services/rede_local/servidor_rede_local.dart';
 import 'package:nous/src/features/timeline/models/interacao_social.dart';
 import 'package:nous/src/features/timeline/models/notificacao_social.dart';
 import 'package:nous/src/features/timeline/models/publicacao_social.dart';
 import 'package:nous/src/features/timeline/models/salvos_denuncia_social.dart';
 import 'package:nous/src/features/timeline/models/story_social.dart';
+import 'package:nous/src/features/timeline/services/outbox_midia_service.dart';
 import 'package:nous/src/features/timeline/services/timeline_midia_service.dart';
 import 'package:nous/src/features/timeline/services/timeline_repositorio_sqlite.dart';
 import 'package:nous/src/features/timeline/services/timeline_stories_service.dart';
@@ -45,6 +48,9 @@ class TimelineService {
   static Future<String?> resolverCaminhoMidia(String caminho) =>
       TimelineMidiaService.resolverCaminhoMidia(caminho);
 
+  static Future<Uint8List?> obterOuGerarMiniaturaPdf(String caminhoPdf) =>
+      TimelineMidiaService.obterOuGerarMiniaturaPdf(caminhoPdf);
+
   static Future<String?> baixarMidia(MidiaPublicacao midia) =>
       TimelineMidiaService.baixarMidia(midia);
 
@@ -72,19 +78,24 @@ class TimelineService {
     String itemLojaIdTag = '',
     String itemLojaNomeTag = '',
     String itemLojaPrecoTag = '',
+    String capaCaminho = '',
+    String cifraLetra = '',
   }) async {
     final agora = DateTime.now();
     final textoLimpo = texto.trim();
+    final autorNorm = TimelineRepositorioSqlite.normalizarCpf(autorCpf);
+    final convidadosPendentes = coautoresCpfs
+        .map(TimelineRepositorioSqlite.normalizarCpf)
+        .where((c) => c.isNotEmpty && c != autorNorm)
+        .toSet()
+        .toList();
     final pub = PublicacaoSocial(
       id: 'pub_${gerarIdUnico()}',
-      autorCpf: TimelineRepositorioSqlite.normalizarCpf(autorCpf),
+      autorCpf: autorNorm,
       autorNome: autorNome,
       autorFoto: autorFoto,
-      coautoresCpfs: coautoresCpfs
-          .map(TimelineRepositorioSqlite.normalizarCpf)
-          .where((c) => c.isNotEmpty)
-          .toSet()
-          .toList(),
+      coautoresCpfs: const [],
+      coautoresPendentesCpfs: convidadosPendentes,
       tipo: tipo,
       texto: textoLimpo,
       midias: midias,
@@ -100,6 +111,8 @@ class TimelineService {
       itemLojaIdTag: itemLojaIdTag,
       itemLojaNomeTag: itemLojaNomeTag,
       itemLojaPrecoTag: itemLojaPrecoTag,
+      capaCaminho: capaCaminho,
+      cifraLetra: cifraLetra,
       criadaEm: agora,
       atualizadaEm: agora,
     );
@@ -114,13 +127,61 @@ class TimelineService {
       autorFoto: autorFoto,
       publicacaoId: pub.id,
     ));
+    if (convidadosPendentes.isNotEmpty) {
+      unawaited(_notificarConvitesColaboracao(
+        convidadosCpfs: convidadosPendentes,
+        autorCpf: autorCpf,
+        autorNome: autorNome,
+        autorFoto: autorFoto,
+        publicacaoId: pub.id,
+      ));
+    }
 
     unawaited(() async {
       try {
+        if (!ClienteRedeLocal().conectado && !ServidorRedeLocal().ativo) {
+          for (final m in midias) {
+            final ext = m.mimeTipo.toLowerCase();
+            final ehImg = ext == 'jpg' ||
+                ext == 'jpeg' ||
+                ext == 'png' ||
+                ext == 'webp' ||
+                ext == 'gif';
+            await OutboxMidiaService.enfileirar(
+              entidadeTipo: 'publicacao',
+              entidadeId: pub.id,
+              caminhoLocal: m.caminhoRelativo,
+              ehImagem: ehImg,
+            );
+          }
+          if (capaCaminho.isNotEmpty) {
+            await OutboxMidiaService.enfileirar(
+              entidadeTipo: 'publicacao',
+              entidadeId: pub.id,
+              caminhoLocal: capaCaminho,
+            );
+          }
+          return;
+        }
         final midiasSinc =
             await TimelineMidiaService.sincronizarMidiasParaServidor(midias);
-        final pubFinal = pub.copyWith(midias: midiasSinc);
-        if (midiasSinc != midias) {
+        var capaSinc = capaCaminho;
+        if (capaSinc.isNotEmpty) {
+          final capaLocal = await TimelineMidiaService.resolverCaminhoMidia(
+            capaSinc,
+          );
+          if (capaLocal != null) {
+            final capaRemota = await ClienteRedeLocal().enviarUploadImagem(
+              capaLocal,
+            );
+            if (capaRemota.isNotEmpty) capaSinc = capaRemota;
+          }
+        }
+        final pubFinal = pub.copyWith(
+          midias: midiasSinc,
+          capaCaminho: capaSinc,
+        );
+        if (midiasSinc != midias || capaSinc != capaCaminho) {
           await TimelineRepositorioSqlite.salvarPublicacao(pubFinal);
         }
         TimelineSyncService.despacharEventoRede(
@@ -184,38 +245,238 @@ class TimelineService {
     );
   }
 
+  static final Set<String> _visualizadasSessao = {};
+
   static Future<void> registrarVisualizacaoPublicacao(
     PublicacaoSocial pub, {
     required String origem,
+    String? visualizadorCpf,
     int segundosVisualizados = 4,
   }) async {
-    final origens = Map<String, int>.from(pub.visualizacoesPorOrigem);
+    final cpfNorm = TimelineRepositorioSqlite.normalizarCpf(visualizadorCpf ?? '');
+    if (cpfNorm.isEmpty && _visualizadasSessao.contains(pub.id)) return;
+    _visualizadasSessao.add(pub.id);
+
+    final atual =
+        await TimelineRepositorioSqlite.buscarPublicacaoPorId(pub.id) ?? pub;
+    if (cpfNorm.isNotEmpty && atual.visualizadoresCpfs.contains(cpfNorm)) {
+      return;
+    }
+
+    final novosVisualizadores = cpfNorm.isNotEmpty
+        ? [...atual.visualizadoresCpfs, cpfNorm]
+        : atual.visualizadoresCpfs;
+    final origens = Map<String, int>.from(atual.visualizacoesPorOrigem);
     origens[origem] = (origens[origem] ?? 0) + 1;
-    final total = pub.visualizacoes + 1;
-    final mediaAnterior = pub.tempoMedioVisualizacaoSegundos;
+    final total = atual.visualizacoes + 1;
+    final mediaAnterior = atual.tempoMedioVisualizacaoSegundos;
     final novaMedia = total <= 1
         ? segundosVisualizados
         : ((mediaAnterior * (total - 1) + segundosVisualizados) / total)
             .round();
-    final atualizada = pub.copyWith(
+    final atualizada = atual.copyWith(
       visualizacoes: total,
+      visualizadoresCpfs: novosVisualizadores,
       visualizacoesPorOrigem: origens,
       tempoMedioVisualizacaoSegundos: novaMedia,
     );
     await TimelineRepositorioSqlite.salvarPublicacao(atualizada);
     notificarAlteracao();
+    TimelineSyncService.despacharEventoRede(
+      'timeline_publicacao',
+      {'publicacao': atualizada.toJson()},
+    );
+  }
+
+  /// Acumula o tempo real (em segundos) que um usuário permaneceu vendo a publicação
+  /// e recalcula o tempo médio a partir de todos os visualizadores.
+  static Future<void> registrarTempoVisualizacao(
+    String publicacaoId,
+    String? visualizadorCpf,
+    int segundos,
+  ) async {
+    if (segundos < 1) return;
+    final cpfNorm = TimelineRepositorioSqlite.normalizarCpf(visualizadorCpf ?? '');
+    if (cpfNorm.isEmpty) return;
+
+    final atual =
+        await TimelineRepositorioSqlite.buscarPublicacaoPorId(publicacaoId);
+    if (atual == null) return;
+
+    final tempos = Map<String, int>.from(atual.tempoPorVisualizador);
+    tempos[cpfNorm] = (tempos[cpfNorm] ?? 0) + segundos;
+    final visualizadores = atual.visualizadoresCpfs.contains(cpfNorm)
+        ? atual.visualizadoresCpfs
+        : [...atual.visualizadoresCpfs, cpfNorm];
+
+    final somaTempos = tempos.values.fold<int>(0, (a, b) => a + b);
+    final novaMedia =
+        tempos.isNotEmpty ? (somaTempos / tempos.length).round() : segundos;
+
+    final atualizada = atual.copyWith(
+      visualizadoresCpfs: visualizadores,
+      visualizacoes: visualizadores.length > atual.visualizacoes
+          ? visualizadores.length
+          : atual.visualizacoes,
+      tempoPorVisualizador: tempos,
+      tempoMedioVisualizacaoSegundos: novaMedia,
+    );
+    await TimelineRepositorioSqlite.salvarPublicacao(atualizada);
+    notificarAlteracao();
+    TimelineSyncService.despacharEventoRede(
+      'timeline_publicacao',
+      {'publicacao': atualizada.toJson()},
+    );
   }
 
   static Future<PublicacaoSocial> editarPublicacao(
     PublicacaoSocial pub, {
     required String novoTexto,
     bool? permitirDownload,
+    List<String>? coautoresCpfs,
+    List<MidiaPublicacao>? midias,
+    PadraoExibicaoMidia? padraoExibicao,
+    double? proporcaoCustom,
   }) async {
     final textoLimpo = novoTexto.trim();
+    final autorNorm = TimelineRepositorioSqlite.normalizarCpf(pub.autorCpf);
+    List<String> aceitos = pub.coautoresCpfs;
+    List<String> pendentes = pub.coautoresPendentesCpfs;
+    List<String> novosConvidados = const [];
+
+    if (coautoresCpfs != null) {
+      final desejados = coautoresCpfs
+          .map(TimelineRepositorioSqlite.normalizarCpf)
+          .where((c) => c.isNotEmpty && c != autorNorm)
+          .toSet();
+      final jaAceitos =
+          pub.coautoresCpfs.map(TimelineRepositorioSqlite.normalizarCpf).toSet();
+      final jaPendentes = pub.coautoresPendentesCpfs
+          .map(TimelineRepositorioSqlite.normalizarCpf)
+          .toSet();
+      aceitos = desejados.where((c) => jaAceitos.contains(c)).toList();
+      pendentes = desejados.where((c) => !jaAceitos.contains(c)).toList();
+      novosConvidados = pendentes
+          .where((c) => !jaPendentes.contains(c))
+          .toList();
+    }
+
     final atualizada = pub.copyWith(
       texto: textoLimpo,
       tags: PublicacaoSocial.extrairTags(textoLimpo),
       permitirDownload: permitirDownload ?? pub.permitirDownload,
+      coautoresCpfs: aceitos,
+      coautoresPendentesCpfs: pendentes,
+      midias: midias ?? pub.midias,
+      padraoExibicao: padraoExibicao ?? pub.padraoExibicao,
+      proporcaoCustom: proporcaoCustom ?? pub.proporcaoCustom,
+      atualizadaEm: DateTime.now(),
+    );
+    await TimelineRepositorioSqlite.salvarPublicacao(atualizada);
+    notificarAlteracao();
+    TimelineSyncService.despacharEventoRede(
+      'timeline_publicacao',
+      {'publicacao': atualizada.toJson()},
+    );
+    if (novosConvidados.isNotEmpty) {
+      unawaited(_notificarConvitesColaboracao(
+        convidadosCpfs: novosConvidados,
+        autorCpf: pub.autorCpf,
+        autorNome: pub.autorNome,
+        autorFoto: pub.autorFoto,
+        publicacaoId: pub.id,
+      ));
+    }
+    return atualizada;
+  }
+
+  static Future<void> _notificarConvitesColaboracao({
+    required List<String> convidadosCpfs,
+    required String autorCpf,
+    required String autorNome,
+    required String autorFoto,
+    required String publicacaoId,
+  }) async {
+    for (final destCpf in convidadosCpfs) {
+      await emitirNotificacaoSocial(
+        destinatarioCpf: destCpf,
+        autorCpf: autorCpf,
+        autorNome: autorNome,
+        autorFoto: autorFoto,
+        tipo: TipoNotificacaoSocial.conviteColaboracao,
+        publicacaoId: publicacaoId,
+        resumo: '$autorNome marcou você para colaborar em uma publicação.',
+      );
+    }
+  }
+
+  static Future<PublicacaoSocial?> responderConviteColaboracao({
+    required String publicacaoId,
+    required String usuarioCpf,
+    required bool aceitar,
+    String? notificacaoId,
+  }) async {
+    final cpfNorm = TimelineRepositorioSqlite.normalizarCpf(usuarioCpf);
+    if (cpfNorm.isEmpty) return null;
+    final pub = await TimelineRepositorioSqlite.buscarPublicacaoPorId(
+      publicacaoId,
+    );
+    if (pub != null) {
+      final novosPendentes = pub.coautoresPendentesCpfs
+          .map(TimelineRepositorioSqlite.normalizarCpf)
+          .where((c) => c.isNotEmpty && c != cpfNorm)
+          .toSet()
+          .toList();
+      final novosAceitos = pub.coautoresCpfs
+          .map(TimelineRepositorioSqlite.normalizarCpf)
+          .where((c) => c.isNotEmpty)
+          .toSet()
+          .toList();
+      if (aceitar && !novosAceitos.contains(cpfNorm)) {
+        novosAceitos.add(cpfNorm);
+      }
+      final atualizada = pub.copyWith(
+        coautoresCpfs: novosAceitos,
+        coautoresPendentesCpfs: novosPendentes,
+        atualizadaEm: DateTime.now(),
+      );
+      await TimelineRepositorioSqlite.salvarPublicacao(atualizada);
+      if (aceitar) {
+        await ativarTimelineAutomaticamente(cpfNorm, atualizada.tipo);
+      }
+      notificarAlteracao();
+      TimelineSyncService.despacharEventoRede(
+        'timeline_publicacao',
+        {'publicacao': atualizada.toJson()},
+      );
+      if (notificacaoId != null && notificacaoId.isNotEmpty) {
+        await TimelineRepositorioSqlite.marcarNotificacaoSocialLida(
+          notificacaoId,
+        );
+      }
+      return atualizada;
+    }
+    if (notificacaoId != null && notificacaoId.isNotEmpty) {
+      await TimelineRepositorioSqlite.marcarNotificacaoSocialLida(
+        notificacaoId,
+      );
+      notificarAlteracao();
+    }
+    return null;
+  }
+
+  static Future<PublicacaoSocial> cancelarConviteColaboracao({
+    required PublicacaoSocial publicacao,
+    required String cpfAlvo,
+  }) async {
+    final cpfNorm = TimelineRepositorioSqlite.normalizarCpf(cpfAlvo);
+    final novosPendentes = publicacao.coautoresPendentesCpfs
+        .map(TimelineRepositorioSqlite.normalizarCpf)
+        .where((c) => c.isNotEmpty && c != cpfNorm)
+        .toSet()
+        .toList();
+    final atualizada = publicacao.copyWith(
+      coautoresPendentesCpfs: novosPendentes,
       atualizadaEm: DateTime.now(),
     );
     await TimelineRepositorioSqlite.salvarPublicacao(atualizada);
@@ -227,6 +488,103 @@ class TimelineService {
     return atualizada;
   }
 
+  static Future<void> reenviarConviteColaboracao({
+    required PublicacaoSocial publicacao,
+    required String cpfAlvo,
+  }) async {
+    final cpfNorm = TimelineRepositorioSqlite.normalizarCpf(cpfAlvo);
+    if (cpfNorm.isEmpty) return;
+    await _notificarConvitesColaboracao(
+      convidadosCpfs: [cpfNorm],
+      autorCpf: publicacao.autorCpf,
+      autorNome: publicacao.autorNome,
+      autorFoto: publicacao.autorFoto,
+      publicacaoId: publicacao.id,
+    );
+  }
+
+  static String _extensaoMidia(MidiaPublicacao m) {
+    final fontes = [m.nomeArquivo, m.caminhoRelativo, m.mimeTipo];
+    for (final f in fontes) {
+      final limpo = f.trim().toLowerCase();
+      if (limpo.isEmpty) continue;
+      final idx = limpo.lastIndexOf('.');
+      if (idx != -1 && idx < limpo.length - 1) {
+        return limpo.substring(idx + 1);
+      }
+      if (!limpo.contains('/') && !limpo.contains('\\') && limpo.length <= 5) {
+        return limpo;
+      }
+    }
+    return '';
+  }
+
+  static bool _ehMidiaImagem(MidiaPublicacao m) {
+    const exts = {'png', 'jpg', 'jpeg', 'webp', 'gif', 'bmp', 'heic'};
+    return exts.contains(_extensaoMidia(m));
+  }
+
+  static bool _ehMidiaVideo(MidiaPublicacao m) {
+    const exts = {'mp4', 'mov', 'mkv', 'webm', 'avi', '3gp', 'm4v'};
+    return exts.contains(_extensaoMidia(m));
+  }
+
+  static bool _ehMidiaAudio(MidiaPublicacao m) {
+    const exts = {'mp3', 'wav', 'm4a', 'ogg', 'flac', 'aac'};
+    return exts.contains(_extensaoMidia(m));
+  }
+
+  static bool _ehMidiaDocumento(MidiaPublicacao m) {
+    const exts = {
+      'pdf',
+      'txt',
+      'doc',
+      'docx',
+      'xls',
+      'xlsx',
+      'csv',
+      'zip',
+      'json',
+      'md',
+      'epub',
+    };
+    return exts.contains(_extensaoMidia(m));
+  }
+
+  static bool _publicacaoPertenceAoFeed(
+    PublicacaoSocial p,
+    TipoFeedSocial feed,
+  ) {
+    switch (feed) {
+      case TipoFeedSocial.fotos:
+        if (p.tipo != TipoFeedSocial.fotos) return false;
+        if (p.midias.isEmpty) return true;
+        return p.midias.any(_ehMidiaImagem) &&
+            !p.midias.every(_ehMidiaDocumento);
+      case TipoFeedSocial.videos:
+        if (p.tipo != TipoFeedSocial.videos) return false;
+        if (p.midias.isEmpty) return true;
+        return p.midias.any(_ehMidiaVideo);
+      case TipoFeedSocial.musicas:
+        if (p.tipo != TipoFeedSocial.musicas) return false;
+        if (p.midias.isEmpty) return true;
+        return p.midias.any(_ehMidiaAudio);
+      case TipoFeedSocial.documentos:
+        if (p.tipo == TipoFeedSocial.livros) return false;
+        if (p.tipo == TipoFeedSocial.documentos) {
+          return p.midias.isEmpty || p.midias.any(_ehMidiaDocumento);
+        }
+        return p.midias.isNotEmpty && p.midias.every(_ehMidiaDocumento);
+      case TipoFeedSocial.livros:
+        if (p.tipo != TipoFeedSocial.livros) return false;
+        return p.midias.isEmpty || p.midias.any(_ehMidiaDocumento);
+      case TipoFeedSocial.escritos:
+        return p.tipo == TipoFeedSocial.escritos && p.midias.isEmpty;
+      default:
+        return true;
+    }
+  }
+
   static Future<List<PublicacaoSocial>> listarFeedDoUsuario({
     required String cpf,
     required TipoFeedSocial tipo,
@@ -235,10 +593,11 @@ class TimelineService {
   }) async {
     var lista = await TimelineRepositorioSqlite.listarPublicacoesDoUsuario(
       cpf: cpf,
-      tipo: tipo,
-      limit: limit,
+      tipo: tipo == TipoFeedSocial.documentos ? null : tipo,
+      limit: tipo == TipoFeedSocial.documentos ? (limit * 3) : limit,
       offset: offset,
     );
+    lista = lista.where((p) => _publicacaoPertenceAoFeed(p, tipo)).toList();
     if (tipo == TipoFeedSocial.republicacoes && lista.isNotEmpty) {
       final originaisIds = lista
           .map((p) => p.publicacaoOriginalId)
@@ -261,8 +620,8 @@ class TimelineService {
     lista.sort((a, b) {
       if (a.fixada != b.fixada) return a.fixada ? -1 : 1;
       if (a.ordemManual != b.ordemManual) {
-        if (a.ordemManual == 0) return 1;
-        if (b.ordemManual == 0) return -1;
+        if (a.ordemManual == 0) return -1;
+        if (b.ordemManual == 0) return 1;
         return a.ordemManual.compareTo(b.ordemManual);
       }
       return b.criadaEm.compareTo(a.criadaEm);
@@ -324,6 +683,20 @@ class TimelineService {
   static Future<int> contarPublicacoesDoUsuario(String cpf) =>
       TimelineRepositorioSqlite.contarPublicacoesDoUsuario(cpf);
 
+  static Future<List<PublicacaoSocial>> listarTodosPostsContabilizados(
+    String cpf,
+  ) async {
+    final todas = await TimelineRepositorioSqlite.listarPublicacoesDoUsuario(
+      cpf: cpf,
+      tipo: null,
+      limit: 300,
+      offset: 0,
+    );
+    return todas
+        .where((p) => p.tipo != TipoFeedSocial.republicacoes)
+        .toList();
+  }
+
   // --- Reações, Comentários e Republicações ---
 
   static Future<void> alternarReacao({
@@ -373,19 +746,24 @@ class TimelineService {
       'timeline_reacao',
       {'reacao': reacao.toJson()},
     );
-    if (tipo == TipoReacaoSocial.like) {
+    if (tipo == TipoReacaoSocial.like || tipo == TipoReacaoSocial.deslike) {
       unawaited(() async {
         final pub =
             await TimelineRepositorioSqlite.buscarPublicacaoPorId(publicacaoId);
         if (pub != null) {
+          final ehLike = tipo == TipoReacaoSocial.like;
           await emitirNotificacaoSocial(
             destinatarioCpf: pub.autorCpf,
             autorCpf: cpfNorm,
             autorNome: usuarioNome,
             autorFoto: usuarioFoto,
-            tipo: TipoNotificacaoSocial.curtida,
+            tipo: ehLike
+                ? TipoNotificacaoSocial.curtida
+                : TipoNotificacaoSocial.deslike,
             publicacaoId: publicacaoId,
-            resumo: '$usuarioNome curtiu sua publicação.',
+            resumo: ehLike
+                ? '$usuarioNome curtiu sua publicação.'
+                : '$usuarioNome deu deslike na sua publicação.',
           );
         }
       }());
@@ -432,6 +810,26 @@ class TimelineService {
           publicacaoId: publicacaoId,
           resumo: '$autorNome comentou: "${comentario.texto}"',
         );
+      }
+      if (respostaDeId.isNotEmpty) {
+        final todosComentarios =
+            await TimelineRepositorioSqlite.listarComentariosDaPublicacao(
+          publicacaoId,
+        );
+        final pai = todosComentarios
+            .where((c) => c.id == respostaDeId)
+            .firstOrNull;
+        if (pai != null && pai.autorCpf != pub?.autorCpf) {
+          await emitirNotificacaoSocial(
+            destinatarioCpf: pai.autorCpf,
+            autorCpf: autorCpf,
+            autorNome: autorNome,
+            autorFoto: autorFoto,
+            tipo: TipoNotificacaoSocial.comentario,
+            publicacaoId: publicacaoId,
+            resumo: '$autorNome respondeu seu comentário: "${comentario.texto}"',
+          );
+        }
       }
       await _processarMencoesTexto(
         texto: comentario.texto,
@@ -535,28 +933,93 @@ class TimelineService {
     );
   }
 
+  static Future<ComentarioSocial> alternarReacaoComentario({
+    required ComentarioSocial comentario,
+    required String usuarioCpf,
+    required bool ehLike,
+  }) async {
+    final cpfNorm = TimelineRepositorioSqlite.normalizarCpf(usuarioCpf);
+    if (cpfNorm.isEmpty) return comentario;
+
+    final likes = comentario.curtidasCpfs
+        .map(TimelineRepositorioSqlite.normalizarCpf)
+        .where((c) => c.isNotEmpty)
+        .toList();
+    final deslikes = comentario.descurtidasCpfs
+        .map(TimelineRepositorioSqlite.normalizarCpf)
+        .where((c) => c.isNotEmpty)
+        .toList();
+
+    if (ehLike) {
+      if (likes.contains(cpfNorm)) {
+        likes.remove(cpfNorm);
+      } else {
+        likes.add(cpfNorm);
+        deslikes.remove(cpfNorm);
+      }
+    } else {
+      if (deslikes.contains(cpfNorm)) {
+        deslikes.remove(cpfNorm);
+      } else {
+        deslikes.add(cpfNorm);
+        likes.remove(cpfNorm);
+      }
+    }
+
+    final atualizado = comentario.copyWith(
+      curtidasCpfs: likes,
+      descurtidasCpfs: deslikes,
+      atualizadaEm: DateTime.now(),
+    );
+    await TimelineRepositorioSqlite.salvarComentario(atualizado);
+    notificarAlteracao();
+    TimelineSyncService.despacharEventoRede(
+      'timeline_comentario',
+      {'comentario': atualizado.toJson()},
+    );
+    return atualizado;
+  }
+
   static Future<PublicacaoSocial> republicar({
     required PublicacaoSocial original,
     required String meuCpf,
     required String meuNome,
     String minhaFoto = '',
+    String? comentarioCitacao,
   }) async {
     final cpfNorm = TimelineRepositorioSqlite.normalizarCpf(meuCpf);
-    final repostId = 'repost_${original.id}_$cpfNorm';
     final agora = DateTime.now();
+    final citacao = (comentarioCitacao ?? '').trim();
+    final ehCitacao = citacao.isNotEmpty;
+    final repostId = ehCitacao
+        ? 'quote_${original.id}_${cpfNorm}_${agora.millisecondsSinceEpoch}'
+        : 'repost_${original.id}_$cpfNorm';
 
-    final repost = original.copyWith(
-      id: repostId,
-      autorCpf: cpfNorm,
-      autorNome: meuNome,
-      autorFoto: minhaFoto,
-      coautoresCpfs: const [],
-      tipo: TipoFeedSocial.republicacoes,
-      publicacaoOriginalId: original.id,
-      criadaEm: agora,
-      atualizadaEm: agora,
-      excluida: false,
-    );
+    final repost = ehCitacao
+        ? PublicacaoSocial(
+            id: repostId,
+            autorCpf: cpfNorm,
+            autorNome: meuNome,
+            autorFoto: minhaFoto,
+            tipo: TipoFeedSocial.republicacoes,
+            texto: citacao,
+            publicacaoOriginalId: original.id,
+            tags: PublicacaoSocial.extrairTags(citacao),
+            criadaEm: agora,
+            atualizadaEm: agora,
+          )
+        : original.copyWith(
+            id: repostId,
+            autorCpf: cpfNorm,
+            autorNome: meuNome,
+            autorFoto: minhaFoto,
+            coautoresCpfs: const [],
+            tipo: TipoFeedSocial.republicacoes,
+            publicacaoOriginalId: original.id,
+            criadaEm: agora,
+            atualizadaEm: agora,
+            excluida: false,
+          );
 
     await TimelineRepositorioSqlite.salvarPublicacao(repost);
     notificarAlteracao();
@@ -564,6 +1027,26 @@ class TimelineService {
       'timeline_publicacao',
       {'publicacao': repost.toJson()},
     );
+    if (ehCitacao) {
+      unawaited(_processarMencoesTexto(
+        texto: citacao,
+        autorCpf: meuCpf,
+        autorNome: meuNome,
+        autorFoto: minhaFoto,
+        publicacaoId: repost.id,
+      ));
+    }
+    unawaited(emitirNotificacaoSocial(
+      destinatarioCpf: original.autorCpf,
+      autorCpf: meuCpf,
+      autorNome: meuNome,
+      autorFoto: minhaFoto,
+      tipo: TipoNotificacaoSocial.republicacao,
+      publicacaoId: ehCitacao ? repost.id : original.id,
+      resumo: ehCitacao
+          ? '$meuNome citou sua publicação: "$citacao"'
+          : '$meuNome republicou sua publicação.',
+    ));
     return repost;
   }
 
@@ -604,6 +1087,8 @@ class TimelineService {
         return 'Vídeos';
       case TipoFeedSocial.documentos:
         return 'Documentos';
+      case TipoFeedSocial.livros:
+        return 'Livros';
       case TipoFeedSocial.musicas:
         return 'Músicas';
       case TipoFeedSocial.escritos:
@@ -626,13 +1111,48 @@ class TimelineService {
   static Future<List<RegistroInteracaoUsuario>> listarInteracoesDoUsuario(
     String cpf,
   ) async {
+    final cpfNorm = TimelineRepositorioSqlite.normalizarCpf(cpf);
     final reacoes = await TimelineRepositorioSqlite.listarReacoesDoUsuario(cpf);
     final comentarios =
         await TimelineRepositorioSqlite.listarComentariosDoUsuario(cpf);
-    final reposts = await TimelineRepositorioSqlite.listarPublicacoesDoUsuario(
+    final reposts = (await TimelineRepositorioSqlite.listarPublicacoesDoUsuario(
       cpf: cpf,
       tipo: TipoFeedSocial.republicacoes,
+    ))
+        .where(
+          (p) => TimelineRepositorioSqlite.normalizarCpf(p.autorCpf) == cpfNorm,
+        )
+        .toList();
+    final todasPubsRelacionadas =
+        await TimelineRepositorioSqlite.listarPublicacoesDoUsuario(
+      cpf: cpf,
+      incluirExcluidas: true,
     );
+    final propriasPubs = todasPubsRelacionadas
+        .where(
+          (p) =>
+              TimelineRepositorioSqlite.normalizarCpf(p.autorCpf) == cpfNorm &&
+              p.tipo != TipoFeedSocial.republicacoes &&
+              p.publicacaoOriginalId.isEmpty,
+        )
+        .toList();
+    final marcacoesAceitas = todasPubsRelacionadas
+        .where(
+          (p) =>
+              !p.excluida &&
+              TimelineRepositorioSqlite.normalizarCpf(p.autorCpf) != cpfNorm &&
+              p.coautoresCpfs.any(
+                (c) => TimelineRepositorioSqlite.normalizarCpf(c) == cpfNorm,
+              ),
+        )
+        .toList();
+    String nomeDono = 'Usuário';
+    try {
+      final contaDono = await ContasNousService.buscarPorCpf(cpfNorm);
+      if (contaDono?.nomeExibicao.trim().isNotEmpty == true) {
+        nomeDono = contaDono!.nomeExibicao.trim();
+      }
+    } catch (_) {}
     final itensSalvosBrutos =
         await TimelineRepositorioSqlite.listarItensSalvosDoUsuario(cpf);
     final listasUsuario =
@@ -658,6 +1178,9 @@ class TimelineService {
     final mapaPubs = await TimelineRepositorioSqlite.buscarPublicacoesPorIds(
       idsUnicos.toList(),
     );
+    for (final p in propriasPubs) {
+      mapaPubs[p.id] = p;
+    }
 
     RegistroInteracaoUsuario criar({
       required String id,
@@ -686,6 +1209,18 @@ class TimelineService {
       );
     }
 
+    String alvoPub(String pubId) {
+      final pub = mapaPubs[pubId];
+      if (pub == null) return 'na publicação';
+      if (TimelineRepositorioSqlite.normalizarCpf(pub.autorCpf) == cpfNorm) {
+        return 'na própria publicação';
+      }
+      final nomeAlvo = pub.autorNome.trim().isNotEmpty
+          ? pub.autorNome.trim()
+          : 'outro usuário';
+      return 'na publicação de $nomeAlvo';
+    }
+
     final itens = <RegistroInteracaoUsuario>[
       ...reacoes
           .where((r) => mapaPubs.containsKey(r.publicacaoId))
@@ -695,8 +1230,8 @@ class TimelineService {
               tipoAcao: r.tipo.name,
               pubId: r.publicacaoId,
               resumo: r.tipo == TipoReacaoSocial.like
-                  ? 'Deu Like na publicação'
-                  : 'Deu Deslike na publicação',
+                  ? 'Curtiu ${alvoPub(r.publicacaoId)}'
+                  : 'Deu deslike ${alvoPub(r.publicacaoId)}',
               dataHora: r.criadaEm,
             ),
           ),
@@ -705,11 +1240,15 @@ class TimelineService {
           .map(
             (c) => criar(
               id: c.id,
-              tipoAcao: 'comentario',
+              tipoAcao: c.excluido ? 'comentario_excluido' : 'comentario',
               pubId: c.publicacaoId,
-              resumo: c.respostaDeId.isNotEmpty
-                  ? 'Respondeu em um comentário: "${c.texto}"'
-                  : 'Comentou: "${c.texto}"',
+              resumo: c.excluido
+                  ? (c.respostaDeId.isNotEmpty
+                      ? 'Excluiu resposta ${alvoPub(c.publicacaoId)}: "${c.texto}"'
+                      : 'Excluiu comentário ${alvoPub(c.publicacaoId)}: "${c.texto}"')
+                  : (c.respostaDeId.isNotEmpty
+                      ? 'Respondeu em um comentário ${alvoPub(c.publicacaoId)}: "${c.texto}"'
+                      : 'Comentou ${alvoPub(c.publicacaoId)}: "${c.texto}"'),
               dataHora: c.criadaEm,
             ),
           ),
@@ -721,17 +1260,20 @@ class TimelineService {
             return mapaPubs.containsKey(alvoId);
           })
           .map(
-            (p) => criar(
-              id: p.id,
-              tipoAcao: 'republicacao',
-              pubId: p.publicacaoOriginalId.isNotEmpty
+            (p) {
+              final alvoId = p.publicacaoOriginalId.isNotEmpty
                   ? p.publicacaoOriginalId
-                  : p.id,
-              resumo: p.texto.isNotEmpty
-                  ? 'Republicou: "${p.texto}"'
-                  : 'Republicou uma mídia no perfil',
-              dataHora: p.criadaEm,
-            ),
+                  : p.id;
+              return criar(
+                id: p.id,
+                tipoAcao: 'republicacao',
+                pubId: alvoId,
+                resumo: p.texto.isNotEmpty
+                    ? 'Republicou ${alvoPub(alvoId)}: "${p.texto}"'
+                    : 'Republicou ${alvoPub(alvoId)}',
+                dataHora: p.criadaEm,
+              );
+            },
           ),
       ...itensSalvos
           .where((s) => mapaPubs.containsKey(s.publicacaoId))
@@ -740,10 +1282,48 @@ class TimelineService {
               id: s.id,
               tipoAcao: 'salvo',
               pubId: s.publicacaoId,
-              resumo: 'Salvou a publicação na coleção pública',
+              resumo: 'Salvou ${alvoPub(s.publicacaoId)} na coleção pública',
               dataHora: s.salvoEm,
             ),
           ),
+      ...propriasPubs.map(
+        (p) => criar(
+          id: 'pub_${p.id}',
+          tipoAcao: 'publicacao',
+          pubId: p.id,
+          resumo: p.texto.isNotEmpty
+              ? 'Publicou (${_rotuloFeed(p.tipo)}): "${p.texto}"'
+              : 'Publicou ${_rotuloFeed(p.tipo).toLowerCase()} no perfil',
+          dataHora: p.criadaEm,
+        ),
+      ),
+      ...propriasPubs.where((p) => p.excluida).map(
+        (p) => criar(
+          id: 'pub_exc_${p.id}',
+          tipoAcao: 'publicacao_excluida',
+          pubId: p.id,
+          resumo: p.texto.isNotEmpty
+              ? 'Excluiu a publicação (${_rotuloFeed(p.tipo)}): "${p.texto}"'
+              : 'Excluiu uma publicação (${_rotuloFeed(p.tipo).toLowerCase()})',
+          dataHora: p.atualizadaEm,
+        ),
+      ),
+      ...marcacoesAceitas.map(
+        (p) {
+          final autorMarca = p.autorNome.trim().isNotEmpty
+              ? p.autorNome.trim()
+              : 'outro usuário';
+          return criar(
+            id: 'marc_${p.id}',
+            tipoAcao: 'marcacao',
+            pubId: p.id,
+            resumo: p.texto.isNotEmpty
+                ? '$nomeDono foi marcado(a) em ${_rotuloFeed(p.tipo).toLowerCase()} por $autorMarca: "${p.texto}"'
+                : '$nomeDono foi marcado(a) em ${_rotuloFeed(p.tipo).toLowerCase()} por $autorMarca',
+            dataHora: p.criadaEm,
+          );
+        },
+      ),
     ];
 
     itens.sort((a, b) => b.dataHora.compareTo(a.dataHora));
@@ -760,9 +1340,13 @@ class TimelineService {
     String caminhoMidia = '',
     String tipoMidia = 'texto',
     String texto = '',
+    String corFundoHex = '',
     bool ehDestaquePermanente = false,
     String perguntaEnquete = '',
     List<String> opcoesEnquete = const [],
+    List<CamadaTextoStory> camadasTexto = const [],
+    String storyOriginalId = '',
+    String autorOriginalNome = '',
   }) =>
       TimelineStoriesService.criarStory(
         autorCpf: autorCpf,
@@ -772,9 +1356,13 @@ class TimelineService {
         caminhoMidia: caminhoMidia,
         tipoMidia: tipoMidia,
         texto: texto,
+        corFundoHex: corFundoHex,
         ehDestaquePermanente: ehDestaquePermanente,
         perguntaEnquete: perguntaEnquete,
         opcoesEnquete: opcoesEnquete,
+        camadasTexto: camadasTexto,
+        storyOriginalId: storyOriginalId,
+        autorOriginalNome: autorOriginalNome,
         onNotificar: notificarAlteracao,
       );
 
@@ -841,6 +1429,39 @@ class TimelineService {
         meuNome: meuNome,
         minhaFoto: minhaFoto,
         respostaTexto: respostaTexto,
+      );
+
+  static Future<StorySocial> repostarStory({
+    required StorySocial original,
+    required String meuCpf,
+    required String meuNome,
+    String minhaFoto = '',
+    List<CamadaTextoStory>? camadasExtras,
+  }) =>
+      TimelineStoriesService.repostarStory(
+        original: original,
+        meuCpf: meuCpf,
+        meuNome: meuNome,
+        minhaFoto: minhaFoto,
+        camadasExtras: camadasExtras,
+        onNotificar: notificarAlteracao,
+      );
+
+  static Future<void> encaminharStoryNoChat({
+    required StorySocial story,
+    required String meuCpf,
+    required String meuNome,
+    String minhaFoto = '',
+    required String destinatarioCpf,
+    String mensagemOpcional = '',
+  }) =>
+      TimelineStoriesService.encaminharStoryNoChat(
+        story: story,
+        meuCpf: meuCpf,
+        meuNome: meuNome,
+        minhaFoto: minhaFoto,
+        destinatarioCpf: destinatarioCpf,
+        mensagemOpcional: mensagemOpcional,
       );
 
   // --- Feeds Personalizados / Externos (+) e Timelines Visíveis ---

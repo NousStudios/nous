@@ -80,7 +80,7 @@ Dois estados mudam o comportamento de várias telas:
      - Modo Mensagens (`chat_bubble`): abre diretamente a **Mensageria** do Usuário (`MensageriaView`).
   3. **Slot 2 (Busca / Player Universal):**
      - Modo Lupa (`search`): abre a tela soberana de **Busca & Mapa** (`BuscaMapaView`), com barra de pesquisa para localização regional de lojas e produtos, filtros rápidos ("Todos", "Lojas", "Perfis"), cards de visita e botões para seguir perfis cidadãos.
-     - Modo Player (`play_circle`): Super motor e player integrado de vídeos, músicas e PDFs (em construção).
+     - Modo Player (`play_circle`): **Player Universal** (`PlayerUniversalView` com `PlayerUniversalController`, `MiniPlayerUniversalWidget` e `PlayerUniversalExpandidoView`), centralizando **PDF**, **Música** e **Vídeo** da rede com mini-player persistente, fila (`A SEGUIR`), `LETRA`, `CIFRA` com zoom de fonte e ações sociais.
   4. **Slot 3 (Feeds):**
      - Modo Descoberta (`explore`): Feed público e memes da rede (em construção).
      - Modo Conexões (`people`): Feed de amigos e rede de confiança (em construção).
@@ -175,12 +175,15 @@ Dois estados mudam o comportamento de várias telas:
 
 ## 3. Notificações
 
-📄 `notif/views/widgets/notificacoes_dialog.dart` · widgets: `notif/views/widgets/cards/card_notificacao_estoque.dart`, `card_notificacao_chat.dart`, `card_notificacao_convite.dart` · services: `notif/services/gerenciador_acoes_notificacao.dart`, `notif/services/convites_service.dart` · `notif/providers/notificacoes_provider.dart`
+📄 `notif/views/widgets/notificacoes_dialog.dart` · widgets: `notif/views/widgets/cards/card_notificacao_estoque.dart`, `card_notificacao_chat.dart`, `card_notificacao_convite.dart`, `card_notificacao_social.dart` · services: `notif/services/gerenciador_acoes_notificacao.dart`, `notif/services/convites_service.dart` · `notif/providers/notificacoes_provider.dart`
 
-- **Cabeçalho**: botão **"Limpar todas as notificações"** (ícone `clear_all`). Dispensa todas de uma vez (fora da loja: na sessão local via `dispensarTodasNaSessao`; dentro da loja: persiste localmente e sincroniza via WebSocket com todos os outros membros conectados na rede local via `dispensarNotificacoesLoja`), incluindo mensagens e alertas.
-- **Arquitetura Modular de Cards**: cada notificação é renderizada por seu widget especializado com isolamento de estilo e responsividade (`CardNotificacaoEstoque`, `CardNotificacaoChat`, `CardNotificacaoConvite`), delegando confirmações e ações para o `GerenciadorAcoesNotificacao`.
+- **Sub-abas minimalistas estilo Instagram**: no modo pessoal, filtra por **Tudo**, **Mensagens**, **Convites** (colaboração em publicações + convites de loja), **Menções (`@`)** e **Atividade** (likes, deslikes, comentários, republicações e novos seguidores), com contadores discretos por categoria. O sininho da AppBar (`BotaoNotificacoesAppBar`) também contabiliza e acende para notificações sociais não lidas.
+- **Cabeçalho**: botão **"Limpar todas as notificações"** (ícone `clear_all`). Dispensa todas de uma vez (fora da loja: na sessão local via `dispensarTodasNaSessao` + marcação de leitura social; dentro da loja: persiste localmente e sincroniza via WebSocket com todos os outros membros conectados na rede local via `dispensarNotificacoesLoja`), incluindo mensagens e alertas.
+- **Arquitetura Modular de Cards**: cada notificação é renderizada por seu widget especializado com isolamento de estilo e responsividade (`CardNotificacaoEstoque`, `CardNotificacaoChat`, `CardNotificacaoConvite`, `CardNotificacaoSocial`), delegando confirmações e ações para o `GerenciadorAcoesNotificacao` e `TimelineService`.
 - **Cada card** pode ser **arrastado para o lado** para dispensar (dentro de loja, a dispensa sincroniza imediatamente para todos os membros na rede local e persiste em disco).
 - **Tipos de aviso**:
+  - **Convites de Participação em Publicação (`conviteColaboracao`)**: quando alguém marca você em uma publicação, ela fica em `coautoresPendentesCpfs` e só aparece no seu perfil após tocar em **Aceitar** (ou é descartada com **Recusar**).
+  - **Atividade Social & Menções `@`**: curtidas, deslikes, comentários, republicações, novos seguidores e menções `@` em comentários/posts; tocar abre diretamente a publicação ou o perfil.
   - **Mensagens Recebidas**: foto do remetente, nome e texto com `TextoRolante`, data/hora. **Clicar na notificação**: fecha a janela e abre a conversa na Mensageria na hora.
   - **Solicitação de Acesso a Dado Privado (`solicitacaoDadoUsuario`)**: remetente solicita ver dado restrito (CPF, telefone, filiação...). Ao aceitar, autoriza deliberadamente o solicitante a visualizar o dado.
   - Convite para participar de uma loja (aceitar/recusar).
@@ -428,7 +431,7 @@ Todas abrem centralizadas, aceitam **F11** e, no desktop expandido, ficam em **d
 - Coluna 1: conexão, **largura da bobina (58 / 80 mm)**, **Tipografia da Comanda** (lista de 11 fontes com prévia), **Calibração Bilateral** (margem esquerda padrão 5 mm e direita padrão 3 mm, passos de 0,5 mm).
 - Coluna 2: dados da loja/cliente no recibo, automações (**impressão automática ao concluir venda**), rodapé, **testar** e **salvar**.
 - **Impressão em Bobina Contínua Sem Cortes e Fiel ao Container da Comanda**: os geradores de bobina realizam o layout com altura ilimitada (`double.infinity`) e extraem a dimensão vertical exata resolvida pelo documento (`ImpressaoUtils.formatoResolvidoDoDocumento`) antes de enviar ao spooler do Windows (`Printing.directPrintPdf`), garantindo que comandas longas com múltiplos marmitex, acompanhamentos, observações, endereço e rodapé sejam impressas integralmente do início ao fim sem truncamento e sem textos extras como `Ref:`. Além disso, a calibração física da impressora da estação (fonte, recuo esquerdo/direito, largura de bobina e impressora selecionada) é herdada automaticamente entre as lojas locais do mesmo terminal.
-- **Prévia viva** da comanda dentro da calibração, com um dos 10 perfis históricos (sorteado), e botão de impressora para imprimir o exemplo respeitando a largura configurada (58 / 80 mm).
+- **Prévia viva** da comanda dentro da calibração, com um dos 16 perfis históricos (sorteado), e botão de impressora para imprimir o exemplo respeitando a largura configurada (58 / 80 mm).
 
 ### 7.8 Mesas e Comandas (Restaurante)
 📄 pasta `pdv/views/widgets/mesas/` — `mesas_container.dart`, `criar_mesa_dialog.dart`, `comanda_mesa_dialog.dart`, `adicionar_item_mesa_dialog.dart`, `configuracao_item_mesa_widget.dart`, `fechar_conta_mesa_dialog.dart`, `cadastro_cliente_rapido_mesa_dialog.dart`, `transferir_mesa_dialog.dart`
@@ -500,6 +503,7 @@ Todas abrem centralizadas, aceitam **F11** e, no desktop expandido, ficam em **d
 - **Compartilhamento de Comanda direto do PDV** (`ComandaPedidoDialog`): botão "Chat" ao lado de Imprimir e Fechar (todos com `TextoRolante`) que permite enviar a comanda com 1 clique para o cliente do pedido ou para a equipe da loja.
 - **Título da Conversa no Início do Chat (`BannerTituloConversaWidget`)**: exibido sempre no início do histórico do chat, perfeitamente incorporado ao próprio fundo sem bordas ou containers, centralizado com letras maiores (`fontSize: 18`) e respiro superior generoso. Tem por padrão o nome **"Nova Conversa"** e permite renomear a conversa com um simples toque direto no próprio título.
 - **Painel limpo por padrão**: ao abrir a tela de Mensagens, nenhuma conversa é auto-selecionada; o painel direito exibe o espaço limpo e receptivo convidando o usuário a escolher ou iniciar um chat.
+- **Nuvem de Pensamento (24h) na Barra de Stories da Mensageria (`BarraStoriesMensageriaWidget` + `DialogNotaPensamento`):** Acima da miniatura de perfil do usuário (e de contatos com nota ativa), exibe uma pequena nuvem estilo balão de pensamento; quando o usuário ainda não publicou nota, exibe uma frase aleatória sorteada a cada entrada na tela (`kFrasesPensamentoChat`), e ao tocar permite publicar ou limpar um pensamento de até 60 caracteres visível aos contatos por 24 horas (com espaço reservado para futura música).
 - **Destaque Permanente da Conversa Ativa**: o chat selecionado na barra lateral desktop recebe destaque visual fixo (borda nítida de 4px e fundo aceso contrastante) e efeito suave de hover nos demais contatos.
 - **Busca de Contatos com `TextoRolante`**: placeholder rolante e filtragem dinâmica de contatos e lojas.
 - **Resolução de fotos da equipe**: fotos dos membros da equipe e de clientes são resolvidas automaticamente por CPF (`auth.buscarFotoPorCpf`, `pdv.buscarFotoClientePorCpf`), garantindo fotos reais nos avatares e transmissão com autocura prévia ao balcão.
@@ -618,6 +622,20 @@ Todas abrem centralizadas, aceitam **F11** e, no desktop expandido, ficam em **d
   - 📄 `auth/views/dialogs/dialog_onboarding_identidade_nous.dart` e `auth/views/widgets/ficha_usuario/bloco_registro_conta_usuario.dart`:
   - Fluxo de boas-vindas pós-CPF e `@username` permitindo personalizar foto de perfil, apelido, nome completo, biografia e as **Regras de Transparência** (quais dados pessoais são públicos/privados).
   - Seção **Registro Soberano da Conta** na Identidade do Usuário com data de adesão à rede ("Membro desde"), validador comunitário ("Validado por"), data de validação e o selo oficial de **Conta Verificada** (`Icons.verified`).
+
+### 7.22 Evolução da Rede Social: Player de Vídeo, Reels, Escritos, Livros, PDF Nativo & Insights Transparentes (v1.1.42)
+- **Player de Vídeo Interno & Capa por Frame (`PlayerVideoNousWidget`, `DialogEscolherFrameVideo`)**:
+  - Reprodução nativa via `media_kit` com streaming HTTP Range (`/api/video`), continuidade de posição entre Feed e Janela de Comentários, barra vertical de volume no hover/toque, atalhos de **2x** nos quadrantes superiores (direita avança 2x, esquerda volta 2x) e seleção de qualquer frame do vídeo como capa durante a publicação (com captura automática do 1º frame).
+- **Modo Reels Compacto (`VisualizadorReelsCompactoWidget`)**:
+  - No celular/janela estreita (`< 820px`), Fotos e Vídeos abrem em tela cheia com rolagem vertical por arrasto ou roda do mouse, barra lateral compacta sem bordas (Like, Deslike, Comentários, Republicar, Chat, Salvar, Modo Limpo/Full) e abas expansíveis centralizadas de Comentários (arrastar para cima) e Descrição.
+- **Escritos, Citação (*Quote*), Republicações, Livros, Músicas & PDF Nativo**:
+  - **Escritos (`CardEscritoWidget`)**: layout estilo microblog/tweet (avatar, nome, data/hora, `@username`, corpo alinhado ao nome, visualizações e ações Like > Deslike > Comentário > Republicar > Chat > Salvar), suporte a `@menções` na criação e citação com comentário (`DialogRepublicarOpcoes`).
+  - **PDF Nativo (`LeitorPdfNousWidget`) & Documentos (`DialogVisualizarDocumento`)**: prévia visual da 1ª página no feed sobre folha clara (`Color(0xFFF7F7F7)`), abertura direta na janela da Publicação com leitura completa e botão **Full Screen** (em Full Screen a rolagem percorre as páginas do PDF; fora dele, troca de publicação). Adicionada timeline **Livros** (`TipoFeedSocial.livros`).
+  - **Músicas (`DialogPlayerMusicaCifra`)**: campo opcional de **Letra / Cifra / Tablatura** (`cifraLetra`) e player dedicado com alternância Áudio/Cifra e controle de fonte.
+- **Timelines do Perfil, Busca & Insights Transparentes (`TimelinePerfilSection`, `FeedDescobertaView`, `InsightsPublicacaoView`)**:
+  - Alternância **Galeria (3 por linha) / Feed Completo** ao segurar qualquer timeline de mídia/lista (Fotos, Vídeos, Documentos, Livros, Músicas, Republicações, Salvos, Likes e Deslikes), troca de timeline ao arrastar horizontalmente e capas automáticas na galeria de vídeos.
+  - **Interações** registra também publicações próprias, publicações excluídas e comentários excluídos pelo autor; **Descoberta** unifica busca de texto, `#tags` e `@pessoas`.
+  - **Insights da Publicação** contabiliza visualizações únicas por CPF (`visualizadoresCpfs`) e tempo real por visualizador (`tempoPorVisualizador`), com todos os containers clicáveis e **gráfico de barras de engajamento** no "Tempo médio".
 
 ---
 

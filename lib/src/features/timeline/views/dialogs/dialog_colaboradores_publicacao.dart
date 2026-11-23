@@ -48,7 +48,9 @@ class DialogColaboradoresPublicacao extends StatefulWidget {
 class _DialogColaboradoresPublicacaoState
     extends State<DialogColaboradoresPublicacao> {
   final ScrollController _scrollCtrl = ScrollController();
+  late PublicacaoSocial _pubAtual;
   List<UsuarioNous> _participantes = [];
+  List<UsuarioNous> _pendentes = [];
   Map<String, List<StorySocial>> _storiesPorCpf = {};
   bool _carregando = true;
   bool _seguindoTodos = false;
@@ -56,6 +58,7 @@ class _DialogColaboradoresPublicacaoState
   @override
   void initState() {
     super.initState();
+    _pubAtual = widget.publicacao;
     _carregarParticipantes();
   }
 
@@ -67,14 +70,21 @@ class _DialogColaboradoresPublicacaoState
 
   Future<void> _carregarParticipantes() async {
     final todas = await ContasNousService.carregarTodas();
+    final autorNorm = _pubAtual.autorCpf.replaceAll(RegExp(r'\D'), '');
     final cpfsAlvo = <String>{
-      widget.publicacao.autorCpf.replaceAll(RegExp(r'\D'), ''),
-      ...widget.publicacao.coautoresCpfs.map(
+      autorNorm,
+      ..._pubAtual.coautoresCpfs.map(
         (c) => c.replaceAll(RegExp(r'\D'), ''),
       ),
     }..removeWhere((c) => c.isEmpty);
 
+    final cpfsPendentes = _pubAtual.coautoresPendentesCpfs
+        .map((c) => c.replaceAll(RegExp(r'\D'), ''))
+        .where((c) => c.isNotEmpty && !cpfsAlvo.contains(c))
+        .toSet();
+
     final lista = <UsuarioNous>[];
+    final pendentes = <UsuarioNous>[];
     final storiesMap = <String, List<StorySocial>>{};
 
     for (final cpf in cpfsAlvo) {
@@ -87,24 +97,33 @@ class _DialogColaboradoresPublicacaoState
         lista.add(
           UsuarioNous(
             cpf: cpf,
-            nome: cpf ==
-                    widget.publicacao.autorCpf.replaceAll(RegExp(r'\D'), '')
-                ? widget.publicacao.autorNome
-                : 'Colaborador Nous',
+            nome: cpf == autorNorm ? _pubAtual.autorNome : 'Colaborador Nous',
             dataNascimento: '',
-            foto: cpf ==
-                    widget.publicacao.autorCpf.replaceAll(RegExp(r'\D'), '')
-                ? widget.publicacao.autorFoto
-                : '',
+            foto: cpf == autorNorm ? _pubAtual.autorFoto : '',
           ),
         );
       }
       storiesMap[cpf] = await TimelineService.listarStoriesAtivos24h(cpf);
     }
 
+    for (final cpf in cpfsPendentes) {
+      final conta = todas
+          .where((u) => u.cpf.replaceAll(RegExp(r'\D'), '') == cpf)
+          .firstOrNull;
+      pendentes.add(
+        conta ??
+            UsuarioNous(
+              cpf: cpf,
+              nome: 'Usuário convidado',
+              dataNascimento: '',
+            ),
+      );
+    }
+
     if (!mounted) return;
     setState(() {
       _participantes = lista;
+      _pendentes = pendentes;
       _storiesPorCpf = storiesMap;
       _carregando = false;
     });
@@ -366,6 +385,125 @@ class _DialogColaboradoresPublicacaoState
                         ),
                       ),
               ),
+
+              if (meuCpf ==
+                      _pubAtual.autorCpf.replaceAll(RegExp(r'\D'), '') &&
+                  _pendentes.isNotEmpty) ...[
+                const SizedBox(height: 12),
+                Text(
+                  'Aguardando aceite (${_pendentes.length})',
+                  style: theme.getTextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                    color: theme.secondaryTextColor,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                ConstrainedBox(
+                  constraints: const BoxConstraints(maxHeight: 150),
+                  child: ListView.separated(
+                    shrinkWrap: true,
+                    itemCount: _pendentes.length,
+                    separatorBuilder: (_, _) => const SizedBox(height: 6),
+                    itemBuilder: (_, idx) {
+                      final p = _pendentes[idx];
+                      final pCpf = p.cpf.replaceAll(RegExp(r'\D'), '');
+                      final pProv = ImagemService.obterImageProvider(
+                        p.fotoExibicao,
+                      );
+                      return Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 6,
+                        ),
+                        decoration: BoxDecoration(
+                          color: theme.backgroundColor.withValues(alpha: 0.35),
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(
+                            color: theme.borderColor.withValues(alpha: 0.4),
+                          ),
+                        ),
+                        child: Row(
+                          children: [
+                            CircleAvatar(
+                              radius: 15,
+                              backgroundImage: pProv,
+                              child: pProv == null
+                                  ? Text(
+                                      p.nomeExibicao.isNotEmpty
+                                          ? p.nomeExibicao[0].toUpperCase()
+                                          : '?',
+                                    )
+                                  : null,
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                p.nomeExibicao,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: theme.getTextStyle(
+                                  fontSize: 12.5,
+                                  color: theme.textColor,
+                                ),
+                              ),
+                            ),
+                            IconButton(
+                              visualDensity: VisualDensity.compact,
+                              tooltip: 'Reenviar convite',
+                              icon: Icon(
+                                Icons.send_outlined,
+                                size: 17,
+                                color: theme.textColor,
+                              ),
+                              onPressed: () async {
+                                await TimelineService.reenviarConviteColaboracao(
+                                  publicacao: _pubAtual,
+                                  cpfAlvo: pCpf,
+                                );
+                                if (context.mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Text(
+                                        'Convite reenviado para ${p.nomeExibicao}.',
+                                      ),
+                                    ),
+                                  );
+                                }
+                              },
+                            ),
+                            IconButton(
+                              visualDensity: VisualDensity.compact,
+                              tooltip: 'Cancelar marcação',
+                              icon: Icon(
+                                Icons.close,
+                                size: 18,
+                                color: theme.dangerColor,
+                              ),
+                              onPressed: () async {
+                                final atual = await TimelineService
+                                    .cancelarConviteColaboracao(
+                                  publicacao: _pubAtual,
+                                  cpfAlvo: pCpf,
+                                );
+                                if (!mounted) return;
+                                setState(() {
+                                  _pubAtual = atual;
+                                  _pendentes.removeWhere(
+                                    (x) =>
+                                        x.cpf.replaceAll(RegExp(r'\D'), '') ==
+                                        pCpf,
+                                  );
+                                });
+                              },
+                            ),
+                          ],
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ],
 
               if (contaPropria != null && _participantes.length > 1) ...[
                 const SizedBox(height: 12),

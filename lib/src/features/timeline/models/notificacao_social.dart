@@ -1,9 +1,11 @@
 enum TipoNotificacaoSocial {
   curtida,
+  deslike,
   comentario,
   republicacao,
   novoSeguidor,
   mencao,
+  conviteColaboracao,
 }
 
 class NotificacaoSocial {

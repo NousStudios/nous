@@ -17,6 +17,15 @@ class ImagemService {
   static Directory? _diretorioBaseCache;
   static final Map<String, String?> _cacheResolucaoCaminhos = {};
 
+  /// Limpa o cache em memória de resolução de caminhos (todo ou para uma chave).
+  static void invalidarCache([String? caminho]) {
+    if (caminho == null) {
+      _cacheResolucaoCaminhos.clear();
+    } else {
+      _cacheResolucaoCaminhos.remove(caminho.trim());
+    }
+  }
+
   /// Gera um nome de arquivo determinístico entre sessões e dispositivos
   /// usando hash FNV-1a 64-bit sobre UTF-8 (em vez de `String.hashCode`, que varia por execução).
   static String gerarNomeRemotoDeterministico(
@@ -83,6 +92,8 @@ class ImagemService {
     void adicionarComSubpastas(String base) {
       dirs.add(Directory('$base/imagens'));
       dirs.add(Directory('$base/audios'));
+      dirs.add(Directory('$base/timeline_midias'));
+      dirs.add(Directory('$base/anexos/timeline_midias'));
       dirs.add(Directory('$base/anexos/musicas'));
       dirs.add(Directory('$base/anexos/arquivosAudio'));
       dirs.add(Directory('$base/anexos/galeria'));
@@ -133,7 +144,11 @@ class ImagemService {
     final limpo = caminhoOriginal.trim();
 
     if (_cacheResolucaoCaminhos.containsKey(limpo)) {
-      return _cacheResolucaoCaminhos[limpo];
+      final emCache = _cacheResolucaoCaminhos[limpo];
+      if (emCache != null && File(emCache).existsSync()) {
+        return emCache;
+      }
+      _cacheResolucaoCaminhos.remove(limpo);
     }
 
     String? resolvido;
@@ -166,6 +181,8 @@ class ImagemService {
         final extFinal = ext.isNotEmpty ? ext : 'jpg';
         final candidatosNomes = [
           nomeArquivo,
+          gerarNomeRemotoDeterministico(limpo, extFinal),
+          gerarNomeRemotoDeterministico(limpoFormatado, extFinal),
           'remota_${limpo.hashCode.abs()}.$extFinal',
           'remota_${limpoFormatado.hashCode.abs()}.$extFinal',
           'remota_${nomeArquivo.hashCode.abs()}.$extFinal',
@@ -188,10 +205,12 @@ class ImagemService {
       }
     }
 
-    if (_cacheResolucaoCaminhos.length > 500) {
-      _cacheResolucaoCaminhos.clear();
+    if (resolvido != null) {
+      if (_cacheResolucaoCaminhos.length > 500) {
+        _cacheResolucaoCaminhos.clear();
+      }
+      _cacheResolucaoCaminhos[limpo] = resolvido;
     }
-    _cacheResolucaoCaminhos[limpo] = resolvido;
     return resolvido;
   }
 
@@ -215,13 +234,40 @@ class ImagemService {
     return resolvido != null ? File(resolvido) : null;
   }
 
+  /// Converte um caminho físico dentro da pasta base do Nous para um caminho
+  /// relativo canônico portátil entre Android e Windows (ex.: `imagens/arq.jpg`).
+  static String paraCaminhoRelativoCanonico(String caminho) {
+    final norm = caminho.replaceAll('\\', '/').trim();
+    if (norm.isEmpty || ehAsset(norm)) return norm;
+    for (final marcador in [
+      '/Nous/imagens/',
+      '/Nous/timeline_midias/',
+      '/Nous/audios/',
+      '/Nous/anexos/',
+    ]) {
+      final idx = norm.indexOf(marcador);
+      if (idx != -1) {
+        return norm.substring(idx + '/Nous/'.length);
+      }
+    }
+    return norm;
+  }
+
   /// Retorna um ImageProvider pronto para uso (AssetImage para assets, FileImage para arquivos), ou null se a foto não existir
-  static ImageProvider? obterImageProvider(String? caminho) {
+  static ImageProvider? obterImageProvider(
+    String? caminho, {
+    int? cacheWidth,
+  }) {
     if (ehAsset(caminho)) {
       return AssetImage(caminho!.trim());
     }
     final resolvido = resolverCaminhoExistente(caminho);
-    return resolvido != null ? FileImage(File(resolvido)) : null;
+    if (resolvido == null) return null;
+    final provider = FileImage(File(resolvido));
+    if (cacheWidth != null && cacheWidth > 0) {
+      return ResizeImage(provider, width: cacheWidth);
+    }
+    return provider;
   }
 
   /// Constrói um Widget de imagem com fallback automático e suporte unificado a assets e arquivos locais
@@ -232,14 +278,20 @@ class ImagemService {
     BoxFit? fit,
     Widget? fallback,
     BorderRadius? borderRadius,
+    int? cacheWidth,
   }) {
     Widget img;
+    final cacheW = cacheWidth ??
+        (width != null && width.isFinite && width > 0
+            ? (width * 2).round().clamp(120, 1200)
+            : null);
     if (ehAsset(caminho)) {
       img = Image.asset(
         caminho!.trim(),
         width: width,
         height: height,
         fit: fit,
+        cacheWidth: cacheW,
         errorBuilder: (_, _, _) => fallback ?? const SizedBox.shrink(),
       );
     } else {
@@ -250,6 +302,7 @@ class ImagemService {
           width: width,
           height: height,
           fit: fit,
+          cacheWidth: cacheW,
           errorBuilder: (_, _, _) => fallback ?? const SizedBox.shrink(),
         );
       } else {

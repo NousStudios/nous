@@ -119,10 +119,26 @@ class PainelItensCatalogoWidget extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final termoItens = pesquisaItens.text.trim().toLowerCase();
-    final itensFiltrados = termoItens.isEmpty
-        ? itens
-        : itens.where((i) => i.nome.toLowerCase().contains(termoItens)).toList();
+    return ValueListenableBuilder<TextEditingValue>(
+      valueListenable: pesquisaItens,
+      builder: (context, valorPesquisa, _) {
+        final termoItens = valorPesquisa.text.trim().toLowerCase();
+        final itensFiltrados = termoItens.isEmpty
+            ? itens
+            : itens
+                .where((i) => i.nome.toLowerCase().contains(termoItens))
+                .toList();
+
+        return _buildConteudoFiltrado(context, itensFiltrados, termoItens);
+      },
+    );
+  }
+
+  Widget _buildConteudoFiltrado(
+    BuildContext context,
+    List<ItemLoja> itensFiltrados,
+    String termoItens,
+  ) {
 
     if (expandido) {
       return Column(

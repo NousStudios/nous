@@ -45,6 +45,12 @@ class ManipuladorMidiaServidor {
       return true;
     }
 
+    // 4b. Servir arquivos de vídeo pela rede local com HTTP Range (streaming)
+    if (path == '/api/video' && method == 'GET') {
+      await _atenderVideo(request);
+      return true;
+    }
+
     // 5. Informações de versão e atualização na rede local
     if (path == '/api/versao' && method == 'GET') {
       await _atenderVersao(request);
@@ -308,6 +314,97 @@ class ManipuladorMidiaServidor {
       debugPrint('[ManipuladorMidiaServidor] Erro ao servir áudio: $e');
       request.response.statusCode = HttpStatus.internalServerError;
       await request.response.close();
+    }
+  }
+
+  static Future<void> _atenderVideo(HttpRequest request) async {
+    final caminho = request.uri.queryParameters['caminho'];
+    if (caminho == null || caminho.trim().isEmpty) {
+      request.response.statusCode = HttpStatus.badRequest;
+      await request.response.close();
+      return;
+    }
+
+    var caminhoResolvido =
+        ImagemService.resolverCaminhoExistente(caminho.trim());
+    if (caminhoResolvido == null) {
+      final apenasNome = caminho.trim().replaceAll('\\', '/').split('/').last;
+      if (apenasNome.isNotEmpty) {
+        caminhoResolvido = ImagemService.resolverCaminhoExistente(apenasNome);
+      }
+    }
+
+    if (caminhoResolvido == null ||
+        !SegurancaServidorRelay.validarCaminhoLeituraPermitido(
+          caminhoResolvido,
+        )) {
+      request.response.statusCode = HttpStatus.notFound;
+      await request.response.close();
+      return;
+    }
+
+    final arquivo = File(caminhoResolvido);
+    if (!arquivo.existsSync()) {
+      request.response.statusCode = HttpStatus.notFound;
+      await request.response.close();
+      return;
+    }
+
+    try {
+      final total = await arquivo.length();
+      final ext = caminhoResolvido.split('.').last.toLowerCase();
+      final ContentType tipoConteudo;
+      switch (ext) {
+        case 'webm':
+          tipoConteudo = ContentType('video', 'webm');
+          break;
+        case 'mov':
+          tipoConteudo = ContentType('video', 'quicktime');
+          break;
+        case 'mkv':
+          tipoConteudo = ContentType('video', 'x-matroska');
+          break;
+        case 'avi':
+          tipoConteudo = ContentType('video', 'x-msvideo');
+          break;
+        case 'mp4':
+        default:
+          tipoConteudo = ContentType('video', 'mp4');
+          break;
+      }
+
+      request.response.headers.contentType = tipoConteudo;
+      request.response.headers.set('Accept-Ranges', 'bytes');
+
+      final rangeHeader = request.headers.value(HttpHeaders.rangeHeader);
+      if (rangeHeader != null && rangeHeader.startsWith('bytes=')) {
+        final spec = rangeHeader.substring('bytes='.length).split('-');
+        final inicio = int.tryParse(spec.first.trim()) ?? 0;
+        final fimReq = spec.length > 1 && spec[1].trim().isNotEmpty
+            ? int.tryParse(spec[1].trim())
+            : null;
+        final fim = (fimReq ?? (total - 1)).clamp(inicio, total - 1);
+        final tamanhoChunk = fim - inicio + 1;
+
+        request.response.statusCode = HttpStatus.partialContent;
+        request.response.headers.set(
+          HttpHeaders.contentRangeHeader,
+          'bytes $inicio-$fim/$total',
+        );
+        request.response.headers.contentLength = tamanhoChunk;
+        await request.response.addStream(arquivo.openRead(inicio, fim + 1));
+      } else {
+        request.response.statusCode = HttpStatus.ok;
+        request.response.headers.contentLength = total;
+        await request.response.addStream(arquivo.openRead());
+      }
+      await request.response.close();
+    } catch (e) {
+      debugPrint('[ManipuladorMidiaServidor] Erro ao servir vídeo: $e');
+      try {
+        request.response.statusCode = HttpStatus.internalServerError;
+        await request.response.close();
+      } catch (_) {}
     }
   }
 

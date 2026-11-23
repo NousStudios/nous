@@ -12,6 +12,7 @@ import 'package:nous/src/features/notificacoes/services/gerenciador_acoes_notifi
 import 'package:nous/src/features/notificacoes/views/widgets/cards/card_notificacao_chat.dart';
 import 'package:nous/src/features/notificacoes/views/widgets/cards/card_notificacao_convite.dart';
 import 'package:nous/src/features/notificacoes/views/widgets/cards/card_notificacao_estoque.dart';
+import 'package:nous/src/features/notificacoes/views/widgets/cards/card_notificacao_social.dart';
 import 'package:nous/src/features/pdv/models/item_loja.dart';
 import 'package:nous/src/features/pdv/models/movimento_estoque.dart';
 import 'package:nous/src/features/pdv/models/registro_acao.dart';
@@ -20,7 +21,10 @@ import 'package:nous/src/features/pdv/views/widgets/estado_vazio_container.dart'
 import 'package:nous/src/features/pdv/views/widgets/movimento_estoque_dialog.dart';
 import 'package:nous/src/features/timeline/models/notificacao_social.dart';
 import 'package:nous/src/features/timeline/services/timeline_repositorio_sqlite.dart';
+import 'package:nous/src/features/timeline/services/timeline_service.dart';
 import 'package:nous/src/features/timeline/views/dialogs/dialog_detalhes_publicacao.dart';
+
+enum _AbaNotificacao { tudo, mensagens, convites, mencoes, atividade }
 
 String _formatarQuantidade(double v) {
   if (v == v.truncateToDouble()) return v.toInt().toString();
@@ -254,179 +258,456 @@ class _NotificacoesConteudo extends StatelessWidget {
         return ValueListenableBuilder<AppTheme>(
           valueListenable: ThemeController.currentTheme,
           builder: (context, theme, child) {
-            return Dialog(
-              backgroundColor: theme.cardBackgroundColor,
-              insetPadding: const EdgeInsets.all(16),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(16),
-                side: BorderSide(color: theme.borderColor),
-              ),
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 500),
-                child: Padding(
-                  padding: const EdgeInsets.all(20),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      Row(
+            var abaSelecionada = _AbaNotificacao.tudo;
+            final convitesColab = sociais
+                .where((s) =>
+                    s.tipo == TipoNotificacaoSocial.conviteColaboracao)
+                .toList();
+            final mencoes = sociais
+                .where((s) => s.tipo == TipoNotificacaoSocial.mencao)
+                .toList();
+            final atividades = sociais
+                .where((s) =>
+                    s.tipo != TipoNotificacaoSocial.conviteColaboracao &&
+                    s.tipo != TipoNotificacaoSocial.mencao)
+                .toList();
+
+            return StatefulBuilder(
+              builder: (context, setDialogState) {
+                final mostrarMsgs = abaSelecionada == _AbaNotificacao.tudo ||
+                    abaSelecionada == _AbaNotificacao.mensagens;
+                final mostrarEstoque = abaSelecionada == _AbaNotificacao.tudo;
+                final mostrarConvites = abaSelecionada == _AbaNotificacao.tudo ||
+                    abaSelecionada == _AbaNotificacao.convites;
+                final mostrarMencoes = abaSelecionada == _AbaNotificacao.tudo ||
+                    abaSelecionada == _AbaNotificacao.mencoes;
+                final mostrarAtividade =
+                    abaSelecionada == _AbaNotificacao.tudo ||
+                        abaSelecionada == _AbaNotificacao.atividade;
+
+                final listaMsgs =
+                    mostrarMsgs ? mensagens : const <MensagemChat>[];
+                final listaEstoque = mostrarEstoque
+                    ? alertasEstoque
+                    : const <({
+                        ItemLoja item,
+                        double saldo,
+                        String lojaNome,
+                        String lojaId,
+                      })>[];
+                final listaConvitesLoja =
+                    mostrarConvites ? convites : const [];
+                final listaConvitesColab = mostrarConvites
+                    ? convitesColab
+                    : const <NotificacaoSocial>[];
+                final listaMencoes =
+                    mostrarMencoes ? mencoes : const <NotificacaoSocial>[];
+                final listaAtividades =
+                    mostrarAtividade ? atividades : const <NotificacaoSocial>[];
+
+                final abaVazia = listaMsgs.isEmpty &&
+                    listaEstoque.isEmpty &&
+                    listaConvitesLoja.isEmpty &&
+                    listaConvitesColab.isEmpty &&
+                    listaMencoes.isEmpty &&
+                    listaAtividades.isEmpty;
+
+                Widget buildChipAba(
+                  _AbaNotificacao aba,
+                  String titulo,
+                  int quantidade,
+                ) {
+                  final ativa = abaSelecionada == aba;
+                  return InkWell(
+                    borderRadius: BorderRadius.circular(20),
+                    onTap: () => setDialogState(() => abaSelecionada = aba),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 6,
+                      ),
+                      decoration: BoxDecoration(
+                        color: ativa
+                            ? theme.textColor.withValues(alpha: 0.12)
+                            : Colors.transparent,
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(
+                          color: ativa
+                              ? theme.textColor
+                              : theme.borderColor.withValues(alpha: 0.5),
+                        ),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
                         children: [
-                          IconButton(
-                            icon: Icon(Icons.arrow_back, color: theme.textColor),
-                            onPressed: () => Navigator.of(context).pop(),
+                          Text(
+                            titulo,
+                            style: theme.getTextStyle(
+                              fontSize: 11.5,
+                              fontWeight:
+                                  ativa ? FontWeight.bold : FontWeight.w500,
+                              color: ativa
+                                  ? theme.textColor
+                                  : theme.secondaryTextColor,
+                            ),
                           ),
-                          Expanded(
-                            child: Column(
-                              mainAxisSize: MainAxisSize.min,
+                          if (quantidade > 0) ...[
+                            const SizedBox(width: 5),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 5,
+                                vertical: 1,
+                              ),
+                              decoration: BoxDecoration(
+                                color: ativa
+                                    ? theme.textColor
+                                    : theme.borderColor.withValues(alpha: 0.4),
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              child: Text(
+                                '$quantidade',
+                                style: theme.getTextStyle(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.bold,
+                                  color: ativa
+                                      ? theme.cardBackgroundColor
+                                      : theme.textColor,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                  );
+                }
+
+                Widget buildSocialDismissible(NotificacaoSocial s) {
+                  return Dismissible(
+                    key: ValueKey('nsoc_${s.id}'),
+                    direction: DismissDirection.horizontal,
+                    background: _buildDismissibleFundo(),
+                    secondaryBackground: _buildDismissibleFundoSecundario(),
+                    onDismissed: (_) async {
+                      await TimelineRepositorioSqlite
+                          .marcarNotificacaoSocialLida(s.id);
+                      notificacoes.dispensarNaSessao('nsoc_${s.id}');
+                    },
+                    child: CardNotificacaoSocial(
+                      theme: theme,
+                      notificacao: s,
+                      onResponderConvite:
+                          s.tipo == TipoNotificacaoSocial.conviteColaboracao
+                              ? (aceitar) async {
+                                  await TimelineService
+                                      .responderConviteColaboracao(
+                                    publicacaoId: s.publicacaoId,
+                                    usuarioCpf: cpfUsuario,
+                                    aceitar: aceitar,
+                                    notificacaoId: s.id,
+                                  );
+                                  notificacoes.dispensarNaSessao(
+                                    'nsoc_${s.id}',
+                                  );
+                                  if (context.mounted) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(
+                                        content: Text(
+                                          aceitar
+                                              ? 'Participação aceita! A publicação agora aparece no seu perfil.'
+                                              : 'Convite de participação recusado.',
+                                        ),
+                                      ),
+                                    );
+                                  }
+                                }
+                              : null,
+                      onTap: () async {
+                        if (s.tipo !=
+                            TipoNotificacaoSocial.conviteColaboracao) {
+                          await TimelineRepositorioSqlite
+                              .marcarNotificacaoSocialLida(s.id);
+                          notificacoes.dispensarNaSessao('nsoc_${s.id}');
+                        }
+                        if (!context.mounted) return;
+                        if (s.publicacaoId.isNotEmpty) {
+                          final pub = await TimelineRepositorioSqlite
+                              .buscarPublicacaoPorId(s.publicacaoId);
+                          if (pub != null && context.mounted) {
+                            await DialogDetalhesPublicacao.mostrar(
+                              context,
+                              theme: theme,
+                              publicacao: pub,
+                              usuarioLogado: auth.contaAtual,
+                            );
+                            return;
+                          }
+                        }
+                        final alvo = await ContasNousService.buscarPorCpf(
+                          s.autorCpf,
+                        );
+                        if (alvo != null && context.mounted) {
+                          await Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (_) => PerfilSocialView(
+                                usuarioAlvo: alvo,
+                                mostrarBotaoVoltar: true,
+                              ),
+                            ),
+                          );
+                        }
+                      },
+                    ),
+                  );
+                }
+
+                return Dialog(
+                  backgroundColor: theme.cardBackgroundColor,
+                  insetPadding: const EdgeInsets.all(16),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                    side: BorderSide(color: theme.borderColor),
+                  ),
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(
+                      maxWidth: 520,
+                      maxHeight: MediaQuery.sizeOf(context).height * 0.90,
+                    ),
+                    child: Padding(
+                      padding: const EdgeInsets.all(18),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Row(
+                            children: [
+                              IconButton(
+                                icon: Icon(
+                                  Icons.arrow_back,
+                                  color: theme.textColor,
+                                ),
+                                onPressed: () => Navigator.of(context).pop(),
+                              ),
+                              Expanded(
+                                child: Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Text(
+                                      lojaId == null
+                                          ? 'Notificações'
+                                          : (ehLojaColetivaNous
+                                              ? 'Notificações • Comunidade Nous'
+                                              : 'Notificações da Loja'),
+                                      textAlign: TextAlign.center,
+                                      style: theme.getTextStyle(
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.bold,
+                                        color: theme.textColor,
+                                      ),
+                                    ),
+                                    Text(
+                                      'Arraste para o lado para dispensar',
+                                      textAlign: TextAlign.center,
+                                      style: theme.getTextStyle(
+                                        fontSize: 10,
+                                        color: theme.secondaryTextColor,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              const SizedBox(width: 48),
+                            ],
+                          ),
+                          const SizedBox(height: 10),
+                          SingleChildScrollView(
+                            scrollDirection: Axis.horizontal,
+                            child: Row(
                               children: [
-                                Text(
-                                  lojaId == null
-                                      ? 'Notificações Pessoais'
-                                      : (ehLojaColetivaNous
-                                          ? 'Notificações • Comunidade Nous'
-                                          : 'Notificações da Loja'),
-                                  textAlign: TextAlign.center,
-                                  style: theme.getTextStyle(
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.bold,
-                                    color: theme.textColor,
-                                  ),
+                                buildChipAba(
+                                  _AbaNotificacao.tudo,
+                                  'Tudo',
+                                  mensagens.length +
+                                      alertasEstoque.length +
+                                      convites.length +
+                                      sociais.length,
                                 ),
-                                Text(
-                                  'Arraste para o lado para dispensar',
-                                  textAlign: TextAlign.center,
-                                  style: theme.getTextStyle(
-                                    fontSize: 10,
-                                    color: theme.secondaryTextColor,
-                                  ),
+                                const SizedBox(width: 6),
+                                buildChipAba(
+                                  _AbaNotificacao.mensagens,
+                                  'Mensagens',
+                                  mensagens.length,
                                 ),
+                                if (lojaId == null) ...[
+                                  const SizedBox(width: 6),
+                                  buildChipAba(
+                                    _AbaNotificacao.convites,
+                                    'Convites',
+                                    convites.length + convitesColab.length,
+                                  ),
+                                  const SizedBox(width: 6),
+                                  buildChipAba(
+                                    _AbaNotificacao.mencoes,
+                                    'Menções',
+                                    mencoes.length,
+                                  ),
+                                  const SizedBox(width: 6),
+                                  buildChipAba(
+                                    _AbaNotificacao.atividade,
+                                    'Atividade',
+                                    atividades.length,
+                                  ),
+                                ],
                               ],
                             ),
                           ),
+                          const SizedBox(height: 10),
                           if (!vazio)
-                            IconButton(
-                              tooltip: 'Limpar todas as notificações',
-                              icon: Icon(
-                                Icons.clear_all_rounded,
-                                color: theme.buttonColor,
+                            Padding(
+                              padding: const EdgeInsets.only(bottom: 10),
+                              child: Center(
+                                child: OutlinedButton.icon(
+                                  style: OutlinedButton.styleFrom(
+                                    foregroundColor: theme.dangerColor,
+                                    side: BorderSide(
+                                      color: theme.dangerColor
+                                          .withValues(alpha: 0.5),
+                                    ),
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 14,
+                                      vertical: 6,
+                                    ),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(10),
+                                    ),
+                                  ),
+                                  icon: Icon(
+                                    Icons.clear_all_rounded,
+                                    size: 16,
+                                    color: theme.dangerColor,
+                                  ),
+                                  label: Text(
+                                    'Limpar todas as notificações',
+                                    style: theme.getTextStyle(
+                                      fontSize: 11.5,
+                                      fontWeight: FontWeight.bold,
+                                      color: theme.dangerColor,
+                                    ),
+                                  ),
+                                  onPressed: () async {
+                                    final ids = <String>[];
+                                    for (final c in convites) {
+                                      ids.add('convite_${c.id}');
+                                    }
+                                    for (final a in alertasEstoque) {
+                                      ids.add(
+                                        'alerta_estoque_${a.lojaId}_${a.item.id}',
+                                      );
+                                    }
+                                    for (final m in mensagens) {
+                                      ids.add('msg_${m.id}');
+                                    }
+                                    for (final s in sociais) {
+                                      ids.add('nsoc_${s.id}');
+                                      await TimelineRepositorioSqlite
+                                          .marcarNotificacaoSocialLida(s.id);
+                                    }
+                                    if (lojaId != null) {
+                                      notificacoes.dispensarNotificacoesLoja(
+                                        lojaId!,
+                                        ids,
+                                      );
+                                      ChatService.marcarMensagensDaLojaComoLidas(
+                                        lojaId!,
+                                        cpfUsuario,
+                                      );
+                                    } else {
+                                      notificacoes.dispensarTodasNaSessao(ids);
+                                      ChatService
+                                          .marcarMensagensDoUsuarioComoLidas(
+                                        cpfUsuario,
+                                        mensagens
+                                            .map((m) => m.conversaId)
+                                            .toList(),
+                                      );
+                                    }
+                                  },
+                                ),
                               ),
-                              onPressed: () {
-                                final ids = <String>[];
-                                for (final c in convites) {
-                                  ids.add('convite_${c.id}');
-                                }
-                                for (final a in alertasEstoque) {
-                                  ids.add(
-                                      'alerta_estoque_${a.lojaId}_${a.item.id}');
-                                }
-                                for (final m in mensagens) {
-                                  ids.add('msg_${m.id}');
-                                }
-                                if (lojaId != null) {
-                                  notificacoes.dispensarNotificacoesLoja(
-                                    lojaId!,
-                                    ids,
-                                  );
-                                  ChatService.marcarMensagensDaLojaComoLidas(
-                                    lojaId!,
-                                    cpfUsuario,
-                                  );
-                                } else {
-                                  notificacoes.dispensarTodasNaSessao(ids);
-                                  ChatService
-                                      .marcarMensagensDoUsuarioComoLidas(
-                                    cpfUsuario,
-                                    mensagens
-                                        .map((m) => m.conversaId)
-                                        .toList(),
-                                  );
-                                }
-                              },
+                            ),
+                          if (abaVazia)
+                            EstadoVazioContainer(
+                              theme: theme,
+                              mensagem: vazio
+                                  ? 'Nenhuma notificação no momento.'
+                                  : 'Nenhuma notificação nesta aba.',
                             )
                           else
-                            const SizedBox(width: 48),
-                        ],
-                      ),
-                      const SizedBox(height: 12),
-                      if (!vazio)
-                        Padding(
-                          padding: const EdgeInsets.only(bottom: 10),
-                          child: Center(
-                            child: OutlinedButton.icon(
-                              style: OutlinedButton.styleFrom(
-                                foregroundColor: theme.dangerColor,
-                                side: BorderSide(
-                                  color: theme.dangerColor.withValues(alpha: 0.5),
-                                ),
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 16,
-                                  vertical: 8,
-                                ),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(10),
-                                ),
-                              ),
-                              icon: Icon(
-                                Icons.clear_all_rounded,
-                                size: 18,
-                                color: theme.dangerColor,
-                              ),
-                              label: Text(
-                                'Limpar todas as notificações',
-                                style: theme.getTextStyle(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.bold,
-                                  color: theme.dangerColor,
-                                ),
-                              ),
-                              onPressed: () {
-                                final ids = <String>[];
-                                for (final c in convites) {
-                                  ids.add('convite_${c.id}');
-                                }
-                                for (final a in alertasEstoque) {
-                                  ids.add(
-                                      'alerta_estoque_${a.lojaId}_${a.item.id}');
-                                }
-                                for (final m in mensagens) {
-                                  ids.add('msg_${m.id}');
-                                }
-                                if (lojaId != null) {
-                                  notificacoes.dispensarNotificacoesLoja(
-                                    lojaId!,
-                                    ids,
-                                  );
-                                  ChatService.marcarMensagensDaLojaComoLidas(
-                                    lojaId!,
-                                    cpfUsuario,
-                                  );
-                                } else {
-                                  notificacoes.dispensarTodasNaSessao(ids);
-                                  ChatService
-                                      .marcarMensagensDoUsuarioComoLidas(
-                                    cpfUsuario,
-                                    mensagens
-                                        .map((m) => m.conversaId)
-                                        .toList(),
-                                  );
-                                }
-                              },
-                            ),
-                          ),
-                        ),
-                      if (vazio)
-                        EstadoVazioContainer(
-                          theme: theme,
-                          mensagem: 'Nenhuma notificação no momento.',
-                        )
-                      else
-                        Flexible(
-                          child: ConstrainedBox(
-                            constraints: const BoxConstraints(maxHeight: 450),
-                            child: ListView(
-                              shrinkWrap: true,
-                              children: [
-                                if (mensagens.isNotEmpty) ...[
+                            Flexible(
+                              child: ConstrainedBox(
+                                constraints:
+                                    const BoxConstraints(maxHeight: 450),
+                                child: ListView(
+                                  shrinkWrap: true,
+                                  children: [
+                                    if (listaConvitesColab.isNotEmpty) ...[
+                                      Padding(
+                                        padding: const EdgeInsets.only(
+                                          bottom: 8,
+                                          top: 4,
+                                        ),
+                                        child: Text(
+                                          'Convites de Participação (${listaConvitesColab.length})',
+                                          style: theme.getTextStyle(
+                                            fontSize: 12,
+                                            fontWeight: FontWeight.bold,
+                                            color: theme.textColor,
+                                          ),
+                                        ),
+                                      ),
+                                      for (final s in listaConvitesColab)
+                                        buildSocialDismissible(s),
+                                      const SizedBox(height: 6),
+                                    ],
+                                    if (listaMencoes.isNotEmpty) ...[
+                                      Padding(
+                                        padding: const EdgeInsets.only(
+                                          bottom: 8,
+                                          top: 4,
+                                        ),
+                                        child: Text(
+                                          'Menções @ (${listaMencoes.length})',
+                                          style: theme.getTextStyle(
+                                            fontSize: 12,
+                                            fontWeight: FontWeight.bold,
+                                            color: theme.textColor,
+                                          ),
+                                        ),
+                                      ),
+                                      for (final s in listaMencoes)
+                                        buildSocialDismissible(s),
+                                      const SizedBox(height: 6),
+                                    ],
+                                    if (listaAtividades.isNotEmpty) ...[
+                                      Padding(
+                                        padding: const EdgeInsets.only(
+                                          bottom: 8,
+                                          top: 4,
+                                        ),
+                                        child: Text(
+                                          'Atividade Social (${listaAtividades.length})',
+                                          style: theme.getTextStyle(
+                                            fontSize: 12,
+                                            fontWeight: FontWeight.bold,
+                                            color: theme.textColor,
+                                          ),
+                                        ),
+                                      ),
+                                      for (final s in listaAtividades)
+                                        buildSocialDismissible(s),
+                                      const SizedBox(height: 6),
+                                    ],
+                                    if (listaMsgs.isNotEmpty) ...[
                                   Padding(
                                     padding: const EdgeInsets.only(
                                         bottom: 8, top: 4),
@@ -435,11 +716,11 @@ class _NotificacoesConteudo extends StatelessWidget {
                                         Icon(
                                           Icons.chat_bubble_outline_rounded,
                                           size: 16,
-                                          color: theme.buttonColor,
+                                          color: theme.textColor,
                                         ),
                                         const SizedBox(width: 6),
                                         Text(
-                                          'Mensagens (${mensagens.length})',
+                                          'Mensagens (${listaMsgs.length})',
                                           style: theme.getTextStyle(
                                             fontSize: 12,
                                             fontWeight: FontWeight.bold,
@@ -449,7 +730,7 @@ class _NotificacoesConteudo extends StatelessWidget {
                                       ],
                                     ),
                                   ),
-                                  for (final msg in mensagens)
+                                  for (final msg in listaMsgs)
                                     Dismissible(
                                       key: ValueKey('msg_${msg.id}'),
                                       direction: DismissDirection.horizontal,
@@ -508,34 +789,34 @@ class _NotificacoesConteudo extends StatelessWidget {
                                         },
                                       ),
                                     ),
-                                  if (convites.isNotEmpty ||
-                                      alertasEstoque.isNotEmpty)
+                                  if (listaConvitesLoja.isNotEmpty ||
+                                      listaEstoque.isNotEmpty)
                                     const SizedBox(height: 8),
                                 ],
-                                if (alertasEstoque.isNotEmpty) ...[
+                                if (listaEstoque.isNotEmpty) ...[
                                   Padding(
                                     padding: const EdgeInsets.only(
                                         bottom: 8, top: 4),
                                     child: Row(
                                       children: [
-                                        const Icon(
+                                        Icon(
                                           Icons.inventory_2_outlined,
                                           size: 16,
-                                          color: Colors.redAccent,
+                                          color: theme.dangerColor,
                                         ),
                                         const SizedBox(width: 6),
                                         Text(
-                                          'Alertas de Estoque (${alertasEstoque.length})',
+                                          'Alertas de Estoque (${listaEstoque.length})',
                                           style: theme.getTextStyle(
                                             fontSize: 12,
                                             fontWeight: FontWeight.bold,
-                                            color: Colors.redAccent,
+                                            color: theme.dangerColor,
                                           ),
                                         ),
                                       ],
                                     ),
                                   ),
-                                  for (final alerta in alertasEstoque)
+                                  for (final alerta in listaEstoque)
                                     Dismissible(
                                       key: ValueKey(
                                         'alerta_estoque_${alerta.lojaId}_${alerta.item.id}',
@@ -563,122 +844,17 @@ class _NotificacoesConteudo extends StatelessWidget {
                                             Navigator.of(context).pop(alerta),
                                       ),
                                     ),
-                                  if (convites.isNotEmpty)
+                                  if (listaConvitesLoja.isNotEmpty)
                                     const SizedBox(height: 8),
                                 ],
-                                if (sociais.isNotEmpty) ...[
-                                  Padding(
-                                    padding: const EdgeInsets.only(bottom: 8),
-                                    child: Text(
-                                      'Atividade Social (${sociais.length})',
-                                      style: theme.getTextStyle(
-                                        fontSize: 12,
-                                        fontWeight: FontWeight.bold,
-                                        color: theme.textColor,
-                                      ),
-                                    ),
-                                  ),
-                                  for (final s in sociais)
-                                    Dismissible(
-                                      key: ValueKey('nsoc_${s.id}'),
-                                      direction: DismissDirection.horizontal,
-                                      background: _buildDismissibleFundo(),
-                                      secondaryBackground:
-                                          _buildDismissibleFundoSecundario(),
-                                      onDismissed: (_) async {
-                                        await TimelineRepositorioSqlite
-                                            .marcarNotificacaoSocialLida(s.id);
-                                        notificacoes.dispensarNaSessao(
-                                          'nsoc_${s.id}',
-                                        );
-                                      },
-                                      child: Card(
-                                        color: theme.backgroundColor
-                                            .withValues(alpha: 0.4),
-                                        margin:
-                                            const EdgeInsets.only(bottom: 8),
-                                        child: ListTile(
-                                          leading: Icon(
-                                            s.tipo ==
-                                                    TipoNotificacaoSocial.curtida
-                                                ? Icons.thumb_up_alt_rounded
-                                                : s.tipo ==
-                                                        TipoNotificacaoSocial
-                                                            .comentario
-                                                    ? Icons
-                                                        .chat_bubble_outline_rounded
-                                                    : s.tipo ==
-                                                            TipoNotificacaoSocial
-                                                                .novoSeguidor
-                                                        ? Icons
-                                                            .person_add_alt_1_rounded
-                                                        : Icons.alternate_email_rounded,
-                                            color: theme.buttonColor,
-                                            size: 20,
-                                          ),
-                                          title: Text(
-                                            s.resumo,
-                                            style: theme.getTextStyle(
-                                              fontSize: 12.5,
-                                              color: theme.textColor,
-                                            ),
-                                          ),
-                                          onTap: () async {
-                                            await TimelineRepositorioSqlite
-                                                .marcarNotificacaoSocialLida(
-                                              s.id,
-                                            );
-                                            notificacoes.dispensarNaSessao(
-                                              'nsoc_${s.id}',
-                                            );
-                                            if (!context.mounted) return;
-                                            if (s.publicacaoId.isNotEmpty) {
-                                              final pub =
-                                                  await TimelineRepositorioSqlite
-                                                      .buscarPublicacaoPorId(
-                                                s.publicacaoId,
-                                              );
-                                              if (pub != null &&
-                                                  context.mounted) {
-                                                await DialogDetalhesPublicacao
-                                                    .mostrar(
-                                                  context,
-                                                  theme: theme,
-                                                  publicacao: pub,
-                                                  usuarioLogado:
-                                                      auth.contaAtual,
-                                                );
-                                                return;
-                                              }
-                                            }
-                                            final alvo =
-                                                await ContasNousService
-                                                    .buscarPorCpf(s.autorCpf);
-                                            if (alvo != null &&
-                                                context.mounted) {
-                                              await Navigator.of(context).push(
-                                                MaterialPageRoute(
-                                                  builder: (_) =>
-                                                      PerfilSocialView(
-                                                    usuarioAlvo: alvo,
-                                                    mostrarBotaoVoltar: true,
-                                                  ),
-                                                ),
-                                              );
-                                            }
-                                          },
-                                        ),
-                                      ),
-                                    ),
-                                  const SizedBox(height: 8),
-                                ],
-                                if (convites.isNotEmpty) ...[
-                                  if (alertasEstoque.isNotEmpty ||
-                                      mensagens.isNotEmpty)
+                                if (listaConvitesLoja.isNotEmpty) ...[
+                                  if (listaEstoque.isNotEmpty ||
+                                      listaMsgs.isNotEmpty ||
+                                      listaConvitesColab.isNotEmpty)
                                     Padding(
                                       padding: const EdgeInsets.only(bottom: 8),
                                       child: Text(
-                                        'Convites e Solicitações (${convites.length})',
+                                        'Convites e Solicitações (${listaConvitesLoja.length})',
                                         style: theme.getTextStyle(
                                           fontSize: 12,
                                           fontWeight: FontWeight.bold,
@@ -686,7 +862,7 @@ class _NotificacoesConteudo extends StatelessWidget {
                                         ),
                                       ),
                                     ),
-                                  for (final convite in convites)
+                                  for (final convite in listaConvitesLoja)
                                     Dismissible(
                                       key: ValueKey('convite_${convite.id}'),
                                       direction: DismissDirection.horizontal,
@@ -724,6 +900,8 @@ class _NotificacoesConteudo extends StatelessWidget {
                   ),
                 ),
               ),
+            );
+              },
             );
           },
         );
