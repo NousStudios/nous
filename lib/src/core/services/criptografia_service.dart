@@ -17,6 +17,13 @@ class CriptografiaService {
   static final Map<String, SimpleKeyPairData> _cacheChaveTrocaLocal = {};
   static final Map<String, SecretKey> _cacheSegredoCompartilhado = {};
 
+  static void _invalidarCachesDoCpf(String cpfLimpo) {
+    _cacheChaveTrocaLocal.remove(cpfLimpo);
+    _cacheSegredoCompartilhado.removeWhere(
+      (chave, _) => chave.startsWith('$cpfLimpo:'),
+    );
+  }
+
   /// Prefixo identificador de mensagens cifradas de ponta a ponta
   static const String prefixoE2ee = 'e2ee:v1:';
 
@@ -482,6 +489,7 @@ class CriptografiaService {
         );
       }
 
+      _invalidarCachesDoCpf(cpf);
       debugPrint('[CriptografiaService] Cofre de chaves importado com sucesso para CPF $cpf');
       return true;
     } catch (e) {
@@ -552,6 +560,7 @@ class CriptografiaService {
         );
       }
 
+      _invalidarCachesDoCpf(cpf);
       return true;
     } catch (e) {
       debugPrint('[CriptografiaService] Erro ao importar chaves do CPF: $e');

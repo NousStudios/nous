@@ -24,6 +24,14 @@ class CabecalhoConversaAtivaWidget extends StatelessWidget {
   final void Function(ConversaChat) onAbrirDetalhes;
   final VoidCallback onAlternarPesquisa;
   final bool pesquisaAtiva;
+  final int quantidadeSelecionadas;
+  final bool podeEditarSelecionada;
+  final VoidCallback? onLimparSelecao;
+  final VoidCallback? onResponderSelecionada;
+  final VoidCallback? onEditarSelecionada;
+  final VoidCallback? onCopiarSelecionada;
+  final VoidCallback? onEncaminharSelecionada;
+  final VoidCallback? onExcluirSelecionada;
 
   const CabecalhoConversaAtivaWidget({
     super.key,
@@ -34,6 +42,14 @@ class CabecalhoConversaAtivaWidget extends StatelessWidget {
     required this.onAbrirDetalhes,
     required this.onAlternarPesquisa,
     this.pesquisaAtiva = false,
+    this.quantidadeSelecionadas = 0,
+    this.podeEditarSelecionada = false,
+    this.onLimparSelecao,
+    this.onResponderSelecionada,
+    this.onEditarSelecionada,
+    this.onCopiarSelecionada,
+    this.onEncaminharSelecionada,
+    this.onExcluirSelecionada,
   });
 
   void _iniciarChamada(BuildContext context, ConversaChat conversa, TipoChamada tipo) async {
@@ -139,7 +155,88 @@ class CabecalhoConversaAtivaWidget extends StatelessWidget {
           ),
         ),
       ),
-      child: Row(
+      child: quantidadeSelecionadas > 0
+          ? Row(
+              children: [
+                IconButton(
+                  icon: Icon(
+                    Icons.arrow_back_rounded,
+                    size: 20,
+                    color: theme.textColor,
+                  ),
+                  tooltip: 'Cancelar seleção',
+                  onPressed: onLimparSelecao,
+                ),
+                const SizedBox(width: 4),
+                Expanded(
+                  child: Text(
+                    quantidadeSelecionadas == 1
+                        ? '1 selecionada'
+                        : '$quantidadeSelecionadas selecionadas',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.getTextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: theme.textColor,
+                    ),
+                  ),
+                ),
+                if (quantidadeSelecionadas == 1 && onResponderSelecionada != null)
+                  IconButton(
+                    icon: Icon(
+                      Icons.reply_rounded,
+                      size: 20,
+                      color: theme.textColor,
+                    ),
+                    tooltip: 'Responder',
+                    onPressed: onResponderSelecionada,
+                  ),
+                if (quantidadeSelecionadas == 1 &&
+                    podeEditarSelecionada &&
+                    onEditarSelecionada != null)
+                  IconButton(
+                    icon: Icon(
+                      Icons.edit_outlined,
+                      size: 20,
+                      color: theme.textColor,
+                    ),
+                    tooltip: 'Editar',
+                    onPressed: onEditarSelecionada,
+                  ),
+                if (onCopiarSelecionada != null)
+                  IconButton(
+                    icon: Icon(
+                      Icons.copy_rounded,
+                      size: 19,
+                      color: theme.textColor,
+                    ),
+                    tooltip: 'Copiar',
+                    onPressed: onCopiarSelecionada,
+                  ),
+                if (onEncaminharSelecionada != null)
+                  IconButton(
+                    icon: Icon(
+                      Icons.forward_rounded,
+                      size: 20,
+                      color: theme.textColor,
+                    ),
+                    tooltip: 'Encaminhar',
+                    onPressed: onEncaminharSelecionada,
+                  ),
+                if (onExcluirSelecionada != null)
+                  IconButton(
+                    icon: Icon(
+                      Icons.delete_outline_rounded,
+                      size: 20,
+                      color: theme.dangerColor,
+                    ),
+                    tooltip: 'Excluir',
+                    onPressed: onExcluirSelecionada,
+                  ),
+              ],
+            )
+          : Row(
         children: [
           if (!desktop)
             IconButton(

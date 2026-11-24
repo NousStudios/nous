@@ -255,17 +255,28 @@ class BolhaMensagemGestao extends StatelessWidget {
     );
   }
 
+  static final Set<String> _downloadsEmVoo = {};
+
   Widget _buildImagemAnexo(BuildContext context, String caminho) {
     final resolvido = ImagemService.resolverCaminhoExistente(caminho) ?? caminho;
     final file = File(resolvido);
+    final existe = file.existsSync();
 
-    if (!file.existsSync() && caminho.isNotEmpty && ClienteRedeLocal().conectado) {
+    if (!existe &&
+        caminho.isNotEmpty &&
+        ClienteRedeLocal().conectado &&
+        !_downloadsEmVoo.contains(caminho)) {
+      _downloadsEmVoo.add(caminho);
       ClienteRedeLocal().baixarImagemRemota(caminho).then((baixado) {
-        if (baixado.isNotEmpty) onAtualizarChat?.call();
-      });
+        if (baixado.isNotEmpty &&
+            baixado != caminho &&
+            File(baixado).existsSync()) {
+          onAtualizarChat?.call();
+        }
+      }).whenComplete(() => _downloadsEmVoo.remove(caminho));
     }
 
-    if (file.existsSync()) {
+    if (existe) {
       return GestureDetector(
         onTap: () => VisualizadorImagemChatDialog.abrir(
           context,

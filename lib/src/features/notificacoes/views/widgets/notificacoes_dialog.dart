@@ -163,9 +163,47 @@ class NotificacoesDialog {
   }
 }
 
-class _NotificacoesConteudo extends StatelessWidget {
+class _NotificacoesConteudo extends StatefulWidget {
   final String? lojaId;
   const _NotificacoesConteudo({this.lojaId});
+
+  @override
+  State<_NotificacoesConteudo> createState() => _NotificacoesConteudoState();
+}
+
+class _NotificacoesConteudoState extends State<_NotificacoesConteudo> {
+  String? get lojaId => widget.lojaId;
+  Future<({List<MensagemChat> msgs, List<NotificacaoSocial> sociais})>?
+      _futuroDados;
+  String _chaveCache = '';
+  _AbaNotificacao _abaSelecionada = _AbaNotificacao.tudo;
+
+  Future<({List<MensagemChat> msgs, List<NotificacaoSocial> sociais})>
+      _obterFuturo(String cpfUsuario) {
+    final chave = '${lojaId ?? ""}|$cpfUsuario';
+    if (_futuroDados != null && _chaveCache == chave) {
+      return _futuroDados!;
+    }
+    _chaveCache = chave;
+    _futuroDados = () async {
+      final msgsFuture = (lojaId != null)
+          ? ChatService.obterMensagensNaoLidasDaLoja(lojaId!)
+          : (cpfUsuario.isNotEmpty
+              ? ChatService.obterMensagensNaoLidasDoUsuario(cpfUsuario)
+              : Future.value(const <MensagemChat>[]));
+      final sociaisFuture = (lojaId == null && cpfUsuario.isNotEmpty)
+          ? TimelineRepositorioSqlite.listarNotificacoesSociaisDoUsuario(
+              cpfUsuario,
+            )
+          : Future.value(const <NotificacaoSocial>[]);
+      final res = await Future.wait([msgsFuture, sociaisFuture]);
+      return (
+        msgs: res[0] as List<MensagemChat>,
+        sociais: res[1] as List<NotificacaoSocial>,
+      );
+    }();
+    return _futuroDados!;
+  }
 
   Widget _buildDismissibleFundo() {
     return Container(
@@ -223,23 +261,7 @@ class _NotificacoesConteudo extends StatelessWidget {
             .toList();
 
     return FutureBuilder<({List<MensagemChat> msgs, List<NotificacaoSocial> sociais})>(
-      future: () async {
-        final msgsFuture = (lojaId != null)
-            ? ChatService.obterMensagensNaoLidasDaLoja(lojaId!)
-            : (cpfUsuario.isNotEmpty
-                ? ChatService.obterMensagensNaoLidasDoUsuario(cpfUsuario)
-                : Future.value(const <MensagemChat>[]));
-        final sociaisFuture = (lojaId == null && cpfUsuario.isNotEmpty)
-            ? TimelineRepositorioSqlite.listarNotificacoesSociaisDoUsuario(
-                cpfUsuario,
-              )
-            : Future.value(const <NotificacaoSocial>[]);
-        final res = await Future.wait([msgsFuture, sociaisFuture]);
-        return (
-          msgs: res[0] as List<MensagemChat>,
-          sociais: res[1] as List<NotificacaoSocial>,
-        );
-      }(),
+      future: _obterFuturo(cpfUsuario),
       builder: (context, snapshotMsgs) {
         final todasMensagens = snapshotMsgs.data?.msgs ?? const <MensagemChat>[];
         final mensagens = todasMensagens
@@ -258,7 +280,7 @@ class _NotificacoesConteudo extends StatelessWidget {
         return ValueListenableBuilder<AppTheme>(
           valueListenable: ThemeController.currentTheme,
           builder: (context, theme, child) {
-            var abaSelecionada = _AbaNotificacao.tudo;
+            final abaSelecionada = _abaSelecionada;
             final convitesColab = sociais
                 .where((s) =>
                     s.tipo == TipoNotificacaoSocial.conviteColaboracao)
@@ -320,7 +342,7 @@ class _NotificacoesConteudo extends StatelessWidget {
                   final ativa = abaSelecionada == aba;
                   return InkWell(
                     borderRadius: BorderRadius.circular(20),
-                    onTap: () => setDialogState(() => abaSelecionada = aba),
+                    onTap: () => setState(() => _abaSelecionada = aba),
                     child: Container(
                       padding: const EdgeInsets.symmetric(
                         horizontal: 12,

@@ -12,6 +12,7 @@ class ChatRepositorioSqlite {
   ChatRepositorioSqlite._();
 
   static bool _tabelasCriadas = false;
+  static Future<void>? _inicializacaoEmVoo;
 
   static String normalizarCpf(String cpf) {
     return cpf.replaceAll(RegExp(r'\D'), '');
@@ -38,7 +39,17 @@ class ChatRepositorioSqlite {
 
   static Future<Database> obterDb() async {
     final db = await BancoDadosService.db;
-    if (!_tabelasCriadas) {
+    if (_tabelasCriadas) return db;
+    _inicializacaoEmVoo ??= _garantirTabelas(db).whenComplete(() {
+      _inicializacaoEmVoo = null;
+    });
+    await _inicializacaoEmVoo;
+    return db;
+  }
+
+  static Future<void> _garantirTabelas(Database db) async {
+    if (_tabelasCriadas) return;
+    if (true) {
       await db.execute('''
         CREATE TABLE IF NOT EXISTS mensagens_chat (
           id TEXT PRIMARY KEY,
@@ -65,7 +76,10 @@ class ChatRepositorioSqlite {
           favorita INTEGER DEFAULT 0,
           fixada INTEGER DEFAULT 0,
           reacoes_json TEXT DEFAULT '{}',
-          assinatura TEXT DEFAULT ''
+          assinatura TEXT DEFAULT '',
+          resposta_a_id TEXT DEFAULT '',
+          resposta_a_texto TEXT DEFAULT '',
+          resposta_a_autor TEXT DEFAULT ''
         );
       ''');
 
@@ -84,6 +98,9 @@ class ChatRepositorioSqlite {
         'ALTER TABLE mensagens_chat ADD COLUMN fixada INTEGER DEFAULT 0;',
         'ALTER TABLE mensagens_chat ADD COLUMN reacoes_json TEXT DEFAULT "{}";',
         'ALTER TABLE mensagens_chat ADD COLUMN assinatura TEXT DEFAULT "";',
+        'ALTER TABLE mensagens_chat ADD COLUMN resposta_a_id TEXT DEFAULT "";',
+        'ALTER TABLE mensagens_chat ADD COLUMN resposta_a_texto TEXT DEFAULT "";',
+        'ALTER TABLE mensagens_chat ADD COLUMN resposta_a_autor TEXT DEFAULT "";',
       ];
       for (final sql in alteracoesMensagens) {
         try {
@@ -174,7 +191,6 @@ class ChatRepositorioSqlite {
       _tabelasCriadas = true;
       unawaited(_migrarHistoricoExistenteParaConversas(db));
     }
-    return db;
   }
 
   static Future<void> _migrarHistoricoExistenteParaConversas(Database db) async {
@@ -413,6 +429,9 @@ class ChatRepositorioSqlite {
           return const <String, String>{};
         }(),
         assinatura: r['assinatura'] as String? ?? '',
+        respostaAId: r['resposta_a_id'] as String? ?? '',
+        respostaATexto: r['resposta_a_texto'] as String? ?? '',
+        respostaAAutor: r['resposta_a_autor'] as String? ?? '',
       );
     }).toList();
 

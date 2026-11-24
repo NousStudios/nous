@@ -83,6 +83,14 @@ class MensageriaController extends ChangeNotifier {
     return usuarioCpf ?? 'usuario';
   }
 
+  MensagemChat? _mensagemRespondendo;
+  MensagemChat? get mensagemRespondendo => _mensagemRespondendo;
+
+  void definirMensagemRespondendo(MensagemChat? msg) {
+    _mensagemRespondendo = msg;
+    notifyListeners();
+  }
+
   void configurar({
     required bool modoLoja,
     String? lojaId,
@@ -522,6 +530,9 @@ class MensageriaController extends ChangeNotifier {
   }
 
   void selecionarConversa(ConversaChat? c) {
+    if (_conversaSelecionada?.id != c?.id) {
+      _mensagemRespondendo = null;
+    }
     if (c == null) {
       _conversaSelecionada = null;
       ChatService.idConversaAtiva = null;
@@ -703,7 +714,7 @@ class MensageriaController extends ChangeNotifier {
     if (texto.trim().isEmpty && tipo == 'texto') return;
     if (_conversaSelecionada == null) return;
 
-    final novaMensagem = MensageriaMensagemHelper.criarNovaMensagem(
+    final conversaBase = MensageriaMensagemHelper.criarNovaMensagem(
       conversa: _conversaSelecionada!,
       texto: texto,
       tipo: tipo,
@@ -723,6 +734,25 @@ class MensageriaController extends ChangeNotifier {
       usuarioFoto: usuarioFoto,
       auth: auth,
     );
+    final resp = _mensagemRespondendo;
+    _mensagemRespondendo = null;
+    final novaMensagem = resp == null
+        ? conversaBase
+        : conversaBase.copyWith(
+            respostaAId: resp.id,
+            respostaATexto: resp.texto.trim().isNotEmpty
+                ? resp.texto.trim()
+                : (resp.tipo == 'audio'
+                      ? 'Áudio'
+                      : (resp.tipo == 'imagem'
+                            ? 'Foto'
+                            : (resp.nomeAnexo.isNotEmpty
+                                  ? resp.nomeAnexo
+                                  : 'Mídia'))),
+            respostaAAutor: resp.remetenteNome.isNotEmpty
+                ? resp.remetenteNome
+                : (resp.enviadaPorMim ? 'Você' : 'Contato'),
+          );
 
     final resumo = resumoMensagem(novaMensagem);
     _conversaSelecionada = MensageriaMensagemHelper.integrarNovaMensagemNaConversa(

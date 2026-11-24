@@ -39,6 +39,8 @@ class ClienteWsContext {
   final Future<void> Function() sincronizarPerfisLojasComServidor;
   final void Function(Map<String, dynamic>) processarSinalChamada;
   final Future<String> Function(String) baixarImagemRemota;
+  final Future<List<PedidoLoja>> Function(String lojaId, List<String> ids)
+      reconciliarPedidosNoServidor;
 
   const ClienteWsContext({
     required this.pdvProvider,
@@ -54,6 +56,7 @@ class ClienteWsContext {
     required this.sincronizarPerfisLojasComServidor,
     required this.processarSinalChamada,
     required this.baixarImagemRemota,
+    required this.reconciliarPedidosNoServidor,
   });
 }
 
@@ -312,23 +315,58 @@ class ClienteWsMessageHandler {
 
         if (lojaLocalExistente != null &&
             dados['tipo'] == 'dados_iniciais') {
-          final servidorTinhaMenosPedidos = lojaLocalExistente.pedidosLoja.any(
-            (pLoc) =>
-                pLoc.status != StatusPedido.concluido &&
-                pLoc.status != StatusPedido.cancelado &&
-                !lojaBruta.pedidosLoja.any((pRem) => pRem.id == pLoc.id),
-          );
+          final pedidosAtivosAusentesNoSnapshot = lojaLocalExistente.pedidosLoja
+              .where(
+                (pLoc) =>
+                    pLoc.status != StatusPedido.concluido &&
+                    pLoc.status != StatusPedido.cancelado &&
+                    !lojaBruta.pedidosLoja.any((pRem) => pRem.id == pLoc.id),
+              )
+              .toList();
+
+          var enviarParaCura = false;
+          if (pedidosAtivosAusentesNoSnapshot.isNotEmpty) {
+            final idsAusentes =
+                pedidosAtivosAusentesNoSnapshot.map((p) => p.id).toList();
+            final reconciliados = await ctx.reconciliarPedidosNoServidor(
+              lojaConsolidada.id,
+              idsAusentes,
+            );
+
+            if (reconciliados.isNotEmpty && ctx.pdvProvider != null) {
+              final lojaAtualizada =
+                  ctx.pdvProvider!.buscarPorId(lojaConsolidada.id) ??
+                      lojaConsolidada;
+              final mapaReconciliados = {
+                for (final p in reconciliados) p.id: p,
+              };
+              final novaLista = lojaAtualizada.pedidosLoja
+                  .map((p) => mapaReconciliados[p.id] ?? p)
+                  .toList();
+              ctx.pdvProvider!.atualizarListasLoja(
+                lojaAtualizada.id,
+                pedidos: novaLista,
+              );
+            }
+
+            final idsEncontrados = reconciliados.map((p) => p.id).toSet();
+            enviarParaCura = idsAusentes.any((id) => !idsEncontrados.contains(id));
+          }
+
           final servidorTinhaMenosTurnos = lojaLocalExistente.turnosCaixa.any(
             (tLoc) =>
                 tLoc.status.name == 'aberto' &&
                 !lojaBruta.turnosCaixa.any((tRem) => tRem.id == tLoc.id),
           );
 
-          if (servidorTinhaMenosPedidos || servidorTinhaMenosTurnos) {
+          if (enviarParaCura || servidorTinhaMenosTurnos) {
             debugPrint(
               '[ClienteRedeLocal] Novidades operacionais ativas detectadas neste aparelho. Transmitindo ao balcão para cura mútua...',
             );
-            unawaited(ctx.enviarLojaCuradaParaServidor(lojaConsolidada));
+            final lojaFinal =
+                ctx.pdvProvider?.buscarPorId(lojaConsolidada.id) ??
+                    lojaConsolidada;
+            unawaited(ctx.enviarLojaCuradaParaServidor(lojaFinal));
           }
         }
       } finally {

@@ -17,6 +17,7 @@ import 'package:nous/src/features/timeline/services/outbox_midia_service.dart';
 import 'package:nous/src/features/timeline/services/timeline_service.dart';
 import 'package:nous/src/features/timeline/views/dialogs/dialog_stories.dart';
 import 'package:nous/src/features/timeline/views/widgets/avatar_com_story_widget.dart';
+import 'package:nous/src/features/timeline/views/widgets/camera_criacao_view.dart';
 import 'package:nous/src/features/timeline/views/widgets/card_escrito_widget.dart';
 import 'package:nous/src/features/timeline/views/widgets/card_publicacao_completo_widget.dart';
 
@@ -551,10 +552,16 @@ class _FeedDescobertaViewState extends State<FeedDescobertaView> {
                                         padding:
                                             const EdgeInsets.only(right: 10),
                                         child: GestureDetector(
-                                          onTap: () => DialogCriarStory.mostrar(
-                                            context,
-                                            theme: theme,
-                                            autor: auth.contaAtual!,
+                                          onTap: () => Navigator.of(context).push(
+                                            MaterialPageRoute(
+                                              builder: (ctx) => CameraCriacaoView(
+                                                theme: theme,
+                                                autor: auth.contaAtual!,
+                                                ativa: true,
+                                                onVoltarPerfil: () =>
+                                                    Navigator.of(ctx).pop(),
+                                              ),
+                                            ),
                                           ),
                                           child: Column(
                                             children: [

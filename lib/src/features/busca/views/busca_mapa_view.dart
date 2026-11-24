@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -6,7 +7,6 @@ import 'package:nous/src/core/services/guarda_acao_ui.dart';
 import 'package:nous/src/core/theme/theme_controller.dart';
 import 'package:nous/src/core/widgets/custom_app_bar.dart';
 import 'package:nous/src/core/widgets/floating_bottom_nav_bar.dart';
-import 'package:nous/src/core/widgets/texto_rolante.dart';
 import 'package:nous/src/features/auth/models/usuario_nous.dart';
 import 'package:nous/src/features/auth/providers/auth_provider.dart';
 import 'package:nous/src/features/auth/services/contas_nous_service.dart';
@@ -41,6 +41,8 @@ class _BuscaMapaViewState extends State<BuscaMapaView> {
   List<UsuarioNous> _todosUsuarios = [];
   List<PublicacaoSocial> _todasPublicacoes = [];
   bool _carregando = true;
+  bool _carregandoEmAndamento = false;
+  Timer? _debounceRede;
 
   @override
   void initState() {
@@ -51,11 +53,16 @@ class _BuscaMapaViewState extends State<BuscaMapaView> {
   }
 
   void _aoMudarRede() {
-    if (mounted) _carregarDados();
+    if (!mounted) return;
+    _debounceRede?.cancel();
+    _debounceRede = Timer(const Duration(milliseconds: 280), () {
+      if (mounted) _carregarDados();
+    });
   }
 
   @override
   void dispose() {
+    _debounceRede?.cancel();
     ClienteRedeLocal().presencasAtivas.removeListener(_aoMudarRede);
     ClienteRedeLocal().estaConectado.removeListener(_aoMudarRede);
     _buscaController.dispose();
@@ -63,21 +70,27 @@ class _BuscaMapaViewState extends State<BuscaMapaView> {
   }
 
   Future<void> _carregarDados() async {
-    final contas = await ContasNousService.carregarTodas();
-    final pubs = await TimelineService.listarPublicacoesDescoberta(limit: 80);
-    final usuarios = contas.where((u) {
-      final cpfLimpo = u.cpf.replaceAll(RegExp(r'\D'), '');
-      return cpfLimpo.length == 11 &&
-          u.nome.trim().toLowerCase() != 'blackview' &&
-          u.nome.trim().toLowerCase() != 'celular';
-    }).toList();
+    if (_carregandoEmAndamento) return;
+    _carregandoEmAndamento = true;
+    try {
+      final contas = await ContasNousService.carregarTodas();
+      final pubs = await TimelineService.listarPublicacoesDescoberta(limit: 80);
+      final usuarios = contas.where((u) {
+        final cpfLimpo = u.cpf.replaceAll(RegExp(r'\D'), '');
+        return cpfLimpo.length == 11 &&
+            u.nome.trim().toLowerCase() != 'blackview' &&
+            u.nome.trim().toLowerCase() != 'celular';
+      }).toList();
 
-    if (mounted) {
-      setState(() {
-        _todosUsuarios = usuarios;
-        _todasPublicacoes = pubs;
-        _carregando = false;
-      });
+      if (mounted) {
+        setState(() {
+          _todosUsuarios = usuarios;
+          _todasPublicacoes = pubs;
+          _carregando = false;
+        });
+      }
+    } finally {
+      _carregandoEmAndamento = false;
     }
   }
 
@@ -620,8 +633,10 @@ class _BuscaMapaViewState extends State<BuscaMapaView> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                TextoRolante(
-                  texto: loja.nome,
+                Text(
+                  loja.nome,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                   style: theme.getTextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.bold,

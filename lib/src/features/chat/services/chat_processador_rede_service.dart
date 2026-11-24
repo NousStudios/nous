@@ -39,6 +39,55 @@ class ChatProcessadorRedeService {
       if (tipoEvento == 'mensagem_entregue' || tipoEvento == 'mensagens_lidas') {
         return;
       }
+      if (tipoEvento == 'grupo_criado') {
+        final grupoMap = payloadMensagem['grupo'] as Map<String, dynamic>?;
+        final gid = (grupoMap?['id'] as String? ?? '').trim();
+        if (gid.isNotEmpty) {
+          final db = await ChatRepositorioSqlite.obterDb();
+          await ChatRepositorioSqlite.desmarcarConversaExcluida(gid);
+          final titulo = (grupoMap?['titulo'] as String? ??
+                  grupoMap?['nomeGrupo'] as String? ??
+                  'Grupo')
+              .trim();
+          final parts = grupoMap?['participantesJson'] as String? ??
+              jsonEncode(grupoMap?['participantes'] ?? const []);
+          await db.insert('conversas_chat', {
+            'id': gid,
+            'titulo': titulo,
+            'nome_grupo': titulo,
+            'subtitulo': 'Grupo • $titulo',
+            if ((grupoMap?['foto'] as String? ?? '').isNotEmpty)
+              'foto': grupoMap?['foto'],
+            'identificador': gid,
+            'eh_loja': 0,
+            'eh_grupo': 1,
+            'participantes_json': parts,
+            'criado_em': DateTime.now().toIso8601String(),
+          }, conflictAlgorithm: ConflictAlgorithm.ignore);
+          aoNotificar();
+        }
+        return;
+      }
+      if (tipoEvento == 'grupo_atualizado') {
+        final gid = (payloadMensagem['grupoId'] as String? ?? '').trim();
+        final foto = (payloadMensagem['foto'] as String? ?? '').trim();
+        final nome = (payloadMensagem['nome'] as String? ?? '').trim();
+        if (gid.isNotEmpty) {
+          final db = await ChatRepositorioSqlite.obterDb();
+          await db.update(
+            'conversas_chat',
+            {
+              if (foto.isNotEmpty) 'foto': foto,
+              if (nome.isNotEmpty) 'titulo': nome,
+              if (nome.isNotEmpty) 'nome_grupo': nome,
+            },
+            where: 'id = ?',
+            whereArgs: [gid],
+          );
+          aoNotificar();
+        }
+        return;
+      }
       final msgIdBruto = payloadMensagem['id'] as String? ?? '';
       if (msgIdBruto.trim().isEmpty) {
         return;
@@ -138,7 +187,9 @@ class ChatProcessadorRedeService {
             payloadMensagem['grupoTitulo'] as String? ??
             'Grupo';
         final gFoto = payloadMensagem['grupoFoto'] as String?;
-        final gParts = payloadMensagem['participantesJson'] as String?;
+        final gParts = (payloadMensagem['grupoParticipantesJson'] ??
+                payloadMensagem['participantesJson'])
+            as String?;
 
         final existeGrupo = await db.query(
           'conversas_chat',

@@ -61,6 +61,8 @@ class PlayerAudioService {
   static final PlayerAudioService instancia = PlayerAudioService._();
 
   final AudioPlayer _player = AudioPlayer();
+  bool _paradaExplicita = false;
+  int _sequenciaTocar = 0;
 
   final ValueNotifier<DadosPlayerAudio> estadoNotifier =
       ValueNotifier<DadosPlayerAudio>(const DadosPlayerAudio());
@@ -108,8 +110,13 @@ class PlayerAudioService {
           }
           break;
         case PlayerState.stopped:
+          estadoNotifier.value = estadoAtual.copyWith(
+            estado: EstadoPlayerAudio.parado,
+            posicao: Duration.zero,
+          );
+          break;
         case PlayerState.completed:
-          if (estadoAtual.loop) {
+          if (estadoAtual.loop && !_paradaExplicita) {
             _player.seek(Duration.zero);
             _player.resume();
           } else {
@@ -138,6 +145,8 @@ class PlayerAudioService {
   }
 
   Future<void> tocar(String caminho) async {
+    final seq = ++_sequenciaTocar;
+    _paradaExplicita = false;
     var caminhoFinal = caminho;
     var arquivo = File(caminhoFinal);
     if (!arquivo.existsSync()) {
@@ -150,7 +159,7 @@ class PlayerAudioService {
         arquivo = File(caminhoFinal);
       }
     }
-    if (!arquivo.existsSync()) return;
+    if (!arquivo.existsSync() || seq != _sequenciaTocar) return;
 
     final metadados = MetadadosAudioService.extrair(caminhoFinal);
 
@@ -209,6 +218,8 @@ class PlayerAudioService {
   }
 
   Future<void> parar() async {
+    _paradaExplicita = true;
+    _sequenciaTocar++;
     try {
       await _player.stop();
     } catch (_) {}

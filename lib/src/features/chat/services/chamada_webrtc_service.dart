@@ -49,6 +49,7 @@ class ChamadaWebRtcService {
   bool _ehChamadorLocal = false;
   bool _foiConectada = false;
   bool _foiRejeitada = false;
+  bool _encerrando = false;
 
   // Callback acionado pela interface quando uma chamada for recebida
   void Function(ChamadaSessao sessao)? onChamadaRecebida;
@@ -366,79 +367,90 @@ class ChamadaWebRtcService {
 
   /// Encerra a chamada ativa e limpa recursos de hardware
   Future<void> encerrarChamada({bool notificarRede = true}) async {
-    final sessao = sessaoAtiva.value;
-    final duracaoFinal = segundosChamada.value;
-    final conectadaFinal = _foiConectada;
-    final rejeitadaFinal = _foiRejeitada;
-    final ehChamadorFinal = _ehChamadorLocal;
-
-    _cancelarTimeoutChamada();
-    _timerDuracao?.cancel();
-    _timerDuracao = null;
-    _timerReconexao?.cancel();
-    _timerReconexao = null;
-    unawaited(ChamadaSomService.instancia.pararToque());
-
-    if (sessao != null && notificarRede) {
-      _enviarSinalizacao({
-        'tipo': 'chamada_encerrada',
-        'chamadaId': sessao.id,
-      });
-    }
-
+    if (_encerrando) return;
+    _encerrando = true;
     try {
-      _streamTela?.getTracks().forEach((track) {
-        track.stop();
-      });
-      await _streamTela?.dispose();
-      _streamTela = null;
-    } catch (_) {}
+      final sessao = sessaoAtiva.value;
+      final duracaoFinal = segundosChamada.value;
+      final conectadaFinal = _foiConectada;
+      final rejeitadaFinal = _foiRejeitada;
+      final ehChamadorFinal = _ehChamadorLocal;
 
-    try {
-      _streamLocal?.getTracks().forEach((track) {
-        track.stop();
-      });
-      await _streamLocal?.dispose();
-      _streamLocal = null;
-    } catch (_) {}
-
-    try {
-      await _peerConnection?.close();
+      // Limpa referências reativas e _peerConnection antes dos awaits
+      // para evitar reentrância quando close() disparar onConnectionState.
+      sessaoAtiva.value = null;
+      final pc = _peerConnection;
       _peerConnection = null;
-    } catch (_) {}
+      final streamTela = _streamTela;
+      _streamTela = null;
+      final streamLocal = _streamLocal;
+      _streamLocal = null;
 
-    _videoSender = null;
-    compartilhandoTela = false;
-    await ChamadaTelaHelper.pararServicoAndroid();
-    await ChamadaTelaHelper.pararServicoChamadaAndroid();
-    videoRemotoAtivo.value = false;
-    telaRemotaAtiva.value = false;
-    chamadaMinimizada.value = false;
-    segundosChamada.value = 0;
-    statusConexao.value = 'normal';
-    _foiConectada = false;
-    _foiRejeitada = false;
-    _ehChamadorLocal = false;
-    renderizadorLocal.srcObject = null;
-    renderizadorRemoto.srcObject = null;
-    _streamRemoto = null;
+      _cancelarTimeoutChamada();
+      _timerDuracao?.cancel();
+      _timerDuracao = null;
+      _timerReconexao?.cancel();
+      _timerReconexao = null;
+      unawaited(ChamadaSomService.instancia.pararToque());
 
-    sessaoAtiva.value = null;
+      if (sessao != null && notificarRede) {
+        _enviarSinalizacao({
+          'tipo': 'chamada_encerrada',
+          'chamadaId': sessao.id,
+        });
+      }
 
-    if (sessao != null) {
-      unawaited(
-        ChamadaHistoricoService.registrarEncerramento(
-          sessao: sessao,
-          foiConectada: conectadaFinal,
-          duracaoSegundos: duracaoFinal,
-          rejeitada: rejeitadaFinal,
-          ehChamadorLocal: ehChamadorFinal,
-        ),
-      );
-    }
+      try {
+        streamTela?.getTracks().forEach((track) {
+          track.stop();
+        });
+        await streamTela?.dispose();
+      } catch (_) {}
 
-    if (onChamadaEncerrada != null) {
-      onChamadaEncerrada!();
+      try {
+        streamLocal?.getTracks().forEach((track) {
+          track.stop();
+        });
+        await streamLocal?.dispose();
+      } catch (_) {}
+
+      try {
+        await pc?.close();
+      } catch (_) {}
+
+      _videoSender = null;
+      compartilhandoTela = false;
+      await ChamadaTelaHelper.pararServicoAndroid();
+      await ChamadaTelaHelper.pararServicoChamadaAndroid();
+      videoRemotoAtivo.value = false;
+      telaRemotaAtiva.value = false;
+      chamadaMinimizada.value = false;
+      segundosChamada.value = 0;
+      statusConexao.value = 'normal';
+      _foiConectada = false;
+      _foiRejeitada = false;
+      _ehChamadorLocal = false;
+      renderizadorLocal.srcObject = null;
+      renderizadorRemoto.srcObject = null;
+      _streamRemoto = null;
+
+      if (sessao != null) {
+        unawaited(
+          ChamadaHistoricoService.registrarEncerramento(
+            sessao: sessao,
+            foiConectada: conectadaFinal,
+            duracaoSegundos: duracaoFinal,
+            rejeitada: rejeitadaFinal,
+            ehChamadorLocal: ehChamadorFinal,
+          ),
+        );
+      }
+
+      if (onChamadaEncerrada != null) {
+        onChamadaEncerrada!();
+      }
+    } finally {
+      _encerrando = false;
     }
   }
 

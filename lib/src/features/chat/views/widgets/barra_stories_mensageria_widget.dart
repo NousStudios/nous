@@ -13,6 +13,7 @@ import 'package:nous/src/features/pdv/services/imagem_service.dart';
 import 'package:nous/src/features/timeline/models/story_social.dart';
 import 'package:nous/src/features/timeline/services/timeline_service.dart';
 import 'package:nous/src/features/timeline/views/dialogs/dialog_stories.dart';
+import 'package:nous/src/features/timeline/views/widgets/camera_criacao_view.dart';
 
 /// Barra horizontal com as bolinhas de stories ainda não vistos (inclusive do
 /// próprio usuário) exibida acima de "Solicitações de Mensagens" no Chat.
@@ -148,10 +149,15 @@ class _BarraStoriesMensageriaWidgetState
               ),
               onTap: () {
                 if (meusStories.isEmpty) {
-                  DialogCriarStory.mostrar(
-                    context,
-                    theme: theme,
-                    autor: meuUsuario,
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (ctx) => CameraCriacaoView(
+                        theme: theme,
+                        autor: meuUsuario,
+                        ativa: true,
+                        onVoltarPerfil: () => Navigator.of(ctx).pop(),
+                      ),
+                    ),
                   );
                 } else {
                   DialogVisualizarStory.mostrar(

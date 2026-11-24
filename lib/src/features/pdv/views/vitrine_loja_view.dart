@@ -1,15 +1,12 @@
 import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:nous/src/core/services/preferencias_soberanas_service.dart';
 import 'package:nous/src/core/theme/theme_controller.dart';
 import 'package:nous/src/core/widgets/custom_app_bar.dart';
 import 'package:nous/src/features/auth/models/usuario_nous.dart';
 import 'package:nous/src/features/auth/providers/auth_provider.dart';
-import 'package:nous/src/features/auth/views/login_view.dart';
-import 'package:nous/src/features/auth/views/widgets/cabecalho_perfil_publico_widget.dart';
 import 'package:nous/src/features/chat/services/chat_autoatendimento_service.dart';
 import 'package:nous/src/features/chat/services/chat_service.dart';
 import 'package:nous/src/features/chat/views/dialogs/widgets/fazer_pedido/barra_categorias_e_pesquisa_chat_widget.dart';
@@ -18,20 +15,17 @@ import 'package:nous/src/features/chat/views/dialogs/widgets/fazer_pedido/rodape
 import 'package:nous/src/features/chat/views/dialogs/widgets/fazer_pedido/visao_carrinho_chat_widget.dart';
 import 'package:nous/src/features/chat/views/dialogs/widgets/modal_personalizar_item_autoatendimento.dart';
 import 'package:nous/src/features/chat/views/mensageria_view.dart';
-import 'package:nous/src/features/chat/views/widgets/visualizador_imagem_chat_dialog.dart';
 import 'package:nous/src/features/pdv/models/categoria_loja.dart';
 import 'package:nous/src/features/pdv/models/item_loja.dart';
 import 'package:nous/src/features/pdv/models/loja.dart';
 import 'package:nous/src/features/pdv/models/pedido_loja.dart';
 import 'package:nous/src/features/pdv/providers/pdv_provider.dart';
 import 'package:nous/src/features/pdv/services/compras_usuario_service.dart';
-import 'package:nous/src/features/pdv/services/imagem_service.dart';
-import 'package:nous/src/features/pdv/views/dialogs/dialog_editar_perfil_publico_loja.dart';
 import 'package:nous/src/features/pdv/views/widgets/estado_vazio_container.dart';
+import 'package:nous/src/features/pdv/views/widgets/vitrine/vitrine_cabecalho_publico_widget.dart';
+import 'package:nous/src/features/pdv/views/widgets/vitrine/vitrine_dialogs_visitante_helper.dart';
 import 'package:nous/src/features/timeline/models/story_social.dart';
 import 'package:nous/src/features/timeline/services/timeline_service.dart';
-import 'package:nous/src/features/timeline/views/dialogs/dialog_denuncia_social.dart';
-import 'package:nous/src/features/timeline/views/dialogs/dialog_stories.dart';
 import 'package:nous/src/features/timeline/views/widgets/timeline_perfil_section.dart';
 
 /// Vitrine pública de uma loja comercial para clientes, visitantes e não-membros.
@@ -66,14 +60,6 @@ class _VitrineLojaViewState extends State<VitrineLojaView> {
   List<StorySocial> _storiesLoja24h = [];
   int _totalPostsLoja = 0;
 
-  static String _cpfSocialDaLoja(String idLoja) {
-    var hash = 0;
-    for (final code in idLoja.codeUnits) {
-      hash = ((hash * 31) + code) & 0x7fffffff;
-    }
-    return '99${(hash % 1000000000).toString().padLeft(9, '0')}';
-  }
-
   @override
   void initState() {
     super.initState();
@@ -103,7 +89,9 @@ class _VitrineLojaViewState extends State<VitrineLojaView> {
       }
     } catch (_) {}
     if (mounted) {
-      final cpfLoja = _cpfSocialDaLoja( (loja ?? _lojaResolvida)?.id ?? widget.lojaId );
+      final cpfLoja = VitrineCabecalhoPublicoWidget.cpfSocialDaLoja(
+        (loja ?? _lojaResolvida)?.id ?? widget.lojaId,
+      );
       final stories = await TimelineService.listarStoriesAtivos24h(cpfLoja);
       final posts = await TimelineService.contarPublicacoesDoUsuario(cpfLoja);
       if (!mounted) return;
@@ -198,124 +186,26 @@ class _VitrineLojaViewState extends State<VitrineLojaView> {
     );
   }
 
-  Future<void> _mostrarDialogCriarContaVisitante(
-    AppTheme theme,
-    Loja loja,
-  ) async {
-    await showDialog<void>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: theme.cardBackgroundColor,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(14),
-          side: BorderSide(color: theme.borderColor),
-        ),
-        title: Text(
-          'Crie sua Conta Nous para pedir',
-          style: theme.getTextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.bold,
-            color: theme.textColor,
-          ),
-        ),
-        content: Text(
-          'Você selecionou $_quantidadeTotal ${_quantidadeTotal == 1 ? "item" : "itens"} em ${loja.nome}.\n\n'
-          'Para enviar seu pedido para o chat da loja, crie sua Conta Nous com seus dados e aguarde a aprovação de um usuário Nous verificado.',
-          style: theme.getTextStyle(
-            fontSize: 13,
-            color: theme.secondaryTextColor,
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(),
-            child: Text(
-              'Continuar vendo',
-              style: theme.getTextStyle(color: theme.secondaryTextColor),
-            ),
-          ),
-          TextButton(
-            onPressed: () async {
-              try {
-                await PreferenciasSoberanasService.salvarTexto(
-                  'vitrine_carrinho_pendente_${loja.id}',
-                  jsonEncode(_carrinho.map((e) => e.toJson()).toList()),
-                );
-              } catch (_) {}
-              if (!ctx.mounted) return;
-              Navigator.of(ctx).pop();
-              if (!mounted) return;
-              context.read<AuthProvider>().sair();
-              context.read<PdvProvider>().limparSessao();
-              Navigator.of(context).pushAndRemoveUntil(
-                MaterialPageRoute(builder: (_) => const LoginView()),
-                (route) => false,
-              );
-            },
-            child: Text(
-              'Criar Conta Nous',
-              style: theme.getTextStyle(
-                fontWeight: FontWeight.bold,
-                color: theme.textColor,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Future<void> _mostrarDialogAguardandoAprovacao(AppTheme theme) async {
-    await showDialog<void>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: theme.cardBackgroundColor,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(14),
-          side: BorderSide(color: theme.borderColor),
-        ),
-        title: Text(
-          'Conta aguardando aprovação',
-          style: theme.getTextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.bold,
-            color: theme.textColor,
-          ),
-        ),
-        content: Text(
-          'Sua Conta Nous já foi criada, mas ainda aguarda a aprovação de um usuário Nous verificado para enviar pedidos às lojas da rede.',
-          style: theme.getTextStyle(
-            fontSize: 13,
-            color: theme.secondaryTextColor,
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(),
-            child: Text(
-              'Entendi',
-              style: theme.getTextStyle(
-                fontWeight: FontWeight.bold,
-                color: theme.textColor,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
   Future<void> _finalizarPedido(Loja loja, AppTheme theme) async {
     if (_carrinho.isEmpty || _enviando) return;
     final auth = context.read<AuthProvider>();
 
     if (auth.modoVisitante || auth.contaAtual == null) {
-      await _mostrarDialogCriarContaVisitante(theme, loja);
+      await VitrineDialogsVisitanteHelper.mostrarDialogCriarContaVisitante(
+        context: context,
+        theme: theme,
+        loja: loja,
+        carrinho: _carrinho,
+        quantidadeTotal: _quantidadeTotal,
+      );
       return;
     }
 
     if (auth.perfilIsolado || !auth.usuarioAtualVerificado) {
-      await _mostrarDialogAguardandoAprovacao(theme);
+      await VitrineDialogsVisitanteHelper.mostrarDialogAguardandoAprovacao(
+        context: context,
+        theme: theme,
+      );
       return;
     }
 
@@ -424,433 +314,6 @@ class _VitrineLojaViewState extends State<VitrineLojaView> {
     }
   }
 
-  Color? _parseHexLoja(String hex) {
-    if (hex.trim().isEmpty) return null;
-    final limpo = hex.replaceAll('#', '').trim();
-    final val = int.tryParse(limpo, radix: 16);
-    if (val == null) return null;
-    return Color(limpo.length == 6 ? (0xFF000000 | val) : val);
-  }
-
-  void _copiarTextoVitrine(String valor, String mensagem) {
-    Clipboard.setData(ClipboardData(text: valor));
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(mensagem),
-        duration: const Duration(seconds: 2),
-      ),
-    );
-  }
-
-  String _formatarCategoriasLoja(String raw) {
-    final limpo = raw.trim();
-    if (limpo.isEmpty) return 'Loja Nous';
-    final partes = limpo
-        .split(RegExp(r'[,;•]+'))
-        .map((p) {
-          final semArroba = p.trim().replaceAll(RegExp(r'^@+'), '');
-          if (semArroba.isEmpty) return '';
-          final palavras = semArroba
-              .replaceAll('_', ' ')
-              .split(RegExp(r'\s+'))
-              .where((w) => w.isNotEmpty)
-              .map((w) => w[0].toUpperCase() + w.substring(1).toLowerCase())
-              .toList();
-          return palavras.join(' ');
-        })
-        .where((p) => p.isNotEmpty)
-        .toList();
-    return partes.isEmpty ? 'Loja Nous' : partes.join(' • ');
-  }
-
-  Widget _buildCabecalhoPublico(AppTheme theme, Loja loja) {
-    final auth = context.watch<AuthProvider>();
-    final meuCpf = auth.cpf.replaceAll(RegExp(r'\D'), '');
-    final ehMembroLoja = meuCpf.isNotEmpty &&
-        (loja.cpfDonoOriginal.replaceAll(RegExp(r'\D'), '') == meuCpf ||
-            loja.membros.any(
-              (m) => m.cpf.replaceAll(RegExp(r'\D'), '') == meuCpf,
-            ));
-    final provLogo = ImagemService.obterImageProvider(loja.logo);
-    final temLogo = provLogo != null;
-    final subtituloHandle = _formatarCategoriasLoja(loja.categorias);
-    final biografiaLoja = loja.biografiaPublica.trim().isNotEmpty
-        ? loja.biografiaPublica.trim()
-        : (loja.endereco.trim().isNotEmpty
-            ? loja.endereco.trim()
-            : 'Comércio Soberano na Rede Nous • Autoatendimento e Catálogo');
-    final podeEditarPerfilLoja =
-        ehMembroLoja && context.read<PdvProvider>().possoEditarDadosLoja(loja.id);
-    final corDestaqueCustom = _parseHexLoja(loja.corDestaquePerfilHex);
-    final corBotaoAtivo = corDestaqueCustom ?? theme.buttonColor;
-
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 10, 16, 6),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          CabecalhoPerfilPublicoWidget(
-            theme: theme,
-            providerFoto: provLogo,
-            temFoto: temLogo,
-            temStoryAtivo: _storiesLoja24h.isNotEmpty,
-            corDestaqueAnel: theme.buttonColor,
-            iconeFallback: Icons.storefront_rounded,
-            raioAvatar: 44,
-            tooltipFoto: _storiesLoja24h.isNotEmpty
-                ? 'Toque para ver o Story da Loja • Segure para ampliar a logo'
-                : (temLogo ? 'Toque ou segure para ampliar a logo' : ''),
-            onTapFoto: () {
-              if (_storiesLoja24h.isNotEmpty) {
-                DialogVisualizarStory.mostrar(
-                  context,
-                  theme: theme,
-                  story: _storiesLoja24h.first,
-                  stories: _storiesLoja24h,
-                  ehAutor: ehMembroLoja,
-                  usuarioLogado: auth.contaAtual,
-                );
-              } else if (temLogo) {
-                final resolvido =
-                    ImagemService.resolverCaminhoExistente(loja.logo);
-                if (resolvido != null) {
-                  VisualizadorImagemChatDialog.abrir(
-                    context,
-                    caminho: resolvido,
-                    theme: theme,
-                    permitirDownload: true,
-                  );
-                }
-              }
-            },
-            onLongPressFoto: () {
-              if (temLogo) {
-                final resolvido =
-                    ImagemService.resolverCaminhoExistente(loja.logo);
-                if (resolvido != null) {
-                  VisualizadorImagemChatDialog.abrir(
-                    context,
-                    caminho: resolvido,
-                    theme: theme,
-                    permitirDownload: true,
-                  );
-                }
-              }
-            },
-            handleTexto: subtituloHandle,
-            nomeTexto: loja.nome,
-            metricas: [
-              MetricaPerfilPublico(
-                valor: '${loja.itensLoja.length}',
-                rotulo: 'Itens',
-              ),
-              MetricaPerfilPublico(
-                valor: '$_totalPostsLoja',
-                rotulo: 'Posts',
-              ),
-              MetricaPerfilPublico(
-                valor: '${loja.membros.length}',
-                rotulo: 'Equipe',
-              ),
-            ],
-          ),
-          const SizedBox(height: 10),
-          Center(
-            child: Text(
-              biografiaLoja,
-              textAlign: TextAlign.center,
-              style: theme.getTextStyle(
-                fontSize: 12,
-                color: theme.textColor,
-              ),
-            ),
-          ),
-          if (loja.linksPublicos.isNotEmpty) ...[
-            const SizedBox(height: 6),
-            Wrap(
-              alignment: WrapAlignment.center,
-              spacing: 8,
-              runSpacing: 4,
-              children: loja.linksPublicos.map((link) {
-                return InkWell(
-                  borderRadius: BorderRadius.circular(8),
-                  onTap: () => _copiarTextoVitrine(link, 'Link copiado!'),
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 6,
-                      vertical: 2,
-                    ),
-                    child: Text(
-                      link,
-                      style: theme.getTextStyle(
-                        fontSize: 11.5,
-                        fontWeight: FontWeight.w600,
-                        color: const Color(0xFF1D9BF0),
-                      ),
-                    ),
-                  ),
-                );
-              }).toList(),
-            ),
-          ],
-          if (loja.cnpj.trim().isNotEmpty) ...[
-            const SizedBox(height: 6),
-            Center(
-              child: InkWell(
-                borderRadius: BorderRadius.circular(8),
-                onTap: () => _copiarTextoVitrine(
-                  loja.cnpj.trim(),
-                  'CNPJ copiado!',
-                ),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 3,
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(
-                        Icons.badge_outlined,
-                        size: 13,
-                        color: theme.secondaryTextColor,
-                      ),
-                      const SizedBox(width: 5),
-                      Flexible(
-                        child: Text(
-                          'CNPJ: ${loja.cnpj.trim()}',
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: theme.getTextStyle(
-                            fontSize: 11.5,
-                            color: theme.secondaryTextColor,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ],
-          if (loja.telefone.trim().isNotEmpty) ...[
-            const SizedBox(height: 2),
-            Center(
-              child: InkWell(
-                borderRadius: BorderRadius.circular(8),
-                onTap: () => _copiarTextoVitrine(
-                  loja.telefone.trim(),
-                  'Telefone copiado!',
-                ),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 3,
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(
-                        Icons.phone_outlined,
-                        size: 13,
-                        color: theme.secondaryTextColor,
-                      ),
-                      const SizedBox(width: 5),
-                      Flexible(
-                        child: Text(
-                          'Tel: ${loja.telefone.trim()}',
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: theme.getTextStyle(
-                            fontSize: 11.5,
-                            color: theme.secondaryTextColor,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ],
-          const SizedBox(height: 12),
-          // Fila rolante de botões + escudinho de denúncia no final
-          LayoutBuilder(
-            builder: (context, constraints) {
-              final larguraBotao = (constraints.maxWidth - 16) / 3;
-              return SingleChildScrollView(
-                scrollDirection: Axis.horizontal,
-                child: Row(
-                  children: [
-                    if (podeEditarPerfilLoja) ...[
-                      SizedBox(
-                        width: larguraBotao,
-                        height: 34,
-                        child: OutlinedButton(
-                          style: OutlinedButton.styleFrom(
-                            backgroundColor: Colors.transparent,
-                            side: BorderSide(color: theme.borderColor),
-                            padding: EdgeInsets.zero,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(10),
-                            ),
-                          ),
-                          onPressed: () => DialogEditarPerfilPublicoLoja.mostrar(
-                            context,
-                            theme: theme,
-                            loja: loja,
-                          ),
-                          child: Text(
-                            'Editar Perfil',
-                            style: theme.getTextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.bold,
-                              color: theme.textColor,
-                            ),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                    ],
-                    SizedBox(
-                      width: larguraBotao,
-                      height: 34,
-                      child: OutlinedButton(
-                        style: OutlinedButton.styleFrom(
-                          backgroundColor: !_exibindoTimelineSocial
-                              ? corBotaoAtivo
-                              : Colors.transparent,
-                          side: BorderSide(color: theme.borderColor),
-                          padding: EdgeInsets.zero,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                        ),
-                        onPressed: () => setState(
-                          () => _exibindoTimelineSocial = false,
-                        ),
-                        child: Text(
-                          'Compras',
-                          style: theme.getTextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.bold,
-                            color: !_exibindoTimelineSocial
-                                ? theme.buttonTextColor
-                                : theme.textColor,
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    SizedBox(
-                      width: larguraBotao,
-                      height: 34,
-                      child: OutlinedButton(
-                        style: OutlinedButton.styleFrom(
-                          backgroundColor: _exibindoTimelineSocial
-                              ? theme.buttonColor
-                              : Colors.transparent,
-                          side: BorderSide(color: theme.borderColor),
-                          padding: EdgeInsets.zero,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                        ),
-                        onPressed: () => setState(
-                          () => _exibindoTimelineSocial = true,
-                        ),
-                        child: Text(
-                          'Publicações',
-                          style: theme.getTextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.bold,
-                            color: _exibindoTimelineSocial
-                                ? theme.buttonTextColor
-                                : theme.textColor,
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    SizedBox(
-                      width: larguraBotao,
-                      height: 34,
-                      child: OutlinedButton(
-                        style: OutlinedButton.styleFrom(
-                          side: BorderSide(color: theme.borderColor),
-                          padding: EdgeInsets.zero,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                        ),
-                        onPressed: () {
-                          final convId = ChatService.conversaIdLojaUsuario(
-                            loja.id,
-                            meuCpf.isNotEmpty ? meuCpf : 'visitante',
-                          );
-                          Navigator.of(context).push(
-                            MaterialPageRoute(
-                              builder: (_) => MensageriaView(
-                                modoLoja: false,
-                                conversaInicialId: convId,
-                              ),
-                            ),
-                          );
-                        },
-                        child: Text(
-                          'Mensagens',
-                          style: theme.getTextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.bold,
-                            color: theme.textColor,
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    Tooltip(
-                      message: 'Denunciar',
-                      child: InkWell(
-                        borderRadius: BorderRadius.circular(10),
-                        onTap: auth.contaAtual == null
-                            ? null
-                            : () {
-                                DialogDenunciaSocial.mostrar(
-                                  context,
-                                  theme: theme,
-                                  denunciante: auth.contaAtual!,
-                                  alvoCpf: _cpfSocialDaLoja(loja.id),
-                                  alvoNome: loja.nome,
-                                );
-                              },
-                        child: Container(
-                          width: 34,
-                          height: 34,
-                          decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(10),
-                            border: Border.all(
-                              color: theme.borderColor.withValues(alpha: 0.6),
-                            ),
-                          ),
-                          alignment: Alignment.center,
-                          child: Icon(
-                            Icons.shield_outlined,
-                            size: 16,
-                            color: theme.secondaryTextColor,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              );
-            },
-          ),
-        ],
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     return ValueListenableBuilder<AppTheme>(
@@ -935,7 +398,8 @@ class _VitrineLojaViewState extends State<VitrineLojaView> {
                 ? [categoriaAtiva]
                 : <CategoriaLoja>[];
 
-        final fundoCustom = _parseHexLoja(loja.corFundoPerfilHex);
+        final fundoCustom =
+            VitrineCabecalhoPublicoWidget.parseHexLoja(loja.corFundoPerfilHex);
         return Scaffold(
           backgroundColor: fundoCustom ?? theme.backgroundColor,
           appBar: CustomAppBar(title: loja.nome),
@@ -949,7 +413,19 @@ class _VitrineLojaViewState extends State<VitrineLojaView> {
                       child: CustomScrollView(
                         slivers: [
                           SliverToBoxAdapter(
-                            child: _buildCabecalhoPublico(theme, loja),
+                            child: VitrineCabecalhoPublicoWidget(
+                              theme: theme,
+                              loja: loja,
+                              storiesLoja24h: _storiesLoja24h,
+                              totalPostsLoja: _totalPostsLoja,
+                              exibindoTimelineSocial: _exibindoTimelineSocial,
+                              onSelecionarCompras: () => setState(
+                                () => _exibindoTimelineSocial = false,
+                              ),
+                              onSelecionarPublicacoes: () => setState(
+                                () => _exibindoTimelineSocial = true,
+                              ),
+                            ),
                           ),
                           if (_exibindoTimelineSocial)
                             SliverToBoxAdapter(
@@ -978,7 +454,8 @@ class _VitrineLojaViewState extends State<VitrineLojaView> {
                                     child: TimelinePerfilSection(
                                       theme: theme,
                                       contaPerfil: UsuarioNous(
-                                        cpf: _cpfSocialDaLoja(loja.id),
+                                        cpf: VitrineCabecalhoPublicoWidget
+                                            .cpfSocialDaLoja(loja.id),
                                         nome: loja.nome,
                                         dataNascimento: '',
                                         foto: loja.logo,

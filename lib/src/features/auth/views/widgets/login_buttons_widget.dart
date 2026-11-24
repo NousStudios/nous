@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import 'package:nous/src/core/services/guarda_acao_ui.dart';
 import 'package:nous/src/core/theme/theme_controller.dart';
 import 'package:nous/src/features/auth/providers/auth_provider.dart';
+import 'package:nous/src/features/auth/services/biometria_auth_service.dart';
 import 'package:nous/src/features/auth/views/dialogs/dialog_onboarding_identidade_nous.dart';
 import 'package:nous/src/features/auth/views/widgets/cadastrar_nome_usuario_dialog.dart';
 import 'package:nous/src/features/auth/views/contas_usuario_view.dart';
@@ -11,8 +12,21 @@ import 'package:nous/src/features/pdv/providers/pdv_provider.dart';
 import 'package:nous/src/features/pdv/views/perfis_pdv_view.dart';
 import 'package:nous/src/features/pdv/views/widgets/sincronizacao_rede_dialog.dart';
 
-class LoginButtonsWidget extends StatelessWidget {
+class LoginButtonsWidget extends StatefulWidget {
   const LoginButtonsWidget({super.key});
+
+  @override
+  State<LoginButtonsWidget> createState() => _LoginButtonsWidgetState();
+}
+
+class _LoginButtonsWidgetState extends State<LoginButtonsWidget> {
+  late final Future<String?> _cpfBiometriaFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    _cpfBiometriaFuture = BiometriaAuthService.obterCpfVinculado();
+  }
 
   Future<void> _entrar(BuildContext context) async {
     final authProvider = context.read<AuthProvider>();
@@ -86,6 +100,7 @@ class LoginButtonsWidget extends StatelessWidget {
     }
 
     await authProvider.salvarUltimoCpf(authProvider.cpf);
+    await BiometriaAuthService.vincularCpfComBiometria(authProvider.cpf);
     await notificacoesProvider.carregarParaCpf(authProvider.cpf);
     await pdvProvider.entrarComCpf(authProvider.cpf);
 
@@ -188,6 +203,37 @@ class LoginButtonsWidget extends StatelessWidget {
                 ),
               ),
             ),
+            if (BiometriaAuthService.ehCelular)
+              FutureBuilder<String?>(
+                future: _cpfBiometriaFuture,
+                builder: (context, snap) {
+                  final cpfSalvo = snap.data;
+                  if (cpfSalvo == null || cpfSalvo.isEmpty) {
+                    return const SizedBox.shrink();
+                  }
+                  return Padding(
+                    padding: const EdgeInsets.only(top: 14),
+                    child: TextButton.icon(
+                      onPressed: () => GuardaAcaoUi.executarUnico(
+                        'auth_biometria',
+                        () => BiometriaAuthService.tentarLoginAutomatico(context),
+                      ),
+                      icon: Icon(
+                        Icons.fingerprint_rounded,
+                        color: theme.textColor,
+                        size: 22,
+                      ),
+                      label: Text(
+                        'Entrar com biometria',
+                        style: theme.getTextStyle(
+                          fontSize: 14,
+                          color: theme.textColor,
+                        ),
+                      ),
+                    ),
+                  );
+                },
+              ),
           ],
         );
       },

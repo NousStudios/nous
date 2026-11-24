@@ -3,7 +3,7 @@ description: "Um novo projeto Flutter."
 
 publish_to: 'none'
 
-version: 1.1.43+145
+version: 1.1.45+147
 
 environment:
   sdk: ^3.11.4
@@ -35,6 +35,10 @@ dependencies:
   media_kit: ^1.1.11
   media_kit_video: ^1.2.5
   media_kit_libs_video: ^1.0.5
+  local_auth: ^2.3.0
+  flutter_map: ^7.0.2
+  latlong2: ^0.9.1
+  geolocator: ^13.0.2
 
 dev_dependencies:
   flutter_test:

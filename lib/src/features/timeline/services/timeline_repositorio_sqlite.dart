@@ -8,6 +8,7 @@ import 'package:nous/src/features/timeline/models/notificacao_social.dart';
 import 'package:nous/src/features/timeline/models/publicacao_social.dart';
 import 'package:nous/src/features/timeline/models/salvos_denuncia_social.dart';
 import 'package:nous/src/features/timeline/models/story_social.dart';
+import 'package:nous/src/features/timeline/services/timeline_schema_sqlite.dart';
 
 /// Repositório SQLite indexado para publicações, coautorias ilimitadas,
 /// reações (Like/Deslike), comentários, stories e feeds personalizados.
@@ -15,224 +16,36 @@ class TimelineRepositorioSqlite {
   TimelineRepositorioSqlite._();
 
   static bool _tabelasGarantidas = false;
+  static Future<void>? _garantindoEmVoo;
   static Database? _dbParaTeste;
 
   @visibleForTesting
   static void definirDbParaTestes(Database db) {
     _dbParaTeste = db;
     _tabelasGarantidas = false;
+    _garantindoEmVoo = null;
   }
 
   static Future<Database> obterDb() async {
     final db = _dbParaTeste ?? await BancoDadosService.db;
     if (!_tabelasGarantidas) {
-      await garantirTabelas(db);
-      _tabelasGarantidas = true;
+      _garantindoEmVoo ??= TimelineSchemaSqlite.garantirTabelas(db).then((_) {
+        _tabelasGarantidas = true;
+      }).whenComplete(() {
+        _garantindoEmVoo = null;
+      });
+      await _garantindoEmVoo;
     }
     return db;
   }
 
   static void resetarCacheSchemaParaTeste() {
     _tabelasGarantidas = false;
+    _garantindoEmVoo = null;
   }
 
-  static Future<void> garantirTabelas(Database db) async {
-    await db.execute('''
-      CREATE TABLE IF NOT EXISTS publicacoes_sociais (
-        id TEXT PRIMARY KEY,
-        autor_cpf TEXT NOT NULL,
-        tipo TEXT NOT NULL,
-        criada_em TEXT NOT NULL,
-        excluida INTEGER NOT NULL DEFAULT 0,
-        dados_json TEXT NOT NULL
-      );
-    ''');
-    await db.execute(
-      'CREATE INDEX IF NOT EXISTS idx_pub_autor_data ON publicacoes_sociais (autor_cpf, criada_em DESC);',
-    );
-    await db.execute(
-      'CREATE INDEX IF NOT EXISTS idx_pub_tipo_data ON publicacoes_sociais (tipo, criada_em DESC);',
-    );
-
-    await db.execute('''
-      CREATE TABLE IF NOT EXISTS publicacoes_coautores (
-        publicacao_id TEXT NOT NULL,
-        cpf TEXT NOT NULL,
-        PRIMARY KEY (publicacao_id, cpf)
-      );
-    ''');
-    await db.execute(
-      'CREATE INDEX IF NOT EXISTS idx_pub_coautores_cpf ON publicacoes_coautores (cpf);',
-    );
-
-    await db.execute('''
-      CREATE TABLE IF NOT EXISTS reacoes_sociais (
-        id TEXT PRIMARY KEY,
-        publicacao_id TEXT NOT NULL,
-        usuario_cpf TEXT NOT NULL,
-        tipo TEXT NOT NULL,
-        criada_em TEXT NOT NULL,
-        dados_json TEXT NOT NULL
-      );
-    ''');
-    await db.execute(
-      'CREATE INDEX IF NOT EXISTS idx_reacoes_pub ON reacoes_sociais (publicacao_id);',
-    );
-    await db.execute(
-      'CREATE INDEX IF NOT EXISTS idx_reacoes_usuario ON reacoes_sociais (usuario_cpf, criada_em DESC);',
-    );
-
-    await db.execute('''
-      CREATE TABLE IF NOT EXISTS comentarios_sociais (
-        id TEXT PRIMARY KEY,
-        publicacao_id TEXT NOT NULL,
-        autor_cpf TEXT NOT NULL,
-        criada_em TEXT NOT NULL,
-        excluido INTEGER NOT NULL DEFAULT 0,
-        dados_json TEXT NOT NULL
-      );
-    ''');
-    await db.execute(
-      'CREATE INDEX IF NOT EXISTS idx_comentarios_pub ON comentarios_sociais (publicacao_id, criada_em ASC);',
-    );
-    await db.execute(
-      'CREATE INDEX IF NOT EXISTS idx_comentarios_autor ON comentarios_sociais (autor_cpf, criada_em DESC);',
-    );
-
-    await db.execute('''
-      CREATE TABLE IF NOT EXISTS stories_sociais (
-        id TEXT PRIMARY KEY,
-        autor_cpf TEXT NOT NULL,
-        criado_em TEXT NOT NULL,
-        expira_em TEXT,
-        excluido INTEGER NOT NULL DEFAULT 0,
-        dados_json TEXT NOT NULL
-      );
-    ''');
-    await db.execute(
-      'CREATE INDEX IF NOT EXISTS idx_stories_autor ON stories_sociais (autor_cpf, criado_em DESC);',
-    );
-
-    await db.execute('''
-      CREATE TABLE IF NOT EXISTS feeds_personalizados (
-        id TEXT PRIMARY KEY,
-        dono_cpf TEXT NOT NULL,
-        criado_em TEXT NOT NULL,
-        dados_json TEXT NOT NULL
-      );
-    ''');
-    await db.execute(
-      'CREATE INDEX IF NOT EXISTS idx_feeds_dono ON feeds_personalizados (dono_cpf);',
-    );
-
-    await db.execute('''
-      CREATE TABLE IF NOT EXISTS listas_salvos_sociais (
-        id TEXT PRIMARY KEY,
-        dono_cpf TEXT NOT NULL,
-        criada_em TEXT NOT NULL,
-        dados_json TEXT NOT NULL
-      );
-    ''');
-    await db.execute(
-      'CREATE INDEX IF NOT EXISTS idx_listas_salvos_dono ON listas_salvos_sociais (dono_cpf);',
-    );
-
-    await db.execute('''
-      CREATE TABLE IF NOT EXISTS itens_salvos_sociais (
-        id TEXT PRIMARY KEY,
-        lista_id TEXT NOT NULL,
-        usuario_cpf TEXT NOT NULL,
-        publicacao_id TEXT NOT NULL,
-        salvo_em TEXT NOT NULL,
-        dados_json TEXT NOT NULL
-      );
-    ''');
-    await db.execute(
-      'CREATE INDEX IF NOT EXISTS idx_itens_salvos_usuario ON itens_salvos_sociais (usuario_cpf, salvo_em DESC);',
-    );
-
-    await db.execute('''
-      CREATE TABLE IF NOT EXISTS denuncias_sociais (
-        id TEXT PRIMARY KEY,
-        denunciante_cpf TEXT NOT NULL,
-        alvo_cpf TEXT NOT NULL,
-        publicacao_id TEXT NOT NULL,
-        criada_em TEXT NOT NULL,
-        dados_json TEXT NOT NULL
-      );
-    ''');
-    await db.execute(
-      'CREATE INDEX IF NOT EXISTS idx_denuncias_envolvidos ON denuncias_sociais (denunciante_cpf, alvo_cpf, criada_em DESC);',
-    );
-
-    await db.execute('''
-      CREATE TABLE IF NOT EXISTS timelines_visiveis_perfil (
-        cpf TEXT PRIMARY KEY,
-        tipos_json TEXT NOT NULL
-      );
-    ''');
-
-    await db.execute('''
-      CREATE TABLE IF NOT EXISTS publicacoes_tags (
-        publicacao_id TEXT NOT NULL,
-        tag TEXT NOT NULL,
-        PRIMARY KEY (publicacao_id, tag)
-      );
-    ''');
-    await db.execute(
-      'CREATE INDEX IF NOT EXISTS idx_pub_tags_tag ON publicacoes_tags (tag);',
-    );
-
-    await db.execute('''
-      CREATE TABLE IF NOT EXISTS descoberta_tags_config (
-        cpf TEXT PRIMARY KEY,
-        abas_json TEXT NOT NULL
-      );
-    ''');
-
-    for (final tabela in const [
-      'publicacoes_sociais',
-      'stories_sociais',
-      'reacoes_sociais',
-      'comentarios_sociais',
-      'listas_salvos_sociais',
-      'itens_salvos_sociais',
-      'denuncias_sociais',
-    ]) {
-      try {
-        await db.execute('ALTER TABLE $tabela ADD COLUMN atualizada_em TEXT;');
-      } catch (_) {}
-      try {
-        await db.execute(
-          'CREATE INDEX IF NOT EXISTS idx_${tabela}_att ON $tabela (atualizada_em);',
-        );
-      } catch (_) {}
-    }
-
-    try {
-      await db.execute(
-        'ALTER TABLE publicacoes_sociais ADD COLUMN arquivada INTEGER NOT NULL DEFAULT 0;',
-      );
-    } catch (_) {}
-    try {
-      await db.execute(
-        'ALTER TABLE stories_sociais ADD COLUMN arquivado INTEGER NOT NULL DEFAULT 0;',
-      );
-    } catch (_) {}
-
-    await db.execute('''
-      CREATE TABLE IF NOT EXISTS notificacoes_sociais (
-        id TEXT PRIMARY KEY,
-        destinatario_cpf TEXT NOT NULL,
-        criada_em TEXT NOT NULL,
-        lida INTEGER NOT NULL DEFAULT 0,
-        dados_json TEXT NOT NULL
-      );
-    ''');
-    await db.execute(
-      'CREATE INDEX IF NOT EXISTS idx_notif_soc_dest ON notificacoes_sociais (destinatario_cpf, lida, criada_em DESC);',
-    );
-  }
+  static Future<void> garantirTabelas(Database db) =>
+      TimelineSchemaSqlite.garantirTabelas(db);
 
   static Future<void> salvarNotificacaoSocial(NotificacaoSocial notif) async {
     final db = await obterDb();
@@ -394,7 +207,7 @@ class TimelineRepositorioSqlite {
             jsonDecode(jsonStr) as Map<String, dynamic>,
           );
         })
-        .where((p) => !p.excluida && !p.arquivada)
+        .where((p) => incluirExcluidas || (!p.excluida && !p.arquivada))
         .toList();
   }
 
@@ -450,6 +263,7 @@ class TimelineRepositorioSqlite {
         'usuario_cpf': normalizarCpf(reacao.usuarioCpf),
         'tipo': reacao.tipo.name,
         'criada_em': reacao.criadaEm.toIso8601String(),
+        'atualizada_em': reacao.criadaEm.toIso8601String(),
         'dados_json': jsonEncode(reacao.toJson()),
       },
       conflictAlgorithm: ConflictAlgorithm.replace,
@@ -534,6 +348,7 @@ class TimelineRepositorioSqlite {
         'publicacao_id': comentario.publicacaoId,
         'autor_cpf': normalizarCpf(comentario.autorCpf),
         'criada_em': comentario.criadaEm.toIso8601String(),
+        'atualizada_em': comentario.atualizadaEfetiva.toIso8601String(),
         'excluido': comentario.excluido ? 1 : 0,
         'dados_json': jsonEncode(comentario.toJson()),
       },
@@ -587,6 +402,7 @@ class TimelineRepositorioSqlite {
         'id': story.id,
         'autor_cpf': normalizarCpf(story.autorCpf),
         'criado_em': story.criadoEm.toIso8601String(),
+        'atualizada_em': story.atualizadoEfetivo.toIso8601String(),
         'expira_em': story.expiraEm?.toIso8601String(),
         'excluido': story.excluido ? 1 : 0,
         'arquivado': story.arquivado ? 1 : 0,
@@ -715,6 +531,7 @@ class TimelineRepositorioSqlite {
         'id': lista.id,
         'dono_cpf': normalizarCpf(lista.donoCpf),
         'criada_em': lista.criadaEm.toIso8601String(),
+        'atualizada_em': lista.atualizadaEfetiva.toIso8601String(),
         'dados_json': jsonEncode(lista.toJson()),
       },
       conflictAlgorithm: ConflictAlgorithm.replace,
@@ -753,6 +570,7 @@ class TimelineRepositorioSqlite {
         'usuario_cpf': normalizarCpf(item.usuarioCpf),
         'publicacao_id': item.publicacaoId,
         'salvo_em': item.salvoEm.toIso8601String(),
+        'atualizada_em': item.salvoEm.toIso8601String(),
         'dados_json': jsonEncode(item.toJson()),
       },
       conflictAlgorithm: ConflictAlgorithm.replace,
@@ -812,6 +630,7 @@ class TimelineRepositorioSqlite {
         'alvo_cpf': normalizarCpf(denuncia.alvoCpf),
         'publicacao_id': denuncia.publicacaoId,
         'criada_em': denuncia.criadaEm.toIso8601String(),
+        'atualizada_em': denuncia.criadaEm.toIso8601String(),
         'dados_json': jsonEncode(denuncia.toJson()),
       },
       conflictAlgorithm: ConflictAlgorithm.replace,

@@ -110,7 +110,7 @@ class MensageriaAcoesMensagemHelper {
         onAtualizarConversa(conversaSelecionada.copyWith(mensagens: msgs));
       }
     }
-    await ChatService.salvarMensagem(msgEditada);
+    await ChatService.editarMensagem(msg.id, novoTexto);
   }
 
   static Future<void> excluir({

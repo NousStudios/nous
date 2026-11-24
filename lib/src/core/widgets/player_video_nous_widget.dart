@@ -166,13 +166,19 @@ class _PlayerVideoNousWidgetState extends State<PlayerVideoNousWidget> {
       _resolverCapa();
     }
     if (oldWidget.caminhoVideo != widget.caminhoVideo) {
-      _estadosGlobais[oldWidget.caminhoVideo.trim()]?.pilhaInstancias.remove(
-        this,
-      );
+      final antigaChave = oldWidget.caminhoVideo.trim();
+      final antigoEstado = _estadosGlobais[antigaChave];
+      antigoEstado?.pilhaInstancias.remove(this);
+      if (antigoEstado != null && antigoEstado.pilhaInstancias.isEmpty) {
+        _estadosGlobais.remove(antigaChave);
+      }
       _estadosGlobais
           .putIfAbsent(_chaveVideo, () => _EstadoCompartilhadoVideo())
           .pilhaInstancias
           .add(this);
+      if (oldWidget.caminhoCapa == widget.caminhoCapa) {
+        _resolverCapa();
+      }
       if (_playerAtivo) {
         _player?.open(Media(widget.caminhoVideo));
       }
@@ -283,6 +289,7 @@ class _PlayerVideoNousWidgetState extends State<PlayerVideoNousWidget> {
     if (_playerAtivo) return;
     try {
       await _pausarInstanciasAnteriores();
+      if (!mounted) return;
 
       final estado = _estadosGlobais[_chaveVideo];
       final posAlvo =

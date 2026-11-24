@@ -1,4 +1,7 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:nous/src/core/theme/theme_controller.dart';
 import 'package:nous/src/features/auth/providers/auth_provider.dart';
@@ -6,6 +9,8 @@ import 'package:nous/src/features/chat/controllers/mensageria_controller.dart';
 import 'package:nous/src/features/chat/models/conversa_chat.dart';
 import 'package:nous/src/features/chat/models/mensagem_chat.dart';
 import 'package:nous/src/features/chat/services/chat_service.dart';
+import 'package:nous/src/features/chat/views/dialogs/dialog_editar_mensagem.dart';
+import 'package:nous/src/features/chat/views/dialogs/dialog_encaminhar_mensagem.dart';
 import 'package:nous/src/features/chat/views/widgets/balao_mensagem_widget.dart';
 import 'package:nous/src/features/chat/views/widgets/painel_conversa/banner_titulo_conversa_widget.dart';
 import 'package:nous/src/features/chat/views/widgets/painel_conversa/barra_envio_mensagem_widget.dart';
@@ -79,6 +84,108 @@ class _PainelConversaAtivaWidgetState extends State<PainelConversaAtivaWidget> {
       if (mounted) setState(() {});
     });
     _mensagensScrollController.addListener(_verificarPosicaoScroll);
+  }
+
+  final Set<String> _mensagensSelecionadasIds = {};
+  String? _mensagemDestacadaId;
+  Timer? _timerDestaque;
+
+  List<MensagemChat> _obterMensagensSelecionadas(ConversaChat conversa) {
+    if (_mensagensSelecionadasIds.isEmpty) return const [];
+    return conversa.mensagens
+        .where((m) => _mensagensSelecionadasIds.contains(m.id))
+        .toList();
+  }
+
+  bool _podeEditarMensagem(MensagemChat msg) {
+    final cpfLogado =
+        context.read<AuthProvider>().cpf.replaceAll(RegExp(r'\D'), '');
+    final remNorm = msg.remetenteId.replaceAll(RegExp(r'\D'), '');
+    final ehMinha = msg.enviadaPorMim ||
+        (cpfLogado.isNotEmpty && remNorm == cpfLogado);
+    return ehMinha && msg.tipo == 'texto';
+  }
+
+  void _copiarMensagens(List<MensagemChat> msgs, AppTheme theme) {
+    final textos = msgs
+        .map((msg) => msg.texto.trim().isNotEmpty
+            ? msg.texto.trim()
+            : (msg.nomeAnexo.trim().isNotEmpty ? msg.nomeAnexo.trim() : ''))
+        .where((t) => t.isNotEmpty)
+        .toList();
+    if (textos.isEmpty) return;
+    Clipboard.setData(ClipboardData(text: textos.join('\n')));
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          backgroundColor: theme.cardBackgroundColor,
+          duration: const Duration(milliseconds: 1200),
+          content: Text(
+            msgs.length > 1
+                ? '${msgs.length} mensagens copiadas!'
+                : 'Mensagem copiada!',
+            style: theme.getTextStyle(fontSize: 12, color: theme.textColor),
+          ),
+        ),
+      );
+  }
+
+  void _encaminharMensagensSelecionadas(
+    List<MensagemChat> msgs,
+    AppTheme theme,
+  ) {
+    if (msgs.isEmpty) return;
+    final mapaDestinos = <String, ConversaChat>{
+      for (final c in widget.controller.conversas) c.id: c,
+    };
+    for (final c in widget.controller.todosContatosDisponiveis) {
+      mapaDestinos.putIfAbsent(c.id, () => c);
+    }
+    final destinos = mapaDestinos.values.toList()
+      ..sort(
+        (a, b) => b.dataHoraUltimaMensagem.compareTo(a.dataHoraUltimaMensagem),
+      );
+    DialogEncaminharMensagem.mostrar(
+      context,
+      theme: theme,
+      msg: msgs.first,
+      conversasDisponiveis: destinos,
+      onEncaminhar: (destino) async {
+        final auth = context.read<AuthProvider>();
+        for (final msg in msgs) {
+          await widget.controller.encaminharMensagem(
+            msgOriginal: msg,
+            destino: destino,
+            auth: auth,
+          );
+        }
+      },
+    );
+  }
+
+  void _rolarParaMensagem(String mensagemId, List<MensagemChat> mensagens) {
+    final msgIndex = mensagens.indexWhere((m) => m.id == mensagemId);
+    if (msgIndex == -1) return;
+    if (_mensagensScrollController.hasClients) {
+      final maxScroll = _mensagensScrollController.position.maxScrollExtent;
+      final alvo = mensagens.length <= 1
+          ? 0.0
+          : ((mensagens.length - 1 - msgIndex) / (mensagens.length - 1)) *
+              maxScroll;
+      _mensagensScrollController.animateTo(
+        alvo.clamp(0.0, maxScroll),
+        duration: const Duration(milliseconds: 350),
+        curve: Curves.easeOutCubic,
+      );
+    }
+    _timerDestaque?.cancel();
+    setState(() => _mensagemDestacadaId = mensagemId);
+    _timerDestaque = Timer(const Duration(milliseconds: 1400), () {
+      if (mounted) {
+        setState(() => _mensagemDestacadaId = null);
+      }
+    });
   }
 
   void _verificarPosicaoScroll() {
@@ -180,6 +287,7 @@ class _PainelConversaAtivaWidgetState extends State<PainelConversaAtivaWidget> {
 
   @override
   void dispose() {
+    _timerDestaque?.cancel();
     _mensagensScrollController.removeListener(_verificarPosicaoScroll);
     _mensagemController.dispose();
     _buscaConversaController.dispose();
@@ -367,6 +475,9 @@ class _PainelConversaAtivaWidgetState extends State<PainelConversaAtivaWidget> {
       _ultimoIdConversa = conversa.id;
       _pesquisaAtiva = false;
       _mostrarBotaoDescer = false;
+      _mensagensSelecionadasIds.clear();
+      _mensagemDestacadaId = null;
+      _timerDestaque?.cancel();
       if (_buscaConversaController.text.isNotEmpty) {
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (mounted) _buscaConversaController.clear();
@@ -375,6 +486,7 @@ class _PainelConversaAtivaWidgetState extends State<PainelConversaAtivaWidget> {
     }
 
     final termoBusca = _buscaConversaController.text.trim().toLowerCase();
+    final selecionadas = _obterMensagensSelecionadas(conversa);
 
     return Column(
       children: [
@@ -387,6 +499,54 @@ class _PainelConversaAtivaWidgetState extends State<PainelConversaAtivaWidget> {
           onAbrirDetalhes: widget.onAbrirDetalhes,
           onAlternarPesquisa: _alternarPesquisa,
           pesquisaAtiva: _pesquisaAtiva,
+          quantidadeSelecionadas: selecionadas.length,
+          podeEditarSelecionada: selecionadas.length == 1 &&
+              _podeEditarMensagem(selecionadas.first),
+          onLimparSelecao: () =>
+              setState(() => _mensagensSelecionadasIds.clear()),
+          onResponderSelecionada: selecionadas.length != 1
+              ? null
+              : () {
+                  final sel = selecionadas.first;
+                  setState(() => _mensagensSelecionadasIds.clear());
+                  widget.controller.definirMensagemRespondendo(sel);
+                },
+          onEditarSelecionada: selecionadas.length != 1
+              ? null
+              : () {
+                  final sel = selecionadas.first;
+                  setState(() => _mensagensSelecionadasIds.clear());
+                  DialogEditarMensagem.mostrar(
+                    context,
+                    theme: theme,
+                    msg: sel,
+                    onSalvar: (novo) =>
+                        widget.controller.editarMensagem(sel, novo),
+                  );
+                },
+          onCopiarSelecionada: selecionadas.isEmpty
+              ? null
+              : () {
+                  final lista = List<MensagemChat>.from(selecionadas);
+                  setState(() => _mensagensSelecionadasIds.clear());
+                  _copiarMensagens(lista, theme);
+                },
+          onEncaminharSelecionada: selecionadas.isEmpty
+              ? null
+              : () {
+                  final lista = List<MensagemChat>.from(selecionadas);
+                  setState(() => _mensagensSelecionadasIds.clear());
+                  _encaminharMensagensSelecionadas(lista, theme);
+                },
+          onExcluirSelecionada: selecionadas.isEmpty
+              ? null
+              : () {
+                  final lista = List<MensagemChat>.from(selecionadas);
+                  setState(() => _mensagensSelecionadasIds.clear());
+                  for (final m in lista) {
+                    widget.controller.excluirMensagemLocal(m);
+                  }
+                },
         ),
 
         // Barra de pesquisa de palavras-chave na conversa
@@ -563,6 +723,7 @@ class _PainelConversaAtivaWidgetState extends State<PainelConversaAtivaWidget> {
                             ],
                           )
                         : ListView.builder(
+                            key: ValueKey('msgs_${conversa.id}'),
                             controller: _mensagensScrollController,
                             reverse: true,
                             padding: const EdgeInsets.symmetric(
@@ -617,16 +778,41 @@ class _PainelConversaAtivaWidgetState extends State<PainelConversaAtivaWidget> {
                               }
 
                               final balao = BalaoMensagemWidget(
+                                key: ValueKey(msg.id),
                                 msg: msg,
                                 conversa: conversa,
                                 enviadaPorMim: enviadaPorMim,
                                 modoLoja: widget.controller.modoLoja,
                                 theme: theme,
+                                selecionada:
+                                    _mensagensSelecionadasIds.contains(msg.id),
+                                modoSelecaoAtivo:
+                                    _mensagensSelecionadasIds.isNotEmpty,
+                                destacada: _mensagemDestacadaId == msg.id,
+                                mostrarBarraReacoes: selecionadas.length == 1 &&
+                                    selecionadas.first.id == msg.id,
                                 onMostrarMenu: widget.onMostrarMenuMensagem,
                                 onVerHistoricoEdicoes: widget.onVerHistoricoEdicoes,
                                 onAbrirArquivo: widget.onAbrirArquivo,
                                 onVisualizarFotoAmpliada: widget.onVisualizarFotoAmpliada,
                                 onVerComanda: widget.onVerComanda,
+                                onResponder: (m) =>
+                                    widget.controller.definirMensagemRespondendo(m),
+                                onAlternarSelecao: (m) {
+                                  setState(() {
+                                    if (!_mensagensSelecionadasIds.add(m.id)) {
+                                      _mensagensSelecionadasIds.remove(m.id);
+                                    }
+                                  });
+                                },
+                                onReagir: (m, emoji) {
+                                  setState(
+                                    () => _mensagensSelecionadasIds.clear(),
+                                  );
+                                  widget.controller.reagirMensagem(m, emoji);
+                                },
+                                onTocarCitacao: (id) =>
+                                    _rolarParaMensagem(id, mensagensValidas),
                               );
 
                               if (ehPrimeiraDoDia) {
@@ -769,6 +955,9 @@ class _PainelConversaAtivaWidgetState extends State<PainelConversaAtivaWidget> {
                   onEnviarAudio: widget.onEnviarAudio,
                   onCapturarFotoCamera: widget.onCapturarFotoCamera,
                   onAbrirMenuAnexo: _abrirMenuAnexo,
+                  mensagemRespondendo: widget.controller.mensagemRespondendo,
+                  onCancelarResposta: () =>
+                      widget.controller.definirMensagemRespondendo(null),
                 );
               },
             );

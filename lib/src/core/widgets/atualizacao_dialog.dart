@@ -26,8 +26,13 @@ class AtualizacaoDialog extends StatefulWidget {
           side: BorderSide(color: theme.borderColor),
         ),
         child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 480),
-          child: AtualizacaoDialog(theme: theme),
+          constraints: BoxConstraints(
+            maxWidth: 480,
+            maxHeight: MediaQuery.sizeOf(dialogCtx).height * 0.90,
+          ),
+          child: SingleChildScrollView(
+            child: AtualizacaoDialog(theme: theme),
+          ),
         ),
       ),
     );
@@ -44,9 +49,10 @@ class _AtualizacaoDialogState extends State<AtualizacaoDialog> {
   void initState() {
     super.initState();
     // Se conectado ao balcão Wi-Fi, consulta prioritariamente a versão local
-    if (ClienteRedeLocal().conectado) {
+    if (ClienteRedeLocal().conectado && !AtualizacaoService.baixando.value) {
       ClienteRedeLocal().verificarAtualizacaoLocal();
-    } else if (AtualizacaoService.ultimaVerificacao.value == null &&
+    } else if (!AtualizacaoService.baixando.value &&
+        AtualizacaoService.ultimaVerificacao.value == null &&
         !AtualizacaoService.temAtualizacao.value) {
       AtualizacaoService.verificarAtualizacao();
     }
@@ -438,7 +444,35 @@ class _AtualizacaoDialogState extends State<AtualizacaoDialog> {
                           ValueListenableBuilder<bool>(
                             valueListenable: AtualizacaoService.baixando,
                             builder: (context, estaBaixando, _) {
-                              if (!estaBaixando) return const SizedBox.shrink();
+                              if (!estaBaixando) {
+                                return ValueListenableBuilder<String?>(
+                                  valueListenable:
+                                      AtualizacaoService.mensagemStatus,
+                                  builder: (context, msgStatus, _) {
+                                    final texto = msgStatus ?? '';
+                                    final ehErroOuAviso = texto
+                                            .toLowerCase()
+                                            .contains('erro') ||
+                                        texto
+                                            .toLowerCase()
+                                            .contains('autorize');
+                                    if (!ehErroOuAviso) {
+                                      return const SizedBox.shrink();
+                                    }
+                                    return Padding(
+                                      padding: const EdgeInsets.only(top: 10),
+                                      child: Text(
+                                        texto,
+                                        style: theme.getTextStyle(
+                                          fontSize: 11.5,
+                                          fontWeight: FontWeight.w600,
+                                          color: theme.dangerColor,
+                                        ),
+                                      ),
+                                    );
+                                  },
+                                );
+                              }
                               return ValueListenableBuilder<double?>(
                                 valueListenable:
                                     AtualizacaoService.progressoDownload,

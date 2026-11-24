@@ -128,18 +128,26 @@ class SincronizadorChatBalcao {
               );
               if (alterou) mensagensNovas++;
 
-              if (msg.tipo == 'imagem' && msg.caminhoAnexo.isNotEmpty) {
+              if ((msg.tipo == 'imagem' ||
+                      msg.tipo == 'audio' ||
+                      msg.tipo == 'arquivo') &&
+                  msg.caminhoAnexo.isNotEmpty) {
                 final existeLocal =
                     ImagemService.resolverCaminhoExistente(msg.caminhoAnexo) !=
                         null;
                 if (!existeLocal && ClienteRedeLocal().conectado) {
                   final caminhoRemoto = msg.caminhoAnexo;
                   final msgId = msg.id;
+                  final ehImagem = msg.tipo == 'imagem';
                   unawaited(() async {
                     try {
-                      final baixado = await ClienteRedeLocal().baixarImagemRemota(
-                        caminhoRemoto,
-                      );
+                      final baixado = ehImagem
+                          ? await ClienteRedeLocal().baixarImagemRemota(
+                              caminhoRemoto,
+                            )
+                          : await ClienteRedeLocal().baixarAudioRemoto(
+                              caminhoRemoto,
+                            );
                       if (baixado.isNotEmpty && baixado != caminhoRemoto) {
                         final db = await ChatService.obterDb();
                         await db.update(

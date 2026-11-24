@@ -503,6 +503,14 @@ class _MensageriaViewState extends State<MensageriaView>
         );
       },
       onRenomearConversa: (c) => _abrirDialogRenomear(c, theme),
+      onExcluirConversa: (c) {
+        MensageriaAcoesDelegate.solicitarExclusaoConversa(
+          context: context,
+          controller: _controller,
+          conversa: c,
+          lojaId: widget.lojaId,
+        );
+      },
     );
   }
 

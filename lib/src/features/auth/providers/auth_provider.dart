@@ -10,7 +10,6 @@ import 'package:nous/src/features/auth/services/contas_excluidas_service.dart';
 import 'package:nous/src/features/auth/services/contas_nous_service.dart';
 import 'package:nous/src/features/auth/services/cpf_validator.dart';
 import 'package:nous/src/features/pdv/services/dados_locais_service.dart';
-import 'package:nous/src/features/pdv/services/imagem_service.dart';
 import 'package:nous/src/features/pdv/services/lojas_service.dart';
 import 'package:nous/src/features/pdv/services/rede_local/cliente_rede_local.dart';
 import 'package:nous/src/features/pdv/services/rede_local/servidor_rede_local.dart';
@@ -271,29 +270,13 @@ class AuthProvider extends ChangeNotifier {
         try {
           final remoto = await ClienteRedeLocal().buscarUsuarioRemoto(_cpf);
           if (remoto != null && _contaAtual != null && _contaAtual!.cpf == _cpf) {
-            final contaAtualizada = _contaAtual!.copyWith(
-              nome: (_contaAtual!.nome.isEmpty || _contaAtual!.nome.toLowerCase() == 'blackview')
-                  ? remoto.nome
-                  : _contaAtual!.nome,
-              apelido: _contaAtual!.apelido.isNotEmpty ? _contaAtual!.apelido : remoto.apelido,
-              nomeDeUsuario: _contaAtual!.nomeDeUsuario.isNotEmpty
-                  ? _contaAtual!.nomeDeUsuario
-                  : remoto.nomeDeUsuario,
-              foto: (_contaAtual!.foto.isNotEmpty && ImagemService.existe(_contaAtual!.foto))
-                  ? _contaAtual!.foto
-                  : remoto.foto,
-              emails: {..._contaAtual!.emails, ...remoto.emails}.toList(),
-              biografia: _contaAtual!.biografia.isNotEmpty ? _contaAtual!.biografia : remoto.biografia,
-              nomePublico: _contaAtual!.nomePublico.isNotEmpty ? _contaAtual!.nomePublico : remoto.nomePublico,
-              apelidoPublico: _contaAtual!.apelidoPublico.isNotEmpty ? _contaAtual!.apelidoPublico : remoto.apelidoPublico,
-              fotoPublica: _contaAtual!.fotoPublica.isNotEmpty ? _contaAtual!.fotoPublica : remoto.fotoPublica,
-              dadosPrivados: _contaAtual!.dadosPrivados.isNotEmpty ? _contaAtual!.dadosPrivados : remoto.dadosPrivados,
-              dadosAutorizadosPorCpf: {..._contaAtual!.dadosAutorizadosPorCpf, ...remoto.dadosAutorizadosPorCpf}.toList(),
-              seguindo: {..._contaAtual!.seguindo, ...remoto.seguindo}.toList(),
-              seguidores: {..._contaAtual!.seguidores, ...remoto.seguidores}.toList(),
+            final contaAtualizada = _contaAtual!.mesclarCom(
+              remoto,
+              priorizarOutro: true,
             );
             await ContasNousService.salvar(contaAtualizada);
             _contaAtual = contaAtualizada;
+            atualizarContaNoCache(contaAtualizada);
             ClienteRedeLocal().atualizarIdentidadeUsuario(
               cpf: contaAtualizada.cpf,
               nome: contaAtualizada.nome,
@@ -367,8 +350,17 @@ class AuthProvider extends ChangeNotifier {
 
     _contaAtual = contaComChave;
     _emailAtivo = null;
+    atualizarContaNoCache(contaComChave);
     await ThemeController.carregarTemaDoUsuario(_cpf);
     await carregarDadosReveladosDono(_cpf);
+    ClienteRedeLocal().atualizarIdentidadeUsuario(
+      cpf: contaComChave.cpf,
+      nome: contaComChave.nome,
+      apelido: contaComChave.apelido,
+      foto: contaComChave.foto,
+    );
+    ServidorRedeLocal().atualizarOperadorBalcao(contaComChave);
+    _propagarUsuarioAtualizado(contaComChave);
     notifyListeners();
   }
 

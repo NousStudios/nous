@@ -3,22 +3,31 @@ import 'package:flutter/services.dart';
 import 'package:nous/src/core/theme/theme_controller.dart';
 import 'package:nous/src/features/chat/models/conversa_chat.dart';
 import 'package:nous/src/features/chat/models/mensagem_chat.dart';
+import 'package:nous/src/features/chat/views/dialogs/dialog_menu_mensagem.dart';
 import 'package:nous/src/features/chat/views/widgets/cards/card_mensagem_arquivo.dart';
 import 'package:nous/src/features/chat/views/widgets/cards/card_mensagem_audio.dart';
 import 'package:nous/src/features/chat/views/widgets/cards/card_mensagem_comanda.dart';
 import 'package:nous/src/features/chat/views/widgets/cards/card_mensagem_imagem.dart';
 
-class BalaoMensagemWidget extends StatelessWidget {
+class BalaoMensagemWidget extends StatefulWidget {
   final MensagemChat msg;
   final ConversaChat conversa;
   final bool enviadaPorMim;
   final bool modoLoja;
   final AppTheme theme;
+  final bool selecionada;
+  final bool modoSelecaoAtivo;
+  final bool destacada;
+  final bool mostrarBarraReacoes;
   final void Function(MensagemChat) onMostrarMenu;
   final void Function(MensagemChat) onVerHistoricoEdicoes;
   final void Function(String) onAbrirArquivo;
   final void Function(String) onVisualizarFotoAmpliada;
   final void Function(MensagemChat) onVerComanda;
+  final void Function(MensagemChat)? onResponder;
+  final void Function(MensagemChat)? onAlternarSelecao;
+  final void Function(MensagemChat, String emoji)? onReagir;
+  final void Function(String mensagemId)? onTocarCitacao;
 
   const BalaoMensagemWidget({
     super.key,
@@ -27,12 +36,34 @@ class BalaoMensagemWidget extends StatelessWidget {
     required this.enviadaPorMim,
     this.modoLoja = false,
     required this.theme,
+    this.selecionada = false,
+    this.modoSelecaoAtivo = false,
+    this.destacada = false,
+    this.mostrarBarraReacoes = false,
     required this.onMostrarMenu,
     required this.onVerHistoricoEdicoes,
     required this.onAbrirArquivo,
     required this.onVisualizarFotoAmpliada,
     required this.onVerComanda,
+    this.onResponder,
+    this.onAlternarSelecao,
+    this.onReagir,
+    this.onTocarCitacao,
   });
+
+  @override
+  State<BalaoMensagemWidget> createState() => _BalaoMensagemWidgetState();
+}
+
+class _BalaoMensagemWidgetState extends State<BalaoMensagemWidget> {
+  double _deslocamentoX = 0.0;
+  bool _arrastando = false;
+
+  MensagemChat get msg => widget.msg;
+  ConversaChat get conversa => widget.conversa;
+  bool get enviadaPorMim => widget.enviadaPorMim;
+  bool get modoLoja => widget.modoLoja;
+  AppTheme get theme => widget.theme;
 
   String _formatarHora(DateTime dataHora) {
     final local = dataHora.toLocal();
@@ -67,14 +98,122 @@ class BalaoMensagemWidget extends StatelessWidget {
       return const SizedBox.shrink();
     }
 
-    return Align(
-      alignment: enviadaPorMim ? Alignment.centerRight : Alignment.centerLeft,
-      child: InkWell(
-        borderRadius: BorderRadius.circular(12),
-        onDoubleTap: () => _copiarAoToqueDuplo(context),
-        onLongPress: () => onMostrarMenu(msg),
-        onSecondaryTap: () => onMostrarMenu(msg),
-        child: Container(
+    final double deslocamentoEfetivo = _arrastando
+        ? _deslocamentoX
+        : (widget.selecionada ? -52.0 : 0.0);
+
+    return GestureDetector(
+      onHorizontalDragStart: widget.onResponder == null
+          ? null
+          : (_) {
+              setState(() {
+                _arrastando = true;
+                _deslocamentoX = widget.selecionada ? -52.0 : 0.0;
+              });
+            },
+      onHorizontalDragUpdate: widget.onResponder == null
+          ? null
+          : (details) {
+              setState(() {
+                _arrastando = true;
+                _deslocamentoX =
+                    (_deslocamentoX + details.delta.dx).clamp(-58.0, 0.0);
+              });
+            },
+      onHorizontalDragEnd: widget.onResponder == null
+          ? null
+          : (_) {
+              final atingiuGatilho = _deslocamentoX <= -34.0;
+              if (atingiuGatilho) {
+                widget.onResponder?.call(msg);
+                widget.onAlternarSelecao?.call(msg);
+              }
+              setState(() {
+                _arrastando = false;
+                _deslocamentoX = 0.0;
+              });
+            },
+      onHorizontalDragCancel: () => setState(() {
+        _arrastando = false;
+        _deslocamentoX = 0.0;
+      }),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 220),
+        color: widget.selecionada
+            ? theme.textColor.withValues(alpha: 0.10)
+            : (widget.destacada
+                ? theme.buttonColor.withValues(alpha: 0.14)
+                : Colors.transparent),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: enviadaPorMim
+              ? CrossAxisAlignment.end
+              : CrossAxisAlignment.start,
+          children: [
+            if (widget.mostrarBarraReacoes && widget.onReagir != null)
+              Container(
+                margin: const EdgeInsets.only(bottom: 6),
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: theme.cardBackgroundColor,
+                  borderRadius: BorderRadius.circular(24),
+                  border: Border.all(
+                    color: theme.borderColor.withValues(alpha: 0.7),
+                  ),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: DialogMenuMensagem.emojisPadrao.map((emoji) {
+                    return InkWell(
+                      borderRadius: BorderRadius.circular(18),
+                      onTap: () => widget.onReagir!(msg, emoji),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 7,
+                          vertical: 4,
+                        ),
+                        child: Text(
+                          emoji,
+                          style: const TextStyle(fontSize: 19),
+                        ),
+                      ),
+                    );
+                  }).toList(),
+                ),
+              ),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                Expanded(
+                  child: AnimatedContainer(
+                    duration: _arrastando
+                        ? Duration.zero
+                        : const Duration(milliseconds: 180),
+                    curve: Curves.easeOut,
+                    padding: EdgeInsets.only(
+                      right: deslocamentoEfetivo < -8
+                          ? (deslocamentoEfetivo.abs() - 36.0).clamp(0.0, 24.0)
+                          : 0.0,
+                    ),
+                    child: Align(
+                alignment:
+                    enviadaPorMim ? Alignment.centerRight : Alignment.centerLeft,
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(12),
+                  onTap: widget.onAlternarSelecao != null &&
+                          (widget.modoSelecaoAtivo || widget.selecionada)
+                      ? () => widget.onAlternarSelecao!(msg)
+                      : null,
+                  onDoubleTap: () => _copiarAoToqueDuplo(context),
+                  onLongPress: () {
+                    if (widget.onAlternarSelecao != null) {
+                      widget.onAlternarSelecao!(msg);
+                    } else {
+                      widget.onMostrarMenu(msg);
+                    }
+                  },
+                  onSecondaryTap: () => widget.onMostrarMenu(msg),
+                  child: Container(
           margin: const EdgeInsets.only(bottom: 8),
           constraints: BoxConstraints(
             maxWidth: msg.tipo == 'comanda'
@@ -135,20 +274,71 @@ class BalaoMensagemWidget extends StatelessWidget {
                     ),
                   ),
 
+                // Bloco de resposta / citação estilo WhatsApp (clicável para rolar até a original)
+                if (msg.respostaAId.isNotEmpty)
+                  InkWell(
+                    borderRadius: BorderRadius.circular(8),
+                    onTap: widget.onTocarCitacao != null
+                        ? () => widget.onTocarCitacao!(msg.respostaAId)
+                        : null,
+                    child: Container(
+                      margin: const EdgeInsets.only(bottom: 6),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 5,
+                      ),
+                      decoration: BoxDecoration(
+                        color: theme.backgroundColor.withValues(alpha: 0.45),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border(
+                          left: BorderSide(color: theme.textColor, width: 3),
+                        ),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          if (msg.respostaAAutor.isNotEmpty)
+                            Text(
+                              msg.respostaAAutor,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: theme.getTextStyle(
+                                fontSize: 10.5,
+                                fontWeight: FontWeight.w700,
+                                color: theme.textColor,
+                              ),
+                            ),
+                          Text(
+                            msg.respostaATexto.isNotEmpty
+                                ? msg.respostaATexto
+                                : 'Mensagem',
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: theme.getTextStyle(
+                              fontSize: 11,
+                              color: theme.secondaryTextColor,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+
                 // Renderização do conteúdo conforme o tipo
                 if (msg.tipo == 'imagem')
                   CardMensagemImagem(
                     msg: msg,
                     enviadaPorMim: enviadaPorMim,
                     theme: theme,
-                    onVisualizarFoto: onVisualizarFotoAmpliada,
+                    onVisualizarFoto: widget.onVisualizarFotoAmpliada,
                   )
                 else if (msg.tipo == 'arquivo')
                   CardMensagemArquivo(
                     msg: msg,
                     enviadaPorMim: enviadaPorMim,
                     theme: theme,
-                    onAbrir: () => onAbrirArquivo(msg.caminhoAnexo),
+                    onAbrir: () => widget.onAbrirArquivo(msg.caminhoAnexo),
                   )
                 else if (msg.tipo == 'audio')
                   CardMensagemAudio(
@@ -162,7 +352,7 @@ class BalaoMensagemWidget extends StatelessWidget {
                     enviadaPorMim: enviadaPorMim,
                     modoLoja: modoLoja,
                     theme: theme,
-                    onVerComanda: () => onVerComanda(msg),
+                    onVerComanda: () => widget.onVerComanda(msg),
                   )
                 else
                   Align(
@@ -242,7 +432,7 @@ class BalaoMensagemWidget extends StatelessWidget {
                       ],
                       if (msg.editada) ...[
                         InkWell(
-                          onTap: () => onVerHistoricoEdicoes(msg),
+                          onTap: () => widget.onVerHistoricoEdicoes(msg),
                           borderRadius: BorderRadius.circular(4),
                           child: Padding(
                             padding: const EdgeInsets.symmetric(horizontal: 2),
@@ -303,6 +493,27 @@ class BalaoMensagemWidget extends StatelessWidget {
               ],
             ),
           ),
+        ),
+        ),
+        ),
+                ),
+                  ),
+                if (deslocamentoEfetivo < -8)
+                  Padding(
+                    padding: const EdgeInsets.only(left: 10, right: 6),
+                    child: Opacity(
+                      opacity:
+                          (deslocamentoEfetivo.abs() / 42.0).clamp(0.0, 1.0),
+                      child: Icon(
+                        Icons.reply_rounded,
+                        size: 20,
+                        color: theme.textColor,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ],
         ),
       ),
     );

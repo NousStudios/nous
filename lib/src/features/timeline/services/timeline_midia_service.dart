@@ -150,30 +150,45 @@ class TimelineMidiaService {
     } catch (_) {}
 
     final ext = p.extension(caminho).toLowerCase();
-    const extensoesNaoImagem = {
+    const extensoesVideo = {
       '.mp4',
       '.mov',
       '.mkv',
       '.webm',
       '.avi',
       '.3gp',
+    };
+    const extensoesAudioOuDoc = {
       '.mp3',
       '.wav',
       '.m4a',
       '.aac',
       '.ogg',
+      '.flac',
       '.pdf',
     };
-    if (!extensoesNaoImagem.contains(ext) && ClienteRedeLocal().conectado) {
-      try {
-        final baixado = await ClienteRedeLocal()
-            .baixarImagemRemota(caminho)
-            .timeout(const Duration(seconds: 5));
-        if (baixado.isNotEmpty && File(baixado).existsSync()) {
-          _cacheCaminhosMidia[caminho] = baixado;
-          return baixado;
-        }
-      } catch (_) {}
+    if (ClienteRedeLocal().conectado) {
+      if (extensoesAudioOuDoc.contains(ext)) {
+        try {
+          final baixado = await ClienteRedeLocal()
+              .baixarAudioRemoto(caminho)
+              .timeout(const Duration(seconds: 8));
+          if (baixado.isNotEmpty && File(baixado).existsSync()) {
+            _cacheCaminhosMidia[caminho] = baixado;
+            return baixado;
+          }
+        } catch (_) {}
+      } else if (!extensoesVideo.contains(ext)) {
+        try {
+          final baixado = await ClienteRedeLocal()
+              .baixarImagemRemota(caminho)
+              .timeout(const Duration(seconds: 5));
+          if (baixado.isNotEmpty && File(baixado).existsSync()) {
+            _cacheCaminhosMidia[caminho] = baixado;
+            return baixado;
+          }
+        } catch (_) {}
+      }
     }
     return null;
   }

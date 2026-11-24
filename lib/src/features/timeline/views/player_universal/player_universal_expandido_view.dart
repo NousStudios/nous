@@ -14,6 +14,7 @@ import 'package:nous/src/features/timeline/views/dialogs/dialog_detalhes_publica
 import 'package:nous/src/features/timeline/views/dialogs/dialog_enviar_publicacao_chat.dart';
 import 'package:nous/src/features/timeline/views/dialogs/dialog_salvar_publicacao.dart';
 import 'package:nous/src/features/timeline/views/player_universal/capa_midia_universal_widget.dart';
+import 'package:nous/src/features/timeline/views/player_universal/painel_lateral_player_widget.dart';
 
 /// Tela expandida do Player Universal (Música, Vídeo, Fila, Letra e Cifra).
 /// No desktop (>= 860 px) apresenta layout em 2 colunas estilo YouTube Music /
@@ -50,7 +51,6 @@ class _PlayerUniversalExpandidoViewState
   // No desktop: _abaLateralSelecionada controla a coluna direita (0/1/2).
   int? _abaMobileAberta;
   int _abaDesktopSelecionada = 0;
-  double _tamanhoFonteCifra = 15.0;
 
   String _ultimoIdReacoes = '';
   bool _curtiu = false;
@@ -755,146 +755,11 @@ class _PlayerUniversalExpandidoViewState
     PublicacaoSocial pub,
     int abaIdx,
   ) {
-    if (abaIdx == 0) {
-      final fila = _ctrl.fila;
-      if (fila.isEmpty) {
-        return Center(
-          child: Text(
-            'Nenhuma mídia na fila.',
-            style: TextStyle(color: theme.secondaryTextColor),
-          ),
-        );
-      }
-      return ListView.separated(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-        itemCount: fila.length,
-        separatorBuilder: (_, _) => Divider(
-          height: 1,
-          color: theme.borderColor.withValues(alpha: 0.3),
-        ),
-        itemBuilder: (context, index) {
-          final item = fila[index];
-          final ativo = index == _ctrl.indiceAtual;
-          return ListTile(
-            dense: true,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(10),
-            ),
-            tileColor: ativo
-                ? theme.textColor.withValues(alpha: 0.08)
-                : Colors.transparent,
-            leading: CapaMidiaUniversalWidget(
-              theme: theme,
-              publicacao: item,
-              largura: 42,
-              altura: 42,
-              borderRadius: 8,
-              tamanhoIcone: 20,
-            ),
-            title: Text(
-              PlayerUniversalController.obterTitulo(item),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                color: theme.textColor,
-                fontWeight: ativo ? FontWeight.w700 : FontWeight.w500,
-              ),
-            ),
-            subtitle: Text(
-              item.autorNome,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                color: theme.secondaryTextColor,
-                fontSize: 12,
-              ),
-            ),
-            trailing: ativo
-                ? Icon(
-                    Icons.equalizer_rounded,
-                    color: theme.textColor,
-                    size: 20,
-                  )
-                : null,
-            onTap: () => _ctrl.tocarPublicacao(item),
-          );
-        },
-      );
-    }
-
-    final ehCifra = abaIdx == 2;
-    final textoConteudo = ehCifra
-        ? (pub.cifraLetra.trim().isNotEmpty
-            ? pub.cifraLetra.trim()
-            : 'Nenhuma cifra cadastrada para esta faixa.')
-        : (pub.texto.trim().isNotEmpty
-            ? pub.texto.trim()
-            : 'Nenhuma letra ou descrição informada.');
-
-    return Column(
-      children: [
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 6),
-          child: Row(
-            children: [
-              Text(
-                ehCifra ? 'Cifra / Tablatura' : 'Letra / Descrição',
-                style: TextStyle(
-                  color: theme.textColor,
-                  fontSize: 13.5,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              const Spacer(),
-              IconButton(
-                tooltip: 'Diminuir fonte',
-                onPressed: () {
-                  setState(() {
-                    _tamanhoFonteCifra =
-                        (_tamanhoFonteCifra - 1.5).clamp(11.0, 26.0);
-                  });
-                },
-                icon: Icon(
-                  Icons.text_decrease_rounded,
-                  color: theme.secondaryTextColor,
-                  size: 19,
-                ),
-              ),
-              IconButton(
-                tooltip: 'Aumentar fonte',
-                onPressed: () {
-                  setState(() {
-                    _tamanhoFonteCifra =
-                        (_tamanhoFonteCifra + 1.5).clamp(11.0, 26.0);
-                  });
-                },
-                icon: Icon(
-                  Icons.text_increase_rounded,
-                  color: theme.secondaryTextColor,
-                  size: 19,
-                ),
-              ),
-            ],
-          ),
-        ),
-        Expanded(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.fromLTRB(20, 6, 20, 20),
-            child: Align(
-              alignment: Alignment.topLeft,
-              child: SelectableText(
-                textoConteudo,
-                style: TextStyle(
-                  color: theme.textColor,
-                  fontSize: _tamanhoFonteCifra,
-                  height: 1.6,
-                  fontFamily: ehCifra ? 'monospace' : null,
-                ),
-              ),
-            ),
-          ),
-        ),
-      ],
+    return PainelLateralPlayerWidget(
+      theme: theme,
+      publicacao: pub,
+      abaIndex: abaIdx,
+      controller: _ctrl,
     );
   }
 

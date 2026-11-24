@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:nous/src/core/theme/theme_controller.dart';
+import 'package:nous/src/features/auth/services/biometria_auth_service.dart';
 import 'package:nous/src/features/auth/views/widgets/cpf_input_widget.dart';
 import 'package:nous/src/features/auth/views/widgets/login_buttons_widget.dart';
 import 'package:nous/src/features/auth/views/widgets/logo_widget.dart';
@@ -30,6 +31,11 @@ class _LoginViewState extends State<LoginView> {
   void initState() {
     super.initState();
     ThemeController.entrarTelaLogin();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        unawaited(BiometriaAuthService.tentarLoginAutomatico(context));
+      }
+    });
     _timerFrases = Timer.periodic(const Duration(seconds: 15), (_) {
       if (mounted) {
         setState(() {

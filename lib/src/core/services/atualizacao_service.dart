@@ -25,8 +25,8 @@ class InfoAtualizacao {
 }
 
 class AtualizacaoService {
-  static String versaoAtual = '1.1.43';
-  static int buildAtual = 145;
+  static String versaoAtual = '1.1.45';
+  static int buildAtual = 147;
 
   /// Inicializa a identificação da versão do aplicativo.
   /// No Android, consulta dinamicamente a versão real instalada no sistema operacional via MethodChannel.
@@ -187,38 +187,91 @@ class AtualizacaoService {
     mensagemStatus.value = 'Iniciando download da atualização...';
 
     try {
-      final client = HttpClient()..connectionTimeout = const Duration(seconds: 10);
-      final req = await client.getUrl(Uri.parse(url));
-      final resp = await req.close();
-
-      if (resp.statusCode != HttpStatus.ok) {
-        throw Exception('Servidor retornou status HTTP ${resp.statusCode}');
-      }
-
-      final contentLength = resp.contentLength;
       final dirTemp = await getTemporaryDirectory();
       final extensao = Platform.isWindows ? 'exe' : 'apk';
       final arquivoDestino = File('${dirTemp.path}/nous_atualizacao.$extensao');
+      final arquivoParcial = File('${arquivoDestino.path}.part');
 
-      if (arquivoDestino.existsSync()) {
+      Object? ultimoErro;
+      bool downloadConcluido = false;
+
+      for (var tentativa = 1; tentativa <= 2; tentativa++) {
+        HttpClient? client;
+        IOSink? sink;
         try {
-          arquivoDestino.deleteSync();
-        } catch (_) {}
-      }
+          if (tentativa > 1) {
+            progressoDownload.value = 0.0;
+            mensagemStatus.value =
+                'Reconectando para concluir download ($tentativa/2)...';
+            await Future<void>.delayed(const Duration(milliseconds: 600));
+          }
 
-      final sink = arquivoDestino.openWrite();
-      int baixados = 0;
+          client = HttpClient()
+            ..connectionTimeout = const Duration(seconds: 10)
+            ..idleTimeout = const Duration(seconds: 25);
+          final req = await client.getUrl(Uri.parse(url));
+          final resp = await req.close();
 
-      await for (final chunk in resp) {
-        sink.add(chunk);
-        baixados += chunk.length;
-        if (contentLength > 0) {
-          progressoDownload.value = (baixados / contentLength).clamp(0.0, 1.0);
+          if (resp.statusCode != HttpStatus.ok) {
+            throw Exception('Servidor retornou status HTTP ${resp.statusCode}');
+          }
+
+          final contentLength = resp.contentLength;
+          if (arquivoParcial.existsSync()) {
+            try {
+              arquivoParcial.deleteSync();
+            } catch (_) {}
+          }
+
+          sink = arquivoParcial.openWrite();
+          int baixados = 0;
+
+          await for (final chunk in resp) {
+            sink.add(chunk);
+            baixados += chunk.length;
+            if (contentLength > 0) {
+              progressoDownload.value =
+                  (baixados / contentLength).clamp(0.0, 1.0);
+            }
+          }
+
+          await sink.flush();
+          await sink.close();
+          sink = null;
+
+          if (baixados <= 0 ||
+              (contentLength > 0 && baixados != contentLength)) {
+            throw Exception(
+              'Download incompleto ($baixados de $contentLength bytes).',
+            );
+          }
+
+          if (arquivoDestino.existsSync()) {
+            try {
+              arquivoDestino.deleteSync();
+            } catch (_) {}
+          }
+          await arquivoParcial.rename(arquivoDestino.path);
+          downloadConcluido = true;
+          break;
+        } catch (e) {
+          ultimoErro = e;
+          try {
+            await sink?.close();
+          } catch (_) {}
+          if (arquivoParcial.existsSync()) {
+            try {
+              arquivoParcial.deleteSync();
+            } catch (_) {}
+          }
+        } finally {
+          client?.close(force: true);
         }
       }
 
-      await sink.flush();
-      await sink.close();
+      if (!downloadConcluido) {
+        throw ultimoErro ?? Exception('Falha ao baixar arquivo de atualização.');
+      }
 
       progressoDownload.value = 1.0;
       mensagemStatus.value = 'Download concluído! Iniciando instalador...';
@@ -231,6 +284,10 @@ class AtualizacaoService {
       } else if (Platform.isWindows) {
         Process.run(arquivoDestino.path, []);
       }
+    } on PlatformException catch (e) {
+      mensagemStatus.value =
+          e.message ?? 'Erro ao iniciar instalador no aparelho (${e.code}).';
+      debugPrint('[AtualizacaoService] Erro nativo ao instalar: ${e.message}');
     } catch (e) {
       mensagemStatus.value = 'Erro ao baixar atualização: $e';
       debugPrint('[AtualizacaoService] Erro ao baixar e instalar: $e');

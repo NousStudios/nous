@@ -11,21 +11,27 @@ class BancoDadosService {
   BancoDadosService._();
 
   static Database? _db;
+  static Future<Database>? _inicializacaoEmVoo;
 
   @visibleForTesting
   static void resetDbInstanciaParaTestes() {
     _db = null;
+    _inicializacaoEmVoo = null;
   }
 
   static Future<Database> get db async {
     if (_db != null) return _db!;
-    _db = await _inicializar();
-    return _db!;
+    _inicializacaoEmVoo ??= _inicializar();
+    try {
+      _db = await _inicializacaoEmVoo!;
+      return _db!;
+    } finally {
+      _inicializacaoEmVoo = null;
+    }
   }
 
   static Future<void> inicializar() async {
-    if (_db != null) return;
-    _db = await _inicializar();
+    await db;
   }
 
   static Future<Database> _inicializar() async {

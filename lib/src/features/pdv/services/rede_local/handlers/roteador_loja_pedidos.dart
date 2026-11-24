@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
+import 'package:nous/src/core/services/banco_dados_service.dart';
 import 'package:nous/src/core/services/som_service.dart';
 import 'package:nous/src/core/utils/json_isolate_utils.dart';
 import 'package:nous/src/features/auth/services/contas_nous_service.dart';
@@ -330,6 +331,77 @@ class RoteadorLojaPedidos {
         }
 
         ServidorRedeLocal.responderJson(request, {'sucesso': true});
+        return true;
+      } catch (e) {
+        ServidorRedeLocal.responderJson(
+          request,
+          {'sucesso': false, 'erro': e.toString()},
+          statusCode: HttpStatus.badRequest,
+        );
+        return true;
+      }
+    }
+
+    // 2b. Reconciliar status de pedidos pendentes em terminais (consulta memória + SQLite do balcão)
+    if (path == '/api/pedidos/reconciliar' && request.method == 'POST') {
+      try {
+        final body = await utf8.decodeStream(request);
+        final dados = await decodificarJsonMapaSeguro(body);
+        final lojaIdAlvo = (dados['lojaId'] as String? ?? '').trim();
+        final idsBrutos = (dados['ids'] as List<dynamic>? ?? const [])
+            .map((e) => e.toString().trim())
+            .where((id) => id.isNotEmpty)
+            .toSet()
+            .toList();
+
+        final lojaAtual = AutorizadorLojaBalcao.obterLojaHospedada(
+          lojaIdBruto: lojaIdAlvo,
+          lojaAtiva: servidor.lojaAtiva,
+          pdvProvider: servidor.pdvProvider,
+          cpfOperadorBalcao: servidor.authProvider?.contaAtual?.cpf,
+        );
+        if (lojaAtual == null) {
+          ServidorRedeLocal.responderJson(
+            request,
+            {'sucesso': false, 'erro': 'Loja não encontrada neste balcão.'},
+            statusCode: HttpStatus.notFound,
+          );
+          return true;
+        }
+
+        final encontrados = <String, PedidoLoja>{};
+        for (final p in lojaAtual.pedidosLoja) {
+          if (idsBrutos.contains(p.id)) {
+            encontrados[p.id] = p;
+          }
+        }
+
+        final faltantes =
+            idsBrutos.where((id) => !encontrados.containsKey(id)).toList();
+        if (faltantes.isNotEmpty) {
+          final db = await BancoDadosService.db;
+          final placeholders = List.filled(faltantes.length, '?').join(', ');
+          final rows = await db.query(
+            'pedidos',
+            columns: ['id', 'dados_json'],
+            where: 'loja_id = ? AND id IN ($placeholders)',
+            whereArgs: [lojaAtual.id, ...faltantes],
+          );
+          for (final r in rows) {
+            final raw = r['dados_json'] as String?;
+            if (raw == null || raw.isEmpty) continue;
+            try {
+              final mapa = await decodificarJsonMapaSeguro(raw);
+              final ped = PedidoLoja.fromJson(mapa);
+              encontrados[ped.id] = ped;
+            } catch (_) {}
+          }
+        }
+
+        ServidorRedeLocal.responderJson(request, {
+          'sucesso': true,
+          'pedidos': encontrados.values.map((p) => p.toJson()).toList(),
+        });
         return true;
       } catch (e) {
         ServidorRedeLocal.responderJson(

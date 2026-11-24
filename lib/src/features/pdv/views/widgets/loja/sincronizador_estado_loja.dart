@@ -153,6 +153,10 @@ class SincronizadorEstadoLoja {
     final arquivosMudaram = !listEquals(arquivos, lojaAtual.arquivos);
     final descricoesMudaram = !mapEquals(descricoesAnexos, lojaAtual.descricoesAnexos);
     final tempoConclusaoMudou = tempoConclusaoMinutosAtual != lojaAtual.tempoConclusaoMinutos;
+    final cadastroMudou = controllers.nome.text != lojaAtual.nome ||
+        controllers.cnpj.text != lojaAtual.cnpj ||
+        controllers.telefone.text != lojaAtual.telefone ||
+        controllers.endereco.text != lojaAtual.endereco;
 
     final houveMudanca = movsMudaram ||
         pedidosMudaram ||
@@ -171,7 +175,8 @@ class SincronizadorEstadoLoja {
         videosMudaram ||
         arquivosMudaram ||
         descricoesMudaram ||
-        tempoConclusaoMudou;
+        tempoConclusaoMudou ||
+        cadastroMudou;
 
     if (houveMudanca) {
       if (controllers.nome.text != lojaAtual.nome) {

@@ -457,8 +457,12 @@ class ManipuladorMidiaServidor {
       debugPrint('[ManipuladorMidiaServidor] APK transmitido com sucesso via Wi-Fi!');
     } catch (e) {
       debugPrint('[ManipuladorMidiaServidor] Erro ao servir APK: $e');
-      request.response.statusCode = HttpStatus.internalServerError;
-      await request.response.close();
+      try {
+        request.response.statusCode = HttpStatus.internalServerError;
+      } catch (_) {}
+      try {
+        await request.response.close();
+      } catch (_) {}
     }
   }
 

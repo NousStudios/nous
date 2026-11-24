@@ -27,6 +27,9 @@ class MensagemChat {
   final bool fixada;
   final Map<String, String> reacoes;
   final String assinatura;
+  final String respostaAId;
+  final String respostaATexto;
+  final String respostaAAutor;
 
   const MensagemChat({
     required this.id,
@@ -55,6 +58,9 @@ class MensagemChat {
     this.fixada = false,
     this.reacoes = const {},
     this.assinatura = '',
+    this.respostaAId = '',
+    this.respostaATexto = '',
+    this.respostaAAutor = '',
   });
 
   MensagemChat copyWith({
@@ -84,6 +90,9 @@ class MensagemChat {
     bool? fixada,
     Map<String, String>? reacoes,
     String? assinatura,
+    String? respostaAId,
+    String? respostaATexto,
+    String? respostaAAutor,
   }) {
     return MensagemChat(
       id: id ?? this.id,
@@ -112,6 +121,9 @@ class MensagemChat {
       fixada: fixada ?? this.fixada,
       reacoes: reacoes ?? this.reacoes,
       assinatura: assinatura ?? this.assinatura,
+      respostaAId: respostaAId ?? this.respostaAId,
+      respostaATexto: respostaATexto ?? this.respostaATexto,
+      respostaAAutor: respostaAAutor ?? this.respostaAAutor,
     );
   }
 
@@ -143,6 +155,9 @@ class MensagemChat {
       'fixada': fixada,
       'reacoes': reacoes,
       'assinatura': assinatura,
+      'respostaAId': respostaAId,
+      'respostaATexto': respostaATexto,
+      'respostaAAutor': respostaAAutor,
     };
   }
 
@@ -265,6 +280,15 @@ class MensagemChat {
       fixada: fixada,
       reacoes: reacoesMap,
       assinatura: json['assinatura'] as String? ?? '',
+      respostaAId: json['respostaAId'] as String? ??
+          json['resposta_a_id'] as String? ??
+          '',
+      respostaATexto: json['respostaATexto'] as String? ??
+          json['resposta_a_texto'] as String? ??
+          '',
+      respostaAAutor: json['respostaAAutor'] as String? ??
+          json['resposta_a_autor'] as String? ??
+          '',
     );
   }
 }

@@ -454,6 +454,7 @@ class ClienteRedeLocal {
       sincronizarPerfisLojasComServidor: sincronizarPerfisLojasComServidor,
       processarSinalChamada: _processarSinalChamada,
       baixarImagemRemota: baixarImagemRemota,
+      reconciliarPedidosNoServidor: reconciliarPedidosNoServidor,
     );
     await ClienteWsMessageHandler.processarMensagem(msg, ctx);
   }
@@ -762,6 +763,43 @@ class ClienteRedeLocal {
         portaServidor: _portaServidor,
       );
 
+
+  /// Consulta no servidor balcão o status atualizado de pedidos locais ausentes no snapshot.
+  Future<List<PedidoLoja>> reconciliarPedidosNoServidor(
+    String lojaId,
+    List<String> ids,
+  ) async {
+    if (_ipServidor == null || _portaServidor == null || ids.isEmpty) {
+      return const [];
+    }
+    try {
+      final client = HttpClient()
+        ..connectionTimeout = const Duration(seconds: 4);
+      final uri = ResolvedorUrlRede.montarUriHttp(
+        hostOuIp: _ipServidor!,
+        porta: _portaServidor!,
+        path: '/api/pedidos/reconciliar',
+      );
+      final req = await client.postUrl(uri);
+      req.headers.contentType = ContentType.json;
+      req.write(jsonEncode({'lojaId': lojaId, 'ids': ids}));
+      final resp = await req.close().timeout(const Duration(seconds: 5));
+      if (resp.statusCode == HttpStatus.ok) {
+        final body = await utf8.decodeStream(resp);
+        final json = jsonDecode(body) as Map<String, dynamic>;
+        final lista = json['pedidos'] as List<dynamic>? ?? const [];
+        return lista
+            .whereType<Map<String, dynamic>>()
+            .map(PedidoLoja.fromJson)
+            .toList();
+      }
+    } catch (e) {
+      debugPrint(
+        '[ClienteRedeLocal] Erro ao reconciliar pedidos no servidor: $e',
+      );
+    }
+    return const [];
+  }
 
   /// Baixa uma imagem remota individual do balcão e salva no armazenamento local
   Future<String> baixarImagemRemota(String caminhoRemoto, {String? cpf}) =>

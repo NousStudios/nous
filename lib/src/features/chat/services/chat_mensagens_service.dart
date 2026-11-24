@@ -173,6 +173,9 @@ class ChatMensagensService {
       'fixada': mensagemPersistida.fixada ? 1 : 0,
       'reacoes_json': jsonEncode(mensagemPersistida.reacoes),
       'assinatura': mensagemPersistida.assinatura,
+      'resposta_a_id': mensagemPersistida.respostaAId,
+      'resposta_a_texto': mensagemPersistida.respostaATexto,
+      'resposta_a_autor': mensagemPersistida.respostaAAutor,
     }, conflictAlgorithm: ConflictAlgorithm.replace);
 
     final ehConvLojaUsuario = mensagem.conversaId.startsWith('loja_') &&
@@ -497,6 +500,9 @@ class ChatMensagensService {
       'fixada': mensagem.fixada ? 1 : 0,
       'reacoes_json': jsonEncode(mensagem.reacoes),
       'assinatura': mensagem.assinatura,
+      'resposta_a_id': mensagem.respostaAId,
+      'resposta_a_texto': mensagem.respostaATexto,
+      'resposta_a_autor': mensagem.respostaAAutor,
     }, conflictAlgorithm: ConflictAlgorithm.replace);
 
     final ehConvLojaUsuario = mensagem.conversaId.startsWith('loja_') &&
@@ -588,6 +594,19 @@ class ChatMensagensService {
 
     final r = rows.first;
     final textoAntigo = r['texto'] as String? ?? '';
+    final msgTemp = MensagemChat(
+      id: id,
+      conversaId: r['conversa_id'] as String? ?? '',
+      remetenteId: r['remetente_id'] as String? ?? '',
+      remetenteNome: r['remetente_nome'] as String? ?? '',
+      destinatarioId: r['destinatario_id'] as String? ?? '',
+      texto: novoTexto.trim(),
+      dataHora: DateTime.tryParse(r['data_hora'] as String? ?? '') ??
+          DateTime.now(),
+    );
+    final msgCifrada = await ChatE2eeService.cifrarMensagemSeAplicavel(msgTemp);
+    final textoFinal = msgCifrada.texto;
+
     final historicoRaw = r['historico_edicoes'] as String? ?? '[]';
     List<Map<String, dynamic>> historico = [];
     try {
@@ -604,7 +623,7 @@ class ChatMensagensService {
     await db.update(
       'mensagens_chat',
       {
-        'texto': novoTexto.trim(),
+        'texto': textoFinal,
         'editada': 1,
         'historico_edicoes': jsonEncode(historico),
       },
@@ -618,7 +637,7 @@ class ChatMensagensService {
       'tipo': 'mensagem_editada',
       'id': id,
       'conversaId': r['conversa_id'],
-      'novoTexto': novoTexto.trim(),
+      'novoTexto': textoFinal,
       'historicoEdicoes': historico,
     });
   }

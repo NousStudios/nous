@@ -14,6 +14,7 @@ class ItemConversaTile extends StatefulWidget {
   final VoidCallback? onAlternarArquivar;
   final VoidCallback? onAlternarSilenciar;
   final VoidCallback? onRenomear;
+  final VoidCallback? onExcluir;
 
   const ItemConversaTile({
     super.key,
@@ -27,6 +28,7 @@ class ItemConversaTile extends StatefulWidget {
     this.onAlternarArquivar,
     this.onAlternarSilenciar,
     this.onRenomear,
+    this.onExcluir,
   });
 
   @override
@@ -125,6 +127,28 @@ class _ItemConversaTileState extends State<ItemConversaTile> {
             ],
           ),
         ),
+        if (widget.onExcluir != null)
+          PopupMenuItem(
+            value: 'excluir',
+            child: Row(
+              children: [
+                Icon(
+                  Icons.delete_outline_rounded,
+                  size: 16,
+                  color: widget.theme.dangerColor,
+                ),
+                const SizedBox(width: 10),
+                Text(
+                  'Apagar conversa',
+                  style: widget.theme.getTextStyle(
+                    fontSize: 13,
+                    color: widget.theme.dangerColor,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
+          ),
       ],
     ).then((valor) {
       if (valor == 'renomear') {
@@ -135,6 +159,8 @@ class _ItemConversaTileState extends State<ItemConversaTile> {
         widget.onAlternarSilenciar?.call();
       } else if (valor == 'arquivar') {
         widget.onAlternarArquivar?.call();
+      } else if (valor == 'excluir') {
+        widget.onExcluir?.call();
       }
     });
   }

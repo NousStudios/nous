@@ -6,8 +6,10 @@ import 'package:nous/src/features/auth/services/contas_nous_service.dart';
 import 'package:nous/src/features/chat/models/conversa_chat.dart';
 import 'package:nous/src/features/chat/services/chat_service.dart';
 import 'package:nous/src/features/pdv/services/imagem_service.dart';
+import 'package:nous/src/features/timeline/controllers/player_universal_controller.dart';
 import 'package:nous/src/features/timeline/models/publicacao_social.dart';
 import 'package:nous/src/features/timeline/services/timeline_service.dart';
+import 'package:nous/src/features/timeline/views/widgets/editor_story_view.dart';
 
 /// Seletor de contatos e conversas estilo WhatsApp para encaminhar/compartilhar
 /// uma publicação diretamente no Chat com fotos e nomes reais.
@@ -165,6 +167,30 @@ class _DialogEnviarPublicacaoChatState
       meuNome: widget.remetente.nomeExibicao,
       minhaFoto: widget.remetente.fotoExibicao,
       destinatarioId: item.destinatarioId,
+    );
+  }
+
+  Future<void> _postarNoStory() async {
+    final nav = Navigator.of(context);
+    final pub = widget.publicacao;
+    String caminho = '';
+    var ehVideo = false;
+    if (pub.midias.isNotEmpty) {
+      final primeira = pub.midias.first;
+      ehVideo = PlayerUniversalController.possuiVideo(pub);
+      caminho =
+          (await TimelineService.resolverCaminhoMidia(primeira.caminhoRelativo)) ??
+              '';
+    }
+    if (!mounted) return;
+    nav.pop(true);
+    await EditorStoryView.mostrar(
+      nav.context,
+      theme: widget.theme,
+      autor: widget.remetente,
+      caminhoArquivo: caminho,
+      ehVideo: ehVideo,
+      abrirTextoAoEntrar: caminho.isEmpty,
     );
   }
 
@@ -354,6 +380,41 @@ class _DialogEnviarPublicacaoChatState
                           },
                         ),
                       ),
+              ),
+              const SizedBox(height: 10),
+              Divider(
+                height: 1,
+                color: theme.borderColor.withValues(alpha: 0.4),
+              ),
+              const SizedBox(height: 10),
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: theme.textColor,
+                    side: BorderSide(
+                      color: theme.borderColor.withValues(alpha: 0.7),
+                    ),
+                    padding: const EdgeInsets.symmetric(vertical: 11),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                  ),
+                  onPressed: _postarNoStory,
+                  icon: Icon(
+                    Icons.add_circle_outline_rounded,
+                    size: 19,
+                    color: theme.textColor,
+                  ),
+                  label: Text(
+                    'Publicar no seu Story',
+                    style: theme.getTextStyle(
+                      fontSize: 13.5,
+                      fontWeight: FontWeight.w600,
+                      color: theme.textColor,
+                    ),
+                  ),
+                ),
               ),
             ],
           ),

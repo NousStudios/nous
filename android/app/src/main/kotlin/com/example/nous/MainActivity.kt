@@ -3,13 +3,14 @@ package com.example.nous
 import android.content.Intent
 import android.net.Uri
 import android.os.Build
+import android.provider.Settings
 import androidx.core.content.FileProvider
-import io.flutter.embedding.android.FlutterActivity
+import io.flutter.embedding.android.FlutterFragmentActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
 import java.io.File
 
-class MainActivity : FlutterActivity() {
+class MainActivity : FlutterFragmentActivity() {
     private val CHANNEL = "com.nous.app/instalador"
     private val CAPTURA_TELA_CHANNEL = "com.nous.app/captura_tela"
 
@@ -94,9 +95,27 @@ class MainActivity : FlutterActivity() {
                                 return@setMethodCallHandler
                             }
 
+                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O &&
+                                !packageManager.canRequestPackageInstalls()
+                            ) {
+                                val permIntent = Intent(
+                                    Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
+                                    Uri.parse("package:${applicationContext.packageName}")
+                                ).apply {
+                                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                }
+                                startActivity(permIntent)
+                                result.error(
+                                    "PERMISSAO_INSTALACAO",
+                                    "Autorize 'Instalar apps desconhecidos' para o Nous nas configurações e toque em Instalar novamente.",
+                                    null
+                                )
+                                return@setMethodCallHandler
+                            }
+
                             val uri = FileProvider.getUriForFile(
-                                context,
-                                "${context.packageName}.fileprovider",
+                                applicationContext,
+                                "${applicationContext.packageName}.fileprovider",
                                 arquivo
                             )
 
@@ -117,13 +136,13 @@ class MainActivity : FlutterActivity() {
                 "obterVersaoApp" -> {
                     try {
                         val pInfo = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
-                            context.packageManager.getPackageInfo(
-                                context.packageName,
+                            applicationContext.packageManager.getPackageInfo(
+                                applicationContext.packageName,
                                 android.content.pm.PackageManager.PackageInfoFlags.of(0)
                             )
                         } else {
                             @Suppress("DEPRECATION")
-                            context.packageManager.getPackageInfo(context.packageName, 0)
+                            applicationContext.packageManager.getPackageInfo(applicationContext.packageName, 0)
                         }
                         val versao = pInfo.versionName ?: "1.0.0"
                         val build = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {

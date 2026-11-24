@@ -4,7 +4,7 @@ import 'package:nous/src/core/theme/theme_controller.dart';
 import 'package:nous/src/features/chat/models/mensagem_chat.dart';
 
 class DialogMenuMensagem {
-  static const List<String> emojisPadrao = ['👍', '❤️', '😂', '😮', '😢', '🙏'];
+  static const List<String> emojisPadrao = ['❤️', '👍', '👎', '🏴', '😂', '😢'];
 
   static void mostrar(
     BuildContext context, {

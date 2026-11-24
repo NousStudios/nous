@@ -107,6 +107,10 @@ class ImagemService {
 
     // 1. Diretórios padrão do Android
     if (Platform.isAndroid) {
+      adicionarComSubpastas('/data/user/0/com.nous.app/files/Nous');
+      adicionarComSubpastas('/data/user/0/com.example.nous/files/Nous');
+      adicionarComSubpastas('/data/data/com.nous.app/files/Nous');
+      adicionarComSubpastas('/data/data/com.example.nous/files/Nous');
       adicionarComSubpastas('/data/user/0/com.example.nous/app_flutter/Nous');
       adicionarComSubpastas('/data/user/0/com.nous.app/app_flutter/Nous');
       adicionarComSubpastas('/data/data/com.example.nous/app_flutter/Nous');
@@ -666,6 +670,19 @@ class ImagemService {
         buffer.writeln(r['dados_json'] ?? '');
       }
 
+      final nomesProtegidos = <String>{};
+      void registrarCaminhoProtegido(String caminhoBruto) {
+        final limpo = caminhoBruto.trim();
+        if (limpo.isEmpty) return;
+        final norm = limpo.replaceAll('\\', '/');
+        final base = p.basename(norm);
+        if (base.isNotEmpty) nomesProtegidos.add(base);
+        final ext = p.extension(norm).replaceAll('.', '').toLowerCase();
+        final extFinal = extensoesImagem.contains(ext) ? ext : 'jpg';
+        nomesProtegidos.add(gerarNomeRemotoDeterministico(limpo, extFinal));
+        nomesProtegidos.add(gerarNomeRemotoDeterministico(norm, extFinal));
+      }
+
       for (final tabela in const [
         'mensagens_chat',
         'conversas_chat',
@@ -673,11 +690,20 @@ class ImagemService {
         'movimentos_estoque',
         'pagamentos_funcionarios',
         'convites',
+        'publicacoes_sociais',
+        'stories_sociais',
       ]) {
         try {
           final rows = await db.query(tabela);
           for (final r in rows) {
             buffer.writeln(r.values.join(' '));
+            for (final v in r.values) {
+              if (v is String && (v.contains('/') || v.contains('\\') || v.contains('.'))) {
+                for (final match in RegExp(r'[\w\-./\\]+\.(?:jpg|jpeg|png|webp|gif|mp4|mp3|pdf)', caseSensitive: false).allMatches(v)) {
+                  registrarCaminhoProtegido(match.group(0)!);
+                }
+              }
+            }
           }
         } catch (_) {}
       }
@@ -695,7 +721,9 @@ class ImagemService {
           if (entidade is! File) continue;
           final nome = p.basename(entidade.path);
           if (!nome.startsWith('remota_')) continue;
-          if (tudoNoBanco.contains(nome)) continue;
+          if (nomesProtegidos.contains(nome) || tudoNoBanco.contains(nome)) {
+            continue;
+          }
           try {
             final mod = await entidade.lastModified();
             if (mod.isBefore(limiteIdade)) {

@@ -436,7 +436,24 @@ class ThemeController {
       try {
         final map = jsonDecode(rawThemeJson) as Map<String, dynamic>;
         currentTheme.value = AppTheme.fromJson(map);
-      } catch (_) {}
+      } catch (_) {
+        currentTheme.value = AppTheme.dark;
+      }
+    } else {
+      final globalRaw = await PreferenciasSoberanasService.obterTexto(
+        _currentThemePrefsKey,
+      );
+      if (globalRaw != null && globalRaw.isNotEmpty) {
+        try {
+          currentTheme.value = AppTheme.fromJson(
+            jsonDecode(globalRaw) as Map<String, dynamic>,
+          );
+        } catch (_) {
+          currentTheme.value = AppTheme.dark;
+        }
+      } else {
+        currentTheme.value = AppTheme.dark;
+      }
     }
 
     final chaveSalvos = _keyTemasSalvos(cpfLimpo);
@@ -448,12 +465,15 @@ class ThemeController {
       );
     }
 
-    if (rawSavedList.isNotEmpty) {
-      savedThemes.value = rawSavedList
-          .map((jsonText) => SavedTheme.fromJson(
-              jsonDecode(jsonText) as Map<String, dynamic>))
-          .toList();
+    final salvos = <SavedTheme>[];
+    for (final jsonText in rawSavedList) {
+      try {
+        salvos.add(
+          SavedTheme.fromJson(jsonDecode(jsonText) as Map<String, dynamic>),
+        );
+      } catch (_) {}
     }
+    savedThemes.value = salvos;
   }
 
   static Future<void> desvincularUsuario() async {

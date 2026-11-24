@@ -1,14 +1,10 @@
-import 'dart:io';
-
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:nous/src/core/services/preferencias_soberanas_service.dart';
 import 'package:nous/src/core/theme/theme_controller.dart';
-import 'package:nous/src/core/widgets/player_video_nous_widget.dart';
 import 'package:nous/src/features/auth/models/usuario_nous.dart';
 import 'package:nous/src/features/auth/providers/auth_provider.dart';
-import 'package:nous/src/features/pdv/views/widgets/estado_vazio_container.dart';
 import 'package:nous/src/features/timeline/models/interacao_social.dart';
 import 'package:nous/src/features/timeline/models/publicacao_social.dart';
 import 'package:nous/src/features/timeline/models/salvos_denuncia_social.dart';
@@ -16,12 +12,9 @@ import 'package:nous/src/features/timeline/models/story_social.dart';
 import 'package:nous/src/features/timeline/services/timeline_service.dart';
 import 'package:nous/src/features/timeline/views/dialogs/dialog_adicionar_feed.dart';
 import 'package:nous/src/features/timeline/views/dialogs/dialog_criar_publicacao.dart';
-import 'package:nous/src/features/timeline/views/dialogs/dialog_detalhes_publicacao.dart';
-import 'package:nous/src/features/timeline/views/dialogs/dialog_stories.dart';
-import 'package:nous/src/features/timeline/views/widgets/card_escrito_widget.dart';
-import 'package:nous/src/features/timeline/views/widgets/card_publicacao_completo_widget.dart';
-import 'package:nous/src/features/timeline/views/widgets/camera_criacao_view.dart';
-import 'package:nous/src/features/timeline/views/widgets/lista_interacoes_perfil_widget.dart';
+import 'package:nous/src/features/timeline/views/widgets/perfil_section/timeline_feed_conteudo_widget.dart';
+import 'package:nous/src/features/timeline/views/widgets/perfil_section/timeline_galeria_grid_widget.dart';
+import 'package:nous/src/features/timeline/views/widgets/perfil_section/timeline_stories_bar_widget.dart';
 
 /// Seção modular da Rede Social no Perfil Público (Stories + Feeds Configuráveis).
 class TimelinePerfilSection extends StatefulWidget {
@@ -463,63 +456,20 @@ class _TimelinePerfilSectionState extends State<TimelinePerfilSection> {
     }
   }
 
-  IconData _iconeTimeline(TipoFeedSocial tipo) {
-    switch (tipo) {
-      case TipoFeedSocial.fotos:
-        return Icons.grid_on_sharp;
-      case TipoFeedSocial.videos:
-        return Icons.play_circle_outline_rounded;
-      case TipoFeedSocial.documentos:
-        return Icons.description_outlined;
-      case TipoFeedSocial.livros:
-        return Icons.menu_book_outlined;
-      case TipoFeedSocial.musicas:
-        return Icons.music_note_outlined;
-      case TipoFeedSocial.escritos:
-        return Icons.article_outlined;
-      case TipoFeedSocial.republicacoes:
-        return Icons.repeat_rounded;
-      case TipoFeedSocial.interacoes:
-        return Icons.history_toggle_off_rounded;
-      case TipoFeedSocial.salvos:
-        return Icons.bookmark_border_rounded;
-      case TipoFeedSocial.likes:
-        return Icons.thumb_up_off_alt_rounded;
-      case TipoFeedSocial.deslikes:
-        return Icons.thumb_down_off_alt_rounded;
-      case TipoFeedSocial.denuncias:
-        return Icons.shield_outlined;
-    }
-  }
-
-  String _nomeTimeline(TipoFeedSocial tipo) {
-    switch (tipo) {
-      case TipoFeedSocial.fotos:
-        return 'Fotos';
-      case TipoFeedSocial.videos:
-        return 'Vídeos';
-      case TipoFeedSocial.documentos:
-        return 'Documentos';
-      case TipoFeedSocial.livros:
-        return 'Livros';
-      case TipoFeedSocial.musicas:
-        return 'Músicas';
-      case TipoFeedSocial.escritos:
-        return 'Escritos';
-      case TipoFeedSocial.republicacoes:
-        return 'Republicações';
-      case TipoFeedSocial.interacoes:
-        return 'Interações';
-      case TipoFeedSocial.salvos:
-        return 'Conteúdos Salvos';
-      case TipoFeedSocial.likes:
-        return 'Likes';
-      case TipoFeedSocial.deslikes:
-        return 'Deslikes';
-      case TipoFeedSocial.denuncias:
-        return 'Denúncias';
-    }
-  }
+  String _nomeTimeline(TipoFeedSocial tipo) => switch (tipo) {
+        TipoFeedSocial.fotos => 'Fotos',
+        TipoFeedSocial.videos => 'Vídeos',
+        TipoFeedSocial.documentos => 'Documentos',
+        TipoFeedSocial.livros => 'Livros',
+        TipoFeedSocial.musicas => 'Músicas',
+        TipoFeedSocial.escritos => 'Escritos',
+        TipoFeedSocial.republicacoes => 'Republicações',
+        TipoFeedSocial.interacoes => 'Interações',
+        TipoFeedSocial.salvos => 'Conteúdos Salvos',
+        TipoFeedSocial.likes => 'Likes',
+        TipoFeedSocial.deslikes => 'Deslikes',
+        TipoFeedSocial.denuncias => 'Denúncias',
+      };
 
   @override
   Widget build(BuildContext context) {
@@ -530,137 +480,12 @@ class _TimelinePerfilSectionState extends State<TimelinePerfilSection> {
       children: [
         // 1. Stories (apenas + Story se vazio no próprio perfil)
         if (_stories.isNotEmpty || widget.ehProprioUsuario)
-          Align(
-            alignment: Alignment.centerLeft,
-            child: SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                if (widget.ehProprioUsuario)
-                  Padding(
-                    padding: EdgeInsets.only(right: _stories.isNotEmpty ? 10 : 0),
-                    child: GestureDetector(
-                      onTap: () => Navigator.of(context).push(
-                        MaterialPageRoute(
-                          builder: (camCtx) => CameraCriacaoView(
-                            theme: theme,
-                            autor: widget.contaPerfil,
-                            ativa: true,
-                            onVoltarPerfil: () => Navigator.of(camCtx).pop(),
-                          ),
-                        ),
-                      ),
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Container(
-                            width: 56,
-                            height: 56,
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              color: theme.cardBackgroundColor,
-                              border: Border.all(
-                                color: theme.borderColor.withValues(alpha: 0.7),
-                                width: 1.4,
-                              ),
-                            ),
-                            child: Icon(
-                              Icons.add,
-                              size: 22,
-                              color: theme.textColor,
-                            ),
-                          ),
-                          const SizedBox(height: 3),
-                          Text(
-                            '+ Story',
-                            style: theme.getTextStyle(
-                              fontSize: 10,
-                              color: theme.secondaryTextColor,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                for (int idxStory = 0; idxStory < _stories.length; idxStory++)
-                  Padding(
-                    padding: EdgeInsets.only(
-                      right: idxStory < _stories.length - 1 ? 10 : 0,
-                    ),
-                    child: GestureDetector(
-                      onTap: () => DialogVisualizarStory.mostrar(
-                        context,
-                        theme: theme,
-                        story: _stories[idxStory],
-                        stories: _stories,
-                        indiceInicial: idxStory,
-                        ehAutor: widget.ehProprioUsuario,
-                        usuarioLogado: widget.usuarioLogado,
-                      ),
-                      child: SizedBox(
-                        width: 62,
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Container(
-                              width: 56,
-                              height: 56,
-                              decoration: BoxDecoration(
-                                shape: BoxShape.circle,
-                                color: theme.cardBackgroundColor,
-                                border: Border.all(
-                                  color: theme.borderColor,
-                                  width: 2,
-                                ),
-                              ),
-                              clipBehavior: Clip.antiAlias,
-                              child: _stories[idxStory].caminhoMidia.isNotEmpty
-                                  ? FutureBuilder<String?>(
-                                      future:
-                                          TimelineService.resolverCaminhoMidia(
-                                        _stories[idxStory].caminhoMidia,
-                                      ),
-                                      builder: (_, snap) {
-                                        if (snap.data == null) {
-                                          return Icon(
-                                            Icons.auto_awesome,
-                                            size: 20,
-                                            color: theme.textColor,
-                                          );
-                                        }
-                                        return Image.file(
-                                          File(snap.data!),
-                                          fit: BoxFit.cover,
-                                        );
-                                      },
-                                    )
-                                  : Icon(
-                                      Icons.text_fields_rounded,
-                                      size: 20,
-                                      color: theme.textColor,
-                                    ),
-                            ),
-                            const SizedBox(height: 3),
-                            Text(
-                              _stories[idxStory].tituloDestaque.isNotEmpty
-                                  ? _stories[idxStory].tituloDestaque
-                                  : 'Story',
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: theme.getTextStyle(
-                                fontSize: 10,
-                                color: theme.textColor,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-              ],
-            ),
-          ),
+          TimelineStoriesBarWidget(
+            theme: theme,
+            stories: _stories,
+            contaPerfil: widget.contaPerfil,
+            usuarioLogado: widget.usuarioLogado,
+            ehProprioUsuario: widget.ehProprioUsuario,
           ),
 
         const SizedBox(height: 10),
@@ -682,7 +507,7 @@ class _TimelinePerfilSectionState extends State<TimelinePerfilSection> {
                   for (final tipo in _timelinesVisiveis)
                     _buildAbaIcone(
                       theme: theme,
-                      icone: _iconeTimeline(tipo),
+                      icone: iconeTimelineSocial(tipo),
                       tooltip: _nomeTimeline(tipo),
                       selecionada: _feedExtraSelecionado == null &&
                           _tipoSelecionado == tipo,
@@ -796,7 +621,21 @@ class _TimelinePerfilSectionState extends State<TimelinePerfilSection> {
               });
               _carregarTudo();
             },
-            child: _buildConteudoFeed(theme),
+            child: TimelineFeedConteudoWidget(
+              theme: theme,
+              feedExtraSelecionado: _feedExtraSelecionado,
+              tipoSelecionado: _tipoSelecionado,
+              estaEmGaleria: _tipoSelecionado != null &&
+                  _estaEmGaleria(_tipoSelecionado!),
+              publicacoes: _publicacoes,
+              interacoes: _interacoes,
+              denuncias: _denuncias,
+              contaPerfil: widget.contaPerfil,
+              usuarioLogado: widget.usuarioLogado,
+              ehProprioUsuario: widget.ehProprioUsuario,
+              modoGaleria3Colunas: _modoGaleria3Colunas,
+              onRecarregar: _carregarTudo,
+            ),
           ),
       ],
     );
@@ -835,450 +674,6 @@ class _TimelinePerfilSectionState extends State<TimelinePerfilSection> {
           ),
         ),
       ),
-    );
-  }
-
-  Widget _buildConteudoFeed(AppTheme theme) {
-    if (_feedExtraSelecionado != null) {
-      final extra = _feedExtraSelecionado!;
-      return EstadoVazioContainer(
-        theme: theme,
-        mensagem:
-            'Feed conectado: ${extra.titulo}\nOrigem: ${extra.origem.name} (${extra.urlOuIdentificador.isNotEmpty ? extra.urlOuIdentificador : "local"})',
-      );
-    }
-
-    if (_tipoSelecionado == TipoFeedSocial.interacoes) {
-      return ListaInteracoesPerfilWidget(
-        theme: theme,
-        interacoes: _interacoes,
-        denuncias: _denuncias,
-        cpfPerfil: widget.contaPerfil.cpf,
-        nomePerfil: widget.contaPerfil.nomeExibicao,
-        fotoPerfil: widget.contaPerfil.fotoExibicao,
-        usuarioLogado: widget.usuarioLogado,
-      );
-    }
-
-    if (_tipoSelecionado == TipoFeedSocial.denuncias) {
-      if (_denuncias.isEmpty) {
-        return EstadoVazioContainer(
-          theme: theme,
-          mensagem: 'Nenhuma denúncia registrada.',
-        );
-      }
-      return Column(
-        children: _denuncias.map((d) {
-          final euDenunciei =
-              d.denuncianteCpf == widget.contaPerfil.cpf.replaceAll(RegExp(r'\D'), '');
-          return Card(
-            color: theme.cardBackgroundColor,
-            margin: const EdgeInsets.only(bottom: 8),
-            child: ListTile(
-              leading: Icon(Icons.shield_outlined, color: theme.dangerColor),
-              title: Text(
-                euDenunciei
-                    ? 'Denúncia feita contra ${d.alvoNome}'
-                    : 'Denúncia recebida de ${d.denuncianteNome}',
-                style: theme.getTextStyle(
-                  fontSize: 12.5,
-                  fontWeight: FontWeight.bold,
-                  color: theme.textColor,
-                ),
-              ),
-              subtitle: Text(
-                d.motivo,
-                style: theme.getTextStyle(
-                  fontSize: 12,
-                  color: theme.secondaryTextColor,
-                ),
-              ),
-            ),
-          );
-        }).toList(),
-      );
-    }
-
-    if (_publicacoes.isEmpty) {
-      return EstadoVazioContainer(
-        theme: theme,
-        mensagem: 'Nenhuma publicação neste feed ainda.',
-      );
-    }
-
-    if (_tipoSelecionado != null && _estaEmGaleria(_tipoSelecionado!)) {
-      return _buildGaleria3Colunas(theme);
-    }
-
-    return Column(
-      children: _publicacoes.asMap().entries.map((entry) {
-        final pub = entry.value;
-        final ehEscrito = pub.tipo == TipoFeedSocial.escritos ||
-            (_tipoSelecionado == TipoFeedSocial.republicacoes &&
-                pub.midias.isEmpty);
-        if (ehEscrito) {
-          return CardEscritoWidget(
-            key: ValueKey('feed_escrito_${_tipoSelecionado?.name}_${pub.id}'),
-            theme: theme,
-            publicacao: pub,
-            usuarioLogado: widget.usuarioLogado,
-            listaPublicacoes: _publicacoes,
-            indiceInicial: entry.key,
-            abrirDetalhesAoTocarCabecalho: true,
-          );
-        }
-        return CardPublicacaoCompletoWidget(
-          key: ValueKey('feed_card_${_tipoSelecionado?.name}_${pub.id}'),
-          theme: theme,
-          publicacao: pub,
-          usuarioLogado: widget.usuarioLogado,
-          listaPublicacoes: _publicacoes,
-          indiceInicial: entry.key,
-          abrirDetalhesAoTocarCabecalho: true,
-          subtituloRepublicadoPor:
-              _tipoSelecionado == TipoFeedSocial.republicacoes
-                  ? widget.contaPerfil.nomeExibicao
-                  : null,
-        );
-      }).toList(),
-    );
-  }
-
-  Widget _buildTileGaleria(AppTheme theme, PublicacaoSocial pub) {
-    final primeiraMidia = pub.midias.isNotEmpty ? pub.midias.first : null;
-    final ext = (primeiraMidia?.mimeTipo ?? '').toLowerCase();
-    final ehVideo = pub.tipo == TipoFeedSocial.videos ||
-        ext == 'mp4' ||
-        ext == 'mov' ||
-        ext == 'webm' ||
-        ext == 'mkv' ||
-        ext == 'avi';
-    final ehImagem = primeiraMidia != null &&
-        (ext == 'jpg' ||
-            ext == 'jpeg' ||
-            ext == 'png' ||
-            ext == 'webp' ||
-            ext == 'gif' ||
-            (ext.isEmpty && pub.tipo == TipoFeedSocial.fotos));
-
-    return Container(
-      color: theme.cardBackgroundColor.withValues(alpha: 0.6),
-      child: Stack(
-        fit: StackFit.expand,
-        children: [
-          if (ehVideo) ...[
-            if (pub.capaCaminho.isNotEmpty)
-              _renderImg(
-                MidiaPublicacao(caminhoRelativo: pub.capaCaminho),
-                BoxFit.cover,
-                null,
-                Alignment.center,
-              )
-            else if (primeiraMidia != null)
-              FutureBuilder<Uint8List?>(
-                future: PlayerVideoNousWidget.obterOuGerarCapaVideo(
-                  primeiraMidia.caminhoRelativo,
-                ),
-                builder: (_, snap) {
-                  if (snap.data != null && snap.data!.isNotEmpty) {
-                    return Image.memory(snap.data!, fit: BoxFit.cover);
-                  }
-                  return Container(
-                    color: theme.backgroundColor.withValues(alpha: 0.55),
-                    child: Center(
-                      child: Icon(
-                        Icons.videocam_outlined,
-                        size: 28,
-                        color: theme.secondaryTextColor,
-                      ),
-                    ),
-                  );
-                },
-              )
-            else
-              Container(
-                color: theme.backgroundColor.withValues(alpha: 0.55),
-                child: Center(
-                  child: Icon(
-                    Icons.videocam_outlined,
-                    size: 28,
-                    color: theme.secondaryTextColor,
-                  ),
-                ),
-              ),
-          ] else if (pub.midias.isEmpty)
-            Center(
-              child: Padding(
-                padding: const EdgeInsets.all(6),
-                child: Text(
-                  pub.texto,
-                  maxLines: 3,
-                  overflow: TextOverflow.ellipsis,
-                  textAlign: TextAlign.center,
-                  style: theme.getTextStyle(
-                    fontSize: 10.5,
-                    color: theme.textColor,
-                  ),
-                ),
-              ),
-            )
-          else if (ehImagem)
-            _renderImg(
-              primeiraMidia,
-              BoxFit.cover,
-              null,
-              Alignment(pub.alinhamentoX, pub.alinhamentoY),
-            )
-          else if (ext == 'pdf' ||
-              primeiraMidia!.nomeArquivo.toLowerCase().endsWith('.pdf'))
-            (pub.capaCaminho.isNotEmpty
-                ? _renderImg(
-                    MidiaPublicacao(caminhoRelativo: pub.capaCaminho),
-                    BoxFit.cover,
-                    null,
-                    Alignment.topCenter,
-                  )
-                : FutureBuilder<Uint8List?>(
-                    future: TimelineService.obterOuGerarMiniaturaPdf(
-                      primeiraMidia!.caminhoRelativo,
-                    ),
-                    builder: (context, snap) {
-                      final bytes = snap.data;
-                      if (bytes != null && bytes.isNotEmpty) {
-                        return Container(
-                          color: const Color(0xFFF7F7F7),
-                          child: Image.memory(
-                            bytes,
-                            fit: BoxFit.cover,
-                            alignment: Alignment.topCenter,
-                            gaplessPlayback: true,
-                          ),
-                        );
-                      }
-                      return Container(
-                        color: theme.backgroundColor.withValues(alpha: 0.45),
-                        padding: const EdgeInsets.all(8),
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(
-                              Icons.picture_as_pdf_outlined,
-                              size: 26,
-                              color: theme.textColor,
-                            ),
-                            const SizedBox(height: 6),
-                            Text(
-                              primeiraMidia.nomeArquivo.isNotEmpty
-                                  ? primeiraMidia.nomeArquivo
-                                  : pub.texto,
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
-                              textAlign: TextAlign.center,
-                              style: theme.getTextStyle(
-                                fontSize: 10,
-                                color: theme.textColor,
-                              ),
-                            ),
-                          ],
-                        ),
-                      );
-                    },
-                  ))
-          else
-            Container(
-              color: theme.backgroundColor.withValues(alpha: 0.45),
-              padding: const EdgeInsets.all(8),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(
-                    pub.tipo == TipoFeedSocial.musicas
-                        ? Icons.music_note_rounded
-                        : _iconeTimeline(pub.tipo),
-                    size: 26,
-                    color: theme.textColor,
-                  ),
-                  const SizedBox(height: 6),
-                  Text(
-                    primeiraMidia.nomeArquivo.isNotEmpty
-                        ? primeiraMidia.nomeArquivo
-                        : pub.texto,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    textAlign: TextAlign.center,
-                    style: theme.getTextStyle(
-                      fontSize: 10,
-                      color: theme.textColor,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          if (pub.fixada)
-            const Positioned(
-              top: 6,
-              left: 6,
-              child: Icon(
-                Icons.push_pin_rounded,
-                size: 16,
-                color: Colors.white,
-              ),
-            ),
-          if (ehVideo)
-            const Positioned(
-              top: 6,
-              right: 6,
-              child: Icon(
-                Icons.play_arrow_rounded,
-                size: 20,
-                color: Colors.white,
-              ),
-            )
-          else if (pub.midias.length > 1)
-            const Positioned(
-              top: 6,
-              right: 6,
-              child: Icon(
-                Icons.collections_outlined,
-                size: 16,
-                color: Colors.white,
-              ),
-            ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildGaleria3Colunas(AppTheme theme) {
-    return GridView.builder(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      itemCount: _publicacoes.length,
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 3,
-        crossAxisSpacing: 2,
-        mainAxisSpacing: 2,
-        childAspectRatio: 1.0,
-      ),
-      itemBuilder: (_, index) {
-        final pub = _publicacoes[index];
-        final tile = GestureDetector(
-          onTap: () => DialogDetalhesPublicacao.mostrar(
-            context,
-            theme: theme,
-            publicacao: pub,
-            usuarioLogado: widget.usuarioLogado,
-            listaPublicacoes: _publicacoes,
-            indiceInicial: index,
-          ),
-          child: _buildTileGaleria(theme, pub),
-        );
-
-        if (!widget.ehProprioUsuario) {
-          return KeyedSubtree(
-            key: ValueKey('galeria_pub_${pub.id}'),
-            child: tile,
-          );
-        }
-
-        return DragTarget<int>(
-          key: ValueKey('galeria_pub_${pub.id}'),
-          onWillAcceptWithDetails: (details) => details.data != index,
-          onAcceptWithDetails: (details) async {
-            await TimelineService.reordenarPublicacaoNaLista(
-              listaAtual: _publicacoes,
-              indiceAtual: details.data,
-              novoIndice: index,
-            );
-            await _carregarTudo();
-          },
-          builder: (ctx, candidateData, rejectedData) {
-            final emAlvo = candidateData.isNotEmpty;
-            return AnimatedScale(
-              duration: const Duration(milliseconds: 160),
-              scale: emAlvo ? 0.92 : 1.0,
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 160),
-                decoration: emAlvo
-                    ? BoxDecoration(
-                        border: Border.all(
-                          color: theme.buttonColor,
-                          width: 2.5,
-                        ),
-                      )
-                    : null,
-                child: LongPressDraggable<int>(
-                  data: index,
-                  feedback: Material(
-                    color: Colors.transparent,
-                    elevation: 10,
-                    child: SizedBox(
-                      width: 112,
-                      height: 112,
-                      child: Transform.scale(
-                        scale: 1.06,
-                        child: ClipRRect(
-                          borderRadius: BorderRadius.circular(8),
-                          child: _buildTileGaleria(theme, pub),
-                        ),
-                      ),
-                    ),
-                  ),
-                  childWhenDragging: Opacity(
-                    opacity: 0.30,
-                    child: _buildTileGaleria(theme, pub),
-                  ),
-                  child: tile,
-                ),
-              ),
-            );
-          },
-        );
-      },
-    );
-  }
-
-  Widget _renderImg(
-    MidiaPublicacao m,
-    BoxFit fit,
-    double? aspectRatio,
-    Alignment alignment,
-  ) {
-    final alignFinal = (m.alinhamentoX != 0.0 || m.alinhamentoY != 0.0)
-        ? Alignment(m.alinhamentoX, m.alinhamentoY)
-        : alignment;
-
-    Widget buildArquivo(String path) {
-      final img = ClipRect(
-        child: Transform.scale(
-          scale: m.escalaZoom.clamp(1.0, 3.5),
-          alignment: alignFinal,
-          child: Image.file(
-            File(path),
-            fit: fit,
-            alignment: alignFinal,
-            cacheWidth: _modoGaleria3Colunas ? 420 : 900,
-          ),
-        ),
-      );
-      if (aspectRatio != null) {
-        return AspectRatio(aspectRatio: aspectRatio, child: img);
-      }
-      return img;
-    }
-
-    final syncPath = TimelineService.resolverCaminhoMidiaSync(m.caminhoRelativo);
-    if (syncPath != null) {
-      return buildArquivo(syncPath);
-    }
-
-    return FutureBuilder<String?>(
-      future: TimelineService.resolverCaminhoMidia(m.caminhoRelativo),
-      builder: (_, snap) {
-        final path = snap.data;
-        if (path == null) return const SizedBox(height: 120);
-        return buildArquivo(path);
-      },
     );
   }
 }

@@ -19,6 +19,7 @@ class ListaConversasWidget extends StatefulWidget {
   final void Function(ConversaChat) onAlternarArquivar;
   final void Function(ConversaChat) onAlternarSilenciar;
   final void Function(ConversaChat) onRenomearConversa;
+  final void Function(ConversaChat)? onExcluirConversa;
 
   const ListaConversasWidget({
     super.key,
@@ -31,6 +32,7 @@ class ListaConversasWidget extends StatefulWidget {
     required this.onAlternarArquivar,
     required this.onAlternarSilenciar,
     required this.onRenomearConversa,
+    this.onExcluirConversa,
   });
 
   @override
@@ -226,8 +228,10 @@ class _ListaConversasWidgetState extends State<ListaConversasWidget> {
         if (!widget.controller.modoLoja && !emSolicitacoes)
           BarraStoriesMensageriaWidget(theme: theme),
 
-        // Banner estilo Instagram para Acessar Solicitações (sempre disponível no modo pessoal)
-        if (!widget.controller.modoLoja && !emSolicitacoes)
+        // Banner estilo Instagram para Acessar Solicitações (oculto quando vazio)
+        if (!widget.controller.modoLoja &&
+            !emSolicitacoes &&
+            totalSolicitacoes > 0)
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
             child: InkWell(
@@ -393,6 +397,9 @@ class _ListaConversasWidgetState extends State<ListaConversasWidget> {
                       onAlternarSilenciar: () =>
                           widget.onAlternarSilenciar(conversa),
                       onRenomear: () => widget.onRenomearConversa(conversa),
+                      onExcluir: widget.onExcluirConversa != null
+                          ? () => widget.onExcluirConversa!(conversa)
+                          : null,
                       onTap: () => widget.onSelecionarConversa(conversa),
                     );
                   },

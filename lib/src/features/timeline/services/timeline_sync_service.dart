@@ -117,6 +117,7 @@ class TimelineSyncService {
           chaveUltimaSync,
           ultimoGeradoEm,
         );
+        unawaited(_curarMidiasAusentesEmDisco());
         return true;
       }
     } catch (e) {
@@ -431,6 +432,33 @@ class TimelineSyncService {
     if (pub.autorFoto.isNotEmpty) {
       unawaited(TimelineMidiaService.resolverCaminhoMidia(pub.autorFoto));
     }
+  }
+
+  static Future<void> _curarMidiasAusentesEmDisco() async {
+    if (!ClienteRedeLocal().conectado) return;
+    try {
+      final pubs = await TimelineRepositorioSqlite.listarPublicacoesDescoberta(
+        limit: 120,
+      );
+      int baixadas = 0;
+      for (final pub in pubs) {
+        if (!ClienteRedeLocal().conectado || baixadas >= 60) break;
+        for (final m in pub.midias) {
+          if (m.caminhoRelativo.isEmpty) continue;
+          if (TimelineMidiaService.resolverCaminhoMidiaSync(m.caminhoRelativo) ==
+              null) {
+            await TimelineMidiaService.resolverCaminhoMidia(m.caminhoRelativo);
+            baixadas++;
+          }
+        }
+        if (pub.capaCaminho.isNotEmpty &&
+            TimelineMidiaService.resolverCaminhoMidiaSync(pub.capaCaminho) ==
+                null) {
+          await TimelineMidiaService.resolverCaminhoMidia(pub.capaCaminho);
+          baixadas++;
+        }
+      }
+    } catch (_) {}
   }
 
   static void _preAquecerMidiasSnapshotRemoto(Map<String, dynamic> snap) {
