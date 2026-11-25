@@ -1,25 +1,19 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
-import 'package:nous/src/core/services/som_service.dart';
 import 'package:nous/src/core/theme/theme_controller.dart';
-import 'package:nous/src/core/utils/texto_utils.dart';
 import 'package:nous/src/features/pdv/models/categoria_loja.dart';
 import 'package:nous/src/features/pdv/models/cliente.dart';
 import 'package:nous/src/features/pdv/models/configuracoes_impressora.dart';
 import 'package:nous/src/features/pdv/models/grupo_componentes_loja.dart';
 import 'package:nous/src/features/pdv/models/item_loja.dart';
+import 'package:nous/src/features/pdv/models/modelos_nova_venda.dart';
 import 'package:nous/src/features/pdv/models/movimento_estoque.dart';
 import 'package:nous/src/features/pdv/models/pedido_loja.dart';
-import 'package:nous/src/features/pdv/models/modelos_nova_venda.dart';
-import 'package:nous/src/features/pdv/providers/pdv_provider.dart';
-import 'package:nous/src/features/pdv/services/gerador_comprovante_venda.dart';
-import 'package:nous/src/features/pdv/views/dialogs/dialog_editar_acompanhamentos.dart';
-import 'package:nous/src/features/pdv/views/dialogs/dialog_escolher_variante_item.dart';
-import 'package:nous/src/features/pdv/views/dialogs/dialog_seletor_item_categoria.dart';
 import 'package:nous/src/features/pdv/views/widgets/nova_venda/calculadora_nova_venda.dart';
-import 'package:nous/src/features/pdv/views/widgets/nova_venda/finalizador_nova_venda.dart';
 import 'package:nous/src/features/pdv/views/widgets/nova_venda/gerenciador_rascunho_venda.dart';
-import 'package:nous/src/features/pdv/views/widgets/novo_item_dialog.dart';
+import 'package:nous/src/features/pdv/views/widgets/nova_venda/helpers/nova_venda_busca_helper.dart';
+import 'package:nous/src/features/pdv/views/widgets/nova_venda/helpers/nova_venda_carrinho_helper.dart';
+import 'package:nous/src/features/pdv/views/widgets/nova_venda/helpers/nova_venda_finalizacao_helper.dart';
+import 'package:nous/src/features/pdv/views/widgets/nova_venda/helpers/nova_venda_pagamento_helper.dart';
 
 class NovaVendaController extends ChangeNotifier {
   static Map<String, RascunhoVenda> get rascunhosPorLoja =>
@@ -58,7 +52,12 @@ class NovaVendaController extends ChangeNotifier {
   final String cpfAutor;
   final String nomeAutor;
   final void Function(PedidoLoja pedido, List<MovimentoEstoque> movimentosEstoque) onConcluir;
-  final Future<void> Function(ItemLoja item, List<String> categoriaIds, List<String> grupoIds, [double? estoqueInicial]) aoCriarItem;
+  final Future<void> Function(
+    ItemLoja item,
+    List<String> categoriaIds,
+    List<String> grupoIds, [
+    double? estoqueInicial,
+  ]) aoCriarItem;
   final ConfiguracoesImpressora configuracoesImpressora;
   final List<MovimentoEstoque> movimentosEstoque;
 
@@ -174,22 +173,18 @@ class NovaVendaController extends ChangeNotifier {
   }
 
   void limparTudo() {
-    for (final linha in carrinho) {
-      linha.dispose();
-    }
-    carrinho.clear();
-
-    for (final p in pagamentos) {
-      p.dispose();
-    }
-    pagamentos.clear();
-
+    NovaVendaCarrinhoHelper.limparTudo(
+      carrinho: carrinho,
+      pagamentos: pagamentos,
+      controllers: [
+        clienteController,
+        buscaController,
+        freteController,
+        descontoController,
+        acrescimoController,
+      ],
+    );
     clienteSelecionado = null;
-    clienteController.clear();
-    buscaController.clear();
-    freteController.clear();
-    descontoController.clear();
-    acrescimoController.clear();
     aviso = null;
     limparRascunho(lojaId);
     notifyListeners();
@@ -198,8 +193,9 @@ class NovaVendaController extends ChangeNotifier {
   ItemLoja? buscarItem(String id) =>
       itensDisponiveis.where((i) => i.id == id).firstOrNull;
 
-  double saldoDoItem(String itemId) =>
-      movimentosEstoque.where((m) => m.itemId == itemId).fold(0.0, (s, m) => s + m.quantidadeComSinal);
+  double saldoDoItem(String itemId) => movimentosEstoque
+      .where((m) => m.itemId == itemId)
+      .fold(0.0, (s, m) => s + m.quantidadeComSinal);
 
   CategoriaLoja? buscarCategoria(String id) =>
       categoriasDisponiveis.where((c) => c.id == id).firstOrNull;
@@ -214,49 +210,41 @@ class NovaVendaController extends ChangeNotifier {
     required String itemId,
     String? categoriaId,
     String varianteNome = '',
-  }) {
-    var base = categoriaId == null
-        ? '$prefixoItem$itemId'
-        : '$prefixoCategoria$categoriaId|$prefixoItem$itemId';
-    if (varianteNome.trim().isNotEmpty) {
-      base = '$base|var:${varianteNome.trim()}';
-    }
-    return base;
-  }
+  }) =>
+      NovaVendaCarrinhoHelper.montarChave(
+        itemId: itemId,
+        prefixoItem: prefixoItem,
+        prefixoCategoria: prefixoCategoria,
+        categoriaId: categoriaId,
+        varianteNome: varianteNome,
+      );
 
-  List<GrupoComponentesLoja> gruposDaCategoria(LinhaCarrinho linha) {
-    final categoriaId = linha.categoriaId;
-    if (categoriaId == null) return [];
-    final categoria = buscarCategoria(categoriaId);
-    if (categoria == null) return [];
-    return categoria.grupoIds
-        .map((id) => buscarGrupo(id))
-        .whereType<GrupoComponentesLoja>()
-        .toList();
-  }
+  List<GrupoComponentesLoja> gruposDaCategoria(LinhaCarrinho linha) =>
+      NovaVendaCarrinhoHelper.gruposDaCategoria(
+        linha: linha,
+        buscarCategoria: buscarCategoria,
+        buscarGrupo: buscarGrupo,
+      );
 
-  double precoDosAcompanhamentosPorUnidade(LinhaCarrinho linha) {
-    return CalculadoraNovaVenda.precoDosAcompanhamentosPorUnidade(
-      linha: linha,
-      buscarItem: buscarItem,
-    );
-  }
+  double precoDosAcompanhamentosPorUnidade(LinhaCarrinho linha) =>
+      CalculadoraNovaVenda.precoDosAcompanhamentosPorUnidade(
+        linha: linha,
+        buscarItem: buscarItem,
+      );
 
-  double precoBaseUnitarioDaLinha(LinhaCarrinho linha) {
-    return CalculadoraNovaVenda.precoBaseUnitarioDaLinha(
-      linha: linha,
-      buscarItem: buscarItem,
-      buscarCategoria: buscarCategoria,
-    );
-  }
+  double precoBaseUnitarioDaLinha(LinhaCarrinho linha) =>
+      CalculadoraNovaVenda.precoBaseUnitarioDaLinha(
+        linha: linha,
+        buscarItem: buscarItem,
+        buscarCategoria: buscarCategoria,
+      );
 
-  double precoUnitarioDaLinha(LinhaCarrinho linha) {
-    return CalculadoraNovaVenda.precoUnitarioDaLinha(
-      linha: linha,
-      buscarItem: buscarItem,
-      buscarCategoria: buscarCategoria,
-    );
-  }
+  double precoUnitarioDaLinha(LinhaCarrinho linha) =>
+      CalculadoraNovaVenda.precoUnitarioDaLinha(
+        linha: linha,
+        buscarItem: buscarItem,
+        buscarCategoria: buscarCategoria,
+      );
 
   double subtotalBaseDaLinha(LinhaCarrinho linha) =>
       CalculadoraNovaVenda.subtotalBaseDaLinha(
@@ -280,178 +268,91 @@ class NovaVendaController extends ChangeNotifier {
     return soma;
   }
 
-  double _calcularValorOuPorcentagem(String texto) {
-    return CalculadoraNovaVenda.calcularValorOuPorcentagem(
-      texto,
-      subtotalDosItens,
-    );
-  }
+  double _calcularValorOuPorcentagem(String texto) =>
+      CalculadoraNovaVenda.calcularValorOuPorcentagem(texto, subtotalDosItens);
 
   double get frete => precoComoNumero(freteController.text);
   double get desconto => _calcularValorOuPorcentagem(descontoController.text);
   double get acrescimo => _calcularValorOuPorcentagem(acrescimoController.text);
 
-  String get rotuloDesconto {
-    final t = descontoController.text.trim();
-    if (t.contains('%')) {
-      return 'Desconto ($t)';
-    }
-    return 'Desconto';
-  }
+  String get rotuloDesconto => NovaVendaPagamentoHelper.rotuloAjuste(
+        descontoController.text,
+        'Desconto',
+      );
 
-  String get rotuloAcrescimo {
-    final t = acrescimoController.text.trim();
-    if (t.contains('%')) {
-      return 'Acréscimo ($t)';
-    }
-    return 'Acréscimo';
-  }
+  String get rotuloAcrescimo => NovaVendaPagamentoHelper.rotuloAjuste(
+        acrescimoController.text,
+        'Acréscimo',
+      );
 
-  double get total {
-    final t = subtotalDosItens + frete + acrescimo - desconto;
-    return t < 0 ? 0 : t;
-  }
+  double get total => NovaVendaPagamentoHelper.calcularTotal(
+        subtotalDosItens: subtotalDosItens,
+        frete: frete,
+        acrescimo: acrescimo,
+        desconto: desconto,
+      );
 
   bool get temAPrazo => pagamentos.any((p) => p.forma == formaAPrazo);
 
-  double get somaTotalPagamentos {
-    var soma = 0.0;
-    for (final p in pagamentos) {
-      soma += precoComoNumero(p.controller.text);
-    }
-    return soma;
-  }
+  double get somaTotalPagamentos =>
+      NovaVendaPagamentoHelper.somaTotalPagamentos(pagamentos);
 
-  double get falta {
-    final f = total - somaTotalPagamentos;
-    return f < 0 ? 0.0 : f;
-  }
+  double get falta => NovaVendaPagamentoHelper.calcularFalta(
+        total: total,
+        somaPagamentos: somaTotalPagamentos,
+      );
 
-  double get troco {
-    final t = somaTotalPagamentos - total;
-    return t < 0 ? 0.0 : t;
-  }
+  double get troco => NovaVendaPagamentoHelper.calcularTroco(
+        total: total,
+        somaPagamentos: somaTotalPagamentos,
+      );
 
-  String nomeExibicaoDaLinha(LinhaCarrinho linha) {
-    final item = buscarItem(linha.itemId);
-    if (item == null) return 'Item removido';
-    final base = linha.categoriaId == null
-        ? item.nome
-        : '${buscarCategoria(linha.categoriaId!)?.nome ?? ''} ${item.nome}'.trim();
-    if (linha.varianteNome.trim().isNotEmpty) {
-      return '$base (${linha.varianteNome.trim()})';
-    }
-    return base;
-  }
+  String nomeExibicaoDaLinha(LinhaCarrinho linha) =>
+      NovaVendaCarrinhoHelper.nomeExibicaoDaLinha(
+        linha: linha,
+        buscarItem: buscarItem,
+        buscarCategoria: buscarCategoria,
+      );
 
-  LinhaCarrinho? linhaPorChave(String chave) {
-    for (final linha in carrinho) {
-      if (linha.chave == chave) return linha;
-    }
-    return null;
-  }
+  LinhaCarrinho? linhaPorChave(String chave) =>
+      NovaVendaCarrinhoHelper.linhaPorChave(carrinho, chave);
 
-  List<CategoriaLoja> get categoriasEncontradas {
-    final termo = buscaController.text.trim();
-    if (termo.isEmpty) return [];
-    return categoriasDisponiveis
-        .where((c) => TextoUtils.contemIgnorandoAcentos(c.nome, termo))
-        .toList();
-  }
+  List<CategoriaLoja> get categoriasEncontradas =>
+      NovaVendaBuscaHelper.filtrarCategorias(
+        termo: buscaController.text,
+        categoriasDisponiveis: categoriasDisponiveis,
+      );
 
-  List<ItemLoja> get itensEncontrados {
-    final termo = buscaController.text.trim();
-    if (termo.isEmpty) return [];
-    final idsDeItensEmCategoriasEncontradas = <String>{};
-    for (final categoria in categoriasEncontradas) {
-      idsDeItensEmCategoriasEncontradas.addAll(categoria.itemIds);
-    }
-    final termoLimpo = termo.replaceAll(RegExp(r'[^0-9a-zA-Z]'), '').toLowerCase();
-    return itensDisponiveis
-        .where((item) {
-          final nomeMatch = TextoUtils.contemIgnorandoAcentos(item.nome, termo);
-          final codigoLimpo = item.codigoBarras
-              .trim()
-              .replaceAll(RegExp(r'[^0-9a-zA-Z]'), '')
-              .toLowerCase();
-          final codigoMatch = codigoLimpo.isNotEmpty &&
-              (codigoLimpo == termoLimpo || codigoLimpo.contains(termoLimpo));
-          return nomeMatch || codigoMatch;
-        })
-        .where((item) => !idsDeItensEmCategoriasEncontradas.contains(item.id))
-        .toList();
-  }
+  List<ItemLoja> get itensEncontrados => NovaVendaBuscaHelper.filtrarItens(
+        termo: buscaController.text,
+        itensDisponiveis: itensDisponiveis,
+        categoriasEncontradas: categoriasEncontradas,
+      );
 
   void aoSubmeterBusca(String valor, BuildContext context) {
-    final termo = valor.trim();
-    if (termo.isEmpty) return;
-    final termoLimpo = termo.replaceAll(RegExp(r'[^0-9a-zA-Z]'), '').toLowerCase();
-
-    final itemPorCodigo = itensDisponiveis.where((i) {
-      final c = i.codigoBarras.trim().replaceAll(RegExp(r'[^0-9a-zA-Z]'), '').toLowerCase();
-      return c.isNotEmpty && c == termoLimpo;
-    }).firstOrNull;
-
-    if (itemPorCodigo != null) {
-      processarAdicaoItemAoCarrinho(itemId: itemPorCodigo.id, context: context);
-      buscaController.clear();
-      return;
-    }
-
-    final itens = itensEncontrados;
-    if (itens.length == 1) {
-      processarAdicaoItemAoCarrinho(itemId: itens.first.id, context: context);
-      buscaController.clear();
-    }
-  }
-
-  List<Cliente> get sugestoesDeCliente {
-    final termo = clienteController.text.trim();
-    final todos = obterClientes();
-    if (termo.isEmpty) return todos;
-    return todos.where((cliente) => cliente.correspondeABusca(termo)).toList();
-  }
-
-  bool deveMostrarCampoCliente(String chave) {
-    final config = configuracoesImpressora;
-    final configCampos = config.camposClienteComanda;
-    final ehPadraoAntigoCompleto = !config.camposClientePersonalizados &&
-        configCampos.length == kCamposClienteComanda.length &&
-        kCamposClienteComanda.every((ch) => configCampos.contains(ch));
-
-    final camposAtivos = ehPadraoAntigoCompleto
-        ? kCamposClienteComandaPadrao
-        : configCampos;
-
-    return camposAtivos.contains(chave);
-  }
-
-  String montarComanda() {
-    return GeradorComprovanteVenda.montarComandaTexto(
-      nomeVendedor: nomeVendedor,
-      cnpjVendedor: cnpjVendedor,
-      numeroPedido: proximoNumero,
-      dataHora: dataHora,
-      nomeClienteDigitado: clienteController.text,
-      clienteSelecionado: clienteSelecionado,
-      deveMostrarCampoCliente: deveMostrarCampoCliente,
-      carrinho: carrinho,
-      nomeExibicaoLinha: nomeExibicaoDaLinha,
-      subtotalBaseLinha: subtotalBaseDaLinha,
-      buscarItem: buscarItem,
-      precoComoNumero: precoComoNumero,
-      valorComVirgula: valorComVirgula,
-      subtotalDosItens: subtotalDosItens,
-      frete: frete,
-      desconto: desconto,
-      rotuloDesconto: rotuloDesconto,
-      acrescimo: acrescimo,
-      rotuloAcrescimo: rotuloAcrescimo,
-      total: total,
-      pagamentos: pagamentos,
-      troco: troco,
+    NovaVendaBuscaHelper.aoSubmeterBusca(
+      valor: valor,
+      itensDisponiveis: itensDisponiveis,
+      itensEncontrados: itensEncontrados,
+      onAdicionarItem: (itemId) =>
+          processarAdicaoItemAoCarrinho(itemId: itemId, context: context),
+      onLimparBusca: buscaController.clear,
     );
   }
+
+  List<Cliente> get sugestoesDeCliente =>
+      NovaVendaBuscaHelper.filtrarClientes(
+        termo: clienteController.text,
+        clientes: obterClientes(),
+      );
+
+  bool deveMostrarCampoCliente(String chave) =>
+      NovaVendaBuscaHelper.deveMostrarCampoCliente(
+        config: configuracoesImpressora,
+        chave: chave,
+      );
+
+  String montarComanda() => NovaVendaFinalizacaoHelper.montarComanda(this);
 
   void adicionarLinhaAoCarrinho({
     required String itemId,
@@ -465,29 +366,18 @@ class NovaVendaController extends ChangeNotifier {
       categoriaId: categoriaId,
       varianteNome: varianteNome,
     );
-    final existente = linhaPorChave(chave);
-    if (existente != null) {
-      existente.quantidade++;
-    } else {
-      carrinho.add(LinhaCarrinho(
-        chave: chave,
-        itemId: itemId,
-        categoriaId: categoriaId,
-        varianteNome: varianteNome,
-        precoVariante: precoVariante,
-      ));
-    }
+    NovaVendaCarrinhoHelper.adicionarLinhaAoCarrinho(
+      carrinho: carrinho,
+      chave: chave,
+      itemId: itemId,
+      categoriaId: categoriaId,
+      varianteNome: varianteNome,
+      precoVariante: precoVariante,
+      lojaId: lojaId,
+      context: context,
+    );
     aviso = null;
     notifyListeners();
-
-    if (context != null) {
-      try {
-        final loja = lojaId != null
-            ? context.read<PdvProvider>().buscarPorId(lojaId!)
-            : null;
-        SomService.tocarEvento(SomService.eventoBipVenda, loja: loja);
-      } catch (_) {}
-    }
   }
 
   void setBuscaFocada(bool focada) {
@@ -515,167 +405,103 @@ class NovaVendaController extends ChangeNotifier {
     required String itemId,
     String? categoriaId,
     required BuildContext context,
-  }) async {
-    final item = buscarItem(itemId);
-    if (item == null) return;
-    if (item.variantes.isNotEmpty) {
-      final varianteEscolhida = await DialogEscolherVarianteItem.mostrar(
-        context,
+  }) =>
+      NovaVendaCarrinhoHelper.processarAdicaoItemAoCarrinho(
+        item: buscarItem(itemId),
+        itemId: itemId,
+        categoriaId: categoriaId,
+        context: context,
         theme: theme,
-        item: item,
+        onAdicionarLinha: adicionarLinhaAoCarrinho,
       );
-      if (varianteEscolhida == null || !context.mounted) return;
-      adicionarLinhaAoCarrinho(
-        itemId: itemId,
-        categoriaId: categoriaId,
-        varianteNome: varianteEscolhida.nome,
-        precoVariante: varianteEscolhida.preco,
-        context: context,
-      );
-    } else {
-      if (!context.mounted) return;
-      adicionarLinhaAoCarrinho(
-        itemId: itemId,
-        categoriaId: categoriaId,
-        context: context,
-      );
-    }
-  }
 
   void alterarQuantidade(String chave, int variacao) {
-    final linha = linhaPorChave(chave);
-    if (linha == null) return;
-    final nova = linha.quantidade + variacao;
-    if (nova <= 0) {
-      linha.dispose();
-      carrinho.remove(linha);
-    } else {
-      linha.quantidade = nova;
-    }
+    NovaVendaCarrinhoHelper.alterarQuantidade(
+      carrinho: carrinho,
+      chave: chave,
+      variacao: variacao,
+    );
     aviso = null;
     notifyListeners();
   }
 
-  Future<void> editarAcompanhamentosDaLinha(String chave, BuildContext context) async {
+  Future<void> editarAcompanhamentosDaLinha(
+    String chave,
+    BuildContext context,
+  ) async {
     final linha = linhaPorChave(chave);
-    if (linha == null) return;
-
-    final grupos = gruposDaCategoria(linha);
-    if (grupos.isEmpty) {
-      mostrarAviso('Esta categoria nao tem grupos de componentes associados.');
-      return;
-    }
-
-    final selecionados = await DialogEditarAcompanhamentos.mostrar(
-      context,
+    final alterado = await NovaVendaCarrinhoHelper.editarAcompanhamentosDaLinha(
+      linha: linha,
+      context: context,
       theme: theme,
-      grupos: grupos,
-      selecionadosIniciais: linha.acompanhamentosPorItemId,
+      grupos: linha == null ? const [] : gruposDaCategoria(linha),
       buscarItem: buscarItem,
+      onMostrarAviso: mostrarAviso,
     );
-
-    if (selecionados != null) {
-      linha.acompanhamentosPorItemId
-        ..clear()
-        ..addAll(selecionados);
-      notifyListeners();
-    }
+    if (alterado) notifyListeners();
   }
 
   void aoDigitarCliente(String texto) {
     clienteFocado = true;
-    final selecionado = clienteSelecionado;
-    if (selecionado != null && selecionado.nome != texto) {
-      clienteSelecionado = null;
-      if (temAPrazo) removerForma(formaAPrazo);
-    }
+    clienteSelecionado = NovaVendaBuscaHelper.aoDigitarCliente(
+      texto: texto,
+      clienteSelecionado: clienteSelecionado,
+      temAPrazo: temAPrazo,
+      onRemoverForma: removerForma,
+      formaAPrazo: formaAPrazo,
+    );
     notifyListeners();
   }
 
   void selecionarCliente(Cliente cliente) {
     clienteSelecionado = cliente;
-    clienteController.text = cliente.nome;
     clienteFocado = false;
     aviso = null;
-    if (cliente.fretePadrao > 0) {
-      freteController.text =
-          cliente.fretePadrao.toStringAsFixed(2).replaceAll('.', ',');
-    }
+    NovaVendaBuscaHelper.aplicarClienteSelecionado(
+      cliente: cliente,
+      clienteController: clienteController,
+      freteController: freteController,
+    );
     notifyListeners();
   }
 
   Future<void> abrirClientes() async {
-    await aoAbrirClientes();
-    final id = clienteSelecionado?.id;
-    if (id != null) {
-      final atualizado = buscarCliente(id);
-      clienteSelecionado = atualizado;
-      if (atualizado != null) {
-        clienteController.text = atualizado.nome;
-      } else if (temAPrazo) {
-        removerForma(formaAPrazo);
-      }
-      notifyListeners();
-    }
+    final anterior = clienteSelecionado;
+    clienteSelecionado = await NovaVendaBuscaHelper.sincronizarClienteAposAbrir(
+      clienteSelecionado: clienteSelecionado,
+      aoAbrirClientes: aoAbrirClientes,
+      buscarCliente: buscarCliente,
+      clienteController: clienteController,
+      temAPrazo: temAPrazo,
+      onRemoverForma: removerForma,
+      formaAPrazo: formaAPrazo,
+    );
+    if (anterior != null) notifyListeners();
   }
 
-  void removerForma(String forma) {
-    final indice = pagamentos.indexWhere((p) => p.forma == forma);
-    if (indice == -1) return;
-    pagamentos[indice].dispose();
-    pagamentos.removeAt(indice);
-  }
+  void removerForma(String forma) => NovaVendaPagamentoHelper.removerForma(
+        pagamentos: pagamentos,
+        forma: forma,
+      );
 
-  void recalcularPrazo() {
-    if (!temAPrazo) return;
-    final outras = pagamentos
-        .where((p) => p.forma != formaAPrazo)
-        .fold<double>(0.0, (s, p) => s + precoComoNumero(p.controller.text));
-    final restante = total - outras;
-    final valorAPrazo = restante < 0 ? 0.0 : restante;
-    final indice = pagamentos.indexWhere((p) => p.forma == formaAPrazo);
-    if (indice != -1) {
-      pagamentos[indice].controller.text = valorComVirgula(valorAPrazo);
-    }
-  }
+  void recalcularPrazo() => NovaVendaPagamentoHelper.recalcularPrazo(
+        pagamentos: pagamentos,
+        formaAPrazo: formaAPrazo,
+        total: total,
+      );
 
   void escolherForma(String forma) {
-    final jaTem = pagamentos.any((p) => p.forma == forma);
-    if (jaTem) {
-      removerForma(forma);
-      recalcularPrazo();
-      notifyListeners();
+    final mensagemAviso = NovaVendaPagamentoHelper.escolherForma(
+      forma: forma,
+      formaAPrazo: formaAPrazo,
+      pagamentos: pagamentos,
+      clienteSelecionado: clienteSelecionado,
+      total: total,
+    );
+    if (mensagemAviso != null) {
+      mostrarAviso(mensagemAviso);
       return;
     }
-    if (forma == formaAPrazo && clienteSelecionado == null) {
-      mostrarAviso('Selecione um cliente cadastrado para vender a prazo.');
-      return;
-    }
-
-    if (forma == formaAPrazo) {
-      final novoPagamento = LinhaPagamento(forma: forma, valorInicial: '0,00');
-      novoPagamento.controller.selection = TextSelection(
-        baseOffset: 0,
-        extentOffset: novoPagamento.controller.text.length,
-      );
-      pagamentos.add(novoPagamento);
-    } else {
-      final outras = pagamentos
-          .where((p) => p.forma != formaAPrazo)
-          .fold<double>(0.0, (s, p) => s + precoComoNumero(p.controller.text));
-      final restante = total - outras;
-      final valor = restante < 0 ? 0.0 : restante;
-      final novoPagamento = LinhaPagamento(
-        forma: forma,
-        valorInicial: valorComVirgula(valor),
-      );
-      novoPagamento.controller.selection = TextSelection(
-        baseOffset: 0,
-        extentOffset: novoPagamento.controller.text.length,
-      );
-      pagamentos.add(novoPagamento);
-    }
-    recalcularPrazo();
     aviso = null;
     notifyListeners();
   }
@@ -685,83 +511,42 @@ class NovaVendaController extends ChangeNotifier {
     notifyListeners();
   }
 
-  void abrirSeletorDeItemDaCategoria(CategoriaLoja categoria, BuildContext context) {
-    DialogSeletorItemCategoria.mostrar(
-      context,
-      theme: theme,
+  void abrirSeletorDeItemDaCategoria(
+    CategoriaLoja categoria,
+    BuildContext context,
+  ) {
+    NovaVendaCarrinhoHelper.abrirSeletorDeItemDaCategoria(
       categoria: categoria,
-      buscarItem: buscarItem,
-      onSelecionarItem: (item) {
-        buscaController.clear();
-        processarAdicaoItemAoCarrinho(
-          itemId: item.id,
-          categoriaId: categoria.id,
-          context: context,
-        );
-      },
-    );
-  }
-
-  Future<void> abrirNovoProduto(BuildContext context) async {
-    double? estoqueInicialInformado;
-    await NovoItemDialog.mostrar(
-      context,
-      theme: theme,
-      categorias: categoriasDisponiveis,
-      gruposComponentes: gruposDisponiveis,
-      layoutExpandido: expandido,
-      onEstoqueAjustado: (novoSaldo) {
-        estoqueInicialInformado = novoSaldo;
-      },
-      onCriar: (item, categoriaIds, grupoIds) async {
-        await aoCriarItem(
-          item,
-          categoriaIds,
-          grupoIds,
-          estoqueInicialInformado,
-        );
-      },
-    );
-  }
-
-  Future<void> concluir(BuildContext context) async {
-    await FinalizadorNovaVenda.executar(
       context: context,
       theme: theme,
-      lojaId: lojaId,
-      carrinho: carrinho,
-      pagamentos: pagamentos,
-      clienteSelecionado: clienteSelecionado,
-      clienteNomeDigitado: clienteController.text,
-      subtotalDosItens: subtotalDosItens,
-      frete: frete,
-      desconto: desconto,
-      acrescimo: acrescimo,
-      total: total,
-      falta: falta,
-      troco: troco,
-      temAPrazo: temAPrazo,
-      montarComanda: montarComanda,
       buscarItem: buscarItem,
-      buscarCategoria: buscarCategoria,
-      nomeVendedor: nomeVendedor,
-      cnpjVendedor: cnpjVendedor,
-      proximoNumero: proximoNumero,
-      cpfAutor: cpfAutor,
-      nomeAutor: nomeAutor,
-      configuracoesImpressora: configuracoesImpressora,
-      itensDisponiveis: itensDisponiveis,
-      onMostrarAviso: mostrarAviso,
-      onConcluir: onConcluir,
-      onVendaFinalizadaComSucesso: () {
-        vendaConcluida = true;
-        limparRascunho(lojaId);
-      },
+      onLimparBusca: buscaController.clear,
+      onSelecionar: (item) => processarAdicaoItemAoCarrinho(
+        itemId: item.id,
+        categoriaId: categoria.id,
+        context: context,
+      ),
     );
   }
 
+  Future<void> abrirNovoProduto(BuildContext context) =>
+      NovaVendaCarrinhoHelper.abrirNovoProduto(
+        context: context,
+        theme: theme,
+        categoriasDisponiveis: categoriasDisponiveis,
+        gruposDisponiveis: gruposDisponiveis,
+        expandido: expandido,
+        aoCriarItem: aoCriarItem,
+      );
+
+  Future<void> concluir(BuildContext context) =>
+      NovaVendaFinalizacaoHelper.concluir(this, context);
+
   String resumoAcompanhamentos(LinhaCarrinho linha) =>
-      CalculadoraNovaVenda.resumoAcompanhamentos(linha: linha, buscarItem: buscarItem);
+      CalculadoraNovaVenda.resumoAcompanhamentos(
+        linha: linha,
+        buscarItem: buscarItem,
+      );
 
   double dividaDoCliente(Cliente cliente) =>
       CalculadoraNovaVenda.dividaDoCliente(
@@ -787,12 +572,10 @@ class NovaVendaController extends ChangeNotifier {
     acrescimoController.dispose();
     comandaScrollController.dispose();
     pagamentoScrollController.dispose();
-    for (final linha in carrinho) {
-      linha.dispose();
-    }
-    for (final p in pagamentos) {
-      p.dispose();
-    }
+    NovaVendaCarrinhoHelper.disporListas(
+      carrinho: carrinho,
+      pagamentos: pagamentos,
+    );
     super.dispose();
   }
 }

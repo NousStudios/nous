@@ -68,7 +68,7 @@ void main() {
     expect(find.byType(MensageriaView), findsOneWidget);
 
     await tester.pumpWidget(const SizedBox.shrink());
-    await tester.pump(const Duration(seconds: 2));
+    await tester.pump(const Duration(seconds: 11));
   });
 
   testWidgets('PainelConversaAtivaWidget abre conversa de loja no Desktop sem travar',
@@ -131,6 +131,6 @@ void main() {
 
     controller.dispose();
     await tester.pumpWidget(const SizedBox.shrink());
-    await tester.pump(const Duration(seconds: 2));
+    await tester.pump(const Duration(seconds: 11));
   });
 }

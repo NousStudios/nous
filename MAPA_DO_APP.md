@@ -14,8 +14,8 @@ Este documento descreve o Nous **por tela**: Tela → Container → Botão → o
 1. Abre o app → **Login** (`main.dart` abre `LoginView`).
 2. Digita o CPF → **Entrar** → janela de **Sincronização em Rede Wi-Fi** (`SincronizacaoRedeDialog`), permitindo ao dispositivo se conectar ao balcão imediatamente e receber os dados soberanos da conta cadastrada em outros dispositivos da rede (inclusive o `@username`).
 3. Avança para a tela de triagem de contas/e-mails (**ContasUsuarioView**), onde o usuário seleciona por qual e-mail associado à sua conta Nous irá operar (ou opta por continuar sem e-mail).
-4. Chega em **Meus Perfis** (`PerfisPdvView`).
-5. Toca em uma loja → entra na **Tela da Loja** (`DadosPerfilView`), com as abas Dados, Ajustes do Perfil, Loja e Gestão.
+4. Chega na tela inicial da barra de navegação universal: **Busca e Mapa** (`BuscaMapaView`) para novos usuários, ou retorna à última aba/sub-índice acessada pelo CPF (`PreferenciasSoberanasService`).
+5. Toca em uma loja (em **Meus Perfis**) → entra na **Tela da Loja** (`DadosPerfilView`), com as abas Dados (incluindo **Cidade** acima de **CEP**, com preenchimento automático de **Endereço** e **Cidade** ao digitar 8 dígitos de CEP), Ajustes do Perfil, Loja e Gestão.
 6. Dentro da loja abre as janelas de trabalho (Nova Venda, Caixa, Clientes...).
 
 Dois estados mudam o comportamento de várias telas:
@@ -80,7 +80,7 @@ Dois estados mudam o comportamento de várias telas:
      - Modo Pessoinha (`person`): abre o **Perfil Social do Usuário** (`PerfilSocialView`).
      - Modo Mensagens (`chat_bubble`): abre diretamente a **Mensageria** do Usuário (`MensageriaView`).
   3. **Slot 2 (Busca / Player Universal):**
-     - Modo Lupa (`search`): abre a tela soberana de **Busca & Mapa** (`BuscaMapaView`), com barra de pesquisa para localização regional de lojas e produtos, filtros rápidos ("Todos", "Lojas", "Perfis"), cards de visita e botões para seguir perfis cidadãos.
+     - Modo Lupa (`search`): abre a tela inicial padrão para novos usuários **Busca e Mapa** (`BuscaMapaView` com `BuscaMapaController`, `MapaGeoService` e `ProjetosComunitariosService`, aberta também ao clicar no endereço completo de uma loja em `VitrineCabecalhoPublicoWidget`; usuários recorrentes voltam para a última aba selecionada na `FloatingBottomNavBar`), exibindo mapa interativo OpenStreetMap (com filtro escuro nativo sem API key via `tileBuilder` + `RepaintBoundary`), barra de pesquisa universal no topo com histórico de pesquisas recentes, busca por voz (Android `RecognizerIntent` / Windows `System.Speech`), filtros ocultos até tocar no botão de filtro (*Ao vivo: Oculto/Ativo*, *Todos, Produtos, Serviços, Perfis, Lojas, Endereços, Projetos*), subtítulo dinâmico *"Rua, Bairro, Cidade"*, botões flutuantes de **Rotas** e **Centralizar**, marcadores de lojas com miniatura da logo (usando `endereco`, `numero`, `cidade` e `cep`), usuários online somente quando compartilham localização ao vivo, pino vermelho ao clicar no mapa com menu para **Criar projeto** comunitário ou **Rota até aqui**, além de rotas OSRM reais em azul com card inferior (**Iniciar**), inclinação 3D suave, triângulo direcional, bússola (*Norte fixo / Adaptável*) e navegação imersiva sem a barra inferior.
      - Modo Player (`play_circle`): **Player Universal** (`PlayerUniversalView` com `PlayerUniversalController`, `MiniPlayerUniversalWidget` e `PlayerUniversalExpandidoView`), centralizando **PDF**, **Música** e **Vídeo** da rede com mini-player persistente, fila (`A SEGUIR`), `LETRA`, `CIFRA` com zoom de fonte e ações sociais.
   4. **Slot 3 (Feeds):**
      - Modo Descoberta (`explore`): Feed público e memes da rede (em construção).

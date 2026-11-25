@@ -1,20 +1,13 @@
-import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
-import 'package:sqflite_common_ffi/sqflite_ffi.dart';
-import 'package:nous/src/core/services/criptografia_service.dart';
-import 'package:nous/src/core/services/relogio_rede_service.dart';
-import 'package:nous/src/features/auth/services/contas_nous_service.dart';
 import 'package:nous/src/features/chat/models/mensagem_chat.dart';
 import 'package:nous/src/features/chat/services/chat_e2ee_service.dart';
 import 'package:nous/src/features/chat/services/chat_media_service.dart';
 import 'package:nous/src/features/chat/services/chat_processador_rede_service.dart';
 import 'package:nous/src/features/chat/services/chat_repositorio_sqlite.dart';
 import 'package:nous/src/features/chat/services/chat_sincronizacao_service.dart';
-import 'package:nous/src/features/chat/services/resolvedor_conversa_info_service.dart';
-import 'package:nous/src/features/pdv/services/rede_local/cliente_rede_local.dart';
-import 'package:nous/src/features/pdv/services/rede_local/helpers/gerenciador_dispositivo_local.dart';
-import 'package:nous/src/features/pdv/services/rede_local/servidor_rede_local.dart';
+import 'package:nous/src/features/chat/services/helpers/chat_mensagem_persistencia_helper.dart';
+import 'package:nous/src/features/chat/services/helpers/chat_mensagem_seguranca_helper.dart';
 
 class ChatMensagensService {
   static Future<void> consolidarConversasDuplicadas() async {
@@ -90,7 +83,9 @@ class ChatMensagensService {
         }
       }
     } catch (e) {
-      debugPrint('[ChatMensagensService] Erro ao consolidar conversas duplicadas: $e');
+      debugPrint(
+        '[ChatMensagensService] Erro ao consolidar conversas duplicadas: $e',
+      );
     }
   }
 
@@ -101,166 +96,36 @@ class ChatMensagensService {
     final db = await ChatRepositorioSqlite.obterDb();
     await ChatRepositorioSqlite.desmarcarConversaExcluida(mensagem.conversaId);
 
-    DateTime dataHoraAjustada = mensagem.dataHora;
-    final ultimas = await db.query(
-      'mensagens_chat',
-      columns: ['data_hora'],
-      where: 'conversa_id = ? AND id != ?',
-      whereArgs: [mensagem.conversaId, mensagem.id],
-      orderBy: 'data_hora DESC, id DESC',
-      limit: 1,
+    mensagem = await ChatMensagemPersistenciaHelper.ajustarDataHoraEnvio(
+      db,
+      mensagem,
     );
-    if (ultimas.isNotEmpty) {
-      final ultimaStr = ultimas.first['data_hora'] as String?;
-      if (ultimaStr != null && ultimaStr.isNotEmpty) {
-        final ultimaData = DateTime.tryParse(ultimaStr);
-        if (ultimaData != null && !dataHoraAjustada.isAfter(ultimaData)) {
-          dataHoraAjustada = ultimaData.add(const Duration(milliseconds: 10));
-        }
-      }
-    }
-    if (dataHoraAjustada != mensagem.dataHora) {
-      mensagem = mensagem.copyWith(dataHora: dataHoraAjustada);
-    }
 
-    MensagemChat mensagemPersistida =
-        await ChatE2eeService.cifrarMensagemSeAplicavel(mensagem);
-
-    if (mensagemPersistida.assinatura.isEmpty) {
-      final cpfLimpo =
-          ChatRepositorioSqlite.normalizarCpf(mensagemPersistida.remetenteId);
-      if (cpfLimpo.length == 11) {
-        final payloadParaAssinar =
-            '${mensagemPersistida.id}:${mensagemPersistida.conversaId}:${mensagemPersistida.remetenteId}:${mensagemPersistida.texto}:${mensagemPersistida.dataHora.toIso8601String()}';
-        try {
-          final sig = await CriptografiaService.assinarDados(
-            cpf: cpfLimpo,
-            mensagem: payloadParaAssinar,
-          );
-          if (sig != null && sig.isNotEmpty) {
-            mensagemPersistida = mensagemPersistida.copyWith(assinatura: sig);
-          }
-        } catch (_) {}
-      }
-    }
+    final mensagemPersistida =
+        await ChatMensagemSegurancaHelper.cifrarEAssinarMensagem(mensagem);
 
     // Gera o resumo da última mensagem usando o texto claro original (nunca o envelope cifrado e2ee:v1:...)
     final resumo = ChatMediaService.gerarResumoMensagem(mensagem);
 
-    await db.insert('mensagens_chat', {
-      'id': mensagemPersistida.id,
-      'conversa_id': mensagemPersistida.conversaId,
-      'remetente_id': mensagemPersistida.remetenteId,
-      'remetente_nome': mensagemPersistida.remetenteNome,
-      'remetente_foto': mensagemPersistida.remetenteFoto,
-      'destinatario_id': mensagemPersistida.destinatarioId,
-      'texto': mensagemPersistida.texto,
-      'data_hora': mensagemPersistida.dataHora.toIso8601String(),
-      'nome_atendente': mensagemPersistida.nomeAtendente,
-      'cpf_atendente': mensagemPersistida.cpfAtendente,
-      'lida': 0,
-      'tipo': mensagemPersistida.tipo,
-      'caminho_anexo': mensagemPersistida.caminhoAnexo,
-      'nome_anexo': mensagemPersistida.nomeAnexo,
-      'tamanho_anexo': mensagemPersistida.tamanhoAnexo,
-      'pedido_id': mensagemPersistida.pedidoId,
-      'dados_pedido_json': mensagemPersistida.dadosPedidoJson,
-      'editada': 0,
-      'historico_edicoes': jsonEncode(mensagemPersistida.historicoEdicoes),
-      'status_envio': 'pendente',
-      'entregue': mensagemPersistida.entregue ? 1 : 0,
-      'favorita': mensagemPersistida.favorita ? 1 : 0,
-      'fixada': mensagemPersistida.fixada ? 1 : 0,
-      'reacoes_json': jsonEncode(mensagemPersistida.reacoes),
-      'assinatura': mensagemPersistida.assinatura,
-      'resposta_a_id': mensagemPersistida.respostaAId,
-      'resposta_a_texto': mensagemPersistida.respostaATexto,
-      'resposta_a_autor': mensagemPersistida.respostaAAutor,
-    }, conflictAlgorithm: ConflictAlgorithm.replace);
-
-    final ehConvLojaUsuario = mensagem.conversaId.startsWith('loja_') &&
-        mensagem.conversaId.contains('_usuario_');
-    final lojaIdConv = ehConvLojaUsuario
-        ? mensagem.conversaId.substring(
-            5,
-            mensagem.conversaId.indexOf('_usuario_'),
-          )
-        : '';
-
-    final count = await db.update(
-      'conversas_chat',
-      {
-        'ultima_mensagem': resumo,
-        'data_hora_ultima_mensagem': mensagem.dataHora.toIso8601String(),
-        'atualizado_em': RelogioRedeService.agora().toIso8601String(),
-        if (ehConvLojaUsuario) 'eh_loja': 1,
-        if (ehConvLojaUsuario && lojaIdConv.isNotEmpty) 'loja_id': lojaIdConv,
-      },
-      where: 'id = ?',
-      whereArgs: [mensagem.conversaId],
+    await ChatMensagemPersistenciaHelper.persistirMensagemEAtualizarConversa(
+      db,
+      mensagemPersistida: mensagemPersistida,
+      mensagemReferencia: mensagem,
+      resumo: resumo,
+      cpfParaMetadados: ChatRepositorioSqlite.normalizarCpf(mensagem.remetenteId),
+      statusEnvio: 'pendente',
+      lida: false,
+      editada: false,
+      usarRelogioRedeAoCriar: false,
     );
-
-    if (count == 0) {
-      final cpfLogado = ChatRepositorioSqlite.normalizarCpf(mensagem.remetenteId);
-      final info = await ResolvedorConversaInfoService.resolverMetadadosParaMensagem(
-        mensagem,
-        cpfLogado: cpfLogado,
-      );
-
-      await db.insert('conversas_chat', {
-        'id': mensagem.conversaId,
-        'titulo': info.titulo,
-        'subtitulo': info.subtitulo,
-        'foto': info.foto,
-        'identificador': info.identificador,
-        'eh_loja': (ehConvLojaUsuario || info.ehLoja) ? 1 : 0,
-        'eh_grupo': info.ehGrupo ? 1 : 0,
-        'loja_id': (info.lojaId?.isNotEmpty == true) ? info.lojaId! : lojaIdConv,
-        'participantes_json': jsonEncode([
-          mensagem.remetenteId,
-          mensagem.destinatarioId,
-        ]),
-        'criado_em': mensagem.dataHora.toIso8601String(),
-        'atualizado_em': DateTime.now().toIso8601String(),
-        'ultima_mensagem': resumo,
-        'data_hora_ultima_mensagem': mensagem.dataHora.toIso8601String(),
-        'arquivada': 0,
-        'fixada': 0,
-      }, conflictAlgorithm: ConflictAlgorithm.replace);
-    }
 
     aoNotificar();
 
-    unawaited(() async {
-      try {
-        final servidor = ServidorRedeLocal();
-        final cliente = ClienteRedeLocal();
-        if (!servidor.ativo && !cliente.conectado && cliente.ipServidor == null) {
-          final ultimo = await GerenciadorDispositivoLocal.obterUltimoBalcao();
-          if (ultimo.ip != null && ultimo.ip!.isNotEmpty) {
-            cliente.configurarServidorManual(
-              ultimo.ip!,
-              ultimo.porta ?? ServidorRedeLocal.portaPadraoHttp,
-            );
-          }
-        }
-        if (servidor.ativo || cliente.conectado || cliente.ipServidor != null) {
-          final enviado =
-              await ChatSincronizacaoService.despacharMensagemParaRede(mensagemPersistida);
-          if (enviado) {
-            await db.update(
-              'mensagens_chat',
-              {'status_envio': 'enviada'},
-              where: 'id = ?',
-              whereArgs: [mensagem.id],
-            );
-            aoNotificar();
-          }
-        }
-      } catch (e) {
-        debugPrint('[ChatMensagensService] Despacho em background mantido na fila: $e');
-      }
-    }());
+    ChatMensagemPersistenciaHelper.despacharEnvioBackground(
+      db,
+      mensagemPersistida,
+      aoNotificar: aoNotificar,
+    );
 
     return mensagem.copyWith(statusEnvio: 'enviada');
   }
@@ -275,285 +140,46 @@ class ChatMensagensService {
     await ChatRepositorioSqlite.desmarcarConversaExcluida(mensagem.conversaId);
     final meuCpf = await obterCpfLogadoLocal();
 
-    // Validação de autenticidade criptográfica (Ed25519)
-    if (originadaDaRede && mensagem.assinatura.isNotEmpty) {
-      final cpfRemNorm =
-          ChatRepositorioSqlite.normalizarCpf(mensagem.remetenteId);
-      if (cpfRemNorm.length == 11) {
-        final contaRem = await ContasNousService.buscarPorCpf(cpfRemNorm);
-        if (contaRem != null && contaRem.chavePublica.isNotEmpty) {
-          final payload =
-              '${mensagem.id}:${mensagem.conversaId}:${mensagem.remetenteId}:${mensagem.texto}:${mensagem.dataHora.toIso8601String()}';
-          final valida = await CriptografiaService.verificarAssinatura(
-            mensagem: payload,
-            assinaturaHex: mensagem.assinatura,
-            chavePublicaHex: contaRem.chavePublica,
-          );
-          if (!valida) {
-            debugPrint(
-              '[ChatMensagensService] AVISO AUDITORIA: Assinatura digital não verificada para mensagem ${mensagem.id}',
-            );
-          }
-        }
-      }
-    }
-
-    // Validação de permissão soberana de mensagens diretas (Ponto 4)
-    if (originadaDaRede &&
-        !mensagem.conversaId.startsWith('grupo_') &&
-        !mensagem.conversaId.startsWith('loja_') &&
-        !mensagem.conversaId.startsWith('topico_')) {
-      final cpfDestNorm =
-          ChatRepositorioSqlite.normalizarCpf(mensagem.destinatarioId);
-      if (cpfDestNorm.length == 11 && cpfDestNorm == meuCpf) {
-        final contaDest = await ContasNousService.buscarPorCpf(cpfDestNorm);
-        if (contaDest != null &&
-            contaDest.quemPodeEnviarMensagens == 'apenas_seguidos') {
-          final cpfRemNorm =
-              ChatRepositorioSqlite.normalizarCpf(mensagem.remetenteId);
-          if (!contaDest.estaSeguindo(cpfRemNorm)) {
-            debugPrint(
-              '[ChatMensagensService] Bloqueada: $cpfRemNorm não é seguido por $cpfDestNorm',
-            );
-            return false;
-          }
-        }
-      }
-    }
-
-    // Deduplicação sem ruído: se a mensagem já existe no banco com exatamente os mesmos campos, ignora
-    final existentes = await db.query(
-      'mensagens_chat',
-      columns: [
-        'id',
-        'conversa_id',
-        'status_envio',
-        'texto',
-        'lida',
-        'entregue',
-        'editada',
-        'caminho_anexo',
-        'dados_pedido_json',
-        'fixada',
-        'reacoes_json',
-      ],
-      where: 'id = ?',
-      whereArgs: [mensagem.id],
-      limit: 1,
-    );
-    if (existentes.isNotEmpty) {
-      final ex = existentes.first;
-      final convEx = ex['conversa_id'] as String? ?? '';
-      final stEx = ex['status_envio'] as String? ?? '';
-      final txtEx = ex['texto'] as String? ?? '';
-      final lidaEx = (ex['lida'] as int? ?? 0) == 1;
-      final entEx = (ex['entregue'] as int? ?? 0) == 1;
-      final editEx = (ex['editada'] as int? ?? 0) == 1;
-      final anexoEx = ex['caminho_anexo'] as String? ?? '';
-      final dadosPedEx = ex['dados_pedido_json'] as String? ?? '';
-      final fixadaEx = (ex['fixada'] as int? ?? 0) == 1;
-      final reacoesEx = ex['reacoes_json'] as String? ?? '{}';
-      if (convEx == mensagem.conversaId &&
-          stEx == mensagem.statusEnvio &&
-          txtEx == mensagem.texto &&
-          lidaEx == mensagem.lida &&
-          entEx == mensagem.entregue &&
-          editEx == mensagem.editada &&
-          anexoEx == mensagem.caminhoAnexo &&
-          dadosPedEx == mensagem.dadosPedidoJson &&
-          fixadaEx == mensagem.fixada &&
-          reacoesEx == jsonEncode(mensagem.reacoes)) {
-        return false;
-      }
-
-      // Nunca rebaixa o estado de leitura ou entrega de uma mensagem já persistida
-      int pesoStatus(String s) {
-        switch (s) {
-          case 'lida':
-            return 3;
-          case 'entregue':
-            return 2;
-          case 'enviada':
-            return 1;
-          default:
-            return 0;
-        }
-      }
-
-      final lidaFinal = lidaEx || mensagem.lida;
-      final entregueFinal = entEx || mensagem.entregue;
-      final statusFinal = pesoStatus(stEx) > pesoStatus(mensagem.statusEnvio)
-          ? stEx
-          : mensagem.statusEnvio;
-      mensagem = mensagem.copyWith(
-        lida: lidaFinal,
-        entregue: entregueFinal,
-        statusEnvio: statusFinal,
-      );
-    }
-
-    DateTime dataHoraAjustada = mensagem.dataHora.toLocal();
-    final agoraRede = RelogioRedeService.agora().toLocal();
-
-    // Se o remetente estiver com relógio adiantado no futuro além de 5 segundos, calibra para o tempo de rede
-    if (originadaDaRede && dataHoraAjustada.difference(agoraRede).inSeconds > 5) {
-      dataHoraAjustada = agoraRede;
-    }
-
-    // Se é atualização de uma mensagem já existente, preserva o timestamp original já consolidado
-    if (existentes.isNotEmpty) {
-      final rowsDataExistente = await db.query(
-        'mensagens_chat',
-        columns: ['data_hora'],
-        where: 'id = ?',
-        whereArgs: [mensagem.id],
-        limit: 1,
-      );
-      if (rowsDataExistente.isNotEmpty) {
-        final dtEx = DateTime.tryParse(
-          rowsDataExistente.first['data_hora'] as String? ?? '',
-        )?.toLocal();
-        if (dtEx != null) {
-          dataHoraAjustada = dtEx;
-        }
-      }
-    } else {
-      final ultimas = await db.query(
-        'mensagens_chat',
-        columns: ['data_hora', 'remetente_id'],
-        where: 'conversa_id = ? AND id != ?',
-        whereArgs: [mensagem.conversaId, mensagem.id],
-        orderBy: 'data_hora DESC, id DESC',
-        limit: 1,
-      );
-      if (ultimas.isNotEmpty) {
-        final ultimaStr = ultimas.first['data_hora'] as String?;
-        final ultimoRem = ChatRepositorioSqlite.normalizarCpf(
-          ultimas.first['remetente_id'] as String? ?? '',
-        );
-        final atualRem = ChatRepositorioSqlite.normalizarCpf(
-          mensagem.remetenteId,
-        );
-        final mesmoRemetente = (atualRem.isNotEmpty && ultimoRem == atualRem) ||
-            ultimas.first['remetente_id'] == mensagem.remetenteId;
-        final ehMidiaAtrasadaDaRede = originadaDaRede &&
-            mensagem.tipo != 'texto' &&
-            agoraRede.difference(dataHoraAjustada).inSeconds.abs() <= 120;
-
-        if (ultimaStr != null && ultimaStr.isNotEmpty) {
-          final ultimaData = DateTime.tryParse(ultimaStr)?.toLocal();
-          if (ultimaData != null && !dataHoraAjustada.isAfter(ultimaData)) {
-            // Não inverte a ordem quando a mensagem é do mesmo remetente (ex: foto/áudio
-            // que demorou mais no upload e chegou depois de um texto) ou mídia recente da rede.
-            if (!(originadaDaRede && (mesmoRemetente || ehMidiaAtrasadaDaRede))) {
-              // Se ultimaData no banco estiver no futuro além de 30 segundos de agoraRede,
-              // trata como anomalia de timezone legado e não propaga o erro
-              if (ultimaData.difference(agoraRede).inSeconds > 30) {
-                dataHoraAjustada = agoraRede;
-              } else {
-                dataHoraAjustada = ultimaData.add(const Duration(milliseconds: 5));
-              }
-            }
-          }
-        }
-      }
-    }
-    if (dataHoraAjustada != mensagem.dataHora) {
-      mensagem = mensagem.copyWith(dataHora: dataHoraAjustada);
-    }
-
-    MensagemChat msgParaResumo = mensagem;
-    if (CriptografiaService.ehTextoCifrado(mensagem.texto) && meuCpf.length == 11) {
-      msgParaResumo = await ChatE2eeService.decifrarMensagemSeAplicavel(
+    if (originadaDaRede) {
+      final permitida =
+          await ChatMensagemSegurancaHelper.validarOrigemEPermissaoRede(
         mensagem,
-        cpfVisualizador: meuCpf,
+        meuCpf: meuCpf,
       );
+      if (!permitida) return false;
     }
-    final resumoBruto = ChatMediaService.gerarResumoMensagem(msgParaResumo);
-    final resumo = CriptografiaService.ehTextoCifrado(resumoBruto)
-        ? '[Mensagem Cifrada Protegida]'
-        : resumoBruto;
 
-    await db.insert('mensagens_chat', {
-      'id': mensagem.id,
-      'conversa_id': mensagem.conversaId,
-      'remetente_id': mensagem.remetenteId,
-      'remetente_nome': mensagem.remetenteNome,
-      'remetente_foto': mensagem.remetenteFoto,
-      'destinatario_id': mensagem.destinatarioId,
-      'texto': mensagem.texto,
-      'data_hora': mensagem.dataHora.toIso8601String(),
-      'nome_atendente': mensagem.nomeAtendente,
-      'cpf_atendente': mensagem.cpfAtendente,
-      'lida': mensagem.lida ? 1 : 0,
-      'tipo': mensagem.tipo,
-      'caminho_anexo': mensagem.caminhoAnexo,
-      'nome_anexo': mensagem.nomeAnexo,
-      'tamanho_anexo': mensagem.tamanhoAnexo,
-      'pedido_id': mensagem.pedidoId,
-      'dados_pedido_json': mensagem.dadosPedidoJson,
-      'editada': mensagem.editada ? 1 : 0,
-      'historico_edicoes': jsonEncode(mensagem.historicoEdicoes),
-      'status_envio': mensagem.statusEnvio,
-      'entregue': mensagem.entregue ? 1 : 0,
-      'favorita': mensagem.favorita ? 1 : 0,
-      'fixada': mensagem.fixada ? 1 : 0,
-      'reacoes_json': jsonEncode(mensagem.reacoes),
-      'assinatura': mensagem.assinatura,
-      'resposta_a_id': mensagem.respostaAId,
-      'resposta_a_texto': mensagem.respostaATexto,
-      'resposta_a_autor': mensagem.respostaAAutor,
-    }, conflictAlgorithm: ConflictAlgorithm.replace);
+    final dedup =
+        await ChatMensagemPersistenciaHelper.verificarDeduplicacaoEMesclar(
+      db,
+      mensagem,
+    );
+    if (dedup.ignorar) return false;
+    mensagem = dedup.mensagem;
 
-    final ehConvLojaUsuario = mensagem.conversaId.startsWith('loja_') &&
-        mensagem.conversaId.contains('_usuario_');
-    final lojaIdConv = ehConvLojaUsuario
-        ? mensagem.conversaId.substring(
-            5,
-            mensagem.conversaId.indexOf('_usuario_'),
-          )
-        : '';
-
-    final count = await db.update(
-      'conversas_chat',
-      {
-        'ultima_mensagem': resumo,
-        'data_hora_ultima_mensagem': mensagem.dataHora.toIso8601String(),
-        'atualizado_em': RelogioRedeService.agora().toIso8601String(),
-        if (ehConvLojaUsuario) 'eh_loja': 1,
-        if (ehConvLojaUsuario && lojaIdConv.isNotEmpty) 'loja_id': lojaIdConv,
-      },
-      where: 'id = ?',
-      whereArgs: [mensagem.conversaId],
+    mensagem = await ChatMensagemPersistenciaHelper.ajustarDataHoraSalva(
+      db,
+      mensagem,
+      originadaDaRede: originadaDaRede,
+      jaExiste: dedup.jaExiste,
     );
 
-    if (count == 0) {
-      final info = await ResolvedorConversaInfoService.resolverMetadadosParaMensagem(
-        mensagem,
-        cpfLogado: meuCpf,
-      );
+    final resumo = await ChatMensagemSegurancaHelper.gerarResumoSeguro(
+      mensagem,
+      meuCpf: meuCpf,
+    );
 
-      await db.insert('conversas_chat', {
-        'id': mensagem.conversaId,
-        'titulo': info.titulo,
-        'subtitulo': info.subtitulo,
-        'foto': info.foto,
-        'identificador': info.identificador,
-        'eh_loja': (ehConvLojaUsuario || info.ehLoja) ? 1 : 0,
-        'eh_grupo': info.ehGrupo ? 1 : 0,
-        'loja_id': (info.lojaId?.isNotEmpty == true) ? info.lojaId! : lojaIdConv,
-        'participantes_json': jsonEncode([
-          mensagem.remetenteId,
-          mensagem.destinatarioId,
-        ]),
-        'criado_em': mensagem.dataHora.toIso8601String(),
-        'atualizado_em': RelogioRedeService.agora().toIso8601String(),
-        'ultima_mensagem': resumo,
-        'data_hora_ultima_mensagem': mensagem.dataHora.toIso8601String(),
-        'arquivada': 0,
-        'fixada': 0,
-      }, conflictAlgorithm: ConflictAlgorithm.replace);
-    }
+    await ChatMensagemPersistenciaHelper.persistirMensagemEAtualizarConversa(
+      db,
+      mensagemPersistida: mensagem,
+      mensagemReferencia: mensagem,
+      resumo: resumo,
+      cpfParaMetadados: meuCpf,
+      statusEnvio: mensagem.statusEnvio,
+      lida: mensagem.lida,
+      editada: mensagem.editada,
+      usarRelogioRedeAoCriar: true,
+    );
 
     aoNotificar();
     return true;
@@ -707,30 +333,7 @@ class ChatMensagensService {
       ],
       orderBy: 'data_hora DESC',
     );
-    final msgs = rows
-        .map(
-          (r) => MensagemChat(
-            id: r['id'] as String? ?? '',
-            conversaId: r['conversa_id'] as String? ?? '',
-            remetenteId: r['remetente_id'] as String? ?? '',
-            remetenteNome: r['remetente_nome'] as String? ?? '',
-            remetenteFoto: r['remetente_foto'] as String? ?? '',
-            destinatarioId: r['destinatario_id'] as String? ?? '',
-            texto: r['texto'] as String? ?? '',
-            tipo: r['tipo'] as String? ?? 'texto',
-            caminhoAnexo: r['caminho_anexo'] as String? ?? '',
-            nomeAnexo: r['nome_anexo'] as String? ?? '',
-            tamanhoAnexo: r['tamanho_anexo'] as int? ?? 0,
-            dataHora:
-                DateTime.tryParse(r['data_hora'] as String? ?? '') ??
-                DateTime.now(),
-            enviadaPorMim: false,
-            nomeAtendente: r['nome_atendente'] as String? ?? '',
-            cpfAtendente: r['cpf_atendente'] as String? ?? '',
-            lida: false,
-          ),
-        )
-        .toList();
+    final msgs = ChatMensagemPersistenciaHelper.mapearLinhasNaoLidas(rows);
     return ChatE2eeService.decifrarListaMensagens(
       msgs,
       cpfVisualizador: idLimpo,
@@ -771,30 +374,7 @@ class ChatMensagensService {
       ],
       orderBy: 'data_hora DESC',
     );
-    final msgs = rows
-        .map(
-          (r) => MensagemChat(
-            id: r['id'] as String? ?? '',
-            conversaId: r['conversa_id'] as String? ?? '',
-            remetenteId: r['remetente_id'] as String? ?? '',
-            remetenteNome: r['remetente_nome'] as String? ?? '',
-            remetenteFoto: r['remetente_foto'] as String? ?? '',
-            destinatarioId: r['destinatario_id'] as String? ?? '',
-            texto: r['texto'] as String? ?? '',
-            tipo: r['tipo'] as String? ?? 'texto',
-            caminhoAnexo: r['caminho_anexo'] as String? ?? '',
-            nomeAnexo: r['nome_anexo'] as String? ?? '',
-            tamanhoAnexo: r['tamanho_anexo'] as int? ?? 0,
-            dataHora:
-                DateTime.tryParse(r['data_hora'] as String? ?? '') ??
-                DateTime.now(),
-            enviadaPorMim: false,
-            nomeAtendente: r['nome_atendente'] as String? ?? '',
-            cpfAtendente: r['cpf_atendente'] as String? ?? '',
-            lida: false,
-          ),
-        )
-        .toList();
+    final msgs = ChatMensagemPersistenciaHelper.mapearLinhasNaoLidas(rows);
     return ChatE2eeService.decifrarListaMensagens(
       msgs,
       cpfVisualizador: cpfNorm,

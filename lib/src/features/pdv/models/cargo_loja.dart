@@ -2,6 +2,7 @@ class PermissaoLojaConst {
   static const String editarAbaLoja = 'editarAbaLoja';
   static const String usarImpressora = 'usarImpressora';
   static const String editarDadosLoja = 'editarDadosLoja';
+  static const String editarLocalizacaoMapa = 'editarLocalizacaoMapa';
   static const String usarFinanceiro = 'usarFinanceiro';
   static const String registrarPagamento = 'registrarPagamento';
   static const String gerenciarMembros = 'gerenciarMembros';
@@ -26,6 +27,12 @@ class PermissaoLojaConst {
       titulo: 'Editar Dados da Loja e Anexos',
       descricao:
           'Permite alterar informações cadastrais, logotipo, fotos da galeria, áudios e arquivos da loja.',
+    ),
+    PermissaoInfo(
+      chave: editarLocalizacaoMapa,
+      titulo: 'Ajustar Localização no Mapa',
+      descricao:
+          'Permite definir ou mover a posição exata da loja no mapa nos Dados do Perfil e no Perfil Público.',
     ),
     PermissaoInfo(
       chave: usarFinanceiro,

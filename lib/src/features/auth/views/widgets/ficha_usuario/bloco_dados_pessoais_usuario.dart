@@ -21,6 +21,10 @@ class BlocoDadosPessoaisUsuario extends StatelessWidget {
   final TextEditingController localNascController;
   final TextEditingController tipoSanguineoController;
   final TextEditingController estadoCivilController;
+  final TextEditingController cepResidencialController;
+  final TextEditingController enderecoResidencialController;
+  final bool buscandoCep;
+  final ValueChanged<String> onAlterarCep;
   final VoidCallback onIniciarEdicao;
   final VoidCallback onCancelarEdicao;
   final VoidCallback onSalvarEdicao;
@@ -43,6 +47,10 @@ class BlocoDadosPessoaisUsuario extends StatelessWidget {
     required this.localNascController,
     required this.tipoSanguineoController,
     required this.estadoCivilController,
+    required this.cepResidencialController,
+    required this.enderecoResidencialController,
+    this.buscandoCep = false,
+    required this.onAlterarCep,
     required this.onIniciarEdicao,
     required this.onCancelarEdicao,
     required this.onSalvarEdicao,
@@ -53,6 +61,9 @@ class BlocoDadosPessoaisUsuario extends StatelessWidget {
     String rotulo,
     TextEditingController controller, {
     String? dica,
+    TextInputType? keyboardType,
+    ValueChanged<String>? onChanged,
+    Widget? sufixo,
   }) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
@@ -69,10 +80,13 @@ class BlocoDadosPessoaisUsuario extends StatelessWidget {
           const SizedBox(height: 2),
           TextField(
             controller: controller,
+            keyboardType: keyboardType,
+            onChanged: onChanged,
             style: theme.getTextStyle(fontSize: 13, color: theme.textColor),
             cursorColor: theme.textColor,
             decoration: InputDecoration(
               hintText: dica,
+              suffixIcon: sufixo,
               hintStyle: theme.getTextStyle(
                 fontSize: 12,
                 color: theme.secondaryTextColor,
@@ -152,6 +166,28 @@ class BlocoDadosPessoaisUsuario extends StatelessWidget {
                   dica: 'Ex: O+, A-, AB+'),
               _campoEdicao('Estado Civil', estadoCivilController,
                   dica: 'Ex: Solteiro(a), Casado(a)'),
+              _campoEdicao(
+                'CEP',
+                cepResidencialController,
+                dica: '00000-000 (preenche o endereço automaticamente)',
+                keyboardType: TextInputType.number,
+                onChanged: onAlterarCep,
+                sufixo: buscandoCep
+                    ? Padding(
+                        padding: const EdgeInsets.all(10),
+                        child: SizedBox(
+                          width: 14,
+                          height: 14,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: theme.textColor,
+                          ),
+                        ),
+                      )
+                    : null,
+              ),
+              _campoEdicao('Endereço Residencial', enderecoResidencialController,
+                  dica: 'Rua, número, bairro, cidade - UF'),
               const SizedBox(height: 8),
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
@@ -261,11 +297,25 @@ class BlocoDadosPessoaisUsuario extends StatelessWidget {
                   usuario: usuario,
                   onSolicitarAcesso: onSolicitarAcesso,
                 ),
-              if (endereco != null && endereco!.isNotEmpty)
+              if (usuario.cepResidencial.isNotEmpty)
                 LinhaInfoUsuario(
                   theme: theme,
-                  rotulo: 'Endereço',
-                  valor: endereco!,
+                  rotulo: 'CEP',
+                  valor: usuario.cepResidencial,
+                  chavePrivacidade: 'endereco',
+                  ehProprioUsuario: ehProprioUsuario,
+                  cpfVisualizador: cpfVisualizador,
+                  usuario: usuario,
+                  onSolicitarAcesso: onSolicitarAcesso,
+                ),
+              if (usuario.enderecoResidencial.isNotEmpty ||
+                  (endereco != null && endereco!.isNotEmpty))
+                LinhaInfoUsuario(
+                  theme: theme,
+                  rotulo: 'Endereço residencial',
+                  valor: usuario.enderecoResidencial.isNotEmpty
+                      ? usuario.enderecoResidencial
+                      : endereco!,
                   chavePrivacidade: 'endereco',
                   ehProprioUsuario: ehProprioUsuario,
                   cpfVisualizador: cpfVisualizador,

@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:nous/src/core/services/atualizacao_service.dart';
 import 'package:nous/src/core/services/preferencias_soberanas_service.dart';
 import 'package:nous/src/features/auth/services/contas_nous_service.dart';
 
@@ -55,6 +56,8 @@ class GerenciadorDispositivoLocal {
           'nomeDispositivo': _nomeDispositivo,
           'cpf': cpfLogado,
           'nomeUsuario': nomeUsuario,
+          'versaoApp': AtualizacaoService.versaoAtual,
+          'buildApp': AtualizacaoService.buildAtual,
         }));
       } catch (_) {}
     }

@@ -7,8 +7,8 @@ import 'package:nous/src/features/pdv/models/item_loja.dart';
 import 'package:nous/src/features/pdv/models/movimento_estoque.dart';
 import 'package:nous/src/features/pdv/models/registro_acao.dart';
 import 'package:nous/src/features/pdv/providers/pdv_provider.dart';
-import 'package:nous/src/features/pdv/views/widgets/nova_categoria_dialog.dart';
-import 'package:nous/src/features/pdv/views/widgets/novo_grupo_componentes_dialog.dart';
+import 'package:nous/src/features/pdv/views/widgets/loja/helpers/catalogo_categorias_helper.dart';
+import 'package:nous/src/features/pdv/views/widgets/loja/helpers/catalogo_grupos_componentes_helper.dart';
 import 'package:nous/src/features/pdv/views/widgets/novo_item_dialog.dart';
 
 /// Controlador desacoplado responsável pela gestão do catálogo de produtos,
@@ -67,6 +67,43 @@ class GerenciadorCatalogoLoja {
   });
 
   BuildContext get context => obterContext();
+
+  late final CatalogoCategoriasHelper _categoriasHelper =
+      CatalogoCategoriasHelper(
+        obterContext: obterContext,
+        obterItens: obterItens,
+        obterCategorias: obterCategorias,
+        obterGrupos: obterGrupos,
+        podeEditarAbaLoja: podeEditarAbaLoja,
+        avisarSemPermissao: avisarSemPermissao,
+        setState: setState,
+        aoPersistir: aoPersistir,
+        registrarAcao: registrarAcao,
+        confirmarExclusao: confirmarExclusao,
+        obterCategoriaExpandidaId: obterCategoriaExpandidaId,
+        definirCategoriaExpandidaId: definirCategoriaExpandidaId,
+      );
+
+  late final CatalogoGruposComponentesHelper _gruposHelper =
+      CatalogoGruposComponentesHelper(
+        obterContext: obterContext,
+        obterItens: obterItens,
+        obterCategorias: obterCategorias,
+        obterGrupos: obterGrupos,
+        podeEditarAbaLoja: podeEditarAbaLoja,
+        avisarSemPermissao: avisarSemPermissao,
+        setState: setState,
+        aoPersistir: aoPersistir,
+        registrarAcao: registrarAcao,
+        confirmarExclusao: confirmarExclusao,
+        obterGrupoExpandidoId: obterGrupoExpandidoId,
+        definirGrupoExpandidoId: definirGrupoExpandidoId,
+      );
+
+  double _parseCustoUnitario(String precoCusto) {
+    final texto = precoCusto.trim().replaceAll('.', '').replaceAll(',', '.');
+    return double.tryParse(texto) ?? 0.0;
+  }
 
   double saldoEstoqueDoItem(String itemId) {
     var saldo = 0.0;
@@ -170,16 +207,11 @@ class GerenciadorCatalogoLoja {
         sincronizarVinculosItem(item.id, categoriaIds, grupoIds);
 
         if (estoqueInicialInformado != null && estoqueInicialInformado! > 0) {
-          final custoTexto = item.precoCusto
-              .trim()
-              .replaceAll('.', '')
-              .replaceAll(',', '.');
-          final custo = double.tryParse(custoTexto) ?? 0.0;
           final mov = MovimentoEstoque.novo(
             itemId: item.id,
             tipo: TipoMovimentoEstoque.entrada,
             quantidade: estoqueInicialInformado!,
-            custoUnitario: custo,
+            custoUnitario: _parseCustoUnitario(item.precoCusto),
             motivo: 'Estoque inicial cadastrado na criação do item',
             cpfAutor: obterCpfLogado(),
             nomeAutor: obterNomeLogado(),
@@ -277,18 +309,13 @@ class GerenciadorCatalogoLoja {
           final saldoAtual = saldoEstoqueDoItem(itemEditado.id);
           final delta = novoEstoqueInformado! - saldoAtual;
           if (delta.abs() > 0.0001) {
-            final custoTexto = itemEditado.precoCusto
-                .trim()
-                .replaceAll('.', '')
-                .replaceAll(',', '.');
-            final custo = double.tryParse(custoTexto) ?? 0.0;
             final mov = MovimentoEstoque.novo(
               itemId: itemEditado.id,
               tipo: delta > 0
                   ? TipoMovimentoEstoque.entrada
                   : TipoMovimentoEstoque.saida,
               quantidade: delta.abs(),
-              custoUnitario: custo,
+              custoUnitario: _parseCustoUnitario(itemEditado.precoCusto),
               motivo: 'Ajuste direto de saldo na edição do item',
               cpfAutor: obterCpfLogado(),
               nomeAutor: obterNomeLogado(),
@@ -411,313 +438,42 @@ class GerenciadorCatalogoLoja {
     registrarAcao(TipoAcao.itemExcluido, 'Item "$nome" excluído');
   }
 
-  void abrirPopupNovaCategoria() {
-    if (!podeEditarAbaLoja()) {
-      avisarSemPermissao();
-      return;
-    }
+  void abrirPopupNovaCategoria() => _categoriasHelper.abrirPopupNovaCategoria();
 
-    final categorias = obterCategorias();
-    final grupos = obterGrupos();
+  void abrirPopupEditarCategoria(CategoriaLoja categoria) =>
+      _categoriasHelper.abrirPopupEditarCategoria(categoria);
 
-    NovaCategoriaDialog.mostrar(
-      context,
-      theme: ThemeController.currentTheme.value,
-      gruposComponentes: grupos,
-      onCriar: (categoria) {
-        setState(() => categorias.add(categoria));
-        aoPersistir();
+  void editarNomeCategoria(String id, String novoNome) =>
+      _categoriasHelper.editarNomeCategoria(id, novoNome);
 
-        registrarAcao(
-          TipoAcao.categoriaCriada,
-          'Categoria "${categoria.nome}" criada',
-        );
-      },
-    );
-  }
+  Future<void> removerCategoria(String id) =>
+      _categoriasHelper.removerCategoria(id);
 
-  void abrirPopupEditarCategoria(CategoriaLoja categoria) {
-    if (!podeEditarAbaLoja()) {
-      avisarSemPermissao();
-      return;
-    }
+  void adicionarItemNaCategoria(CategoriaLoja categoria, String itemId) =>
+      _categoriasHelper.adicionarItemNaCategoria(categoria, itemId);
 
-    final categorias = obterCategorias();
-    final grupos = obterGrupos();
+  void removerItemDaCategoria(CategoriaLoja categoria, String itemId) =>
+      _categoriasHelper.removerItemDaCategoria(categoria, itemId);
 
-    NovaCategoriaDialog.mostrar(
-      context,
-      theme: ThemeController.currentTheme.value,
-      gruposComponentes: grupos,
-      categoriaParaEditar: categoria,
-      onCriar: (categoriaEditada) {
-        setState(() {
-          final indice = categorias.indexWhere(
-            (c) => c.id == categoriaEditada.id,
-          );
-          if (indice != -1) categorias[indice] = categoriaEditada;
-        });
-        aoPersistir();
+  void abrirPopupNovoGrupoComponentes() =>
+      _gruposHelper.abrirPopupNovoGrupoComponentes();
 
-        registrarAcao(
-          TipoAcao.categoriaAtualizada,
-          'Categoria "${categoriaEditada.nome}" atualizada',
-        );
-      },
-    );
-  }
+  void abrirPopupEditarGrupoComponentes(GrupoComponentesLoja grupo) =>
+      _gruposHelper.abrirPopupEditarGrupoComponentes(grupo);
 
-  void editarNomeCategoria(String id, String novoNome) {
-    if (!podeEditarAbaLoja()) return;
-    final categorias = obterCategorias();
-    final indice = categorias.indexWhere((c) => c.id == id);
-    if (indice == -1) return;
-    final anterior = categorias[indice];
-    if (anterior.nome == novoNome) return;
+  void editarNomeGrupoComponentes(String id, String novoNome) =>
+      _gruposHelper.editarNomeGrupoComponentes(id, novoNome);
 
-    setState(() {
-      categorias[indice] = anterior.copyWith(nome: novoNome);
-    });
-    aoPersistir();
-
-    registrarAcao(
-      TipoAcao.categoriaAtualizada,
-      'Categoria "${anterior.nome}" renomeada para "$novoNome"',
-    );
-  }
-
-  Future<void> removerCategoria(String id) async {
-    if (!podeEditarAbaLoja()) {
-      avisarSemPermissao();
-      return;
-    }
-
-    final categorias = obterCategorias();
-    final indice = categorias.indexWhere((c) => c.id == id);
-    final nome = indice == -1 ? '' : categorias[indice].nome;
-
-    final confirmou = await confirmarExclusao(
-      titulo: 'Excluir Categoria',
-      mensagem:
-          'Tem certeza que deseja excluir a categoria "$nome"? Essa ação não pode ser desfeita.',
-    );
-    if (!confirmou) return;
-
-    setState(() {
-      categorias.removeWhere((categoria) => categoria.id == id);
-      if (obterCategoriaExpandidaId() == id) {
-        definirCategoriaExpandidaId(null);
-      }
-    });
-    aoPersistir();
-
-    registrarAcao(TipoAcao.categoriaExcluida, 'Categoria "$nome" excluída');
-  }
-
-  void adicionarItemNaCategoria(CategoriaLoja categoria, String itemId) {
-    if (!podeEditarAbaLoja()) return;
-    final categorias = obterCategorias();
-    final itens = obterItens();
-
-    setState(() {
-      final indice = categorias.indexWhere((c) => c.id == categoria.id);
-      if (indice == -1) return;
-      final novosIds = [...categoria.itemIds, itemId];
-      categorias[indice] = categoria.copyWith(itemIds: novosIds);
-    });
-    aoPersistir();
-
-    final itemIndice = itens.indexWhere((i) => i.id == itemId);
-    final nomeItem = itemIndice == -1 ? '' : itens[itemIndice].nome;
-
-    registrarAcao(
-      TipoAcao.itemVinculadoCategoria,
-      'Item "$nomeItem" vinculado à categoria "${categoria.nome}"',
-    );
-  }
-
-  void removerItemDaCategoria(CategoriaLoja categoria, String itemId) {
-    if (!podeEditarAbaLoja()) return;
-    final categorias = obterCategorias();
-    final itens = obterItens();
-
-    setState(() {
-      final indice = categorias.indexWhere((c) => c.id == categoria.id);
-      if (indice == -1) return;
-      final novosIds = categoria.itemIds.where((id) => id != itemId).toList();
-      categorias[indice] = categoria.copyWith(itemIds: novosIds);
-    });
-    aoPersistir();
-
-    final itemIndice = itens.indexWhere((i) => i.id == itemId);
-    final nomeItem = itemIndice == -1 ? '' : itens[itemIndice].nome;
-
-    registrarAcao(
-      TipoAcao.itemDesvinculadoCategoria,
-      'Item "$nomeItem" desvinculado da categoria "${categoria.nome}"',
-    );
-  }
-
-  void abrirPopupNovoGrupoComponentes() {
-    if (!podeEditarAbaLoja()) {
-      avisarSemPermissao();
-      return;
-    }
-
-    final grupos = obterGrupos();
-    final itens = obterItens();
-
-    NovoGrupoComponentesDialog.mostrar(
-      context,
-      theme: ThemeController.currentTheme.value,
-      itensDisponiveis: itens,
-      onCriar: (grupo) {
-        setState(() => grupos.add(grupo));
-        aoPersistir();
-
-        registrarAcao(
-          TipoAcao.grupoCriado,
-          'Grupo de componentes "${grupo.nome}" criado',
-        );
-      },
-    );
-  }
-
-  void abrirPopupEditarGrupoComponentes(GrupoComponentesLoja grupo) {
-    if (!podeEditarAbaLoja()) {
-      avisarSemPermissao();
-      return;
-    }
-
-    final grupos = obterGrupos();
-    final itens = obterItens();
-
-    NovoGrupoComponentesDialog.mostrar(
-      context,
-      theme: ThemeController.currentTheme.value,
-      itensDisponiveis: itens,
-      grupoParaEditar: grupo,
-      onCriar: (grupoEditado) {
-        setState(() {
-          final indice = grupos.indexWhere((g) => g.id == grupoEditado.id);
-          if (indice != -1) grupos[indice] = grupoEditado;
-        });
-        aoPersistir();
-
-        registrarAcao(
-          TipoAcao.grupoAtualizado,
-          'Grupo de componentes "${grupoEditado.nome}" atualizado',
-        );
-      },
-    );
-  }
-
-  void editarNomeGrupoComponentes(String id, String novoNome) {
-    if (!podeEditarAbaLoja()) return;
-    final grupos = obterGrupos();
-    final indice = grupos.indexWhere((g) => g.id == id);
-    if (indice == -1) return;
-    final anterior = grupos[indice];
-    if (anterior.nome == novoNome) return;
-
-    setState(() {
-      grupos[indice] = anterior.copyWith(nome: novoNome);
-    });
-    aoPersistir();
-
-    registrarAcao(
-      TipoAcao.grupoAtualizado,
-      'Grupo de componentes "${anterior.nome}" renomeado para "$novoNome"',
-    );
-  }
-
-  Future<void> removerGrupoComponentes(String id) async {
-    if (!podeEditarAbaLoja()) {
-      avisarSemPermissao();
-      return;
-    }
-
-    final grupos = obterGrupos();
-    final categorias = obterCategorias();
-    final indice = grupos.indexWhere((g) => g.id == id);
-    final nome = indice == -1 ? '' : grupos[indice].nome;
-
-    final confirmou = await confirmarExclusao(
-      titulo: 'Excluir Grupo',
-      mensagem:
-          'Tem certeza que deseja excluir o grupo de componentes "$nome"? Essa ação não pode ser desfeita.',
-    );
-    if (!confirmou) return;
-
-    setState(() {
-      grupos.removeWhere((grupo) => grupo.id == id);
-      if (obterGrupoExpandidoId() == id) {
-        definirGrupoExpandidoId(null);
-      }
-
-      for (var i = 0; i < categorias.length; i++) {
-        if (categorias[i].grupoIds.contains(id)) {
-          categorias[i] = categorias[i].copyWith(
-            grupoIds: categorias[i].grupoIds.where((gId) => gId != id).toList(),
-          );
-        }
-      }
-    });
-    aoPersistir();
-
-    registrarAcao(
-      TipoAcao.grupoExcluido,
-      'Grupo de componentes "$nome" excluído',
-    );
-  }
+  Future<void> removerGrupoComponentes(String id) =>
+      _gruposHelper.removerGrupoComponentes(id);
 
   void adicionarItemNoGrupoComponentes(
     GrupoComponentesLoja grupo,
     String itemId,
-  ) {
-    if (!podeEditarAbaLoja()) return;
-    final grupos = obterGrupos();
-    final itens = obterItens();
-
-    setState(() {
-      final indice = grupos.indexWhere((g) => g.id == grupo.id);
-      if (indice == -1) return;
-      final novosIds = [...grupo.itemIds, itemId];
-      grupos[indice] = grupo.copyWith(itemIds: novosIds);
-    });
-    aoPersistir();
-
-    final itemIndice = itens.indexWhere((i) => i.id == itemId);
-    final nomeItem = itemIndice == -1 ? '' : itens[itemIndice].nome;
-
-    registrarAcao(
-      TipoAcao.itemVinculadoGrupo,
-      'Item "$nomeItem" vinculado ao grupo "${grupo.nome}"',
-    );
-  }
+  ) => _gruposHelper.adicionarItemNoGrupoComponentes(grupo, itemId);
 
   void removerItemDoGrupoComponentes(
     GrupoComponentesLoja grupo,
     String itemId,
-  ) {
-    if (!podeEditarAbaLoja()) return;
-    final grupos = obterGrupos();
-    final itens = obterItens();
-
-    setState(() {
-      final indice = grupos.indexWhere((g) => g.id == grupo.id);
-      if (indice == -1) return;
-      final novosIds = grupo.itemIds.where((id) => id != itemId).toList();
-      grupos[indice] = grupo.copyWith(itemIds: novosIds);
-    });
-    aoPersistir();
-
-    final itemIndice = itens.indexWhere((i) => i.id == itemId);
-    final nomeItem = itemIndice == -1 ? '' : itens[itemIndice].nome;
-
-    registrarAcao(
-      TipoAcao.itemDesvinculadoGrupo,
-      'Item "$nomeItem" desvinculado do grupo "${grupo.nome}"',
-    );
-  }
+  ) => _gruposHelper.removerItemDoGrupoComponentes(grupo, itemId);
 }

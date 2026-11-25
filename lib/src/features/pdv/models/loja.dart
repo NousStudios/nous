@@ -29,6 +29,8 @@ class Loja {
   final String telefone;
   final String endereco;
   final String numero;
+  final String cidade;
+  final String cep;
   final String email;
   final String redesSociais;
   final String categorias;
@@ -74,6 +76,9 @@ class Loja {
   final List<String> linksPublicos;
   final String corFundoPerfilHex;
   final String corDestaquePerfilHex;
+  final double? latitude;
+  final double? longitude;
+  final DateTime? dadosAtualizadosEm;
 
   /// Retorna o estado real do layout expandido respeitando o dispositivo ativo.
   /// Em celulares (Android e iOS), retorna sempre falso para prevenir desaparecimento de botões.
@@ -93,6 +98,8 @@ class Loja {
     required this.telefone,
     required this.endereco,
     required this.numero,
+    this.cidade = '',
+    this.cep = '',
     required this.email,
     this.redesSociais = '',
     required this.categorias,
@@ -135,6 +142,9 @@ class Loja {
     this.linksPublicos = const [],
     this.corFundoPerfilHex = '',
     this.corDestaquePerfilHex = '',
+    this.latitude,
+    this.longitude,
+    this.dadosAtualizadosEm,
   });
 
   Loja copyWith({
@@ -144,6 +154,8 @@ class Loja {
     String? telefone,
     String? endereco,
     String? numero,
+    String? cidade,
+    String? cep,
     String? email,
     String? redesSociais,
     String? categorias,
@@ -186,6 +198,9 @@ class Loja {
     List<String>? linksPublicos,
     String? corFundoPerfilHex,
     String? corDestaquePerfilHex,
+    double? latitude,
+    double? longitude,
+    DateTime? dadosAtualizadosEm,
   }) {
     return Loja(
       id: id,
@@ -195,6 +210,8 @@ class Loja {
       telefone: telefone ?? this.telefone,
       endereco: endereco ?? this.endereco,
       numero: numero ?? this.numero,
+      cidade: cidade ?? this.cidade,
+      cep: cep ?? this.cep,
       email: email ?? this.email,
       redesSociais: redesSociais ?? this.redesSociais,
       categorias: categorias ?? this.categorias,
@@ -242,6 +259,9 @@ class Loja {
       linksPublicos: linksPublicos ?? this.linksPublicos,
       corFundoPerfilHex: corFundoPerfilHex ?? this.corFundoPerfilHex,
       corDestaquePerfilHex: corDestaquePerfilHex ?? this.corDestaquePerfilHex,
+      latitude: latitude ?? this.latitude,
+      longitude: longitude ?? this.longitude,
+      dadosAtualizadosEm: dadosAtualizadosEm ?? this.dadosAtualizadosEm,
     );
   }
 
@@ -254,6 +274,8 @@ class Loja {
       'telefone': telefone,
       'endereco': endereco,
       'numero': numero,
+      'cidade': cidade,
+      'cep': cep,
       'email': email,
       'redesSociais': redesSociais,
       'categorias': categorias,
@@ -304,6 +326,10 @@ class Loja {
       'linksPublicos': linksPublicos,
       'corFundoPerfilHex': corFundoPerfilHex,
       'corDestaquePerfilHex': corDestaquePerfilHex,
+      if (latitude != null) 'latitude': latitude,
+      if (longitude != null) 'longitude': longitude,
+      if (dadosAtualizadosEm != null)
+        'dadosAtualizadosEm': dadosAtualizadosEm!.toIso8601String(),
     };
   }
 
@@ -316,6 +342,8 @@ class Loja {
       telefone: json['telefone'] as String,
       endereco: json['endereco'] as String,
       numero: json['numero'] as String,
+      cidade: json['cidade'] as String? ?? '',
+      cep: json['cep'] as String? ?? '',
       email: json['email'] as String,
       redesSociais: json['redesSociais'] as String? ?? '',
       categorias: json['categorias'] as String,
@@ -440,6 +468,11 @@ class Loja {
           .toList(),
       corFundoPerfilHex: json['corFundoPerfilHex'] as String? ?? '',
       corDestaquePerfilHex: json['corDestaquePerfilHex'] as String? ?? '',
+      latitude: (json['latitude'] as num?)?.toDouble(),
+      longitude: (json['longitude'] as num?)?.toDouble(),
+      dadosAtualizadosEm: json['dadosAtualizadosEm'] != null
+          ? DateTime.tryParse(json['dadosAtualizadosEm'] as String)
+          : null,
     );
   }
 
@@ -497,6 +530,7 @@ class Loja {
         PermissaoLojaConst.editarAbaLoja: true,
         PermissaoLojaConst.usarImpressora: true,
         PermissaoLojaConst.editarDadosLoja: false,
+        PermissaoLojaConst.editarLocalizacaoMapa: false,
         PermissaoLojaConst.usarFinanceiro: true,
         PermissaoLojaConst.registrarPagamento: true,
         PermissaoLojaConst.gerenciarMembros: false,
@@ -509,6 +543,7 @@ class Loja {
         PermissaoLojaConst.editarAbaLoja: false,
         PermissaoLojaConst.usarImpressora: false,
         PermissaoLojaConst.editarDadosLoja: false,
+        PermissaoLojaConst.editarLocalizacaoMapa: false,
         PermissaoLojaConst.usarFinanceiro: true,
         PermissaoLojaConst.registrarPagamento: false,
         PermissaoLojaConst.gerenciarMembros: false,

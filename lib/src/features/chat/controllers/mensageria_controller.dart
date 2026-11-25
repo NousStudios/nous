@@ -1,23 +1,19 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
-import 'package:nous/src/core/services/preferencias_soberanas_service.dart';
 import 'package:nous/src/features/auth/models/usuario_nous.dart';
 import 'package:nous/src/features/auth/providers/auth_provider.dart';
 import 'package:nous/src/features/chat/controllers/helpers/mensageria_acoes_mensagem_helper.dart';
 import 'package:nous/src/features/chat/controllers/helpers/mensageria_busca_helper.dart';
-import 'package:nous/src/features/chat/controllers/helpers/mensageria_mensagem_helper.dart';
-import 'package:nous/src/features/chat/controllers/helpers/mensageria_selecao_helper.dart';
+import 'package:nous/src/features/chat/controllers/helpers/mensageria_conversa_ativa_helper.dart';
+import 'package:nous/src/features/chat/controllers/helpers/mensageria_inicializacao_helper.dart';
 import 'package:nous/src/features/chat/controllers/helpers/mensageria_solicitacoes_helper.dart';
 import 'package:nous/src/features/chat/models/conversa_chat.dart';
 import 'package:nous/src/features/chat/models/mensagem_chat.dart';
 import 'package:nous/src/features/chat/services/chat_service.dart';
 import 'package:nous/src/features/chat/services/mensageria_acoes_delegate.dart';
 import 'package:nous/src/features/chat/services/montador_conversas_chat.dart';
-import 'package:nous/src/features/chat/services/notificacao_android_service.dart';
 import 'package:nous/src/features/chat/services/resolvedor_foto_chat.dart';
 import 'package:nous/src/features/pdv/providers/pdv_provider.dart';
-import 'package:nous/src/features/pdv/services/rede_local/cliente_rede_local.dart';
-import 'package:nous/src/features/pdv/services/rede_local/servidor_rede_local.dart';
 
 /// Orquestrador de estado reativo da Mensageria Nous.
 /// Modularizado seguindo a arquitetura limpa (< 600 linhas).
@@ -129,11 +125,9 @@ class MensageriaController extends ChangeNotifier {
     );
   }
 
-  int totalSolicitacoes({UsuarioNous? contaLogada}) {
-    return _conversas
-        .where((c) => ehSolicitacao(c, contaLogada: contaLogada))
-        .length;
-  }
+  int totalSolicitacoes({UsuarioNous? contaLogada}) => _conversas
+      .where((c) => ehSolicitacao(c, contaLogada: contaLogada))
+      .length;
 
   void alternarExibindoSolicitacoes(bool valor) {
     _exibindoSolicitacoes = valor;
@@ -190,16 +184,11 @@ class MensageriaController extends ChangeNotifier {
     );
 
     if (modoLoja) return todas;
-
-    if (_exibindoSolicitacoes) {
-      return todas
-          .where((c) => ehSolicitacao(c, contaLogada: contaLogada))
-          .toList();
-    } else {
-      return todas
-          .where((c) => !ehSolicitacao(c, contaLogada: contaLogada))
-          .toList();
-    }
+    return todas
+        .where((c) =>
+            ehSolicitacao(c, contaLogada: contaLogada) ==
+            _exibindoSolicitacoes)
+        .toList();
   }
 
   bool _conversaInicialConsumida = false;
@@ -211,40 +200,21 @@ class MensageriaController extends ChangeNotifier {
   }) async {
     if (_disposed) return;
     try {
-      final conta = auth.contaAtual;
-      if (usuarioCpf == null || usuarioCpf!.trim().isEmpty) {
-        final cpfCandidato = conta?.cpf ??
-            (auth.cpf.trim().isNotEmpty
-                ? auth.cpf.trim()
-                : (pdv.cpfAtual?.trim() ?? ''));
-        if (cpfCandidato.isNotEmpty) {
-          usuarioCpf = cpfCandidato;
-        } else {
-          final cpfLocal = await ChatService.obterCpfLogadoLocal();
-          if (_disposed) return;
-          if (cpfLocal.isNotEmpty) usuarioCpf = cpfLocal;
-        }
-      }
-      if (usuarioNome == null || usuarioNome!.isEmpty) {
-        usuarioNome = conta?.nomeExibicao ?? conta?.nome;
-        if ((usuarioNome == null || usuarioNome!.isEmpty) &&
-            usuarioCpf != null &&
-            usuarioCpf!.isNotEmpty) {
-          final u = auth.buscarContaPorCpf(usuarioCpf!);
-          if (u != null) {
-            usuarioNome = u.nomeExibicao.isNotEmpty ? u.nomeExibicao : u.nome;
-            usuarioFoto ??= u.fotoExibicao.isNotEmpty ? u.fotoExibicao : u.foto;
-            usuarioApelido ??=
-                u.apelidoExibicao.isNotEmpty ? u.apelidoExibicao : u.apelido;
-          }
-        }
-      }
-      if (usuarioFoto == null || usuarioFoto!.isEmpty) {
-        usuarioFoto = conta?.fotoExibicao ?? conta?.foto;
-      }
-      if (usuarioApelido == null || usuarioApelido!.isEmpty) {
-        usuarioApelido = conta?.apelidoExibicao ?? conta?.apelido;
-      }
+      final identidade =
+          await MensageriaInicializacaoHelper.resolverIdentidadeUsuario(
+        auth: auth,
+        pdv: pdv,
+        usuarioCpf: usuarioCpf,
+        usuarioNome: usuarioNome,
+        usuarioFoto: usuarioFoto,
+        usuarioApelido: usuarioApelido,
+        isDisposed: () => _disposed,
+      );
+      if (_disposed) return;
+      usuarioCpf = identidade.usuarioCpf;
+      usuarioNome = identidade.usuarioNome;
+      usuarioFoto = identidade.usuarioFoto;
+      usuarioApelido = identidade.usuarioApelido;
 
       _carregando = true;
       notifyListeners();
@@ -260,70 +230,23 @@ class MensageriaController extends ChangeNotifier {
           conversaInicialId!.isNotEmpty &&
           !_conversaInicialConsumida) {
         _conversaInicialConsumida = true;
-        final idAlvo = conversaInicialId!;
-        final encontrada = _conversas.cast<ConversaChat?>().firstWhere(
-          (c) => c?.id == idAlvo || c?.identificador == idAlvo,
-          orElse: () =>
-              _todosContatosDisponiveis.cast<ConversaChat?>().firstWhere(
-                (c) => c?.id == idAlvo || c?.identificador == idAlvo,
-                orElse: () => null,
-              ),
+        await MensageriaInicializacaoHelper.abrirConversaInicialSeHouver(
+          conversaInicialId: conversaInicialId,
+          conversas: _conversas,
+          todosContatosDisponiveis: _todosContatosDisponiveis,
+          auth: auth,
+          pdv: pdv,
+          usuarioCpf: usuarioCpf,
+          onAbrir: selecionarOuIniciarConversa,
         );
-        if (encontrada != null) {
-          await selecionarOuIniciarConversa(
-            convId: encontrada.id,
-            titulo: encontrada.titulo,
-            subtitulo: encontrada.subtitulo,
-            identificador: encontrada.identificador,
-            foto: encontrada.foto,
-            ehLoja: encontrada.ehLoja,
-          );
-        } else if (idAlvo.startsWith('user_')) {
-          final meuCpfLimpo =
-              ChatService.normalizarCpf(usuarioCpf ?? auth.contaAtual?.cpf ?? '');
-          final outroCpfLimpo = ChatService.extrairOutroCpf(idAlvo, meuCpfLimpo);
-          final contaAlvo = auth.buscarContaPorCpf(outroCpfLimpo);
-          final tituloAlvo = contaAlvo?.nomeExibicao.isNotEmpty == true
-              ? contaAlvo!.nomeExibicao
-              : (contaAlvo?.nome.isNotEmpty == true
-                  ? contaAlvo!.nome
-                  : 'Usuário Nous');
-          await selecionarOuIniciarConversa(
-            convId: idAlvo,
-            titulo: tituloAlvo,
-            subtitulo: contaAlvo?.usernameExibicao ?? '',
-            identificador: outroCpfLimpo,
-            foto: contaAlvo?.fotoExibicao ?? (contaAlvo?.foto ?? ''),
-            ehLoja: false,
-          );
-        } else if (idAlvo.startsWith('loja_')) {
-          final idLojaExtraido = idAlvo.contains('_usuario_')
-              ? idAlvo.substring(5, idAlvo.indexOf('_usuario_'))
-              : idAlvo.substring(5);
-          final lojaAlvo = pdv.buscarPorId(idLojaExtraido) ??
-              (ClienteRedeLocal().lojaSincronizada?.id == idLojaExtraido
-                  ? ClienteRedeLocal().lojaSincronizada
-                  : null);
-          await selecionarOuIniciarConversa(
-            convId: idAlvo,
-            titulo: lojaAlvo?.nome ?? 'Loja',
-            subtitulo: 'Loja',
-            identificador: lojaAlvo?.id ?? idLojaExtraido,
-            foto: lojaAlvo?.logo ?? '',
-            ehLoja: true,
-          );
-        }
       }
 
       sincronizarComRedeLocal(auth: auth, pdv: pdv);
-      _iniciarPollingLeve(auth: auth, pdv: pdv);
+      _iniciarPollingLeve(auth: auth);
 
       if (!_manutencaoChatExecutadaNaSessao) {
         _manutencaoChatExecutadaNaSessao = true;
-        unawaited(() async {
-          await ChatService.curarTimestampsAnomalosDoPassado();
-          await ChatService.consolidarConversasDuplicadas();
-        }());
+        MensageriaInicializacaoHelper.executarManutencaoSessao();
       }
     } finally {
       _carregando = false;
@@ -331,26 +254,16 @@ class MensageriaController extends ChangeNotifier {
     }
   }
 
-  void _iniciarPollingLeve({
-    required AuthProvider auth,
-    required PdvProvider pdv,
-  }) {
+  void _iniciarPollingLeve({required AuthProvider auth}) {
     _timerPollingLeve?.cancel();
     _timerPollingLeve = Timer.periodic(const Duration(seconds: 25), (_) {
       if (_disposed) return;
-      ChatService.drenarFilaDeSaida();
-      final cliente = ClienteRedeLocal();
-      if (cliente.conectado &&
-          cliente.ipServidor != null &&
-          cliente.portaServidor != null) {
-        final meuCpf = modoLoja ? null : (usuarioCpf ?? auth.contaAtual?.cpf);
-        ChatService.sincronizarMensagensComBalcao(
-          ipServidor: cliente.ipServidor!,
-          portaServidor: cliente.portaServidor!,
-          cpfUsuario: meuCpf,
-          lojaId: modoLoja ? lojaId : null,
-        );
-      }
+      MensageriaInicializacaoHelper.executarTickPolling(
+        auth: auth,
+        modoLoja: modoLoja,
+        lojaId: lojaId,
+        usuarioCpf: usuarioCpf,
+      );
     });
   }
 
@@ -358,28 +271,16 @@ class MensageriaController extends ChangeNotifier {
     required AuthProvider auth,
     required PdvProvider pdv,
   }) {
-    if (_disposed) return;
-    if (ServidorRedeLocal().ativo) return;
-    final cliente = ClienteRedeLocal();
-    final contaLogada = auth.contaAtual;
-    final meuCpf = modoLoja ? null : (usuarioCpf ?? contaLogada?.cpf);
-
-    cliente.tentarAutoConectarSeDisponivel(pdv, auth).then((_) {
-      if (_disposed) return;
-      if (cliente.ipServidor != null && cliente.portaServidor != null) {
-        cliente.reconciliarContasComServidor();
-        ChatService.drenarFilaDeSaida();
-        ChatService.sincronizarMensagensComBalcao(
-          ipServidor: cliente.ipServidor!,
-          portaServidor: cliente.portaServidor!,
-          cpfUsuario: meuCpf,
-          lojaId: modoLoja ? lojaId : null,
-        ).then((_) {
-          if (_disposed) return;
-          recarregarConversas(auth: auth, pdv: pdv, manterSelecionada: true);
-        });
-      }
-    });
+    MensageriaInicializacaoHelper.sincronizarComRedeLocal(
+      auth: auth,
+      pdv: pdv,
+      modoLoja: modoLoja,
+      lojaId: lojaId,
+      usuarioCpf: usuarioCpf,
+      isDisposed: () => _disposed,
+      onSincronizado: () =>
+          recarregarConversas(auth: auth, pdv: pdv, manterSelecionada: true),
+    );
   }
 
   Future<void> recarregarConversas({
@@ -390,20 +291,13 @@ class MensageriaController extends ChangeNotifier {
     if (_disposed) return;
     final minhaVersao = ++_versaoRecargaConversas;
     try {
-      final contaLogada = auth.contaAtual;
-      if (usuarioCpf == null || usuarioCpf!.trim().isEmpty) {
-        final cpfCandidato = contaLogada?.cpf ??
-            (auth.cpf.trim().isNotEmpty
-                ? auth.cpf.trim()
-                : (pdv.cpfAtual?.trim() ?? ''));
-        if (cpfCandidato.isNotEmpty) {
-          usuarioCpf = cpfCandidato;
-        } else {
-          final cpfLocal = await ChatService.obterCpfLogadoLocal();
-          if (_disposed || minhaVersao != _versaoRecargaConversas) return;
-          if (cpfLocal.isNotEmpty) usuarioCpf = cpfLocal;
-        }
-      }
+      usuarioCpf = await MensageriaInicializacaoHelper.resolverCpfUsuario(
+        auth: auth,
+        pdv: pdv,
+        usuarioCpf: usuarioCpf,
+        deveCancelar: () => _disposed || minhaVersao != _versaoRecargaConversas,
+      );
+      if (_disposed || minhaVersao != _versaoRecargaConversas) return;
 
       final resultado = await MontadorConversasChat.montarConversas(
         auth: auth,
@@ -423,31 +317,23 @@ class MensageriaController extends ChangeNotifier {
       _titulosCustomizados = resultado.titulosCustomizados;
 
       if (manterSelecionada && _conversaSelecionada != null) {
-        final index = _conversas.indexWhere(
-          (c) => c.id == _conversaSelecionada!.id,
+        _conversaSelecionada =
+            MensageriaConversaAtivaHelper.reconciliarSelecionadaAposRecarga(
+          conversas: _conversas,
+          selecionadaAtual: _conversaSelecionada,
+          idVisualizador: idVisualizador,
         );
-        if (index != -1) {
-          final msgsAtuais = _conversaSelecionada!.mensagens;
-          final novasMsgs = _conversas[index].mensagens;
-          final msgsFinais = novasMsgs.isNotEmpty ? novasMsgs : msgsAtuais;
-          _conversaSelecionada = _conversas[index].copyWith(
-            naoLidasCount: 0,
-            mensagens: msgsFinais,
-          );
-          _conversas[index] = _conversaSelecionada!;
-        }
-        ChatService.idConversaAtiva = _conversaSelecionada!.id;
-        unawaited(ChatService.marcarComoLidas(
-          _conversaSelecionada!.id,
-          idVisualizador,
-          notificar: false,
-        ));
       }
 
       notifyListeners();
     } catch (e) {
       debugPrint('[MensageriaController] Erro ao recarregar conversas: $e');
     }
+  }
+
+  void _aplicarConversaAtualizada(ConversaChat c) {
+    _conversaSelecionada = c;
+    notifyListeners();
   }
 
   Future<void> selecionarOuIniciarConversa({
@@ -459,10 +345,13 @@ class MensageriaController extends ChangeNotifier {
     required bool ehLoja,
   }) async {
     if (_disposed) return;
-    if (ehLoja &&
-        (identificador == PdvProvider.idLojaColetivaNous ||
-            convId.contains(PdvProvider.idLojaColetivaNous) ||
-            titulo.trim().toLowerCase() == 'nous')) {
+    if (MensageriaConversaAtivaHelper.deveIgnorarConversaColetiva(
+      ehLoja: ehLoja,
+      identificador: identificador,
+      convId: convId,
+      titulo: titulo,
+      idLojaColetiva: PdvProvider.idLojaColetivaNous,
+    )) {
       return;
     }
 
@@ -474,58 +363,55 @@ class MensageriaController extends ChangeNotifier {
 
     final ehConvLojaUsuario =
         convId.startsWith('loja_') && convId.contains('_usuario_');
-    final lojaIdResolvido = modoLoja
-        ? lojaId
-        : (ehConvLojaUsuario
-            ? convId.substring(5, convId.indexOf('_usuario_'))
-            : (ehLoja ? identificador.replaceFirst('loja_', '') : null));
+    final lojaIdResolvido = MensageriaConversaAtivaHelper.resolverLojaIdConversa(
+      convId: convId,
+      modoLoja: modoLoja,
+      lojaId: lojaId,
+      ehLoja: ehLoja,
+      identificador: identificador,
+    );
 
-    final novaConversaOtimista = ConversaChat(
-      id: convId,
+    final novaConversaOtimista =
+        MensageriaConversaAtivaHelper.montarConversaOtimista(
+      convId: convId,
       titulo: titulo,
       subtitulo: subtitulo,
       identificador: identificador,
       foto: foto,
-      ehLoja: ehLoja || ehConvLojaUsuario,
-      lojaId: lojaIdResolvido,
-      naoLidasCount: 0,
-      mensagens: const [],
-      dataHoraUltimaMensagem: DateTime.now(),
-      ultimaMensagem: '',
+      ehLoja: ehLoja,
+      ehConvLojaUsuario: ehConvLojaUsuario,
+      lojaIdResolvido: lojaIdResolvido,
     );
 
     _conversaSelecionada = novaConversaOtimista;
     ChatService.idConversaAtiva = convId;
     _conversas.insert(0, novaConversaOtimista);
-    _salvarUltimaConversaAberta(convId);
     notifyListeners();
 
-    unawaited(
-      MensageriaSelecaoHelper.carregarOuPersistirConversaNova(
-        convId: convId,
-        titulo: titulo,
-        subtitulo: subtitulo,
-        identificador: identificador,
-        foto: foto,
-        ehLoja: ehLoja || ehConvLojaUsuario,
-        modoLoja: modoLoja,
-        lojaId: lojaIdResolvido ?? (modoLoja ? lojaId : null),
-        usuarioCpf: usuarioCpf,
-        idVisualizador: idVisualizador,
-        resumoMensagem: resumoMensagem,
-        isDisposed: () => _disposed,
-        onConversaHidratada: (conversa) {
-          final index = _conversas.indexWhere((c) => c.id == convId);
-          if (index != -1) {
-            _conversas[index] = conversa;
-          }
-          if (_conversaSelecionada?.id == convId) {
-            _conversaSelecionada = conversa;
-          }
-          notifyListeners();
-        },
-        onMarcarComoLida: marcarComoLida,
-      ),
+    MensageriaConversaAtivaHelper.iniciarPersistenciaConversaNova(
+      convId: convId,
+      titulo: titulo,
+      subtitulo: subtitulo,
+      identificador: identificador,
+      foto: foto,
+      ehLoja: ehLoja,
+      ehConvLojaUsuario: ehConvLojaUsuario,
+      modoLoja: modoLoja,
+      lojaId: lojaId,
+      lojaIdResolvido: lojaIdResolvido,
+      usuarioCpf: usuarioCpf,
+      idVisualizador: idVisualizador,
+      resumoMensagem: resumoMensagem,
+      isDisposed: () => _disposed,
+      onConversaHidratada: (conversa) {
+        final i = _conversas.indexWhere((c) => c.id == convId);
+        if (i != -1) _conversas[i] = conversa;
+        if (_conversaSelecionada?.id == convId) {
+          _conversaSelecionada = conversa;
+        }
+        notifyListeners();
+      },
+      onMarcarComoLida: marcarComoLida,
     );
   }
 
@@ -536,73 +422,48 @@ class MensageriaController extends ChangeNotifier {
     if (c == null) {
       _conversaSelecionada = null;
       ChatService.idConversaAtiva = null;
-      _salvarUltimaConversaAberta('');
+      MensageriaConversaAtivaHelper.salvarUltimaConversaAberta(
+        convId: '',
+        modoLoja: modoLoja,
+        lojaId: lojaId,
+        usuarioCpf: usuarioCpf,
+      );
       notifyListeners();
       return;
     }
 
-    final msgsEmMemoria = (_conversaSelecionada?.id == c.id &&
-            _conversaSelecionada!.mensagens.isNotEmpty)
-        ? _conversaSelecionada!.mensagens
-        : c.mensagens;
-
-    final conversaAtualizada = c.copyWith(
-      naoLidasCount: 0,
-      mensagens: msgsEmMemoria,
+    final conversaAtualizada =
+        MensageriaConversaAtivaHelper.prepararConversaSelecionada(
+      nova: c,
+      selecionadaAtual: _conversaSelecionada,
     );
     _conversaSelecionada = conversaAtualizada;
     ChatService.idConversaAtiva = c.id;
-    NotificacaoAndroidService.cancelarNotificacaoConversa(c.id);
 
     final idx = _conversas.indexWhere((item) => item.id == c.id);
     if (idx != -1) {
       _conversas[idx] = conversaAtualizada;
     } else {
       _conversas.insert(0, conversaAtualizada);
-      unawaited(
-        ChatService.obterOuCriarConversa(
-          id: conversaAtualizada.id,
-          titulo: conversaAtualizada.titulo,
-          subtitulo: conversaAtualizada.subtitulo,
-          identificador: conversaAtualizada.identificador,
-          foto: conversaAtualizada.foto,
-          ehLoja: conversaAtualizada.ehLoja ||
-              conversaAtualizada.id.startsWith('loja_'),
-          ehGrupo: conversaAtualizada.ehGrupo,
-          lojaId: conversaAtualizada.lojaId ?? (modoLoja ? lojaId : null),
-          cpfUsuario: modoLoja ? null : usuarioCpf,
-        ),
-      );
     }
     notifyListeners();
 
-    _salvarUltimaConversaAberta(c.id);
-    unawaited(ChatService.desmarcarConversaExcluida(c.id));
-    unawaited(ChatService.marcarComoLidas(
-      c.id,
-      idVisualizador,
-      notificar: false,
-    ));
-
-    ChatService.carregarMensagens(c.id, idVisualizador: idVisualizador)
-        .then((msgs) {
-      if (_disposed || _conversaSelecionada?.id != c.id) return;
-      final comMsgs = _conversaSelecionada!.copyWith(
-        mensagens: msgs,
-        ultimaMensagem: msgs.isNotEmpty
-            ? resumoMensagem(msgs.last)
-            : _conversaSelecionada!.ultimaMensagem,
-        dataHoraUltimaMensagem: msgs.isNotEmpty
-            ? msgs.last.dataHora
-            : _conversaSelecionada!.dataHoraUltimaMensagem,
-      );
-      _conversaSelecionada = comMsgs;
-      final i = _conversas.indexWhere((item) => item.id == c.id);
-      if (i != -1) _conversas[i] = comMsgs;
-      notifyListeners();
-    }).catchError((Object e) {
-      debugPrint('[MensageriaController] Erro ao carregar mensagens da conversa: $e');
-    });
+    MensageriaConversaAtivaHelper.sincronizarAberturaConversa(
+      conversa: conversaAtualizada,
+      estavaNaLista: idx != -1,
+      modoLoja: modoLoja,
+      lojaId: lojaId,
+      usuarioCpf: usuarioCpf,
+      idVisualizador: idVisualizador,
+      resumoMensagem: resumoMensagem,
+      deveAplicar: () => !_disposed && _conversaSelecionada?.id == c.id,
+      onMensagensCarregadas: (comMsgs) {
+        _conversaSelecionada = comMsgs;
+        final i = _conversas.indexWhere((item) => item.id == c.id);
+        if (i != -1) _conversas[i] = comMsgs;
+        notifyListeners();
+      },
+    );
   }
 
   Future<void> recarregarMensagensConversaAtiva() async {
@@ -615,58 +476,14 @@ class MensageriaController extends ChangeNotifier {
       );
       if (_disposed || _conversaSelecionada?.id != convId) return;
 
-      final msgsAtuais = _conversaSelecionada!.mensagens;
-      final idsNoBanco = msgs.map((m) => m.id).toSet();
-      final pendentesLocais = msgsAtuais
-          .where((m) =>
-              m.statusEnvio == 'pendente' && !idsNoBanco.contains(m.id))
-          .toList();
-
-      final List<MensagemChat> msgsFinais;
-      if (pendentesLocais.isNotEmpty) {
-        msgsFinais = [...msgs, ...pendentesLocais]..sort((a, b) {
-            final cmp = a.dataHora.compareTo(b.dataHora);
-            if (cmp != 0) return cmp;
-            return a.id.compareTo(b.id);
-          });
-      } else {
-        msgsFinais = msgs;
-      }
-
-      bool saoIguais = msgsAtuais.length == msgsFinais.length;
-      if (saoIguais) {
-        for (int k = 0; k < msgsFinais.length; k++) {
-          final m1 = msgsAtuais[k];
-          final m2 = msgsFinais[k];
-          if (m1.id != m2.id ||
-              m1.statusEnvio != m2.statusEnvio ||
-              m1.lida != m2.lida ||
-              m1.entregue != m2.entregue ||
-              m1.texto != m2.texto ||
-              m1.editada != m2.editada ||
-              m1.favorita != m2.favorita ||
-              m1.fixada != m2.fixada ||
-              m1.caminhoAnexo != m2.caminhoAnexo ||
-              m1.dadosPedidoJson != m2.dadosPedidoJson ||
-              !mapEquals(m1.reacoes, m2.reacoes)) {
-            saoIguais = false;
-            break;
-          }
-        }
-      }
-      if (saoIguais) return;
-
-      final comMsgs = _conversaSelecionada!.copyWith(
-        mensagens: msgsFinais,
-        ultimaMensagem: msgsFinais.isNotEmpty
-            ? resumoMensagem(msgsFinais.last)
-            : _conversaSelecionada!.ultimaMensagem,
-        dataHoraUltimaMensagem: msgsFinais.isNotEmpty
-            ? msgsFinais.last.dataHora
-            : _conversaSelecionada!.dataHoraUltimaMensagem,
+      final comMsgs = MensageriaConversaAtivaHelper.mesclarMensagensRecarregadas(
+        conversaAtual: _conversaSelecionada!,
+        msgsBanco: msgs,
+        resumoMensagem: resumoMensagem,
       );
-      _conversaSelecionada = comMsgs;
+      if (comMsgs == null) return;
 
+      _conversaSelecionada = comMsgs;
       final i = _conversas.indexWhere((item) => item.id == convId);
       if (i != -1) {
         _conversas[i] = comMsgs;
@@ -675,30 +492,17 @@ class MensageriaController extends ChangeNotifier {
     } catch (_) {}
   }
 
-  Future<void> _salvarUltimaConversaAberta(String convId) async {
-    try {
-      final chave =
-          'chat_ultima_conversa_${modoLoja ? (lojaId ?? "loja") : (usuarioCpf ?? "usr")}';
-      await PreferenciasSoberanasService.salvarTexto(chave, convId);
-    } catch (_) {}
-  }
-
   Future<void> marcarComoLida(ConversaChat conversa) async {
-    NotificacaoAndroidService.cancelarNotificacaoConversa(conversa.id);
-    await ChatService.marcarComoLidas(
-      conversa.id,
-      idVisualizador,
-      notificar: true,
+    final res = await MensageriaConversaAtivaHelper.marcarConversaComoLida(
+      conversa: conversa,
+      conversas: _conversas,
+      selecionadaAtual: _conversaSelecionada,
+      idVisualizador: idVisualizador,
+      isDisposed: () => _disposed,
     );
-    if (_disposed) return;
-    final idx = _conversas.indexWhere((c) => c.id == conversa.id);
-    if (idx != -1 && _conversas[idx].naoLidasCount > 0) {
-      _conversas[idx] = _conversas[idx].copyWith(naoLidasCount: 0);
-      if (_conversaSelecionada?.id == conversa.id) {
-        _conversaSelecionada = _conversaSelecionada?.copyWith(naoLidasCount: 0);
-      }
-      notifyListeners();
-    }
+    if (_disposed || !res.alterou) return;
+    _conversaSelecionada = res.selecionada;
+    notifyListeners();
   }
 
   Future<void> enviarMensagem({
@@ -713,9 +517,12 @@ class MensageriaController extends ChangeNotifier {
   }) async {
     if (texto.trim().isEmpty && tipo == 'texto') return;
     if (_conversaSelecionada == null) return;
-
-    final conversaBase = MensageriaMensagemHelper.criarNovaMensagem(
-      conversa: _conversaSelecionada!,
+    final resp = _mensagemRespondendo;
+    _mensagemRespondendo = null;
+    MensageriaConversaAtivaHelper.enviarMensagemComConfirmacao(
+      conversaSelecionada: _conversaSelecionada!,
+      conversas: _conversas,
+      mensagemRespondendo: resp,
       texto: texto,
       tipo: tipo,
       caminhoAnexo: caminhoAnexo,
@@ -733,55 +540,11 @@ class MensageriaController extends ChangeNotifier {
       usuarioCpf: usuarioCpf,
       usuarioFoto: usuarioFoto,
       auth: auth,
+      resumoMensagem: resumoMensagem,
+      isDisposed: () => _disposed,
+      getConversaSelecionada: () => _conversaSelecionada,
+      onConversaAtualizada: _aplicarConversaAtualizada,
     );
-    final resp = _mensagemRespondendo;
-    _mensagemRespondendo = null;
-    final novaMensagem = resp == null
-        ? conversaBase
-        : conversaBase.copyWith(
-            respostaAId: resp.id,
-            respostaATexto: resp.texto.trim().isNotEmpty
-                ? resp.texto.trim()
-                : (resp.tipo == 'audio'
-                      ? 'Áudio'
-                      : (resp.tipo == 'imagem'
-                            ? 'Foto'
-                            : (resp.nomeAnexo.isNotEmpty
-                                  ? resp.nomeAnexo
-                                  : 'Mídia'))),
-            respostaAAutor: resp.remetenteNome.isNotEmpty
-                ? resp.remetenteNome
-                : (resp.enviadaPorMim ? 'Você' : 'Contato'),
-          );
-
-    final resumo = resumoMensagem(novaMensagem);
-    _conversaSelecionada = MensageriaMensagemHelper.integrarNovaMensagemNaConversa(
-      conversa: _conversaSelecionada!,
-      novaMensagem: novaMensagem,
-      resumo: resumo,
-    );
-    MensageriaMensagemHelper.atualizarListaConversasComNova(_conversas, _conversaSelecionada!);
-    notifyListeners();
-
-    ChatService.enviarMensagemInstantanea(novaMensagem).then((msgSalva) {
-      if (_disposed) return;
-      if (_conversaSelecionada?.id == novaMensagem.conversaId) {
-        final msgs = List<MensagemChat>.from(_conversaSelecionada!.mensagens);
-        final i = msgs.indexWhere((m) => m.id == novaMensagem.id);
-        if (i != -1) {
-          msgs[i] = msgSalva;
-          msgs.sort((a, b) {
-            final cmp = a.dataHora.compareTo(b.dataHora);
-            if (cmp != 0) return cmp;
-            return a.id.compareTo(b.id);
-          });
-          _conversaSelecionada = _conversaSelecionada!.copyWith(
-            mensagens: msgs,
-          );
-          notifyListeners();
-        }
-      }
-    });
   }
 
   Future<void> encaminharMensagem({
@@ -806,40 +569,28 @@ class MensageriaController extends ChangeNotifier {
         msg: msg,
         novoTexto: novoTexto,
         conversaSelecionada: _conversaSelecionada,
-        onAtualizarConversa: (c) {
-          _conversaSelecionada = c;
-          notifyListeners();
-        },
+        onAtualizarConversa: _aplicarConversaAtualizada,
       );
 
   Future<void> excluirMensagemLocal(MensagemChat msg) =>
       MensageriaAcoesMensagemHelper.excluir(
         msg: msg,
         conversaSelecionada: _conversaSelecionada,
-        onAtualizarConversa: (c) {
-          _conversaSelecionada = c;
-          notifyListeners();
-        },
+        onAtualizarConversa: _aplicarConversaAtualizada,
       );
 
   Future<void> alternarFavoritarMensagem(MensagemChat msg) =>
       MensageriaAcoesMensagemHelper.alternarFavoritar(
         msg: msg,
         conversaSelecionada: _conversaSelecionada,
-        onAtualizarConversa: (c) {
-          _conversaSelecionada = c;
-          notifyListeners();
-        },
+        onAtualizarConversa: _aplicarConversaAtualizada,
       );
 
   Future<void> alternarFixarMensagem(MensagemChat msg) =>
       MensageriaAcoesMensagemHelper.alternarFixar(
         msg: msg,
         conversaSelecionada: _conversaSelecionada,
-        onAtualizarConversa: (c) {
-          _conversaSelecionada = c;
-          notifyListeners();
-        },
+        onAtualizarConversa: _aplicarConversaAtualizada,
       );
 
   Future<void> reagirMensagem(MensagemChat msg, String emoji) =>
@@ -850,26 +601,26 @@ class MensageriaController extends ChangeNotifier {
         lojaId: lojaId,
         usuarioCpf: usuarioCpf,
         conversaSelecionada: _conversaSelecionada,
-        onAtualizarConversa: (c) {
-          _conversaSelecionada = c;
-          notifyListeners();
-        },
+        onAtualizarConversa: _aplicarConversaAtualizada,
       );
 
-  Future<void> alternarSilenciar(ConversaChat c, {required AuthProvider auth, required PdvProvider pdv}) async {
-    await ChatService.alternarSilenciarConversa(c.id);
+  Future<void> _executarERecarregar(
+    Future<void> Function() acao,
+    AuthProvider auth,
+    PdvProvider pdv,
+  ) async {
+    await acao();
     await recarregarConversas(auth: auth, pdv: pdv, manterSelecionada: true);
   }
 
-  Future<void> alternarFixar(ConversaChat c, {required AuthProvider auth, required PdvProvider pdv}) async {
-    await ChatService.alternarFixarConversa(c.id);
-    await recarregarConversas(auth: auth, pdv: pdv, manterSelecionada: true);
-  }
+  Future<void> alternarSilenciar(ConversaChat c, {required AuthProvider auth, required PdvProvider pdv}) =>
+      _executarERecarregar(() => ChatService.alternarSilenciarConversa(c.id), auth, pdv);
 
-  Future<void> alternarArquivar(ConversaChat c, {required AuthProvider auth, required PdvProvider pdv}) async {
-    await ChatService.alternarArquivarConversa(c.id);
-    await recarregarConversas(auth: auth, pdv: pdv, manterSelecionada: true);
-  }
+  Future<void> alternarFixar(ConversaChat c, {required AuthProvider auth, required PdvProvider pdv}) =>
+      _executarERecarregar(() => ChatService.alternarFixarConversa(c.id), auth, pdv);
+
+  Future<void> alternarArquivar(ConversaChat c, {required AuthProvider auth, required PdvProvider pdv}) =>
+      _executarERecarregar(() => ChatService.alternarArquivarConversa(c.id), auth, pdv);
 
   Future<void> renomearConversa(ConversaChat c, String novoTitulo, {required AuthProvider auth, required PdvProvider pdv}) async {
     final tLimpo = novoTitulo.trim();

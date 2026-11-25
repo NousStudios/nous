@@ -32,8 +32,9 @@ Arquivos principais: `pdv/services/rede_local/servidor_rede_local.dart`, `pdv/se
 | `POST /api/usuario` | Atualizar ficha do usuário |
 | `POST /api/sincronizar_perfis_usuario` | Fusão pan-dispositivo de perfis/lojas do mesmo CPF |
 | `GET /api/relogio` | Sincronização de relógio da rede local (Uníssono - Algoritmo de Cristian) |
-| `GET /api/versao` | Versão e build disponíveis |
-| `GET /api/download_apk` | APK da versão atual |
+| `GET /api/versao` | Versão, build e disponibilidade de `.apk`/`.exe` |
+| `GET /api/download_apk` | APK Android da versão atual |
+| `GET /api/download_exe` | Instalador Windows (`.exe`) da versão atual |
 | `WS /api/ws` | Canal em tempo real |
 
 Mensagens WebSocket:

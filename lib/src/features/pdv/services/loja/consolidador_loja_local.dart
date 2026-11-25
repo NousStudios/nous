@@ -454,7 +454,35 @@ class ConsolidadorLojaLocal {
             ? lojaLocal.configuracoesImpressora
             : lojaNova.configuracoesImpressora;
 
-    return lojaNova.copyWith(
+    final localMaisRecente = lojaLocal.dadosAtualizadosEm != null &&
+        (lojaNova.dadosAtualizadosEm == null ||
+            lojaLocal.dadosAtualizadosEm!
+                .isAfter(lojaNova.dadosAtualizadosEm!));
+    final baseEscalar = localMaisRecente ? lojaLocal : lojaNova;
+    final cidadeFinal = baseEscalar.cidade.trim().isNotEmpty
+        ? baseEscalar.cidade
+        : (lojaNova.cidade.trim().isNotEmpty
+            ? lojaNova.cidade
+            : lojaLocal.cidade);
+    final cepFinal = baseEscalar.cep.trim().isNotEmpty
+        ? baseEscalar.cep
+        : (lojaNova.cep.trim().isNotEmpty ? lojaNova.cep : lojaLocal.cep);
+    final latFinal = baseEscalar.latitude ?? lojaNova.latitude ?? lojaLocal.latitude;
+    final lonFinal =
+        baseEscalar.longitude ?? lojaNova.longitude ?? lojaLocal.longitude;
+    final permissoesNativasFinais =
+        Map<String, Map<String, bool>>.from(
+      localMaisRecente
+          ? lojaNova.permissoesCargosNativos
+          : lojaLocal.permissoesCargosNativos,
+    )..addAll(baseEscalar.permissoesCargosNativos);
+
+    return baseEscalar.copyWith(
+      cidade: cidadeFinal,
+      cep: cepFinal,
+      latitude: latFinal,
+      longitude: lonFinal,
+      permissoesCargosNativos: permissoesNativasFinais,
       logo: logoFinal,
       categoriasLoja: categoriasConsolidadas,
       itensLoja: itensConsolidados,

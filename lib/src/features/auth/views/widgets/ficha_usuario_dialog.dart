@@ -1,23 +1,20 @@
-import 'dart:io';
-import 'dart:ui';
-
 import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:nous/src/core/services/guarda_acao_ui.dart';
 import 'package:nous/src/core/theme/theme_controller.dart';
 import 'package:nous/src/features/auth/models/usuario_nous.dart';
+import 'package:nous/src/features/pdv/services/cep_service.dart';
 import 'package:nous/src/features/auth/providers/auth_provider.dart';
-import 'package:nous/src/features/notificacoes/models/convite_loja.dart';
-import 'package:nous/src/features/notificacoes/providers/notificacoes_provider.dart';
-import 'package:nous/src/features/pdv/models/membro_loja.dart';
-import 'package:nous/src/features/pdv/providers/pdv_provider.dart';
-import 'package:nous/src/features/pdv/services/imagem_service.dart';
 import 'package:nous/src/features/auth/services/cpf_validator.dart';
+import 'package:nous/src/features/auth/views/widgets/ficha/cabecalho_ficha_usuario.dart';
+import 'package:nous/src/features/auth/views/widgets/ficha/solicitar_acesso_dado_dialog.dart';
 import 'package:nous/src/features/auth/views/widgets/ficha_usuario/bloco_dados_pessoais_usuario.dart';
 import 'package:nous/src/features/auth/views/widgets/ficha_usuario/bloco_emails_usuario.dart';
 import 'package:nous/src/features/auth/views/widgets/ficha_usuario/bloco_lojas_usuario.dart';
 import 'package:nous/src/features/auth/views/widgets/ficha_usuario/bloco_registro_conta_usuario.dart';
+import 'package:nous/src/features/pdv/providers/pdv_provider.dart';
+import 'package:nous/src/features/pdv/services/imagem_service.dart';
 import 'package:nous/src/features/pdv/views/widgets/opcoes_imagem_dialog.dart';
 
 class FichaUsuarioDialog {
@@ -82,6 +79,10 @@ class _FichaUsuarioConteudoState extends State<_FichaUsuarioConteudo> {
   late final TextEditingController _localNascController;
   late final TextEditingController _tipoSanguineoController;
   late final TextEditingController _estadoCivilController;
+  late final TextEditingController _cepResidencialController;
+  late final TextEditingController _enderecoResidencialController;
+  bool _buscandoCep = false;
+  String _ultimoCepConsultado = '';
 
   AppTheme get theme => widget.theme;
 
@@ -105,6 +106,12 @@ class _FichaUsuarioConteudoState extends State<_FichaUsuarioConteudo> {
         TextEditingController(text: widget.usuarioInicial.tipoSanguineo);
     _estadoCivilController =
         TextEditingController(text: widget.usuarioInicial.estadoCivil);
+    _cepResidencialController =
+        TextEditingController(text: widget.usuarioInicial.cepResidencial);
+    _enderecoResidencialController =
+        TextEditingController(text: widget.usuarioInicial.enderecoResidencial);
+    _ultimoCepConsultado =
+        CepService.normalizarDigitos(widget.usuarioInicial.cepResidencial);
   }
 
   @override
@@ -117,6 +124,8 @@ class _FichaUsuarioConteudoState extends State<_FichaUsuarioConteudo> {
     _localNascController.dispose();
     _tipoSanguineoController.dispose();
     _estadoCivilController.dispose();
+    _cepResidencialController.dispose();
+    _enderecoResidencialController.dispose();
     super.dispose();
   }
 
@@ -143,7 +152,36 @@ class _FichaUsuarioConteudoState extends State<_FichaUsuarioConteudo> {
     _localNascController.text = atual.localNascimento;
     _tipoSanguineoController.text = atual.tipoSanguineo;
     _estadoCivilController.text = atual.estadoCivil;
+    _cepResidencialController.text = atual.cepResidencial;
+    _enderecoResidencialController.text = atual.enderecoResidencial;
+    _ultimoCepConsultado = CepService.normalizarDigitos(atual.cepResidencial);
     setState(() => _editandoDados = true);
+  }
+
+  Future<void> _aoAlterarCep(String valor) async {
+    final digitos = CepService.normalizarDigitos(valor);
+    if (digitos.length != 8 || digitos == _ultimoCepConsultado) {
+      return;
+    }
+    _ultimoCepConsultado = digitos;
+    if (mounted) setState(() => _buscandoCep = true);
+
+    final resultado = await CepService.buscar(digitos);
+    if (!mounted) return;
+    setState(() => _buscandoCep = false);
+
+    if (resultado == null) return;
+    final partes = <String>[
+      if (resultado.logradouro.isNotEmpty) resultado.logradouro,
+      if (resultado.bairro.isNotEmpty) resultado.bairro,
+      if (resultado.cidade.isNotEmpty)
+        resultado.uf.isNotEmpty
+            ? '${resultado.cidade} - ${resultado.uf}'
+            : resultado.cidade,
+    ];
+    if (partes.isNotEmpty) {
+      _enderecoResidencialController.text = partes.join(', ');
+    }
   }
 
   Future<void> _salvarDadosPessoais() async {
@@ -154,6 +192,8 @@ class _FichaUsuarioConteudoState extends State<_FichaUsuarioConteudo> {
     final local = _localNascController.text.trim();
     final sangue = _tipoSanguineoController.text.trim();
     final estadoCiv = _estadoCivilController.text.trim();
+    final cepRes = _cepResidencialController.text.trim();
+    final enderecoRes = _enderecoResidencialController.text.trim();
 
     await auth.atualizarDadosPessoais(
       dataNascimento: dataNasc,
@@ -162,6 +202,8 @@ class _FichaUsuarioConteudoState extends State<_FichaUsuarioConteudo> {
       localNascimento: local,
       tipoSanguineo: sangue,
       estadoCivil: estadoCiv,
+      cepResidencial: cepRes,
+      enderecoResidencial: enderecoRes,
     );
 
     if (!mounted) return;
@@ -173,6 +215,8 @@ class _FichaUsuarioConteudoState extends State<_FichaUsuarioConteudo> {
         localNascimento: local,
         tipoSanguineo: sangue,
         estadoCivil: estadoCiv,
+        cepResidencial: cepRes,
+        enderecoResidencial: enderecoRes,
       );
       _editandoDados = false;
     });
@@ -184,90 +228,19 @@ class _FichaUsuarioConteudoState extends State<_FichaUsuarioConteudo> {
         border: Border.all(color: theme.borderColor.withValues(alpha: 0.6)),
       );
 
-  Future<void> _solicitarAcessoAoDado(String rotulo, String chave) async {
-    final auth = context.read<AuthProvider>();
-    final notificacoes = context.read<NotificacoesProvider>();
-    final usuarioLogado = auth.contaAtual;
-    if (usuarioLogado == null) return;
-
-    final confirmar = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: theme.cardBackgroundColor,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-          side: BorderSide(color: theme.borderColor),
-        ),
-        title: Text(
-          'Solicitar Acesso',
-          style: theme.getTextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.bold,
-            color: theme.textColor,
-          ),
-        ),
-        content: Text(
-          'Deseja enviar uma notificação para ${_usuario.nome.isNotEmpty ? _usuario.nome : "o usuário"} solicitando autorização para visualizar: "$rotulo"?',
-          style: theme.getTextStyle(
-            fontSize: 13,
-            color: theme.textColor,
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(false),
-            child: Text(
-              'Cancelar',
-              style: theme.getTextStyle(color: theme.secondaryTextColor),
-            ),
-          ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: theme.buttonColor,
-              foregroundColor: theme.buttonTextColor,
-            ),
-            onPressed: () => Navigator.of(ctx).pop(true),
-            child: Text(
-              'Enviar Solicitação',
-              style: theme.getTextStyle(color: theme.buttonTextColor),
-            ),
-          ),
-        ],
-      ),
+  Future<void> _solicitarAcessoAoDado(String rotulo, String chave) {
+    return SolicitarAcessoDadoDialog.mostrar(
+      context,
+      theme: theme,
+      usuarioAlvo: _usuario,
+      rotulo: rotulo,
+      chave: chave,
     );
-
-    if (confirmar == true && mounted) {
-      final solicitacao = ConviteLoja(
-        id: 'solic_${DateTime.now().millisecondsSinceEpoch}_${CpfValidator.onlyDigits(usuarioLogado.cpf)}',
-        cpfConvidante: CpfValidator.onlyDigits(usuarioLogado.cpf),
-        nomeConvidante: usuarioLogado.nome.isNotEmpty
-            ? usuarioLogado.nome
-            : usuarioLogado.usernameExibicao,
-        cpfConvidado: CpfValidator.onlyDigits(_usuario.cpf),
-        lojaId: '',
-        nomeLoja: 'Conta Pessoal',
-        papel: PapelMembro.funcionario,
-        dataHora: DateTime.now(),
-        tipo: TipoNotificacao.solicitacaoDadoUsuario,
-        dadoSolicitado: chave,
-      );
-      await notificacoes.adicionarNotificacao(solicitacao);
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            backgroundColor: theme.cardBackgroundColor,
-            content: Text(
-              'Solicitação enviada para ${_usuario.nome.isNotEmpty ? _usuario.nome : "o usuário"}!',
-              style: theme.getTextStyle(color: theme.textColor),
-            ),
-          ),
-        );
-      }
-    }
   }
 
   Future<void> _aoClicarFoto() async {
-    final temFoto = _usuario.foto.isNotEmpty && ImagemService.existe(_usuario.foto);
+    final temFoto =
+        _usuario.foto.isNotEmpty && ImagemService.existe(_usuario.foto);
 
     if (temFoto) {
       await OpcoesImagemDialog.mostrar(
@@ -324,7 +297,6 @@ class _FichaUsuarioConteudoState extends State<_FichaUsuarioConteudo> {
         : (contaDoCache ?? _usuario);
     final fotoResolvida =
         ImagemService.resolverCaminhoExistente(contaAtualizada.foto);
-    final temFoto = fotoResolvida != null;
 
     final clienteMesmoCpf = pdv.buscarClientePorCpf(contaAtualizada.cpf);
     final lojasAdmin = pdv.lojasQueAdministro;
@@ -335,363 +307,28 @@ class _FichaUsuarioConteudoState extends State<_FichaUsuarioConteudo> {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              IconButton(
-                visualDensity: VisualDensity.compact,
-                tooltip: _ocultarDados
-                    ? 'Mostrar dados sensíveis'
-                    : 'Ocultar dados sensíveis',
-                icon: Icon(
-                  _ocultarDados
-                      ? Icons.visibility_off_outlined
-                      : Icons.visibility_outlined,
-                  color: theme.secondaryTextColor,
-                ),
-                onPressed: () {
-                  setState(() {
-                    _ocultarDados = !_ocultarDados;
-                  });
-                },
-              ),
-              Text(
-                'Identidade do Usuário',
-                style: theme.getTextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                  color: theme.textColor,
-                ),
-              ),
-              IconButton(
-                visualDensity: VisualDensity.compact,
-                icon: Icon(Icons.close, color: theme.secondaryTextColor),
-                onPressed: () => Navigator.of(context).pop(),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-
-          // Avatar Clicável (apenas se for o próprio usuário)
-          InkWell(
-            borderRadius: BorderRadius.circular(16),
-            onTap: ehProprioUsuario ? _aoClicarFoto : null,
-            child: Container(
-              width: 84,
-              height: 84,
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: theme.borderColor),
-              ),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(15),
-                child: temFoto
-                    ? Image.file(
-                        File(fotoResolvida),
-                        width: 84,
-                        height: 84,
-                        fit: BoxFit.cover,
-                        errorBuilder: (context, error, stackTrace) => Icon(
-                          Icons.person,
-                          size: 48,
-                          color: theme.textColor,
-                        ),
-                      )
-                    : Icon(
-                        Icons.person,
-                        size: 48,
-                        color: theme.textColor,
-                      ),
-              ),
-            ),
-          ),
-          const SizedBox(height: 10),
-
-          // Apelido (acima do nome real, na mesma grafia do CPF)
-          if (ehProprioUsuario)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 8),
-              child: SizedBox(
-                width: 260,
-                child: TextField(
-                  controller: _apelidoController,
-                  textAlign: TextAlign.center,
-                  style: theme.getTextStyle(
-                    fontSize: 13,
-                    color: theme.secondaryTextColor,
-                  ),
-                  cursorColor: theme.textColor,
-                  decoration: InputDecoration(
-                    labelText: 'Apelido',
-                    labelStyle: theme.getTextStyle(
-                      fontSize: 12,
-                      color: theme.secondaryTextColor,
-                    ),
-                    hintText: 'Digite seu apelido',
-                    hintStyle: theme.getTextStyle(
-                      fontSize: 13,
-                      color: theme.secondaryTextColor.withValues(alpha: 0.6),
-                    ),
-                    isDense: true,
-                    contentPadding:
-                        const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(10),
-                      borderSide: BorderSide(
-                        color: theme.borderColor.withValues(alpha: 0.5),
-                      ),
-                    ),
-                    enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(10),
-                      borderSide: BorderSide(
-                        color: theme.borderColor.withValues(alpha: 0.5),
-                      ),
-                    ),
-                    focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(10),
-                      borderSide: BorderSide(color: theme.textColor),
-                    ),
-                  ),
-                  onChanged: (novo) => _salvarApelido(novo),
-                ),
-              ),
-            )
-          else if (contaAtualizada.apelido.isNotEmpty)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 6),
-              child: Text(
-                contaAtualizada.apelido,
-                textAlign: TextAlign.center,
-                style: theme.getTextStyle(
-                  fontSize: 13,
-                  color: theme.secondaryTextColor,
-                ),
-              ),
-            ),
-
-          if (ehProprioUsuario)
-            Builder(
-              builder: (context) {
-                final estaPrivado = _usuario.dadoEstaPrivado('nome');
-                final revelado = auth.dadoEstaReveladoParaDono('nome');
-                return Padding(
-                  padding: const EdgeInsets.only(bottom: 6),
-                  child: Center(
-                    child: SizedBox(
-                      width: 260,
-                      child: Stack(
-                        alignment: Alignment.centerRight,
-                        children: [
-                          TextField(
-                            controller: _nomeController,
-                            textAlign: TextAlign.center,
-                            style: theme.getTextStyle(
-                              fontSize: 15,
-                              fontWeight: FontWeight.bold,
-                              color: theme.textColor,
-                            ),
-                            cursorColor: theme.textColor,
-                            decoration: InputDecoration(
-                              labelText: 'Nome Próprio',
-                              labelStyle: theme.getTextStyle(
-                                fontSize: 12,
-                                color: theme.secondaryTextColor,
-                              ),
-                              hintText: 'Digite seu nome completo',
-                              hintStyle: theme.getTextStyle(
-                                fontSize: 13,
-                                color: theme.secondaryTextColor.withValues(alpha: 0.6),
-                              ),
-                              isDense: true,
-                              contentPadding: EdgeInsets.symmetric(
-                                horizontal: estaPrivado ? 28 : 10,
-                                vertical: 8,
-                              ),
-                              border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(10),
-                                borderSide: BorderSide(
-                                  color: theme.borderColor.withValues(alpha: 0.5),
-                                ),
-                              ),
-                              enabledBorder: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(10),
-                                borderSide: BorderSide(
-                                  color: theme.borderColor.withValues(alpha: 0.5),
-                                ),
-                              ),
-                              focusedBorder: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(10),
-                                borderSide: BorderSide(color: theme.textColor),
-                              ),
-                            ),
-                            onChanged: (novo) => _salvarNome(novo),
-                          ),
-                          if (estaPrivado)
-                            Positioned(
-                              right: 6,
-                              child: InkWell(
-                                onTap: () => auth.alternarRevelacaoParaDono('nome'),
-                                borderRadius: BorderRadius.circular(12),
-                                child: Padding(
-                                  padding: const EdgeInsets.all(4.0),
-                                  child: Icon(
-                                    revelado
-                                        ? Icons.visibility_outlined
-                                        : Icons.visibility_off_outlined,
-                                    size: 16,
-                                    color: theme.secondaryTextColor,
-                                  ),
-                                ),
-                              ),
-                            ),
-                        ],
-                      ),
-                    ),
-                  ),
-                );
-              },
-            )
-          else
-            Builder(
-              builder: (context) {
-                final estaPrivado = contaAtualizada.dadoEstaPrivado('nome');
-                final autorizado = contaAtualizada.dadoAutorizadoPara('nome', auth.contaAtual?.cpf ?? '');
-                final nomeTexto = estaPrivado && !autorizado
-                    ? (contaAtualizada.apelido.isNotEmpty ? contaAtualizada.apelido : '••••••••')
-                    : (contaAtualizada.nome.isEmpty ? 'Nome do Usuário' : contaAtualizada.nome);
-
-                return Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Text(
-                      nomeTexto,
-                      textAlign: TextAlign.center,
-                      style: theme.getTextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                        color: theme.textColor,
-                      ),
-                    ),
-                    if (estaPrivado && !autorizado) ...[
-                      const SizedBox(width: 6),
-                      InkWell(
-                        onTap: () => _solicitarAcessoAoDado('Nome', 'nome'),
-                        borderRadius: BorderRadius.circular(12),
-                        child: Padding(
-                          padding: const EdgeInsets.all(2.0),
-                          child: Icon(
-                            Icons.visibility_off_outlined,
-                            size: 15,
-                            color: theme.secondaryTextColor,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ],
-                );
-              },
-            ),
-          const SizedBox(height: 6),
-          // Nome de Usuário Nous com Selo de Verificado
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Text(
-                contaAtualizada.usernameExibicao.isNotEmpty
-                    ? contaAtualizada.usernameExibicao
-                    : '@usuario',
-                textAlign: TextAlign.center,
-                style: theme.getTextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                  color: theme.secondaryTextColor,
-                ),
-              ),
-              if (contaAtualizada.verificado || contaAtualizada.validadoPorCpf.isNotEmpty) ...[
-                const SizedBox(width: 4),
-                const Tooltip(
-                  message: 'Conta Verificada pela Comunidade Nous',
-                  child: Icon(
-                    Icons.verified,
-                    size: 15,
-                    color: Color(0xFF34B7F1),
-                  ),
-                ),
-              ],
-            ],
-          ),
-          const SizedBox(height: 2),
-          _borrarSeNecessario(
-            Builder(
-              builder: (context) {
-                final cpfVisualizador = auth.contaAtual?.cpf ?? '';
-                final estaPrivado = contaAtualizada.dadoEstaPrivado('cpf');
-
-                bool censurado = false;
-                bool olhoAberto = false;
-                VoidCallback? aoClicarOlho;
-
-                if (ehProprioUsuario) {
-                  // O próprio usuário sempre tem o olho disponível para alternar (ex: para tirar prints com segurança)
-                  final revelado = auth.dadoEstaReveladoParaDono('cpf');
-                  censurado = !revelado;
-                  olhoAberto = revelado;
-                  aoClicarOlho = () => auth.alternarRevelacaoParaDono('cpf');
-                } else if (estaPrivado) {
-                  final autorizado = contaAtualizada.dadoAutorizadoPara('cpf', cpfVisualizador);
-                  if (!autorizado) {
-                    censurado = true;
-                    olhoAberto = false;
-                    aoClicarOlho = () => _solicitarAcessoAoDado('CPF', 'cpf');
-                  }
-                }
-
-                Widget? widgetOlho;
-                if (aoClicarOlho != null) {
-                  widgetOlho = InkWell(
-                    onTap: aoClicarOlho,
-                    borderRadius: BorderRadius.circular(12),
-                    child: Padding(
-                      padding: const EdgeInsets.all(2.0),
-                      child: Icon(
-                        olhoAberto
-                            ? Icons.visibility_outlined
-                            : Icons.visibility_off_outlined,
-                        size: 15,
-                        color: theme.secondaryTextColor,
-                      ),
-                    ),
-                  );
-                }
-
-                return SizedBox(
-                  width: 220,
-                  height: 22,
-                  child: Stack(
-                    alignment: Alignment.center,
-                    children: [
-                      Center(
-                        child: Text(
-                          CpfValidator.formatProtegido(
-                            contaAtualizada.cpf,
-                            revelado: !censurado,
-                          ),
-                          style: theme.getTextStyle(
-                            fontSize: 13,
-                            color: theme.secondaryTextColor,
-                          ),
-                        ),
-                      ),
-                      if (widgetOlho != null)
-                        Positioned(
-                          right: 12,
-                          child: widgetOlho,
-                        ),
-                    ],
-                  ),
-                );
-              },
-            ),
+          CabecalhoFichaUsuario(
+            theme: theme,
+            usuario: contaAtualizada,
+            ehProprioUsuario: ehProprioUsuario,
+            cpfVisualizador: auth.contaAtual?.cpf ?? '',
+            ocultarDados: _ocultarDados,
+            fotoResolvida: fotoResolvida,
+            apelidoController: _apelidoController,
+            nomeController: _nomeController,
+            nomePrivadoDono: _usuario.dadoEstaPrivado('nome'),
+            nomeReveladoDono: auth.dadoEstaReveladoParaDono('nome'),
+            cpfReveladoDono: auth.dadoEstaReveladoParaDono('cpf'),
+            onAlternarOcultarDados: () =>
+                setState(() => _ocultarDados = !_ocultarDados),
+            onAoClicarFoto: _aoClicarFoto,
+            onSalvarApelido: _salvarApelido,
+            onSalvarNome: _salvarNome,
+            onAlternarRevelacaoNome: () =>
+                auth.alternarRevelacaoParaDono('nome'),
+            onAlternarRevelacaoCpf: () =>
+                auth.alternarRevelacaoParaDono('cpf'),
+            onSolicitarAcesso: _solicitarAcessoAoDado,
           ),
 
           const SizedBox(height: 16),
@@ -705,11 +342,12 @@ class _FichaUsuarioConteudoState extends State<_FichaUsuarioConteudo> {
             ocultarDados: _ocultarDados,
             editandoDados: _editandoDados,
             telefone: clienteMesmoCpf?.telefone,
-            endereco: clienteMesmoCpf != null && clienteMesmoCpf.endereco.isNotEmpty
-                ? (clienteMesmoCpf.numero.isNotEmpty
-                    ? '${clienteMesmoCpf.endereco}, ${clienteMesmoCpf.numero}'
-                    : clienteMesmoCpf.endereco)
-                : null,
+            endereco:
+                clienteMesmoCpf != null && clienteMesmoCpf.endereco.isNotEmpty
+                    ? (clienteMesmoCpf.numero.isNotEmpty
+                        ? '${clienteMesmoCpf.endereco}, ${clienteMesmoCpf.numero}'
+                        : clienteMesmoCpf.endereco)
+                    : null,
             redesSociais: clienteMesmoCpf?.redesSociais,
             dataNascController: _dataNascController,
             nomeMaeController: _nomeMaeController,
@@ -717,6 +355,10 @@ class _FichaUsuarioConteudoState extends State<_FichaUsuarioConteudo> {
             localNascController: _localNascController,
             tipoSanguineoController: _tipoSanguineoController,
             estadoCivilController: _estadoCivilController,
+            cepResidencialController: _cepResidencialController,
+            enderecoResidencialController: _enderecoResidencialController,
+            buscandoCep: _buscandoCep,
+            onAlterarCep: _aoAlterarCep,
             onIniciarEdicao: () => _iniciarEdicao(contaAtualizada),
             onCancelarEdicao: () => setState(() => _editandoDados = false),
             onSalvarEdicao: _salvarDadosPessoais,
@@ -764,17 +406,6 @@ class _FichaUsuarioConteudoState extends State<_FichaUsuarioConteudo> {
             ),
           ),
         ],
-      ),
-    );
-  }
-
-  Widget _borrarSeNecessario(Widget child) {
-    if (!_ocultarDados) return child;
-    return IgnorePointer(
-      ignoring: true,
-      child: ImageFiltered(
-        imageFilter: ImageFilter.blur(sigmaX: 5.5, sigmaY: 5.5),
-        child: child,
       ),
     );
   }

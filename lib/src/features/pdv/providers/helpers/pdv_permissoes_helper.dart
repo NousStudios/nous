@@ -70,6 +70,20 @@ class PdvPermissoesHelper {
     return loja.temPermissaoPapel(m.papel.name, PermissaoLojaConst.editarDadosLoja);
   }
 
+  static bool podeEditarLocalizacaoMapa(Loja? loja, String? cpfAtual) {
+    final m = resolverMeuMembro(loja, cpfAtual);
+    if (m == null || loja == null) return false;
+    if (m.papel == PapelMembro.dono || m.papel == PapelMembro.socio) return true;
+    final cargo = resolverMeuCargoPersonalizado(loja, m);
+    if (cargo != null) {
+      return cargo.temPermissao(PermissaoLojaConst.editarLocalizacaoMapa);
+    }
+    return loja.temPermissaoPapel(
+      m.papel.name,
+      PermissaoLojaConst.editarLocalizacaoMapa,
+    );
+  }
+
   static bool podeUsarFinanceiro(Loja? loja, String? cpfAtual) {
     final m = resolverMeuMembro(loja, cpfAtual);
     if (m == null || loja == null) return false;

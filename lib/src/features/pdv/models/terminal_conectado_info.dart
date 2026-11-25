@@ -14,6 +14,8 @@ class TerminalConectadoInfo {
   String? nomeUsuario;
   String? apelido;
   String? tipoConexao;
+  String? versaoApp;
+  int? buildApp;
 
   TerminalConectadoInfo({
     required this.id,
@@ -24,6 +26,8 @@ class TerminalConectadoInfo {
     this.nomeUsuario,
     this.apelido,
     this.tipoConexao = 'membro',
+    this.versaoApp,
+    this.buildApp,
   });
 
   bool get ehHost => id == 'balcao_servidor_local' || id.startsWith('host_');
@@ -37,6 +41,8 @@ class TerminalConectadoInfo {
         'nomeUsuario': nomeUsuario,
         'apelido': apelido,
         'tipoConexao': tipoConexao,
+        'versaoApp': versaoApp,
+        'buildApp': buildApp,
       };
 
   factory TerminalConectadoInfo.fromJson(Map<String, dynamic> json) {
@@ -50,6 +56,10 @@ class TerminalConectadoInfo {
       nomeUsuario: json['nomeUsuario'] as String?,
       apelido: json['apelido'] as String?,
       tipoConexao: json['tipoConexao'] as String? ?? 'membro',
+      versaoApp: json['versaoApp'] as String?,
+      buildApp: json['buildApp'] is int
+          ? json['buildApp'] as int
+          : int.tryParse(json['buildApp']?.toString() ?? ''),
     );
   }
 }

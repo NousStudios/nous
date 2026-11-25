@@ -1,9 +1,11 @@
 package com.example.nous
 
+import android.app.Activity
 import android.content.Intent
 import android.net.Uri
 import android.os.Build
 import android.provider.Settings
+import android.speech.RecognizerIntent
 import androidx.core.content.FileProvider
 import io.flutter.embedding.android.FlutterFragmentActivity
 import io.flutter.embedding.engine.FlutterEngine
@@ -13,6 +15,8 @@ import java.io.File
 class MainActivity : FlutterFragmentActivity() {
     private val CHANNEL = "com.nous.app/instalador"
     private val CAPTURA_TELA_CHANNEL = "com.nous.app/captura_tela"
+    private val REQ_CODE_VOZ = 9104
+    private var vozResultPendente: MethodChannel.Result? = null
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
@@ -133,6 +137,23 @@ class MainActivity : FlutterFragmentActivity() {
                         result.error("CAMINHO_NULO", "Caminho do arquivo nulo", null)
                     }
                 }
+                "reconhecerVoz" -> {
+                    try {
+                        vozResultPendente = result
+                        val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+                            putExtra(
+                                RecognizerIntent.EXTRA_LANGUAGE_MODEL,
+                                RecognizerIntent.LANGUAGE_MODEL_FREE_FORM
+                            )
+                            putExtra(RecognizerIntent.EXTRA_LANGUAGE, "pt-BR")
+                            putExtra(RecognizerIntent.EXTRA_PROMPT, "Fale o que deseja buscar no Nous")
+                        }
+                        startActivityForResult(intent, REQ_CODE_VOZ)
+                    } catch (e: Exception) {
+                        vozResultPendente = null
+                        result.error("ERRO_VOZ", e.message, null)
+                    }
+                }
                 "obterVersaoApp" -> {
                     try {
                         val pInfo = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
@@ -157,6 +178,20 @@ class MainActivity : FlutterFragmentActivity() {
                     }
                 }
                 else -> result.notImplemented()
+            }
+        }
+    }
+
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode == REQ_CODE_VOZ) {
+            val res = vozResultPendente
+            vozResultPendente = null
+            if (resultCode == Activity.RESULT_OK && data != null) {
+                val lista = data.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)
+                res?.success(lista?.firstOrNull() ?: "")
+            } else {
+                res?.success("")
             }
         }
     }

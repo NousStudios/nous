@@ -59,8 +59,9 @@ class NotificacoesProvider extends ChangeNotifier {
         'nous_notificacoes_dispensadas_loja_$lojaId',
       );
       if (lista.isNotEmpty) {
-        _notificacoesDispensadasPorLoja.putIfAbsent(lojaId, () => <String>{}).addAll(lista);
-        _notificacoesDispensadasSessao.addAll(lista);
+        _notificacoesDispensadasPorLoja
+            .putIfAbsent(lojaId, () => <String>{})
+            .addAll(lista);
         notifyListeners();
       }
     } catch (_) {}
@@ -77,7 +78,6 @@ class NotificacoesProvider extends ChangeNotifier {
       () => <String>{},
     );
     setLoja.addAll(ids);
-    _notificacoesDispensadasSessao.addAll(ids);
 
     try {
       await PreferenciasSoberanasService.salvarLista(
@@ -140,6 +140,7 @@ class NotificacoesProvider extends ChangeNotifier {
   Future<void> carregarParaCpf(String cpf) async {
     _cpfAtual = cpf;
     _notificacoesDispensadasSessao.clear();
+    _notificacoesDispensadasPorLoja.clear();
     final cpfLimpo = cpf.replaceAll(RegExp(r'\D'), '');
     if (cpfLimpo.isNotEmpty) {
       try {
@@ -162,6 +163,8 @@ class NotificacoesProvider extends ChangeNotifier {
   Future<void> limpar() async {
     _cpfAtual = null;
     _convites = [];
+    _notificacoesDispensadasSessao.clear();
+    _notificacoesDispensadasPorLoja.clear();
     notifyListeners();
   }
 

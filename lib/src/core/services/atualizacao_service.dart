@@ -25,8 +25,8 @@ class InfoAtualizacao {
 }
 
 class AtualizacaoService {
-  static String versaoAtual = '1.1.45';
-  static int buildAtual = 147;
+  static String versaoAtual = '1.1.50';
+  static int buildAtual = 152;
 
   /// Inicializa a identificação da versão do aplicativo.
   /// No Android, consulta dinamicamente a versão real instalada no sistema operacional via MethodChannel.
@@ -99,6 +99,7 @@ class AtualizacaoService {
         final corpoDesc = json['body'] as String? ?? '';
         final htmlUrl = json['html_url'] as String? ??
             'https://github.com/NousStudios/nous/releases';
+        final urlDownload = _extrairUrlDownloadRelease(json, htmlUrl);
         final dataStr = json['published_at'] as String?;
         final dataPub = dataStr != null ? DateTime.tryParse(dataStr) : null;
 
@@ -112,7 +113,7 @@ class AtualizacaoService {
             versao: tagName,
             nomeVersao: nome,
             descricao: corpoDesc,
-            urlDownload: htmlUrl,
+            urlDownload: urlDownload,
             dataPublicacao: dataPub,
             alteracoes: alteracoes,
           );
@@ -123,9 +124,8 @@ class AtualizacaoService {
           verificando.value = false;
           return true;
         } else {
-          // Se já temos atualização identificada via Wi-Fi pelo balcão local, não apagamos
-          final ehLocal = infoAtualizacao.value?.urlDownload.contains('/api/download_apk') ?? false;
-          if (!ehLocal) {
+          // Se já temos atualização identificada via Wi-Fi local, não apagamos
+          if (!_temAtualizacaoLocal) {
             infoAtualizacao.value = null;
             temAtualizacao.value = false;
             mensagemStatus.value =
@@ -137,8 +137,7 @@ class AtualizacaoService {
         }
       } else {
         // Se a release ainda não existe ou o repositório é privado
-        final ehLocal = infoAtualizacao.value?.urlDownload.contains('/api/download_apk') ?? false;
-        if (!ehLocal) {
+        if (!_temAtualizacaoLocal) {
           temAtualizacao.value = false;
           mensagemStatus.value =
               'O Nous está na versão v$versaoAtual (versão estável local).';
@@ -149,14 +148,39 @@ class AtualizacaoService {
       }
     } catch (_) {
       // Falha de rede ou timeout tratado silenciosamente
-      final ehLocal = infoAtualizacao.value?.urlDownload.contains('/api/download_apk') ?? false;
-      if (!ehLocal && !silencioso) {
+      if (!_temAtualizacaoLocal && !silencioso) {
         mensagemStatus.value =
             'Não foi possível conectar ao servidor de atualizações. Você pode continuar trabalhando normalmente offline.';
       }
       verificando.value = false;
       return false;
     }
+  }
+
+  static bool get _temAtualizacaoLocal {
+    final url = infoAtualizacao.value?.urlDownload ?? '';
+    return url.contains('/api/download_apk') ||
+        url.contains('/api/download_exe');
+  }
+
+  /// Seleciona o link direto do asset (.exe ou .apk) na release do GitHub, se disponível.
+  static String _extrairUrlDownloadRelease(
+    Map<String, dynamic> json,
+    String fallbackUrl,
+  ) {
+    final assets = json['assets'];
+    if (assets is! List) return fallbackUrl;
+
+    final extensaoAlvo = Platform.isWindows ? '.exe' : '.apk';
+    for (final item in assets) {
+      if (item is! Map) continue;
+      final nome = (item['name'] as String? ?? '').toLowerCase();
+      final downloadUrl = item['browser_download_url'] as String? ?? '';
+      if (nome.endsWith(extensaoAlvo) && downloadUrl.isNotEmpty) {
+        return downloadUrl;
+      }
+    }
+    return fallbackUrl;
   }
 
   /// Compara duas versões em formato semver (ex: 1.0.1 > 1.0.0)
@@ -181,6 +205,16 @@ class AtualizacaoService {
   /// e aciona a instalação nativa do sistema sem precisar sair do aplicativo.
   static Future<void> baixarEInstalarAtualizacao(String url) async {
     if (baixando.value) return;
+
+    final urlLower = url.toLowerCase();
+    final ehDownloadDireto = urlLower.contains('/api/download_apk') ||
+        urlLower.contains('/api/download_exe') ||
+        urlLower.endsWith('.apk') ||
+        urlLower.endsWith('.exe');
+    if (!ehDownloadDireto) {
+      abrirPaginaDownload(url);
+      return;
+    }
 
     baixando.value = true;
     progressoDownload.value = 0.0;

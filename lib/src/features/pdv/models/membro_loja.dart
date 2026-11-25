@@ -45,11 +45,15 @@ class MembroLoja {
   }
 
   factory MembroLoja.fromJson(Map<String, dynamic> json) {
+    final papelStr = json['papel'] as String? ?? '';
     return MembroLoja(
-      cpf: json['cpf'] as String,
+      cpf: json['cpf'] as String? ?? '',
       nome: json['nome'] as String? ?? '',
-      papel: PapelMembro.values.byName(json['papel'] as String),
-      desde: DateTime.parse(json['desde'] as String),
+      papel: PapelMembro.values.firstWhere(
+        (e) => e.name == papelStr,
+        orElse: () => PapelMembro.funcionario,
+      ),
+      desde: DateTime.tryParse(json['desde'] as String? ?? '') ?? DateTime.now(),
       cargoPersonalizadoId: json['cargoPersonalizadoId'] as String?,
     );
   }

@@ -331,11 +331,19 @@ class PedidoLoja {
       acrescimo: acrescimo,
       nomeVendedor: nomeVendedor ?? this.nomeVendedor,
       cnpjVendedor: cnpjVendedor ?? this.cnpjVendedor,
-      comentario: comentario ?? this.comentario,
-      comentarioAutorCpf: comentarioAutorCpf ?? this.comentarioAutorCpf,
-      comentarioAutorNome: comentarioAutorNome ?? this.comentarioAutorNome,
-      comentarioAutorEmail: comentarioAutorEmail ?? this.comentarioAutorEmail,
-      comentarioDataHora: comentarioDataHora ?? this.comentarioDataHora,
+      comentario: limparComentario ? '' : (comentario ?? this.comentario),
+      comentarioAutorCpf: limparComentario
+          ? ''
+          : (comentarioAutorCpf ?? this.comentarioAutorCpf),
+      comentarioAutorNome: limparComentario
+          ? ''
+          : (comentarioAutorNome ?? this.comentarioAutorNome),
+      comentarioAutorEmail: limparComentario
+          ? ''
+          : (comentarioAutorEmail ?? this.comentarioAutorEmail),
+      comentarioDataHora: limparComentario
+          ? null
+          : (comentarioDataHora ?? this.comentarioDataHora),
       motivoCancelamento: motivoCancelamento ?? this.motivoCancelamento,
       dataHoraCancelamento: dataHoraCancelamento ?? this.dataHoraCancelamento,
       canceladoPorCpf: canceladoPorCpf ?? this.canceladoPorCpf,

@@ -11,11 +11,13 @@ import 'package:nous/src/features/chat/models/mensagem_chat.dart';
 import 'package:nous/src/features/chat/services/chat_service.dart';
 import 'package:nous/src/features/chat/views/dialogs/dialog_editar_mensagem.dart';
 import 'package:nous/src/features/chat/views/dialogs/dialog_encaminhar_mensagem.dart';
-import 'package:nous/src/features/chat/views/widgets/balao_mensagem_widget.dart';
-import 'package:nous/src/features/chat/views/widgets/painel_conversa/banner_titulo_conversa_widget.dart';
+import 'package:nous/src/features/chat/views/widgets/painel_conversa/banner_mensagem_fixada_widget.dart';
+import 'package:nous/src/features/chat/views/widgets/painel_conversa/banner_solicitacao_conversa_widget.dart';
 import 'package:nous/src/features/chat/views/widgets/painel_conversa/barra_envio_mensagem_widget.dart';
+import 'package:nous/src/features/chat/views/widgets/painel_conversa/barra_pesquisa_conversa_widget.dart';
 import 'package:nous/src/features/chat/views/widgets/painel_conversa/cabecalho_conversa_ativa_widget.dart';
 import 'package:nous/src/features/chat/views/widgets/painel_conversa/dialog_menu_anexos_chat.dart';
+import 'package:nous/src/features/chat/views/widgets/painel_conversa/lista_mensagens_conversa_widget.dart';
 import 'package:nous/src/features/pdv/models/loja.dart';
 import 'package:nous/src/features/pdv/providers/pdv_provider.dart';
 
@@ -77,6 +79,10 @@ class _PainelConversaAtivaWidgetState extends State<PainelConversaAtivaWidget> {
   bool _mostrarBotaoDescer = false;
   String? _ultimoIdConversa;
 
+  final Set<String> _mensagensSelecionadasIds = {};
+  String? _mensagemDestacadaId;
+  Timer? _timerDestaque;
+
   @override
   void initState() {
     super.initState();
@@ -85,10 +91,6 @@ class _PainelConversaAtivaWidgetState extends State<PainelConversaAtivaWidget> {
     });
     _mensagensScrollController.addListener(_verificarPosicaoScroll);
   }
-
-  final Set<String> _mensagensSelecionadasIds = {};
-  String? _mensagemDestacadaId;
-  Timer? _timerDestaque;
 
   List<MensagemChat> _obterMensagensSelecionadas(ConversaChat conversa) {
     if (_mensagensSelecionadasIds.isEmpty) return const [];
@@ -216,75 +218,6 @@ class _PainelConversaAtivaWidgetState extends State<PainelConversaAtivaWidget> {
     });
   }
 
-  bool _mesmoDia(DateTime a, DateTime b) {
-    final la = a.toLocal();
-    final lb = b.toLocal();
-    return la.year == lb.year && la.month == lb.month && la.day == lb.day;
-  }
-
-  String _formatarRotuloDia(DateTime dataHora) {
-    final local = dataHora.toLocal();
-    final agora = DateTime.now();
-    final hoje = DateTime(agora.year, agora.month, agora.day);
-    final dataMsg = DateTime(local.year, local.month, local.day);
-    final diffDias = hoje.difference(dataMsg).inDays;
-
-    if (diffDias == 0) return 'Hoje';
-    if (diffDias == 1) return 'Ontem';
-    if (diffDias > 1 && diffDias <= 7) {
-      switch (local.weekday) {
-        case DateTime.monday:
-          return 'Segunda-feira';
-        case DateTime.tuesday:
-          return 'Terça-feira';
-        case DateTime.wednesday:
-          return 'Quarta-feira';
-        case DateTime.thursday:
-          return 'Quinta-feira';
-        case DateTime.friday:
-          return 'Sexta-feira';
-        case DateTime.saturday:
-          return 'Sábado';
-        case DateTime.sunday:
-          return 'Domingo';
-      }
-    }
-    final d = local.day.toString().padLeft(2, '0');
-    final m = local.month.toString().padLeft(2, '0');
-    return '$d/$m/${local.year}';
-  }
-
-  Widget _buildSeparadorDia(AppTheme theme, DateTime dataHora) {
-    return Center(
-      child: Container(
-        margin: const EdgeInsets.symmetric(vertical: 8),
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 5),
-        decoration: BoxDecoration(
-          color: theme.cardBackgroundColor.withValues(alpha: 0.95),
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(
-            color: theme.borderColor.withValues(alpha: 0.65),
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.06),
-              blurRadius: 4,
-              offset: const Offset(0, 1),
-            ),
-          ],
-        ),
-        child: Text(
-          _formatarRotuloDia(dataHora),
-          style: theme.getTextStyle(
-            fontSize: 11,
-            fontWeight: FontWeight.w600,
-            color: theme.secondaryTextColor,
-          ),
-        ),
-      ),
-    );
-  }
-
   @override
   void dispose() {
     _timerDestaque?.cancel();
@@ -314,55 +247,10 @@ class _PainelConversaAtivaWidgetState extends State<PainelConversaAtivaWidget> {
   }
 
   Future<void> _recusarSolicitacao(ConversaChat conversa) async {
-    final theme = widget.theme;
-    final confirmar = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: theme.cardBackgroundColor,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(14),
-          side: BorderSide(color: theme.borderColor),
-        ),
-        title: Text(
-          'Excluir Solicitação?',
-          style: theme.getTextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.bold,
-            color: theme.textColor,
-          ),
-        ),
-        content: Text(
-          'A conversa e as mensagens serão excluídas permanentemente.',
-          style: theme.getTextStyle(
-            fontSize: 13,
-            color: theme.secondaryTextColor,
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(false),
-            child: Text(
-              'Cancelar',
-              style: theme.getTextStyle(color: theme.secondaryTextColor),
-            ),
-          ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: theme.dangerColor,
-              foregroundColor: Colors.white,
-            ),
-            onPressed: () => Navigator.of(ctx).pop(true),
-            child: const Text('Excluir'),
-          ),
-        ],
-      ),
-    );
-
-    if (confirmar == true && mounted) {
-      final auth = context.read<AuthProvider>();
-      final pdv = context.read<PdvProvider>();
-      await widget.controller.recusarSolicitacao(conversa, auth: auth, pdv: pdv);
-    }
+    if (!mounted) return;
+    final auth = context.read<AuthProvider>();
+    final pdv = context.read<PdvProvider>();
+    await widget.controller.recusarSolicitacao(conversa, auth: auth, pdv: pdv);
   }
 
   bool _ehMembroOuDonoDaLoja(Loja loja, String cpfBruto) {
@@ -487,10 +375,10 @@ class _PainelConversaAtivaWidgetState extends State<PainelConversaAtivaWidget> {
 
     final termoBusca = _buscaConversaController.text.trim().toLowerCase();
     final selecionadas = _obterMensagensSelecionadas(conversa);
+    final fixadas = conversa.mensagens.where((m) => m.fixada).toList();
 
     return Column(
       children: [
-        // Cabeçalho da Conversa
         CabecalhoConversaAtivaWidget(
           conversa: conversa,
           theme: theme,
@@ -548,318 +436,48 @@ class _PainelConversaAtivaWidgetState extends State<PainelConversaAtivaWidget> {
                   }
                 },
         ),
-
-        // Barra de pesquisa de palavras-chave na conversa
         if (_pesquisaAtiva)
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            decoration: BoxDecoration(
-              color: theme.cardBackgroundColor,
-              border: Border(
-                bottom: BorderSide(
-                  color: theme.borderColor.withValues(alpha: 0.5),
-                ),
-              ),
-            ),
-            child: TextField(
-              controller: _buscaConversaController,
-              autofocus: true,
-              style: theme.getTextStyle(fontSize: 13, color: theme.textColor),
-              decoration: InputDecoration(
-                hintText: 'Pesquisar palavras-chave no histórico...',
-                hintStyle: theme.getTextStyle(
-                  fontSize: 12,
-                  color: theme.secondaryTextColor,
-                ),
-                prefixIcon: Icon(
-                  Icons.search_rounded,
-                  size: 18,
-                  color: theme.secondaryTextColor,
-                ),
-                suffixIcon: termoBusca.isNotEmpty
-                    ? IconButton(
-                        icon: Icon(
-                          Icons.clear_rounded,
-                          size: 16,
-                          color: theme.secondaryTextColor,
-                        ),
-                        onPressed: () => _buscaConversaController.clear(),
-                      )
-                    : null,
-                isDense: true,
-                filled: true,
-                fillColor: theme.backgroundColor,
-                contentPadding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 9,
-                ),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(10),
-                  borderSide: BorderSide(color: theme.borderColor),
-                ),
-                enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(10),
-                  borderSide: BorderSide(color: theme.borderColor),
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(10),
-                  borderSide: BorderSide(color: theme.buttonColor),
-                ),
-              ),
-            ),
+          BarraPesquisaConversaWidget(
+            controller: _buscaConversaController,
+            theme: theme,
+            termoBusca: termoBusca,
           ),
-
-        // Banner de Mensagens Fixadas
-        if (conversa.mensagens.any((m) => m.fixada))
-          Builder(
-            builder: (context) {
-              final fixadas = conversa.mensagens.where((m) => m.fixada).toList();
-              final ultFixada = fixadas.last;
-              final txtExibicao = ultFixada.texto.trim().isNotEmpty
-                  ? ultFixada.texto.trim()
-                  : (ultFixada.nomeAnexo.trim().isNotEmpty
-                      ? ultFixada.nomeAnexo.trim()
-                      : (ultFixada.tipo == 'comanda' ? 'Comanda de Pedido' : 'Mensagem Fixada'));
-              return Container(
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-                decoration: BoxDecoration(
-                  color: theme.cardBackgroundColor.withValues(alpha: 0.95),
-                  border: Border(
-                    bottom: BorderSide(
-                      color: theme.borderColor.withValues(alpha: 0.4),
-                    ),
-                  ),
-                ),
-                child: Row(
-                  children: [
-                    Icon(
-                      Icons.push_pin_rounded,
-                      size: 15,
-                      color: theme.buttonColor,
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text(
-                            'Mensagem Fixada${fixadas.length > 1 ? ' (${fixadas.length})' : ''}',
-                            style: theme.getTextStyle(
-                              fontSize: 10,
-                              fontWeight: FontWeight.bold,
-                              color: theme.buttonColor,
-                            ),
-                          ),
-                          Text(
-                            txtExibicao,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: theme.getTextStyle(
-                              fontSize: 11.5,
-                              color: theme.textColor,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    IconButton(
-                      icon: Icon(
-                        Icons.close_rounded,
-                        size: 16,
-                        color: theme.secondaryTextColor,
-                      ),
-                      tooltip: 'Desafixar',
-                      onPressed: () => widget.controller.alternarFixarMensagem(ultFixada),
-                    ),
-                  ],
-                ),
-              );
-            },
+        if (fixadas.isNotEmpty)
+          BannerMensagemFixadaWidget(
+            fixadas: fixadas,
+            theme: theme,
+            onDesafixar: widget.controller.alternarFixarMensagem,
           ),
-
-        // Área das Mensagens
-        Builder(
-          builder: (context) {
-            final mensagensValidas = conversa.mensagens.where((m) {
-              if (m.tipo == 'texto' && m.texto.trim().isEmpty && m.caminhoAnexo.trim().isEmpty) {
-                return false;
+        ListaMensagensConversaWidget(
+          conversa: conversa,
+          controller: widget.controller,
+          theme: theme,
+          termoBusca: termoBusca,
+          scrollController: _mensagensScrollController,
+          mostrarBotaoDescer: _mostrarBotaoDescer,
+          mensagensSelecionadasIds: _mensagensSelecionadasIds,
+          mensagemDestacadaId: _mensagemDestacadaId,
+          selecionadas: selecionadas,
+          onRenomearConversa: widget.onRenomearConversa,
+          onMostrarMenuMensagem: widget.onMostrarMenuMensagem,
+          onVerHistoricoEdicoes: widget.onVerHistoricoEdicoes,
+          onAbrirArquivo: widget.onAbrirArquivo,
+          onVisualizarFotoAmpliada: widget.onVisualizarFotoAmpliada,
+          onVerComanda: widget.onVerComanda,
+          onAlternarSelecao: (m) {
+            setState(() {
+              if (!_mensagensSelecionadasIds.add(m.id)) {
+                _mensagensSelecionadasIds.remove(m.id);
               }
-              if (termoBusca.isNotEmpty) {
-                final bateTexto = m.texto.toLowerCase().contains(termoBusca);
-                final bateAnexo = m.nomeAnexo.toLowerCase().contains(termoBusca);
-                final bateComanda = m.dadosPedidoJson.toLowerCase().contains(termoBusca);
-                return bateTexto || bateAnexo || bateComanda;
-              }
-              return true;
-            }).toList();
-
-            return Expanded(
-              child: Stack(
-                children: [
-                  Positioned.fill(
-                    child: mensagensValidas.isEmpty
-                        ? Column(
-                            children: [
-                              BannerTituloConversaWidget(
-                                conversa: conversa,
-                                theme: theme,
-                                onRenomearConversa: widget.onRenomearConversa,
-                              ),
-                              Expanded(
-                                child: Center(
-                                  child: Text(
-                                    termoBusca.isNotEmpty
-                                        ? 'Nenhuma mensagem encontrada para "$termoBusca".'
-                                        : 'Nenhuma mensagem ainda.\nEnvie uma mensagem abaixo para iniciar.',
-                                    textAlign: TextAlign.center,
-                                    style: theme.getTextStyle(
-                                      fontSize: 12,
-                                      color: theme.secondaryTextColor,
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ],
-                          )
-                        : ListView.builder(
-                            key: ValueKey('msgs_${conversa.id}'),
-                            controller: _mensagensScrollController,
-                            reverse: true,
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 14,
-                              vertical: 12,
-                            ),
-                            itemCount: mensagensValidas.length + 1,
-                            itemBuilder: (context, index) {
-                              if (index == mensagensValidas.length) {
-                                return BannerTituloConversaWidget(
-                                  conversa: conversa,
-                                  theme: theme,
-                                  onRenomearConversa: widget.onRenomearConversa,
-                                );
-                              }
-                              final msgIndex = mensagensValidas.length - 1 - index;
-                              final msg = mensagensValidas[msgIndex];
-                              final ehPrimeiraDoDia = msgIndex == 0 ||
-                                  !_mesmoDia(
-                                    mensagensValidas[msgIndex - 1].dataHora,
-                                    msg.dataHora,
-                                  );
-
-                              final bool enviadaPorMim;
-                              if (widget.controller.modoLoja) {
-                                final lojaIdAtiva = widget.controller.lojaId ?? '';
-                                final lojaIdLimpo = lojaIdAtiva.startsWith('loja_')
-                                    ? lojaIdAtiva.substring(5)
-                                    : lojaIdAtiva;
-                                final remLimpo = msg.remetenteId.startsWith('loja_')
-                                    ? msg.remetenteId.substring(5)
-                                    : msg.remetenteId;
-                                enviadaPorMim = msg.remetenteId.startsWith('loja_') ||
-                                    (lojaIdLimpo.isNotEmpty && remLimpo == lojaIdLimpo);
-                              } else {
-                                final meuCpfNorm = ChatService.normalizarCpf(
-                                  widget.controller.usuarioCpf ?? '',
-                                );
-                                final remNorm = ChatService.normalizarCpf(msg.remetenteId);
-                                final remLimpo = msg.remetenteId.startsWith('loja_')
-                                    ? msg.remetenteId.substring(5)
-                                    : msg.remetenteId;
-                                final lojaIdConvLimpo = (conversa.lojaId ?? '')
-                                    .replaceFirst('loja_', '');
-                                final ehMensagemDeLoja = msg.remetenteId.startsWith('loja_') ||
-                                    (conversa.ehLoja &&
-                                        lojaIdConvLimpo.isNotEmpty &&
-                                        remLimpo == lojaIdConvLimpo);
-                                enviadaPorMim = !ehMensagemDeLoja &&
-                                    meuCpfNorm.isNotEmpty &&
-                                    remNorm == meuCpfNorm;
-                              }
-
-                              final balao = BalaoMensagemWidget(
-                                key: ValueKey(msg.id),
-                                msg: msg,
-                                conversa: conversa,
-                                enviadaPorMim: enviadaPorMim,
-                                modoLoja: widget.controller.modoLoja,
-                                theme: theme,
-                                selecionada:
-                                    _mensagensSelecionadasIds.contains(msg.id),
-                                modoSelecaoAtivo:
-                                    _mensagensSelecionadasIds.isNotEmpty,
-                                destacada: _mensagemDestacadaId == msg.id,
-                                mostrarBarraReacoes: selecionadas.length == 1 &&
-                                    selecionadas.first.id == msg.id,
-                                onMostrarMenu: widget.onMostrarMenuMensagem,
-                                onVerHistoricoEdicoes: widget.onVerHistoricoEdicoes,
-                                onAbrirArquivo: widget.onAbrirArquivo,
-                                onVisualizarFotoAmpliada: widget.onVisualizarFotoAmpliada,
-                                onVerComanda: widget.onVerComanda,
-                                onResponder: (m) =>
-                                    widget.controller.definirMensagemRespondendo(m),
-                                onAlternarSelecao: (m) {
-                                  setState(() {
-                                    if (!_mensagensSelecionadasIds.add(m.id)) {
-                                      _mensagensSelecionadasIds.remove(m.id);
-                                    }
-                                  });
-                                },
-                                onReagir: (m, emoji) {
-                                  setState(
-                                    () => _mensagensSelecionadasIds.clear(),
-                                  );
-                                  widget.controller.reagirMensagem(m, emoji);
-                                },
-                                onTocarCitacao: (id) =>
-                                    _rolarParaMensagem(id, mensagensValidas),
-                              );
-
-                              if (ehPrimeiraDoDia) {
-                                return Column(
-                                  mainAxisSize: MainAxisSize.min,
-                                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                                  children: [
-                                    _buildSeparadorDia(theme, msg.dataHora),
-                                    balao,
-                                  ],
-                                );
-                              }
-                              return balao;
-                            },
-                          ),
-                  ),
-                  if (_mostrarBotaoDescer)
-                    Positioned(
-                      right: 16,
-                      bottom: 14,
-                      child: Material(
-                        color: theme.cardBackgroundColor,
-                        shape: CircleBorder(
-                          side: BorderSide(color: theme.borderColor, width: 1.2),
-                        ),
-                        elevation: 4,
-                        child: InkWell(
-                          customBorder: const CircleBorder(),
-                          onTap: _rolarParaUltimaMensagem,
-                          child: Padding(
-                            padding: const EdgeInsets.all(8),
-                            child: Icon(
-                              Icons.keyboard_arrow_down_rounded,
-                              size: 24,
-                              color: theme.textColor,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                ],
-              ),
-            );
+            });
           },
+          onReagir: (m, emoji) {
+            setState(() => _mensagensSelecionadasIds.clear());
+            widget.controller.reagirMensagem(m, emoji);
+          },
+          onTocarCitacao: _rolarParaMensagem,
+          onRolarParaUltimaMensagem: _rolarParaUltimaMensagem,
         ),
-
-        // Barra de Envio ou Banner de Solicitação de Mensagem
         Builder(
           builder: (context) {
             final auth = context.watch<AuthProvider>();
@@ -869,78 +487,11 @@ class _PainelConversaAtivaWidgetState extends State<PainelConversaAtivaWidget> {
             );
 
             if (ehSolicitacao) {
-              final interlocutorNome = conversa.titulo.isNotEmpty
-                  ? conversa.titulo
-                  : 'Este usuário';
-
-              return Container(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                decoration: BoxDecoration(
-                  color: theme.cardBackgroundColor,
-                  border: Border(
-                    top: BorderSide(
-                      color: theme.borderColor.withValues(alpha: 0.6),
-                    ),
-                  ),
-                ),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      'Esta pessoa não está na sua lista de seguidos.',
-                      style: theme.getTextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.bold,
-                        color: theme.textColor,
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      'Deseja aceitar a mensagem de $interlocutorNome? Se aceitar, vocês poderão conversar diretamente.',
-                      textAlign: TextAlign.center,
-                      style: theme.getTextStyle(
-                        fontSize: 11,
-                        color: theme.secondaryTextColor,
-                      ),
-                    ),
-                    const SizedBox(height: 10),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: OutlinedButton(
-                            style: OutlinedButton.styleFrom(
-                              foregroundColor: theme.dangerColor,
-                              side: BorderSide(
-                                color: theme.dangerColor.withValues(alpha: 0.6),
-                              ),
-                              padding: const EdgeInsets.symmetric(vertical: 8),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                            ),
-                            onPressed: () => _recusarSolicitacao(conversa),
-                            child: const Text('Excluir'),
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: ElevatedButton(
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: theme.buttonColor,
-                              foregroundColor: theme.buttonTextColor,
-                              padding: const EdgeInsets.symmetric(vertical: 8),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                            ),
-                            onPressed: () => _aceitarSolicitacao(conversa),
-                            child: const Text('Aceitar'),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
+              return BannerSolicitacaoConversaWidget(
+                conversa: conversa,
+                theme: theme,
+                onAceitar: _aceitarSolicitacao,
+                onConfirmarRecusa: _recusarSolicitacao,
               );
             }
 

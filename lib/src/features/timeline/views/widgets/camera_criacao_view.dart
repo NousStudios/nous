@@ -12,6 +12,10 @@ import 'package:nous/src/features/auth/models/usuario_nous.dart';
 import 'package:nous/src/features/timeline/models/publicacao_social.dart';
 import 'package:nous/src/features/timeline/services/timeline_service.dart';
 import 'package:nous/src/features/timeline/views/widgets/animacao_story_sugado_overlay.dart';
+import 'package:nous/src/features/timeline/views/widgets/camera/camera_barra_superior.dart';
+import 'package:nous/src/features/timeline/views/widgets/camera/camera_controles_inferiores.dart';
+import 'package:nous/src/features/timeline/views/widgets/camera/camera_ferramentas_laterais.dart';
+import 'package:nous/src/features/timeline/views/widgets/camera/camera_preview_fundo.dart';
 import 'package:nous/src/features/timeline/views/widgets/editor_story_view.dart';
 import 'package:nous/src/features/timeline/views/dialogs/dialog_criar_publicacao.dart';
 
@@ -397,36 +401,30 @@ class _CameraCriacaoViewState extends State<CameraCriacaoView> {
     }
   }
 
-  Widget _botaoLateralCamera({
-    required IconData icone,
-    required String tooltip,
-    required VoidCallback onTap,
-    bool ativo = true,
-  }) {
-    return Tooltip(
-      message: tooltip,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(22),
-        child: Container(
-          width: 42,
-          height: 42,
-          margin: const EdgeInsets.only(bottom: 10),
-          decoration: BoxDecoration(
-            color: Colors.black.withValues(alpha: ativo ? 0.58 : 0.32),
-            shape: BoxShape.circle,
-            border: Border.all(
-              color: Colors.white.withValues(alpha: ativo ? 0.45 : 0.18),
-            ),
-          ),
-          child: Icon(
-            icone,
-            size: 20,
-            color: ativo ? Colors.white : Colors.white54,
-          ),
-        ),
-      ),
+  Future<void> _criarStoryTexto() async {
+    final overlay = Overlay.maybeOf(context, rootOverlay: true);
+    final nav = Navigator.of(context);
+    final publicado = await EditorStoryView.mostrar(
+      context,
+      theme: widget.theme,
+      autor: widget.autor,
+      caminhoArquivo: '',
+      abrirTextoAoEntrar: true,
     );
+    if (publicado != null && mounted) {
+      final themeRef = widget.theme;
+      final fotoPerfilRef = widget.autor.fotoExibicao;
+      if (nav.canPop()) {
+        widget.onVoltarPerfil();
+      }
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        AnimacaoStorySugadoOverlay.disparar(
+          overlay,
+          theme: themeRef,
+          fotoPerfil: fotoPerfilRef,
+        );
+      });
+    }
   }
 
   String _rotuloDestino(DestinoCapturaCamera d) {
@@ -450,264 +448,57 @@ class _CameraCriacaoViewState extends State<CameraCriacaoView> {
   Widget build(BuildContext context) {
     final theme = widget.theme;
     return Scaffold(
-      backgroundColor: Colors.black,
+      backgroundColor: theme.backgroundColor,
       body: SafeArea(
         child: Stack(
           children: [
             Positioned.fill(
-              child: _cameraPronta
-                  ? RTCVideoView(
-                      _renderer,
-                      mirror: _cameraFrontal,
-                      objectFit:
-                          RTCVideoViewObjectFit.RTCVideoViewObjectFitCover,
-                    )
-                  : Center(
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(
-                            Icons.camera_alt_outlined,
-                            size: 56,
-                            color: Colors.white.withValues(alpha: 0.4),
-                          ),
-                          const SizedBox(height: 10),
-                          Text(
-                            kIsWeb || Platform.isWindows
-                                ? 'Toque na câmera ou escolha da galeria'
-                                : 'Preparando câmera...',
-                            style: theme.getTextStyle(
-                              fontSize: 13,
-                              color: Colors.white70,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
+              child: CameraPreviewFundo(
+                theme: theme,
+                renderer: _renderer,
+                cameraPronta: _cameraPronta,
+                cameraFrontal: _cameraFrontal,
+              ),
             ),
-
             Positioned(
               top: 12,
               left: 12,
               right: 12,
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  IconButton(
-                    tooltip: 'Voltar ao perfil',
-                    icon: const Icon(
-                      Icons.arrow_forward_ios_rounded,
-                      color: Colors.white,
-                    ),
-                    onPressed: widget.onVoltarPerfil,
-                  ),
-                  if (_gravandoVideo)
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 10,
-                        vertical: 4,
-                      ),
-                      decoration: BoxDecoration(
-                        color: theme.dangerColor,
-                        borderRadius: BorderRadius.circular(14),
-                      ),
-                      child: const Text(
-                        'GRAVANDO...',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 11,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
-                  IconButton(
-                    tooltip: 'Inverter câmera',
-                    icon: const Icon(
-                      Icons.cameraswitch_rounded,
-                      color: Colors.white,
-                    ),
-                    onPressed: _alternarCamera,
-                  ),
-                ],
+              child: CameraBarraSuperior(
+                theme: theme,
+                gravandoVideo: _gravandoVideo,
+                onVoltarPerfil: widget.onVoltarPerfil,
+                onAlternarCamera: _alternarCamera,
               ),
             ),
-
             Positioned(
               top: 74,
               left: 12,
-              child: Column(
-                children: [
-                  _botaoLateralCamera(
-                    icone: Icons.title_rounded,
-                    tooltip: 'Criar Story com texto (Aa)',
-                    onTap: () async {
-                      final overlay = Overlay.maybeOf(
-                        context,
-                        rootOverlay: true,
-                      );
-                      final nav = Navigator.of(context);
-                      final publicado = await EditorStoryView.mostrar(
-                        context,
-                        theme: theme,
-                        autor: widget.autor,
-                        caminhoArquivo: '',
-                        abrirTextoAoEntrar: true,
-                      );
-                      if (publicado != null && mounted) {
-                        final themeRef = widget.theme;
-                        final fotoPerfilRef = widget.autor.fotoExibicao;
-                        if (nav.canPop()) {
-                          widget.onVoltarPerfil();
-                        }
-                        WidgetsBinding.instance.addPostFrameCallback((_) {
-                          AnimacaoStorySugadoOverlay.disparar(
-                            overlay,
-                            theme: themeRef,
-                            fotoPerfil: fotoPerfilRef,
-                          );
-                        });
-                      }
-                    },
-                  ),
-                  _botaoLateralCamera(
-                    icone: Icons.emoji_emotions_outlined,
-                    tooltip: 'Figurinhas (em breve)',
-                    ativo: false,
-                    onTap: () => ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Figurinhas chegarão em breve!'),
-                      ),
-                    ),
-                  ),
-                  _botaoLateralCamera(
-                    icone: Icons.brush_outlined,
-                    tooltip: 'Desenho (em breve)',
-                    ativo: false,
-                    onTap: () => ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Ferramenta de desenho em breve!'),
-                      ),
-                    ),
-                  ),
-                  _botaoLateralCamera(
-                    icone: Icons.music_note_outlined,
-                    tooltip: 'Música (em breve)',
-                    ativo: false,
-                    onTap: () => ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Músicas no Story em breve!'),
-                      ),
-                    ),
-                  ),
-                ],
+              child: CameraFerramentasLaterais(
+                theme: theme,
+                onCriarStoryTexto: _criarStoryTexto,
               ),
             ),
-
             Positioned(
               left: 0,
               right: 0,
               bottom: 16,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Tooltip(
-                    message: 'Toque para foto • Segure para gravar vídeo',
-                    child: GestureDetector(
-                      onTap: _tirarFoto,
-                      onLongPressStart: (_) => _iniciarGravacaoVideo(),
-                      onLongPressEnd: (_) => _pararGravacaoVideo(),
-                      child: Container(
-                        width: 74,
-                        height: 74,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          border: Border.all(
-                            color: _gravandoVideo
-                                ? theme.dangerColor
-                                : Colors.white,
-                            width: 4,
-                          ),
-                          color: _gravandoVideo
-                              ? theme.dangerColor.withValues(alpha: 0.7)
-                              : Colors.white.withValues(alpha: 0.2),
-                        ),
-                        child: _processando
-                            ? const Padding(
-                                padding: EdgeInsets.all(20),
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2.5,
-                                  color: Colors.white,
-                                ),
-                              )
-                            : null,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  SizedBox(
-                    height: 44,
-                    child: Row(
-                      children: [
-                        const SizedBox(width: 12),
-                        InkWell(
-                          onTap: _abrirGaleria,
-                          borderRadius: BorderRadius.circular(10),
-                          child: Container(
-                            width: 40,
-                            height: 40,
-                            decoration: BoxDecoration(
-                              color: Colors.white.withValues(alpha: 0.16),
-                              borderRadius: BorderRadius.circular(10),
-                              border: Border.all(
-                                color: Colors.white.withValues(alpha: 0.5),
-                              ),
-                            ),
-                            child: const Icon(
-                              Icons.photo_library_outlined,
-                              color: Colors.white,
-                              size: 20,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: ListView(
-                            scrollDirection: Axis.horizontal,
-                            children: DestinoCapturaCamera.values.map((d) {
-                              final ativo = _destino == d;
-                              return Padding(
-                                padding: const EdgeInsets.only(right: 8),
-                                child: ChoiceChip(
-                                  label: Text(
-                                    _rotuloDestino(d),
-                                    style: TextStyle(
-                                      fontSize: 12,
-                                      fontWeight: ativo
-                                          ? FontWeight.bold
-                                          : FontWeight.normal,
-                                      color:
-                                          ativo ? Colors.black : Colors.white,
-                                    ),
-                                  ),
-                                  selected: ativo,
-                                  selectedColor: Colors.white,
-                                  backgroundColor:
-                                      Colors.white.withValues(alpha: 0.14),
-                                  onSelected: (_) {
-                                    setState(() => _destino = d);
-                                    if (d == DestinoCapturaCamera.escritos) {
-                                      _abrirGaleria();
-                                    }
-                                  },
-                                ),
-                              );
-                            }).toList(),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
+              child: CameraControlesInferiores(
+                theme: theme,
+                gravandoVideo: _gravandoVideo,
+                processando: _processando,
+                destino: _destino,
+                rotuloDestino: _rotuloDestino,
+                onTirarFoto: _tirarFoto,
+                onIniciarGravacaoVideo: _iniciarGravacaoVideo,
+                onPararGravacaoVideo: _pararGravacaoVideo,
+                onAbrirGaleria: _abrirGaleria,
+                onSelecionarDestino: (d) {
+                  setState(() => _destino = d);
+                  if (d == DestinoCapturaCamera.escritos) {
+                    _abrirGaleria();
+                  }
+                },
               ),
             ),
           ],

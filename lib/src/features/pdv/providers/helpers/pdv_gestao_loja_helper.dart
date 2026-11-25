@@ -69,11 +69,15 @@ class PdvGestaoLojaHelper {
     required String telefone,
     required String endereco,
     required String numero,
+    String cidade = '',
+    String cep = '',
     required String email,
     required String redesSociais,
     required String categorias,
     required String tags,
     String? logo,
+    double? latitude,
+    double? longitude,
   }) {
     return loja.copyWith(
       nome: nome,
@@ -81,11 +85,16 @@ class PdvGestaoLojaHelper {
       telefone: telefone,
       endereco: endereco,
       numero: numero,
+      cidade: cidade,
+      cep: cep,
       email: email,
       redesSociais: redesSociais,
       categorias: categorias,
       tags: tags,
       logo: logo ?? loja.logo,
+      latitude: latitude,
+      longitude: longitude,
+      dadosAtualizadosEm: DateTime.now(),
     );
   }
 
@@ -121,6 +130,8 @@ class PdvGestaoLojaHelper {
     required String telefone,
     required String endereco,
     required String numero,
+    String cidade = '',
+    String cep = '',
     required String email,
     String redesSociais = '',
     required String categorias,
@@ -135,11 +146,14 @@ class PdvGestaoLojaHelper {
       telefone: telefone,
       endereco: endereco,
       numero: numero,
+      cidade: cidade,
+      cep: cep,
       email: email,
       redesSociais: redesSociais,
       categorias: categorias,
       tags: tags,
       logo: logo,
+      dadosAtualizadosEm: DateTime.now(),
     );
   }
 

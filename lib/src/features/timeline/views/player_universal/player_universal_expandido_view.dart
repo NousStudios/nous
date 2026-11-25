@@ -15,6 +15,10 @@ import 'package:nous/src/features/timeline/views/dialogs/dialog_enviar_publicaca
 import 'package:nous/src/features/timeline/views/dialogs/dialog_salvar_publicacao.dart';
 import 'package:nous/src/features/timeline/views/player_universal/capa_midia_universal_widget.dart';
 import 'package:nous/src/features/timeline/views/player_universal/painel_lateral_player_widget.dart';
+import 'package:nous/src/features/timeline/views/player_universal/widgets/player_universal_abas_painel.dart';
+import 'package:nous/src/features/timeline/views/player_universal/widgets/player_universal_acoes_sociais.dart';
+import 'package:nous/src/features/timeline/views/player_universal/widgets/player_universal_barra_topo.dart';
+import 'package:nous/src/features/timeline/views/player_universal/widgets/player_universal_controles_reproducao.dart';
 
 /// Tela expandida do Player Universal (Música, Vídeo, Fila, Letra e Cifra).
 /// No desktop (>= 860 px) apresenta layout em 2 colunas estilo YouTube Music /
@@ -118,13 +122,6 @@ class _PlayerUniversalExpandidoViewState
     await _carregarInteracoes();
   }
 
-  String _formatarDuracao(Duration d) {
-    final total = d.inSeconds.clamp(0, 86400);
-    final min = (total ~/ 60).toString().padLeft(2, '0');
-    final seg = (total % 60).toString().padLeft(2, '0');
-    return '$min:$seg';
-  }
-
   @override
   Widget build(BuildContext context) {
     final theme = widget.theme;
@@ -201,15 +198,37 @@ class _PlayerUniversalExpandidoViewState
                 child: LayoutBuilder(
                   builder: (context, constraints) {
                     final ehDesktop = constraints.maxWidth >= 860;
+                    final usuario = context.read<AuthProvider>().contaAtual;
                     return Column(
                       children: [
-                        _buildBarraTopo(theme, pub),
+                        PlayerUniversalBarraTopo(
+                          theme: theme,
+                          publicacao: pub,
+                          controller: _ctrl,
+                          onAbrirDetalhes: () {
+                            DialogDetalhesPublicacao.mostrar(
+                              context,
+                              theme: theme,
+                              publicacao: pub,
+                              usuarioLogado: usuario,
+                            );
+                          },
+                        ),
                         Expanded(
                           child: ehDesktop
                               ? _buildLayoutDesktop(theme, pub, constraints)
                               : _buildLayoutMobile(theme, pub),
                         ),
-                        if (!ehDesktop) _buildAbasInferioresMobile(theme),
+                        if (!ehDesktop)
+                          PlayerUniversalAbasPainel(
+                            theme: theme,
+                            abaSelecionada: _abaMobileAberta,
+                            bordaSuperior: true,
+                            onSelecionarAba: (idx) => setState(
+                              () => _abaMobileAberta =
+                                  _abaMobileAberta == idx ? null : idx,
+                            ),
+                          ),
                       ],
                     );
                   },
@@ -218,110 +237,6 @@ class _PlayerUniversalExpandidoViewState
             ],
           );
         },
-      ),
-    );
-  }
-
-  Widget _buildBarraTopo(AppTheme theme, PublicacaoSocial pub) {
-    final temAudio = PlayerUniversalController.possuiAudio(pub);
-    final temVideo = PlayerUniversalController.possuiVideo(pub);
-    final usuario = context.read<AuthProvider>().contaAtual;
-
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 10, 16, 6),
-      child: Row(
-        children: [
-          IconButton(
-            tooltip: 'Minimizar',
-            onPressed: () => Navigator.of(context).pop(),
-            icon: Icon(
-              Icons.keyboard_arrow_down_rounded,
-              color: theme.textColor,
-              size: 28,
-            ),
-          ),
-          const Spacer(),
-          if (temAudio || temVideo)
-            Container(
-              padding: const EdgeInsets.all(3),
-              decoration: BoxDecoration(
-                color: theme.cardBackgroundColor.withValues(alpha: 0.82),
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(
-                  color: theme.borderColor.withValues(alpha: 0.65),
-                ),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  _buildToggleModo(
-                    theme: theme,
-                    label: 'Música',
-                    ativo: !_ctrl.modoVideo,
-                    habilitado: temAudio,
-                    onTap: () => _ctrl.definirModoVideo(false),
-                  ),
-                  _buildToggleModo(
-                    theme: theme,
-                    label: 'Vídeo',
-                    ativo: _ctrl.modoVideo,
-                    habilitado: temVideo,
-                    onTap: () => _ctrl.definirModoVideo(true),
-                  ),
-                ],
-              ),
-            ),
-          const Spacer(),
-          IconButton(
-            tooltip: 'Abrir publicação original',
-            onPressed: () {
-              DialogDetalhesPublicacao.mostrar(
-                context,
-                theme: theme,
-                publicacao: pub,
-                usuarioLogado: usuario,
-              );
-            },
-            icon: Icon(
-              Icons.open_in_new_rounded,
-              color: theme.textColor,
-              size: 20,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildToggleModo({
-    required AppTheme theme,
-    required String label,
-    required bool ativo,
-    required bool habilitado,
-    required VoidCallback onTap,
-  }) {
-    return GestureDetector(
-      onTap: habilitado ? onTap : null,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-        decoration: BoxDecoration(
-          color: ativo
-              ? theme.textColor.withValues(alpha: 0.16)
-              : Colors.transparent,
-          borderRadius: BorderRadius.circular(16),
-        ),
-        child: Text(
-          label,
-          style: TextStyle(
-            color: !habilitado
-                ? theme.secondaryTextColor.withValues(alpha: 0.38)
-                : ativo
-                    ? theme.textColor
-                    : theme.secondaryTextColor,
-            fontSize: 12.5,
-            fontWeight: ativo ? FontWeight.w600 : FontWeight.w400,
-          ),
-        ),
       ),
     );
   }
@@ -371,47 +286,11 @@ class _PlayerUniversalExpandidoViewState
                   clipBehavior: Clip.antiAlias,
                   child: Column(
                     children: [
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 10,
-                        ),
-                        decoration: BoxDecoration(
-                          border: Border(
-                            bottom: BorderSide(
-                              color: theme.borderColor.withValues(alpha: 0.35),
-                            ),
-                          ),
-                        ),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                          children: [
-                            _buildBotaoAba(
-                              theme,
-                              idx: 0,
-                              label: 'A SEGUIR',
-                              ativo: _abaDesktopSelecionada == 0,
-                              onTap: () =>
-                                  setState(() => _abaDesktopSelecionada = 0),
-                            ),
-                            _buildBotaoAba(
-                              theme,
-                              idx: 1,
-                              label: 'LETRA',
-                              ativo: _abaDesktopSelecionada == 1,
-                              onTap: () =>
-                                  setState(() => _abaDesktopSelecionada = 1),
-                            ),
-                            _buildBotaoAba(
-                              theme,
-                              idx: 2,
-                              label: 'CIFRA',
-                              ativo: _abaDesktopSelecionada == 2,
-                              onTap: () =>
-                                  setState(() => _abaDesktopSelecionada = 2),
-                            ),
-                          ],
-                        ),
+                      PlayerUniversalAbasPainel(
+                        theme: theme,
+                        abaSelecionada: _abaDesktopSelecionada,
+                        onSelecionarAba: (idx) =>
+                            setState(() => _abaDesktopSelecionada = idx),
                       ),
                       Expanded(
                         child: _buildConteudoPainel(
@@ -478,10 +357,6 @@ class _PlayerUniversalExpandidoViewState
         : (pub.autorNome.isNotEmpty ? pub.autorNome : 'Autor');
 
     final usuario = context.read<AuthProvider>().contaAtual;
-    final duracao = _ctrl.estadoAudio.duracaoEstimada;
-    final pos = _ctrl.estadoAudio.posicao;
-    final maxMs = duracao.inMilliseconds > 0 ? duracao.inMilliseconds : 1;
-    final posMs = pos.inMilliseconds.clamp(0, maxMs);
 
     return Column(
       mainAxisSize: MainAxisSize.min,
@@ -558,193 +433,46 @@ class _PlayerUniversalExpandidoViewState
         const SizedBox(height: 12),
         Divider(color: theme.borderColor.withValues(alpha: 0.35), height: 1),
         const SizedBox(height: 4),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            IconButton(
-              tooltip: 'Curtir',
-              onPressed: () => _alternarReacao(TipoReacaoSocial.like),
-              icon: Icon(
-                _curtiu ? Icons.thumb_up_rounded : Icons.thumb_up_outlined,
-                color: _curtiu ? theme.textColor : theme.secondaryTextColor,
-                size: 20,
-              ),
-            ),
-            IconButton(
-              tooltip: 'Não curtir',
-              onPressed: () => _alternarReacao(TipoReacaoSocial.deslike),
-              icon: Icon(
-                _descurtiu
-                    ? Icons.thumb_down_rounded
-                    : Icons.thumb_down_outlined,
-                color: _descurtiu
-                    ? theme.dangerColor
-                    : theme.secondaryTextColor,
-                size: 20,
-              ),
-            ),
-            IconButton(
-              tooltip: 'Salvar publicação',
-              onPressed: usuario == null
-                  ? null
-                  : () async {
-                      await DialogSalvarPublicacao.mostrar(
-                        context,
-                        theme: theme,
-                        usuarioCpf: usuario.cpf,
-                        publicacaoId: pub.id,
-                      );
-                      await _carregarInteracoes();
-                    },
-              icon: Icon(
-                _salvo ? Icons.bookmark_rounded : Icons.bookmark_add_outlined,
-                color: _salvo ? theme.textColor : theme.secondaryTextColor,
-                size: 21,
-              ),
-            ),
-            IconButton(
-              tooltip: 'Comentários',
-              onPressed: () {
-                DialogDetalhesPublicacao.mostrar(
-                  context,
-                  theme: theme,
-                  publicacao: pub,
-                  usuarioLogado: usuario,
-                );
-              },
-              icon: Icon(
-                Icons.chat_bubble_outline_rounded,
-                color: theme.secondaryTextColor,
-                size: 20,
-              ),
-            ),
-            IconButton(
-              tooltip: 'Compartilhar no chat',
-              onPressed: usuario == null
-                  ? null
-                  : () {
-                      DialogEnviarPublicacaoChat.mostrar(
-                        context,
-                        theme: theme,
-                        publicacao: pub,
-                        remetente: usuario,
-                      );
-                    },
-              icon: Icon(
-                Icons.share_outlined,
-                color: theme.secondaryTextColor,
-                size: 20,
-              ),
-            ),
-          ],
+        PlayerUniversalAcoesSociais(
+          theme: theme,
+          curtiu: _curtiu,
+          descurtiu: _descurtiu,
+          salvo: _salvo,
+          onCurtir: () => _alternarReacao(TipoReacaoSocial.like),
+          onDescurtir: () => _alternarReacao(TipoReacaoSocial.deslike),
+          onSalvar: usuario == null
+              ? null
+              : () async {
+                  await DialogSalvarPublicacao.mostrar(
+                    context,
+                    theme: theme,
+                    usuarioCpf: usuario.cpf,
+                    publicacaoId: pub.id,
+                  );
+                  await _carregarInteracoes();
+                },
+          onComentarios: () {
+            DialogDetalhesPublicacao.mostrar(
+              context,
+              theme: theme,
+              publicacao: pub,
+              usuarioLogado: usuario,
+            );
+          },
+          onCompartilhar: usuario == null
+              ? null
+              : () {
+                  DialogEnviarPublicacaoChat.mostrar(
+                    context,
+                    theme: theme,
+                    publicacao: pub,
+                    remetente: usuario,
+                  );
+                },
         ),
-        if (!_ctrl.modoVideo) ...[
-          SliderTheme(
-            data: SliderThemeData(
-              trackHeight: 3,
-              thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6),
-              overlayShape: const RoundSliderOverlayShape(overlayRadius: 14),
-              activeTrackColor: theme.textColor,
-              inactiveTrackColor: theme.borderColor.withValues(alpha: 0.4),
-              thumbColor: theme.textColor,
-            ),
-            child: Slider(
-              value: posMs.toDouble(),
-              min: 0,
-              max: maxMs.toDouble(),
-              onChanged: (v) {
-                _ctrl.buscarPosicao(Duration(milliseconds: v.round()));
-              },
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 6),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  _formatarDuracao(pos),
-                  style: TextStyle(
-                    color: theme.secondaryTextColor,
-                    fontSize: 11.5,
-                  ),
-                ),
-                Text(
-                  _formatarDuracao(duracao),
-                  style: TextStyle(
-                    color: theme.secondaryTextColor,
-                    fontSize: 11.5,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-        const SizedBox(height: 12),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            IconButton(
-              tooltip: 'Aleatório',
-              onPressed: _ctrl.alternarAleatorio,
-              icon: Icon(
-                Icons.shuffle_rounded,
-                color: _ctrl.aleatorio
-                    ? theme.textColor
-                    : theme.secondaryTextColor.withValues(alpha: 0.65),
-                size: 22,
-              ),
-            ),
-            IconButton(
-              tooltip: 'Anterior',
-              onPressed: _ctrl.anterior,
-              icon: Icon(
-                Icons.skip_previous_rounded,
-                color: theme.textColor,
-                size: 32,
-              ),
-            ),
-            if (!_ctrl.modoVideo)
-              Container(
-                width: 58,
-                height: 58,
-                decoration: BoxDecoration(
-                  color: theme.textColor,
-                  shape: BoxShape.circle,
-                ),
-                child: IconButton(
-                  tooltip: _ctrl.estaTocando ? 'Pausar' : 'Reproduzir',
-                  onPressed: _ctrl.alternarPlayPause,
-                  icon: Icon(
-                    _ctrl.estaTocando
-                        ? Icons.pause_rounded
-                        : Icons.play_arrow_rounded,
-                    color: theme.backgroundColor,
-                    size: 32,
-                  ),
-                ),
-              ),
-            IconButton(
-              tooltip: 'Próxima',
-              onPressed: _ctrl.proxima,
-              icon: Icon(
-                Icons.skip_next_rounded,
-                color: theme.textColor,
-                size: 32,
-              ),
-            ),
-            IconButton(
-              tooltip: 'Repetir',
-              onPressed: _ctrl.alternarRepetir,
-              icon: Icon(
-                Icons.repeat_rounded,
-                color: _ctrl.repetir
-                    ? theme.textColor
-                    : theme.secondaryTextColor.withValues(alpha: 0.65),
-                size: 22,
-              ),
-            ),
-          ],
+        PlayerUniversalControlesReproducao(
+          theme: theme,
+          controller: _ctrl,
         ),
       ],
     );
@@ -760,80 +488,6 @@ class _PlayerUniversalExpandidoViewState
       publicacao: pub,
       abaIndex: abaIdx,
       controller: _ctrl,
-    );
-  }
-
-  Widget _buildAbasInferioresMobile(AppTheme theme) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      decoration: BoxDecoration(
-        border: Border(
-          top: BorderSide(color: theme.borderColor.withValues(alpha: 0.35)),
-        ),
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-        children: [
-          _buildBotaoAba(
-            theme,
-            idx: 0,
-            label: 'A SEGUIR',
-            ativo: _abaMobileAberta == 0,
-            onTap: () => setState(
-              () => _abaMobileAberta = _abaMobileAberta == 0 ? null : 0,
-            ),
-          ),
-          _buildBotaoAba(
-            theme,
-            idx: 1,
-            label: 'LETRA',
-            ativo: _abaMobileAberta == 1,
-            onTap: () => setState(
-              () => _abaMobileAberta = _abaMobileAberta == 1 ? null : 1,
-            ),
-          ),
-          _buildBotaoAba(
-            theme,
-            idx: 2,
-            label: 'CIFRA',
-            ativo: _abaMobileAberta == 2,
-            onTap: () => setState(
-              () => _abaMobileAberta = _abaMobileAberta == 2 ? null : 2,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildBotaoAba(
-    AppTheme theme, {
-    required int idx,
-    required String label,
-    required bool ativo,
-    required VoidCallback onTap,
-  }) {
-    return InkWell(
-      borderRadius: BorderRadius.circular(14),
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-        decoration: BoxDecoration(
-          color: ativo
-              ? theme.textColor.withValues(alpha: 0.14)
-              : Colors.transparent,
-          borderRadius: BorderRadius.circular(14),
-        ),
-        child: Text(
-          label,
-          style: TextStyle(
-            color: ativo ? theme.textColor : theme.secondaryTextColor,
-            fontSize: 12,
-            fontWeight: ativo ? FontWeight.w700 : FontWeight.w500,
-            letterSpacing: 0.6,
-          ),
-        ),
-      ),
     );
   }
 }

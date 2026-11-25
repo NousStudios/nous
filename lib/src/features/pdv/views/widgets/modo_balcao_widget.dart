@@ -4,7 +4,6 @@ import 'package:provider/provider.dart';
 import 'package:nous/src/core/services/janela_windows_service.dart';
 import 'package:nous/src/core/services/som_service.dart';
 import 'package:nous/src/core/theme/theme_controller.dart';
-import 'package:nous/src/core/utils/texto_utils.dart';
 import 'package:nous/src/features/pdv/models/categoria_loja.dart';
 import 'package:nous/src/features/pdv/models/cliente.dart';
 import 'package:nous/src/features/pdv/models/configuracoes_impressora.dart';
@@ -14,14 +13,12 @@ import 'package:nous/src/features/pdv/models/movimento_estoque.dart';
 import 'package:nous/src/features/pdv/models/pedido_loja.dart';
 import 'package:nous/src/features/pdv/providers/pdv_provider.dart';
 import 'package:nous/src/features/pdv/services/estoque_baixa_service.dart';
+import 'package:nous/src/features/pdv/views/widgets/modo_balcao/area_operador_balcao_widget.dart';
+import 'package:nous/src/features/pdv/views/widgets/modo_balcao/balcao_logica_helper.dart';
 import 'package:nous/src/features/pdv/views/widgets/modo_balcao/barra_superior_balcao_widget.dart';
-import 'package:nous/src/features/pdv/views/widgets/modo_balcao/campo_bipador_balcao_widget.dart';
-import 'package:nous/src/features/pdv/views/widgets/modo_balcao/catalogo_balcao_widget.dart';
-import 'package:nous/src/features/pdv/views/widgets/modo_balcao/cliente_ajustes_balcao_widget.dart';
 import 'package:nous/src/features/pdv/views/widgets/modo_balcao/comanda_balcao_widget.dart';
 import 'package:nous/src/features/pdv/views/widgets/modo_balcao/dialogo_componentes_balcao.dart';
 import 'package:nous/src/features/pdv/views/widgets/modo_balcao/dialogo_variante_balcao.dart';
-import 'package:nous/src/features/pdv/views/widgets/modo_balcao/visor_ultimo_produto_widget.dart';
 import 'package:nous/src/features/pdv/views/widgets/venda_concluida_dialog.dart';
 
 const List<String> _formasBalcao = [
@@ -135,43 +132,15 @@ class _ModoBalcaoWidgetState extends State<ModoBalcaoWidget> {
     return false;
   }
 
-  List<Cliente> get _sugestoesClientes {
-    final termo = _clienteController.text.trim();
-    if (termo.isEmpty) return widget.clientes;
-    return widget.clientes.where((c) => c.correspondeABusca(termo)).toList();
-  }
+  List<Cliente> get _sugestoesClientes => BalcaoLogicaHelper.filtrarClientes(
+      widget.clientes, _clienteController.text);
 
   double _dividaDoCliente(Cliente cliente) {
     final loja = context.read<PdvProvider>().buscarPorId(widget.lojaId);
-    final pedidos = loja?.pedidosLoja ?? const <PedidoLoja>[];
-    if (pedidos.isEmpty) return 0.0;
-    final nomeNorm = TextoUtils.normalizarParaBusca(cliente.nome);
-    var total = 0.0;
-    for (final p in pedidos) {
-      if (!p.aPrazoEmAberto) continue;
-      final mesmoId = p.clienteId != null &&
-          p.clienteId!.isNotEmpty &&
-          p.clienteId == cliente.id;
-      final mesmoNome = (p.clienteId == null || p.clienteId!.isEmpty) &&
-          nomeNorm.isNotEmpty &&
-          TextoUtils.normalizarParaBusca(p.clienteNome) == nomeNorm;
-      if (mesmoId || mesmoNome) {
-        total += p.valorRestante;
-      }
-    }
-    return total;
-  }
-
-  CategoriaLoja? _obterCategoriaDoItem(ItemLoja item) {
-    if (_categoriaFiltroId != null) {
-      final cat = widget.categorias
-          .where((c) => c.id == _categoriaFiltroId)
-          .firstOrNull;
-      if (cat != null && cat.itemIds.contains(item.id)) {
-        return cat;
-      }
-    }
-    return null;
+    return BalcaoLogicaHelper.dividaDoCliente(
+      cliente,
+      loja?.pedidosLoja ?? const <PedidoLoja>[],
+    );
   }
 
   void _garantirFocoBipador() {
@@ -182,71 +151,38 @@ class _ModoBalcaoWidgetState extends State<ModoBalcaoWidget> {
     }
   }
 
-  double _saldoEstoque(String itemId) {
-    var saldo = 0.0;
-    for (final m in widget.movimentosEstoque) {
-      if (m.itemId == itemId) {
-        saldo += m.quantidadeComSinal;
-      }
-    }
-    return saldo;
-  }
+  double get _subtotalCarrinho =>
+      _carrinho.fold<double>(0.0, (soma, item) => soma + item.subtotal);
 
-  double _precoComoNumero(String texto) {
-    var limpo = texto.replaceAll(RegExp(r'[^0-9,.]'), '');
-    if (limpo.contains(',')) {
-      limpo = limpo.replaceAll('.', '').replaceAll(',', '.');
-    }
-    return double.tryParse(limpo) ?? 0;
-  }
-
-  String _valorFormatado(double valor) =>
-      valor.toStringAsFixed(2).replaceAll('.', ',');
-
-  double get _subtotalCarrinho {
-    return _carrinho.fold<double>(0.0, (soma, item) => soma + item.subtotal);
-  }
-
-  double get _freteValor => _precoComoNumero(_freteController.text);
-  double get _descontoValor => _precoComoNumero(_descontoController.text);
-  double get _acrescimoValor => _precoComoNumero(_acrescimoController.text);
+  double get _freteValor =>
+      BalcaoLogicaHelper.precoComoNumero(_freteController.text);
+  double get _descontoValor =>
+      BalcaoLogicaHelper.precoComoNumero(_descontoController.text);
+  double get _acrescimoValor =>
+      BalcaoLogicaHelper.precoComoNumero(_acrescimoController.text);
 
   double get _totalGeral {
-    final sub = _subtotalCarrinho;
-    final total = sub + _freteValor - _descontoValor + _acrescimoValor;
+    final total =
+        _subtotalCarrinho + _freteValor - _descontoValor + _acrescimoValor;
     return total < 0 ? 0 : total;
   }
 
-  double get _valorRecebido => _precoComoNumero(_valorRecebidoController.text);
+  double get _valorRecebido =>
+      BalcaoLogicaHelper.precoComoNumero(_valorRecebidoController.text);
 
   double get _trocoCalculado {
     if (_formaPagamentoSelecionada != 'Dinheiro') return 0.0;
     final recebido = _valorRecebido;
     final total = _totalGeral;
-    if (recebido > total) {
-      return recebido - total;
-    }
-    return 0.0;
+    return recebido > total ? recebido - total : 0.0;
   }
 
-  List<ItemLoja> get _itensFiltrados {
-    final termo = _bipadorController.text.trim().toLowerCase();
-    var lista = widget.itens.where((i) {
-      if (_categoriaFiltroId != null) {
-        final cat = widget.categorias
-            .where((c) => c.id == _categoriaFiltroId)
-            .firstOrNull;
-        if (cat != null && !cat.itemIds.contains(i.id)) {
-          return false;
-        }
-      }
-      if (termo.isEmpty) return true;
-      final nome = i.nome.toLowerCase();
-      final codigo = i.codigoBarras.trim().toLowerCase();
-      return nome.contains(termo) || codigo.contains(termo);
-    }).toList();
-    return lista;
-  }
+  List<ItemLoja> get _itensFiltrados => BalcaoLogicaHelper.filtrarItens(
+        itens: widget.itens,
+        categorias: widget.categorias,
+        categoriaFiltroId: _categoriaFiltroId,
+        termo: _bipadorController.text,
+      );
 
   void _aoDigitarBipador(String valor) {
     setState(() {});
@@ -256,35 +192,14 @@ class _ModoBalcaoWidgetState extends State<ModoBalcaoWidget> {
     final codigo = _bipadorController.text.trim();
     if (codigo.isEmpty) return;
 
-    // 1. Tenta correspondência exata por código de barras
-    final itemPorCodigo = widget.itens.where((i) {
-      final cb = i.codigoBarras.trim().toLowerCase();
-      return cb.isNotEmpty && cb == codigo.toLowerCase();
-    }).firstOrNull;
+    final itemEncontrado = BalcaoLogicaHelper.buscarItemParaBipagem(
+      codigo: codigo,
+      itens: widget.itens,
+      itensFiltrados: _itensFiltrados,
+    );
 
-    if (itemPorCodigo != null) {
-      _processarAdicaoItemAoCarrinho(itemPorCodigo);
-      _bipadorController.clear();
-      _garantirFocoBipador();
-      return;
-    }
-
-    // 2. Tenta por nome exato
-    final itemPorNome = widget.itens.where((i) {
-      return i.nome.trim().toLowerCase() == codigo.toLowerCase();
-    }).firstOrNull;
-
-    if (itemPorNome != null) {
-      _processarAdicaoItemAoCarrinho(itemPorNome);
-      _bipadorController.clear();
-      _garantirFocoBipador();
-      return;
-    }
-
-    // 3. Se houver apenas um resultado filtrado na lista, adiciona ele
-    final filtrados = _itensFiltrados;
-    if (filtrados.length == 1) {
-      _processarAdicaoItemAoCarrinho(filtrados.first);
+    if (itemEncontrado != null) {
+      _processarAdicaoItemAoCarrinho(itemEncontrado);
       _bipadorController.clear();
       _garantirFocoBipador();
       return;
@@ -311,98 +226,51 @@ class _ModoBalcaoWidgetState extends State<ModoBalcaoWidget> {
 
   void _adicionarItemAoCarrinho(ItemLoja item, {VarianteItem? variante}) {
     SomService.tocarBipPadrao();
-    final categoria = _obterCategoriaDoItem(item);
-    final precoCat =
-        categoria != null ? _precoComoNumero(categoria.preco) : 0.0;
-    final precoItem = (variante != null && variante.preco.trim().isNotEmpty)
-        ? _precoComoNumero(variante.preco)
-        : _precoComoNumero(item.preco);
-    final nomeVar = (variante != null && variante.nome.trim().isNotEmpty)
-        ? variante.nome.trim()
-        : '';
-
     setState(() {
       _aviso = null;
       _ultimoItemBipado = item;
-      _quantidadeUltimoBipado = 1;
-
-      final indice = _carrinho.indexWhere(
-        (it) =>
-            it.itemId == item.id &&
-            it.categoriaId == categoria?.id &&
-            it.varianteNome == nomeVar,
+      final res = BalcaoLogicaHelper.adicionarItemAoCarrinho(
+        carrinho: _carrinho,
+        item: item,
+        categorias: widget.categorias,
+        categoriaFiltroId: _categoriaFiltroId,
+        variante: variante,
       );
-
-      if (indice != -1) {
-        final atual = _carrinho[indice];
-        final atualizado = atual.copyWith(quantidade: atual.quantidade + 1);
-        _carrinho[indice] = atualizado;
-        _quantidadeUltimoBipado = atualizado.quantidade;
-        _ultimoItemVendido = atualizado;
-      } else {
-        final novo = ItemVendido(
-          itemId: item.id,
-          nomeItem: item.nome,
-          categoriaId: categoria?.id,
-          nomeCategoria: categoria?.nome,
-          varianteNome: nomeVar,
-          precoItem: precoItem,
-          precoCategoria: precoCat,
-          quantidade: 1,
-          foto: item.imagens.firstOrNull ?? '',
-        );
-        _carrinho.add(novo);
-        _ultimoItemVendido = novo;
-      }
+      _ultimoItemVendido = res.ultimoItemVendido;
+      _quantidadeUltimoBipado = res.quantidadeUltimoBipado;
     });
   }
 
   void _alterarQuantidadeCarrinho(int indice, int delta) {
     setState(() {
-      final atual = _carrinho[indice];
-      final novaQtd = atual.quantidade + delta;
-      if (novaQtd <= 0) {
-        _carrinho.removeAt(indice);
-        if (_ultimoItemVendido?.itemId == atual.itemId &&
-            _ultimoItemVendido?.categoriaId == atual.categoriaId) {
-          _ultimoItemVendido = null;
-        }
-      } else {
-        final atualizado = atual.copyWith(quantidade: novaQtd);
-        _carrinho[indice] = atualizado;
-        if (_ultimoItemVendido?.itemId == atual.itemId &&
-            _ultimoItemVendido?.categoriaId == atual.categoriaId) {
-          _ultimoItemVendido = atualizado;
-          _quantidadeUltimoBipado = novaQtd;
-        }
-      }
+      final res = BalcaoLogicaHelper.alterarQuantidadeCarrinho(
+        carrinho: _carrinho,
+        indice: indice,
+        delta: delta,
+        ultimoItemVendidoAtual: _ultimoItemVendido,
+        quantidadeUltimoBipadoAtual: _quantidadeUltimoBipado,
+      );
+      _ultimoItemVendido = res.ultimoItemVendido;
+      _quantidadeUltimoBipado = res.quantidadeUltimoBipado;
     });
   }
 
   void _removerItemCarrinho(int indice) {
     setState(() {
-      final removido = _carrinho.removeAt(indice);
-      if (_ultimoItemVendido?.itemId == removido.itemId &&
-          _ultimoItemVendido?.categoriaId == removido.categoriaId) {
-        _ultimoItemVendido = null;
-      }
+      _ultimoItemVendido = BalcaoLogicaHelper.removerItemCarrinho(
+        carrinho: _carrinho,
+        indice: indice,
+        ultimoItemVendidoAtual: _ultimoItemVendido,
+      );
     });
   }
 
-  List<GrupoComponentesLoja> _obterGruposDoItemVendido(ItemVendido item) {
-    if (item.categoriaId != null) {
-      final cat = widget.categorias
-          .where((c) => c.id == item.categoriaId)
-          .firstOrNull;
-      if (cat != null && cat.grupoIds.isNotEmpty) {
-        final grupos = widget.gruposComponentes
-            .where((g) => cat.grupoIds.contains(g.id))
-            .toList();
-        if (grupos.isNotEmpty) return grupos;
-      }
-    }
-    return widget.gruposComponentes;
-  }
+  List<GrupoComponentesLoja> _obterGruposDoItemVendido(ItemVendido item) =>
+      BalcaoLogicaHelper.obterGruposDoItemVendido(
+        item,
+        widget.categorias,
+        widget.gruposComponentes,
+      );
 
   Future<void> _abrirDialogoComponentes(int indice) async {
     final item = _carrinho[indice];
@@ -473,48 +341,13 @@ class _ModoBalcaoWidgetState extends State<ModoBalcaoWidget> {
     _garantirFocoBipador();
   }
 
-  String _montarComanda() {
-    final buffer = StringBuffer();
-    for (final item in _carrinho) {
-      buffer.writeln(
-        '${item.quantidade}x ${item.nomeExibicao} - R\$ ${_valorFormatado(item.subtotal)}',
-      );
-      for (final a in item.acompanhamentos) {
-        buffer.writeln('  + ${a.quantidadePorUnidade}x ${a.nomeItem}');
-      }
-      if (item.observacao.isNotEmpty) {
-        buffer.writeln('  Obs: ${item.observacao}');
-      }
-    }
-    if (_freteValor > 0) {
-      buffer.writeln('Frete: R\$ ${_valorFormatado(_freteValor)}');
-    }
-    if (_acrescimoValor > 0) {
-      buffer.writeln('Acréscimo: R\$ ${_valorFormatado(_acrescimoValor)}');
-    }
-    if (_descontoValor > 0) {
-      buffer.writeln('Desconto: - R\$ ${_valorFormatado(_descontoValor)}');
-    }
-    return buffer.toString().trim();
-  }
-
   Future<void> _finalizarVenda() async {
     if (_carrinho.isEmpty) {
       setState(() => _aviso = 'Insira pelo menos um item na comanda.');
       return;
     }
 
-    final total = _totalGeral;
-    final agora = DateTime.now();
-    final clienteNome = _clienteSelecionado?.nome ??
-        (_clienteController.text.trim().isNotEmpty
-            ? _clienteController.text.trim()
-            : 'Consumidor Final');
-
-    final resumoItens =
-        _carrinho.map((i) => '${i.quantidade}x ${i.nomeExibicao}').join(', ');
     final temPrazo = _formaPagamentoSelecionada.toLowerCase().contains('prazo');
-
     if (temPrazo && _clienteSelecionado == null) {
       setState(() {
         _aviso = 'Selecione um cliente cadastrado para vender a prazo.';
@@ -525,34 +358,25 @@ class _ModoBalcaoWidgetState extends State<ModoBalcaoWidget> {
     }
 
     final lojaAtual = context.read<PdvProvider>().buscarPorId(widget.lojaId);
-    final pedido = PedidoLoja(
-      id: agora.millisecondsSinceEpoch.toString(),
-      numero: widget.proximoNumero,
-      clienteId: _clienteSelecionado?.id,
-      clienteNome: clienteNome,
-      produtoNome: resumoItens,
-      dataHora: agora,
-      valor: total,
-      status: StatusPedido.concluido,
-      comanda: _montarComanda(),
-      formaPagamento: _formaPagamentoSelecionada,
-      pagamentosExtras: const [],
-      valorRecebido: _formaPagamentoSelecionada == 'Dinheiro' && _valorRecebido > 0
-          ? _valorRecebido
-          : total,
-      troco: _trocoCalculado,
-      quitado: !temPrazo,
-      valorPago: !temPrazo ? total : 0.0,
-      itens: List.of(_carrinho),
-      frete: _freteValor,
-      desconto: _descontoValor,
-      acrescimo: _acrescimoValor,
+    final pedido = BalcaoLogicaHelper.montarPedidoBalcao(
+      agora: DateTime.now(),
+      proximoNumero: widget.proximoNumero,
+      clienteSelecionado: _clienteSelecionado,
+      clienteNomeTexto: _clienteController.text,
+      carrinho: _carrinho,
+      total: _totalGeral,
+      formaPagamentoSelecionada: _formaPagamentoSelecionada,
+      valorRecebido: _valorRecebido,
+      trocoCalculado: _trocoCalculado,
+      temPrazo: temPrazo,
+      freteValor: _freteValor,
+      descontoValor: _descontoValor,
+      acrescimoValor: _acrescimoValor,
       nomeVendedor: lojaAtual?.nome ?? widget.nomeLoja,
       cnpjVendedor: lojaAtual?.cnpj ?? '',
       lojaId: widget.lojaId,
     );
 
-    // Gera baixas automáticas proporcionais de estoque (incluindo acompanhamentos)
     final baixas = EstoqueBaixaService.calcularMovimentosBaixa(
       itensVendidos: _carrinho,
       itensCadastrados: widget.itens,
@@ -562,7 +386,6 @@ class _ModoBalcaoWidgetState extends State<ModoBalcaoWidget> {
       nomeAutor: widget.nomeAutor,
     );
 
-    // Diálogo com opção de impressão de cupom térmico
     final confirmou = await VendaConcluidaDialog.mostrar(
       context,
       theme: theme,
@@ -591,7 +414,6 @@ class _ModoBalcaoWidgetState extends State<ModoBalcaoWidget> {
         body: SafeArea(
           child: Column(
             children: [
-              // ═══ BARRA SUPERIOR DO MODO BALCÃO ═══
               BarraSuperiorBalcaoWidget(
                 theme: theme,
                 nomeLoja: widget.nomeLoja,
@@ -600,121 +422,89 @@ class _ModoBalcaoWidgetState extends State<ModoBalcaoWidget> {
                 onSair: widget.onSair,
                 onLimparVenda: _limparVenda,
               ),
-
-              // ═══ CORPO PRINCIPAL: 2 GRANDES ÁREAS (OPERADOR & CLIENTE) ═══
               Expanded(
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    // ── ÁREA 1: OPERADOR (BIPADOR, VISOR DO PRODUTO & CATÁLOGO) ──
                     Expanded(
                       flex: 6,
-                      child: Container(
-                        padding: const EdgeInsets.all(16),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            // 1. Campo de Bipagem e Leitura de Código
-                            CampoBipadorBalcaoWidget(
-                              theme: theme,
-                              controller: _bipadorController,
-                              focusNode: _bipadorFocusNode,
-                              onChanged: _aoDigitarBipador,
-                              onSubmitted: _aoPressionarEnterBipador,
-                              onLimpar: () {
-                                _bipadorController.clear();
-                                setState(() {});
-                                _garantirFocoBipador();
-                              },
-                            ),
-                            const SizedBox(height: 12),
-
-                            // 2. Visor do Último Produto Registrado (Visor do Caixa)
-                            VisorUltimoProdutoWidget(
-                              theme: theme,
-                              item: _ultimoItemBipado,
-                              itemVendido: _ultimoItemVendido,
-                              quantidade: _quantidadeUltimoBipado,
-                              formatarValor: _valorFormatado,
-                            ),
-                            const SizedBox(height: 12),
-
-                            // 3 e 4. Categorias e Catálogo Visual de Produtos
-                            Expanded(
-                              child: CatalogoBalcaoWidget(
-                                theme: theme,
-                                categorias: widget.categorias,
-                                categoriaFiltroId: _categoriaFiltroId,
-                                itens: _itensFiltrados,
-                                obterSaldoEstoque: _saldoEstoque,
-                                onSelecionarCategoria: (id) {
-                                  setState(() => _categoriaFiltroId = id);
-                                  _garantirFocoBipador();
-                                },
-                                onSelecionarItem: (item) {
-                                  _processarAdicaoItemAoCarrinho(item);
-                                  _garantirFocoBipador();
-                                },
-                              ),
-                            ),
-                            const SizedBox(height: 10),
-
-                            // 5. Linha de Cliente e Descontos Rápidos
-                            ClienteAjustesBalcaoWidget(
-                              theme: theme,
-                              clientes: widget.clientes,
-                              sugestoesClientes: _sugestoesClientes,
-                              clienteSelecionado: _clienteSelecionado,
-                              mostrarSugestoesCliente: _mostrarSugestoesCliente,
-                              clienteController: _clienteController,
-                              clienteFocusNode: _clienteFocusNode,
-                              descontoController: _descontoController,
-                              freteController: _freteController,
-                              acrescimoController: _acrescimoController,
-                              obterDividaCliente: _dividaDoCliente,
-                              onSelecionarCliente: (c) {
-                                setState(() {
-                                  _clienteSelecionado = c;
-                                  _clienteController.text = c.nome;
-                                  _mostrarSugestoesCliente = false;
-                                  if (c.fretePadrao > 0) {
-                                    _freteController.text = c.fretePadrao
-                                        .toStringAsFixed(2)
-                                        .replaceAll('.', ',');
-                                  }
-                                });
-                              },
-                              onRemoverCliente: () {
-                                setState(() {
-                                  _clienteSelecionado = null;
-                                  _clienteController.clear();
-                                  _mostrarSugestoesCliente = false;
-                                  if (_formaPagamentoSelecionada
-                                      .toLowerCase()
-                                      .contains('prazo')) {
-                                    _formaPagamentoSelecionada = 'Dinheiro';
-                                  }
-                                });
-                              },
-                              onAlterarVisibilidadeSugestoes: (visivel) {
-                                setState(() => _mostrarSugestoesCliente = visivel);
-                              },
-                              onGarantirFocoBipador: _garantirFocoBipador,
-                              onAjusteAlterado: () => setState(() {}),
-                            ),
-                          ],
+                      child: AreaOperadorBalcaoWidget(
+                        theme: theme,
+                        bipadorController: _bipadorController,
+                        bipadorFocusNode: _bipadorFocusNode,
+                        ultimoItemBipado: _ultimoItemBipado,
+                        ultimoItemVendido: _ultimoItemVendido,
+                        quantidadeUltimoBipado: _quantidadeUltimoBipado,
+                        categorias: widget.categorias,
+                        categoriaFiltroId: _categoriaFiltroId,
+                        itensFiltrados: _itensFiltrados,
+                        clientes: widget.clientes,
+                        sugestoesClientes: _sugestoesClientes,
+                        clienteSelecionado: _clienteSelecionado,
+                        mostrarSugestoesCliente: _mostrarSugestoesCliente,
+                        clienteController: _clienteController,
+                        clienteFocusNode: _clienteFocusNode,
+                        descontoController: _descontoController,
+                        freteController: _freteController,
+                        acrescimoController: _acrescimoController,
+                        onChangedBipador: _aoDigitarBipador,
+                        onSubmittedBipador: _aoPressionarEnterBipador,
+                        onLimparBipador: () {
+                          _bipadorController.clear();
+                          setState(() {});
+                          _garantirFocoBipador();
+                        },
+                        formatarValor: BalcaoLogicaHelper.valorFormatado,
+                        obterSaldoEstoque: (id) =>
+                            BalcaoLogicaHelper.saldoEstoque(
+                          id,
+                          widget.movimentosEstoque,
                         ),
+                        onSelecionarCategoria: (id) {
+                          setState(() => _categoriaFiltroId = id);
+                          _garantirFocoBipador();
+                        },
+                        onSelecionarItem: (item) {
+                          _processarAdicaoItemAoCarrinho(item);
+                          _garantirFocoBipador();
+                        },
+                        obterDividaCliente: _dividaDoCliente,
+                        onSelecionarCliente: (c) {
+                          setState(() {
+                            _clienteSelecionado = c;
+                            _clienteController.text = c.nome;
+                            _mostrarSugestoesCliente = false;
+                            if (c.fretePadrao > 0) {
+                              _freteController.text = c.fretePadrao
+                                  .toStringAsFixed(2)
+                                  .replaceAll('.', ',');
+                            }
+                          });
+                        },
+                        onRemoverCliente: () {
+                          setState(() {
+                            _clienteSelecionado = null;
+                            _clienteController.clear();
+                            _mostrarSugestoesCliente = false;
+                            if (_formaPagamentoSelecionada
+                                .toLowerCase()
+                                .contains('prazo')) {
+                              _formaPagamentoSelecionada = 'Dinheiro';
+                            }
+                          });
+                        },
+                        onAlterarVisibilidadeSugestoes: (visivel) {
+                          setState(() => _mostrarSugestoesCliente = visivel);
+                        },
+                        onGarantirFocoBipador: _garantirFocoBipador,
+                        onAjusteAlterado: () => setState(() {}),
                       ),
                     ),
-
-                    // Divisória vertical suave
                     VerticalDivider(
                       width: 1,
                       thickness: 1,
                       color: theme.borderColor.withValues(alpha: 0.5),
                     ),
-
-                    // ── ÁREA 2: A GRANDE COMANDA AMPLIADA (CLIENTE & OPERADOR) ──
                     Expanded(
                       flex: 5,
                       child: Container(

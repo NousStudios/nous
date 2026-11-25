@@ -231,6 +231,27 @@ class _UsuariosConectadosRedeWidgetState
                                         ),
                                       ),
                                     ),
+                                    if (term.versaoApp != null &&
+                                        term.versaoApp!.trim().isNotEmpty)
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(
+                                            horizontal: 4, vertical: 1),
+                                        margin: const EdgeInsets.only(left: 6),
+                                        decoration: BoxDecoration(
+                                          color: theme.borderColor
+                                              .withValues(alpha: 0.25),
+                                          borderRadius:
+                                              BorderRadius.circular(4),
+                                        ),
+                                        child: Text(
+                                          'v${term.versaoApp}',
+                                          style: theme.getTextStyle(
+                                            fontSize: 9,
+                                            fontWeight: FontWeight.w600,
+                                            color: theme.textColor,
+                                          ),
+                                        ),
+                                      ),
                                     if (term.ehHost)
                                       Container(
                                         padding: const EdgeInsets.symmetric(

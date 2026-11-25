@@ -1,12 +1,15 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:nous/src/core/services/player_audio_service.dart';
 import 'package:nous/src/core/theme/theme_controller.dart';
 import 'package:nous/src/features/chat/controllers/mensageria_controller.dart';
 import 'package:nous/src/features/chat/models/mensagem_chat.dart';
 import 'package:nous/src/features/chat/services/gravador_audio_service.dart';
+import 'package:nous/src/features/chat/views/widgets/painel_conversa/widgets/banner_resposta_widget.dart';
+import 'package:nous/src/features/chat/views/widgets/painel_conversa/widgets/barra_composicao_mensagem_widget.dart';
+import 'package:nous/src/features/chat/views/widgets/painel_conversa/widgets/barra_gravacao_audio_widget.dart';
+import 'package:nous/src/features/chat/views/widgets/painel_conversa/widgets/barra_pre_escuta_audio_widget.dart';
 
 /// Barra de composição e envio de mensagens (texto, áudio estilo WhatsApp com
 /// hold/release e trava ao arrastar para cima, câmera, anexos e preview de resposta).
@@ -80,51 +83,45 @@ class _BarraEnvioMensagemWidgetState extends State<BarraEnvioMensagemWidget>
     super.dispose();
   }
 
-  Future<void> _finalizarParaPreEscuta() async {
+  Future<({String caminho, String duracaoTexto, int tamanho})?>
+      _finalizarEProcessarAudio() async {
     _pulseCtrl.stop();
     _resetarGesto();
     final gravado = await GravadorAudioService.instancia.finalizarGravacao();
-    if (gravado == null) return;
+    if (gravado == null) return null;
     if (gravado.duracao.inMilliseconds < 450) {
       try {
         final f = File(gravado.caminho);
         if (f.existsSync()) await f.delete();
       } catch (_) {}
-      return;
+      return null;
     }
     final tamanho = await File(gravado.caminho).length();
     final duracaoSegundos = gravado.duracao.inSeconds;
     final minutos = duracaoSegundos ~/ 60;
     final segundos = duracaoSegundos % 60;
     final duracaoTexto = '$minutos:${segundos.toString().padLeft(2, '0')}';
-    if (!mounted) return;
-    setState(() {
-      _audioPendente = (
-        caminho: gravado.caminho,
-        duracaoTexto: duracaoTexto,
-        tamanho: tamanho,
-      );
-    });
+    return (
+      caminho: gravado.caminho,
+      duracaoTexto: duracaoTexto,
+      tamanho: tamanho,
+    );
+  }
+
+  Future<void> _finalizarParaPreEscuta() async {
+    final resultado = await _finalizarEProcessarAudio();
+    if (resultado == null || !mounted) return;
+    setState(() => _audioPendente = resultado);
   }
 
   Future<void> _finalizarEEnviarAudio() async {
-    _pulseCtrl.stop();
-    _resetarGesto();
-    final gravado = await GravadorAudioService.instancia.finalizarGravacao();
-    if (gravado == null) return;
-    if (gravado.duracao.inMilliseconds < 450) {
-      try {
-        final f = File(gravado.caminho);
-        if (f.existsSync()) await f.delete();
-      } catch (_) {}
-      return;
-    }
-    final tamanho = await File(gravado.caminho).length();
-    final duracaoSegundos = gravado.duracao.inSeconds;
-    final minutos = duracaoSegundos ~/ 60;
-    final segundos = duracaoSegundos % 60;
-    final duracaoTexto = '$minutos:${segundos.toString().padLeft(2, '0')}';
-    widget.onEnviarAudio(gravado.caminho, duracaoTexto, tamanho);
+    final resultado = await _finalizarEProcessarAudio();
+    if (resultado == null) return;
+    widget.onEnviarAudio(
+      resultado.caminho,
+      resultado.duracaoTexto,
+      resultado.tamanho,
+    );
   }
 
   Future<void> _enviarAudioPendente() async {
@@ -136,7 +133,11 @@ class _BarraEnvioMensagemWidgetState extends State<BarraEnvioMensagemWidget>
     }
     if (!mounted) return;
     setState(() => _audioPendente = null);
-    widget.onEnviarAudio(pendente.caminho, pendente.duracaoTexto, pendente.tamanho);
+    widget.onEnviarAudio(
+      pendente.caminho,
+      pendente.duracaoTexto,
+      pendente.tamanho,
+    );
   }
 
   Future<void> _descartarAudioPendente({bool silencioso = false}) async {
@@ -235,7 +236,11 @@ class _BarraEnvioMensagemWidgetState extends State<BarraEnvioMensagemWidget>
           mainAxisSize: MainAxisSize.min,
           children: [
             if (widget.mensagemRespondendo != null)
-              _buildBannerResposta(theme, widget.mensagemRespondendo!),
+              BannerRespostaWidget(
+                theme: theme,
+                mensagemRespondendo: widget.mensagemRespondendo!,
+                onCancelarResposta: widget.onCancelarResposta,
+              ),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
               decoration: BoxDecoration(
@@ -248,531 +253,44 @@ class _BarraEnvioMensagemWidgetState extends State<BarraEnvioMensagemWidget>
               ),
               child: gravando
                   ? (_gravacaoTravada
-                        ? _buildBarraGravacaoTravada(theme)
-                        : _buildBarraGravacaoSegurando(theme))
+                        ? BarraGravacaoTravadaWidget(
+                            theme: theme,
+                            onCancelar: _cancelarAudio,
+                            onFinalizarParaPreEscuta: _finalizarParaPreEscuta,
+                            onFinalizarEEnviar: _finalizarEEnviarAudio,
+                          )
+                        : BarraGravacaoSegurandoWidget(
+                            theme: theme,
+                            pulseController: _pulseCtrl,
+                            dx: _dx,
+                            dy: _dy,
+                            onPointerMove: _aoMoverMic,
+                            onPointerEnd: _aoSoltarMic,
+                          ))
                   : (_audioPendente != null
-                        ? _buildBarraPreEscutaAudio(theme, _audioPendente!)
-                        : _buildBarraComposicao(theme, temTexto)),
+                        ? BarraPreEscutaAudioWidget(
+                            theme: theme,
+                            caminho: _audioPendente!.caminho,
+                            duracaoTexto: _audioPendente!.duracaoTexto,
+                            onDescartar: _descartarAudioPendente,
+                            onEnviar: _enviarAudioPendente,
+                          )
+                        : BarraComposicaoMensagemWidget(
+                            theme: theme,
+                            controller: widget.controller,
+                            mensagemController: widget.mensagemController,
+                            temTexto: temTexto,
+                            onEnviarTexto: widget.onEnviarTexto,
+                            onCapturarFotoCamera: widget.onCapturarFotoCamera,
+                            onAbrirMenuAnexo: widget.onAbrirMenuAnexo,
+                            onPressionarMic: _aoPressionarMic,
+                            onMoverMic: _aoMoverMic,
+                            onSoltarMic: _aoSoltarMic,
+                          )),
             ),
           ],
         );
       },
-    );
-  }
-
-  Widget _buildBannerResposta(AppTheme theme, MensagemChat resp) {
-    final autor = resp.remetenteNome.isNotEmpty
-        ? resp.remetenteNome
-        : (resp.enviadaPorMim ? 'Você' : 'Contato');
-    final preview = resp.texto.trim().isNotEmpty
-        ? resp.texto.trim()
-        : (resp.tipo == 'audio'
-              ? 'Áudio'
-              : (resp.tipo == 'imagem'
-                    ? 'Foto'
-                    : (resp.nomeAnexo.isNotEmpty ? resp.nomeAnexo : 'Mídia')));
-
-    return Container(
-      padding: const EdgeInsets.fromLTRB(12, 8, 8, 8),
-      decoration: BoxDecoration(
-        color: theme.cardBackgroundColor,
-        border: Border(
-          top: BorderSide(color: theme.borderColor.withValues(alpha: 0.45)),
-        ),
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 3,
-            height: 34,
-            decoration: BoxDecoration(
-              color: theme.textColor,
-              borderRadius: BorderRadius.circular(2),
-            ),
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  autor,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: theme.getTextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w700,
-                    color: theme.textColor,
-                  ),
-                ),
-                Text(
-                  preview,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: theme.getTextStyle(
-                    fontSize: 11.5,
-                    color: theme.secondaryTextColor,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          IconButton(
-            icon: Icon(
-              Icons.close_rounded,
-              size: 18,
-              color: theme.secondaryTextColor,
-            ),
-            tooltip: 'Cancelar resposta',
-            onPressed: widget.onCancelarResposta,
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildBarraGravacaoSegurando(AppTheme theme) {
-    return Listener(
-      onPointerMove: _aoMoverMic,
-      onPointerUp: (_) => _aoSoltarMic(),
-      onPointerCancel: (_) => _aoSoltarMic(),
-      child: Row(
-        children: [
-          Expanded(
-            child: Transform.translate(
-              offset: Offset(_dx * 0.4, 0),
-              child: Container(
-                height: 44,
-                padding: const EdgeInsets.symmetric(horizontal: 14),
-                decoration: BoxDecoration(
-                  color: theme.dangerColor.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(22),
-                  border: Border.all(
-                    color: theme.dangerColor.withValues(alpha: 0.35),
-                  ),
-                ),
-                child: Row(
-                  children: [
-                    FadeTransition(
-                      opacity: Tween(begin: 0.35, end: 1.0).animate(_pulseCtrl),
-                      child: Icon(
-                        Icons.fiber_manual_record_rounded,
-                        color: theme.dangerColor,
-                        size: 15,
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    ValueListenableBuilder<Duration>(
-                      valueListenable:
-                          GravadorAudioService.instancia.duracaoNotifier,
-                      builder: (_, dur, _) {
-                        final min = dur.inMinutes;
-                        final sec = dur.inSeconds % 60;
-                        return Text(
-                          '$min:${sec.toString().padLeft(2, '0')}',
-                          style: theme.getTextStyle(
-                            fontSize: 13.5,
-                            fontWeight: FontWeight.bold,
-                            color: theme.textColor,
-                          ),
-                        );
-                      },
-                    ),
-                    const Spacer(),
-                    Text(
-                      '← Cancelar  •  ↑ Travar',
-                      style: theme.getTextStyle(
-                        fontSize: 11.5,
-                        color: theme.secondaryTextColor,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-          const SizedBox(width: 8),
-          Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Transform.translate(
-                offset: Offset(0, (_dy * 0.35).clamp(-22.0, 0.0)),
-                child: Icon(
-                  Icons.lock_outline_rounded,
-                  size: 16,
-                  color: _dy < -28 ? theme.textColor : theme.secondaryTextColor,
-                ),
-              ),
-              const SizedBox(height: 2),
-              ScaleTransition(
-                scale: Tween(begin: 1.0, end: 1.16).animate(_pulseCtrl),
-                child: Container(
-                  width: 44,
-                  height: 44,
-                  decoration: BoxDecoration(
-                    color: theme.dangerColor,
-                    shape: BoxShape.circle,
-                  ),
-                  child: Icon(
-                    Icons.mic_rounded,
-                    size: 21,
-                    color: theme.buttonTextColor,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildBarraGravacaoTravada(AppTheme theme) {
-    return Row(
-      children: [
-        IconButton(
-          icon: Icon(
-            Icons.delete_outline_rounded,
-            color: theme.dangerColor,
-            size: 24,
-          ),
-          tooltip: 'Cancelar e descartar áudio',
-          onPressed: _cancelarAudio,
-        ),
-        const SizedBox(width: 6),
-        Expanded(
-          child: Container(
-            height: 42,
-            padding: const EdgeInsets.symmetric(horizontal: 14),
-            decoration: BoxDecoration(
-              color: theme.dangerColor.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(21),
-              border: Border.all(
-                color: theme.dangerColor.withValues(alpha: 0.35),
-              ),
-            ),
-            child: Row(
-              children: [
-                Icon(
-                  Icons.lock_rounded,
-                  color: theme.dangerColor,
-                  size: 14,
-                ),
-                const SizedBox(width: 8),
-                Text(
-                  'Gravação travada',
-                  style: theme.getTextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.bold,
-                    color: theme.dangerColor,
-                  ),
-                ),
-                const Spacer(),
-                ValueListenableBuilder<Duration>(
-                  valueListenable:
-                      GravadorAudioService.instancia.duracaoNotifier,
-                  builder: (_, dur, _) {
-                    final min = dur.inMinutes;
-                    final sec = dur.inSeconds % 60;
-                    return Text(
-                      '$min:${sec.toString().padLeft(2, '0')}',
-                      style: theme.getTextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.bold,
-                        color: theme.textColor,
-                      ),
-                    );
-                  },
-                ),
-              ],
-            ),
-          ),
-        ),
-        const SizedBox(width: 8),
-        ValueListenableBuilder<bool>(
-          valueListenable: GravadorAudioService.instancia.pausadoNotifier,
-          builder: (_, pausado, _) {
-            return IconButton(
-              icon: Icon(
-                pausado ? Icons.mic_rounded : Icons.pause_circle_outline_rounded,
-                color: pausado ? theme.dangerColor : theme.textColor,
-                size: 25,
-              ),
-              tooltip: pausado ? 'Retomar gravação' : 'Pausar gravação',
-              onPressed: () {
-                if (pausado) {
-                  GravadorAudioService.instancia.retomarGravacao();
-                } else {
-                  GravadorAudioService.instancia.pausarGravacao();
-                }
-              },
-            );
-          },
-        ),
-        IconButton(
-          icon: Icon(
-            Icons.stop_circle_outlined,
-            color: theme.textColor,
-            size: 25,
-          ),
-          tooltip: 'Parar e ouvir antes de enviar',
-          onPressed: _finalizarParaPreEscuta,
-        ),
-        const SizedBox(width: 4),
-        InkWell(
-          onTap: _finalizarEEnviarAudio,
-          borderRadius: BorderRadius.circular(21),
-          child: Container(
-            width: 42,
-            height: 42,
-            decoration: BoxDecoration(
-              color: theme.buttonColor,
-              shape: BoxShape.circle,
-            ),
-            child: Icon(
-              Icons.send_rounded,
-              size: 18,
-              color: theme.buttonTextColor,
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildBarraPreEscutaAudio(
-    AppTheme theme,
-    ({String caminho, String duracaoTexto, int tamanho}) pendente,
-  ) {
-    return ValueListenableBuilder<DadosPlayerAudio>(
-      valueListenable: PlayerAudioService.instancia.estadoNotifier,
-      builder: (context, dados, _) {
-        final ehEste = PlayerAudioService.instancia.ehMesmoAudio(
-              pendente.caminho,
-              dados.caminho,
-            ) ||
-            PlayerAudioService.instancia.ehMesmoAudio(
-              pendente.caminho,
-              dados.caminhoOriginal,
-            );
-        final tocando =
-            ehEste && dados.estado == EstadoPlayerAudio.reproduzindo;
-        final totalMs = dados.duracaoEstimada.inMilliseconds;
-        final posMs = ehEste ? dados.posicao.inMilliseconds : 0;
-        final progresso = (ehEste && totalMs > 0)
-            ? (posMs / totalMs).clamp(0.0, 1.0)
-            : 0.0;
-
-        return Row(
-          children: [
-            IconButton(
-              icon: Icon(
-                Icons.delete_outline_rounded,
-                color: theme.dangerColor,
-                size: 24,
-              ),
-              tooltip: 'Descartar áudio',
-              onPressed: _descartarAudioPendente,
-            ),
-            const SizedBox(width: 4),
-            Expanded(
-              child: Container(
-                height: 44,
-                padding: const EdgeInsets.symmetric(horizontal: 10),
-                decoration: BoxDecoration(
-                  color: theme.backgroundColor,
-                  borderRadius: BorderRadius.circular(22),
-                  border: Border.all(
-                    color: theme.borderColor.withValues(alpha: 0.6),
-                  ),
-                ),
-                child: Row(
-                  children: [
-                    IconButton(
-                      padding: EdgeInsets.zero,
-                      constraints: const BoxConstraints(minWidth: 32),
-                      tooltip: tocando ? 'Pausar' : 'Ouvir áudio',
-                      onPressed: () => PlayerAudioService.instancia
-                          .alternarPlayPause(pendente.caminho),
-                      icon: Icon(
-                        tocando
-                            ? Icons.pause_rounded
-                            : Icons.play_arrow_rounded,
-                        color: theme.textColor,
-                        size: 24,
-                      ),
-                    ),
-                    const SizedBox(width: 6),
-                    Expanded(
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(4),
-                        child: LinearProgressIndicator(
-                          value: progresso,
-                          minHeight: 4,
-                          backgroundColor:
-                              theme.borderColor.withValues(alpha: 0.35),
-                          valueColor: AlwaysStoppedAnimation<Color>(
-                            theme.textColor,
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    Text(
-                      pendente.duracaoTexto,
-                      style: theme.getTextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                        color: theme.secondaryTextColor,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            const SizedBox(width: 8),
-            InkWell(
-              onTap: _enviarAudioPendente,
-              borderRadius: BorderRadius.circular(21),
-              child: Container(
-                width: 42,
-                height: 42,
-                decoration: BoxDecoration(
-                  color: theme.buttonColor,
-                  shape: BoxShape.circle,
-                ),
-                child: Icon(
-                  Icons.send_rounded,
-                  size: 18,
-                  color: theme.buttonTextColor,
-                ),
-              ),
-            ),
-          ],
-        );
-      },
-    );
-  }
-
-  Widget _buildBarraComposicao(AppTheme theme, bool temTexto) {
-    return Row(
-      children: [
-        IconButton(
-          icon: Icon(
-            Icons.camera_alt_rounded,
-            color: theme.textColor,
-            size: 22,
-          ),
-          tooltip: 'Câmera / Tirar foto',
-          onPressed: widget.onCapturarFotoCamera,
-        ),
-        IconButton(
-          icon: Icon(
-            Icons.attach_file_rounded,
-            color: theme.textColor,
-            size: 22,
-          ),
-          tooltip: 'Anexar imagem, arquivo, comanda ou áudio',
-          onPressed: widget.onAbrirMenuAnexo,
-        ),
-        const SizedBox(width: 4),
-        Expanded(
-          child: Container(
-            constraints: const BoxConstraints(minHeight: 42, maxHeight: 110),
-            padding: const EdgeInsets.symmetric(horizontal: 12),
-            decoration: BoxDecoration(
-              color: theme.backgroundColor,
-              borderRadius: BorderRadius.circular(21),
-              border: Border.all(
-                color: theme.borderColor.withValues(alpha: 0.6),
-              ),
-            ),
-            child: Focus(
-              onKeyEvent: (node, event) {
-                if (!Platform.isAndroid && !Platform.isIOS) {
-                  if (event is KeyDownEvent &&
-                      event.logicalKey == LogicalKeyboardKey.enter) {
-                    if (HardwareKeyboard.instance.isShiftPressed) {
-                      return KeyEventResult.ignored;
-                    } else {
-                      widget.onEnviarTexto();
-                      return KeyEventResult.handled;
-                    }
-                  }
-                }
-                return KeyEventResult.ignored;
-              },
-              child: TextField(
-                controller: widget.mensagemController,
-                keyboardType: TextInputType.multiline,
-                textInputAction: (Platform.isAndroid || Platform.isIOS)
-                    ? TextInputAction.newline
-                    : TextInputAction.send,
-                minLines: 1,
-                maxLines: 4,
-                style: theme.getTextStyle(fontSize: 13, color: theme.textColor),
-                onSubmitted: (Platform.isAndroid || Platform.isIOS)
-                    ? null
-                    : (_) => widget.onEnviarTexto(),
-                decoration: InputDecoration(
-                  hintText: widget.controller.modoLoja
-                      ? 'Responder em nome de ${widget.controller.nomeLoja ?? "Loja"}...'
-                      : 'Digite uma mensagem...',
-                  hintStyle: theme.getTextStyle(
-                    fontSize: 12,
-                    color: theme.secondaryTextColor,
-                  ),
-                  border: InputBorder.none,
-                  contentPadding: const EdgeInsets.symmetric(vertical: 10),
-                ),
-              ),
-            ),
-          ),
-        ),
-        const SizedBox(width: 8),
-        if (temTexto)
-          InkWell(
-            onTap: widget.onEnviarTexto,
-            borderRadius: BorderRadius.circular(21),
-            child: Container(
-              width: 42,
-              height: 42,
-              decoration: BoxDecoration(
-                color: theme.buttonColor,
-                shape: BoxShape.circle,
-              ),
-              child: Icon(
-                Icons.send_rounded,
-                size: 19,
-                color: theme.buttonTextColor,
-              ),
-            ),
-          )
-        else
-          Listener(
-            onPointerDown: _aoPressionarMic,
-            onPointerMove: _aoMoverMic,
-            onPointerUp: (_) => _aoSoltarMic(),
-            onPointerCancel: (_) => _aoSoltarMic(),
-            child: Tooltip(
-              message: 'Segure para gravar • Arraste ↑ para travar',
-              child: Container(
-                width: 42,
-                height: 42,
-                decoration: BoxDecoration(
-                  color: theme.buttonColor,
-                  shape: BoxShape.circle,
-                ),
-                child: Icon(
-                  Icons.mic_rounded,
-                  size: 19,
-                  color: theme.buttonTextColor,
-                ),
-              ),
-            ),
-          ),
-      ],
     );
   }
 }

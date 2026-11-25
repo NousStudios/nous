@@ -15,9 +15,8 @@ import 'package:nous/src/features/timeline/views/dialogs/dialog_republicar_opcoe
 import 'package:nous/src/features/timeline/views/dialogs/dialog_salvar_publicacao.dart';
 import 'package:nous/src/features/timeline/views/dialogs/widgets/detalhes_publicacao/detalhes_pub_acoes_widget.dart';
 import 'package:nous/src/features/timeline/views/dialogs/widgets/detalhes_publicacao/detalhes_pub_comentarios_widget.dart';
+import 'package:nous/src/features/timeline/views/dialogs/widgets/detalhes_publicacao/detalhes_pub_layout_padrao_widget.dart';
 import 'package:nous/src/features/timeline/views/dialogs/widgets/detalhes_publicacao/detalhes_pub_midias_widget.dart';
-import 'package:nous/src/features/timeline/views/widgets/cabecalho_autor_colaboradores_widget.dart';
-import 'package:nous/src/features/timeline/views/widgets/texto_com_hashtags_widget.dart';
 import 'package:nous/src/features/timeline/views/widgets/visualizador_reels_compacto_widget.dart';
 
 class DialogDetalhesPublicacao extends StatefulWidget {
@@ -332,67 +331,6 @@ class _DialogDetalhesPublicacaoState extends State<DialogDetalhesPublicacao> {
     );
   }
 
-  Widget _buildCabecalhoAutor(bool ehAutor) {
-    return CabecalhoAutorColaboradoresWidget(
-      theme: widget.theme,
-      publicacao: _pub,
-      coautoresResolvidos: _coautoresResolvidos,
-      trailing: IconButton(
-        visualDensity: VisualDensity.compact,
-        tooltip: 'Mais opções da publicação',
-        icon: Icon(Icons.more_horiz_rounded, color: widget.theme.textColor),
-        onPressed: () => _abrirMenuOpcoesPublicacao(ehAutor),
-      ),
-    );
-  }
-
-  Widget _buildBarraAcoes(
-    UsuarioNous? usuarioEfetivo,
-    int likes,
-    int deslikes,
-    ReacaoSocial? minhaReacao,
-  ) {
-    return DetalhesPubAcoesWidget(
-      theme: widget.theme,
-      publicacao: _pub,
-      usuarioEfetivo: usuarioEfetivo,
-      reacoes: _reacoes,
-      likes: likes,
-      deslikes: deslikes,
-      totalComentarios: _comentarios.length,
-      minhaReacao: minhaReacao,
-      onReagir: _reagir,
-      onFocarComentario: () => _comentarioFocus.requestFocus(),
-      onRepublicar: _republicar,
-      onEnviarNoChat: _enviarNoChat,
-    );
-  }
-
-  Widget _buildSecaoComentarios(
-    List<ComentarioSocial> comentariosRaiz,
-    bool ehAutor,
-    String meuCpf,
-  ) {
-    return DetalhesPubSecaoComentariosWidget(
-      theme: widget.theme,
-      todosComentarios: _comentarios,
-      comentariosRaiz: comentariosRaiz,
-      ehAutorPublicacao: ehAutor,
-      meuCpf: meuCpf,
-      onResponder: (alvo) {
-        setState(() => _respondendoAComentario = alvo);
-        _comentarioFocus.requestFocus();
-      },
-      onInteracaoAlterada: _carregarInteracoes,
-      onAbrirMapaComentarios: () => _abrirMapaComentarios(
-        theme: widget.theme,
-        pub: _pub,
-        ehAutor: ehAutor,
-        meuCpf: meuCpf,
-      ),
-    );
-  }
-
   Widget _buildInputComentario(AppTheme theme) {
     return DetalhesPubBarraInputComentarioWidget(
       theme: theme,
@@ -526,214 +464,44 @@ class _DialogDetalhesPublicacaoState extends State<DialogDetalhesPublicacao> {
       });
     }
 
-    return Scaffold(
-      backgroundColor: theme.backgroundColor,
-      body: SafeArea(
-        child: Center(
-          child: ConstrainedBox(
-            constraints: BoxConstraints(maxWidth: ehDesktop ? 1080 : 760),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(6, 6, 12, 4),
-                  child: Row(
-                    children: [
-                      IconButton(
-                        tooltip: 'Voltar',
-                        icon: Icon(
-                          Icons.arrow_back_rounded,
-                          color: theme.textColor,
-                        ),
-                        onPressed: () => Navigator.of(context).pop(),
-                      ),
-                      const SizedBox(width: 4),
-                      Text(
-                        'Publicação',
-                        style: theme.getTextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                          color: theme.textColor,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                Divider(
-                  height: 1,
-                  color: theme.borderColor.withValues(alpha: 0.4),
-                ),
-                if (ehDesktop)
-                  Expanded(
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        if (pub.midias.isNotEmpty)
-                          Expanded(
-                            flex: 3,
-                            child: DetalhesPubPainelMidiaDesktopWidget(
-                              theme: theme,
-                              lista: _lista,
-                              pubAtiva: pub,
-                              indiceAtivo: _indiceAtivo,
-                              pageController: _desktopPageController,
-                              midiasKey: _midiasKey,
-                              pdfFullScreen: _pdfEmTelaCheia,
-                              onPageChanged: _trocarPublicacao,
-                              onDoubleTapLike: () =>
-                                  _reagir(TipoReacaoSocial.like),
-                              onAlternarPdfFullScreen: (v) =>
-                                  setState(() => _pdfEmTelaCheia = v),
-                            ),
-                          ),
-                        Expanded(
-                          flex: 2,
-                          child: Container(
-                            decoration: BoxDecoration(
-                              border: pub.midias.isNotEmpty
-                                  ? Border(
-                                      left: BorderSide(
-                                        color: theme.borderColor
-                                            .withValues(alpha: 0.4),
-                                      ),
-                                    )
-                                  : null,
-                            ),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.stretch,
-                              children: [
-                                Padding(
-                                  padding:
-                                      const EdgeInsets.fromLTRB(12, 10, 6, 8),
-                                  child: _buildCabecalhoAutor(ehAutor),
-                                ),
-                                Divider(
-                                  height: 1,
-                                  color:
-                                      theme.borderColor.withValues(alpha: 0.3),
-                                ),
-                                Expanded(
-                                  child: SingleChildScrollView(
-                                    padding: const EdgeInsets.all(14),
-                                    child: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.stretch,
-                                      children: [
-                                        if (pub.texto.isNotEmpty) ...[
-                                          TextoComHashtagsWidget(
-                                            theme: theme,
-                                            texto: pub.texto,
-                                            fontSize: 13.5,
-                                          ),
-                                          const SizedBox(height: 12),
-                                        ],
-                                        _buildSecaoComentarios(
-                                          comentariosRaiz,
-                                          ehAutor,
-                                          meuCpf,
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                ),
-                                Divider(
-                                  height: 1,
-                                  color:
-                                      theme.borderColor.withValues(alpha: 0.3),
-                                ),
-                                Padding(
-                                  padding:
-                                      const EdgeInsets.fromLTRB(10, 4, 12, 4),
-                                  child: _buildBarraAcoes(
-                                    usuarioEfetivo,
-                                    likes,
-                                    deslikes,
-                                    minhaReacao,
-                                  ),
-                                ),
-                                if (usuarioEfetivo != null)
-                                  _buildInputComentario(theme),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  )
-                else ...[
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(14, 10, 6, 8),
-                    child: _buildCabecalhoAutor(ehAutor),
-                  ),
-                  Divider(
-                    height: 1,
-                    color: theme.borderColor.withValues(alpha: 0.4),
-                  ),
-                  Expanded(
-                    child: SingleChildScrollView(
-                      padding: const EdgeInsets.all(16),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          if (pub.midias.isNotEmpty) ...[
-                            Builder(
-                              builder: (ctx) {
-                                final ehPdf = pub.midias.any(
-                                  (m) =>
-                                      m.mimeTipo.toLowerCase() == 'pdf' ||
-                                      m.nomeArquivo
-                                          .toLowerCase()
-                                          .endsWith('.pdf'),
-                                );
-                                final h = MediaQuery.sizeOf(ctx).height;
-                                final midia = _buildMidias(
-                                  theme,
-                                  pub,
-                                  ajustarTelaCheia: true,
-                                );
-                                return ehPdf
-                                    ? SizedBox(height: h * 0.46, child: midia)
-                                    : ConstrainedBox(
-                                        constraints: BoxConstraints(
-                                          maxHeight: h * 0.50,
-                                        ),
-                                        child: midia,
-                                      );
-                              },
-                            ),
-                            const SizedBox(height: 10),
-                          ],
-                          _buildBarraAcoes(
-                            usuarioEfetivo,
-                            likes,
-                            deslikes,
-                            minhaReacao,
-                          ),
-                          const SizedBox(height: 10),
-                          if (pub.texto.isNotEmpty) ...[
-                            TextoComHashtagsWidget(
-                              theme: theme,
-                              texto: pub.texto,
-                              fontSize: 14,
-                            ),
-                            const SizedBox(height: 14),
-                          ],
-                          _buildSecaoComentarios(
-                            comentariosRaiz,
-                            ehAutor,
-                            meuCpf,
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                  if (usuarioEfetivo != null) _buildInputComentario(theme),
-                ],
-              ],
-            ),
-          ),
-        ),
+    return DetalhesPubLayoutPadraoWidget(
+      theme: theme,
+      ehDesktop: ehDesktop,
+      lista: _lista,
+      pub: pub,
+      indiceAtivo: _indiceAtivo,
+      desktopPageController: _desktopPageController,
+      midiasKey: _midiasKey,
+      pdfEmTelaCheia: _pdfEmTelaCheia,
+      usuarioEfetivo: usuarioEfetivo,
+      coautoresResolvidos: _coautoresResolvidos,
+      reacoes: _reacoes,
+      comentarios: _comentarios,
+      comentariosRaiz: comentariosRaiz,
+      minhaReacao: minhaReacao,
+      likes: likes,
+      deslikes: deslikes,
+      ehAutor: ehAutor,
+      meuCpf: meuCpf,
+      onTrocarPublicacao: _trocarPublicacao,
+      onReagir: _reagir,
+      onAlternarPdfFullScreen: (v) => setState(() => _pdfEmTelaCheia = v),
+      onAbrirMenuOpcoes: () => _abrirMenuOpcoesPublicacao(ehAutor),
+      onFocarComentario: () => _comentarioFocus.requestFocus(),
+      onRepublicar: _republicar,
+      onEnviarNoChat: _enviarNoChat,
+      onResponderComentario: (alvo) {
+        setState(() => _respondendoAComentario = alvo);
+        _comentarioFocus.requestFocus();
+      },
+      onInteracaoAlterada: _carregarInteracoes,
+      onAbrirMapaComentarios: () => _abrirMapaComentarios(
+        theme: theme,
+        pub: pub,
+        ehAutor: ehAutor,
+        meuCpf: meuCpf,
       ),
+      inputComentario: _buildInputComentario(theme),
     );
   }
 }

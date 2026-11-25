@@ -1,19 +1,16 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:nous/src/core/services/criptografia_service.dart';
-import 'package:nous/src/core/services/preferencias_soberanas_service.dart';
 import 'package:nous/src/core/theme/theme_controller.dart';
 import 'package:nous/src/features/auth/models/usuario_nous.dart';
+import 'package:nous/src/features/auth/providers/helpers/auth_conta_sincronizacao_helper.dart';
+import 'package:nous/src/features/auth/providers/helpers/auth_emails_helper.dart';
+import 'package:nous/src/features/auth/providers/helpers/auth_perfil_operacoes_helper.dart';
 import 'package:nous/src/features/auth/providers/helpers/auth_social_operacoes_helper.dart';
-import 'package:nous/src/features/auth/services/contas_excluidas_service.dart';
 import 'package:nous/src/features/auth/services/contas_nous_service.dart';
 import 'package:nous/src/features/auth/services/cpf_validator.dart';
-import 'package:nous/src/features/pdv/services/dados_locais_service.dart';
-import 'package:nous/src/features/pdv/services/lojas_service.dart';
 import 'package:nous/src/features/pdv/services/rede_local/cliente_rede_local.dart';
 import 'package:nous/src/features/pdv/services/rede_local/servidor_rede_local.dart';
-import 'package:nous/src/features/timeline/services/outbox_midia_service.dart';
 
 class AuthProvider extends ChangeNotifier {
   static const String _chaveUltimoCpf = 'ultimo_cpf_login';
@@ -44,6 +41,7 @@ class AuthProvider extends ChangeNotifier {
   Map<String, UsuarioNous> _contasPorCpf = {};
   Set<String> _dadosReveladosDono = {};
   bool _modoVisitante = false;
+  bool _disposed = false;
 
   String get cpf => _cpf;
   String? get errorMessage => _errorMessage;
@@ -56,12 +54,15 @@ class AuthProvider extends ChangeNotifier {
   bool get usuarioAtualVerificado => _contaAtual?.possuiValidacao ?? false;
   bool get perfilIsolado =>
       !_modoVisitante && _contaAtual != null && !usuarioAtualVerificado;
+  bool get isValid => CpfValidator.isValid(_cpf);
 
-  bool dadoEstaReveladoParaDono(String chave) => _dadosReveladosDono.contains(chave);
+  bool dadoEstaReveladoParaDono(String chave) =>
+      _dadosReveladosDono.contains(chave);
 
   UsuarioNous? buscarContaPorCpf(String cpf) {
     final digitos = CpfValidator.onlyDigits(cpf);
-    if (_contaAtual != null && CpfValidator.onlyDigits(_contaAtual!.cpf) == digitos) {
+    if (_contaAtual != null &&
+        CpfValidator.onlyDigits(_contaAtual!.cpf) == digitos) {
       return _contaAtual;
     }
     return _contasPorCpf[digitos] ?? _contasPorCpf[cpf];
@@ -75,41 +76,29 @@ class AuthProvider extends ChangeNotifier {
       _fotosPorCpf[conta.cpf] = conta.foto;
       _fotosPorCpf[digitos] = conta.foto;
     }
-    if (_contaAtual != null && CpfValidator.onlyDigits(_contaAtual!.cpf) == digitos) {
+    if (_contaAtual != null &&
+        CpfValidator.onlyDigits(_contaAtual!.cpf) == digitos) {
       _contaAtual = conta;
     }
     notifyListeners();
   }
 
   Future<void> carregarDadosReveladosDono(String cpf) async {
-    final digitos = CpfValidator.onlyDigits(cpf);
-    if (digitos.isEmpty) {
-      _dadosReveladosDono = {};
-      return;
-    }
-    final lista = await PreferenciasSoberanasService.obterLista(
-      'dados_revelados_$digitos',
-    );
-    _dadosReveladosDono = lista.toSet();
+    _dadosReveladosDono =
+        await AuthPerfilOperacoesHelper.carregarDadosReveladosDono(cpf);
     notifyListeners();
   }
 
   Future<void> alternarRevelacaoParaDono(String chave) async {
     if (_contaAtual == null) return;
-    final digitos = CpfValidator.onlyDigits(_contaAtual!.cpf);
-    if (_dadosReveladosDono.contains(chave)) {
-      _dadosReveladosDono.remove(chave);
-    } else {
-      _dadosReveladosDono.add(chave);
-    }
-    await PreferenciasSoberanasService.salvarLista(
-      'dados_revelados_$digitos',
-      _dadosReveladosDono.toList(),
+    _dadosReveladosDono =
+        await AuthPerfilOperacoesHelper.alternarRevelacaoParaDono(
+      cpf: _contaAtual!.cpf,
+      atuais: _dadosReveladosDono,
+      chave: chave,
     );
     notifyListeners();
   }
-
-  bool get isValid => CpfValidator.isValid(_cpf);
 
   Future<void> salvarUltimoCpf(String cpf) async {
     final digitos = CpfValidator.onlyDigits(cpf);
@@ -123,8 +112,6 @@ class AuthProvider extends ChangeNotifier {
     final prefs = await SharedPreferences.getInstance();
     return prefs.getString(_chaveUltimoCpf);
   }
-
-  bool _disposed = false;
 
   @override
   void dispose() {
@@ -146,28 +133,12 @@ class AuthProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  String buscarFotoPorCpf(String cpf) {
-    final cpfLimpo = cpf.replaceAll(RegExp(r'\D'), '');
-    if (_contaAtual != null) {
-      final meuCpfLimpo = _contaAtual!.cpf.replaceAll(RegExp(r'\D'), '');
-      if ((_contaAtual!.cpf == cpf || (cpfLimpo.isNotEmpty && meuCpfLimpo == cpfLimpo)) &&
-          _contaAtual!.fotoExibicao.trim().isNotEmpty) {
-        return _contaAtual!.fotoExibicao.trim();
-      }
-    }
-    if (_fotosPorCpf.containsKey(cpf) && _fotosPorCpf[cpf]!.isNotEmpty) {
-      return _fotosPorCpf[cpf]!;
-    }
-    if (cpfLimpo.isNotEmpty) {
-      for (final entry in _fotosPorCpf.entries) {
-        if (entry.key.replaceAll(RegExp(r'\D'), '') == cpfLimpo &&
-            entry.value.isNotEmpty) {
-          return entry.value;
-        }
-      }
-    }
-    return '';
-  }
+  String buscarFotoPorCpf(String cpf) =>
+      AuthContaSincronizacaoHelper.resolverFotoPorCpf(
+        cpf: cpf,
+        contaAtual: _contaAtual,
+        fotosPorCpf: _fotosPorCpf,
+      );
 
   void updateCpf(String rawInput) {
     _cpf = CpfValidator.onlyDigits(rawInput);
@@ -190,142 +161,67 @@ class AuthProvider extends ChangeNotifier {
     _carregando = true;
     notifyListeners();
 
-    var conta = await ContasNousService.buscarPorCpf(_cpf);
+    final contaSegura =
+        await AuthContaSincronizacaoHelper.prepararContaLocal(_cpf);
 
-    // 1. Se não encontrou no banco de contas local, tenta enriquecer e consolidar a partir de dados locais (clientes e membros)
-    // desde que a conta não tenha sido explicitamente excluída pelo usuário.
-    if (conta == null && !await ContasExcluidasService.estaExcluido(_cpf)) {
-      try {
-        final dadosAuto = await DadosLocaisService.buscarPorDocumento(_cpf);
-        if (dadosAuto != null && dadosAuto.nome.trim().isNotEmpty) {
-          conta = UsuarioNous(
-            cpf: _cpf,
-            nome: dadosAuto.nome.trim(),
-            dataNascimento: dadosAuto.dataNascimento,
-            foto: dadosAuto.foto,
-          );
-          await ContasNousService.salvar(conta);
-          debugPrint(
-            '[AuthProvider] Conta consolidada automaticamente de dados locais para CPF $_cpf (${conta.nome})',
-          );
-        }
-      } catch (e) {
-        debugPrint('[AuthProvider] Erro ao consolidar dados locais: $e');
-      }
-    }
-
-    // Se a conta já existe localmente, define imediatamente para a UI responder com fluidez total (sem gargalo)
-    if (conta != null) {
-      var contaSegura = conta;
-      if (contaSegura.foto.isNotEmpty) {
-        try {
-          final lojasDoUsuario = await LojasService.carregar(_cpf);
-          final logos = lojasDoUsuario
-              .map((l) => l.logo.trim())
-              .where((logo) => logo.isNotEmpty)
-              .toSet();
-          if (logos.contains(contaSegura.foto.trim())) {
-            contaSegura = contaSegura.copyWith(foto: '');
-            await ContasNousService.salvar(contaSegura);
-          }
-        } catch (_) {}
-      }
-
-      // Garante chave pública Ed25519 e chave de troca X25519 no perfil soberano do usuário
-      try {
-        final chavePub = await CriptografiaService.obterOuGerarChavePublica(contaSegura.cpf);
-        final chaveTroca = await CriptografiaService.obterOuGerarChaveTroca(contaSegura.cpf);
-        var precisaSalvar = false;
-        if (chavePub.isNotEmpty && contaSegura.chavePublica != chavePub) {
-          contaSegura = contaSegura.copyWith(chavePublica: chavePub);
-          precisaSalvar = true;
-        }
-        if (chaveTroca.isNotEmpty && contaSegura.chaveTrocaPublica != chaveTroca) {
-          contaSegura = contaSegura.copyWith(chaveTrocaPublica: chaveTroca);
-          precisaSalvar = true;
-        }
-        if (precisaSalvar) {
-          await ContasNousService.salvar(contaSegura);
-        }
-      } catch (e) {
-        debugPrint('[AuthProvider] Erro ao sincronizar chaves de criptografia: $e');
-      }
-
+    if (contaSegura != null) {
       _contaAtual = contaSegura;
-      _emailAtivo = contaSegura.emails.isNotEmpty ? contaSegura.emails.first : null;
-      await ThemeController.carregarTemaDoUsuario(contaSegura.cpf);
+      _emailAtivo =
+          contaSegura.emails.isNotEmpty ? contaSegura.emails.first : null;
+      await AuthContaSincronizacaoHelper.ativarSessaoLocal(contaSegura);
       await carregarDadosReveladosDono(contaSegura.cpf);
-      ClienteRedeLocal().atualizarIdentidadeUsuario(
-        cpf: contaSegura.cpf,
-        nome: contaSegura.nome,
-        apelido: contaSegura.apelido,
-        foto: contaSegura.foto,
-      );
-      ServidorRedeLocal().atualizarOperadorBalcao(contaSegura);
       _carregando = false;
       notifyListeners();
 
-      // Enriquecimento e sincronização em background com o balcão via rede Wi-Fi local
-      unawaited(() async {
-        try {
-          final remoto = await ClienteRedeLocal().buscarUsuarioRemoto(_cpf);
-          if (remoto != null && _contaAtual != null && _contaAtual!.cpf == _cpf) {
-            final contaAtualizada = _contaAtual!.mesclarCom(
-              remoto,
-              priorizarOutro: true,
-            );
-            await ContasNousService.salvar(contaAtualizada);
+      unawaited(
+        AuthContaSincronizacaoHelper.mesclarComRemotoEmBackground(
+          cpf: _cpf,
+          obterContaAtual: () => _contaAtual,
+          aoAtualizar: (contaAtualizada) {
             _contaAtual = contaAtualizada;
             atualizarContaNoCache(contaAtualizada);
-            ClienteRedeLocal().atualizarIdentidadeUsuario(
-              cpf: contaAtualizada.cpf,
-              nome: contaAtualizada.nome,
-              apelido: contaAtualizada.apelido,
-              foto: contaAtualizada.foto,
-            );
-            notifyListeners();
-          }
-        } catch (_) {}
-      }());
-
+          },
+        ),
+      );
       return true;
     }
 
-    // Se a conta não existe localmente, consulta o balcão via rede Wi-Fi local para enriquecer
-    try {
-      final remoto = await ClienteRedeLocal().buscarUsuarioRemoto(_cpf);
-      if (remoto != null) {
-        conta = remoto;
-        await ContasNousService.salvar(conta);
-        debugPrint(
-          '[AuthProvider] Conta recuperada do balcão Wi-Fi para CPF $_cpf (${conta.nome})',
-        );
-      }
-    } catch (e) {
-      debugPrint('[AuthProvider] Erro ao buscar usuário remoto: $e');
-    }
-
+    final conta =
+        await AuthContaSincronizacaoHelper.buscarUsuarioRemotoESalvar(_cpf);
     _contaAtual = conta;
     _emailAtivo = (conta != null && conta.emails.isNotEmpty)
         ? conta.emails.first
         : null;
 
     if (conta != null) {
-      await ThemeController.carregarTemaDoUsuario(conta.cpf);
+      await AuthContaSincronizacaoHelper.ativarSessaoLocal(conta);
       await carregarDadosReveladosDono(conta.cpf);
-      ClienteRedeLocal().atualizarIdentidadeUsuario(
-        cpf: conta.cpf,
-        nome: conta.nome,
-        apelido: conta.apelido,
-        foto: conta.foto,
-      );
-      ServidorRedeLocal().atualizarOperadorBalcao(conta);
     }
 
     _carregando = false;
     notifyListeners();
-
     return conta != null;
+  }
+
+  Future<void> _finalizarAssociacaoConta(
+    UsuarioNous contaBase, {
+    bool atualizarCache = false,
+  }) async {
+    final contaComChave =
+        await AuthContaSincronizacaoHelper.garantirChavesCriptografia(
+      contaBase,
+    );
+    await ContasNousService.salvar(contaComChave, permitirReativacao: true);
+
+    _contaAtual = contaComChave;
+    _emailAtivo = null;
+    if (atualizarCache) {
+      atualizarContaNoCache(contaComChave);
+    }
+    await AuthContaSincronizacaoHelper.ativarSessaoLocal(contaComChave);
+    await carregarDadosReveladosDono(_cpf);
+    _propagarUsuarioAtualizado(contaComChave);
+    notifyListeners();
   }
 
   Future<void> associarConta({
@@ -338,37 +234,18 @@ class AuthProvider extends ChangeNotifier {
       apelido: nome.trim(),
       dataNascimento: dataNascimento.trim(),
     );
-
-    final chavePub = await CriptografiaService.obterOuGerarChavePublica(_cpf);
-    final chaveTroca = await CriptografiaService.obterOuGerarChaveTroca(_cpf);
-    final contaComChave = conta.copyWith(
-      chavePublica: chavePub,
-      chaveTrocaPublica: chaveTroca,
-    );
-
-    await ContasNousService.salvar(contaComChave, permitirReativacao: true);
-
-    _contaAtual = contaComChave;
-    _emailAtivo = null;
-    atualizarContaNoCache(contaComChave);
-    await ThemeController.carregarTemaDoUsuario(_cpf);
-    await carregarDadosReveladosDono(_cpf);
-    ClienteRedeLocal().atualizarIdentidadeUsuario(
-      cpf: contaComChave.cpf,
-      nome: contaComChave.nome,
-      apelido: contaComChave.apelido,
-      foto: contaComChave.foto,
-    );
-    ServidorRedeLocal().atualizarOperadorBalcao(contaComChave);
-    _propagarUsuarioAtualizado(contaComChave);
-    notifyListeners();
+    await _finalizarAssociacaoConta(conta, atualizarCache: true);
   }
 
-  Future<void> associarContaComApelido(String apelido, [String? nomeDeUsuario]) async {
+  Future<void> associarContaComApelido(
+    String apelido, [
+    String? nomeDeUsuario,
+  ]) async {
     final apelidoLimpo = apelido.trim();
-    final usernameLimpo = (nomeDeUsuario != null && nomeDeUsuario.trim().isNotEmpty)
-        ? nomeDeUsuario.trim().toLowerCase().replaceAll(RegExp(r'\s+'), '')
-        : '';
+    final usernameLimpo =
+        (nomeDeUsuario != null && nomeDeUsuario.trim().isNotEmpty)
+            ? nomeDeUsuario.trim().toLowerCase().replaceAll(RegExp(r'\s+'), '')
+            : '';
     final conta = UsuarioNous(
       cpf: _cpf,
       nome: apelidoLimpo,
@@ -376,29 +253,7 @@ class AuthProvider extends ChangeNotifier {
       nomeDeUsuario: usernameLimpo,
       dataNascimento: '',
     );
-
-    final chavePub = await CriptografiaService.obterOuGerarChavePublica(_cpf);
-    final chaveTroca = await CriptografiaService.obterOuGerarChaveTroca(_cpf);
-    final contaComChave = conta.copyWith(
-      chavePublica: chavePub,
-      chaveTrocaPublica: chaveTroca,
-    );
-
-    await ContasNousService.salvar(contaComChave, permitirReativacao: true);
-
-    _contaAtual = contaComChave;
-    _emailAtivo = null;
-    await ThemeController.carregarTemaDoUsuario(_cpf);
-    await carregarDadosReveladosDono(_cpf);
-    ClienteRedeLocal().atualizarIdentidadeUsuario(
-      cpf: contaComChave.cpf,
-      nome: contaComChave.nome,
-      apelido: contaComChave.apelido,
-      foto: contaComChave.foto,
-    );
-    ServidorRedeLocal().atualizarOperadorBalcao(contaComChave);
-    _propagarUsuarioAtualizado(contaComChave);
-    notifyListeners();
+    await _finalizarAssociacaoConta(conta);
   }
 
   Future<void> registrarNovaContaCompleta({
@@ -412,76 +267,38 @@ class AuthProvider extends ChangeNotifier {
     String termosAceitosEm = '',
   }) async {
     _modoVisitante = false;
-    final apelidoLimpo = apelido.trim().isNotEmpty ? apelido.trim() : nome.trim();
-    final usernameLimpo = nomeDeUsuario
-        .trim()
-        .toLowerCase()
-        .replaceAll(RegExp(r'\s+'), '')
-        .replaceAll('@', '');
-    final hojeIso = DateTime.now().toIso8601String();
-
-    final conta = UsuarioNous(
+    final conta = AuthContaSincronizacaoHelper.montarNovaContaCompleta(
       cpf: _cpf,
-      nome: nome.trim(),
-      apelido: apelidoLimpo,
-      nomeDeUsuario: usernameLimpo,
-      dataNascimento: '',
-      foto: foto.trim(),
-      fotoPublica: foto.trim(),
-      biografia: biografia.trim(),
+      nome: nome,
+      apelido: apelido,
+      nomeDeUsuario: nomeDeUsuario,
+      foto: foto,
+      biografia: biografia,
       dadosPrivados: dadosPrivados,
-      criadoEm: hojeIso,
-      validadoPorNome: 'Rede Soberana Nous',
-      validadoEm: hojeIso,
-      verificado: true,
       termosAceitosVersao: termosAceitosVersao,
       termosAceitosEm: termosAceitosEm,
     );
+    await _finalizarAssociacaoConta(conta);
+  }
 
-    final chavePub = await CriptografiaService.obterOuGerarChavePublica(_cpf);
-    final chaveTroca = await CriptografiaService.obterOuGerarChaveTroca(_cpf);
-    final contaComChave = conta.copyWith(
-      chavePublica: chavePub,
-      chaveTrocaPublica: chaveTroca,
+  Future<void> _salvarAtualizacao(UsuarioNous atualizado) async {
+    _contaAtual = await AuthPerfilOperacoesHelper.salvarEPropagar(
+      atualizado,
+      _propagarUsuarioAtualizado,
     );
-
-    await ContasNousService.salvar(contaComChave, permitirReativacao: true);
-
-    _contaAtual = contaComChave;
-    _emailAtivo = null;
-    await ThemeController.carregarTemaDoUsuario(_cpf);
-    await carregarDadosReveladosDono(_cpf);
-    ClienteRedeLocal().atualizarIdentidadeUsuario(
-      cpf: contaComChave.cpf,
-      nome: contaComChave.nome,
-      apelido: contaComChave.apelido,
-      foto: contaComChave.foto,
-    );
-    ServidorRedeLocal().atualizarOperadorBalcao(contaComChave);
-    _propagarUsuarioAtualizado(contaComChave);
     notifyListeners();
   }
 
   Future<void> atualizarNome(String novoNome) async {
     final conta = _contaAtual;
     if (conta == null) return;
-
-    final atualizado = conta.copyWith(nome: novoNome.trim());
-    await ContasNousService.salvar(atualizado);
-    _contaAtual = atualizado;
-    _propagarUsuarioAtualizado(atualizado);
-    notifyListeners();
+    await _salvarAtualizacao(conta.copyWith(nome: novoNome.trim()));
   }
 
   Future<void> atualizarApelido(String novoApelido) async {
     final conta = _contaAtual;
     if (conta == null) return;
-
-    final atualizado = conta.copyWith(apelido: novoApelido.trim());
-    await ContasNousService.salvar(atualizado);
-    _contaAtual = atualizado;
-    _propagarUsuarioAtualizado(atualizado);
-    notifyListeners();
+    await _salvarAtualizacao(conta.copyWith(apelido: novoApelido.trim()));
   }
 
   Future<void> atualizarPerfilSocial({
@@ -494,21 +311,19 @@ class AuthProvider extends ChangeNotifier {
   }) async {
     final conta = _contaAtual;
     if (conta == null) return;
-
-    final atualizado = conta.copyWith(
-      nomePublico: nome.trim(),
-      apelidoPublico: apelido.trim(),
-      biografia: biografia.trim(),
-      fotoPublica: foto != null ? foto.trim() : conta.fotoPublica,
-      links: links ?? conta.links,
-      coresPerfil: coresPerfil ?? conta.coresPerfil,
+    _contaAtual = await AuthPerfilOperacoesHelper.atualizarPerfilSocial(
+      conta: conta,
+      nome: nome,
+      apelido: apelido,
+      biografia: biografia,
+      foto: foto,
+      links: links,
+      coresPerfil: coresPerfil,
+      propagarUsuarioAtualizado: _propagarUsuarioAtualizado,
     );
-    await ContasNousService.salvar(atualizado);
-    _contaAtual = atualizado;
     if (foto != null && foto.trim().isNotEmpty) {
       _fotosPorCpf[conta.cpf] = foto.trim();
     }
-    _propagarUsuarioAtualizado(atualizado);
     notifyListeners();
   }
 
@@ -516,14 +331,7 @@ class AuthProvider extends ChangeNotifier {
     final cpfLimpo = CpfValidator.onlyDigits(usuario.cpf);
     _contasPorCpf[cpfLimpo] = usuario;
     _contasPorCpf[usuario.cpf] = usuario;
-    if (ClienteRedeLocal().conectado) {
-      ClienteRedeLocal().enviarUsuario(usuario);
-    } else if (ServidorRedeLocal().ativo) {
-      ServidorRedeLocal().notificarTodos({
-        'tipo': 'usuario_atualizado',
-        'usuario': usuario.toJson(),
-      });
-    }
+    AuthContaSincronizacaoHelper.propagarUsuarioNaRede(usuario);
   }
 
   /// Atualiza e propaga na rede a organização das timelines e modo galeria do perfil.
@@ -533,57 +341,33 @@ class AuthProvider extends ChangeNotifier {
   }) async {
     final conta = _contaAtual;
     if (conta == null) return;
-    final atualizado = conta.copyWith(
-      timelinesVisiveis: timelinesVisiveis ?? conta.timelinesVisiveis,
-      modoFotosGaleria: modoFotosGaleria ?? conta.modoFotosGaleria,
+    await _salvarAtualizacao(
+      conta.copyWith(
+        timelinesVisiveis: timelinesVisiveis ?? conta.timelinesVisiveis,
+        modoFotosGaleria: modoFotosGaleria ?? conta.modoFotosGaleria,
+      ),
     );
-    await ContasNousService.salvar(atualizado);
-    _contaAtual = atualizado;
-    _propagarUsuarioAtualizado(atualizado);
-    notifyListeners();
   }
 
-  Future<void> alternarBloquearUsuario(String cpfAlvo) async {
+  Future<void> _alternarListaCpf(String cpfAlvo, {required bool bloquear}) async {
     final conta = _contaAtual;
     if (conta == null) return;
-    final alvo = CpfValidator.onlyDigits(cpfAlvo);
-    if (alvo.isEmpty || alvo == CpfValidator.onlyDigits(conta.cpf)) return;
-
-    final bloqueados = List<String>.from(conta.contasBloqueadas);
-    final jaBloqueado =
-        bloqueados.any((c) => CpfValidator.onlyDigits(c) == alvo);
-    if (jaBloqueado) {
-      bloqueados.removeWhere((c) => CpfValidator.onlyDigits(c) == alvo);
-    } else {
-      bloqueados.add(alvo);
-    }
-    final atualizado = conta.copyWith(contasBloqueadas: bloqueados);
-    await ContasNousService.salvar(atualizado);
+    final atualizado = await AuthPerfilOperacoesHelper.alternarListaCpf(
+      conta: conta,
+      cpfAlvo: cpfAlvo,
+      bloquear: bloquear,
+      propagarUsuarioAtualizado: _propagarUsuarioAtualizado,
+    );
+    if (atualizado == null) return;
     _contaAtual = atualizado;
-    _propagarUsuarioAtualizado(atualizado);
     notifyListeners();
   }
 
-  Future<void> alternarSilenciarUsuario(String cpfAlvo) async {
-    final conta = _contaAtual;
-    if (conta == null) return;
-    final alvo = CpfValidator.onlyDigits(cpfAlvo);
-    if (alvo.isEmpty || alvo == CpfValidator.onlyDigits(conta.cpf)) return;
+  Future<void> alternarBloquearUsuario(String cpfAlvo) =>
+      _alternarListaCpf(cpfAlvo, bloquear: true);
 
-    final silenciados = List<String>.from(conta.contasSilenciadas);
-    final jaSilenciado =
-        silenciados.any((c) => CpfValidator.onlyDigits(c) == alvo);
-    if (jaSilenciado) {
-      silenciados.removeWhere((c) => CpfValidator.onlyDigits(c) == alvo);
-    } else {
-      silenciados.add(alvo);
-    }
-    final atualizado = conta.copyWith(contasSilenciadas: silenciados);
-    await ContasNousService.salvar(atualizado);
-    _contaAtual = atualizado;
-    _propagarUsuarioAtualizado(atualizado);
-    notifyListeners();
-  }
+  Future<void> alternarSilenciarUsuario(String cpfAlvo) =>
+      _alternarListaCpf(cpfAlvo, bloquear: false);
 
   void definirEmailAtivo(String? email) {
     _emailAtivo = email;
@@ -597,38 +381,16 @@ class AuthProvider extends ChangeNotifier {
     final conta = _contaAtual;
     if (conta == null) return 'Nenhuma conta carregada.';
 
-    final emailLimpo = email.trim().toLowerCase();
-    if (emailLimpo.isEmpty || !emailLimpo.contains('@')) {
-      return 'Informe um e-mail válido.';
-    }
-
-    final jaExisteNaConta = conta.emails.any(
-      (e) => e.trim().toLowerCase() == emailLimpo,
+    final resultado = await AuthEmailsHelper.adicionarEmail(
+      conta: conta,
+      email: email,
+      verificadoGoogle: verificadoGoogle,
+      propagarUsuarioAtualizado: _propagarUsuarioAtualizado,
     );
-    if (jaExisteNaConta && !verificadoGoogle) {
-      return 'Este e-mail já está nesta conta.';
-    }
+    if (resultado.erro != null) return resultado.erro;
 
-    final donoAtual = await ContasNousService.buscarCpfDoEmail(emailLimpo);
-    if (donoAtual != null && donoAtual != conta.cpf) {
-      return 'Este e-mail já está associado a outro CPF.';
-    }
-
-    final novosEmails = jaExisteNaConta
-        ? conta.emails
-        : [...conta.emails, emailLimpo];
-    final novosVerificados = verificadoGoogle && !conta.emailEstaVerificado(emailLimpo)
-        ? [...conta.emailsVerificados, emailLimpo]
-        : conta.emailsVerificados;
-
-    final atualizado = conta.copyWith(
-      emails: novosEmails,
-      emailsVerificados: novosVerificados,
-    );
-    await ContasNousService.salvar(atualizado);
-    _contaAtual = atualizado;
-    _emailAtivo ??= emailLimpo;
-    _propagarUsuarioAtualizado(atualizado);
+    _contaAtual = resultado.contaAtualizada;
+    _emailAtivo ??= email.trim().toLowerCase();
     notifyListeners();
     return null;
   }
@@ -636,43 +398,27 @@ class AuthProvider extends ChangeNotifier {
   Future<void> marcarEmailComoVerificadoGoogle(String email) async {
     final conta = _contaAtual;
     if (conta == null) return;
-    final emailLimpo = email.trim().toLowerCase();
-    if (emailLimpo.isEmpty || conta.emailEstaVerificado(emailLimpo)) return;
-
-    final novosEmails = conta.emails.any((e) => e.trim().toLowerCase() == emailLimpo)
-        ? conta.emails
-        : [...conta.emails, emailLimpo];
-    final atualizado = conta.copyWith(
-      emails: novosEmails,
-      emailsVerificados: [...conta.emailsVerificados, emailLimpo],
+    final atualizado = await AuthEmailsHelper.marcarEmailComoVerificadoGoogle(
+      conta: conta,
+      email: email,
+      propagarUsuarioAtualizado: _propagarUsuarioAtualizado,
     );
-    await ContasNousService.salvar(atualizado);
+    if (atualizado == null) return;
     _contaAtual = atualizado;
-    _propagarUsuarioAtualizado(atualizado);
     notifyListeners();
   }
 
   Future<void> removerEmail(String email) async {
     final conta = _contaAtual;
     if (conta == null) return;
-
-    final emailLimpo = email.trim().toLowerCase();
-    final novosEmails =
-        conta.emails.where((e) => e.trim().toLowerCase() != emailLimpo).toList();
-    final novosVerificados = conta.emailsVerificados
-        .where((e) => e.trim().toLowerCase() != emailLimpo)
-        .toList();
-    final atualizado = conta.copyWith(
-      emails: novosEmails,
-      emailsVerificados: novosVerificados,
+    final resultado = await AuthEmailsHelper.removerEmail(
+      conta: conta,
+      email: email,
+      emailAtivoAtual: _emailAtivo,
+      propagarUsuarioAtualizado: _propagarUsuarioAtualizado,
     );
-    await ContasNousService.salvar(atualizado);
-    _contaAtual = atualizado;
-
-    if (_emailAtivo?.trim().toLowerCase() == emailLimpo) {
-      _emailAtivo = novosEmails.isEmpty ? null : novosEmails.first;
-    }
-    _propagarUsuarioAtualizado(atualizado);
+    _contaAtual = resultado.contaAtualizada;
+    _emailAtivo = resultado.novoEmailAtivo;
     notifyListeners();
   }
 
@@ -683,53 +429,23 @@ class AuthProvider extends ChangeNotifier {
     if (cpfLimpo.isEmpty) return;
 
     final contaExistente =
-        buscarContaPorCpf(cpfLimpo) ?? await ContasNousService.buscarPorCpf(cpfLimpo);
-    final regExcluida = contaExistente != null
-        ? await ContasExcluidasService.registrarExclusao(contaExistente)
-        : null;
+        buscarContaPorCpf(cpfLimpo) ??
+        await ContasNousService.buscarPorCpf(cpfLimpo);
 
-    await ContasNousService.excluir(cpfLimpo);
-
-    try {
-      final coletiva = await LojasService.carregarLojaPorId('loja_nous_coletiva');
-      if (coletiva != null) {
-        final membrosAtualizados = coletiva.membros
-            .where((m) => m.cpf.replaceAll(RegExp(r'\D'), '') != cpfLimpo)
-            .toList();
-        if (membrosAtualizados.length != coletiva.membros.length) {
-          await LojasService.salvarLojaIndividual(
-            coletiva.copyWith(membros: membrosAtualizados),
-          );
-        }
-      }
-    } catch (_) {}
-
-    final prefs = await SharedPreferences.getInstance();
-    final ultimo = prefs.getString(_chaveUltimoCpf);
-    if (ultimo != null &&
-        ultimo.replaceAll(RegExp(r'\D'), '') == cpfLimpo) {
-      await prefs.remove(_chaveUltimoCpf);
-    }
+    await AuthContaSincronizacaoHelper.excluirContaLocalERede(
+      cpfLimpo: cpfLimpo,
+      contaExistente: contaExistente,
+      chaveUltimoCpf: _chaveUltimoCpf,
+    );
 
     _fotosPorCpf.remove(cpfLimpo);
     _fotosPorCpf.remove(cpfReal);
     _contasPorCpf.remove(cpfLimpo);
     _contasPorCpf.remove(cpfReal);
 
-    final evento = <String, dynamic>{
-      'tipo': 'usuario_nous_excluido',
-      'cpf': cpfLimpo,
-      if (regExcluida != null) 'registro': regExcluida.toJson(),
-    };
-    if (ClienteRedeLocal().conectado) {
-      ClienteRedeLocal().enviarEventoWs(evento);
-    } else if (ServidorRedeLocal().ativo) {
-      ServidorRedeLocal().notificarTodos(evento);
-    }
-
     await carregarCacheContas();
-    final eraContaAtual = c != null &&
-        CpfValidator.onlyDigits(c.cpf) == cpfLimpo;
+    final eraContaAtual =
+        c != null && CpfValidator.onlyDigits(c.cpf) == cpfLimpo;
     if (eraContaAtual) {
       sair();
     } else {
@@ -755,59 +471,37 @@ class AuthProvider extends ChangeNotifier {
   Future<void> atualizarNomeDeUsuario(String novoUsername) async {
     final conta = _contaAtual;
     if (conta == null) return;
-
     final limpo = novoUsername.trim().toLowerCase().replaceAll('@', '');
-    final atualizado = conta.copyWith(nomeDeUsuario: limpo);
-    await ContasNousService.salvar(atualizado);
-    _contaAtual = atualizado;
-    _propagarUsuarioAtualizado(atualizado);
-    notifyListeners();
+    await _salvarAtualizacao(conta.copyWith(nomeDeUsuario: limpo));
   }
 
   Future<void> alternarPrivacidadeDado(String chave, [bool? privado]) async {
     final conta = _contaAtual;
     if (conta == null) return;
-
-    final novaLista = List<String>.from(conta.dadosPrivados);
-    final deveFicarPrivado = privado ?? !novaLista.contains(chave);
-    if (deveFicarPrivado) {
-      if (!novaLista.contains(chave)) novaLista.add(chave);
-    } else {
-      novaLista.remove(chave);
-    }
-
-    final atualizado = conta.copyWith(dadosPrivados: novaLista);
-    await ContasNousService.salvar(atualizado);
-    _contaAtual = atualizado;
-    _propagarUsuarioAtualizado(atualizado);
+    _contaAtual = await AuthPerfilOperacoesHelper.alternarPrivacidadeDado(
+      conta: conta,
+      chave: chave,
+      privado: privado,
+      propagarUsuarioAtualizado: _propagarUsuarioAtualizado,
+    );
     notifyListeners();
   }
 
   Future<void> atualizarQuemPodeEnviarMensagens(String opcao) async {
     final conta = _contaAtual;
     if (conta == null) return;
-    final atualizado = conta.copyWith(quemPodeEnviarMensagens: opcao);
-    await ContasNousService.salvar(atualizado);
-    _contaAtual = atualizado;
-    _propagarUsuarioAtualizado(atualizado);
-    notifyListeners();
+    await _salvarAtualizacao(conta.copyWith(quemPodeEnviarMensagens: opcao));
   }
 
   Future<void> autorizarAcessoDado(String cpfSolicitante, String chave) async {
     final conta = _contaAtual;
     if (conta == null) return;
-
-    final solicitanteLimpo = cpfSolicitante.replaceAll(RegExp(r'\D'), '');
-    final chavePermissao = '$solicitanteLimpo:$chave';
-    final novaLista = List<String>.from(conta.dadosAutorizadosPorCpf);
-    if (!novaLista.contains(chavePermissao)) {
-      novaLista.add(chavePermissao);
-    }
-
-    final atualizado = conta.copyWith(dadosAutorizadosPorCpf: novaLista);
-    await ContasNousService.salvar(atualizado);
-    _contaAtual = atualizado;
-    _propagarUsuarioAtualizado(atualizado);
+    _contaAtual = await AuthPerfilOperacoesHelper.autorizarAcessoDado(
+      conta: conta,
+      cpfSolicitante: cpfSolicitante,
+      chave: chave,
+      propagarUsuarioAtualizado: _propagarUsuarioAtualizado,
+    );
     notifyListeners();
   }
 
@@ -825,23 +519,13 @@ class AuthProvider extends ChangeNotifier {
   Future<void> atualizarFoto(String novaFoto) async {
     final conta = _contaAtual;
     if (conta == null) return;
-
-    final atualizado = conta.copyWith(foto: novaFoto);
-    await ContasNousService.salvar(atualizado);
-    _contaAtual = atualizado;
+    _contaAtual = await AuthPerfilOperacoesHelper.atualizarFoto(
+      conta: conta,
+      novaFoto: novaFoto,
+      ehFotoPublica: false,
+      propagarUsuarioAtualizado: _propagarUsuarioAtualizado,
+    );
     _fotosPorCpf[conta.cpf] = novaFoto;
-    if (novaFoto.isNotEmpty &&
-        !ClienteRedeLocal().conectado &&
-        !ServidorRedeLocal().ativo) {
-      unawaited(
-        OutboxMidiaService.enfileirar(
-          entidadeTipo: 'usuario',
-          entidadeId: conta.cpf,
-          caminhoLocal: novaFoto,
-        ),
-      );
-    }
-    _propagarUsuarioAtualizado(atualizado);
     notifyListeners();
   }
 
@@ -850,23 +534,14 @@ class AuthProvider extends ChangeNotifier {
   Future<void> atualizarFotoPublica(String novaFoto) async {
     final conta = _contaAtual;
     if (conta == null) return;
-
-    final atualizado = conta.copyWith(fotoPublica: novaFoto.trim());
-    await ContasNousService.salvar(atualizado);
+    final atualizado = await AuthPerfilOperacoesHelper.atualizarFoto(
+      conta: conta,
+      novaFoto: novaFoto,
+      ehFotoPublica: true,
+      propagarUsuarioAtualizado: _propagarUsuarioAtualizado,
+    );
     _contaAtual = atualizado;
     _fotosPorCpf[conta.cpf] = atualizado.fotoExibicao;
-    if (novaFoto.trim().isNotEmpty &&
-        !ClienteRedeLocal().conectado &&
-        !ServidorRedeLocal().ativo) {
-      unawaited(
-        OutboxMidiaService.enfileirar(
-          entidadeTipo: 'usuario',
-          entidadeId: conta.cpf,
-          caminhoLocal: novaFoto.trim(),
-        ),
-      );
-    }
-    _propagarUsuarioAtualizado(atualizado);
     notifyListeners();
   }
 
@@ -877,18 +552,14 @@ class AuthProvider extends ChangeNotifier {
   }) async {
     final conta = _contaAtual;
     if (conta == null) return;
-
-    final limpo = texto.trim();
-    final atualizado = conta.copyWith(
-      notaPensamento: limpo,
-      notaPensamentoCriadaEm:
-          limpo.isEmpty ? '' : DateTime.now().toIso8601String(),
-      notaPensamentoMusica: limpo.isEmpty ? '' : musica.trim(),
+    final atualizado = await AuthPerfilOperacoesHelper.atualizarNotaPensamento(
+      conta: conta,
+      texto: texto,
+      musica: musica,
+      propagarUsuarioAtualizado: _propagarUsuarioAtualizado,
     );
-    await ContasNousService.salvar(atualizado);
     atualizarContaNoCache(atualizado);
     _contaAtual = atualizado;
-    _propagarUsuarioAtualizado(atualizado);
     notifyListeners();
   }
 
@@ -909,33 +580,30 @@ class AuthProvider extends ChangeNotifier {
     String? localNascimento,
     String? tipoSanguineo,
     String? estadoCivil,
+    String? cepResidencial,
+    String? enderecoResidencial,
   }) async {
     final conta = _contaAtual;
     if (conta == null) return;
-
-    final atualizado = conta.copyWith(
+    _contaAtual = await AuthPerfilOperacoesHelper.atualizarDadosPessoais(
+      conta: conta,
       dataNascimento: dataNascimento,
       nomePai: nomePai,
       nomeMae: nomeMae,
       localNascimento: localNascimento,
       tipoSanguineo: tipoSanguineo,
       estadoCivil: estadoCivil,
+      cepResidencial: cepResidencial,
+      enderecoResidencial: enderecoResidencial,
+      propagarUsuarioAtualizado: _propagarUsuarioAtualizado,
     );
-    await ContasNousService.salvar(atualizado);
-    _contaAtual = atualizado;
-    _propagarUsuarioAtualizado(atualizado);
     notifyListeners();
   }
 
   Future<void> revogarAcessoDado(String chave, String cpfAlvo) async {
     final conta = _contaAtual;
     if (conta == null) return;
-
-    final atualizado = conta.revogarAutorizacao(chave, cpfAlvo);
-    await ContasNousService.salvar(atualizado);
-    _contaAtual = atualizado;
-    _propagarUsuarioAtualizado(atualizado);
-    notifyListeners();
+    await _salvarAtualizacao(conta.revogarAutorizacao(chave, cpfAlvo));
   }
 
   Future<void> recarregarConta() async {

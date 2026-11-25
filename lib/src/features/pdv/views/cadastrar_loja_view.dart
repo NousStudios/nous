@@ -88,6 +88,8 @@ class _CadastrarLojaViewState extends State<CadastrarLojaView> {
       telefone: _controllers.telefone.text,
       endereco: _controllers.endereco.text,
       numero: _controllers.numero.text,
+      cidade: _controllers.cidade.text,
+      cep: _controllers.cep.text,
       email: _controllers.email.text,
       categorias: _controllers.categorias.text,
       tags: _controllers.tags.text,

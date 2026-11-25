@@ -1,222 +1,46 @@
-import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 import 'package:flutter/widgets.dart';
 import 'package:path/path.dart' as p;
-import 'package:path_provider/path_provider.dart';
-import 'package:nous/src/core/services/banco_dados_service.dart';
 import 'package:nous/src/core/services/gerador_id.dart';
+import 'package:nous/src/features/pdv/services/helpers/imagem_caminhos_helper.dart';
+import 'package:nous/src/features/pdv/services/helpers/imagem_limpeza_helper.dart';
 
 class ImagemService {
   ImagemService._();
 
   static const int limiteBytesMeioGiga = 500 * 1024 * 1024; // 500 MB (Meio giga)
-  static const Set<String> extensoesImagem = {'jpg', 'jpeg', 'png', 'webp', 'gif', 'bmp'};
-
-  static Directory? _diretorioBaseCache;
-  static final Map<String, String?> _cacheResolucaoCaminhos = {};
+  static const Set<String> extensoesImagem = ImagemCaminhosHelper.extensoesImagem;
 
   /// Limpa o cache em memória de resolução de caminhos (todo ou para uma chave).
-  static void invalidarCache([String? caminho]) {
-    if (caminho == null) {
-      _cacheResolucaoCaminhos.clear();
-    } else {
-      _cacheResolucaoCaminhos.remove(caminho.trim());
-    }
-  }
+  static void invalidarCache([String? caminho]) =>
+      ImagemCaminhosHelper.invalidarCache(caminho);
 
   /// Gera um nome de arquivo determinístico entre sessões e dispositivos
   /// usando hash FNV-1a 64-bit sobre UTF-8 (em vez de `String.hashCode`, que varia por execução).
   static String gerarNomeRemotoDeterministico(
     String chave,
     String extensao,
-  ) {
-    final extLimpa = extensao.replaceAll('.', '').toLowerCase();
-    final extensaoFinal =
-        extensoesImagem.contains(extLimpa) ? extLimpa : 'jpg';
-    final bytes = utf8.encode(chave.replaceAll('\\', '/').trim());
-    var hash = 0xcbf29ce484222325;
-    const prime = 0x100000001b3;
-    for (final b in bytes) {
-      hash ^= b;
-      hash = (hash * prime) & 0x7fffffffffffffff;
-    }
-    return 'remota_${hash.toRadixString(16).padLeft(15, '0')}.$extensaoFinal';
-  }
+  ) =>
+      ImagemCaminhosHelper.gerarNomeRemotoDeterministico(chave, extensao);
 
   static Future<void> inicializar() async {
     await obterDiretorioBase();
   }
 
-  static Future<Directory> obterDiretorioBase() async {
-    if (_diretorioBaseCache != null && await _diretorioBaseCache!.exists()) {
-      return _diretorioBaseCache!;
-    }
-    try {
-      final dirSuporte = await getApplicationSupportDirectory();
-      final pasta = Directory('${dirSuporte.path}/Nous');
-      if (!await pasta.exists()) {
-        await pasta.create(recursive: true);
-      }
-      _diretorioBaseCache = pasta;
-      return pasta;
-    } catch (_) {
-      String caminhoBase;
-      if (Platform.isWindows) {
-        final appData = Platform.environment['APPDATA'];
-        if (appData != null && appData.isNotEmpty) {
-          caminhoBase = '$appData/Nous';
-        } else {
-          caminhoBase = '${Directory.current.path}/.nous_data';
-        }
-      } else {
-        final home = Platform.environment['HOME'] ?? Directory.current.path;
-        caminhoBase = '$home/.nous';
-      }
-
-      final dir = Directory(caminhoBase);
-      if (!await dir.exists()) {
-        await dir.create(recursive: true);
-      }
-      _diretorioBaseCache = dir;
-      return dir;
-    }
-  }
+  static Future<Directory> obterDiretorioBase() =>
+      ImagemCaminhosHelper.obterDiretorioBase();
 
   /// Retorna todas as pastas possíveis onde imagens e anexos do aplicativo podem estar salvos
   /// (diretório atual oficial, diretórios legados do Windows e diretórios alternativos).
-  static List<Directory> obterDiretoriosPossiveisSync() {
-    final dirs = <Directory>[];
-
-    void adicionarComSubpastas(String base) {
-      dirs.add(Directory('$base/imagens'));
-      dirs.add(Directory('$base/audios'));
-      dirs.add(Directory('$base/timeline_midias'));
-      dirs.add(Directory('$base/anexos/timeline_midias'));
-      dirs.add(Directory('$base/anexos/musicas'));
-      dirs.add(Directory('$base/anexos/arquivosAudio'));
-      dirs.add(Directory('$base/anexos/galeria'));
-      dirs.add(Directory('$base/anexos/videos'));
-      dirs.add(Directory('$base/anexos/arquivos'));
-    }
-
-    if (_diretorioBaseCache != null) {
-      adicionarComSubpastas(_diretorioBaseCache!.path);
-    }
-
-    // 1. Diretórios padrão do Android
-    if (Platform.isAndroid) {
-      adicionarComSubpastas('/data/user/0/com.nous.app/files/Nous');
-      adicionarComSubpastas('/data/user/0/com.example.nous/files/Nous');
-      adicionarComSubpastas('/data/data/com.nous.app/files/Nous');
-      adicionarComSubpastas('/data/data/com.example.nous/files/Nous');
-      adicionarComSubpastas('/data/user/0/com.example.nous/app_flutter/Nous');
-      adicionarComSubpastas('/data/user/0/com.nous.app/app_flutter/Nous');
-      adicionarComSubpastas('/data/data/com.example.nous/app_flutter/Nous');
-      adicionarComSubpastas('/storage/emulated/0/Download/Nous_Imagens');
-    }
-
-    // 2. Tenta diretórios padrão do ambiente no Windows
-    if (Platform.isWindows) {
-      final appData = Platform.environment['APPDATA'];
-      if (appData != null && appData.isNotEmpty) {
-        adicionarComSubpastas('$appData/com.example/nous/Nous');
-        adicionarComSubpastas('$appData/com.nous.app/Nous');
-        adicionarComSubpastas('$appData/Nous');
-      }
-      final localAppData = Platform.environment['LOCALAPPDATA'];
-      if (localAppData != null && localAppData.isNotEmpty) {
-        adicionarComSubpastas('$localAppData/com.example/nous/Nous');
-        adicionarComSubpastas('$localAppData/Nous');
-      }
-    } else {
-      final home = Platform.environment['HOME'];
-      if (home != null && home.isNotEmpty) {
-        adicionarComSubpastas('$home/.nous');
-      }
-    }
-
-    adicionarComSubpastas('${Directory.current.path}/.nous_data');
-    return dirs;
-  }
+  static List<Directory> obterDiretoriosPossiveisSync() =>
+      ImagemCaminhosHelper.obterDiretoriosPossiveisSync();
 
   /// Resolve o caminho físico real de uma imagem ou anexo, mesmo que tenha sido salvo
   /// em diretório legado, em outra máquina com caminho diferente ou restaurado de backup.
-  static String? resolverCaminhoExistente(String? caminhoOriginal) {
-    if (caminhoOriginal == null || caminhoOriginal.trim().isEmpty) return null;
-    final limpo = caminhoOriginal.trim();
-
-    if (_cacheResolucaoCaminhos.containsKey(limpo)) {
-      final emCache = _cacheResolucaoCaminhos[limpo];
-      if (emCache != null && File(emCache).existsSync()) {
-        return emCache;
-      }
-      _cacheResolucaoCaminhos.remove(limpo);
-    }
-
-    String? resolvido;
-
-    // 1. Verifica no caminho exato fornecido
-    try {
-      final arqExato = File(limpo);
-      if (arqExato.existsSync() && arqExato.lengthSync() > 0) {
-        resolvido = arqExato.path;
-      }
-    } catch (_) {}
-
-    // 2. Normaliza separadores e tenta novamente
-    if (resolvido == null) {
-      try {
-        final normalizado = p.normalize(limpo);
-        final arqNorm = File(normalizado);
-        if (arqNorm.existsSync() && arqNorm.lengthSync() > 0) {
-          resolvido = arqNorm.path;
-        }
-      } catch (_) {}
-    }
-
-    // 3. Procura pelo nome do arquivo ou hash em todas as pastas possíveis de dados
-    if (resolvido == null) {
-      final limpoFormatado = limpo.replaceAll('\\', '/');
-      final nomeArquivo = p.basename(limpoFormatado);
-      if (nomeArquivo.isNotEmpty) {
-        final ext = p.extension(limpoFormatado).replaceAll('.', '').toLowerCase();
-        final extFinal = ext.isNotEmpty ? ext : 'jpg';
-        final candidatosNomes = [
-          nomeArquivo,
-          gerarNomeRemotoDeterministico(limpo, extFinal),
-          gerarNomeRemotoDeterministico(limpoFormatado, extFinal),
-          'remota_${limpo.hashCode.abs()}.$extFinal',
-          'remota_${limpoFormatado.hashCode.abs()}.$extFinal',
-          'remota_${nomeArquivo.hashCode.abs()}.$extFinal',
-        ];
-
-        final possiveis = obterDiretoriosPossiveisSync();
-        for (final dir in possiveis) {
-          try {
-            if (!dir.existsSync()) continue;
-            for (final n in candidatosNomes) {
-              final candidato = File(p.join(dir.path, n));
-              if (candidato.existsSync() && candidato.lengthSync() > 0) {
-                resolvido = candidato.path;
-                break;
-              }
-            }
-            if (resolvido != null) break;
-          } catch (_) {}
-        }
-      }
-    }
-
-    if (resolvido != null) {
-      if (_cacheResolucaoCaminhos.length > 500) {
-        _cacheResolucaoCaminhos.clear();
-      }
-      _cacheResolucaoCaminhos[limpo] = resolvido;
-    }
-    return resolvido;
-  }
+  static String? resolverCaminhoExistente(String? caminhoOriginal) =>
+      ImagemCaminhosHelper.resolverCaminhoExistente(caminhoOriginal);
 
   /// Retorna true se o caminho se refere a um asset embutido no aplicativo (ex.: assets/images/logo.png)
   static bool ehAsset(String? caminho) {
@@ -240,22 +64,11 @@ class ImagemService {
 
   /// Converte um caminho físico dentro da pasta base do Nous para um caminho
   /// relativo canônico portátil entre Android e Windows (ex.: `imagens/arq.jpg`).
-  static String paraCaminhoRelativoCanonico(String caminho) {
-    final norm = caminho.replaceAll('\\', '/').trim();
-    if (norm.isEmpty || ehAsset(norm)) return norm;
-    for (final marcador in [
-      '/Nous/imagens/',
-      '/Nous/timeline_midias/',
-      '/Nous/audios/',
-      '/Nous/anexos/',
-    ]) {
-      final idx = norm.indexOf(marcador);
-      if (idx != -1) {
-        return norm.substring(idx + '/Nous/'.length);
-      }
-    }
-    return norm;
-  }
+  static String paraCaminhoRelativoCanonico(String caminho) =>
+      ImagemCaminhosHelper.paraCaminhoRelativoCanonico(
+        caminho,
+        ehAsset: ehAsset(caminho),
+      );
 
   /// Retorna um ImageProvider pronto para uso (AssetImage para assets, FileImage para arquivos), ou null se a foto não existir
   static ImageProvider? obterImageProvider(
@@ -321,36 +134,8 @@ class ImagemService {
   }
 
   /// Consolida e unifica todas as imagens de pastas legadas para a pasta oficial atual.
-  static Future<void> unificarDiretoriosImagens() async {
-    try {
-      final base = await obterDiretorioBase();
-      final pastaOficial = Directory('${base.path}/imagens');
-      if (!await pastaOficial.exists()) {
-        await pastaOficial.create(recursive: true);
-      }
-
-      final caminhoOficialNorm = p.normalize(pastaOficial.path).toLowerCase();
-      final diretoriosLegados = obterDiretoriosPossiveisSync();
-
-      for (final dir in diretoriosLegados) {
-        try {
-          if (!await dir.exists()) continue;
-          final caminhoDirNorm = p.normalize(dir.path).toLowerCase();
-          if (caminhoDirNorm == caminhoOficialNorm) continue;
-
-          await for (final entidade in dir.list()) {
-            if (entidade is File) {
-              final nome = p.basename(entidade.path);
-              final destino = File(p.join(pastaOficial.path, nome));
-              if (!await destino.exists() || await destino.length() == 0) {
-                await entidade.copy(destino.path);
-              }
-            }
-          }
-        } catch (_) {}
-      }
-    } catch (_) {}
-  }
+  static Future<void> unificarDiretoriosImagens() =>
+      ImagemCaminhosHelper.unificarDiretoriosImagens();
 
   static bool extensaoImagemValida(String caminho) {
     final partes = caminho.split('.');
@@ -489,7 +274,10 @@ class ImagemService {
     }
   }
 
-  static Future<String?> salvarAnexoLocal(String caminhoOriginal, String categoria) async {
+  static Future<String?> salvarAnexoLocal(
+    String caminhoOriginal,
+    String categoria,
+  ) async {
     try {
       final arquivoOriginal = File(caminhoOriginal);
       if (!await arquivoOriginal.exists()) return null;
@@ -569,178 +357,21 @@ class ImagemService {
   }
 
   /// Calcula o tamanho total somado de todas as pastas de mídias e anexos do aplicativo
-  static Future<int> obterTamanhoTotalCacheBytes() async {
-    var totalBytes = 0;
-    final pastas = obterDiretoriosPossiveisSync();
-    for (final dir in pastas) {
-      try {
-        if (!await dir.exists()) continue;
-        await for (final entidade in dir.list(recursive: false, followLinks: false)) {
-          if (entidade is File) {
-            try {
-              totalBytes += await entidade.length();
-            } catch (_) {}
-          }
-        }
-      } catch (_) {}
-    }
-    return totalBytes;
-  }
+  static Future<int> obterTamanhoTotalCacheBytes() =>
+      ImagemLimpezaHelper.obterTamanhoTotalCacheBytes();
 
   /// Limpa arquivos temporários antigos e orfãos, garantindo respeito à cota máxima de disco
   static Future<int> limparArquivosTemporariosExpirados({
     Duration idadeMaxima = const Duration(days: 30),
     int limiteTotalBytes = limiteBytesMeioGiga,
-  }) async {
-    var bytesLiberados = 0;
-    try {
-      final base = await obterDiretorioBase();
-      final pastaTemp = Directory('${base.path}/temp');
-      final agora = DateTime.now();
-
-      if (await pastaTemp.exists()) {
-        await for (final entidade in pastaTemp.list()) {
-          if (entidade is File) {
-            try {
-              final stat = await entidade.stat();
-              if (agora.difference(stat.modified) > idadeMaxima) {
-                final len = await entidade.length();
-                await entidade.delete();
-                bytesLiberados += len;
-              }
-            } catch (_) {}
-          }
-        }
-      }
-
-      // Se o tamanho total de mídias exceder a cota, realiza limpeza LRU nas mídias remotas em cache
-      final tamanhoAtual = await obterTamanhoTotalCacheBytes();
-      if (tamanhoAtual > limiteTotalBytes) {
-        final arquivosRemotos = <File>[];
-        final pastas = obterDiretoriosPossiveisSync();
-        for (final dir in pastas) {
-          if (!await dir.exists()) continue;
-          await for (final entidade in dir.list()) {
-            if (entidade is File && p.basename(entidade.path).startsWith('remota_')) {
-              arquivosRemotos.add(entidade);
-            }
-          }
-        }
-
-        // Ordena pelos mais antigos primeiro (LRU)
-        arquivosRemotos.sort((a, b) {
-          try {
-            return a.lastModifiedSync().compareTo(b.lastModifiedSync());
-          } catch (_) {
-            return 0;
-          }
-        });
-
-        var tamanhoRestante = tamanhoAtual;
-        for (final arq in arquivosRemotos) {
-          if (tamanhoRestante <= limiteTotalBytes) break;
-          try {
-            final len = await arq.length();
-            await arq.delete();
-            bytesLiberados += len;
-            tamanhoRestante -= len;
-          } catch (_) {}
-        }
-      }
-    } catch (_) {}
-    return bytesLiberados;
-  }
+  }) =>
+      ImagemLimpezaHelper.limparArquivosTemporariosExpirados(
+        idadeMaxima: idadeMaxima,
+        limiteTotalBytes: limiteTotalBytes,
+      );
 
   /// Remove com segurança arquivos `remota_*` órfãos (não referenciados em nenhuma tabela do SQLite
   /// e com mais de 24h desde a última modificação), evitando acúmulo de duplicatas no disco.
-  static Future<int> limparMidiasRemotasOrfas() async {
-    var removidos = 0;
-    try {
-      final db = await BancoDadosService.db;
-      final lojasRows = await db.query('lojas', columns: ['id', 'dados_json']);
-      final contasRows =
-          await db.query('contas_usuarios', columns: ['cpf', 'dados_json']);
-      if (lojasRows.isEmpty && contasRows.isEmpty) return 0;
-
-      final buffer = StringBuffer();
-      for (final r in lojasRows) {
-        buffer.writeln(r['dados_json'] ?? '');
-      }
-      for (final r in contasRows) {
-        buffer.writeln(r['dados_json'] ?? '');
-      }
-
-      final nomesProtegidos = <String>{};
-      void registrarCaminhoProtegido(String caminhoBruto) {
-        final limpo = caminhoBruto.trim();
-        if (limpo.isEmpty) return;
-        final norm = limpo.replaceAll('\\', '/');
-        final base = p.basename(norm);
-        if (base.isNotEmpty) nomesProtegidos.add(base);
-        final ext = p.extension(norm).replaceAll('.', '').toLowerCase();
-        final extFinal = extensoesImagem.contains(ext) ? ext : 'jpg';
-        nomesProtegidos.add(gerarNomeRemotoDeterministico(limpo, extFinal));
-        nomesProtegidos.add(gerarNomeRemotoDeterministico(norm, extFinal));
-      }
-
-      for (final tabela in const [
-        'mensagens_chat',
-        'conversas_chat',
-        'pedidos',
-        'movimentos_estoque',
-        'pagamentos_funcionarios',
-        'convites',
-        'publicacoes_sociais',
-        'stories_sociais',
-      ]) {
-        try {
-          final rows = await db.query(tabela);
-          for (final r in rows) {
-            buffer.writeln(r.values.join(' '));
-            for (final v in r.values) {
-              if (v is String && (v.contains('/') || v.contains('\\') || v.contains('.'))) {
-                for (final match in RegExp(r'[\w\-./\\]+\.(?:jpg|jpeg|png|webp|gif|mp4|mp3|pdf)', caseSensitive: false).allMatches(v)) {
-                  registrarCaminhoProtegido(match.group(0)!);
-                }
-              }
-            }
-          }
-        } catch (_) {}
-      }
-
-      final tudoNoBanco = buffer.toString();
-      if (tudoNoBanco.isEmpty) return 0;
-
-      final base = await obterDiretorioBase();
-      final limiteIdade = DateTime.now().subtract(const Duration(hours: 24));
-      for (final sub in const ['imagens', 'anexos']) {
-        final pasta = Directory('${base.path}/$sub');
-        if (!await pasta.exists()) continue;
-        await for (final entidade
-            in pasta.list(recursive: true, followLinks: false)) {
-          if (entidade is! File) continue;
-          final nome = p.basename(entidade.path);
-          if (!nome.startsWith('remota_')) continue;
-          if (nomesProtegidos.contains(nome) || tudoNoBanco.contains(nome)) {
-            continue;
-          }
-          try {
-            final mod = await entidade.lastModified();
-            if (mod.isBefore(limiteIdade)) {
-              await entidade.delete();
-              removidos++;
-            }
-          } catch (_) {}
-        }
-      }
-
-      if (removidos > 0) {
-        debugPrint(
-          '[ImagemService] Limpeza de mídias órfãs removeu $removidos arquivo(s) remota_* sem referência.',
-        );
-      }
-    } catch (_) {}
-    return removidos;
-  }
+  static Future<int> limparMidiasRemotasOrfas() =>
+      ImagemLimpezaHelper.limparMidiasRemotasOrfas();
 }
-

@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
+import 'package:nous/src/core/services/atualizacao_service.dart';
 import 'package:nous/src/core/services/relogio_rede_service.dart';
 import 'package:nous/src/features/auth/models/usuario_nous.dart';
 import 'package:nous/src/features/auth/providers/auth_provider.dart';
@@ -524,6 +525,8 @@ class ServidorRedeLocal {
           nomeUsuario: nomeBalcao,
           apelido: usuarioLogado?.apelido,
           tipoConexao: 'membro',
+          versaoApp: AtualizacaoService.versaoAtual,
+          buildApp: AtualizacaoService.buildAtual,
         ),
       );
     }

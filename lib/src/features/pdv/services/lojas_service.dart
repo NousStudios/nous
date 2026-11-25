@@ -1,20 +1,18 @@
 import 'dart:convert';
-import 'dart:io';
 import 'package:flutter/foundation.dart';
-import 'package:path/path.dart' as p;
-import 'package:path_provider/path_provider.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import 'package:nous/src/core/services/banco_dados_service.dart';
 import 'package:nous/src/features/auth/services/contas_nous_service.dart';
 import 'package:nous/src/features/pdv/models/loja.dart';
 import 'package:nous/src/features/pdv/models/pedido_loja.dart';
 import 'package:nous/src/features/pdv/models/referencia_loja.dart';
-import 'package:nous/src/features/pdv/services/imagem_service.dart';
+import 'package:nous/src/features/pdv/services/loja/autocura_imagens_loja.dart';
 import 'package:nous/src/features/pdv/services/loja/sanitizador_imagens_loja.dart';
 import 'package:nous/src/features/pdv/services/loja/consolidador_loja_local.dart';
 import 'package:nous/src/features/pdv/services/loja/pedidos_repositorio_loja.dart';
 import 'package:nous/src/features/pdv/services/loja/movimentos_repositorio_loja.dart';
 import 'package:nous/src/features/pdv/services/loja/pagamentos_repositorio_loja.dart';
+import 'package:nous/src/features/pdv/services/loja/referencias_repositorio_loja.dart';
 
 class LojasService {
   LojasService._();
@@ -336,63 +334,27 @@ class LojasService {
     });
   }
 
-  static Future<List<ReferenciaLoja>> carregarReferencias(String cpf) async {
-    final db = await BancoDadosService.db;
-    final rows = await db.query(
-      'referencias_loja',
-      where: 'cpf = ?',
-      whereArgs: [cpf],
-    );
-    return rows
-        .map((r) =>
-            ReferenciaLoja.fromJson(jsonDecode(r['dados_json'] as String)))
-        .where((ref) => !ehLojaHostFalsa(ref.lojaId))
-        .toList();
-  }
+  static Future<List<ReferenciaLoja>> carregarReferencias(String cpf) =>
+      ReferenciasRepositorioLoja.carregar(cpf, ehHostFalsa: ehLojaHostFalsa);
 
   static Future<void> salvarReferencias(
     String cpf,
     List<ReferenciaLoja> referencias,
-  ) async {
-    final db = await BancoDadosService.db;
-    await db.transaction((txn) async {
-      await txn
-          .delete('referencias_loja', where: 'cpf = ?', whereArgs: [cpf]);
-      for (final ref in referencias) {
-        final refId = '$cpf-${ref.lojaId}';
-        await txn.insert(
-          'referencias_loja',
-          {
-            'id': refId,
-            'cpf': cpf,
-            'loja_id': ref.lojaId,
-            'dados_json': jsonEncode(ref.toJson()),
-          },
-          conflictAlgorithm: ConflictAlgorithm.replace,
-        );
-      }
-    });
-  }
+  ) =>
+      ReferenciasRepositorioLoja.salvar(cpf, referencias);
 
   static Future<void> adicionarReferencia(
     String cpf,
     ReferenciaLoja referencia,
-  ) async {
-    if (ehLojaHostFalsa(referencia.lojaId)) return;
-    final atuais = await carregarReferencias(cpf);
-    final jaTem = atuais.any((r) => r.lojaId == referencia.lojaId);
-    if (jaTem) return;
-    await salvarReferencias(cpf, [...atuais, referencia]);
-  }
+  ) =>
+      ReferenciasRepositorioLoja.adicionar(
+        cpf,
+        referencia,
+        ehHostFalsa: ehLojaHostFalsa,
+      );
 
-  static Future<void> removerReferencia(String cpf, String lojaId) async {
-    final db = await BancoDadosService.db;
-    await db.delete(
-      'referencias_loja',
-      where: 'cpf = ? AND loja_id = ?',
-      whereArgs: [cpf, lojaId],
-    );
-  }
+  static Future<void> removerReferencia(String cpf, String lojaId) =>
+      ReferenciasRepositorioLoja.remover(cpf, lojaId);
 
   /// Salva ou atualiza uma única loja de forma atômica e isolada no SQLite,
   /// sem recarregar nem tocar nas demais lojas do mesmo CPF dono.
@@ -484,238 +446,6 @@ class LojasService {
   /// esteja apontando para um caminho inexistente (como /data/user/... no Windows
   /// ou caminhos de outras máquinas), tenta localizá-la nas pastas locais de imagens
   /// e nos backups automáticos históricos, curando o banco de dados silenciosamente.
-  static Future<void> autocuraImagensDeLojas() async {
-    try {
-      final db = await BancoDadosService.db;
-      final rows = await db.query('lojas');
-      if (rows.isEmpty) return;
-
-      // 1. Localiza os backups mais recentes para caso precise consultar mapeamentos históricos
-      final backups = <File>[];
-      try {
-        final dirSuporte = await getApplicationSupportDirectory();
-        final pastaBackups = Directory(p.join(dirSuporte.path, 'Nous', 'backups'));
-        if (pastaBackups.existsSync()) {
-          final arqs = pastaBackups
-              .listSync()
-              .whereType<File>()
-              .where((f) => f.path.endsWith('.json'))
-              .toList();
-          arqs.sort((a, b) => b.lastModifiedSync().compareTo(a.lastModifiedSync()));
-          backups.addAll(arqs);
-        }
-      } catch (_) {}
-
-      // Também busca na pasta de backups legada se existir
-      if (Platform.isWindows) {
-        final appData = Platform.environment['APPDATA'];
-        if (appData != null && appData.isNotEmpty) {
-          final legada = Directory('$appData/com.example/nous/Nous/backups');
-          if (legada.existsSync()) {
-            final arqs = legada
-                .listSync()
-                .whereType<File>()
-                .where((f) => f.path.endsWith('.json'))
-                .toList();
-            arqs.sort((a, b) => b.lastModifiedSync().compareTo(a.lastModifiedSync()));
-            for (final a in arqs) {
-              if (!backups.any((b) => p.basename(b.path) == p.basename(a.path))) {
-                backups.add(a);
-              }
-            }
-          }
-        }
-      }
-
-      if (backups.length > 3) {
-        backups.sort((a, b) => b.lastModifiedSync().compareTo(a.lastModifiedSync()));
-        backups.removeRange(3, backups.length);
-      }
-      final cacheBackups = <String, Map<String, dynamic>>{};
-
-      for (final row in rows) {
-        final id = row['id'] as String;
-        final dadosJson = row['dados_json'] as String;
-        final map = jsonDecode(dadosJson) as Map<String, dynamic>;
-        var houveCorrecao = false;
-
-        // 1. Logo
-        final logoAtual = map['logo'] as String? ?? '';
-        if (logoAtual.isNotEmpty && !ImagemService.ehAsset(logoAtual)) {
-          final resolvida = ImagemService.resolverCaminhoExistente(logoAtual);
-          if (resolvida != null && resolvida != logoAtual) {
-            map['logo'] = resolvida;
-            houveCorrecao = true;
-          } else if (resolvida == null) {
-            final doBackup = await _buscarFotoNoBackup(backups, id, 'logo', null, cacheBackups);
-            if (doBackup != null) {
-              final resolvidaBackup = ImagemService.resolverCaminhoExistente(doBackup);
-              if (resolvidaBackup != null) {
-                map['logo'] = resolvidaBackup;
-                houveCorrecao = true;
-              }
-            }
-          }
-        }
-
-        // 2. Categorias
-        final cats = (map['categoriasLoja'] as List? ?? []);
-        for (final c in cats) {
-          final foto = c['foto'] as String? ?? '';
-          if (foto.isNotEmpty) {
-            final resolvida = ImagemService.resolverCaminhoExistente(foto);
-            if (resolvida != null && resolvida != foto) {
-              c['foto'] = resolvida;
-              houveCorrecao = true;
-            } else if (resolvida == null) {
-              final catId = c['id'] as String? ?? '';
-              final doBackup = await _buscarFotoNoBackup(backups, id, 'categoria', catId, cacheBackups);
-              if (doBackup != null) {
-                final resolvidaBackup = ImagemService.resolverCaminhoExistente(doBackup);
-                if (resolvidaBackup != null) {
-                  c['foto'] = resolvidaBackup;
-                  houveCorrecao = true;
-                }
-              }
-            }
-          }
-        }
-
-        // 3. Itens
-        final itens = (map['itensLoja'] as List? ?? []);
-        for (final it in itens) {
-          final imgs = (it['imagens'] as List? ?? []).map((e) => e.toString()).toList();
-          final novasImgs = <String>[];
-          var itemCorrigido = false;
-
-          for (final img in imgs) {
-            final resolvida = ImagemService.resolverCaminhoExistente(img);
-            if (resolvida != null) {
-              novasImgs.add(resolvida);
-              if (resolvida != img) itemCorrigido = true;
-            } else {
-              final itemId = it['id'] as String? ?? '';
-              final doBackup = await _buscarFotoNoBackup(backups, id, 'item', itemId, cacheBackups);
-              if (doBackup != null) {
-                final resolvidaBackup = ImagemService.resolverCaminhoExistente(doBackup);
-                if (resolvidaBackup != null) {
-                  novasImgs.add(resolvidaBackup);
-                  itemCorrigido = true;
-                }
-              }
-            }
-          }
-
-          if (itemCorrigido && novasImgs.isNotEmpty) {
-            it['imagens'] = novasImgs;
-            houveCorrecao = true;
-          }
-        }
-
-        // 4. Clientes
-        final clientes = (map['clientesLoja'] as List? ?? []);
-        for (final cli in clientes) {
-          final foto = cli['foto'] as String? ?? '';
-          if (foto.isNotEmpty) {
-            final resolvida = ImagemService.resolverCaminhoExistente(foto);
-            if (resolvida != null && resolvida != foto) {
-              cli['foto'] = resolvida;
-              houveCorrecao = true;
-            }
-          }
-        }
-
-        // 5. Fornecedores
-        final fornecedores = (map['fornecedoresLoja'] as List? ?? []);
-        for (final forn in fornecedores) {
-          final foto = forn['foto'] as String? ?? '';
-          if (foto.isNotEmpty) {
-            final resolvida = ImagemService.resolverCaminhoExistente(foto);
-            if (resolvida != null && resolvida != foto) {
-              forn['foto'] = resolvida;
-              houveCorrecao = true;
-            }
-          }
-        }
-
-        // 6. Galeria
-        final galeria = (map['galeria'] as List? ?? []).map((e) => e.toString()).toList();
-        final novaGaleria = <String>[];
-        var galeriaCorrigida = false;
-        for (final g in galeria) {
-          final resolvida = ImagemService.resolverCaminhoExistente(g);
-          if (resolvida != null) {
-            novaGaleria.add(resolvida);
-            if (resolvida != g) galeriaCorrigida = true;
-          }
-        }
-        if (galeriaCorrigida && novaGaleria.isNotEmpty) {
-          map['galeria'] = novaGaleria;
-          houveCorrecao = true;
-        }
-
-        if (houveCorrecao) {
-          await db.update(
-            'lojas',
-            {'dados_json': jsonEncode(map)},
-            where: 'id = ?',
-            whereArgs: [id],
-          );
-          debugPrint('[LojasService] Autocura de imagens executada com sucesso para a loja "$id"');
-        }
-      }
-    } catch (e) {
-      debugPrint('[LojasService] Erro na autocura de imagens: $e');
-    }
-  }
-
-  static Future<String?> _buscarFotoNoBackup(
-    List<File> backups,
-    String lojaId,
-    String tipo,
-    String? elementoId,
-    Map<String, Map<String, dynamic>> cacheBackups,
-  ) async {
-    for (final b in backups) {
-      try {
-        Map<String, dynamic>? json = cacheBackups[b.path];
-        if (json == null) {
-          if (await b.length() > 20 * 1024 * 1024) continue;
-          final content = await b.readAsString();
-          json = jsonDecode(content) as Map<String, dynamic>;
-          cacheBackups[b.path] = json;
-        }
-        final cofres = json['cofres'] as List<dynamic>? ?? [];
-        for (final c in cofres) {
-          final lojas = c['lojas'] as List<dynamic>? ?? [];
-          for (final l in lojas) {
-            if (l['id'] == lojaId) {
-              if (tipo == 'logo') {
-                final logo = l['logo'] as String? ?? '';
-                if (logo.isNotEmpty && ImagemService.existe(logo)) return logo;
-              } else if (tipo == 'categoria') {
-                for (final cat in (l['categoriasLoja'] as List? ?? [])) {
-                  if (cat['id'] == elementoId) {
-                    final foto = cat['foto'] as String? ?? '';
-                    if (foto.isNotEmpty && ImagemService.existe(foto)) return foto;
-                  }
-                }
-              } else if (tipo == 'item') {
-                for (final it in (l['itensLoja'] as List? ?? [])) {
-                  if (it['id'] == elementoId) {
-                    final imgs = (it['imagens'] as List? ?? []);
-                    for (final img in imgs) {
-                      final str = img.toString();
-                      if (str.isNotEmpty && ImagemService.existe(str)) return str;
-                    }
-                  }
-                }
-              }
-            }
-          }
-        }
-      } catch (_) {}
-    }
-    return null;
-  }
+  static Future<void> autocuraImagensDeLojas() =>
+      AutocuraImagensLoja.executar();
 }

@@ -613,7 +613,9 @@ class SincronizadorUsuariosRede {
               }
               await _extrairContasNousDeLoja(lojaConsolidada);
               houveAlteracao = true;
-            } catch (_) {}
+            } catch (e) {
+              debugPrint('[SincronizadorUsuariosRede] Erro ao processar loja recebida: $e');
+            }
           }
 
           for (final rJson in referenciasRecebidas) {

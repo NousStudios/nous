@@ -3,8 +3,9 @@ import 'package:nous/src/core/theme/theme_controller.dart';
 import 'package:nous/src/features/pdv/models/fornecedor.dart';
 import 'package:nous/src/features/pdv/models/item_loja.dart';
 import 'package:nous/src/features/pdv/models/movimento_estoque.dart';
-import 'package:nous/src/features/pdv/views/widgets/estoque/botao_hover_tipo_estoque.dart';
+import 'package:nous/src/features/pdv/views/widgets/estoque/campos_valores_movimento_estoque.dart';
 import 'package:nous/src/features/pdv/views/widgets/estoque/card_ajustes_rapidos_item_dialog.dart';
+import 'package:nous/src/features/pdv/views/widgets/estoque/seletores_movimento_estoque.dart';
 
 class MovimentoEstoqueDialog {
   static Future<MovimentoEstoque?> mostrar(
@@ -291,225 +292,29 @@ class _MovimentoEstoqueConteudoState
     );
   }
 
-  Widget _tituloDoBloco(String texto) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
-      child: Text(
-        texto,
-        textAlign: TextAlign.center,
-        style: theme.getTextStyle(
-          fontSize: 15,
-          fontWeight: FontWeight.w600,
-          color: theme.textColor,
-        ),
-      ),
-    );
+  void _onItemAlterado(ItemLoja? valor) {
+    setState(() {
+      _item = valor;
+      _aviso = null;
+      if (valor != null) {
+        _precoVendaRapidoController.text = valor.preco;
+        _codigoBarrasRapidoController.text = valor.codigoBarras;
+        _unidadeRapida = valor.unidadeBase;
+      }
+    });
   }
 
-  InputDecoration _decoracaoCampo(String dica) {
-    OutlineInputBorder borda(Color cor) => OutlineInputBorder(
-          borderRadius: BorderRadius.circular(10),
-          borderSide: BorderSide(color: cor),
-        );
-    return InputDecoration(
-      hintText: dica,
-      hintStyle:
-          theme.getTextStyle(fontSize: 12, color: theme.secondaryTextColor),
-      isDense: true,
-      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-      enabledBorder: borda(theme.borderColor),
-      focusedBorder: borda(theme.textColor),
-    );
-  }
-
-  Widget _botaoTipo(String rotulo, TipoMovimentoEstoque tipo) {
-    final selecionado = _tipo == tipo;
-    return Expanded(
-      child: BotaoHoverTipoEstoque(
-        theme: theme,
-        rotulo: rotulo,
-        selecionado: selecionado,
-        aoClicar: () => setState(() {
-          _tipo = tipo;
-          if (tipo == TipoMovimentoEstoque.saida) {
-            _fornecedor = null;
-            _categoria = CategoriaMovimentoEstoque.ajuste;
-          } else {
-            _categoria = CategoriaMovimentoEstoque.compra;
-          }
-          _aviso = null;
-        }),
-      ),
-    );
-  }
-
-  Widget _dropdownItem() {
-    final item = _item;
-    if (widget.itens.isEmpty) {
-      return Text(
-        'Nenhum item cadastrado ainda.',
-        textAlign: TextAlign.center,
-        style: theme.getTextStyle(
-          fontSize: 12,
-          color: theme.secondaryTextColor,
-        ),
-      );
-    }
-    return Container(
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: theme.borderColor),
-      ),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-      child: DropdownButtonHideUnderline(
-        child: DropdownButton<ItemLoja>(
-          value: item,
-          isExpanded: true,
-          dropdownColor: theme.cardBackgroundColor,
-          hint: Text(
-            'Selecione o item',
-            style: theme.getTextStyle(
-              fontSize: 12,
-              color: theme.secondaryTextColor,
-            ),
-          ),
-          items: widget.itens
-              .map(
-                (i) => DropdownMenuItem<ItemLoja>(
-                  value: i,
-                  child: Text(
-                    i.nome.isEmpty ? 'Item sem nome' : i.nome,
-                    style: theme.getTextStyle(
-                      fontSize: 12,
-                      color: theme.textColor,
-                    ),
-                  ),
-                ),
-              )
-              .toList(),
-          onChanged: (valor) => setState(() {
-            _item = valor;
-            _aviso = null;
-            if (valor != null) {
-              _precoVendaRapidoController.text = valor.preco;
-              _codigoBarrasRapidoController.text = valor.codigoBarras;
-              _unidadeRapida = valor.unidadeBase;
-            }
-          }),
-        ),
-      ),
-    );
-  }
-
-  Widget _dropdownFornecedor() {
-    if (widget.fornecedores.isEmpty) {
-      return Padding(
-        padding: const EdgeInsets.symmetric(vertical: 4),
-        child: Text(
-          'Nenhum fornecedor cadastrado ainda. Abra "Fornecedores" no '
-          'Estoque para cadastrar.',
-          textAlign: TextAlign.center,
-          style: theme.getTextStyle(
-            fontSize: 11,
-            color: theme.secondaryTextColor,
-          ),
-        ),
-      );
-    }
-    return Container(
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: theme.borderColor),
-      ),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-      child: DropdownButtonHideUnderline(
-        child: DropdownButton<Fornecedor?>(
-          value: _fornecedor,
-          isExpanded: true,
-          dropdownColor: theme.cardBackgroundColor,
-          hint: Text(
-            'Sem fornecedor',
-            style: theme.getTextStyle(
-              fontSize: 12,
-              color: theme.secondaryTextColor,
-            ),
-          ),
-          items: [
-            DropdownMenuItem<Fornecedor?>(
-              value: null,
-              child: Text(
-                'Sem fornecedor',
-                style: theme.getTextStyle(
-                  fontSize: 12,
-                  color: theme.secondaryTextColor,
-                ),
-              ),
-            ),
-            ...widget.fornecedores.map(
-              (f) => DropdownMenuItem<Fornecedor?>(
-                value: f,
-                child: Text(
-                  f.nome.isEmpty ? 'Fornecedor sem nome' : f.nome,
-                  style: theme.getTextStyle(
-                    fontSize: 12,
-                    color: theme.textColor,
-                  ),
-                ),
-              ),
-            ),
-          ],
-          onChanged: (valor) => setState(() {
-            _fornecedor = valor;
-            _aviso = null;
-          }),
-        ),
-      ),
-    );
-  }
-
-  Widget _dropdownCategoria() {
-    final opcoes = <CategoriaMovimentoEstoque, String>{
-      CategoriaMovimentoEstoque.compra: 'Compra',
-      CategoriaMovimentoEstoque.venda: 'Venda',
-      CategoriaMovimentoEstoque.producao: 'Produção',
-      CategoriaMovimentoEstoque.perda: 'Perda',
-      CategoriaMovimentoEstoque.ajuste: 'Ajuste',
-    };
-    return Container(
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: theme.borderColor),
-      ),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-      child: DropdownButtonHideUnderline(
-        child: DropdownButton<CategoriaMovimentoEstoque>(
-          value: _categoria,
-          isExpanded: true,
-          dropdownColor: theme.cardBackgroundColor,
-          items: opcoes.entries
-              .map(
-                (e) => DropdownMenuItem<CategoriaMovimentoEstoque>(
-                  value: e.key,
-                  child: Text(
-                    e.value,
-                    style: theme.getTextStyle(
-                      fontSize: 12,
-                      color: theme.textColor,
-                    ),
-                  ),
-                ),
-              )
-              .toList(),
-          onChanged: (valor) {
-            if (valor == null) return;
-            setState(() {
-              _categoria = valor;
-              _aviso = null;
-            });
-          },
-        ),
-      ),
-    );
+  void _onTipoAlterado(TipoMovimentoEstoque tipo) {
+    setState(() {
+      _tipo = tipo;
+      if (tipo == TipoMovimentoEstoque.saida) {
+        _fornecedor = null;
+        _categoria = CategoriaMovimentoEstoque.ajuste;
+      } else {
+        _categoria = CategoriaMovimentoEstoque.compra;
+      }
+      _aviso = null;
+    });
   }
 
   @override
@@ -550,122 +355,47 @@ class _MovimentoEstoqueConteudoState
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                _tituloDoBloco('Item'),
-                _dropdownItem(),
-                _cardIntegracaoItem(),
-                const SizedBox(height: 16),
-                _tituloDoBloco('Tipo'),
-                Row(
-                  children: [
-                    _botaoTipo('Entrada', TipoMovimentoEstoque.entrada),
-                    const SizedBox(width: 8),
-                    _botaoTipo('Saída', TipoMovimentoEstoque.saida),
-                  ],
+                SeletoresMovimentoEstoque(
+                  theme: theme,
+                  itens: widget.itens,
+                  itemSelecionado: _item,
+                  onItemAlterado: _onItemAlterado,
+                  cardAjustesRapidos: _cardIntegracaoItem(),
+                  tipoSelecionado: _tipo,
+                  onTipoAlterado: _onTipoAlterado,
+                  categoriaSelecionada: _categoria,
+                  onCategoriaAlterada: (valor) => setState(() {
+                    _categoria = valor;
+                    _aviso = null;
+                  }),
+                  fornecedores: widget.fornecedores,
+                  fornecedorSelecionado: _fornecedor,
+                  onFornecedorAlterado: (valor) => setState(() {
+                    _fornecedor = valor;
+                    _aviso = null;
+                  }),
                 ),
                 const SizedBox(height: 16),
-                _tituloDoBloco('Categoria'),
-                _dropdownCategoria(),
-                if (ehEntrada) ...[
-                  const SizedBox(height: 16),
-                  _tituloDoBloco('Fornecedor (opcional)'),
-                  _dropdownFornecedor(),
-                ],
-                const SizedBox(height: 16),
-                _tituloDoBloco('Quantidade ($unidade)'),
-                TextField(
-                  controller: _quantidadeController,
-                  keyboardType:
-                      const TextInputType.numberWithOptions(decimal: true),
-                  cursorColor: theme.textColor,
-                  style: theme.getTextStyle(fontSize: 12),
-                  decoration: _decoracaoCampo(
-                    unidade == 'un' ? 'Ex: 10' : 'Ex: 30,5',
-                  ),
-                  onChanged: (_) {
+                CamposValoresMovimentoEstoque(
+                  theme: theme,
+                  unidade: unidade,
+                  ehEntrada: ehEntrada,
+                  quantidadeController: _quantidadeController,
+                  custoTotalController: _custoTotalController,
+                  custoUnitarioController: _custoController,
+                  motivoController: _motivoController,
+                  onQuantidadeMudou: () {
                     _onQuantidadeMudou();
                     setState(() => _aviso = null);
                   },
-                ),
-                const SizedBox(height: 16),
-                if (ehEntrada) ...[
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            _tituloDoBloco('Custo da compra (R\$)'),
-                            TextField(
-                              controller: _custoTotalController,
-                              keyboardType:
-                                  const TextInputType.numberWithOptions(
-                                      decimal: true),
-                              cursorColor: theme.textColor,
-                              style: theme.getTextStyle(fontSize: 12),
-                              decoration:
-                                  _decoracaoCampo('Ex: 100,00 (total)'),
-                              onChanged: (_) {
-                                _onCustoTotalMudou();
-                                setState(() => _aviso = null);
-                              },
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            _tituloDoBloco('Custo unitário (R\$)'),
-                            TextField(
-                              controller: _custoController,
-                              keyboardType:
-                                  const TextInputType.numberWithOptions(
-                                      decimal: true),
-                              cursorColor: theme.textColor,
-                              style: theme.getTextStyle(fontSize: 12),
-                              decoration:
-                                  _decoracaoCampo('Ex: 0,50 / $unidade'),
-                              onChanged: (_) {
-                                _onCustoUnitarioMudou();
-                                setState(() => _aviso = null);
-                              },
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    'Ao informar o custo total da compra, o custo unitário por $unidade é calculado automaticamente.',
-                    style: theme.getTextStyle(
-                      fontSize: 10,
-                      color: theme.secondaryTextColor,
-                    ),
-                  ),
-                ] else ...[
-                  _tituloDoBloco('Custo unitário (R\$)'),
-                  TextField(
-                    controller: _custoController,
-                    keyboardType:
-                        const TextInputType.numberWithOptions(decimal: true),
-                    cursorColor: theme.textColor,
-                    style: theme.getTextStyle(fontSize: 12),
-                    decoration: _decoracaoCampo('Ex: 5,00 (opcional)'),
-                    onChanged: (_) => setState(() => _aviso = null),
-                  ),
-                ],
-                const SizedBox(height: 16),
-                _tituloDoBloco('Motivo (opcional)'),
-                TextField(
-                  controller: _motivoController,
-                  maxLines: 3,
-                  cursorColor: theme.textColor,
-                  style: theme.getTextStyle(fontSize: 12),
-                  decoration: _decoracaoCampo('Ex: compra do fornecedor'),
+                  onCustoTotalMudou: () {
+                    _onCustoTotalMudou();
+                    setState(() => _aviso = null);
+                  },
+                  onCustoUnitarioMudou: () {
+                    if (ehEntrada) _onCustoUnitarioMudou();
+                    setState(() => _aviso = null);
+                  },
                 ),
                 if (_aviso != null) ...[
                   const SizedBox(height: 12),

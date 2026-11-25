@@ -207,14 +207,17 @@ class AbaDadosLojaWidget extends StatelessWidget {
             decoration: decoracaoBloco,
             child: Column(
               children: [
-                AbsorbPointer(
-                  absorbing: !possoEditarDados,
-                  child: FormularioDadosLoja(
-                    theme: theme,
-                    controllers: controllers,
-                    logo: logo,
-                    onAlterarLogo: onAlterarLogo,
-                  ),
+                FormularioDadosLoja(
+                  theme: theme,
+                  controllers: controllers,
+                  logo: logo,
+                  onAlterarLogo: onAlterarLogo,
+                  podeEditarDados: possoEditarDados,
+                  podeEditarLocalizacao:
+                      pdv.possoEditarLocalizacaoMapa(lojaId),
+                  onLocalizacaoConfirmada: (lat, lon) {
+                    pdv.atualizarCoordenadasLoja(lojaId, lat, lon);
+                  },
                 ),
                 const SizedBox(height: 20),
                 SizedBox(

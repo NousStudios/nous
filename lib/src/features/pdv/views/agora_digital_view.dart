@@ -492,6 +492,7 @@ class _AgoraDigitalViewState extends State<AgoraDigitalView> {
   Future<void> _alternarNotificacaoTopico() async {
     final novoEstado = !_notificarTopicoAtivo;
     await ChatService.alternarNotificacaoConversa(_conversaIdAtiva, novoEstado);
+    if (!mounted) return;
     setState(() {
       _notificarTopicoAtivo = novoEstado;
     });

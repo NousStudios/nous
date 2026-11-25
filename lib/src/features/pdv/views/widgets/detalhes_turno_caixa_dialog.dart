@@ -11,11 +11,11 @@ import 'package:nous/src/features/pdv/models/turno_caixa.dart';
 import 'package:nous/src/features/pdv/providers/pdv_provider.dart';
 import 'package:nous/src/features/pdv/services/imagem_service.dart';
 import 'package:nous/src/features/pdv/services/impressao_service.dart';
-import 'package:nous/src/features/pdv/views/widgets/caixa/card_movimento_turno.dart';
+import 'package:nous/src/features/pdv/views/widgets/caixa/abas_detalhes_turno.dart';
+import 'package:nous/src/features/pdv/views/widgets/caixa/cabecalho_detalhes_turno.dart';
 import 'package:nous/src/features/pdv/views/widgets/caixa/card_operacional_turno.dart';
 import 'package:nous/src/features/pdv/views/widgets/caixa/card_resumo_financeiro_turno.dart';
-import 'package:nous/src/features/pdv/views/widgets/caixa/card_venda_turno.dart';
-import 'package:nous/src/features/pdv/views/widgets/estado_vazio_container.dart';
+import 'package:nous/src/features/pdv/views/widgets/caixa/rodape_detalhes_turno.dart';
 
 class DetalhesTurnoCaixaDialog {
   static Future<void> mostrar(
@@ -292,7 +292,7 @@ class _DetalhesTurnoConteudoState extends State<_DetalhesTurnoConteudo> {
             backgroundColor: theme.cardBackgroundColor,
             content: Text(
               'Falha ao imprimir comprovante: $e',
-              style: theme.getTextStyle(color: Colors.redAccent),
+              style: theme.getTextStyle(color: theme.dangerColor),
             ),
           ),
         );
@@ -303,61 +303,9 @@ class _DetalhesTurnoConteudoState extends State<_DetalhesTurnoConteudo> {
   }
 
   void _confirmarExclusao() {
-    showDialog<bool>(
-      context: context,
-      builder: (ctx) {
-        return AlertDialog(
-          backgroundColor: theme.cardBackgroundColor,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-            side: BorderSide(color: theme.borderColor),
-          ),
-          title: Row(
-            children: [
-              const Icon(Icons.warning_amber_rounded,
-                  color: Colors.redAccent, size: 22),
-              const SizedBox(width: 8),
-              Text(
-                'Apagar Registro do Turno?',
-                style: theme.getTextStyle(
-                  fontSize: 15,
-                  fontWeight: FontWeight.bold,
-                  color: theme.textColor,
-                ),
-              ),
-            ],
-          ),
-          content: Text(
-            'Tem certeza que deseja apagar o registro deste turno fechado? '
-            'Todo o histórico de movimentações e fechamento vinculado a este turno será removido. '
-            'Esta ação não pode ser desfeita.',
-            style: theme.getTextStyle(
-              fontSize: 13,
-              color: theme.secondaryTextColor,
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(ctx).pop(false),
-              child: Text(
-                'Cancelar',
-                style: theme.getTextStyle(color: theme.textColor),
-              ),
-            ),
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.redAccent,
-                foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
-                ),
-              ),
-              onPressed: () => Navigator.of(ctx).pop(true),
-              child: const Text('Sim, Apagar'),
-            ),
-          ],
-        );
-      },
+    RodapeDetalhesTurno.mostrarConfirmacaoExclusao(
+      context,
+      theme: theme,
     ).then((confirmado) async {
       if (confirmado == true) {
         await _executarExclusao();
@@ -397,7 +345,7 @@ class _DetalhesTurnoConteudoState extends State<_DetalhesTurnoConteudo> {
             backgroundColor: theme.cardBackgroundColor,
             content: Text(
               'Erro ao apagar turno: $e',
-              style: theme.getTextStyle(color: Colors.redAccent),
+              style: theme.getTextStyle(color: theme.dangerColor),
             ),
           ),
         );
@@ -431,244 +379,16 @@ class _DetalhesTurnoConteudoState extends State<_DetalhesTurnoConteudo> {
     );
   }
 
-  Widget _buildSeletorAbas() {
-    final movCount = widget.turno.movimentacoes.length;
-    final vendCount = _pedidosDoTurno.length;
-
-    return Padding(
-      padding: const EdgeInsets.only(top: 14, bottom: 8),
-      child: Row(
-        children: [
-          _buildBotaoAba(
-            indice: 0,
-            titulo: 'Retiradas e Entradas',
-            contador: movCount,
-            icone: Icons.sync_alt,
-          ),
-          const SizedBox(width: 8),
-          _buildBotaoAba(
-            indice: 1,
-            titulo: 'Vendas do Turno',
-            contador: vendCount,
-            icone: Icons.receipt_long_outlined,
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildBotaoAba({
-    required int indice,
-    required String titulo,
-    required int contador,
-    required IconData icone,
-  }) {
-    final selecionada = _abaSelecionada == indice;
-
-    return Expanded(
-      child: MouseRegion(
-        cursor: SystemMouseCursors.click,
-        child: GestureDetector(
-          onTap: () => setState(() => _abaSelecionada = indice),
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 180),
-            padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 10),
-            decoration: BoxDecoration(
-              color: selecionada
-                  ? theme.borderColor.withValues(alpha: 0.22)
-                  : theme.backgroundColor.withValues(alpha: 0.2),
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(
-                color: selecionada
-                    ? theme.textColor
-                    : theme.borderColor.withValues(alpha: 0.4),
-                width: selecionada ? 1.6 : 1.0,
-              ),
-            ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(
-                  icone,
-                  size: 14,
-                  color: selecionada ? theme.textColor : theme.secondaryTextColor,
-                ),
-                const SizedBox(width: 6),
-                Text(
-                  titulo,
-                  style: theme.getTextStyle(
-                    fontSize: 12,
-                    fontWeight:
-                        selecionada ? FontWeight.bold : FontWeight.normal,
-                    color: selecionada
-                        ? theme.textColor
-                        : theme.secondaryTextColor,
-                  ),
-                ),
-                const SizedBox(width: 6),
-                Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                  decoration: BoxDecoration(
-                    color: selecionada
-                        ? theme.borderColor.withValues(alpha: 0.3)
-                        : theme.borderColor.withValues(alpha: 0.15),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: Text(
-                    '$contador',
-                    style: theme.getTextStyle(
-                      fontSize: 10,
-                      fontWeight: FontWeight.bold,
-                      color: selecionada
-                          ? theme.textColor
-                          : theme.secondaryTextColor,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildListaMovimentacoes() {
-    final movs = widget.turno.movimentacoes.reversed.toList();
-
-    if (movs.isEmpty) {
-      return Padding(
-        padding: const EdgeInsets.symmetric(vertical: 12),
-        child: EstadoVazioContainer(
-          theme: theme,
-          mensagem: 'Nenhuma retirada ou suprimento registrado neste turno.',
-        ),
-      );
-    }
-
-    return ListView.separated(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      itemCount: movs.length,
-      separatorBuilder: (context, index) => const SizedBox(height: 6),
-      itemBuilder: (context, index) {
-        final m = movs[index];
-        final ehSangria = m.tipo == TipoMovimentoCaixa.sangria;
-
-        return CardMovimentoTurno(
-          theme: theme,
-          movimento: m,
-          ehSangria: ehSangria,
-          formatarMoeda: _formatarMoeda,
-          formatarDataHora: _formatarDataHora,
-          formatarCpf: _formatarCpf,
-          buildAvatar: _buildAvatarUsuario,
-        );
-      },
-    );
-  }
-
-  Widget _buildListaVendas() {
-    final vendas = _pedidosDoTurno;
-
-    if (vendas.isEmpty) {
-      return Padding(
-        padding: const EdgeInsets.symmetric(vertical: 12),
-        child: EstadoVazioContainer(
-          theme: theme,
-          mensagem: 'Nenhuma venda registrada durante o período deste turno.',
-        ),
-      );
-    }
-
-    return ListView.separated(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      itemCount: vendas.length,
-      separatorBuilder: (context, index) => const SizedBox(height: 6),
-      itemBuilder: (context, index) {
-        final p = vendas[index];
-
-        return CardVendaTurno(
-          theme: theme,
-          pedido: p,
-          formatarMoeda: _formatarMoeda,
-          formatarDataHora: _formatarDataHora,
-        );
-      },
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        // Cabeçalho
-        Padding(
-          padding: const EdgeInsets.fromLTRB(6, 8, 14, 8),
-          child: Row(
-            children: [
-              IconButton(
-                tooltip: 'Voltar',
-                icon: Icon(Icons.arrow_back, color: theme.textColor),
-                onPressed: () => Navigator.of(context).pop(),
-              ),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Histórico do Turno de Caixa',
-                      style: theme.getTextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.bold,
-                        color: theme.textColor,
-                      ),
-                    ),
-                    Text(
-                      '${widget.lojaNome} • Fechado',
-                      style: theme.getTextStyle(
-                        fontSize: 11,
-                        color: theme.secondaryTextColor,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(
-                  color: theme.borderColor.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(6),
-                  border: Border.all(
-                    color: theme.borderColor.withValues(alpha: 0.4),
-                  ),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(Icons.lock_outline,
-                        size: 13, color: theme.secondaryTextColor),
-                    const SizedBox(width: 4),
-                    Text(
-                      'Turno Fechado',
-                      style: theme.getTextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.bold,
-                        color: theme.textColor,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
+        CabecalhoDetalhesTurno(
+          theme: theme,
+          lojaNome: widget.lojaNome,
         ),
         const Divider(height: 1),
-        // Conteúdo rolável
         Flexible(
           child: SingleChildScrollView(
             padding: const EdgeInsets.all(14),
@@ -677,86 +397,30 @@ class _DetalhesTurnoConteudoState extends State<_DetalhesTurnoConteudo> {
               children: [
                 _buildCardOperacional(),
                 _buildCardResumoFinanceiro(),
-                _buildSeletorAbas(),
-                if (_abaSelecionada == 0)
-                  _buildListaMovimentacoes()
-                else
-                  _buildListaVendas(),
+                AbasDetalhesTurno(
+                  theme: theme,
+                  abaSelecionada: _abaSelecionada,
+                  aoSelecionarAba: (indice) {
+                    setState(() => _abaSelecionada = indice);
+                  },
+                  movimentacoes: widget.turno.movimentacoes,
+                  pedidosDoTurno: _pedidosDoTurno,
+                  formatarMoeda: _formatarMoeda,
+                  formatarDataHora: _formatarDataHora,
+                  formatarCpf: _formatarCpf,
+                  buildAvatarUsuario: _buildAvatarUsuario,
+                ),
               ],
             ),
           ),
         ),
         const Divider(height: 1),
-        // Rodapé de ações
-        Padding(
-          padding: const EdgeInsets.all(12),
-          child: Row(
-            children: [
-              // Botão Apagar Registro (Destrutivo)
-              OutlinedButton.icon(
-                style: OutlinedButton.styleFrom(
-                  side: const BorderSide(color: Colors.redAccent, width: 1.2),
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                ),
-                icon: _excluindo
-                    ? const SizedBox(
-                        width: 14,
-                        height: 14,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: Colors.redAccent,
-                        ),
-                      )
-                    : const Icon(Icons.delete_outline,
-                        size: 16, color: Colors.redAccent),
-                label: Text(
-                  'Apagar Registro',
-                  style: theme.getTextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.redAccent,
-                  ),
-                ),
-                onPressed: _excluindo ? null : _confirmarExclusao,
-              ),
-              const Spacer(),
-              // Botão Reimprimir Comprovante
-              ElevatedButton.icon(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: theme.buttonColor,
-                  foregroundColor: theme.buttonTextColor,
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                ),
-                icon: _imprimindo
-                    ? SizedBox(
-                        width: 14,
-                        height: 14,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: theme.buttonTextColor,
-                        ),
-                      )
-                    : const Icon(Icons.print_outlined, size: 16),
-                label: Text(
-                  'Reimprimir Comprovante',
-                  style: theme.getTextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.bold,
-                    color: theme.buttonTextColor,
-                  ),
-                ),
-                onPressed: _imprimindo ? null : _reimprimirFechamento,
-              ),
-            ],
-          ),
+        RodapeDetalhesTurno(
+          theme: theme,
+          excluindo: _excluindo,
+          imprimindo: _imprimindo,
+          aoConfirmarExclusao: _confirmarExclusao,
+          aoReimprimir: _reimprimirFechamento,
         ),
       ],
     );

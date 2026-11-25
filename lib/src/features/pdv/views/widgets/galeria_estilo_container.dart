@@ -2,12 +2,11 @@ import 'dart:io';
 
 import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
-import 'package:nous/src/core/services/metadados_audio_service.dart';
 import 'package:nous/src/core/theme/theme_controller.dart';
 import 'package:nous/src/features/pdv/services/imagem_service.dart';
-import 'package:nous/src/features/pdv/views/widgets/ajustar_imagem_dialog.dart';
 import 'package:nous/src/features/pdv/views/widgets/midia/detalhes_midia_dialog.dart';
 import 'package:nous/src/features/pdv/views/widgets/midia/editar_descricao_dialog.dart';
+import 'package:nous/src/features/pdv/views/widgets/midia/galeria_item_card.dart';
 import 'package:nous/src/features/pdv/views/widgets/midia/visualizador_galeria_dialog.dart';
 
 enum TipoAnexoLoja {
@@ -118,7 +117,7 @@ class GaleriaEstiloContainer extends StatelessWidget {
           backgroundColor: theme.cardBackgroundColor,
           content: Text(
             '$bloqueadosPorTamanho arquivo(s) não foram enviados por ultrapassar o limite de meio giga (500MB).',
-            style: theme.getTextStyle(color: Colors.redAccent),
+            style: theme.getTextStyle(color: theme.dangerColor),
           ),
         ),
       );
@@ -144,28 +143,6 @@ class GaleriaEstiloContainer extends StatelessWidget {
   String _extrairNomeArquivo(String caminho) {
     final partes = caminho.replaceAll(r'\', '/').split('/');
     return partes.isNotEmpty ? partes.last : 'Arquivo';
-  }
-
-  String _extrairExtensao(String caminho) {
-    try {
-      final partes = caminho.split('.');
-      if (partes.length > 1) {
-        return partes.last.toUpperCase();
-      }
-    } catch (_) {}
-    return '';
-  }
-
-  String _obterTamanhoFormatado(String caminho) {
-    try {
-      final resolvido =
-          ImagemService.resolverCaminhoExistente(caminho) ?? caminho;
-      final arq = File(resolvido);
-      if (arq.existsSync()) {
-        return ImagemService.formatarTamanhoBytes(arq.lengthSync());
-      }
-    } catch (_) {}
-    return '';
   }
 
   void _abrirItem(BuildContext context, int index, String caminho) {
@@ -199,448 +176,6 @@ class GaleriaEstiloContainer extends StatelessWidget {
         onRemover: () => onRemover(index),
       );
     }
-  }
-
-  Widget _buildCardAdicionar(BuildContext context) {
-    return Container(
-      width: 126,
-      height: 156,
-      decoration: BoxDecoration(
-        color: theme.cardBackgroundColor.withValues(alpha: 0.35),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: theme.borderColor.withValues(alpha: 0.6),
-          style: BorderStyle.solid,
-        ),
-      ),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          borderRadius: BorderRadius.circular(12),
-          onTap: () => _selecionarArquivo(context),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Container(
-                width: 44,
-                height: 44,
-                decoration: BoxDecoration(
-                  color: theme.backgroundColor.withValues(alpha: 0.5),
-                  shape: BoxShape.circle,
-                  border: Border.all(
-                    color: theme.borderColor.withValues(alpha: 0.5),
-                  ),
-                ),
-                child: Icon(
-                  Icons.add_rounded,
-                  size: 26,
-                  color: theme.textColor,
-                ),
-              ),
-              const SizedBox(height: 10),
-              Text(
-                'Adicionar',
-                style: theme.getTextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                  color: theme.textColor,
-                ),
-              ),
-              const SizedBox(height: 2),
-              Text(
-                'Novo arquivo',
-                style: theme.getTextStyle(
-                  fontSize: 10,
-                  color: theme.secondaryTextColor,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildPreviaVisual(String caminho, MetadadosAudio? metaAudio) {
-    final ehImagem = tipo == TipoAnexoLoja.galeria ||
-        ImagemService.extensaoImagemValida(caminho);
-    final ext = _extrairExtensao(caminho);
-
-    if (ehImagem) {
-      final resolvido =
-          ImagemService.resolverCaminhoExistente(caminho) ?? caminho;
-      return Image.file(
-        File(resolvido),
-        fit: BoxFit.cover,
-        width: double.infinity,
-        height: double.infinity,
-        errorBuilder: (context, error, stackTrace) => Center(
-          child: Icon(
-            _iconeDoTipo(),
-            size: 32,
-            color: theme.secondaryTextColor,
-          ),
-        ),
-      );
-    }
-
-    if (tipo == TipoAnexoLoja.musicas ||
-        tipo == TipoAnexoLoja.arquivosAudio) {
-      if (metaAudio?.temCapa == true) {
-        return Stack(
-          fit: StackFit.expand,
-          children: [
-            Image.memory(
-              metaAudio!.capaBytes!,
-              fit: BoxFit.cover,
-            ),
-            Positioned(
-              bottom: 4,
-              right: 4,
-              child: Container(
-                padding: const EdgeInsets.all(3),
-                decoration: BoxDecoration(
-                  color: Colors.black.withValues(alpha: 0.65),
-                  borderRadius: BorderRadius.circular(4),
-                ),
-                child: const Icon(
-                  Icons.graphic_eq_rounded,
-                  size: 13,
-                  color: Colors.white,
-                ),
-              ),
-            ),
-          ],
-        );
-      }
-
-      return Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [
-              theme.buttonColor.withValues(alpha: 0.25),
-              theme.backgroundColor.withValues(alpha: 0.6),
-            ],
-          ),
-        ),
-        child: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(
-                Icons.music_note_rounded,
-                size: 36,
-                color: theme.buttonColor,
-              ),
-              if (ext.isNotEmpty) ...[
-                const SizedBox(height: 4),
-                Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
-                  decoration: BoxDecoration(
-                    color: theme.backgroundColor.withValues(alpha: 0.7),
-                    borderRadius: BorderRadius.circular(4),
-                    border: Border.all(
-                      color: theme.borderColor.withValues(alpha: 0.4),
-                    ),
-                  ),
-                  child: Text(
-                    ext,
-                    style: theme.getTextStyle(
-                      fontSize: 9,
-                      fontWeight: FontWeight.bold,
-                      color: theme.secondaryTextColor,
-                    ),
-                  ),
-                ),
-              ],
-            ],
-          ),
-        ),
-      );
-    }
-
-    if (tipo == TipoAnexoLoja.videos) {
-      return Container(
-        color: Colors.black.withValues(alpha: 0.45),
-        child: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(
-                Icons.smart_display_rounded,
-                size: 36,
-                color: theme.buttonColor,
-              ),
-              if (ext.isNotEmpty) ...[
-                const SizedBox(height: 4),
-                Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
-                  decoration: BoxDecoration(
-                    color: Colors.black.withValues(alpha: 0.6),
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                  child: Text(
-                    ext,
-                    style: theme.getTextStyle(
-                      fontSize: 9,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white70,
-                    ),
-                  ),
-                ),
-              ],
-            ],
-          ),
-        ),
-      );
-    }
-
-    // Documentos / Arquivos em Geral
-    return Container(
-      decoration: BoxDecoration(
-        color: theme.backgroundColor.withValues(alpha: 0.5),
-      ),
-      child: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              _iconeDoTipo(),
-              size: 36,
-              color: theme.textColor,
-            ),
-            if (ext.isNotEmpty) ...[
-              const SizedBox(height: 4),
-              Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
-                decoration: BoxDecoration(
-                  color: theme.cardBackgroundColor,
-                  borderRadius: BorderRadius.circular(4),
-                  border: Border.all(
-                    color: theme.borderColor.withValues(alpha: 0.5),
-                  ),
-                ),
-                child: Text(
-                  ext,
-                  style: theme.getTextStyle(
-                    fontSize: 9,
-                    fontWeight: FontWeight.bold,
-                    color: theme.textColor,
-                  ),
-                ),
-              ),
-            ],
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildItemCard(BuildContext context, int index, String caminho) {
-    final nomeArquivo = _extrairNomeArquivo(caminho);
-    final temDescricao = (descricoes[caminho] ?? '').isNotEmpty;
-    final tamanhoTexto = _obterTamanhoFormatado(caminho);
-
-    MetadadosAudio? metaAudio;
-    if (tipo == TipoAnexoLoja.musicas ||
-        tipo == TipoAnexoLoja.arquivosAudio) {
-      metaAudio = MetadadosAudioService.extrair(caminho);
-    }
-
-    final tituloExibido = (metaAudio?.titulo?.trim().isNotEmpty == true)
-        ? metaAudio!.titulo!
-        : nomeArquivo;
-    final subtituloExibido = (metaAudio?.artista?.trim().isNotEmpty == true)
-        ? metaAudio!.artista!
-        : (tamanhoTexto.isNotEmpty ? tamanhoTexto : '');
-
-    return Container(
-      width: 126,
-      height: 156,
-      decoration: BoxDecoration(
-        color: theme.cardBackgroundColor,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: theme.borderColor.withValues(alpha: 0.6),
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.15),
-            blurRadius: 6,
-            offset: const Offset(0, 3),
-          ),
-        ],
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(12),
-        child: Stack(
-          children: [
-            Material(
-              color: Colors.transparent,
-              child: InkWell(
-                borderRadius: BorderRadius.circular(12),
-                onTap: () => _abrirItem(context, index, caminho),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    // Área Visual Superior (Prévia com 96px)
-                    Expanded(
-                      flex: 6,
-                      child: ClipRRect(
-                        borderRadius: const BorderRadius.vertical(
-                          top: Radius.circular(11),
-                        ),
-                        child: _buildPreviaVisual(caminho, metaAudio),
-                      ),
-                    ),
-
-                    // Área Textual Inferior (Legível com fundo contrastante)
-                    Expanded(
-                      flex: 4,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 8,
-                          vertical: 6,
-                        ),
-                        color: theme.backgroundColor.withValues(alpha: 0.4),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Text(
-                              tituloExibido,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: theme.getTextStyle(
-                                fontSize: 11,
-                                fontWeight: FontWeight.bold,
-                                color: theme.textColor,
-                              ),
-                            ),
-                            if (subtituloExibido.isNotEmpty) ...[
-                              const SizedBox(height: 2),
-                              Text(
-                                subtituloExibido,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: theme.getTextStyle(
-                                  fontSize: 10,
-                                  color: theme.secondaryTextColor,
-                                ),
-                              ),
-                            ],
-                          ],
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-
-            // Indicador de Descrição Existente
-            if (temDescricao)
-              Positioned(
-                top: 6,
-                left: 6,
-                child: Container(
-                  decoration: BoxDecoration(
-                    color: theme.cardBackgroundColor.withValues(alpha: 0.9),
-                    shape: BoxShape.circle,
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.3),
-                        blurRadius: 4,
-                      ),
-                    ],
-                  ),
-                  padding: const EdgeInsets.all(4),
-                  child: Icon(
-                    Icons.chat_bubble_outline,
-                    size: 11,
-                    color: theme.textColor,
-                  ),
-                ),
-              ),
-
-            // Botão Ajustar / Recortar (para fotos da galeria)
-            if (tipo == TipoAnexoLoja.galeria && onSubstituirItem != null)
-              Positioned(
-                top: 6,
-                left: 6,
-                child: Tooltip(
-                  message: 'Ajustar / Recortar imagem',
-                  child: GestureDetector(
-                    onTap: () async {
-                      final novo = await AjustarImagemDialog.mostrar(
-                        context,
-                        theme: theme,
-                        caminhoImagem: caminho,
-                      );
-                      if (novo != null) {
-                        onSubstituirItem!(index, novo);
-                      }
-                    },
-                    child: Container(
-                      decoration: BoxDecoration(
-                        color: theme.cardBackgroundColor.withValues(alpha: 0.9),
-                        shape: BoxShape.circle,
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withValues(alpha: 0.3),
-                            blurRadius: 4,
-                          ),
-                        ],
-                      ),
-                      padding: const EdgeInsets.all(4),
-                      child: Icon(
-                        Icons.crop,
-                        size: 13,
-                        color: theme.textColor,
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-
-            // Botão Excluir (X) com confirmação
-            Positioned(
-              top: 6,
-              right: 6,
-              child: Tooltip(
-                message: 'Remover anexo',
-                child: GestureDetector(
-                  onTap: () => _confirmarRemover(context, index),
-                  child: Container(
-                    decoration: BoxDecoration(
-                      color: theme.cardBackgroundColor.withValues(alpha: 0.9),
-                      shape: BoxShape.circle,
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.3),
-                          blurRadius: 4,
-                        ),
-                      ],
-                    ),
-                    padding: const EdgeInsets.all(4),
-                    child: Icon(
-                      Icons.close,
-                      size: 13,
-                      color: Colors.redAccent,
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
   }
 
   Future<void> _confirmarRemover(BuildContext context, int index) async {
@@ -728,9 +263,23 @@ class GaleriaEstiloContainer extends StatelessWidget {
               separatorBuilder: (context, index) => const SizedBox(width: 10),
               itemBuilder: (context, index) {
                 if (index == itens.length) {
-                  return _buildCardAdicionar(context);
+                  return GaleriaAdicionarCard(
+                    theme: theme,
+                    onTap: () => _selecionarArquivo(context),
+                  );
                 }
-                return _buildItemCard(context, index, itens[index]);
+                final caminho = itens[index];
+                return GaleriaItemCard(
+                  theme: theme,
+                  index: index,
+                  caminho: caminho,
+                  tipo: tipo,
+                  iconeFallback: _iconeDoTipo(),
+                  temDescricao: (descricoes[caminho] ?? '').isNotEmpty,
+                  onAbrir: () => _abrirItem(context, index, caminho),
+                  onConfirmarRemover: () => _confirmarRemover(context, index),
+                  onSubstituirItem: onSubstituirItem,
+                );
               },
             ),
           ),

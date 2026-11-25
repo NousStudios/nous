@@ -93,6 +93,15 @@ class PedidosProgramadosDialog extends StatelessWidget {
               }).toList()
             : pedidos;
 
+        if (listaAtiva.isEmpty) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (context.mounted && Navigator.of(context).canPop()) {
+              Navigator.of(context).pop();
+            }
+          });
+          return const SizedBox.shrink();
+        }
+
         return Dialog(
           backgroundColor: theme.cardBackgroundColor,
           shape: RoundedRectangleBorder(

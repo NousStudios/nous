@@ -8,6 +8,11 @@ import 'package:nous/src/features/timeline/models/notificacao_social.dart';
 import 'package:nous/src/features/timeline/models/publicacao_social.dart';
 import 'package:nous/src/features/timeline/models/salvos_denuncia_social.dart';
 import 'package:nous/src/features/timeline/models/story_social.dart';
+import 'package:nous/src/features/timeline/services/helpers/timeline_feeds_config_sqlite_helper.dart';
+import 'package:nous/src/features/timeline/services/helpers/timeline_interacoes_sqlite_helper.dart';
+import 'package:nous/src/features/timeline/services/helpers/timeline_salvos_denuncias_sqlite_helper.dart';
+import 'package:nous/src/features/timeline/services/helpers/timeline_sqlite_utils.dart';
+import 'package:nous/src/features/timeline/services/helpers/timeline_stories_sqlite_helper.dart';
 import 'package:nous/src/features/timeline/services/timeline_schema_sqlite.dart';
 
 /// Repositório SQLite indexado para publicações, coautorias ilimitadas,
@@ -97,7 +102,7 @@ class TimelineRepositorioSqlite {
   }
 
   static String normalizarCpf(String cpf) =>
-      cpf.replaceAll(RegExp(r'\D'), '');
+      TimelineSqliteUtils.normalizarCpf(cpf);
 
   static Future<void> salvarPublicacao(PublicacaoSocial pub) async {
     final db = await obterDb();
@@ -253,220 +258,74 @@ class TimelineRepositorioSqlite {
         .toList();
   }
 
-  static Future<void> salvarReacao(ReacaoSocial reacao) async {
-    final db = await obterDb();
-    await db.insert(
-      'reacoes_sociais',
-      {
-        'id': reacao.id,
-        'publicacao_id': reacao.publicacaoId,
-        'usuario_cpf': normalizarCpf(reacao.usuarioCpf),
-        'tipo': reacao.tipo.name,
-        'criada_em': reacao.criadaEm.toIso8601String(),
-        'atualizada_em': reacao.criadaEm.toIso8601String(),
-        'dados_json': jsonEncode(reacao.toJson()),
-      },
-      conflictAlgorithm: ConflictAlgorithm.replace,
-    );
-  }
+  static Future<void> salvarReacao(ReacaoSocial reacao) async =>
+      TimelineInteracoesSqliteHelper.salvarReacao(await obterDb(), reacao);
 
   static Future<void> removerReacao({
     required String publicacaoId,
     required String usuarioCpf,
-  }) async {
-    final db = await obterDb();
-    final cpfNorm = normalizarCpf(usuarioCpf);
-    final rows = await db.query(
-      'reacoes_sociais',
-      where: 'publicacao_id = ? AND usuario_cpf = ?',
-      whereArgs: [publicacaoId, cpfNorm],
-    );
-    final agora = DateTime.now();
-    for (final r in rows) {
-      try {
-        final reacao = ReacaoSocial.fromJson(
-          jsonDecode(r['dados_json'] as String? ?? '{}')
-              as Map<String, dynamic>,
-        );
-        final tombstone = reacao.copyWith(
-          excluida: true,
-          atualizadaEm: agora,
-        );
-        await salvarReacao(tombstone);
-      } catch (_) {}
-    }
-  }
+  }) async =>
+      TimelineInteracoesSqliteHelper.removerReacao(
+        await obterDb(),
+        publicacaoId: publicacaoId,
+        usuarioCpf: usuarioCpf,
+      );
 
   static Future<List<ReacaoSocial>> listarReacoesDaPublicacao(
     String publicacaoId,
-  ) async {
-    final db = await obterDb();
-    final rows = await db.query(
-      'reacoes_sociais',
-      where: 'publicacao_id = ?',
-      whereArgs: [publicacaoId],
-      orderBy: 'criada_em DESC',
-    );
-    return rows
-        .map((r) {
-          final jsonStr = r['dados_json'] as String? ?? '{}';
-          return ReacaoSocial.fromJson(
-            jsonDecode(jsonStr) as Map<String, dynamic>,
-          );
-        })
-        .where((r) => !r.excluida)
-        .toList();
-  }
+  ) async =>
+      TimelineInteracoesSqliteHelper.listarReacoesDaPublicacao(
+        await obterDb(),
+        publicacaoId,
+      );
 
-  static Future<List<ReacaoSocial>> listarReacoesDoUsuario(String cpf) async {
-    final db = await obterDb();
-    final cpfNorm = normalizarCpf(cpf);
-    final rows = await db.query(
-      'reacoes_sociais',
-      where: 'usuario_cpf = ?',
-      whereArgs: [cpfNorm],
-      orderBy: 'criada_em DESC',
-      limit: 100,
-    );
-    return rows
-        .map((r) {
-          final jsonStr = r['dados_json'] as String? ?? '{}';
-          return ReacaoSocial.fromJson(
-            jsonDecode(jsonStr) as Map<String, dynamic>,
-          );
-        })
-        .where((r) => !r.excluida)
-        .toList();
-  }
+  static Future<List<ReacaoSocial>> listarReacoesDoUsuario(String cpf) async =>
+      TimelineInteracoesSqliteHelper.listarReacoesDoUsuario(
+        await obterDb(),
+        cpf,
+      );
 
-  static Future<void> salvarComentario(ComentarioSocial comentario) async {
-    final db = await obterDb();
-    await db.insert(
-      'comentarios_sociais',
-      {
-        'id': comentario.id,
-        'publicacao_id': comentario.publicacaoId,
-        'autor_cpf': normalizarCpf(comentario.autorCpf),
-        'criada_em': comentario.criadaEm.toIso8601String(),
-        'atualizada_em': comentario.atualizadaEfetiva.toIso8601String(),
-        'excluido': comentario.excluido ? 1 : 0,
-        'dados_json': jsonEncode(comentario.toJson()),
-      },
-      conflictAlgorithm: ConflictAlgorithm.replace,
-    );
-  }
+  static Future<void> salvarComentario(ComentarioSocial comentario) async =>
+      TimelineInteracoesSqliteHelper.salvarComentario(
+        await obterDb(),
+        comentario,
+      );
 
   static Future<List<ComentarioSocial>> listarComentariosDaPublicacao(
     String publicacaoId,
-  ) async {
-    final db = await obterDb();
-    final rows = await db.query(
-      'comentarios_sociais',
-      where: 'publicacao_id = ? AND excluido = 0',
-      whereArgs: [publicacaoId],
-      orderBy: 'criada_em ASC',
-    );
-    return rows.map((r) {
-      final jsonStr = r['dados_json'] as String? ?? '{}';
-      return ComentarioSocial.fromJson(
-        jsonDecode(jsonStr) as Map<String, dynamic>,
+  ) async =>
+      TimelineInteracoesSqliteHelper.listarComentariosDaPublicacao(
+        await obterDb(),
+        publicacaoId,
       );
-    }).toList();
-  }
 
   static Future<List<ComentarioSocial>> listarComentariosDoUsuario(
     String cpf,
-  ) async {
-    final db = await obterDb();
-    final cpfNorm = normalizarCpf(cpf);
-    final rows = await db.query(
-      'comentarios_sociais',
-      where: 'autor_cpf = ?',
-      whereArgs: [cpfNorm],
-      orderBy: 'criada_em DESC',
-      limit: 100,
-    );
-    return rows.map((r) {
-      final jsonStr = r['dados_json'] as String? ?? '{}';
-      return ComentarioSocial.fromJson(
-        jsonDecode(jsonStr) as Map<String, dynamic>,
+  ) async =>
+      TimelineInteracoesSqliteHelper.listarComentariosDoUsuario(
+        await obterDb(),
+        cpf,
       );
-    }).toList();
-  }
 
-  static Future<void> salvarStory(StorySocial story) async {
-    final db = await obterDb();
-    await db.insert(
-      'stories_sociais',
-      {
-        'id': story.id,
-        'autor_cpf': normalizarCpf(story.autorCpf),
-        'criado_em': story.criadoEm.toIso8601String(),
-        'atualizada_em': story.atualizadoEfetivo.toIso8601String(),
-        'expira_em': story.expiraEm?.toIso8601String(),
-        'excluido': story.excluido ? 1 : 0,
-        'arquivado': story.arquivado ? 1 : 0,
-        'dados_json': jsonEncode(story.toJson()),
-      },
-      conflictAlgorithm: ConflictAlgorithm.replace,
-    );
-  }
+  static Future<void> salvarStory(StorySocial story) async =>
+      TimelineStoriesSqliteHelper.salvarStory(await obterDb(), story);
 
-  static Future<List<StorySocial>> listarStoriesDoUsuario(String cpf) async {
-    final todos = await listarTodosStoriesDoUsuario(cpf);
-    return todos.where((s) => s.estaAtivo).toList();
-  }
+  static Future<List<StorySocial>> listarStoriesDoUsuario(String cpf) async =>
+      TimelineStoriesSqliteHelper.listarStoriesDoUsuario(await obterDb(), cpf);
 
   /// Lista todos os stories ativos (24h) da rede para a barra superior do Feed.
-  static Future<List<StorySocial>> listarStoriesAtivosDaRede() async {
-    final db = await obterDb();
-    final rows = await db.query(
-      'stories_sociais',
-      where: 'excluido = 0',
-      orderBy: 'criado_em DESC',
-      limit: 150,
-    );
-    final agora = DateTime.now();
-    return rows
-        .map(
-          (r) => StorySocial.fromJson(
-            jsonDecode(r['dados_json'] as String? ?? '{}')
-                as Map<String, dynamic>,
-          ),
-        )
-        .where(
-          (s) =>
-              !s.excluido &&
-              !s.arquivado &&
-              s.estaAtivo &&
-              agora.difference(s.criadoEm).inHours < 24,
-        )
-        .toList();
-  }
+  static Future<List<StorySocial>> listarStoriesAtivosDaRede() async =>
+      TimelineStoriesSqliteHelper.listarStoriesAtivosDaRede(await obterDb());
 
   /// Lista todo o histórico de stories do usuário (inclusive expirados >24h)
   /// para o Arquivo e Calendário de Stories na página Conta.
   static Future<List<StorySocial>> listarTodosStoriesDoUsuario(
     String cpf,
-  ) async {
-    final db = await obterDb();
-    final cpfNorm = normalizarCpf(cpf);
-    if (cpfNorm.isEmpty) return const [];
-    final rows = await db.query(
-      'stories_sociais',
-      where: 'autor_cpf = ? AND excluido = 0',
-      whereArgs: [cpfNorm],
-      orderBy: 'criado_em DESC',
-    );
-    return rows
-        .map(
-          (r) => StorySocial.fromJson(
-            jsonDecode(r['dados_json'] as String? ?? '{}')
-                as Map<String, dynamic>,
-          ),
-        )
-        .toList();
-  }
+  ) async =>
+      TimelineStoriesSqliteHelper.listarTodosStoriesDoUsuario(
+        await obterDb(),
+        cpf,
+      );
 
   static Future<int> contarPublicacoesDoUsuario(String cpf) async {
     final db = await obterDb();
@@ -485,209 +344,91 @@ class TimelineRepositorioSqlite {
     return (rows.first['total'] as int?) ?? 0;
   }
 
-  static Future<void> salvarFeedPersonalizado(FeedPersonalizado feed) async {
-    final db = await obterDb();
-    await db.insert(
-      'feeds_personalizados',
-      {
-        'id': feed.id,
-        'dono_cpf': normalizarCpf(feed.donoCpf),
-        'criado_em': feed.criadoEm.toIso8601String(),
-        'dados_json': jsonEncode(feed.toJson()),
-      },
-      conflictAlgorithm: ConflictAlgorithm.replace,
-    );
-  }
+  static Future<void> salvarFeedPersonalizado(FeedPersonalizado feed) async =>
+      TimelineFeedsConfigSqliteHelper.salvarFeedPersonalizado(
+        await obterDb(),
+        feed,
+      );
 
-  static Future<void> removerFeedPersonalizado(String id) async {
-    final db = await obterDb();
-    await db.delete('feeds_personalizados', where: 'id = ?', whereArgs: [id]);
-  }
+  static Future<void> removerFeedPersonalizado(String id) async =>
+      TimelineFeedsConfigSqliteHelper.removerFeedPersonalizado(
+        await obterDb(),
+        id,
+      );
 
   static Future<List<FeedPersonalizado>> listarFeedsPersonalizados(
     String cpf,
-  ) async {
-    final db = await obterDb();
-    final cpfNorm = normalizarCpf(cpf);
-    final rows = await db.query(
-      'feeds_personalizados',
-      where: 'dono_cpf = ?',
-      whereArgs: [cpfNorm],
-      orderBy: 'criado_em ASC',
-    );
-    return rows.map((r) {
-      final jsonStr = r['dados_json'] as String? ?? '{}';
-      return FeedPersonalizado.fromJson(
-        jsonDecode(jsonStr) as Map<String, dynamic>,
+  ) async =>
+      TimelineFeedsConfigSqliteHelper.listarFeedsPersonalizados(
+        await obterDb(),
+        cpf,
       );
-    }).toList();
-  }
 
-  static Future<void> salvarListaSalvos(ListaSalvosSocial lista) async {
-    final db = await obterDb();
-    await db.insert(
-      'listas_salvos_sociais',
-      {
-        'id': lista.id,
-        'dono_cpf': normalizarCpf(lista.donoCpf),
-        'criada_em': lista.criadaEm.toIso8601String(),
-        'atualizada_em': lista.atualizadaEfetiva.toIso8601String(),
-        'dados_json': jsonEncode(lista.toJson()),
-      },
-      conflictAlgorithm: ConflictAlgorithm.replace,
-    );
-  }
+  static Future<void> salvarListaSalvos(ListaSalvosSocial lista) async =>
+      TimelineSalvosDenunciasSqliteHelper.salvarListaSalvos(
+        await obterDb(),
+        lista,
+      );
 
   static Future<List<ListaSalvosSocial>> listarListasSalvosDoUsuario(
     String cpf,
-  ) async {
-    final db = await obterDb();
-    final cpfNorm = normalizarCpf(cpf);
-    final rows = await db.query(
-      'listas_salvos_sociais',
-      orderBy: 'criada_em ASC',
-    );
-    return rows
-        .map(
-          (r) => ListaSalvosSocial.fromJson(
-            jsonDecode(r['dados_json'] as String? ?? '{}')
-                as Map<String, dynamic>,
-          ),
-        )
-        .where((l) =>
-            normalizarCpf(l.donoCpf) == cpfNorm ||
-            l.colaboradoresCpfs.any((c) => normalizarCpf(c) == cpfNorm))
-        .toList();
-  }
+  ) async =>
+      TimelineSalvosDenunciasSqliteHelper.listarListasSalvosDoUsuario(
+        await obterDb(),
+        cpf,
+      );
 
-  static Future<void> salvarItemSalvo(ItemSalvoSocial item) async {
-    final db = await obterDb();
-    await db.insert(
-      'itens_salvos_sociais',
-      {
-        'id': item.id,
-        'lista_id': item.listaId,
-        'usuario_cpf': normalizarCpf(item.usuarioCpf),
-        'publicacao_id': item.publicacaoId,
-        'salvo_em': item.salvoEm.toIso8601String(),
-        'atualizada_em': item.salvoEm.toIso8601String(),
-        'dados_json': jsonEncode(item.toJson()),
-      },
-      conflictAlgorithm: ConflictAlgorithm.replace,
-    );
-  }
+  static Future<void> salvarItemSalvo(ItemSalvoSocial item) async =>
+      TimelineSalvosDenunciasSqliteHelper.salvarItemSalvo(
+        await obterDb(),
+        item,
+      );
 
   static Future<List<ItemSalvoSocial>> listarItensSalvosPorLista(
     String listaId,
-  ) async {
-    final db = await obterDb();
-    final rows = await db.query(
-      'itens_salvos_sociais',
-      where: 'lista_id = ?',
-      whereArgs: [listaId],
-      orderBy: 'salvo_em DESC',
-    );
-    return rows
-        .map(
-          (r) => ItemSalvoSocial.fromJson(
-            jsonDecode(r['dados_json'] as String? ?? '{}')
-                as Map<String, dynamic>,
-          ),
-        )
-        .toList();
-  }
+  ) async =>
+      TimelineSalvosDenunciasSqliteHelper.listarItensSalvosPorLista(
+        await obterDb(),
+        listaId,
+      );
 
   static Future<List<ItemSalvoSocial>> listarItensSalvosDoUsuario(
     String cpf,
-  ) async {
-    final db = await obterDb();
-    final cpfNorm = normalizarCpf(cpf);
-    if (cpfNorm.isEmpty) return const [];
-    final rows = await db.query(
-      'itens_salvos_sociais',
-      where: 'usuario_cpf = ?',
-      whereArgs: [cpfNorm],
-      orderBy: 'salvo_em DESC',
-      limit: 80,
-    );
-    return rows
-        .map(
-          (r) => ItemSalvoSocial.fromJson(
-            jsonDecode(r['dados_json'] as String? ?? '{}')
-                as Map<String, dynamic>,
-          ),
-        )
-        .toList();
-  }
+  ) async =>
+      TimelineSalvosDenunciasSqliteHelper.listarItensSalvosDoUsuario(
+        await obterDb(),
+        cpf,
+      );
 
-  static Future<void> salvarDenuncia(DenunciaSocial denuncia) async {
-    final db = await obterDb();
-    await db.insert(
-      'denuncias_sociais',
-      {
-        'id': denuncia.id,
-        'denunciante_cpf': normalizarCpf(denuncia.denuncianteCpf),
-        'alvo_cpf': normalizarCpf(denuncia.alvoCpf),
-        'publicacao_id': denuncia.publicacaoId,
-        'criada_em': denuncia.criadaEm.toIso8601String(),
-        'atualizada_em': denuncia.criadaEm.toIso8601String(),
-        'dados_json': jsonEncode(denuncia.toJson()),
-      },
-      conflictAlgorithm: ConflictAlgorithm.replace,
-    );
-  }
+  static Future<void> salvarDenuncia(DenunciaSocial denuncia) async =>
+      TimelineSalvosDenunciasSqliteHelper.salvarDenuncia(
+        await obterDb(),
+        denuncia,
+      );
 
   static Future<List<DenunciaSocial>> listarDenunciasEnvolvendoUsuario(
     String cpf,
-  ) async {
-    final db = await obterDb();
-    final cpfNorm = normalizarCpf(cpf);
-    final rows = await db.query(
-      'denuncias_sociais',
-      where: 'denunciante_cpf = ? OR alvo_cpf = ?',
-      whereArgs: [cpfNorm, cpfNorm],
-      orderBy: 'criada_em DESC',
-    );
-    return rows
-        .map(
-          (r) => DenunciaSocial.fromJson(
-            jsonDecode(r['dados_json'] as String? ?? '{}')
-                as Map<String, dynamic>,
-          ),
-        )
-        .toList();
-  }
+  ) async =>
+      TimelineSalvosDenunciasSqliteHelper.listarDenunciasEnvolvendoUsuario(
+        await obterDb(),
+        cpf,
+      );
 
-  static Future<List<String>?> carregarTimelinesVisiveis(String cpf) async {
-    final db = await obterDb();
-    final cpfNorm = normalizarCpf(cpf);
-    final rows = await db.query(
-      'timelines_visiveis_perfil',
-      where: 'cpf = ?',
-      whereArgs: [cpfNorm],
-      limit: 1,
-    );
-    if (rows.isEmpty) return null;
-    final lista = jsonDecode(rows.first['tipos_json'] as String? ?? '[]');
-    if (lista is List) return lista.map((e) => e.toString()).toList();
-    return null;
-  }
+  static Future<List<String>?> carregarTimelinesVisiveis(String cpf) async =>
+      TimelineFeedsConfigSqliteHelper.carregarTimelinesVisiveis(
+        await obterDb(),
+        cpf,
+      );
 
   static Future<void> salvarTimelinesVisiveis(
     String cpf,
     List<String> tipos,
-  ) async {
-    final db = await obterDb();
-    final cpfNorm = normalizarCpf(cpf);
-    await db.insert(
-      'timelines_visiveis_perfil',
-      {
-        'cpf': cpfNorm,
-        'tipos_json': jsonEncode(tipos.toSet().toList()),
-      },
-      conflictAlgorithm: ConflictAlgorithm.replace,
-    );
-  }
+  ) async =>
+      TimelineFeedsConfigSqliteHelper.salvarTimelinesVisiveis(
+        await obterDb(),
+        cpf,
+        tipos,
+      );
 
   static Future<Map<String, PublicacaoSocial>> buscarPublicacoesPorIds(
     List<String> ids, {
@@ -795,39 +536,19 @@ class TimelineRepositorioSqlite {
 
   static Future<List<Map<String, dynamic>>?> carregarAbasDescoberta(
     String cpf,
-  ) async {
-    final db = await obterDb();
-    final cpfNorm = normalizarCpf(cpf);
-    final rows = await db.query(
-      'descoberta_tags_config',
-      where: 'cpf = ?',
-      whereArgs: [cpfNorm],
-      limit: 1,
-    );
-    if (rows.isEmpty) return null;
-    final decoded = jsonDecode(rows.first['abas_json'] as String? ?? '[]');
-    if (decoded is List) {
-      return decoded
-          .whereType<Map>()
-          .map((m) => Map<String, dynamic>.from(m))
-          .toList();
-    }
-    return null;
-  }
+  ) async =>
+      TimelineFeedsConfigSqliteHelper.carregarAbasDescoberta(
+        await obterDb(),
+        cpf,
+      );
 
   static Future<void> salvarAbasDescoberta(
     String cpf,
     List<Map<String, dynamic>> abas,
-  ) async {
-    final db = await obterDb();
-    final cpfNorm = normalizarCpf(cpf);
-    await db.insert(
-      'descoberta_tags_config',
-      {
-        'cpf': cpfNorm,
-        'abas_json': jsonEncode(abas),
-      },
-      conflictAlgorithm: ConflictAlgorithm.replace,
-    );
-  }
+  ) async =>
+      TimelineFeedsConfigSqliteHelper.salvarAbasDescoberta(
+        await obterDb(),
+        cpf,
+        abas,
+      );
 }

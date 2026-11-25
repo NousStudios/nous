@@ -63,6 +63,12 @@ class ManipuladorMidiaServidor {
       return true;
     }
 
+    // 7. Download direto do instalador Windows (.exe) pela rede Wi-Fi local
+    if (path == '/api/download_exe' && method == 'GET') {
+      await _atenderDownloadExe(request);
+      return true;
+    }
+
     return false;
   }
 
@@ -412,6 +418,11 @@ class ManipuladorMidiaServidor {
     final arquivoApk = obterArquivoApk();
     final temApk = arquivoApk != null && arquivoApk.existsSync() && arquivoApk.lengthSync() > 0;
     final tamanho = temApk ? arquivoApk.lengthSync() : 0;
+
+    final arquivoExe = obterArquivoExe();
+    final temExe = arquivoExe != null && arquivoExe.existsSync() && arquivoExe.lengthSync() > 0;
+    final tamanhoExe = temExe ? arquivoExe.lengthSync() : 0;
+
     final novidade = ChangelogService.obterUltimaVersao(AtualizacaoService.versaoAtual) ??
         ChangelogService.obterUltimaVersao();
 
@@ -425,6 +436,9 @@ class ManipuladorMidiaServidor {
         'temApk': temApk,
         'tamanhoBytes': tamanho,
         'nomeArquivo': 'Nous_Android_v${AtualizacaoService.versaoAtual}.apk',
+        'temExe': temExe,
+        'tamanhoExeBytes': tamanhoExe,
+        'nomeArquivoExe': 'Nous_Instalador_v${AtualizacaoService.versaoAtual}_Versao_Teste.exe',
         'alteracoes': novidade?.alteracoes ?? <String>[],
       }));
     await request.response.close();
@@ -432,31 +446,60 @@ class ManipuladorMidiaServidor {
 
   static Future<void> _atenderDownloadApk(HttpRequest request) async {
     final arquivoApk = obterArquivoApk();
-    if (arquivoApk == null || !arquivoApk.existsSync()) {
+    await _enviarArquivoInstalador(
+      request,
+      arquivo: arquivoApk,
+      contentType: ContentType('application', 'vnd.android.package-archive'),
+      nomeDownload: 'Nous_Android_v${AtualizacaoService.versaoAtual}.apk',
+      mensagemAusente: 'Arquivo APK não encontrado em dist/',
+      rotuloLog: 'APK',
+    );
+  }
+
+  static Future<void> _atenderDownloadExe(HttpRequest request) async {
+    final arquivoExe = obterArquivoExe();
+    await _enviarArquivoInstalador(
+      request,
+      arquivo: arquivoExe,
+      contentType: ContentType('application', 'octet-stream'),
+      nomeDownload: 'Nous_Instalador_v${AtualizacaoService.versaoAtual}_Versao_Teste.exe',
+      mensagemAusente: 'Instalador Windows (.exe) não encontrado para distribuição.',
+      rotuloLog: 'EXE',
+    );
+  }
+
+  static Future<void> _enviarArquivoInstalador(
+    HttpRequest request, {
+    required File? arquivo,
+    required ContentType contentType,
+    required String nomeDownload,
+    required String mensagemAusente,
+    required String rotuloLog,
+  }) async {
+    if (arquivo == null || !arquivo.existsSync()) {
       request.response
         ..statusCode = HttpStatus.notFound
         ..headers.contentType = ContentType.json
         ..write(jsonEncode({
           'sucesso': false,
-          'mensagem': 'Arquivo APK não encontrado em dist/',
+          'mensagem': mensagemAusente,
         }));
       await request.response.close();
       return;
     }
 
     try {
-      request.response.headers.contentType =
-          ContentType('application', 'vnd.android.package-archive');
+      request.response.headers.contentType = contentType;
       request.response.headers.set(
         'Content-Disposition',
-        'attachment; filename="Nous_Android_v${AtualizacaoService.versaoAtual}.apk"',
+        'attachment; filename="$nomeDownload"',
       );
-      request.response.headers.contentLength = arquivoApk.lengthSync();
-      await request.response.addStream(arquivoApk.openRead());
+      request.response.headers.contentLength = arquivo.lengthSync();
+      await request.response.addStream(arquivo.openRead());
       await request.response.close();
-      debugPrint('[ManipuladorMidiaServidor] APK transmitido com sucesso via Wi-Fi!');
+      debugPrint('[ManipuladorMidiaServidor] $rotuloLog transmitido com sucesso via Wi-Fi!');
     } catch (e) {
-      debugPrint('[ManipuladorMidiaServidor] Erro ao servir APK: $e');
+      debugPrint('[ManipuladorMidiaServidor] Erro ao servir $rotuloLog: $e');
       try {
         request.response.statusCode = HttpStatus.internalServerError;
       } catch (_) {}
@@ -466,72 +509,95 @@ class ManipuladorMidiaServidor {
     }
   }
 
-  /// Localiza o arquivo binário do APK Android correspondente à versão atual no armazenamento local do computador balcão
-  static File? obterArquivoApk() {
+  /// Localiza o arquivo binário do APK Android correspondente à versão atual no armazenamento local.
+  static File? obterArquivoApk() => _obterArquivoInstalador(
+        extensao: 'apk',
+        prefixoNome: 'Nous_Android',
+      );
+
+  /// Localiza o instalador Windows (.exe) correspondente à versão atual no armazenamento local.
+  static File? obterArquivoExe() => _obterArquivoInstalador(
+        extensao: 'exe',
+        prefixoNome: 'Nous_Instalador',
+        buscarEmDownloadsAndroid: true,
+      );
+
+  static File? _obterArquivoInstalador({
+    required String extensao,
+    required String prefixoNome,
+    bool buscarEmDownloadsAndroid = false,
+  }) {
     try {
       final pastaExe = File(Platform.resolvedExecutable).parent.path;
       final versao = AtualizacaoService.versaoAtual;
+      final nomePadrao = '${prefixoNome}_v${versao}_Versao_Teste.$extensao';
+
       final caminhos = [
-        '$pastaExe/dist/Nous_Android_v${versao}_Versao_Teste.apk',
-        '$pastaExe/Nous_Android_v${versao}_Versao_Teste.apk',
-        'dist/Nous_Android_v${versao}_Versao_Teste.apk',
-        '${Directory.current.path}/dist/Nous_Android_v${versao}_Versao_Teste.apk',
-        'D:/Nous/nous/dist/Nous_Android_v${versao}_Versao_Teste.apk',
+        '$pastaExe/dist/$nomePadrao',
+        '$pastaExe/$nomePadrao',
+        'dist/$nomePadrao',
+        '${Directory.current.path}/dist/$nomePadrao',
+        'D:/Nous/nous/dist/$nomePadrao',
+        if (buscarEmDownloadsAndroid && Platform.isAndroid) ...[
+          '/storage/emulated/0/Download/$nomePadrao',
+          '/storage/emulated/0/Download/Nous/$nomePadrao',
+        ],
       ];
 
       for (final c in caminhos) {
-        final f = File(c);
-        if (f.existsSync() && f.lengthSync() > 0) {
-          return f;
-        }
+        try {
+          final f = File(c);
+          if (f.existsSync() && f.lengthSync() > 0) {
+            return f;
+          }
+        } catch (_) {}
       }
 
-      // Busca dinâmica nas pastas dist estritamente por arquivos com a versão atual
       final pastas = [
         Directory('$pastaExe/dist'),
         Directory(pastaExe),
         Directory('dist'),
         Directory('${Directory.current.path}/dist'),
         Directory('D:/Nous/nous/dist'),
+        if (buscarEmDownloadsAndroid && Platform.isAndroid) ...[
+          Directory('/storage/emulated/0/Download/Nous'),
+          Directory('/storage/emulated/0/Download'),
+        ],
       ];
-      for (final pasta in pastas) {
-        if (pasta.existsSync()) {
-          final apks = pasta
-              .listSync()
-              .whereType<File>()
-              .where((f) =>
-                  f.path.toLowerCase().endsWith('.apk') &&
-                  f.lengthSync() > 0 &&
-                  f.path.contains('v$versao'))
-              .toList();
-          if (apks.isNotEmpty) {
-            return apks.first;
-          }
-        }
-      }
 
-      // Fallback seguro: se não encontrou com a string exata 'v$versao', seleciona o APK mais recente da pasta dist
-      for (final pasta in pastas) {
-        if (pasta.existsSync()) {
-          final apks = pasta
-              .listSync()
-              .whereType<File>()
-              .where((f) =>
-                  f.path.toLowerCase().endsWith('.apk') &&
-                  f.lengthSync() > 0)
-              .toList();
-          if (apks.isNotEmpty) {
-            apks.sort((a, b) => b.lastModifiedSync().compareTo(a.lastModifiedSync()));
-            return apks.first;
-          }
+      for (final comVersaoExata in [true, false]) {
+        for (final pasta in pastas) {
+          try {
+            if (!pasta.existsSync()) continue;
+            final arquivos = pasta
+                .listSync()
+                .whereType<File>()
+                .where((f) {
+                  final caminhoLower = f.path.toLowerCase();
+                  if (!caminhoLower.endsWith('.$extensao') || f.lengthSync() <= 0) {
+                    return false;
+                  }
+                  if (buscarEmDownloadsAndroid &&
+                      Platform.isAndroid &&
+                      !caminhoLower.contains('nous')) {
+                    return false;
+                  }
+                  return !comVersaoExata || f.path.contains('v$versao');
+                })
+                .toList();
+            if (arquivos.isNotEmpty) {
+              arquivos.sort((a, b) => b.lastModifiedSync().compareTo(a.lastModifiedSync()));
+              return arquivos.first;
+            }
+          } catch (_) {}
         }
       }
 
       debugPrint(
-        '[ManipuladorMidiaServidor] Nenhum APK encontrado para distribuição.',
+        '[ManipuladorMidiaServidor] Nenhum arquivo .$extensao encontrado para distribuição.',
       );
     } catch (e) {
-      debugPrint('[ManipuladorMidiaServidor] Erro ao buscar APK: $e');
+      debugPrint('[ManipuladorMidiaServidor] Erro ao buscar .$extensao: $e');
     }
     return null;
   }

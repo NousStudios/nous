@@ -24,14 +24,15 @@
 
 **Por que o APK entra no instalador Windows:** o computador balcão distribui atualizações aos celulares pelo Wi-Fi, sem internet. Compilar o APK antes do Inno Setup impede empacotar um APK defasado dentro do `.exe`.
 
-## 4. Atualização por Wi-Fi (local-first)
+## 4. Atualização por Wi-Fi e GitHub Releases
 
-- O balcão expõe `GET /api/versao` e `GET /api/download_apk`.
-- `ServidorRedeLocal._obterArquivoApk()` só oferece o APK que contenha a versão atual do sistema (`v$versao`), evitando loops de atualização.
-- O celular compara `buildRemota > buildAtual || versaoMaior(versaoRemota, versaoAtual)`. Se for a mesma versão, o botão e o card somem (`temAtualizacao = false`).
-- Com versão superior: botão na `CustomAppBar`; ao clicar, baixa os bytes dentro do app com barra de progresso, grava em armazenamento temporário e abre o instalador nativo via `FileProvider` (`MethodChannel("com.nous.app/instalador")`, método `instalarApk`).
+- O servidor local expõe `GET /api/versao`, `GET /api/download_apk` (Android) e `GET /api/download_exe` (Windows).
+- `ManipuladorMidiaServidor.obterArquivoApk()` e `obterArquivoExe()` procuram o instalador correspondente à versão atual em `dist/`, na pasta do executável e (para `.exe` no Android) em `/storage/emulated/0/Download` e `Download/Nous`.
+- O cliente compara `buildRemota > buildAtual || (buildRemota == buildAtual && versaoMaior(versaoRemota, versaoAtual))`. Se a plataforma tiver o binário disponível no servidor (`temApk` no Android / `temExe` no Windows), baixa e instala via Wi-Fi.
+- **Fallback automático para GitHub Releases:** quando o servidor local tem versão superior, mas não possui o instalador daquela plataforma em disco (ex.: celular como servidor para um notebook Windows sem o `.exe` salvo), o cliente consulta automaticamente `releases/latest` no GitHub, extraindo o `browser_download_url` direto do asset `.exe` ou `.apk`.
+- Com versão superior no Android: baixa os bytes dentro do app com barra de progresso, grava em armazenamento temporário e abre o instalador nativo via `FileProvider` (`MethodChannel("com.nous.app/instalador")`, método `instalarApk`). No Windows: baixa o `.exe` e executa automaticamente.
 - **Versão real no Android:** o método nativo `obterVersaoApp` do mesmo `MethodChannel` lê o `PackageManager` (`versionName`, `longVersionCode`) e alimenta `AtualizacaoService.inicializar()` em `main.dart`, evitando descompasso de constantes e reinstalação infinita.
-- `AtualizacaoDialog` e `AtualizacaoService` priorizam a fonte local e protegem `temAtualizacao` e `infoAtualizacao`: buscas secundárias na internet não podem apagar o aviso do balcão.
+- `AtualizacaoDialog` e `AtualizacaoService` priorizam a fonte local (`/api/download_apk` e `/api/download_exe`) e protegem `temAtualizacao` e `infoAtualizacao`: buscas secundárias na internet não podem apagar o aviso do servidor local.
 
 ## 5. Windows
 

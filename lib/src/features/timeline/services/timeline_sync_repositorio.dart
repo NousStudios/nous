@@ -85,12 +85,28 @@ class TimelineSyncRepositorio {
         itens.length >= limit ||
         denuncias.length >= limit;
 
+    final pubsExcluidasRows = offset == 0
+        ? await db.query(
+            'publicacoes_sociais',
+            columns: ['id', 'atualizada_em'],
+            where: 'excluida = 1',
+          )
+        : const <Map<String, Object?>>[];
+    final idsPublicacoesExcluidas = pubsExcluidasRows
+        .map((r) => <String, dynamic>{
+              'id': (r['id'] ?? '').toString(),
+              'atualizadaEm': (r['atualizada_em'] ?? '').toString(),
+            })
+        .where((m) => (m['id'] as String).isNotEmpty)
+        .toList();
+
     return {
       'geradoEm': DateTime.now().toIso8601String(),
       'incremental': desde != null,
       'offset': offset,
       'proximoOffset': offset + limit,
       'temMais': temMais,
+      'idsPublicacoesExcluidas': idsPublicacoesExcluidas,
       'publicacoes': decodificar(
         pubs,
         (d) => (d['atualizadaEm'] ?? d['criadaEm'])?.toString(),
@@ -147,6 +163,47 @@ class TimelineSyncRepositorio {
               !local.excluida;
       if (remotaMaisNova || empateComExclusao) {
         await TimelineRepositorioSqlite.salvarPublicacao(remota);
+      }
+    }
+
+    // Aplica tombstones completos de publicações excluídas (mesmo anteriores ao `desde`)
+    final excluidasBrutas =
+        snapshot['idsPublicacoesExcluidas'] as List<dynamic>? ?? const [];
+    if (excluidasBrutas.isNotEmpty) {
+      final mapaExcluidas = <String, DateTime?>{};
+      for (final item in excluidasBrutas) {
+        if (item is Map) {
+          final id = (item['id'] ?? '').toString();
+          if (id.isEmpty) continue;
+          final dt = DateTime.tryParse((item['atualizadaEm'] ?? '').toString());
+          mapaExcluidas[id] = dt;
+        } else if (item is String && item.isNotEmpty) {
+          mapaExcluidas[item] = null;
+        }
+      }
+      if (mapaExcluidas.isNotEmpty) {
+        final locaisExcl = await TimelineRepositorioSqlite.buscarPublicacoesPorIds(
+          mapaExcluidas.keys.toList(),
+        );
+        for (final entry in locaisExcl.entries) {
+          final local = entry.value;
+          if (local.excluida) continue;
+          final dtRemoto = mapaExcluidas[entry.key];
+          final podeExcluir = dtRemoto == null ||
+              !dtRemoto.isBefore(local.atualizadaEm);
+          if (podeExcluir) {
+            await TimelineRepositorioSqlite.salvarPublicacao(
+              local.copyWith(
+                excluida: true,
+                arquivada: false,
+                fixada: false,
+                tags: const [],
+                coautoresCpfs: const [],
+                atualizadaEm: dtRemoto ?? DateTime.now(),
+              ),
+            );
+          }
+        }
       }
     }
 

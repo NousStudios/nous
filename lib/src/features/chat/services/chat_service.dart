@@ -1,20 +1,20 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-import 'package:nous/src/core/services/preferencias_soberanas_service.dart';
 import 'package:nous/src/features/auth/models/usuario_nous.dart';
 import 'package:nous/src/features/chat/models/conversa_chat.dart';
 import 'package:nous/src/features/chat/models/mensagem_chat.dart';
 import 'package:nous/src/features/chat/services/chat_conversas_service.dart';
-import 'package:nous/src/features/chat/services/chat_e2ee_service.dart';
 import 'package:nous/src/features/chat/services/chat_grupos_service.dart';
 import 'package:nous/src/features/chat/services/chat_media_service.dart';
 import 'package:nous/src/features/chat/services/chat_mensagens_service.dart';
-import 'package:nous/src/features/chat/services/chat_outbox_e_recibos_service.dart';
 import 'package:nous/src/features/chat/services/chat_repositorio_sqlite.dart';
 import 'package:nous/src/features/chat/services/chat_sincronizacao_service.dart';
 import 'package:nous/src/features/chat/services/comunidade_chat_service.dart';
+import 'package:nous/src/features/chat/services/helpers/chat_acoes_helper.dart';
+import 'package:nous/src/features/chat/services/helpers/chat_identidade_helper.dart';
+import 'package:nous/src/features/chat/services/helpers/chat_notificacoes_helper.dart';
+import 'package:nous/src/features/chat/services/helpers/chat_recibos_rede_helper.dart';
 import 'package:nous/src/features/chat/services/sincronizador_chat_balcao.dart';
 
 /// Fachada Soberana e Unificada de Mensageria Nous
@@ -26,8 +26,6 @@ class ChatService {
   static String? idConversaAtiva;
   static Timer? _timerDebounceNotificacao;
 
-  static const String _chaveConversasSilenciadas =
-      'nous_conversas_silenciadas';
   static const String idLojaColetivaNous = 'loja_nous_coletiva';
   static const String idTopicoGeral = 'loja_nous_coletiva_topico_geral';
 
@@ -46,27 +44,14 @@ class ChatService {
   static String normalizarCpf(String cpf) =>
       ChatRepositorioSqlite.normalizarCpf(cpf);
 
-  static Future<String> obterCpfLogadoLocal() async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final cpf = prefs.getString('ultimo_cpf_login') ?? '';
-      return normalizarCpf(cpf);
-    } catch (_) {
-      return '';
-    }
-  }
+  static Future<String> obterCpfLogadoLocal() =>
+      ChatIdentidadeHelper.obterCpfLogadoLocal();
 
-  static String conversaIdLojaUsuario(String lojaId, String usuarioCpf) {
-    final prefixo = lojaId.startsWith('loja_') ? lojaId : 'loja_$lojaId';
-    return '${prefixo}_usuario_${normalizarCpf(usuarioCpf)}';
-  }
+  static String conversaIdLojaUsuario(String lojaId, String usuarioCpf) =>
+      ChatIdentidadeHelper.conversaIdLojaUsuario(lojaId, usuarioCpf);
 
-  static String conversaIdEntreUsuarios(String cpfA, String cpfB) {
-    final c1 = normalizarCpf(cpfA);
-    final c2 = normalizarCpf(cpfB);
-    final lista = [c1, c2]..sort();
-    return 'user_${lista[0]}_user_${lista[1]}';
-  }
+  static String conversaIdEntreUsuarios(String cpfA, String cpfB) =>
+      ChatIdentidadeHelper.conversaIdEntreUsuarios(cpfA, cpfB);
 
   static String extrairOutroCpf(String convId, String meuCpf) =>
       ChatRepositorioSqlite.extrairOutroCpf(convId, meuCpf);
@@ -205,124 +190,27 @@ class ChatService {
   static Future<void> processarMensagemEntregueDaRede(
     String msgId, {
     String? conversaId,
-  }) async {
-    if (msgId.isEmpty) return;
-    try {
-      final db = await ChatRepositorioSqlite.obterDb();
-      final alterou = await db.update(
-        'mensagens_chat',
-        {'status_envio': 'entregue', 'entregue': 1},
-        where: 'id = ? AND status_envio != "lida"',
-        whereArgs: [msgId],
+  }) =>
+      ChatRecibosRedeHelper.processarMensagemEntregueDaRede(
+        msgId,
+        conversaId: conversaId,
+        aoNotificar: notificarAlteracao,
       );
-      if (alterou > 0) {
-        await ChatOutboxERecibosService.registrarEntrega(
-          msgId,
-          conversaId ?? 'rede',
-        );
-        notificarAlteracao();
-      }
-    } catch (e) {
-      debugPrint('[ChatService] Erro ao processar mensagem entregue da rede: $e');
-    }
-  }
 
   /// Identifica se uma conversa é coletiva (grupos, tópicos da Ágora Digital, comunidade ou chat de equipe)
-  static bool ehConversaColetivaOuGrupo(String conversaId) {
-    if (conversaId.isEmpty) return false;
-    if (conversaId.startsWith('grupo_') ||
-        conversaId.startsWith('topico_') ||
-        conversaId.startsWith('comunidade_') ||
-        conversaId.startsWith('loja_nous_coletiva_')) {
-      return true;
-    }
-    return false;
-  }
+  static bool ehConversaColetivaOuGrupo(String conversaId) =>
+      ChatRecibosRedeHelper.ehConversaColetivaOuGrupo(conversaId);
 
   /// Processa confirmação de mensagens lidas recebida da rede local (2 checks azuis)
   static Future<void> processarMensagensLidasDaRede(
     String conversaId,
     String idLeitor,
-  ) async {
-    if (conversaId.isEmpty || idLeitor.isEmpty) return;
-    try {
-      final db = await ChatRepositorioSqlite.obterDb();
-
-      // Em grupos e tópicos coletivos (Ágora Digital, equipe, etc.), uma leitura individual
-      // NÃO passa a mensagem para azul (lida). Mantém em 'entregue' (2 checks cinzas).
-      if (ehConversaColetivaOuGrupo(conversaId)) {
-        await ChatOutboxERecibosService.registrarLeituraConversa(
-          conversaId,
-          idLeitor,
-        );
-        final alterou = await db.update(
-          'mensagens_chat',
-          {'status_envio': 'entregue', 'entregue': 1},
-          where: 'conversa_id = ? AND status_envio = "enviada"',
-          whereArgs: [conversaId],
-        );
-        if (alterou > 0) {
-          notificarAlteracao();
-        }
-        return;
-      }
-
-      int alterou = 0;
-      if (conversaId.startsWith('loja_')) {
-        final leitorDigits = idLeitor.replaceAll(RegExp(r'\D'), '');
-        final ehLeituraDaLoja =
-            idLeitor.startsWith('loja_') || leitorDigits.length != 11;
-        if (ehLeituraDaLoja) {
-          // A loja leu a conversa: mensagens do cliente viram lidas
-          alterou = await db.update(
-            'mensagens_chat',
-            {'status_envio': 'lida', 'lida': 1},
-            where:
-                'conversa_id = ? AND status_envio != "lida" AND remetente_id NOT LIKE "loja_%"',
-            whereArgs: [conversaId],
-          );
-        } else {
-          // O cliente leu a conversa: mensagens da loja viram lidas
-          alterou = await db.update(
-            'mensagens_chat',
-            {'status_envio': 'lida', 'lida': 1},
-            where:
-                'conversa_id = ? AND status_envio != "lida" AND remetente_id LIKE "loja_%"',
-            whereArgs: [conversaId],
-          );
-          if (alterou == 0) {
-            final leitorNorm = normalizarCpf(idLeitor);
-            alterou = await db.update(
-              'mensagens_chat',
-              {'status_envio': 'lida', 'lida': 1},
-              where:
-                  'conversa_id = ? AND status_envio != "lida" AND remetente_id NOT IN (?, ?, ?)',
-              whereArgs: [conversaId, idLeitor, leitorNorm, 'user_$leitorNorm'],
-            );
-          }
-        }
-      } else {
-        // Em conversas 1:1 normais entre usuários
-        final leitorNorm = normalizarCpf(idLeitor);
-        alterou = await db.update(
-          'mensagens_chat',
-          {'status_envio': 'lida', 'lida': 1},
-          where:
-              'conversa_id = ? AND status_envio != "lida" AND remetente_id NOT IN (?, ?, ?)',
-          whereArgs: [conversaId, idLeitor, leitorNorm, 'user_$leitorNorm'],
-        );
-      }
-      if (alterou > 0) {
-        await ChatOutboxERecibosService.registrarLeituraConversa(
-          conversaId,
-          idLeitor,
-        );
-        notificarAlteracao(imediato: true);
-      }
-    } catch (e) {
-      debugPrint('[ChatService] Erro ao processar mensagens lidas da rede: $e');
-    }
-  }
+  ) =>
+      ChatRecibosRedeHelper.processarMensagensLidasDaRede(
+        conversaId,
+        idLeitor,
+        aoNotificar: notificarAlteracao,
+      );
 
   /// Alterna o status de favorita de uma mensagem
   static Future<bool> alternarFavoritaMensagem(String id) async {
@@ -332,11 +220,11 @@ class ChatService {
   }
 
   /// Alterna o silenciamento de notificações de uma conversa
-  static Future<bool> alternarSilenciarConversa(String conversaId) async {
-    final res = await ChatRepositorioSqlite.alternarSilenciarConversa(conversaId);
-    notificarAlteracao(imediato: true);
-    return res;
-  }
+  static Future<bool> alternarSilenciarConversa(String conversaId) =>
+      ChatNotificacoesHelper.alternarSilenciarConversa(
+        conversaId,
+        aoNotificar: notificarAlteracao,
+      );
 
   static Future<void> curarTimestampsAnomalosDoPassado() =>
       ChatRepositorioSqlite.curarTimestampsAnomalosDoPassado();
@@ -389,40 +277,25 @@ class ChatService {
     String? idVisualizador,
     int? limite,
     int? offset,
-  }) async {
-    final msgs = await ChatRepositorioSqlite.carregarMensagens(
-      conversaId,
-      idVisualizador: idVisualizador,
-      limite: limite,
-      offset: offset,
-    );
-    var cpfVis = normalizarCpf(idVisualizador ?? '');
-    if (cpfVis.length != 11) {
-      cpfVis = normalizarCpf(await obterCpfLogadoLocal());
-    }
-    if (cpfVis.length != 11) {
-      return msgs;
-    }
-    return ChatE2eeService.decifrarListaMensagens(
-      msgs,
-      cpfVisualizador: cpfVis,
-    );
-  }
+  }) =>
+      ChatIdentidadeHelper.carregarMensagens(
+        conversaId,
+        idVisualizador: idVisualizador,
+        limite: limite,
+        offset: offset,
+      );
 
   static Future<void> marcarComoLidas(
     String conversaId,
     String idLeitor, {
     bool notificar = true,
-  }) async {
-    final alterou = await ChatRepositorioSqlite.marcarComoLidas(
-      conversaId,
-      idLeitor,
-    );
-    if (notificar && alterou) {
-      notificarAlteracao();
-    }
-    despacharConfirmacaoLida(conversaId, idLeitor);
-  }
+  }) =>
+      ChatRecibosRedeHelper.marcarComoLidas(
+        conversaId,
+        idLeitor,
+        notificar: notificar,
+        aoNotificar: notificarAlteracao,
+      );
 
   static Future<bool> temMensagensNaoLidasNaLoja(String lojaId) =>
       ChatRepositorioSqlite.temMensagensNaoLidasNaLoja(
@@ -439,40 +312,22 @@ class ChatService {
   static Future<void> marcarMensagensDaLojaComoLidas(
     String lojaId,
     String idLeitor,
-  ) async {
-    final alterou =
-        await ChatRepositorioSqlite.marcarMensagensDaLojaComoLidas(
-      lojaId,
-      idLeitor,
-    );
-    if (alterou) {
-      notificarAlteracao();
-    }
-    ChatSincronizacaoService.despacharEventoRede({
-      'tipo': 'mensagens_lidas_loja',
-      'lojaId': lojaId,
-      'idLeitor': idLeitor,
-    });
-  }
+  ) =>
+      ChatRecibosRedeHelper.marcarMensagensDaLojaComoLidas(
+        lojaId,
+        idLeitor,
+        aoNotificar: notificarAlteracao,
+      );
 
   static Future<void> processarMensagensLidasDaLojaDaRede(
     String lojaId,
     String idLeitor,
-  ) async {
-    if (lojaId.isEmpty) return;
-    try {
-      final alterou =
-          await ChatRepositorioSqlite.marcarMensagensDaLojaComoLidas(
+  ) =>
+      ChatRecibosRedeHelper.processarMensagensLidasDaLojaDaRede(
         lojaId,
         idLeitor,
+        aoNotificar: notificarAlteracao,
       );
-      if (alterou) {
-        notificarAlteracao();
-      }
-    } catch (e) {
-      debugPrint('[ChatService] Erro ao processar mensagens_lidas_loja da rede: $e');
-    }
-  }
 
   static Future<bool> temMensagensNaoLidasNoUsuario(String cpf) =>
       ChatRepositorioSqlite.temMensagensNaoLidasNoUsuario(
@@ -489,15 +344,12 @@ class ChatService {
   static Future<void> marcarMensagensDoUsuarioComoLidas(
     String cpf,
     List<String> conversaIds,
-  ) async {
-    final cpfNorm = normalizarCpf(cpf);
-    if (cpfNorm.isEmpty) return;
-    for (final convId in conversaIds.toSet()) {
-      await ChatRepositorioSqlite.marcarComoLidas(convId, cpfNorm);
-      despacharConfirmacaoLida(convId, cpfNorm);
-    }
-    notificarAlteracao(imediato: true);
-  }
+  ) =>
+      ChatRecibosRedeHelper.marcarMensagensDoUsuarioComoLidas(
+        cpf,
+        conversaIds,
+        aoNotificar: notificarAlteracao,
+      );
 
   static Future<Map<String, ({String nome, String foto})>>
       obterInterlocutoresDoUsuario(String cpf) =>
@@ -560,51 +412,18 @@ class ChatService {
         aoNotificar: notificarAlteracao,
       );
 
-  static Future<bool> deveNotificarConversa(String conversaId) async {
-    try {
-      final db = await ChatRepositorioSqlite.obterDb();
-      final rows = await db.query(
-        'conversas_chat',
-        columns: ['silenciada'],
-        where: 'id = ?',
-        whereArgs: [conversaId],
-        limit: 1,
-      );
-      if (rows.isNotEmpty && (rows.first['silenciada'] as int? ?? 0) == 1) {
-        return false;
-      }
-      final silenciadas = await PreferenciasSoberanasService.obterLista(
-        _chaveConversasSilenciadas,
-      );
-      return !silenciadas.contains(conversaId);
-    } catch (_) {
-      return true;
-    }
-  }
+  static Future<bool> deveNotificarConversa(String conversaId) =>
+      ChatNotificacoesHelper.deveNotificarConversa(conversaId);
 
   static Future<void> alternarNotificacaoConversa(
     String conversaId,
     bool notificar,
-  ) async {
-    try {
-      final silenciadas = (await PreferenciasSoberanasService.obterLista(
-        _chaveConversasSilenciadas,
-      ))
-          .toSet();
-      if (notificar) {
-        silenciadas.remove(conversaId);
-      } else {
-        silenciadas.add(conversaId);
-      }
-      await PreferenciasSoberanasService.salvarLista(
-        _chaveConversasSilenciadas,
-        silenciadas.toList(),
+  ) =>
+      ChatNotificacoesHelper.alternarNotificacaoConversa(
+        conversaId,
+        notificar,
+        aoNotificar: notificarAlteracao,
       );
-      notificarAlteracao();
-    } catch (e) {
-      debugPrint('[ChatService] Erro ao alternar notificação de conversa: $e');
-    }
-  }
 
   static Future<List<ConversaChat>> obterTopicosComunidadeNous({
     String? cpfUsuario,
@@ -700,16 +519,12 @@ class ChatService {
   static Future<void> excluirConversaLocal(
     String conversaId, {
     bool originadoDaRede = false,
-  }) async {
-    await ChatRepositorioSqlite.excluirConversaLocal(conversaId);
-    notificarAlteracao();
-    if (!originadoDaRede) {
-      ChatSincronizacaoService.despacharEventoRede({
-        'tipo': 'conversa_excluida',
-        'conversaId': conversaId,
-      });
-    }
-  }
+  }) =>
+      ChatAcoesHelper.excluirConversaLocal(
+        conversaId,
+        originadoDaRede: originadoDaRede,
+        aoNotificar: notificarAlteracao,
+      );
 
   static void despacharConversaRenomeada(
           String conversaId, String novoTitulo) =>
@@ -723,63 +538,37 @@ class ChatService {
     String msgId, {
     bool? fixar,
     String? conversaId,
-  }) async {
-    final novo = await ChatRepositorioSqlite.alternarFixarMensagem(
-      msgId,
-      fixar: fixar,
-    );
-    notificarAlteracao();
-    ChatSincronizacaoService.despacharEventoRede({
-      'tipo': 'mensagem_fixada',
-      'id': msgId,
-      'conversaId': conversaId ?? '',
-      'fixada': novo,
-    });
-    return novo;
-  }
+  }) =>
+      ChatAcoesHelper.alternarFixarMensagem(
+        msgId,
+        fixar: fixar,
+        conversaId: conversaId,
+        aoNotificar: notificarAlteracao,
+      );
 
   static Future<Map<String, String>> reagirMensagem(
     String msgId,
     String autorId,
     String emoji, {
     String? conversaId,
-  }) async {
-    final reacoes = await ChatRepositorioSqlite.reagirMensagem(
-      msgId,
-      autorId,
-      emoji,
-    );
-    notificarAlteracao();
-    ChatSincronizacaoService.despacharEventoRede({
-      'tipo': 'mensagem_reacao',
-      'id': msgId,
-      'conversaId': conversaId ?? '',
-      'reacoes': reacoes,
-    });
-    return reacoes;
-  }
+  }) =>
+      ChatAcoesHelper.reagirMensagem(
+        msgId,
+        autorId,
+        emoji,
+        conversaId: conversaId,
+        aoNotificar: notificarAlteracao,
+      );
 
   static Future<void> atualizarDadosComandaMensagem({
     required String msgId,
     required String dadosPedidoJson,
     String? texto,
-  }) async {
-    final db = await ChatRepositorioSqlite.obterDb();
-    await db.update(
-      'mensagens_chat',
-      {
-        'dados_pedido_json': dadosPedidoJson,
-        if (texto != null && texto.isNotEmpty) 'texto': texto,
-      },
-      where: 'id = ?',
-      whereArgs: [msgId],
-    );
-    notificarAlteracao();
-    ChatSincronizacaoService.despacharEventoRede({
-      'tipo': 'comanda_atualizada',
-      'id': msgId,
-      'dadosPedidoJson': dadosPedidoJson,
-      'texto': ?texto,
-    });
-  }
+  }) =>
+      ChatAcoesHelper.atualizarDadosComandaMensagem(
+        msgId: msgId,
+        dadosPedidoJson: dadosPedidoJson,
+        texto: texto,
+        aoNotificar: notificarAlteracao,
+      );
 }

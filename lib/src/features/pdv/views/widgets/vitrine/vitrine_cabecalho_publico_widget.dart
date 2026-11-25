@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import 'package:nous/src/core/theme/theme_controller.dart';
 import 'package:nous/src/features/auth/providers/auth_provider.dart';
 import 'package:nous/src/features/auth/views/widgets/cabecalho_perfil_publico_widget.dart';
+import 'package:nous/src/features/busca/views/busca_mapa_view.dart';
 import 'package:nous/src/features/chat/services/chat_service.dart';
 import 'package:nous/src/features/chat/views/mensageria_view.dart';
 import 'package:nous/src/features/chat/views/widgets/visualizador_imagem_chat_dialog.dart';
@@ -100,13 +101,19 @@ class VitrineCabecalhoPublicoWidget extends StatelessWidget {
     final provLogo = ImagemService.obterImageProvider(loja.logo);
     final temLogo = provLogo != null;
     final subtituloHandle = formatarCategoriasLoja(loja.categorias);
+    final enderecoCompleto = [
+      loja.endereco.trim(),
+      loja.numero.trim(),
+    ].where((e) => e.isNotEmpty).join(', ');
     final biografiaLoja = loja.biografiaPublica.trim().isNotEmpty
         ? loja.biografiaPublica.trim()
-        : (loja.endereco.trim().isNotEmpty
-            ? loja.endereco.trim()
+        : (enderecoCompleto.isNotEmpty
+            ? ''
             : 'Comércio Soberano na Rede Nous • Autoatendimento e Catálogo');
-    final podeEditarPerfilLoja =
-        ehMembroLoja && context.read<PdvProvider>().possoEditarDadosLoja(loja.id);
+    final pdv = context.read<PdvProvider>();
+    final podeEditarPerfilLoja = ehMembroLoja &&
+        (pdv.possoEditarDadosLoja(loja.id) ||
+            pdv.possoEditarLocalizacaoMapa(loja.id));
     final corDestaqueCustom = parseHexLoja(loja.corDestaquePerfilHex);
     final corBotaoAtivo = corDestaqueCustom ?? theme.buttonColor;
 
@@ -180,17 +187,64 @@ class VitrineCabecalhoPublicoWidget extends StatelessWidget {
               ),
             ],
           ),
-          const SizedBox(height: 10),
-          Center(
-            child: Text(
-              biografiaLoja,
-              textAlign: TextAlign.center,
-              style: theme.getTextStyle(
-                fontSize: 12,
-                color: theme.textColor,
+          if (biografiaLoja.isNotEmpty) ...[
+            const SizedBox(height: 10),
+            Center(
+              child: Text(
+                biografiaLoja,
+                textAlign: TextAlign.center,
+                style: theme.getTextStyle(
+                  fontSize: 12,
+                  color: theme.textColor,
+                ),
               ),
             ),
-          ),
+          ],
+          if (enderecoCompleto.isNotEmpty) ...[
+            const SizedBox(height: 6),
+            Center(
+              child: InkWell(
+                borderRadius: BorderRadius.circular(8),
+                onTap: () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => BuscaMapaView(lojaDestinoInicial: loja),
+                    ),
+                  );
+                },
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 4,
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        Icons.location_on_outlined,
+                        size: 14,
+                        color: theme.textColor,
+                      ),
+                      const SizedBox(width: 5),
+                      Flexible(
+                        child: Text(
+                          enderecoCompleto,
+                          textAlign: TextAlign.center,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: theme.getTextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: theme.textColor,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ],
           if (loja.linksPublicos.isNotEmpty) ...[
             const SizedBox(height: 6),
             Wrap(

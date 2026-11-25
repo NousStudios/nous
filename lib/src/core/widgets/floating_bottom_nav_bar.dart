@@ -1,8 +1,12 @@
+import 'dart:async';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'package:nous/src/core/services/guarda_acao_ui.dart';
+import 'package:nous/src/core/services/preferencias_soberanas_service.dart';
 import 'package:nous/src/core/theme/theme_controller.dart';
 import 'package:nous/src/core/views/em_construcao_view.dart';
+import 'package:nous/src/features/auth/providers/auth_provider.dart';
 import 'package:nous/src/features/auth/views/perfil_social_view.dart';
 import 'package:nous/src/features/busca/views/busca_mapa_view.dart';
 import 'package:nous/src/features/chat/views/mensageria_view.dart';
@@ -45,6 +49,79 @@ class FloatingBottomNavBar extends StatefulWidget {
     this.indiceSelecionado,
     this.onTrocarIndice,
   });
+
+  static String _chaveUltimaAba(String cpf) {
+    final norm = cpf.replaceAll(RegExp(r'\D'), '');
+    return 'nav_ultima_aba_${norm.isEmpty ? 'visitante' : norm}';
+  }
+
+  static Future<void> salvarUltimaAba(
+    String cpf,
+    int slot,
+    int subIndice,
+  ) async {
+    if (cpf.trim().isEmpty) return;
+    await PreferenciasSoberanasService.salvarTexto(
+      _chaveUltimaAba(cpf),
+      '$slot:$subIndice',
+    );
+  }
+
+  static Widget construirPaginaPorSlot(int slot, int subIndice) {
+    if (slot == 0) {
+      return subIndice == 0
+          ? const ComprasUsuarioView()
+          : const PerfisPdvView();
+    } else if (slot == 1) {
+      return subIndice == 0
+          ? const PerfilSocialView(mostrarBotaoVoltar: false)
+          : const MensageriaView(
+              modoLoja: false,
+              mostrarBotaoVoltar: false,
+            );
+    } else if (slot == 2) {
+      return subIndice == 0
+          ? const BuscaMapaView()
+          : const PlayerUniversalView();
+    } else if (slot == 3) {
+      return subIndice == 0
+          ? const FeedDescobertaView(apenasAmigos: false)
+          : const FeedDescobertaView(apenasAmigos: true);
+    } else {
+      return subIndice == 0
+          ? const EmConstrucaoView(
+              titulo: 'Autogestão Social',
+              subtitulo:
+                  'Assembleias, deliberações e tomada de decisão coletiva',
+              icone: Icons.hub_outlined,
+              slotSelecionado: 4,
+              subIndiceSelecionado: 0,
+            )
+          : const EmConstrucaoView(
+              titulo: 'Governança & Gestão',
+              subtitulo: 'Ferramentas de coordenação e autogestão popular',
+              icone: Icons.account_tree_outlined,
+              slotSelecionado: 4,
+              subIndiceSelecionado: 1,
+            );
+    }
+  }
+
+  static Future<Widget> obterTelaInicialPorCpf(String cpf) async {
+    if (cpf.trim().isEmpty) return const BuscaMapaView();
+    final salvo =
+        await PreferenciasSoberanasService.obterTexto(_chaveUltimaAba(cpf));
+    if (salvo == null || !salvo.contains(':')) {
+      return const BuscaMapaView();
+    }
+    final partes = salvo.split(':');
+    final slot = int.tryParse(partes[0]) ?? 2;
+    final subIndice = int.tryParse(partes[1]) ?? 0;
+    if (slot < 0 || slot > 4 || subIndice < 0 || subIndice > 1) {
+      return const BuscaMapaView();
+    }
+    return construirPaginaPorSlot(slot, subIndice);
+  }
 
   @override
   State<FloatingBottomNavBar> createState() => _FloatingBottomNavBarState();
@@ -157,54 +234,9 @@ class _FloatingBottomNavBarState extends State<FloatingBottomNavBar> {
   }
 
   void _executarNavegacao(int slot, int subIndice, {bool? paraCima}) {
-    Widget pagina;
-
-    if (slot == 0) {
-      if (subIndice == 0) {
-        pagina = const ComprasUsuarioView();
-      } else {
-        pagina = const PerfisPdvView();
-      }
-    } else if (slot == 1) {
-      if (subIndice == 0) {
-        pagina = const PerfilSocialView(mostrarBotaoVoltar: false);
-      } else {
-        pagina = const MensageriaView(
-          modoLoja: false,
-          mostrarBotaoVoltar: false,
-        );
-      }
-    } else if (slot == 2) {
-      if (subIndice == 0) {
-        pagina = const BuscaMapaView();
-      } else {
-        pagina = const PlayerUniversalView();
-      }
-    } else if (slot == 3) {
-      if (subIndice == 0) {
-        pagina = const FeedDescobertaView(apenasAmigos: false);
-      } else {
-        pagina = const FeedDescobertaView(apenasAmigos: true);
-      }
-    } else {
-      if (subIndice == 0) {
-        pagina = const EmConstrucaoView(
-          titulo: 'Autogestão Social',
-          subtitulo: 'Assembleias, deliberações e tomada de decisão coletiva',
-          icone: Icons.hub_outlined,
-          slotSelecionado: 4,
-          subIndiceSelecionado: 0,
-        );
-      } else {
-        pagina = const EmConstrucaoView(
-          titulo: 'Governança & Gestão',
-          subtitulo: 'Ferramentas de coordenação e autogestão popular',
-          icone: Icons.account_tree_outlined,
-          slotSelecionado: 4,
-          subIndiceSelecionado: 1,
-        );
-      }
-    }
+    final cpf = context.read<AuthProvider>().cpf;
+    unawaited(FloatingBottomNavBar.salvarUltimaAba(cpf, slot, subIndice));
+    final pagina = FloatingBottomNavBar.construirPaginaPorSlot(slot, subIndice);
 
     // Transição suave vertical simulando o arrasto de descida/subida da tela
     final offsetInicio = paraCima == null

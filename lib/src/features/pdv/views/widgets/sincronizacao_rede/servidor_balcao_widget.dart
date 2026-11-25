@@ -356,6 +356,38 @@ class ServidorBalcaoWidget extends StatelessWidget {
                                                           .secondaryTextColor,
                                                     ),
                                                   ),
+                                                  if (term.versaoApp != null &&
+                                                      term.versaoApp!
+                                                          .trim()
+                                                          .isNotEmpty) ...[
+                                                    const SizedBox(width: 6),
+                                                    Container(
+                                                      padding: const EdgeInsets
+                                                          .symmetric(
+                                                        horizontal: 5,
+                                                        vertical: 1,
+                                                      ),
+                                                      decoration: BoxDecoration(
+                                                        color: theme.borderColor
+                                                            .withValues(
+                                                                alpha: 0.25),
+                                                        borderRadius:
+                                                            BorderRadius
+                                                                .circular(4),
+                                                      ),
+                                                      child: Text(
+                                                        'v${term.versaoApp}',
+                                                        style:
+                                                            theme.getTextStyle(
+                                                          fontSize: 10,
+                                                          fontWeight:
+                                                              FontWeight.w600,
+                                                          color:
+                                                              theme.textColor,
+                                                        ),
+                                                      ),
+                                                    ),
+                                                  ],
                                                 ],
                                               ),
                                               if (temUsuario || temCpf) ...[

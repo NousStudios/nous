@@ -4,6 +4,7 @@ import 'package:nous/src/core/theme/theme_controller.dart';
 import 'package:nous/src/core/widgets/themed_text_field.dart';
 import 'package:nous/src/features/pdv/models/loja.dart';
 import 'package:nous/src/features/pdv/providers/pdv_provider.dart';
+import 'package:nous/src/features/pdv/views/widgets/loja/seletor_localizacao_mapa_loja_widget.dart';
 
 /// Diálogo modular para membros com permissão editarem a apresentação pública
 /// da loja (biografia, links e cores do perfil público).
@@ -39,6 +40,8 @@ class _DialogEditarPerfilPublicoLojaState
   late final TextEditingController _linksCtrl;
   late String _corFundoHex;
   late String _corDestaqueHex;
+  double? _latitude;
+  double? _longitude;
   bool _salvando = false;
 
   static const List<String> _paletaFundos = [
@@ -70,6 +73,8 @@ class _DialogEditarPerfilPublicoLojaState
     );
     _corFundoHex = widget.loja.corFundoPerfilHex;
     _corDestaqueHex = widget.loja.corDestaquePerfilHex;
+    _latitude = widget.loja.latitude;
+    _longitude = widget.loja.longitude;
   }
 
   @override
@@ -95,19 +100,35 @@ class _DialogEditarPerfilPublicoLojaState
         .map((e) => e.trim())
         .where((e) => e.isNotEmpty)
         .toList();
+    final pdv = context.read<PdvProvider>();
+    final podeEditarDados = pdv.possoEditarDadosLoja(widget.loja.id);
+    final podeEditarMapa = pdv.possoEditarLocalizacaoMapa(widget.loja.id);
     final atualizada = widget.loja.copyWith(
-      biografiaPublica: _bioCtrl.text.trim(),
-      linksPublicos: links,
-      corFundoPerfilHex: _corFundoHex,
-      corDestaquePerfilHex: _corDestaqueHex,
+      biografiaPublica: podeEditarDados ? _bioCtrl.text.trim() : null,
+      linksPublicos: podeEditarDados ? links : null,
+      corFundoPerfilHex: podeEditarDados ? _corFundoHex : null,
+      corDestaquePerfilHex: podeEditarDados ? _corDestaqueHex : null,
+      latitude: podeEditarMapa ? _latitude : null,
+      longitude: podeEditarMapa ? _longitude : null,
+      dadosAtualizadosEm: DateTime.now(),
     );
-    await context.read<PdvProvider>().adicionarOuAtualizarLoja(atualizada);
+    await pdv.adicionarOuAtualizarLoja(atualizada);
     if (mounted) Navigator.of(context).pop();
   }
 
   @override
   Widget build(BuildContext context) {
     final theme = widget.theme;
+    final pdv = context.read<PdvProvider>();
+    final podeEditarDados = pdv.possoEditarDadosLoja(widget.loja.id);
+    final podeEditarMapa = pdv.possoEditarLocalizacaoMapa(widget.loja.id);
+    final consultaEndereco = [
+      widget.loja.endereco.trim(),
+      widget.loja.numero.trim(),
+      widget.loja.cidade.trim(),
+      widget.loja.cep.trim(),
+    ].where((e) => e.isNotEmpty).join(', ');
+
     return Dialog(
       backgroundColor: theme.cardBackgroundColor,
       shape: RoundedRectangleBorder(
@@ -135,28 +156,67 @@ class _DialogEditarPerfilPublicoLojaState
                 ),
               ),
               const SizedBox(height: 14),
-              ThemedTextField(
-                theme: theme,
-                controller: _bioCtrl,
-                label: 'Biografia / Apresentação da loja',
-                linhas: 3,
-              ),
-              const SizedBox(height: 12),
-              ThemedTextField(
-                theme: theme,
-                controller: _linksCtrl,
-                label: 'Links exibidos (um por linha)',
-                linhas: 3,
-              ),
-              const SizedBox(height: 14),
-              Text(
-                'Cor de fundo da vitrine',
-                style: theme.getTextStyle(
-                  fontSize: 12.5,
-                  fontWeight: FontWeight.w600,
-                  color: theme.textColor,
+              AbsorbPointer(
+                absorbing: !podeEditarDados,
+                child: Opacity(
+                  opacity: podeEditarDados ? 1.0 : 0.65,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      ThemedTextField(
+                        theme: theme,
+                        controller: _bioCtrl,
+                        label: 'Biografia / Apresentação da loja',
+                        linhas: 3,
+                      ),
+                      const SizedBox(height: 12),
+                      ThemedTextField(
+                        theme: theme,
+                        controller: _linksCtrl,
+                        label: 'Links exibidos (um por linha)',
+                        linhas: 3,
+                      ),
+                    ],
+                  ),
                 ),
               ),
+              if (podeEditarMapa) ...[
+                const SizedBox(height: 14),
+                SeletorLocalizacaoMapaLojaWidget(
+                  theme: theme,
+                  latitude: _latitude,
+                  longitude: _longitude,
+                  logoLoja: widget.loja.logo,
+                  nomeLoja: widget.loja.nome,
+                  enderecoConsulta: consultaEndereco,
+                  cidadeFallback: widget.loja.cidade.trim().isNotEmpty
+                      ? widget.loja.cidade.trim()
+                      : null,
+                  podeEditar: true,
+                  onCoordenadaAlterada: (lat, lon) {
+                    setState(() {
+                      _latitude = lat;
+                      _longitude = lon;
+                    });
+                  },
+                ),
+              ],
+              const SizedBox(height: 14),
+              AbsorbPointer(
+                absorbing: !podeEditarDados,
+                child: Opacity(
+                  opacity: podeEditarDados ? 1.0 : 0.65,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Text(
+                        'Cor de fundo da vitrine',
+                        style: theme.getTextStyle(
+                          fontSize: 12.5,
+                          fontWeight: FontWeight.w600,
+                          color: theme.textColor,
+                        ),
+                      ),
               const SizedBox(height: 8),
               Wrap(
                 spacing: 8,
@@ -231,6 +291,10 @@ class _DialogEditarPerfilPublicoLojaState
                     ),
                   );
                 }).toList(),
+              ),
+                    ],
+                  ),
+                ),
               ),
               const SizedBox(height: 18),
               Row(

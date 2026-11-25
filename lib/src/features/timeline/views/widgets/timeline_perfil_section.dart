@@ -176,10 +176,11 @@ class _TimelinePerfilSectionState extends State<TimelinePerfilSection> {
         stories.where((s) => s.ehDestaquePermanente && !s.arquivado).toList();
     final extras = await TimelineService.listarFeedsPersonalizados(cpf);
     _modoGaleria3Colunas = widget.contaPerfil.modoFotosGaleria;
+    final cpfLimpo = cpf.replaceAll(RegExp(r'\D'), '');
     for (final t in TipoFeedSocial.values) {
       if (_suportaGaleria(t) && t != TipoFeedSocial.fotos) {
         final salvo = await PreferenciasSoberanasService.obterTexto(
-          'timeline_modo_exibicao_${cpf}_${t.name}',
+          'timeline_modo_exibicao_${cpfLimpo}_${t.name}',
         );
         if (salvo == 'galeria3') {
           _modoGaleriaPorTimeline[t] = true;

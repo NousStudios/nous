@@ -140,16 +140,24 @@ class _VisualizadorImagemChatDialogState
   }
 
   void _abrirDialogEncaminhar() {
-    showModalBottomSheet(
+    showDialog<void>(
       context: context,
-      isScrollControlled: true,
-      backgroundColor: widget.theme.cardBackgroundColor,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (ctx) => _ModalEncaminharImagem(
-        caminhoImagem: widget.caminhoImagem,
-        theme: widget.theme,
+      builder: (ctx) => Dialog(
+        backgroundColor: widget.theme.cardBackgroundColor,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(18),
+          side: BorderSide(color: widget.theme.borderColor),
+        ),
+        child: ConstrainedBox(
+          constraints: BoxConstraints(
+            maxWidth: 460,
+            maxHeight: MediaQuery.sizeOf(ctx).height * 0.85,
+          ),
+          child: _ModalEncaminharImagem(
+            caminhoImagem: widget.caminhoImagem,
+            theme: widget.theme,
+          ),
+        ),
       ),
     );
   }

@@ -360,6 +360,7 @@ class ChatConversasService {
           .toIso8601String(),
       'arquivada': conversa.arquivada ? 1 : 0,
       'fixada': conversa.fixada ? 1 : 0,
+      'silenciada': conversa.silenciada ? 1 : 0,
     }, conflictAlgorithm: ConflictAlgorithm.replace);
     aoNotificar();
     ChatSincronizacaoService.despacharConversaAtualizada(conversa);

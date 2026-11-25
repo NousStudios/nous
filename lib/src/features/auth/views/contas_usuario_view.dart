@@ -1,24 +1,20 @@
 import 'dart:async';
-import 'dart:io';
 
-import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:nous/src/core/theme/theme_controller.dart';
-import 'package:nous/src/features/auth/models/usuario_nous.dart';
+import 'package:nous/src/core/widgets/floating_bottom_nav_bar.dart';
 import 'package:nous/src/features/auth/providers/auth_provider.dart';
 import 'package:nous/src/features/auth/services/google_oauth_service.dart';
 import 'package:nous/src/features/auth/views/login_view.dart';
 import 'package:nous/src/features/auth/views/widgets/adicionar_email_dialog.dart';
 import 'package:nous/src/features/auth/views/widgets/cadastrar_nome_usuario_dialog.dart';
-import 'package:nous/src/features/auth/views/widgets/ficha_usuario_dialog.dart';
+import 'package:nous/src/features/auth/views/widgets/contas/acoes_conta_usuario.dart';
+import 'package:nous/src/features/auth/views/widgets/contas/card_conta_usuario.dart';
+import 'package:nous/src/features/auth/views/widgets/contas/secao_emails_usuario.dart';
 import 'package:nous/src/features/notificacoes/providers/notificacoes_provider.dart';
 import 'package:nous/src/features/pdv/providers/pdv_provider.dart';
-import 'package:nous/src/features/pdv/services/imagem_service.dart';
 import 'package:nous/src/features/pdv/services/rede_local/cliente_rede_local.dart';
-import 'package:nous/src/features/pdv/views/perfis_pdv_view.dart';
-import 'package:nous/src/features/pdv/views/widgets/estado_vazio_container.dart';
-import 'package:nous/src/features/pdv/views/widgets/opcoes_imagem_dialog.dart';
 
 class ContasUsuarioView extends StatefulWidget {
   const ContasUsuarioView({super.key});
@@ -80,13 +76,10 @@ class _ContasUsuarioViewState extends State<ContasUsuarioView> {
   Future<void> _entrarComEmail(BuildContext context, [String? email]) async {
     final emailFinal = email?.trim();
     if (emailFinal == null || emailFinal.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'É obrigatório cadastrar e selecionar um e-mail para prosseguir.',
-          ),
-          backgroundColor: Colors.redAccent,
-        ),
+      AcoesContaUsuario.mostrarErro(
+        context,
+        ThemeController.currentTheme.value,
+        'É obrigatório cadastrar e selecionar um e-mail para prosseguir.',
       );
       await _abrirAdicionarEmail(context);
       return;
@@ -105,36 +98,20 @@ class _ContasUsuarioViewState extends State<ContasUsuarioView> {
 
       final emailGoogle = resultado.email?.trim().toLowerCase() ?? '';
       if (!resultado.sucesso || emailGoogle.isEmpty) {
-        final theme = ThemeController.currentTheme.value;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            backgroundColor: theme.backgroundColor,
-            content: Text(
-              resultado.erro ??
-                  'Autenticação Google necessária para validar este e-mail.',
-              style: theme.getTextStyle(
-                fontSize: 13,
-                color: theme.dangerColor,
-              ),
-            ),
-          ),
+        AcoesContaUsuario.mostrarErro(
+          context,
+          ThemeController.currentTheme.value,
+          resultado.erro ??
+              'Autenticação Google necessária para validar este e-mail.',
         );
         return;
       }
 
       if (emailGoogle != emailFinal.toLowerCase()) {
-        final theme = ThemeController.currentTheme.value;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            backgroundColor: theme.backgroundColor,
-            content: Text(
-              'O e-mail autenticado ($emailGoogle) é diferente de $emailFinal.',
-              style: theme.getTextStyle(
-                fontSize: 13,
-                color: theme.dangerColor,
-              ),
-            ),
-          ),
+        AcoesContaUsuario.mostrarErro(
+          context,
+          ThemeController.currentTheme.value,
+          'O e-mail autenticado ($emailGoogle) é diferente de $emailFinal.',
         );
         return;
       }
@@ -151,12 +128,12 @@ class _ContasUsuarioViewState extends State<ContasUsuarioView> {
       await context.read<NotificacoesProvider>().carregarParaCpf(cpf);
     }
 
+    final telaInicial = await FloatingBottomNavBar.obterTelaInicialPorCpf(cpf);
     if (!context.mounted) return;
     Navigator.pushAndRemoveUntil(
       context,
       MaterialPageRoute(
-        builder: (context) =>
-            const PerfisPdvView(abrirSincronizacaoInicial: false),
+        builder: (context) => telaInicial,
       ),
       (route) => false,
     );
@@ -185,18 +162,10 @@ class _ContasUsuarioViewState extends State<ContasUsuarioView> {
 
     final email = resultado.email?.trim() ?? '';
     if (!resultado.sucesso || email.isEmpty) {
-      final theme = ThemeController.currentTheme.value;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          backgroundColor: theme.backgroundColor,
-          content: Text(
-            resultado.erro ?? 'Falha ao autenticar com o Google.',
-            style: theme.getTextStyle(
-              fontSize: 13,
-              color: theme.dangerColor,
-            ),
-          ),
-        ),
+      AcoesContaUsuario.mostrarErro(
+        context,
+        ThemeController.currentTheme.value,
+        resultado.erro ?? 'Falha ao autenticar com o Google.',
       );
       return;
     }
@@ -221,124 +190,35 @@ class _ContasUsuarioViewState extends State<ContasUsuarioView> {
   }
 
   Future<void> _removerEmail(BuildContext context, String email) async {
-    final theme = ThemeController.currentTheme.value;
-
-    final confirmar = await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) {
-        return AlertDialog(
-          backgroundColor: theme.cardBackgroundColor,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16.0),
-            side: BorderSide(color: theme.borderColor),
-          ),
-          title: Text(
-            'Excluir E-mail',
-            textAlign: TextAlign.center,
-            style: theme.getTextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-              color: theme.textColor,
-            ),
-          ),
-          content: Text(
-            'Tem certeza que deseja remover o e-mail "$email" desta '
-            'conta?',
-            textAlign: TextAlign.center,
-            style: theme.getTextStyle(fontSize: 14),
-          ),
-          actionsAlignment: MainAxisAlignment.center,
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(dialogContext).pop(false),
-              child: Text(
-                'Cancelar',
-                style: theme.getTextStyle(color: theme.secondaryTextColor),
-              ),
-            ),
-            TextButton(
-              onPressed: () => Navigator.of(dialogContext).pop(true),
-              child: Text(
-                'Excluir',
-                style: theme.getTextStyle(color: Colors.redAccent),
-              ),
-            ),
-          ],
-        );
-      },
+    final confirmar = await AcoesContaUsuario.confirmarExclusaoEmail(
+      context,
+      ThemeController.currentTheme.value,
+      email,
     );
-
-    if (confirmar == true && context.mounted) {
+    if (confirmar && context.mounted) {
       await context.read<AuthProvider>().removerEmail(email);
     }
   }
 
   Future<void> _excluirConta(BuildContext context) async {
-    final theme = ThemeController.currentTheme.value;
-
-    final confirmar = await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) {
-        return AlertDialog(
-          backgroundColor: theme.cardBackgroundColor,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16.0),
-            side: BorderSide(color: theme.borderColor),
-          ),
-          title: Text(
-            'Excluir Conta Nous Definitivamente',
-            textAlign: TextAlign.center,
-            style: theme.getTextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-              color: theme.dangerColor,
-            ),
-          ),
-          content: Text(
-            'Tem certeza que deseja excluir esta Conta Nous definitivamente? Isso também '
-            'apaga todas as lojas criadas por este CPF neste dispositivo. '
-            'Esta ação não pode ser desfeita.',
-            textAlign: TextAlign.center,
-            style: theme.getTextStyle(fontSize: 14),
-          ),
-          actionsAlignment: MainAxisAlignment.center,
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(dialogContext).pop(false),
-              child: Text(
-                'Cancelar',
-                style: theme.getTextStyle(color: theme.secondaryTextColor),
-              ),
-            ),
-            TextButton(
-              onPressed: () => Navigator.of(dialogContext).pop(true),
-              child: Text(
-                'Excluir Definitivamente',
-                style: theme.getTextStyle(
-                  color: theme.dangerColor,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ),
-          ],
-        );
-      },
+    final confirmar = await AcoesContaUsuario.confirmarExclusaoContaDefinitiva(
+      context,
+      ThemeController.currentTheme.value,
     );
+    if (!confirmar || !context.mounted) return;
 
-    if (confirmar == true && context.mounted) {
-      final cpf = context.read<AuthProvider>().cpf;
-      await context.read<PdvProvider>().excluirDadosDoCpf(cpf);
+    final cpf = context.read<AuthProvider>().cpf;
+    await context.read<PdvProvider>().excluirDadosDoCpf(cpf);
 
-      if (!context.mounted) return;
-      await context.read<AuthProvider>().excluirConta(cpf);
+    if (!context.mounted) return;
+    await context.read<AuthProvider>().excluirConta(cpf);
 
-      if (!context.mounted) return;
-      Navigator.pushAndRemoveUntil(
-        context,
-        MaterialPageRoute(builder: (context) => const LoginView()),
-        (route) => false,
-      );
-    }
+    if (!context.mounted) return;
+    Navigator.pushAndRemoveUntil(
+      context,
+      MaterialPageRoute(builder: (context) => const LoginView()),
+      (route) => false,
+    );
   }
 
   @override
@@ -367,7 +247,7 @@ class _ContasUsuarioViewState extends State<ContasUsuarioView> {
                         ),
                       ),
                       const SizedBox(height: 4),
-                      _CardConta(theme: theme, conta: conta),
+                      CardContaUsuario(theme: theme, conta: conta),
                       const SizedBox(height: 24),
                       Text(
                         'Contas do usuário',
@@ -378,153 +258,18 @@ class _ContasUsuarioViewState extends State<ContasUsuarioView> {
                         ),
                       ),
                       const SizedBox(height: 12),
-                      if (conta == null || conta.emails.isEmpty) ...[
-                        EstadoVazioContainer(
-                          theme: theme,
-                          mensagem:
-                              'Nenhum e-mail associado ainda.\nÉ obrigatório vincular um e-mail para acessar a Conta Nous.',
-                        ),
-                        const SizedBox(height: 16),
-                        ElevatedButton.icon(
-                          icon: _autenticandoGoogle
-                              ? SizedBox(
-                                  width: 16,
-                                  height: 16,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                    color: theme.buttonTextColor,
-                                  ),
-                                )
-                              : const Icon(Icons.login_rounded, size: 18),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: theme.buttonColor,
-                            foregroundColor: theme.buttonTextColor,
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 24,
-                              vertical: 14,
-                            ),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(10),
-                            ),
-                          ),
-                          onPressed: _autenticandoGoogle
-                              ? null
-                              : () => _conectarComGoogleDireto(context),
-                          label: Text(
-                            'Conectar com Google',
-                            style: theme.getTextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.bold,
-                              color: theme.buttonTextColor,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 10),
-                        OutlinedButton.icon(
-                          icon: const Icon(Icons.mail_outline, size: 18),
-                          style: OutlinedButton.styleFrom(
-                            foregroundColor: theme.textColor,
-                            side: BorderSide(color: theme.borderColor),
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 20,
-                              vertical: 14,
-                            ),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(10),
-                            ),
-                          ),
-                          onPressed: _autenticandoGoogle
-                              ? null
-                              : () => _abrirAdicionarEmail(context),
-                          label: Text(
-                            'Cadastrar e-mail manualmente',
-                            style: theme.getTextStyle(fontSize: 13),
-                          ),
-                        ),
-                      ] else ...[
-                        Text(
-                          'Toque em um e-mail para iniciar sua sessão:',
-                          style: theme.getTextStyle(
-                            fontSize: 12,
-                            color: theme.secondaryTextColor,
-                          ),
-                        ),
-                        const SizedBox(height: 10),
-                        Column(
-                          children: [
-                            for (final email in conta.emails)
-                              Padding(
-                                padding: const EdgeInsets.only(bottom: 8),
-                                child: _BarraEmail(
-                                  theme: theme,
-                                  email: email,
-                                  verificadoGoogle:
-                                      conta.emailEstaVerificado(email),
-                                  aoClicar: () =>
-                                      _entrarComEmail(context, email),
-                                  aoExcluir: () =>
-                                      _removerEmail(context, email),
-                                ),
-                              ),
-                          ],
-                        ),
-                        const SizedBox(height: 16),
-                        ElevatedButton.icon(
-                          icon: _autenticandoGoogle
-                              ? SizedBox(
-                                  width: 16,
-                                  height: 16,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                    color: theme.buttonTextColor,
-                                  ),
-                                )
-                              : const Icon(Icons.login_rounded, size: 18),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: theme.buttonColor,
-                            foregroundColor: theme.buttonTextColor,
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 24,
-                              vertical: 14,
-                            ),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(10),
-                            ),
-                          ),
-                          onPressed: _autenticandoGoogle
-                              ? null
-                              : () => _conectarComGoogleDireto(context),
-                          label: Text(
-                            'Conectar com Google',
-                            style: theme.getTextStyle(
-                              fontSize: 13,
-                              fontWeight: FontWeight.bold,
-                              color: theme.buttonTextColor,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 10),
-                        OutlinedButton(
-                          style: OutlinedButton.styleFrom(
-                            foregroundColor: theme.textColor,
-                            side: BorderSide(color: theme.borderColor),
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 20,
-                              vertical: 14,
-                            ),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(10),
-                            ),
-                          ),
-                          onPressed: _autenticandoGoogle
-                              ? null
-                              : () => _abrirAdicionarEmail(context),
-                          child: Text(
-                            'Adicionar outro e-mail',
-                            style: theme.getTextStyle(fontSize: 13),
-                          ),
-                        ),
-                      ],
+                      SecaoEmailsUsuario(
+                        theme: theme,
+                        conta: conta,
+                        autenticandoGoogle: _autenticandoGoogle,
+                        aoConectarGoogle: () =>
+                            _conectarComGoogleDireto(context),
+                        aoAdicionarEmail: () => _abrirAdicionarEmail(context),
+                        aoEntrarComEmail: (email) =>
+                            _entrarComEmail(context, email),
+                        aoExcluirEmail: (email) =>
+                            _removerEmail(context, email),
+                      ),
                       const SizedBox(height: 12),
                       TextButton(
                         onPressed: () => _excluirConta(context),
@@ -544,244 +289,6 @@ class _ContasUsuarioViewState extends State<ContasUsuarioView> {
           ),
         );
       },
-    );
-  }
-}
-
-class _CardConta extends StatelessWidget {
-  final AppTheme theme;
-  final UsuarioNous? conta;
-
-  const _CardConta({required this.theme, required this.conta});
-
-  Future<void> _aoClicarFoto(BuildContext context) async {
-    final c = conta;
-    if (c == null) return;
-    final temFoto = c.foto.isNotEmpty && ImagemService.existe(c.foto);
-
-    if (temFoto) {
-      await OpcoesImagemDialog.mostrar(
-        context,
-        theme: theme,
-        titulo: 'Foto de Perfil',
-        onEscolherNova: () => _selecionarNovaFoto(context),
-        onRemover: () => _salvarFoto(context, ''),
-      );
-    } else {
-      await _selecionarNovaFoto(context);
-    }
-  }
-
-  Future<void> _selecionarNovaFoto(BuildContext context) async {
-    const typeGroup = XTypeGroup(
-      label: 'Imagens',
-      extensions: <String>['jpg', 'jpeg', 'png', 'webp'],
-    );
-    final file = await openFile(acceptedTypeGroups: <XTypeGroup>[typeGroup]);
-    if (file != null && context.mounted) {
-      final salvo = await ImagemService.salvarImagemLocal(file.path);
-      if (salvo != null && context.mounted) {
-        await _salvarFoto(context, salvo);
-      }
-    }
-  }
-
-  Future<void> _salvarFoto(BuildContext context, String novaFoto) async {
-    final auth = context.read<AuthProvider>();
-    await auth.atualizarFoto(novaFoto);
-    if (!context.mounted) return;
-    context
-        .read<PdvProvider>()
-        .sincronizarFotoUsuarioEmClientes(conta?.cpf ?? '', novaFoto);
-  }
-
-  void _aoClicarCard(BuildContext context) {
-    final c = conta;
-    if (c == null) return;
-    FichaUsuarioDialog.mostrar(
-      context,
-      theme: theme,
-      usuario: c,
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final c = conta;
-    final nome = c?.nome ?? '';
-    final fotoResolvida =
-        c != null ? ImagemService.resolverCaminhoExistente(c.foto) : null;
-    final temFoto = fotoResolvida != null;
-
-    return InkWell(
-      borderRadius: BorderRadius.circular(12),
-      onTap: () => _aoClicarCard(context),
-      child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.all(20),
-        decoration: BoxDecoration(
-          color: theme.backgroundColor.withValues(alpha: 0.4),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: theme.borderColor.withValues(alpha: 0.6)),
-        ),
-        child: Column(
-          children: [
-            GestureDetector(
-              behavior: HitTestBehavior.opaque,
-              onTap: () => _aoClicarFoto(context),
-              child: Container(
-                width: 72,
-                height: 72,
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: theme.borderColor),
-                ),
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(11),
-                  child: temFoto
-                      ? Image.file(
-                          File(fotoResolvida),
-                          width: 72,
-                          height: 72,
-                          fit: BoxFit.cover,
-                          errorBuilder:
-                              (context, error, stackTrace) => Icon(
-                            Icons.person,
-                            size: 40,
-                            color: theme.textColor,
-                          ),
-                        )
-                      : Icon(
-                          Icons.person,
-                          size: 40,
-                          color: theme.textColor,
-                        ),
-                ),
-              ),
-            ),
-            const SizedBox(height: 12),
-            Text(
-              nome.isEmpty ? 'Nome Associado ao CPF' : nome,
-              textAlign: TextAlign.center,
-              style: theme.getTextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-                color: theme.textColor,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _BarraEmail extends StatefulWidget {
-  final AppTheme theme;
-  final String email;
-  final bool verificadoGoogle;
-  final VoidCallback aoClicar;
-  final VoidCallback aoExcluir;
-
-  const _BarraEmail({
-    required this.theme,
-    required this.email,
-    required this.verificadoGoogle,
-    required this.aoClicar,
-    required this.aoExcluir,
-  });
-
-  @override
-  State<_BarraEmail> createState() => _BarraEmailState();
-}
-
-class _BarraEmailState extends State<_BarraEmail> {
-  bool _hover = false;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = widget.theme;
-    return MouseRegion(
-      cursor: SystemMouseCursors.click,
-      onEnter: (_) => setState(() => _hover = true),
-      onExit: (_) => setState(() => _hover = false),
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTap: widget.aoClicar,
-        child: Container(
-          width: double.infinity,
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-          decoration: BoxDecoration(
-            color: _hover
-                ? theme.borderColor.withValues(alpha: 0.18)
-                : Colors.transparent,
-            borderRadius: BorderRadius.circular(30),
-            border: Border.all(
-              color: _hover ? theme.textColor : theme.borderColor,
-            ),
-          ),
-          child: Row(
-            children: [
-              Icon(Icons.mail_outline, size: 20, color: theme.textColor),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      widget.email,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: theme.getTextStyle(
-                        fontSize: 13,
-                        color: theme.textColor,
-                      ),
-                    ),
-                    if (!widget.verificadoGoogle)
-                      Text(
-                        'Requer autenticação Google',
-                        style: theme.getTextStyle(
-                          fontSize: 10,
-                          color: theme.secondaryTextColor,
-                        ),
-                      ),
-                  ],
-                ),
-              ),
-              if (widget.verificadoGoogle)
-                Padding(
-                  padding: const EdgeInsets.only(right: 4),
-                  child: Icon(
-                    Icons.verified_outlined,
-                    size: 16,
-                    color: theme.secondaryTextColor,
-                  ),
-                ),
-              PopupMenuButton<String>(
-                icon: Icon(Icons.more_vert, color: theme.secondaryTextColor),
-                color: theme.cardBackgroundColor,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  side: BorderSide(color: theme.borderColor),
-                ),
-                onSelected: (valor) {
-                  if (valor == 'excluir') widget.aoExcluir();
-                },
-                itemBuilder: (context) => [
-                  PopupMenuItem(
-                    value: 'excluir',
-                    child: Text(
-                      'Excluir e-mail',
-                      style: theme.getTextStyle(color: Colors.redAccent),
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ),
-      ),
     );
   }
 }

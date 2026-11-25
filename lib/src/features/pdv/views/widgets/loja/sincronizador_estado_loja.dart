@@ -156,7 +156,10 @@ class SincronizadorEstadoLoja {
     final cadastroMudou = controllers.nome.text != lojaAtual.nome ||
         controllers.cnpj.text != lojaAtual.cnpj ||
         controllers.telefone.text != lojaAtual.telefone ||
-        controllers.endereco.text != lojaAtual.endereco;
+        controllers.endereco.text != lojaAtual.endereco ||
+        controllers.numero.text != lojaAtual.numero ||
+        controllers.cidade.text != lojaAtual.cidade ||
+        controllers.cep.text != lojaAtual.cep;
 
     final houveMudanca = movsMudaram ||
         pedidosMudaram ||
@@ -193,6 +196,12 @@ class SincronizadorEstadoLoja {
       }
       if (controllers.numero.text != lojaAtual.numero) {
         controllers.numero.text = lojaAtual.numero;
+      }
+      if (controllers.cidade.text != lojaAtual.cidade) {
+        controllers.cidade.text = lojaAtual.cidade;
+      }
+      if (controllers.cep.text != lojaAtual.cep) {
+        controllers.cep.text = lojaAtual.cep;
       }
       if (controllers.email.text != lojaAtual.email) {
         controllers.email.text = lojaAtual.email;

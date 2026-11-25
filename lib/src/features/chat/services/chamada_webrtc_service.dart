@@ -8,9 +8,9 @@ import 'package:nous/src/features/chat/models/chamada_sessao.dart';
 import 'package:nous/src/features/chat/services/chamada_historico_service.dart';
 import 'package:nous/src/features/chat/services/chamada_som_service.dart';
 import 'package:nous/src/features/chat/services/chamada_tela_helper.dart';
+import 'package:nous/src/features/chat/services/helpers/chamada_midia_helper.dart';
+import 'package:nous/src/features/chat/services/helpers/chamada_sinalizacao_helper.dart';
 import 'package:nous/src/features/chat/views/widgets/dialog_chamada_recebida.dart';
-import 'package:nous/src/features/pdv/services/rede_local/cliente_rede_local.dart';
-import 'package:nous/src/features/pdv/services/rede_local/servidor_rede_local.dart';
 
 /// Serviço de alta performance para chamadas de áudio e vídeo P2P via WebRTC
 /// utilizando a malha da rede local Wi-Fi para sinalização e transmissão de mídia.
@@ -54,20 +54,6 @@ class ChamadaWebRtcService {
   // Callback acionado pela interface quando uma chamada for recebida
   void Function(ChamadaSessao sessao)? onChamadaRecebida;
   void Function()? onChamadaEncerrada;
-
-  final Map<String, dynamic> _configuracaoWebRtc = {
-    'iceServers': [
-      {'urls': 'stun:stun.l.google.com:19302'},
-    ],
-    'sdpSemantics': 'unified-plan',
-  };
-
-  final Map<String, dynamic> _restricoesLoopback = {
-    'mandatory': {},
-    'optional': [
-      {'DtlsSrtpKeyAgreement': true},
-    ],
-  };
 
   Future<void> inicializarRenderers() async {
     if (_renderersInicializados) return;
@@ -138,51 +124,14 @@ class ChamadaWebRtcService {
     );
 
     try {
-      _peerConnection = await createPeerConnection(
-        _configuracaoWebRtc,
-        _restricoesLoopback,
+      await _prepararPeerConnectionEMidia(
+        chamadaId: chamadaId,
+        comVideo: tipo == TipoChamada.video,
       );
-
-      _configurarListenersPeerConnection(chamadaId);
-
-      // Obtém stream local de áudio e câmera
-      final mediaConstraints = <String, dynamic>{
-        'audio': true,
-        'video': tipo == TipoChamada.video
-            ? {
-                'facingMode': 'user',
-                'width': {'ideal': 1280},
-                'height': {'ideal': 720},
-              }
-            : false,
-      };
-
-      _streamLocal =
-          await navigator.mediaDevices.getUserMedia(mediaConstraints);
-      renderizadorLocal.srcObject = _streamLocal;
-
-      for (final track in _streamLocal!.getTracks()) {
-        final sender = await _peerConnection!.addTrack(track, _streamLocal!);
-        if (track.kind == 'video') {
-          _videoSender = sender;
-        }
-      }
-
-      // Cria a oferta SDP
-      final RTCSessionDescription offer = await _peerConnection!.createOffer({
-        'offerToReceiveAudio': 1,
-        'offerToReceiveVideo': tipo == TipoChamada.video ? 1 : 0,
-      });
-
-      await _peerConnection!.setLocalDescription(offer);
-
-      // Despacha o convite de chamada com o SDP Offer pela rede local
-      _enviarSinalizacao({
-        'tipo': 'chamada_iniciar',
-        'chamada': sessao.toJson(),
-        'sdp': {'sdp': offer.sdp, 'type': offer.type},
-      });
-
+      await ChamadaSinalizacaoHelper.enviarOfertaInicial(
+        _peerConnection!,
+        sessao,
+      );
       return sessao;
     } catch (e) {
       debugPrint('[ChamadaWebRtcService] Erro ao iniciar chamada: $e');
@@ -202,11 +151,7 @@ class ChamadaWebRtcService {
     // Se já estiver em outra chamada, rejeita automaticamente com ocupado
     if (sessaoAtiva.value != null &&
         sessaoAtiva.value!.estado == EstadoChamada.conectada) {
-      _enviarSinalizacao({
-        'tipo': 'chamada_rejeitada',
-        'chamadaId': sessao.id,
-        'motivo': 'ocupado',
-      });
+      ChamadaSinalizacaoHelper.enviarRejeicao(sessao.id, motivo: 'ocupado');
       return;
     }
 
@@ -255,56 +200,15 @@ class ChamadaWebRtcService {
         ),
       );
 
-      _peerConnection = await createPeerConnection(
-        _configuracaoWebRtc,
-        _restricoesLoopback,
+      await _prepararPeerConnectionEMidia(
+        chamadaId: sessao.id,
+        comVideo: sessao.tipo == TipoChamada.video,
       );
-
-      _configurarListenersPeerConnection(sessao.id);
-
-      final mediaConstraints = <String, dynamic>{
-        'audio': true,
-        'video': sessao.tipo == TipoChamada.video
-            ? {
-                'facingMode': 'user',
-                'width': {'ideal': 1280},
-                'height': {'ideal': 720},
-              }
-            : false,
-      };
-
-      _streamLocal =
-          await navigator.mediaDevices.getUserMedia(mediaConstraints);
-      renderizadorLocal.srcObject = _streamLocal;
-
-      for (final track in _streamLocal!.getTracks()) {
-        final sender = await _peerConnection!.addTrack(track, _streamLocal!);
-        if (track.kind == 'video') {
-          _videoSender = sender;
-        }
-      }
-
-      // Aplica a oferta SDP remota
-      final description = RTCSessionDescription(
-        sdpOferta['sdp'] as String?,
-        sdpOferta['type'] as String?,
+      await ChamadaSinalizacaoHelper.responderOfertaInicial(
+        _peerConnection!,
+        sessao,
+        sdpOferta,
       );
-      await _peerConnection!.setRemoteDescription(description);
-
-      // Cria e aplica resposta SDP
-      final answer = await _peerConnection!.createAnswer({
-        'offerToReceiveAudio': 1,
-        'offerToReceiveVideo': sessao.tipo == TipoChamada.video ? 1 : 0,
-      });
-      await _peerConnection!.setLocalDescription(answer);
-
-      // Avisa ao chamador que a ligação foi aceita e transmite a resposta SDP
-      _enviarSinalizacao({
-        'tipo': 'chamada_aceita',
-        'chamadaId': sessao.id,
-        'sdp': {'sdp': answer.sdp, 'type': answer.type},
-      });
-
       return true;
     } catch (e) {
       debugPrint('[ChamadaWebRtcService] Erro ao aceitar chamada: $e');
@@ -316,40 +220,28 @@ class ChamadaWebRtcService {
   /// Processa a resposta SDP (Answer) vinda de quem atendeu
   Future<void> receberRespostaAceita(Map<String, dynamic> sdpResposta) async {
     if (_peerConnection == null) return;
-    try {
-      final description = RTCSessionDescription(
-        sdpResposta['sdp'] as String?,
-        sdpResposta['type'] as String?,
-      );
-      await _peerConnection!.setRemoteDescription(description);
+    final aplicada = await ChamadaSinalizacaoHelper.aplicarRespostaSdp(
+      _peerConnection!,
+      sdpResposta,
+    );
+    if (!aplicada || sessaoAtiva.value == null) return;
 
-      if (sessaoAtiva.value != null) {
-        _cancelarTimeoutChamada();
-        unawaited(ChamadaSomService.instancia.pararToque());
-        _foiConectada = true;
-        _iniciarCronometroChamada();
-        sessaoAtiva.value = sessaoAtiva.value!.copyWith(
-          estado: EstadoChamada.conectada,
-        );
-      }
-    } catch (e) {
-      debugPrint('[ChamadaWebRtcService] Erro ao aplicar SDP de resposta: $e');
-    }
+    _cancelarTimeoutChamada();
+    unawaited(ChamadaSomService.instancia.pararToque());
+    _foiConectada = true;
+    _iniciarCronometroChamada();
+    sessaoAtiva.value = sessaoAtiva.value!.copyWith(
+      estado: EstadoChamada.conectada,
+    );
   }
 
   /// Aplica candidato ICE remoto
   Future<void> receberCandidatoIce(Map<String, dynamic> candidatoJson) async {
     if (_peerConnection == null) return;
-    try {
-      final candidate = RTCIceCandidate(
-        candidatoJson['candidate'] as String?,
-        candidatoJson['sdpMid'] as String?,
-        candidatoJson['sdpMLineIndex'] as int?,
-      );
-      await _peerConnection!.addCandidate(candidate);
-    } catch (e) {
-      debugPrint('[ChamadaWebRtcService] Erro ao adicionar ICE candidate: $e');
-    }
+    await ChamadaSinalizacaoHelper.adicionarCandidatoIce(
+      _peerConnection!,
+      candidatoJson,
+    );
   }
 
   /// Rejeita uma chamada recebida
@@ -357,10 +249,7 @@ class ChamadaWebRtcService {
     final sessao = sessaoAtiva.value;
     _foiRejeitada = true;
     if (sessao != null) {
-      _enviarSinalizacao({
-        'tipo': 'chamada_rejeitada',
-        'chamadaId': sessao.id,
-      });
+      ChamadaSinalizacaoHelper.enviarRejeicao(sessao.id);
     }
     await encerrarChamada(notificarRede: false);
   }
@@ -394,25 +283,11 @@ class ChamadaWebRtcService {
       unawaited(ChamadaSomService.instancia.pararToque());
 
       if (sessao != null && notificarRede) {
-        _enviarSinalizacao({
-          'tipo': 'chamada_encerrada',
-          'chamadaId': sessao.id,
-        });
+        ChamadaSinalizacaoHelper.enviarEncerramento(sessao.id);
       }
 
-      try {
-        streamTela?.getTracks().forEach((track) {
-          track.stop();
-        });
-        await streamTela?.dispose();
-      } catch (_) {}
-
-      try {
-        streamLocal?.getTracks().forEach((track) {
-          track.stop();
-        });
-        await streamLocal?.dispose();
-      } catch (_) {}
+      await ChamadaMidiaHelper.encerrarStream(streamTela);
+      await ChamadaMidiaHelper.encerrarStream(streamLocal);
 
       try {
         await pc?.close();
@@ -446,9 +321,7 @@ class ChamadaWebRtcService {
         );
       }
 
-      if (onChamadaEncerrada != null) {
-        onChamadaEncerrada!();
-      }
+      onChamadaEncerrada?.call();
     } finally {
       _encerrando = false;
     }
@@ -459,14 +332,14 @@ class ChamadaWebRtcService {
   void alternarMicrofone() {
     if (_streamLocal == null) return;
     final audioTracks = _streamLocal!.getAudioTracks();
-    if (audioTracks.isNotEmpty) {
-      microfoneMutado = !microfoneMutado;
-      audioTracks.first.enabled = !microfoneMutado;
-      if (sessaoAtiva.value != null) {
-        sessaoAtiva.value = sessaoAtiva.value!.copyWith(
-          audioHabilitado: !microfoneMutado,
-        );
-      }
+    if (audioTracks.isEmpty) return;
+
+    microfoneMutado = !microfoneMutado;
+    audioTracks.first.enabled = !microfoneMutado;
+    if (sessaoAtiva.value != null) {
+      sessaoAtiva.value = sessaoAtiva.value!.copyWith(
+        audioHabilitado: !microfoneMutado,
+      );
     }
   }
 
@@ -474,83 +347,43 @@ class ChamadaWebRtcService {
     final pc = _peerConnection;
     final sessao = sessaoAtiva.value;
     if (pc == null || sessao == null) return;
-    try {
-      final offer = await pc.createOffer({
-        'offerToReceiveAudio': 1,
-        'offerToReceiveVideo': 1,
-      });
-      await pc.setLocalDescription(offer);
-      _enviarSinalizacao({
-        'tipo': 'chamada_renegociar_oferta',
-        'chamadaId': sessao.id,
-        'videoHabilitado': sessao.videoHabilitado,
-        'compartilhandoTela': sessao.compartilhandoTela,
-        'sdp': {'sdp': offer.sdp, 'type': offer.type},
-      });
-    } catch (e) {
-      debugPrint('[ChamadaWebRtcService] Erro ao renegociar mídia: $e');
-    }
+    await ChamadaSinalizacaoHelper.enviarRenegociacaoOferta(pc, sessao);
   }
 
   Future<void> receberRenegociacaoOferta(Map<String, dynamic> dados) async {
     final pc = _peerConnection;
-    final sdpOferta = dados['sdp'] as Map<String, dynamic>?;
-    if (pc == null || sdpOferta == null) return;
-    try {
-      final description = RTCSessionDescription(
-        sdpOferta['sdp'] as String?,
-        sdpOferta['type'] as String?,
+    if (pc == null) return;
+    final ok = await ChamadaSinalizacaoHelper.processarRenegociacaoOferta(
+      pc,
+      dados,
+      chamadaIdFallback: sessaoAtiva.value?.id ?? '',
+    );
+    if (!ok) return;
+
+    final videoRem = dados['videoHabilitado'] == true;
+    final telaRem = dados['compartilhandoTela'] == true;
+    videoRemotoAtivo.value = videoRem || telaRem;
+    telaRemotaAtiva.value = telaRem;
+    if (sessaoAtiva.value != null && (videoRem || telaRem)) {
+      sessaoAtiva.value = sessaoAtiva.value!.copyWith(
+        tipo: TipoChamada.video,
       );
-      await pc.setRemoteDescription(description);
-
-      final answer = await pc.createAnswer({
-        'offerToReceiveAudio': 1,
-        'offerToReceiveVideo': 1,
-      });
-      await pc.setLocalDescription(answer);
-
-      final videoRem = dados['videoHabilitado'] == true;
-      final telaRem = dados['compartilhandoTela'] == true;
-      videoRemotoAtivo.value = videoRem || telaRem;
-      telaRemotaAtiva.value = telaRem;
-      if (sessaoAtiva.value != null && (videoRem || telaRem)) {
-        sessaoAtiva.value = sessaoAtiva.value!.copyWith(
-          tipo: TipoChamada.video,
-        );
-      }
-
-      _enviarSinalizacao({
-        'tipo': 'chamada_renegociar_resposta',
-        'chamadaId': dados['chamadaId'] ?? sessaoAtiva.value?.id ?? '',
-        'sdp': {'sdp': answer.sdp, 'type': answer.type},
-      });
-    } catch (e) {
-      debugPrint('[ChamadaWebRtcService] Erro ao processar renegociação SDP: $e');
     }
   }
 
-  Future<void> receberRenegociacaoResposta(Map<String, dynamic> sdpResposta) async {
+  Future<void> receberRenegociacaoResposta(
+    Map<String, dynamic> sdpResposta,
+  ) async {
     final pc = _peerConnection;
     if (pc == null) return;
-    try {
-      final description = RTCSessionDescription(
-        sdpResposta['sdp'] as String?,
-        sdpResposta['type'] as String?,
-      );
-      await pc.setRemoteDescription(description);
-    } catch (e) {
-      debugPrint('[ChamadaWebRtcService] Erro ao aplicar resposta de renegociação: $e');
-    }
+    await ChamadaSinalizacaoHelper.aplicarRespostaSdp(pc, sdpResposta);
   }
 
   Future<void> _pararStreamTela() async {
-    try {
-      _streamTela?.getTracks().forEach((t) => t.stop());
-      await _streamTela?.dispose();
-    } catch (_) {}
+    final stream = _streamTela;
     _streamTela = null;
     compartilhandoTela = false;
-    await ChamadaTelaHelper.pararServicoAndroid();
+    await ChamadaMidiaHelper.pararStreamTela(stream);
   }
 
   Future<void> alternarCamera() async {
@@ -559,55 +392,23 @@ class ChamadaWebRtcService {
       await _pararStreamTela();
     }
 
-    final videoTracks = _streamLocal!.getVideoTracks();
-    if (videoTracks.isEmpty) {
-      try {
-        final videoStream = await navigator.mediaDevices.getUserMedia({
-          'audio': false,
-          'video': {
-            'facingMode': cameraFrontalAtiva.value ? 'user' : 'environment',
-            'width': {'ideal': 1280},
-            'height': {'ideal': 720},
-          },
-        });
-        final track = videoStream.getVideoTracks().first;
-        _streamLocal!.addTrack(track);
-        renderizadorLocal.srcObject = _streamLocal;
+    final resultado = await ChamadaMidiaHelper.alternarCamera(
+      streamLocal: _streamLocal!,
+      renderizadorLocal: renderizadorLocal,
+      peerConnection: _peerConnection,
+      videoSenderAtual: _videoSender,
+      cameraDesativadaAtual: cameraDesativada,
+      cameraFrontal: cameraFrontalAtiva.value,
+    );
+    if (resultado == null) return;
 
-        if (_peerConnection != null) {
-          if (_videoSender != null) {
-            await _videoSender!.replaceTrack(track);
-          } else {
-            _videoSender = await _peerConnection!.addTrack(track, _streamLocal!);
-          }
-        }
-
-        cameraDesativada = false;
-        if (sessaoAtiva.value != null) {
-          sessaoAtiva.value = sessaoAtiva.value!.copyWith(
-            tipo: TipoChamada.video,
-            videoHabilitado: true,
-            compartilhandoTela: false,
-          );
-        }
-        await _renegociarConexao();
-        return;
-      } catch (e) {
-        debugPrint('[ChamadaWebRtcService] Erro ao obter vídeo na chamada de voz: $e');
-        return;
-      }
-    }
-
-    cameraDesativada = !cameraDesativada;
-    final track = videoTracks.first;
-    track.enabled = !cameraDesativada;
-    if (!cameraDesativada && _videoSender != null) {
-      await _videoSender!.replaceTrack(track);
-      renderizadorLocal.srcObject = _streamLocal;
-    }
+    cameraDesativada = resultado.cameraDesativada;
+    _videoSender = resultado.videoSender;
     if (sessaoAtiva.value != null) {
       sessaoAtiva.value = sessaoAtiva.value!.copyWith(
-        tipo: !cameraDesativada ? TipoChamada.video : sessaoAtiva.value!.tipo,
+        tipo: resultado.virouChamadaVideo
+            ? TipoChamada.video
+            : sessaoAtiva.value!.tipo,
         videoHabilitado: !cameraDesativada,
         compartilhandoTela: false,
       );
@@ -621,12 +422,12 @@ class ChamadaWebRtcService {
 
     if (compartilhandoTela) {
       await _pararStreamTela();
-      final camTracks = _streamLocal?.getVideoTracks() ?? const <MediaStreamTrack>[];
-      final temCameraAtiva = camTracks.isNotEmpty && !cameraDesativada;
-      if (_videoSender != null) {
-        await _videoSender!.replaceTrack(temCameraAtiva ? camTracks.first : null);
-      }
-      renderizadorLocal.srcObject = _streamLocal;
+      final temCameraAtiva = await ChamadaMidiaHelper.restaurarCameraAposTela(
+        streamLocal: _streamLocal,
+        renderizadorLocal: renderizadorLocal,
+        videoSender: _videoSender,
+        cameraDesativada: cameraDesativada,
+      );
       if (sessaoAtiva.value != null) {
         sessaoAtiva.value = sessaoAtiva.value!.copyWith(
           videoHabilitado: temCameraAtiva,
@@ -638,32 +439,21 @@ class ChamadaWebRtcService {
     }
 
     try {
-      final telaStream = await ChamadaTelaHelper.capturarTela();
-      if (telaStream == null) {
-        await ChamadaTelaHelper.pararServicoAndroid();
-        return false;
-      }
-      final tracks = telaStream.getVideoTracks();
-      if (tracks.isEmpty) {
-        await telaStream.dispose();
-        return false;
-      }
+      final captura = await ChamadaMidiaHelper.iniciarCapturaTela(
+        peerConnection: _peerConnection!,
+        renderizadorLocal: renderizadorLocal,
+        videoSenderAtual: _videoSender,
+        onTelaEncerrada: () {
+          if (compartilhandoTela) {
+            unawaited(alternarCompartilhamentoTela());
+          }
+        },
+      );
+      if (captura == null) return false;
 
-      _streamTela = telaStream;
+      _streamTela = captura.stream;
+      _videoSender = captura.videoSender;
       compartilhandoTela = true;
-      final screenTrack = tracks.first;
-      screenTrack.onEnded = () {
-        if (compartilhandoTela) {
-          unawaited(alternarCompartilhamentoTela());
-        }
-      };
-
-      renderizadorLocal.srcObject = _streamTela;
-      if (_videoSender != null) {
-        await _videoSender!.replaceTrack(screenTrack);
-      } else {
-        _videoSender = await _peerConnection!.addTrack(screenTrack, _streamTela!);
-      }
 
       if (sessaoAtiva.value != null) {
         sessaoAtiva.value = sessaoAtiva.value!.copyWith(
@@ -684,22 +474,35 @@ class ChamadaWebRtcService {
   Future<void> alternarVivaVoz() async {
     if (_streamLocal == null) return;
     vivaVozAtivo = !vivaVozAtivo;
-    try {
-      await Helper.setSpeakerphoneOn(vivaVozAtivo);
-    } catch (_) {}
+    await ChamadaMidiaHelper.definirVivaVoz(vivaVozAtivo);
   }
 
   Future<void> alternarCameraFrontalTraseira() async {
-    if (_streamLocal == null) return;
-    final videoTracks = _streamLocal!.getVideoTracks();
-    if (videoTracks.isNotEmpty) {
-      try {
-        await Helper.switchCamera(videoTracks.first);
-        cameraFrontalAtiva.value = !cameraFrontalAtiva.value;
-      } catch (e) {
-        debugPrint('[ChamadaWebRtcService] Erro ao alternar câmera: $e');
-      }
+    final alternou = await ChamadaMidiaHelper.alternarCameraFrontalTraseira(
+      _streamLocal,
+    );
+    if (alternou) {
+      cameraFrontalAtiva.value = !cameraFrontalAtiva.value;
     }
+  }
+
+  Future<void> _prepararPeerConnectionEMidia({
+    required String chamadaId,
+    required bool comVideo,
+  }) async {
+    _peerConnection = await createPeerConnection(
+      ChamadaSinalizacaoHelper.configuracaoWebRtc,
+      ChamadaSinalizacaoHelper.restricoesLoopback,
+    );
+    _configurarListenersPeerConnection(chamadaId);
+
+    final midiaLocal = await ChamadaMidiaHelper.obterStreamLocalEAdicionarTracks(
+      peerConnection: _peerConnection!,
+      renderizadorLocal: renderizadorLocal,
+      comVideo: comVideo,
+    );
+    _streamLocal = midiaLocal.stream;
+    _videoSender = midiaLocal.videoSender;
   }
 
   void _iniciarTimeoutChamada(String chamadaId) {
@@ -736,17 +539,7 @@ class ChamadaWebRtcService {
     if (_peerConnection == null) return;
 
     _peerConnection!.onIceCandidate = (RTCIceCandidate candidate) {
-      if (candidate.candidate != null) {
-        _enviarSinalizacao({
-          'tipo': 'chamada_candidato_ice',
-          'chamadaId': chamadaId,
-          'candidate': {
-            'candidate': candidate.candidate,
-            'sdpMid': candidate.sdpMid,
-            'sdpMLineIndex': candidate.sdpMLineIndex,
-          },
-        });
-      }
+      ChamadaSinalizacaoHelper.enviarCandidatoIceLocal(chamadaId, candidate);
     };
 
     _peerConnection!.onTrack = (RTCTrackEvent event) {
@@ -802,19 +595,5 @@ class ChamadaWebRtcService {
         encerrarChamada(notificarRede: false);
       }
     };
-  }
-
-  /// Despacha sinais de chamada pelo WebSocket ativo (via Servidor ou Cliente)
-  void _enviarSinalizacao(Map<String, dynamic> sinal) {
-    final servidor = ServidorRedeLocal();
-    if (servidor.ativo) {
-      servidor.notificarTodos(sinal);
-      return;
-    }
-
-    final cliente = ClienteRedeLocal();
-    if (cliente.conectado) {
-      cliente.enviarMensagemRaw(sinal);
-    }
   }
 }

@@ -312,7 +312,9 @@ class BancoDadosService {
             if (lojaId.isEmpty) continue;
 
             final pedidosList =
-                lojaMap['pedidos'] as List<dynamic>? ?? const [];
+                (lojaMap['pedidosLoja'] ?? lojaMap['pedidos'])
+                    as List<dynamic>? ??
+                const [];
             for (final pItem in pedidosList) {
               final pMap = pItem as Map<String, dynamic>;
               final pId = pMap['id']?.toString() ?? '';

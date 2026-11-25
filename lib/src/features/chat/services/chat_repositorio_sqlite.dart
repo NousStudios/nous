@@ -1,11 +1,12 @@
 import 'dart:async';
 import 'dart:convert';
-import 'package:flutter/foundation.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import 'package:nous/src/core/services/banco_dados_service.dart';
 import 'package:nous/src/features/chat/models/mensagem_chat.dart';
 import 'package:nous/src/features/chat/services/chat_outbox_e_recibos_service.dart';
-import 'package:nous/src/features/chat/services/comunidade_chat_service.dart';
+import 'package:nous/src/features/chat/services/helpers/chat_sqlite_mensagem_mapper.dart';
+import 'package:nous/src/features/chat/services/helpers/chat_sqlite_schema_helper.dart';
+import 'package:nous/src/features/chat/services/helpers/chat_sqlite_tombstones_helper.dart';
 
 /// Repositório soberano de persistência e consultas SQLite de Mensagens e Conversas
 class ChatRepositorioSqlite {
@@ -15,7 +16,7 @@ class ChatRepositorioSqlite {
   static Future<void>? _inicializacaoEmVoo;
 
   static String normalizarCpf(String cpf) {
-    return cpf.replaceAll(RegExp(r'\D'), '');
+    return ChatSqliteMensagemMapper.normalizarCpf(cpf);
   }
 
   static String extrairOutroCpf(String convId, String meuCpf) {
@@ -49,233 +50,9 @@ class ChatRepositorioSqlite {
 
   static Future<void> _garantirTabelas(Database db) async {
     if (_tabelasCriadas) return;
-    if (true) {
-      await db.execute('''
-        CREATE TABLE IF NOT EXISTS mensagens_chat (
-          id TEXT PRIMARY KEY,
-          conversa_id TEXT NOT NULL,
-          remetente_id TEXT NOT NULL,
-          remetente_nome TEXT NOT NULL,
-          remetente_foto TEXT,
-          destinatario_id TEXT NOT NULL,
-          texto TEXT NOT NULL,
-          data_hora TEXT NOT NULL,
-          nome_atendente TEXT,
-          cpf_atendente TEXT,
-          lida INTEGER NOT NULL DEFAULT 0,
-          tipo TEXT NOT NULL DEFAULT 'texto',
-          caminho_anexo TEXT,
-          nome_anexo TEXT,
-          tamanho_anexo INTEGER DEFAULT 0,
-          pedido_id TEXT,
-          dados_pedido_json TEXT,
-          editada INTEGER DEFAULT 0,
-          historico_edicoes TEXT DEFAULT '[]',
-          status_envio TEXT DEFAULT 'enviada',
-          entregue INTEGER DEFAULT 0,
-          favorita INTEGER DEFAULT 0,
-          fixada INTEGER DEFAULT 0,
-          reacoes_json TEXT DEFAULT '{}',
-          assinatura TEXT DEFAULT '',
-          resposta_a_id TEXT DEFAULT '',
-          resposta_a_texto TEXT DEFAULT '',
-          resposta_a_autor TEXT DEFAULT ''
-        );
-      ''');
-
-      final alteracoesMensagens = [
-        'ALTER TABLE mensagens_chat ADD COLUMN tipo TEXT DEFAULT "texto";',
-        'ALTER TABLE mensagens_chat ADD COLUMN caminho_anexo TEXT;',
-        'ALTER TABLE mensagens_chat ADD COLUMN nome_anexo TEXT;',
-        'ALTER TABLE mensagens_chat ADD COLUMN tamanho_anexo INTEGER DEFAULT 0;',
-        'ALTER TABLE mensagens_chat ADD COLUMN pedido_id TEXT;',
-        'ALTER TABLE mensagens_chat ADD COLUMN dados_pedido_json TEXT;',
-        'ALTER TABLE mensagens_chat ADD COLUMN editada INTEGER DEFAULT 0;',
-        'ALTER TABLE mensagens_chat ADD COLUMN historico_edicoes TEXT DEFAULT "[]";',
-        'ALTER TABLE mensagens_chat ADD COLUMN status_envio TEXT DEFAULT "enviada";',
-        'ALTER TABLE mensagens_chat ADD COLUMN entregue INTEGER DEFAULT 0;',
-        'ALTER TABLE mensagens_chat ADD COLUMN favorita INTEGER DEFAULT 0;',
-        'ALTER TABLE mensagens_chat ADD COLUMN fixada INTEGER DEFAULT 0;',
-        'ALTER TABLE mensagens_chat ADD COLUMN reacoes_json TEXT DEFAULT "{}";',
-        'ALTER TABLE mensagens_chat ADD COLUMN assinatura TEXT DEFAULT "";',
-        'ALTER TABLE mensagens_chat ADD COLUMN resposta_a_id TEXT DEFAULT "";',
-        'ALTER TABLE mensagens_chat ADD COLUMN resposta_a_texto TEXT DEFAULT "";',
-        'ALTER TABLE mensagens_chat ADD COLUMN resposta_a_autor TEXT DEFAULT "";',
-      ];
-      for (final sql in alteracoesMensagens) {
-        try {
-          await db.execute(sql);
-        } catch (_) {}
-      }
-
-      try {
-        await db.execute('''
-          DELETE FROM mensagens_chat 
-          WHERE tipo IN ('mensagem_entregue', 'mensagens_lidas')
-             OR id = '' 
-             OR remetente_id = ''
-             OR conversa_id = ''
-             OR (tipo = 'texto' AND TRIM(texto) = '' AND (caminho_anexo IS NULL OR caminho_anexo = '') AND (pedido_id IS NULL OR pedido_id = ''));
-        ''');
-      } catch (_) {}
-
-      await db.execute('''
-        CREATE TABLE IF NOT EXISTS conversas_chat (
-          id TEXT PRIMARY KEY,
-          titulo TEXT NOT NULL,
-          subtitulo TEXT,
-          foto TEXT,
-          identificador TEXT NOT NULL,
-          eh_loja INTEGER NOT NULL DEFAULT 0,
-          eh_grupo INTEGER NOT NULL DEFAULT 0,
-          loja_id TEXT,
-          participantes_json TEXT,
-          criado_em TEXT NOT NULL,
-          atualizado_em TEXT,
-          ultima_mensagem TEXT DEFAULT '',
-          data_hora_ultima_mensagem TEXT,
-          arquivada INTEGER DEFAULT 0,
-          fixada INTEGER DEFAULT 0,
-          silenciada INTEGER DEFAULT 0
-        );
-      ''');
-
-      final alteracoesConversas = [
-        'ALTER TABLE conversas_chat ADD COLUMN loja_id TEXT;',
-        'ALTER TABLE conversas_chat ADD COLUMN atualizado_em TEXT;',
-        'ALTER TABLE conversas_chat ADD COLUMN ultima_mensagem TEXT DEFAULT "";',
-        'ALTER TABLE conversas_chat ADD COLUMN data_hora_ultima_mensagem TEXT;',
-        'ALTER TABLE conversas_chat ADD COLUMN arquivada INTEGER DEFAULT 0;',
-        'ALTER TABLE conversas_chat ADD COLUMN fixada INTEGER DEFAULT 0;',
-        'ALTER TABLE conversas_chat ADD COLUMN nome_grupo TEXT DEFAULT "";',
-        'ALTER TABLE conversas_chat ADD COLUMN titulo_conversa TEXT DEFAULT "";',
-        'ALTER TABLE conversas_chat ADD COLUMN silenciada INTEGER DEFAULT 0;',
-      ];
-      for (final sql in alteracoesConversas) {
-        try {
-          await db.execute(sql);
-        } catch (_) {}
-      }
-
-      await db.execute('''
-        CREATE TABLE IF NOT EXISTS conversas_excluidas (
-          id TEXT PRIMARY KEY,
-          excluida_em TEXT NOT NULL
-        );
-      ''');
-
-      try {
-        await db.execute(
-          'CREATE INDEX IF NOT EXISTS idx_chat_conversa ON mensagens_chat (conversa_id);',
-        );
-        await db.execute(
-          'CREATE INDEX IF NOT EXISTS idx_chat_destinatario ON mensagens_chat (destinatario_id);',
-        );
-        await db.execute(
-          'CREATE INDEX IF NOT EXISTS idx_chat_conversa_data ON mensagens_chat (conversa_id, data_hora);',
-        );
-        await db.execute(
-          'CREATE INDEX IF NOT EXISTS idx_chat_status ON mensagens_chat (status_envio);',
-        );
-        await db.execute(
-          'CREATE INDEX IF NOT EXISTS idx_chat_lida ON mensagens_chat (conversa_id, lida);',
-        );
-        await db.execute(
-          'CREATE INDEX IF NOT EXISTS idx_conversas_loja ON conversas_chat (loja_id);',
-        );
-        await db.execute(
-          'CREATE INDEX IF NOT EXISTS idx_conversas_atualizado ON conversas_chat (atualizado_em);',
-        );
-      } catch (_) {}
-
-      _tabelasCriadas = true;
-      unawaited(_migrarHistoricoExistenteParaConversas(db));
-    }
-  }
-
-  static Future<void> _migrarHistoricoExistenteParaConversas(Database db) async {
-    try {
-      await db.delete(
-        'conversas_chat',
-        where:
-            '(eh_grupo = 0 OR eh_grupo IS NULL) AND (id LIKE ? OR id LIKE ? OR (eh_loja = 1 AND (loja_id = ? OR LOWER(titulo) = ?)))',
-        whereArgs: [
-          '%loja_nous_coletiva_usuario_%',
-          '%loja_nous_usuario_%',
-          ComunidadeChatService.idLojaColetivaNous,
-          'nous',
-        ],
-      );
-
-      // Preserva conversas_excluidas entre reinicializações para não ressuscitar conversas apagadas.
-
-      // Garante que toda conversa loja_<lojaId>_usuario_<cpf> tenha eh_loja = 1 e loja_id preenchido
-      final lojaConvs = await db.query(
-        'conversas_chat',
-        where: 'id LIKE ?',
-        whereArgs: ['loja_%_usuario_%'],
-      );
-      for (final lc in lojaConvs) {
-        final cid = lc['id'] as String? ?? '';
-        final idxUsr = cid.indexOf('_usuario_');
-        if (idxUsr > 5) {
-          final lIdExtraido = cid.substring(5, idxUsr);
-          final ehLojaAtual = (lc['eh_loja'] as int? ?? 0) == 1;
-          final lojaIdAtual = (lc['loja_id'] as String? ?? '').trim();
-          if (!ehLojaAtual || lojaIdAtual.isEmpty) {
-            await db.update(
-              'conversas_chat',
-              {
-                'eh_loja': 1,
-                'loja_id': lIdExtraido,
-              },
-              where: 'id = ?',
-              whereArgs: [cid],
-            );
-          }
-        }
-      }
-
-      await db.execute('''
-        UPDATE conversas_chat
-        SET titulo_conversa = ''
-        WHERE LOWER(TRIM(titulo_conversa)) = LOWER(TRIM(titulo))
-           OR LOWER(TRIM(titulo_conversa)) = LOWER(TRIM(nome_grupo));
-      ''');
-
-      // Autocura de IDs não-canônicos e saneamento de histórico P2P
-      final userConvs = await db.query(
-        'conversas_chat',
-        where: 'id LIKE ?',
-        whereArgs: ['user_%_user_%'],
-      );
-      for (final c in userConvs) {
-        final id = c['id'] as String;
-        final match = RegExp(r'^user_(\d{11})_user_(\d{11})$').firstMatch(id);
-        if (match != null) {
-          final c1 = match.group(1)!;
-          final c2 = match.group(2)!;
-          final min = c1.compareTo(c2) <= 0 ? c1 : c2;
-          final max = c1.compareTo(c2) <= 0 ? c2 : c1;
-          final idCanonico = 'user_${min}_user_$max';
-          if (id != idCanonico) {
-            await db.update(
-              'mensagens_chat',
-              {'conversa_id': idCanonico},
-              where: 'conversa_id = ?',
-              whereArgs: [id],
-            );
-            await db.delete(
-              'conversas_chat',
-              where: 'id = ?',
-              whereArgs: [id],
-            );
-          }
-        }
-      }
-    } catch (e) {
-      debugPrint('[ChatRepositorioSqlite] Erro na migração inicial: $e');
-    }
+    await ChatSqliteSchemaHelper.garantirTabelas(db);
+    _tabelasCriadas = true;
+    unawaited(ChatSqliteSchemaHelper.migrarHistoricoExistenteParaConversas(db));
   }
 
   static List<String> decodificarParticipantes(String? raw) {
@@ -323,119 +100,15 @@ class ChatRepositorioSqlite {
       );
     }
 
-    final listaMsgs = rows.map((r) {
-      final remetente = r['remetente_id'] as String? ?? '';
-      final bool enviadaPorMim;
-      final visDigits = (idVisualizador ?? '').replaceAll(RegExp(r'\D'), '');
-      final visEhLoja = idVisualizador != null &&
-          (idVisualizador.startsWith('loja_') ||
-              (conversaId.startsWith('loja_') && visDigits.length != 11));
-      if (visEhLoja) {
-        final idLimpo = idVisualizador.startsWith('loja_')
-            ? idVisualizador.substring(5)
-            : idVisualizador;
-        final remLimpo = remetente.startsWith('loja_')
-            ? remetente.substring(5)
-            : remetente;
-        enviadaPorMim = idLimpo.isNotEmpty
-            ? remLimpo == idLimpo
-            : remetente.startsWith('loja_');
-      } else if (idVisualizador != null && idVisualizador.isNotEmpty) {
-        final remLimpo = remetente.startsWith('loja_')
-            ? remetente.substring(5)
-            : remetente;
-        String lojaIdConv = '';
-        if (conversaId.startsWith('loja_') && conversaId.contains('_usuario_')) {
-          lojaIdConv = conversaId.substring(5, conversaId.indexOf('_usuario_'));
-        }
-        final ehMsgLoja = remetente.startsWith('loja_') ||
-            (lojaIdConv.isNotEmpty && remLimpo == lojaIdConv);
-        final visNorm = normalizarCpf(idVisualizador);
-        final remNorm = normalizarCpf(remetente);
-        enviadaPorMim = !ehMsgLoja && visNorm.isNotEmpty && remNorm == visNorm;
-      } else {
-        enviadaPorMim = false;
-      }
-      final lida = (r['lida'] as int? ?? 0) == 1;
-      final entregue = (r['entregue'] as int? ?? 0) == 1;
-      final stBruto = r['status_envio'] as String? ?? '';
-      final convIdMsg = r['conversa_id'] as String? ?? '';
-      final ehColetiva = convIdMsg.startsWith('grupo_') ||
-          convIdMsg.startsWith('topico_') ||
-          convIdMsg.startsWith('comunidade_') ||
-          convIdMsg.startsWith('loja_nous_coletiva_');
-
-      final String statusEnvio;
-      if (!ehColetiva && stBruto == 'lida') {
-        statusEnvio = 'lida';
-      } else if (entregue || stBruto == 'entregue' || (ehColetiva && (lida || stBruto == 'lida'))) {
-        statusEnvio = 'entregue';
-      } else if (stBruto.isEmpty || stBruto == 'pendente') {
-        statusEnvio = 'enviada';
-      } else {
-        statusEnvio = stBruto;
-      }
-
-      return MensagemChat(
-        id: r['id'] as String? ?? '',
-        conversaId: r['conversa_id'] as String? ?? '',
-        remetenteId: remetente,
-        remetenteNome: r['remetente_nome'] as String? ?? '',
-        remetenteFoto: r['remetente_foto'] as String? ?? '',
-        destinatarioId: r['destinatario_id'] as String? ?? '',
-        texto: r['texto'] as String? ?? '',
-        dataHora:
-            DateTime.tryParse(r['data_hora'] as String? ?? '')?.toLocal() ??
-            DateTime.now(),
-        enviadaPorMim: enviadaPorMim,
-        nomeAtendente: r['nome_atendente'] as String? ?? '',
-        cpfAtendente: r['cpf_atendente'] as String? ?? '',
-        lida: lida,
-        tipo: r['tipo'] as String? ?? 'texto',
-        caminhoAnexo: r['caminho_anexo'] as String? ?? '',
-        nomeAnexo: r['nome_anexo'] as String? ?? '',
-        tamanhoAnexo: r['tamanho_anexo'] as int? ?? 0,
-        pedidoId: r['pedido_id'] as String? ?? '',
-        dadosPedidoJson: r['dados_pedido_json'] as String? ?? '',
-        editada: (r['editada'] as int? ?? 0) == 1,
-        historicoEdicoes: () {
-          final raw = r['historico_edicoes'] as String?;
-          if (raw == null || raw.isEmpty || raw == '[]') {
-            return const <Map<String, dynamic>>[];
-          }
-          try {
-            return (jsonDecode(raw) as List)
-                .map((e) => Map<String, dynamic>.from(e as Map))
-                .toList();
-          } catch (_) {
-            return const <Map<String, dynamic>>[];
-          }
-        }(),
-        statusEnvio: statusEnvio,
-        entregue: entregue,
-        favorita: (r['favorita'] as int? ?? 0) == 1,
-        fixada: (r['fixada'] as int? ?? 0) == 1,
-        reacoes: () {
-          final raw = r['reacoes_json'] as String?;
-          if (raw == null || raw.isEmpty || raw == '{}') {
-            return const <String, String>{};
-          }
-          try {
-            final dec = jsonDecode(raw);
-            if (dec is Map) {
-              return dec.map((k, v) => MapEntry(k.toString(), v.toString()));
-            }
-          } catch (_) {}
-          return const <String, String>{};
-        }(),
-        assinatura: r['assinatura'] as String? ?? '',
-        respostaAId: r['resposta_a_id'] as String? ?? '',
-        respostaATexto: r['resposta_a_texto'] as String? ?? '',
-        respostaAAutor: r['resposta_a_autor'] as String? ?? '',
-      );
-    }).toList();
-
-    return listaMsgs;
+    return rows
+        .map(
+          (r) => ChatSqliteMensagemMapper.mapearRowParaMensagem(
+            r,
+            conversaId,
+            idVisualizador,
+          ),
+        )
+        .toList();
   }
 
   /// Marca mensagens como lidas de forma instantânea através de um único comando em lote (Batch Update)
@@ -444,9 +117,10 @@ class ChatRepositorioSqlite {
     String idLeitor,
   ) async {
     final db = await obterDb();
-    final leitorDigits = idLeitor.replaceAll(RegExp(r'\D'), '');
-    final leitorEhLoja = idLeitor.startsWith('loja_') ||
-        (conversaId.startsWith('loja_') && leitorDigits.length != 11);
+    final leitorEhLoja = ChatSqliteMensagemMapper.ehVisualizadorLoja(
+      conversaId,
+      idLeitor,
+    );
 
     if (leitorEhLoja) {
       final idLimpo =
@@ -459,7 +133,10 @@ class ChatRepositorioSqlite {
         whereArgs: [conversaId, idLimpo, 'loja_$idLimpo'],
       );
       if (alterados > 0) {
-        await ChatOutboxERecibosService.registrarLeituraConversa(conversaId, idLeitor);
+        await ChatOutboxERecibosService.registrarLeituraConversa(
+          conversaId,
+          idLeitor,
+        );
       }
       return alterados > 0;
     }
@@ -476,7 +153,10 @@ class ChatRepositorioSqlite {
       whereArgs: [conversaId, idLeitor, leitorNorm, 'user_$leitorNorm'],
     );
     if (alterados > 0) {
-      await ChatOutboxERecibosService.registrarLeituraConversa(conversaId, idLeitor);
+      await ChatOutboxERecibosService.registrarLeituraConversa(
+        conversaId,
+        idLeitor,
+      );
     }
 
     return alterados > 0;
@@ -494,7 +174,14 @@ class ChatRepositorioSqlite {
       {'lida': 1, 'status_envio': 'lida'},
       where:
           '(destinatario_id = ? OR conversa_id LIKE ?) AND remetente_id NOT IN (?, ?, ?, ?) AND lida = 0',
-      whereArgs: [lojaId, 'loja_${lojaId}_%', idLeitor, leitorNorm, 'user_$leitorNorm', lojaId],
+      whereArgs: [
+        lojaId,
+        'loja_${lojaId}_%',
+        idLeitor,
+        leitorNorm,
+        'user_$leitorNorm',
+        lojaId,
+      ],
     );
 
     return alterados > 0;
@@ -563,9 +250,10 @@ class ChatRepositorioSqlite {
     String idVisualizador,
   ) async {
     final db = await obterDb();
-    final visDigits = idVisualizador.replaceAll(RegExp(r'\D'), '');
-    final visEhLoja = idVisualizador.startsWith('loja_') ||
-        (conversaId.startsWith('loja_') && visDigits.length != 11);
+    final visEhLoja = ChatSqliteMensagemMapper.ehVisualizadorLoja(
+      conversaId,
+      idVisualizador,
+    );
 
     final List<Map<String, Object?>> res;
     if (visEhLoja) {
@@ -593,33 +281,7 @@ class ChatRepositorioSqlite {
   static Future<List<String>> obterIdsConversasExcluidas() async {
     try {
       final db = await obterDb();
-      final rows = await db.query('conversas_excluidas');
-      final idsExcluidos = <String>[];
-      for (final r in rows) {
-        final id = r['id'] as String? ?? '';
-        final excluidaEmStr = r['excluida_em'] as String?;
-        if (id.isEmpty) continue;
-        if (excluidaEmStr != null) {
-          final resNovas = await db.rawQuery(
-            'SELECT COUNT(*) as qtd FROM mensagens_chat WHERE conversa_id = ? AND data_hora > ?',
-            [id, excluidaEmStr],
-          );
-          final countNovas =
-              (resNovas.isNotEmpty && resNovas.first['qtd'] != null)
-                  ? (resNovas.first['qtd'] as num).toInt()
-                  : 0;
-          if (countNovas > 0) {
-            await db.delete(
-              'conversas_excluidas',
-              where: 'id = ?',
-              whereArgs: [id],
-            );
-            continue;
-          }
-        }
-        idsExcluidos.add(id);
-      }
-      return idsExcluidos;
+      return await ChatSqliteTombstonesHelper.obterIdsConversasExcluidas(db);
     } catch (_) {
       return [];
     }
@@ -628,13 +290,7 @@ class ChatRepositorioSqlite {
   static Future<bool> isConversaExcluida(String conversaId) async {
     try {
       final db = await obterDb();
-      final rows = await db.query(
-        'conversas_excluidas',
-        where: 'id = ?',
-        whereArgs: [conversaId],
-        limit: 1,
-      );
-      return rows.isNotEmpty;
+      return await ChatSqliteTombstonesHelper.isConversaExcluida(db, conversaId);
     } catch (_) {
       return false;
     }
@@ -643,26 +299,16 @@ class ChatRepositorioSqlite {
   static Future<void> desmarcarConversaExcluida(String conversaId) async {
     try {
       final db = await obterDb();
-      await db.delete(
-        'conversas_excluidas',
-        where: 'id = ?',
-        whereArgs: [conversaId],
+      await ChatSqliteTombstonesHelper.desmarcarConversaExcluida(
+        db,
+        conversaId,
       );
     } catch (_) {}
   }
 
   static Future<void> excluirConversaLocal(String conversaId) async {
     final db = await obterDb();
-    await db.insert('conversas_excluidas', {
-      'id': conversaId,
-      'excluida_em': DateTime.now().toIso8601String(),
-    }, conflictAlgorithm: ConflictAlgorithm.replace);
-    await db.delete(
-      'mensagens_chat',
-      where: 'conversa_id = ?',
-      whereArgs: [conversaId],
-    );
-    await db.delete('conversas_chat', where: 'id = ?', whereArgs: [conversaId]);
+    await ChatSqliteTombstonesHelper.excluirConversaLocal(db, conversaId);
   }
 
   /// Alterna o status de favorita de uma mensagem
@@ -768,23 +414,10 @@ class ChatRepositorioSqlite {
   static Future<bool> alternarSilenciarConversa(String conversaId) async {
     try {
       final db = await obterDb();
-      final rows = await db.query(
-        'conversas_chat',
-        columns: ['silenciada'],
-        where: 'id = ?',
-        whereArgs: [conversaId],
-        limit: 1,
+      return await ChatSqliteTombstonesHelper.alternarSilenciarConversa(
+        db,
+        conversaId,
       );
-      if (rows.isEmpty) return false;
-      final atual = (rows.first['silenciada'] as int? ?? 0) == 1;
-      final novoValor = atual ? 0 : 1;
-      await db.update(
-        'conversas_chat',
-        {'silenciada': novoValor},
-        where: 'id = ?',
-        whereArgs: [conversaId],
-      );
-      return novoValor == 1;
     } catch (_) {
       return false;
     }

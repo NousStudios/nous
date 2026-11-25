@@ -129,7 +129,7 @@ class DespachanteClienteRede {
         final body = await utf8.decodeStream(resp);
         final dados = jsonDecode(body) as Map<String, dynamic>;
 
-        if (dados['sucesso'] == true && dados['temApk'] == true) {
+        if (dados['sucesso'] == true) {
           final versaoRemota = dados['versao'] as String? ?? AtualizacaoService.versaoAtual;
           final buildRemota = dados['build'] as int? ?? AtualizacaoService.buildAtual;
           final alteracoesRemotas = (dados['alteracoes'] as List<dynamic>?)
@@ -150,16 +150,23 @@ class DespachanteClienteRede {
               (buildRemota == AtualizacaoService.buildAtual &&
                   AtualizacaoService.versaoMaior(versaoRemota, AtualizacaoService.versaoAtual));
 
-          if (temNovaVersao) {
+          final ehWindows = Platform.isWindows;
+          final temBinarioLocal = ehWindows
+              ? (dados['temExe'] == true)
+              : (dados['temApk'] == true);
+
+          if (temNovaVersao && temBinarioLocal) {
+            final caminhoDownload =
+                ehWindows ? '/api/download_exe' : '/api/download_apk';
             AtualizacaoService.infoAtualizacao.value = InfoAtualizacao(
               versao: versaoRemota,
-              nomeVersao: 'Atualização do Balcão Wi-Fi (v$versaoRemota • Build $buildRemota)',
+              nomeVersao: 'Atualização do Servidor Wi-Fi (v$versaoRemota • Build $buildRemota)',
               descricao:
-                  'Instalação da versão estável mais recente transmitida diretamente pelo Computador Balcão via Wi-Fi.',
+                  'Instalação da versão estável mais recente transmitida diretamente pela rede Wi-Fi local.',
               urlDownload: ResolvedorUrlRede.montarUrlHttp(
                 hostOuIp: ipServidor,
                 porta: portaServidor,
-                caminho: '/api/download_apk',
+                caminho: caminhoDownload,
               ),
               dataPublicacao: DateTime.now(),
               alteracoes: alteracoesFinais,
@@ -167,15 +174,19 @@ class DespachanteClienteRede {
             AtualizacaoService.temAtualizacao.value = true;
             AtualizacaoService.ultimaVerificacao.value = DateTime.now();
             AtualizacaoService.mensagemStatus.value =
-                'Nova versão v$versaoRemota disponível para download no balcão!';
-            debugPrint('[DespachanteClienteRede] Atualização disponível no balcão via Wi-Fi!');
+                'Nova versão v$versaoRemota disponível para download na rede local!';
+            debugPrint('[DespachanteClienteRede] Atualização disponível na rede via Wi-Fi ($caminhoDownload)!');
+          } else if (temNovaVersao && !temBinarioLocal) {
+            // Servidor local está mais atualizado, mas não possui o instalador desta plataforma em disco:
+            // tenta buscar automaticamente o instalador na Release do GitHub caso haja internet.
+            unawaited(AtualizacaoService.verificarAtualizacao(silencioso: true));
           } else {
             AtualizacaoService.infoAtualizacao.value = null;
             AtualizacaoService.temAtualizacao.value = false;
             AtualizacaoService.ultimaVerificacao.value = DateTime.now();
             AtualizacaoService.mensagemStatus.value =
                 'O Nous já está na versão mais recente (v${AtualizacaoService.versaoAtual}).';
-            debugPrint('[DespachanteClienteRede] O aplicativo já está na mesma versão ou mais recente que o balcão.');
+            debugPrint('[DespachanteClienteRede] O aplicativo já está na mesma versão ou mais recente que o servidor.');
           }
         } else {
           AtualizacaoService.infoAtualizacao.value = null;

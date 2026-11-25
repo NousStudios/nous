@@ -6,6 +6,9 @@ import 'package:flutter/material.dart';
 import 'package:media_kit/media_kit.dart';
 import 'package:media_kit_video/media_kit_video.dart';
 import 'package:nous/src/core/theme/theme_controller.dart';
+import 'package:nous/src/core/widgets/player_video/player_video_capa_widget.dart';
+import 'package:nous/src/core/widgets/player_video/player_video_controles_widget.dart';
+import 'package:nous/src/core/widgets/player_video/player_video_volume_widget.dart';
 import 'package:nous/src/features/timeline/services/timeline_midia_service.dart';
 import 'package:nous/src/features/timeline/services/timeline_service.dart';
 
@@ -442,13 +445,6 @@ class _PlayerVideoNousWidgetState extends State<PlayerVideoNousWidget> {
     if (mounted) setState(() => _voltando2x = false);
   }
 
-  String _fmt(Duration d) {
-    final total = d.inSeconds;
-    final m = (total ~/ 60).toString().padLeft(2, '0');
-    final s = (total % 60).toString().padLeft(2, '0');
-    return '$m:$s';
-  }
-
   void _aplicarVolume(double novoVol) {
     final v = novoVol.clamp(0.0, 100.0);
     if (v > 0) _ultimoVolumeAtivo = v;
@@ -486,72 +482,12 @@ class _PlayerVideoNousWidgetState extends State<PlayerVideoNousWidget> {
                 child: Container(
           color: theme.backgroundColor.withValues(alpha: 0.75),
           child: !_playerAtivo || _videoController == null
-              ? GestureDetector(
-                  onTap: () => _iniciarPlayer(),
-                  child: Stack(
-                    fit: StackFit.expand,
-                    children: [
-                      if (_capaResolvida != null &&
-                          File(_capaResolvida!).existsSync())
-                        Image.file(
-                          File(_capaResolvida!),
-                          fit: BoxFit.cover,
-                          cacheWidth: 1080,
-                        )
-                      else if (_cacheCapasFallback[widget.caminhoVideo] != null)
-                        Image.memory(
-                          _cacheCapasFallback[widget.caminhoVideo]!,
-                          fit: BoxFit.cover,
-                          cacheWidth: 1080,
-                        )
-                      else
-                        Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(
-                              Icons.videocam_outlined,
-                              size: 40,
-                              color: theme.secondaryTextColor,
-                            ),
-                            if (widget.titulo.isNotEmpty) ...[
-                              const SizedBox(height: 6),
-                              Padding(
-                                padding:
-                                    const EdgeInsets.symmetric(horizontal: 16),
-                                child: Text(
-                                  widget.titulo,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: theme.getTextStyle(
-                                    fontSize: 12,
-                                    color: theme.secondaryTextColor,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ],
-                        ),
-                      Center(
-                        child: Container(
-                          width: 54,
-                          height: 54,
-                          decoration: BoxDecoration(
-                            color: theme.cardBackgroundColor
-                                .withValues(alpha: 0.80),
-                            shape: BoxShape.circle,
-                            border: Border.all(
-                              color: theme.textColor.withValues(alpha: 0.35),
-                            ),
-                          ),
-                          child: Icon(
-                            Icons.play_arrow_rounded,
-                            size: 32,
-                            color: theme.textColor,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
+              ? PlayerVideoCapaWidget(
+                  theme: theme,
+                  capaResolvida: _capaResolvida,
+                  bytesCapaFallback: _cacheCapasFallback[widget.caminhoVideo],
+                  titulo: widget.titulo,
+                  onTapIniciar: () => _iniciarPlayer(),
                 )
               : GestureDetector(
                   onTap: () {
@@ -569,260 +505,68 @@ class _PlayerVideoNousWidgetState extends State<PlayerVideoNousWidget> {
                         controller: _videoController!,
                         controls: NoVideoControls,
                       ),
-                      // Quadrantes superiores: segurar esquerda volta 2x, direita avança 2x
-                      Positioned(
-                        top: 0,
-                        left: 0,
-                        right: 0,
-                        bottom: 72,
-                        child: Row(
-                          children: [
-                            Expanded(
-                              child: GestureDetector(
-                                behavior: HitTestBehavior.translucent,
-                                onLongPressStart: (_) =>
-                                    _iniciarRetrocesso2x(),
-                                onLongPressEnd: (_) => _pararRetrocesso2x(),
-                                onLongPressCancel: _pararRetrocesso2x,
-                              ),
-                            ),
-                            Expanded(
-                              child: GestureDetector(
-                                behavior: HitTestBehavior.translucent,
-                                onLongPressStart: (_) => _iniciarAvanco2x(),
-                                onLongPressEnd: (_) => _pararAvanco2x(),
-                                onLongPressCancel: _pararAvanco2x,
-                              ),
-                            ),
-                          ],
+                      PlayerVideoControlesWidget(
+                        theme: theme,
+                        mostrarControles: _mostrarControles,
+                        tocando: _tocando,
+                        avancando2x: _avancando2x,
+                        voltando2x: _voltando2x,
+                        posMs: posMs,
+                        maxMs: maxMs,
+                        posicaoExibida: posicaoExibida,
+                        duracao: _duracao,
+                        volume: _volume,
+                        onIniciarRetrocesso2x: _iniciarRetrocesso2x,
+                        onPararRetrocesso2x: _pararRetrocesso2x,
+                        onIniciarAvanco2x: _iniciarAvanco2x,
+                        onPararAvanco2x: _pararAvanco2x,
+                        onSliderChangeStart: (v) {
+                          setState(() {
+                            _arrastandoSlider = true;
+                            _valorSliderArraste = v;
+                          });
+                        },
+                        onSliderChanged: (v) {
+                          setState(() {
+                            _valorSliderArraste = v;
+                          });
+                        },
+                        onSliderChangeEnd: (v) async {
+                          final alvo = Duration(milliseconds: v.round());
+                          await _player?.seek(alvo);
+                          if (mounted) {
+                            setState(() {
+                              _posicao = alvo;
+                              _arrastandoSlider = false;
+                            });
+                          }
+                        },
+                        onTogglePlayPause: () => _player?.playOrPause(),
+                        onVolumeHoverChanged: (hover) =>
+                            setState(() => _mostrarControleVolume = hover),
+                        onVolumeTap: () => setState(
+                          () =>
+                              _mostrarControleVolume = !_mostrarControleVolume,
                         ),
                       ),
-                      if (_voltando2x || _avancando2x)
-                        Positioned(
-                          top: 12,
-                          left: 0,
-                          right: 0,
-                          child: Center(
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 12,
-                                vertical: 5,
-                              ),
-                              decoration: BoxDecoration(
-                                color: theme.cardBackgroundColor
-                                    .withValues(alpha: 0.88),
-                                borderRadius: BorderRadius.circular(16),
-                              ),
-                              child: Text(
-                                _voltando2x ? '<< 2x' : '2x >>',
-                                style: theme.getTextStyle(
-                                  fontSize: 12.5,
-                                  fontWeight: FontWeight.bold,
-                                  color: theme.textColor,
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                      if (_mostrarControles)
-                        Positioned(
-                          left: 0,
-                          right: 0,
-                          bottom: 0,
-                          child: Container(
-                            padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
-                            decoration: BoxDecoration(
-                              gradient: LinearGradient(
-                                begin: Alignment.topCenter,
-                                end: Alignment.bottomCenter,
-                                colors: [
-                                  Colors.transparent,
-                                  theme.cardBackgroundColor
-                                      .withValues(alpha: 0.92),
-                                ],
-                              ),
-                            ),
-                            child: Column(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                SliderTheme(
-                                  data: SliderTheme.of(context).copyWith(
-                                    trackHeight: 4.0,
-                                    thumbShape: const RoundSliderThumbShape(
-                                      enabledThumbRadius: 7.0,
-                                    ),
-                                    overlayShape: const RoundSliderOverlayShape(
-                                      overlayRadius: 14,
-                                    ),
-                                  ),
-                                  child: Slider(
-                                    value: posMs,
-                                    min: 0.0,
-                                    max: maxMs,
-                                    activeColor: theme.textColor,
-                                    inactiveColor: theme.borderColor
-                                        .withValues(alpha: 0.45),
-                                    onChangeStart: (v) {
-                                      setState(() {
-                                        _arrastandoSlider = true;
-                                        _valorSliderArraste = v;
-                                      });
-                                    },
-                                    onChanged: (v) {
-                                      setState(() {
-                                        _valorSliderArraste = v;
-                                      });
-                                    },
-                                    onChangeEnd: (v) async {
-                                      final alvo = Duration(
-                                        milliseconds: v.round(),
-                                      );
-                                      await _player?.seek(alvo);
-                                      if (mounted) {
-                                        setState(() {
-                                          _posicao = alvo;
-                                          _arrastandoSlider = false;
-                                        });
-                                      }
-                                    },
-                                  ),
-                                ),
-                                Row(
-                                  children: [
-                                    InkWell(
-                                      borderRadius: BorderRadius.circular(14),
-                                      onTap: () => _player?.playOrPause(),
-                                      child: Padding(
-                                        padding: const EdgeInsets.all(6),
-                                        child: Icon(
-                                          _tocando
-                                              ? Icons.pause_rounded
-                                              : Icons.play_arrow_rounded,
-                                          size: 22,
-                                          color: theme.textColor,
-                                        ),
-                                      ),
-                                    ),
-                                    const Spacer(),
-                                    Text(
-                                      '${_fmt(posicaoExibida)} / ${_fmt(_duracao)}',
-                                      style: theme.getTextStyle(
-                                        fontSize: 11.5,
-                                        color: theme.textColor,
-                                      ),
-                                    ),
-                                    const SizedBox(width: 6),
-                                    MouseRegion(
-                                      onEnter: (_) => setState(
-                                        () => _mostrarControleVolume = true,
-                                      ),
-                                      onExit: (_) => setState(
-                                        () => _mostrarControleVolume = false,
-                                      ),
-                                      child: InkWell(
-                                        borderRadius: BorderRadius.circular(14),
-                                        onTap: () => setState(
-                                          () => _mostrarControleVolume =
-                                              !_mostrarControleVolume,
-                                        ),
-                                        child: Padding(
-                                          padding: const EdgeInsets.all(6),
-                                          child: Icon(
-                                            _volume <= 0
-                                                ? Icons.volume_off_rounded
-                                                : Icons.volume_up_rounded,
-                                            size: 20,
-                                            color: theme.textColor,
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
                       if (_mostrarControles && _mostrarControleVolume)
-                        Positioned(
-                          right: 6,
-                          bottom: 42,
-                          child: MouseRegion(
-                            onEnter: (_) => setState(
-                              () => _mostrarControleVolume = true,
-                            ),
-                            onExit: (_) => setState(
-                              () => _mostrarControleVolume = false,
-                            ),
-                            child: Container(
-                              width: 40,
-                              height: 152,
-                              padding: const EdgeInsets.symmetric(vertical: 6),
-                              decoration: BoxDecoration(
-                                color: theme.cardBackgroundColor
-                                    .withValues(alpha: 0.95),
-                                borderRadius: BorderRadius.circular(16),
-                                border: Border.all(
-                                  color: theme.borderColor
-                                      .withValues(alpha: 0.55),
-                                ),
-                              ),
-                              child: Column(
-                                children: [
-                                  Expanded(
-                                    child: RotatedBox(
-                                      quarterTurns: 3,
-                                      child: SliderTheme(
-                                        data: SliderTheme.of(context).copyWith(
-                                          trackHeight: 3.5,
-                                          thumbShape:
-                                              const RoundSliderThumbShape(
-                                            enabledThumbRadius: 7.0,
-                                          ),
-                                          overlayShape:
-                                              const RoundSliderOverlayShape(
-                                            overlayRadius: 14,
-                                          ),
-                                        ),
-                                        child: Slider(
-                                          value: _volume,
-                                          min: 0.0,
-                                          max: 100.0,
-                                          activeColor: theme.textColor,
-                                          inactiveColor: theme.borderColor
-                                              .withValues(alpha: 0.45),
-                                          onChanged: _aplicarVolume,
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                  InkWell(
-                                    onTap: () {
-                                      if (_volume > 0) {
-                                        _aplicarVolume(0.0);
-                                      } else {
-                                        _aplicarVolume(
-                                          _ultimoVolumeAtivo > 0
-                                              ? _ultimoVolumeAtivo
-                                              : 100.0,
-                                        );
-                                      }
-                                    },
-                                    child: Padding(
-                                      padding: const EdgeInsets.all(4),
-                                      child: Icon(
-                                        _volume <= 0
-                                            ? Icons.volume_off_rounded
-                                            : Icons.volume_up_rounded,
-                                        size: 16,
-                                        color: theme.textColor,
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
+                        PlayerVideoVolumeWidget(
+                          theme: theme,
+                          volume: _volume,
+                          onChangedVolume: _aplicarVolume,
+                          onHoverChanged: (hover) =>
+                              setState(() => _mostrarControleVolume = hover),
+                          onToggleMute: () {
+                            if (_volume > 0) {
+                              _aplicarVolume(0.0);
+                            } else {
+                              _aplicarVolume(
+                                _ultimoVolumeAtivo > 0
+                                    ? _ultimoVolumeAtivo
+                                    : 100.0,
+                              );
+                            }
+                          },
                         ),
                     ],
                   ),

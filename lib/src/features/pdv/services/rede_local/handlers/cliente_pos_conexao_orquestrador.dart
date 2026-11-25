@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:nous/src/core/services/relogio_rede_service.dart';
+import 'package:nous/src/features/busca/services/mapa_espelhamento_service.dart';
 import 'package:nous/src/features/chat/services/chat_service.dart';
 import 'package:nous/src/features/pdv/models/loja.dart';
 import 'package:nous/src/features/pdv/models/referencia_loja.dart';
@@ -125,6 +126,7 @@ class ClientePosConexaoOrquestrador {
         ),
       ]);
       await ChatService.drenarFilaDeSaida();
+      unawaited(MapaEspelhamentoService.instancia.enviarPosicaoAtualSeMobile(cpfLogado));
       unawaited(
         Future.delayed(
           const Duration(seconds: 3),

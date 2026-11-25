@@ -78,7 +78,7 @@ class PdvMembrosCargosHelper {
         loja.cargosPersonalizados.where((c) => c.id != cargoId).toList();
     final membrosAtualizados = loja.membros.map((m) {
       if (m.cargoPersonalizadoId == cargoId) {
-        return m.copyWith(cargoPersonalizadoId: null);
+        return m.copyWith(limparCargoPersonalizado: true);
       }
       return m;
     }).toList();
@@ -112,7 +112,10 @@ class PdvMembrosCargosHelper {
     final novoMapa =
         Map<String, Map<String, bool>>.from(loja.permissoesCargosNativos);
     novoMapa[papel] = permissoes;
-    return loja.copyWith(permissoesCargosNativos: novoMapa);
+    return loja.copyWith(
+      permissoesCargosNativos: novoMapa,
+      dadosAtualizadosEm: DateTime.now(),
+    );
   }
 
   static int pesoPapel(PapelMembro p) {

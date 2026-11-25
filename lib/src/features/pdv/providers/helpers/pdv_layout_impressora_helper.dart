@@ -129,17 +129,26 @@ class PdvLayoutImpressoraHelper {
     } else {
       mapa[evento] = som;
     }
-    return loja.copyWith(sonsAlertas: mapa);
+    return loja.copyWith(
+      sonsAlertas: mapa,
+      dadosAtualizadosEm: DateTime.now(),
+    );
   }
 
   static Loja atualizarAtalhoTeclado(Loja loja, String tecla, String acao) {
     final mapa = Map<String, String>.from(loja.atalhosTeclado);
     mapa[tecla] = acao;
-    return loja.copyWith(atalhosTeclado: mapa);
+    return loja.copyWith(
+      atalhosTeclado: mapa,
+      dadosAtualizadosEm: DateTime.now(),
+    );
   }
 
   static Loja atualizarTempoConclusao(Loja loja, int minutos) {
-    return loja.copyWith(tempoConclusaoMinutos: minutos);
+    return loja.copyWith(
+      tempoConclusaoMinutos: minutos,
+      dadosAtualizadosEm: DateTime.now(),
+    );
   }
 
   static Loja atualizarDescricaoAnexo(Loja loja, String caminho, String descricao) {
@@ -149,7 +158,10 @@ class PdvLayoutImpressoraHelper {
     } else {
       mapa[caminho] = descricao.trim();
     }
-    return loja.copyWith(descricoesAnexos: mapa);
+    return loja.copyWith(
+      descricoesAnexos: mapa,
+      dadosAtualizadosEm: DateTime.now(),
+    );
   }
 
   static Loja atualizarAnexosLoja(

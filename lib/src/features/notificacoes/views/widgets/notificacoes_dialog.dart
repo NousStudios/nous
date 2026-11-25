@@ -2,17 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:nous/src/core/theme/theme_controller.dart';
 import 'package:nous/src/features/auth/providers/auth_provider.dart';
-import 'package:nous/src/features/auth/services/contas_nous_service.dart';
-import 'package:nous/src/features/auth/views/perfil_social_view.dart';
 import 'package:nous/src/features/chat/models/mensagem_chat.dart';
 import 'package:nous/src/features/chat/services/chat_service.dart';
-import 'package:nous/src/features/chat/views/mensageria_view.dart';
+import 'package:nous/src/features/notificacoes/models/convite_loja.dart';
 import 'package:nous/src/features/notificacoes/providers/notificacoes_provider.dart';
-import 'package:nous/src/features/notificacoes/services/gerenciador_acoes_notificacao.dart';
-import 'package:nous/src/features/notificacoes/views/widgets/cards/card_notificacao_chat.dart';
-import 'package:nous/src/features/notificacoes/views/widgets/cards/card_notificacao_convite.dart';
-import 'package:nous/src/features/notificacoes/views/widgets/cards/card_notificacao_estoque.dart';
-import 'package:nous/src/features/notificacoes/views/widgets/cards/card_notificacao_social.dart';
+import 'package:nous/src/features/notificacoes/views/widgets/itens/secao_notificacoes_chat.dart';
+import 'package:nous/src/features/notificacoes/views/widgets/itens/secao_notificacoes_convites.dart';
+import 'package:nous/src/features/notificacoes/views/widgets/itens/secao_notificacoes_estoque.dart';
+import 'package:nous/src/features/notificacoes/views/widgets/itens/secao_notificacoes_sociais.dart';
 import 'package:nous/src/features/pdv/models/item_loja.dart';
 import 'package:nous/src/features/pdv/models/movimento_estoque.dart';
 import 'package:nous/src/features/pdv/models/registro_acao.dart';
@@ -21,8 +18,6 @@ import 'package:nous/src/features/pdv/views/widgets/estado_vazio_container.dart'
 import 'package:nous/src/features/pdv/views/widgets/movimento_estoque_dialog.dart';
 import 'package:nous/src/features/timeline/models/notificacao_social.dart';
 import 'package:nous/src/features/timeline/services/timeline_repositorio_sqlite.dart';
-import 'package:nous/src/features/timeline/services/timeline_service.dart';
-import 'package:nous/src/features/timeline/views/dialogs/dialog_detalhes_publicacao.dart';
 
 enum _AbaNotificacao { tudo, mensagens, convites, mencoes, atividade }
 
@@ -205,40 +200,6 @@ class _NotificacoesConteudoState extends State<_NotificacoesConteudo> {
     return _futuroDados!;
   }
 
-  Widget _buildDismissibleFundo() {
-    return Container(
-      alignment: Alignment.centerLeft,
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      margin: const EdgeInsets.only(bottom: 8),
-      decoration: BoxDecoration(
-        color: Colors.redAccent.withValues(alpha: 0.2),
-        borderRadius: BorderRadius.circular(10),
-      ),
-      child: const Icon(
-        Icons.visibility_off_outlined,
-        color: Colors.redAccent,
-        size: 20,
-      ),
-    );
-  }
-
-  Widget _buildDismissibleFundoSecundario() {
-    return Container(
-      alignment: Alignment.centerRight,
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      margin: const EdgeInsets.only(bottom: 8),
-      decoration: BoxDecoration(
-        color: Colors.redAccent.withValues(alpha: 0.2),
-        borderRadius: BorderRadius.circular(10),
-      ),
-      child: const Icon(
-        Icons.visibility_off_outlined,
-        color: Colors.redAccent,
-        size: 20,
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     final notificacoes = context.watch<NotificacoesProvider>();
@@ -248,7 +209,7 @@ class _NotificacoesConteudoState extends State<_NotificacoesConteudo> {
 
     final ehLojaColetivaNous = lojaId == PdvProvider.idLojaColetivaNous;
     final convites = (lojaId != null)
-        ? const []
+        ? const <ConviteLoja>[]
         : notificacoes.convites
             .where((c) => !notificacoes.estaDispensadaNaSessao('convite_${c.id}'))
             .toList();
@@ -318,7 +279,7 @@ class _NotificacoesConteudoState extends State<_NotificacoesConteudo> {
                         String lojaId,
                       })>[];
                 final listaConvitesLoja =
-                    mostrarConvites ? convites : const [];
+                    mostrarConvites ? convites : const <ConviteLoja>[];
                 final listaConvitesColab = mostrarConvites
                     ? convitesColab
                     : const <NotificacaoSocial>[];
@@ -400,85 +361,6 @@ class _NotificacoesConteudoState extends State<_NotificacoesConteudo> {
                           ],
                         ],
                       ),
-                    ),
-                  );
-                }
-
-                Widget buildSocialDismissible(NotificacaoSocial s) {
-                  return Dismissible(
-                    key: ValueKey('nsoc_${s.id}'),
-                    direction: DismissDirection.horizontal,
-                    background: _buildDismissibleFundo(),
-                    secondaryBackground: _buildDismissibleFundoSecundario(),
-                    onDismissed: (_) async {
-                      await TimelineRepositorioSqlite
-                          .marcarNotificacaoSocialLida(s.id);
-                      notificacoes.dispensarNaSessao('nsoc_${s.id}');
-                    },
-                    child: CardNotificacaoSocial(
-                      theme: theme,
-                      notificacao: s,
-                      onResponderConvite:
-                          s.tipo == TipoNotificacaoSocial.conviteColaboracao
-                              ? (aceitar) async {
-                                  await TimelineService
-                                      .responderConviteColaboracao(
-                                    publicacaoId: s.publicacaoId,
-                                    usuarioCpf: cpfUsuario,
-                                    aceitar: aceitar,
-                                    notificacaoId: s.id,
-                                  );
-                                  notificacoes.dispensarNaSessao(
-                                    'nsoc_${s.id}',
-                                  );
-                                  if (context.mounted) {
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      SnackBar(
-                                        content: Text(
-                                          aceitar
-                                              ? 'Participação aceita! A publicação agora aparece no seu perfil.'
-                                              : 'Convite de participação recusado.',
-                                        ),
-                                      ),
-                                    );
-                                  }
-                                }
-                              : null,
-                      onTap: () async {
-                        if (s.tipo !=
-                            TipoNotificacaoSocial.conviteColaboracao) {
-                          await TimelineRepositorioSqlite
-                              .marcarNotificacaoSocialLida(s.id);
-                          notificacoes.dispensarNaSessao('nsoc_${s.id}');
-                        }
-                        if (!context.mounted) return;
-                        if (s.publicacaoId.isNotEmpty) {
-                          final pub = await TimelineRepositorioSqlite
-                              .buscarPublicacaoPorId(s.publicacaoId);
-                          if (pub != null && context.mounted) {
-                            await DialogDetalhesPublicacao.mostrar(
-                              context,
-                              theme: theme,
-                              publicacao: pub,
-                              usuarioLogado: auth.contaAtual,
-                            );
-                            return;
-                          }
-                        }
-                        final alvo = await ContasNousService.buscarPorCpf(
-                          s.autorCpf,
-                        );
-                        if (alvo != null && context.mounted) {
-                          await Navigator.of(context).push(
-                            MaterialPageRoute(
-                              builder: (_) => PerfilSocialView(
-                                usuarioAlvo: alvo,
-                                mostrarBotaoVoltar: true,
-                              ),
-                            ),
-                          );
-                        }
-                      },
                     ),
                   );
                 }
@@ -672,250 +554,59 @@ class _NotificacoesConteudoState extends State<_NotificacoesConteudo> {
                                 child: ListView(
                                   shrinkWrap: true,
                                   children: [
-                                    if (listaConvitesColab.isNotEmpty) ...[
-                                      Padding(
-                                        padding: const EdgeInsets.only(
-                                          bottom: 8,
-                                          top: 4,
-                                        ),
-                                        child: Text(
-                                          'Convites de Participação (${listaConvitesColab.length})',
-                                          style: theme.getTextStyle(
-                                            fontSize: 12,
-                                            fontWeight: FontWeight.bold,
-                                            color: theme.textColor,
-                                          ),
-                                        ),
-                                      ),
-                                      for (final s in listaConvitesColab)
-                                        buildSocialDismissible(s),
-                                      const SizedBox(height: 6),
-                                    ],
-                                    if (listaMencoes.isNotEmpty) ...[
-                                      Padding(
-                                        padding: const EdgeInsets.only(
-                                          bottom: 8,
-                                          top: 4,
-                                        ),
-                                        child: Text(
-                                          'Menções @ (${listaMencoes.length})',
-                                          style: theme.getTextStyle(
-                                            fontSize: 12,
-                                            fontWeight: FontWeight.bold,
-                                            color: theme.textColor,
-                                          ),
-                                        ),
-                                      ),
-                                      for (final s in listaMencoes)
-                                        buildSocialDismissible(s),
-                                      const SizedBox(height: 6),
-                                    ],
-                                    if (listaAtividades.isNotEmpty) ...[
-                                      Padding(
-                                        padding: const EdgeInsets.only(
-                                          bottom: 8,
-                                          top: 4,
-                                        ),
-                                        child: Text(
-                                          'Atividade Social (${listaAtividades.length})',
-                                          style: theme.getTextStyle(
-                                            fontSize: 12,
-                                            fontWeight: FontWeight.bold,
-                                            color: theme.textColor,
-                                          ),
-                                        ),
-                                      ),
-                                      for (final s in listaAtividades)
-                                        buildSocialDismissible(s),
-                                      const SizedBox(height: 6),
-                                    ],
-                                    if (listaMsgs.isNotEmpty) ...[
-                                  Padding(
-                                    padding: const EdgeInsets.only(
-                                        bottom: 8, top: 4),
-                                    child: Row(
-                                      children: [
-                                        Icon(
-                                          Icons.chat_bubble_outline_rounded,
-                                          size: 16,
-                                          color: theme.textColor,
-                                        ),
-                                        const SizedBox(width: 6),
-                                        Text(
-                                          'Mensagens (${listaMsgs.length})',
-                                          style: theme.getTextStyle(
-                                            fontSize: 12,
-                                            fontWeight: FontWeight.bold,
-                                            color: theme.textColor,
-                                          ),
-                                        ),
-                                      ],
+                                    SecaoNotificacoesSociais(
+                                      theme: theme,
+                                      titulo: 'Convites de Participação',
+                                      itens: listaConvitesColab,
+                                      notificacoes: notificacoes,
+                                      cpfUsuario: cpfUsuario,
+                                      usuarioLogado: auth.contaAtual,
                                     ),
-                                  ),
-                                  for (final msg in listaMsgs)
-                                    Dismissible(
-                                      key: ValueKey('msg_${msg.id}'),
-                                      direction: DismissDirection.horizontal,
-                                      background: _buildDismissibleFundo(),
-                                      secondaryBackground:
-                                          _buildDismissibleFundoSecundario(),
-                                      onDismissed: (_) {
-                                        if (lojaId != null) {
-                                          notificacoes.dispensarNotificacoesLoja(
-                                            lojaId!,
-                                            ['msg_${msg.id}'],
-                                          );
-                                          ChatService
-                                              .marcarMensagensDaLojaComoLidas(
-                                            lojaId!,
-                                            cpfUsuario,
-                                          );
-                                        } else {
-                                          notificacoes
-                                              .dispensarNaSessao('msg_${msg.id}');
-                                          ChatService
-                                              .marcarMensagensDoUsuarioComoLidas(
-                                            cpfUsuario,
-                                            [msg.conversaId],
-                                          );
-                                        }
-                                      },
-                                      child: CardNotificacaoChat(
-                                        theme: theme,
-                                        msg: msg,
-                                        onTap: () {
-                                          Navigator.of(context).pop();
-                                          if (lojaId != null) {
-                                            ChatService
-                                                .marcarMensagensDaLojaComoLidas(
-                                              lojaId!,
-                                              cpfUsuario,
-                                            );
-                                          } else {
-                                            ChatService.marcarComoLidas(
-                                              msg.conversaId,
-                                              cpfUsuario,
-                                            );
-                                          }
-                                          Navigator.of(context).push(
-                                            MaterialPageRoute(
-                                              builder: (_) => MensageriaView(
-                                                modoLoja: lojaId != null,
-                                                lojaId: lojaId,
-                                                conversaInicialId:
-                                                    msg.conversaId,
-                                                mostrarBotaoVoltar: true,
-                                              ),
-                                            ),
-                                          );
-                                        },
-                                      ),
+                                    SecaoNotificacoesSociais(
+                                      theme: theme,
+                                      titulo: 'Menções @',
+                                      itens: listaMencoes,
+                                      notificacoes: notificacoes,
+                                      cpfUsuario: cpfUsuario,
+                                      usuarioLogado: auth.contaAtual,
                                     ),
-                                  if (listaConvitesLoja.isNotEmpty ||
-                                      listaEstoque.isNotEmpty)
-                                    const SizedBox(height: 8),
-                                ],
-                                if (listaEstoque.isNotEmpty) ...[
-                                  Padding(
-                                    padding: const EdgeInsets.only(
-                                        bottom: 8, top: 4),
-                                    child: Row(
-                                      children: [
-                                        Icon(
-                                          Icons.inventory_2_outlined,
-                                          size: 16,
-                                          color: theme.dangerColor,
-                                        ),
-                                        const SizedBox(width: 6),
-                                        Text(
-                                          'Alertas de Estoque (${listaEstoque.length})',
-                                          style: theme.getTextStyle(
-                                            fontSize: 12,
-                                            fontWeight: FontWeight.bold,
-                                            color: theme.dangerColor,
-                                          ),
-                                        ),
-                                      ],
+                                    SecaoNotificacoesSociais(
+                                      theme: theme,
+                                      titulo: 'Atividade Social',
+                                      itens: listaAtividades,
+                                      notificacoes: notificacoes,
+                                      cpfUsuario: cpfUsuario,
+                                      usuarioLogado: auth.contaAtual,
                                     ),
-                                  ),
-                                  for (final alerta in listaEstoque)
-                                    Dismissible(
-                                      key: ValueKey(
-                                        'alerta_estoque_${alerta.lojaId}_${alerta.item.id}',
-                                      ),
-                                      direction: DismissDirection.horizontal,
-                                      background: _buildDismissibleFundo(),
-                                      secondaryBackground:
-                                          _buildDismissibleFundoSecundario(),
-                                      onDismissed: (_) {
-                                        if (lojaId != null) {
-                                          notificacoes.dispensarNotificacoesLoja(
-                                            lojaId!,
-                                            ['alerta_estoque_${alerta.lojaId}_${alerta.item.id}'],
-                                          );
-                                        } else {
-                                          notificacoes.dispensarNaSessao(
-                                            'alerta_estoque_${alerta.lojaId}_${alerta.item.id}',
-                                          );
-                                        }
-                                      },
-                                      child: CardNotificacaoEstoque(
-                                        theme: theme,
-                                        alerta: alerta,
-                                        onTap: () =>
-                                            Navigator.of(context).pop(alerta),
-                                      ),
+                                    SecaoNotificacoesChat(
+                                      theme: theme,
+                                      mensagens: listaMsgs,
+                                      notificacoes: notificacoes,
+                                      lojaId: lojaId,
+                                      cpfUsuario: cpfUsuario,
+                                      exibirEspacamentoInferior:
+                                          listaConvitesLoja.isNotEmpty ||
+                                              listaEstoque.isNotEmpty,
                                     ),
-                                  if (listaConvitesLoja.isNotEmpty)
-                                    const SizedBox(height: 8),
-                                ],
-                                if (listaConvitesLoja.isNotEmpty) ...[
-                                  if (listaEstoque.isNotEmpty ||
-                                      listaMsgs.isNotEmpty ||
-                                      listaConvitesColab.isNotEmpty)
-                                    Padding(
-                                      padding: const EdgeInsets.only(bottom: 8),
-                                      child: Text(
-                                        'Convites e Solicitações (${listaConvitesLoja.length})',
-                                        style: theme.getTextStyle(
-                                          fontSize: 12,
-                                          fontWeight: FontWeight.bold,
-                                          color: theme.textColor,
-                                        ),
-                                      ),
+                                    SecaoNotificacoesEstoque(
+                                      theme: theme,
+                                      alertas: listaEstoque,
+                                      notificacoes: notificacoes,
+                                      lojaId: lojaId,
+                                      exibirEspacamentoInferior:
+                                          listaConvitesLoja.isNotEmpty,
                                     ),
-                                  for (final convite in listaConvitesLoja)
-                                    Dismissible(
-                                      key: ValueKey('convite_${convite.id}'),
-                                      direction: DismissDirection.horizontal,
-                                      background: _buildDismissibleFundo(),
-                                      secondaryBackground:
-                                          _buildDismissibleFundoSecundario(),
-                                      onDismissed: (_) {
-                                        notificacoes.dispensarNaSessao(
-                                          'convite_${convite.id}',
-                                        );
-                                      },
-                                      child: CardNotificacaoConvite(
-                                        theme: theme,
-                                        convite: convite,
-                                        onAceitar: () =>
-                                            GerenciadorAcoesNotificacao
-                                                .aceitarConvite(
-                                          context,
-                                          convite,
-                                        ),
-                                        onRecusar: () =>
-                                            GerenciadorAcoesNotificacao
-                                                .recusarConvite(
-                                          context,
-                                          convite,
-                                        ),
-                                      ),
+                                    SecaoNotificacoesConvites(
+                                      theme: theme,
+                                      convites: listaConvitesLoja,
+                                      notificacoes: notificacoes,
+                                      exibirCabecalho:
+                                          listaEstoque.isNotEmpty ||
+                                              listaMsgs.isNotEmpty ||
+                                              listaConvitesColab.isNotEmpty,
                                     ),
-                                ],
-                              ],
-                            ),
+                                  ],
+                                ),
                           ),
                         ),
                     ],

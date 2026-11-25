@@ -12,6 +12,8 @@ class UsuarioNous {
   final String localNascimento;
   final String tipoSanguineo;
   final String estadoCivil;
+  final String cepResidencial;
+  final String enderecoResidencial;
   final String biografia;
   final String nomePublico;
   final String apelidoPublico;
@@ -76,6 +78,8 @@ class UsuarioNous {
     this.localNascimento = '',
     this.tipoSanguineo = '',
     this.estadoCivil = '',
+    this.cepResidencial = '',
+    this.enderecoResidencial = '',
     this.biografia = '',
     this.nomePublico = '',
     this.apelidoPublico = '',
@@ -296,6 +300,8 @@ class UsuarioNous {
     String? localNascimento,
     String? tipoSanguineo,
     String? estadoCivil,
+    String? cepResidencial,
+    String? enderecoResidencial,
     String? biografia,
     String? nomePublico,
     String? apelidoPublico,
@@ -339,6 +345,8 @@ class UsuarioNous {
       localNascimento: localNascimento ?? this.localNascimento,
       tipoSanguineo: tipoSanguineo ?? this.tipoSanguineo,
       estadoCivil: estadoCivil ?? this.estadoCivil,
+      cepResidencial: cepResidencial ?? this.cepResidencial,
+      enderecoResidencial: enderecoResidencial ?? this.enderecoResidencial,
       biografia: biografia ?? this.biografia,
       nomePublico: nomePublico ?? this.nomePublico,
       apelidoPublico: apelidoPublico ?? this.apelidoPublico,
@@ -388,6 +396,8 @@ class UsuarioNous {
       'localNascimento': localNascimento,
       'tipoSanguineo': tipoSanguineo,
       'estadoCivil': estadoCivil,
+      'cepResidencial': cepResidencial,
+      'enderecoResidencial': enderecoResidencial,
       'biografia': biografia,
       'nomePublico': nomePublico,
       'apelidoPublico': apelidoPublico,
@@ -439,6 +449,8 @@ class UsuarioNous {
       localNascimento: json['localNascimento'] as String? ?? '',
       tipoSanguineo: json['tipoSanguineo'] as String? ?? '',
       estadoCivil: json['estadoCivil'] as String? ?? '',
+      cepResidencial: json['cepResidencial'] as String? ?? '',
+      enderecoResidencial: json['enderecoResidencial'] as String? ?? '',
       biografia: json['biografia'] as String? ?? '',
       nomePublico: json['nomePublico'] as String? ?? '',
       apelidoPublico: json['apelidoPublico'] as String? ?? '',
@@ -597,6 +609,16 @@ class UsuarioNous {
       localNascimento: escolher(localNascimento, outro.localNascimento),
       tipoSanguineo: escolher(tipoSanguineo, outro.tipoSanguineo),
       estadoCivil: escolher(estadoCivil, outro.estadoCivil),
+      cepResidencial: escolher(
+        cepResidencial,
+        outro.cepResidencial,
+        permitirVazioNoOutro: true,
+      ),
+      enderecoResidencial: escolher(
+        enderecoResidencial,
+        outro.enderecoResidencial,
+        permitirVazioNoOutro: true,
+      ),
       biografia: escolher(biografia, outro.biografia, permitirVazioNoOutro: true),
       nomePublico: escolher(nomePublico, outro.nomePublico, permitirVazioNoOutro: true),
       apelidoPublico: escolher(apelidoPublico, outro.apelidoPublico, permitirVazioNoOutro: true),
