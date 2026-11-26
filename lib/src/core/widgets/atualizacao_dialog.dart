@@ -46,7 +46,6 @@ class _AtualizacaoDialogState extends State<AtualizacaoDialog> {
   void initState() {
     super.initState();
     if (!AtualizacaoService.baixando.value &&
-        AtualizacaoService.ultimaVerificacao.value == null &&
         !AtualizacaoService.temAtualizacao.value) {
       _verificarPriorizandoGithub();
     }

@@ -87,7 +87,7 @@ class AtualizacaoService {
 
     try {
       final client = HttpClient()
-        ..connectionTimeout = const Duration(seconds: 4);
+        ..connectionTimeout = const Duration(seconds: 10);
 
       final uri = Uri.parse(
         'https://api.github.com/repos/NousStudios/nous/releases/latest',
