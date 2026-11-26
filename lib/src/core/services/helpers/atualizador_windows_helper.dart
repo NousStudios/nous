@@ -59,6 +59,21 @@ class AtualizadorWindowsHelper {
     }
   }
 
+  /// Verifica se o diretório onde o executável reside possui permissão de escrita direta
+  /// sem necessidade de elevação administrativa (UAC).
+  static bool _diretorioEhGravavel(String caminho) {
+    try {
+      final arquivoTeste = File(
+        p.join(caminho, '.nous_perm_test_${DateTime.now().millisecondsSinceEpoch}'),
+      );
+      arquivoTeste.writeAsStringSync('1');
+      arquivoTeste.deleteSync();
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
   /// Dispara o script de transição em segundo plano e encerra a instância atual do Nous.
   /// O script aguarda a liberação dos arquivos, substitui a pasta do app e reabre o executável.
   static Future<void> aplicarAtualizacaoEReiniciar({
@@ -67,6 +82,7 @@ class AtualizadorWindowsHelper {
   }) async {
     final exeAtual = Platform.resolvedExecutable;
     final dirApp = File(exeAtual).parent.path;
+    final precisaElevacao = !_diretorioEhGravavel(dirApp);
 
     // Detecta se os arquivos foram extraídos dentro de uma subpasta intermediária (ex: "Release")
     String origemArquivos = pastaStaging;
@@ -91,7 +107,7 @@ class AtualizadorWindowsHelper {
 
     final caminhoBat = p.join(dirScript.path, 'aplicar_update.bat');
 
-    // Script batch com tolerância a locks de arquivos e reinício garantido
+    // Script batch robusto com robocopy, log de diagnóstico em %TEMP% e tolerância a locks
     final conteudoBat = '''
 @echo off
 setlocal
@@ -99,25 +115,37 @@ set "STAGING=$origemArquivos"
 set "APPDIR=$dirApp"
 set "APPEXE=$exeAtual"
 set "ZIPPATH=$caminhoZip"
+set "LOGFILE=%TEMP%\\nous_update.log"
 
-:: Aguarda 2 segundos para o processo nous.exe liberar todos os locks de arquivos
+echo [%date% %time%] Iniciando aplicacao de atualizacao... > "%LOGFILE%"
+echo STAGING: "%STAGING%" >> "%LOGFILE%"
+echo APPDIR: "%APPDIR%" >> "%LOGFILE%"
+
+:: 1. Aguarda 2 segundos para o processo nous.exe liberar todos os locks de arquivos
 timeout /t 2 /nobreak >nul
 
-:: Se o nous.exe ainda estiver na memoria, aguarda mais um instante
+:: Se o executavel ainda estiver em execucao, garante o encerramento
 taskkill /F /IM "${p.basename(exeAtual)}" >nul 2>&1
 timeout /t 1 /nobreak >nul
 
-:: Copia todos os arquivos novos por cima da pasta do aplicativo
-xcopy /s /e /y /q "%STAGING%\\*" "%APPDIR%\\" >nul 2>&1
+:: 2. Copia todos os arquivos novos com robocopy (tentativas automaticas contra locks)
+robocopy "%STAGING%" "%APPDIR%" /E /IS /IT /R:5 /W:1 /NP /NFL /NDL /NJH /NJS >> "%LOGFILE%" 2>&1
 
-:: Limpa a pasta temporaria de staging e o arquivo compactado
+:: Fallback caso robocopy nao tenha copiado o executavel
+if not exist "%APPDIR%\\${p.basename(exeAtual)}" (
+    echo Usando fallback xcopy... >> "%LOGFILE%"
+    xcopy /s /e /y /q "%STAGING%\\*" "%APPDIR%\\" >> "%LOGFILE%" 2>&1
+)
+
+:: 3. Limpa a pasta temporaria de staging e o arquivo compactado
 rmdir /s /q "$pastaStaging" >nul 2>&1
 if exist "%ZIPPATH%" del /f /q "%ZIPPATH%" >nul 2>&1
 
-:: Inicia o novo executavel atualizado
+:: 4. Inicia o novo executavel atualizado
+echo [%date% %time%] Iniciando novo executavel atualizado... >> "%LOGFILE%"
 start "" "%APPEXE%"
 
-:: Auto-destroi este script
+:: 5. Auto-destroi este script
 del /f /q "%~f0" >nul 2>&1
 exit
 ''';
@@ -125,15 +153,23 @@ exit
     await File(caminhoBat).writeAsString(conteudoBat, flush: true);
 
     debugPrint(
-      '[AtualizadorWindowsHelper] Disparando script de transição em modo detached...',
+      '[AtualizadorWindowsHelper] Disparando script de transição (Elevação necessária: $precisaElevacao)...',
     );
 
-    // Executa em modo desacoplado para que continue rodando mesmo após a saída do Flutter
+    // Invocação desacoplada sem janela visível (WindowStyle Hidden)
+    // Se a pasta do app for protegida (ex: C:\\Program Files), solicita elevação de Administrador (Verb RunAs)
+    final comandoElevacao = precisaElevacao ? ' -Verb RunAs' : '';
+    final comandoPs =
+        'Start-Process -FilePath "cmd.exe" -ArgumentList "/c `"$caminhoBat`""$comandoElevacao -WindowStyle Hidden';
+
     await Process.start(
-      'cmd.exe',
-      ['/c', caminhoBat],
+      'powershell.exe',
+      ['-NoProfile', '-NonInteractive', '-WindowStyle', 'Hidden', '-Command', comandoPs],
       mode: ProcessStartMode.detached,
     );
+
+    // Breve pausa para garantir despacho no kernel antes de sair
+    await Future<void>.delayed(const Duration(milliseconds: 250));
 
     // Encerra imediatamente o processo atual liberando DLLs e o .exe para substituição
     exit(0);
