@@ -10,6 +10,9 @@ import 'package:nous/src/features/auth/providers/auth_provider.dart';
 import 'package:nous/src/features/auth/views/perfil_social_view.dart';
 import 'package:nous/src/features/busca/views/busca_mapa_view.dart';
 import 'package:nous/src/features/chat/views/mensageria_view.dart';
+import 'package:nous/src/features/compras/services/carrinho_compras_service.dart';
+import 'package:nous/src/features/compras/services/helpers/efeito_pacote_carrinho_helper.dart';
+import 'package:nous/src/features/pdv/providers/pdv_provider.dart';
 import 'package:nous/src/features/pdv/views/compras_usuario_view.dart';
 import 'package:nous/src/features/pdv/views/perfis_pdv_view.dart';
 import 'package:nous/src/features/timeline/views/feed_descoberta_view.dart';
@@ -170,6 +173,7 @@ class _FloatingBottomNavBarState extends State<FloatingBottomNavBar> {
   ];
 
   late int _slotAtivo;
+  final GlobalKey _chaveSlotCompras = GlobalKey();
 
   @override
   void initState() {
@@ -179,6 +183,36 @@ class _FloatingBottomNavBarState extends State<FloatingBottomNavBar> {
     if (_slotAtivo >= 0 && _slotAtivo < _memoriaSubIndices.length) {
       _memoriaSubIndices[_slotAtivo] = widget.subIndiceSelecionado;
     }
+    EfeitoPacoteCarrinhoHelper.chaveSlotCompras = _chaveSlotCompras;
+    CarrinhoComprasService.ultimoItemAdicionado
+        .addListener(_aoDetectarItemNoCarrinho);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      try {
+        final pdv = context.read<PdvProvider>();
+        unawaited(CarrinhoComprasService.sincronizarContagemTotal(pdv));
+      } catch (_) {}
+    });
+  }
+
+  void _aoDetectarItemNoCarrinho() {
+    if (!mounted) return;
+    // Se o slot 0 estava exibindo "Meus Perfis", gira suavemente para "Compras e Carteira"
+    if (_memoriaSubIndices[0] == 1) {
+      setState(() {
+        _memoriaSubIndices[0] = 0;
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    if (EfeitoPacoteCarrinhoHelper.chaveSlotCompras == _chaveSlotCompras) {
+      EfeitoPacoteCarrinhoHelper.chaveSlotCompras = null;
+    }
+    CarrinhoComprasService.ultimoItemAdicionado
+        .removeListener(_aoDetectarItemNoCarrinho);
+    super.dispose();
   }
 
   @override
@@ -355,28 +389,84 @@ class _FloatingBottomNavBarState extends State<FloatingBottomNavBar> {
                               ),
                             ),
                             const SizedBox(height: 2),
-                            AnimatedSwitcher(
-                              duration: const Duration(milliseconds: 200),
-                              transitionBuilder: (child, animation) {
-                                return FadeTransition(
-                                  opacity: animation,
-                                  child: ScaleTransition(
-                                    scale: Tween<double>(
-                                      begin: 0.85,
+                            Stack(
+                              key: slot == 0 ? _chaveSlotCompras : null,
+                              clipBehavior: Clip.none,
+                              alignment: Alignment.center,
+                              children: [
+                                AnimatedSwitcher(
+                                  duration: const Duration(milliseconds: 340),
+                                  transitionBuilder: (child, animation) {
+                                    final giro = Tween<double>(
+                                      begin: 0.5,
                                       end: 1.0,
-                                    ).animate(animation),
-                                    child: child,
+                                    ).animate(
+                                      CurvedAnimation(
+                                        parent: animation,
+                                        curve: Curves.easeOutBack,
+                                      ),
+                                    );
+                                    final escala = Tween<double>(
+                                      begin: 0.72,
+                                      end: 1.0,
+                                    ).animate(
+                                      CurvedAnimation(
+                                        parent: animation,
+                                        curve: Curves.easeOutCubic,
+                                      ),
+                                    );
+                                    return RotationTransition(
+                                      turns: giro,
+                                      child: ScaleTransition(
+                                        scale: escala,
+                                        child: child,
+                                      ),
+                                    );
+                                  },
+                                  child: Icon(
+                                    iconeAtual,
+                                    key: ValueKey('$slot-$subIndice'),
+                                    size: 24,
+                                    color: selecionado
+                                        ? theme.textColor
+                                        : theme.secondaryTextColor,
                                   ),
-                                );
-                              },
-                              child: Icon(
-                                iconeAtual,
-                                key: ValueKey('$slot-$subIndice'),
-                                size: 24,
-                                color: selecionado
-                                    ? theme.textColor
-                                    : theme.secondaryTextColor,
-                              ),
+                                ),
+                                if (slot == 0 && subIndice == 0)
+                                  Positioned(
+                                    right: -6,
+                                    top: -4,
+                                    child: ValueListenableBuilder<int>(
+                                      valueListenable: CarrinhoComprasService
+                                          .totalItensNoCarrinho,
+                                      builder: (context, total, _) {
+                                        if (total <= 0) {
+                                          return const SizedBox.shrink();
+                                        }
+                                        return Container(
+                                          padding: const EdgeInsets.all(3),
+                                          decoration: BoxDecoration(
+                                            color: theme.dangerColor,
+                                            shape: BoxShape.circle,
+                                          ),
+                                          constraints: const BoxConstraints(
+                                            minWidth: 16,
+                                            minHeight: 16,
+                                          ),
+                                          child: Text(
+                                            total > 99 ? '99+' : '$total',
+                                            textAlign: TextAlign.center,
+                                            style: theme.getTextStyle(
+                                              fontSize: 9,
+                                              fontWeight: FontWeight.bold,
+                                              color: theme.buttonTextColor,
+                                            ),
+                                          ),
+                                        );
+                                      },
+                                    ),
+                                  ),
+                              ],
                             ),
                             const SizedBox(height: 2),
                             Container(

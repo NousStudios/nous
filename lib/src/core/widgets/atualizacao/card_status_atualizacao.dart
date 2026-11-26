@@ -268,6 +268,16 @@ class CardStatusAtualizacao extends StatelessWidget {
               ),
             ],
           ),
+          const SizedBox(height: 10),
+          Divider(
+            color: theme.borderColor.withValues(alpha: 0.4),
+            height: 1,
+          ),
+          const SizedBox(height: 8),
+          BlocoNovidadesAtualizacao(
+            theme: theme,
+            versao: AtualizacaoService.versaoAtual,
+          ),
         ],
       ),
     );

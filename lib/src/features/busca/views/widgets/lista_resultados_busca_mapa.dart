@@ -8,6 +8,7 @@ import 'package:nous/src/features/auth/providers/auth_provider.dart';
 import 'package:nous/src/features/auth/views/perfil_social_view.dart';
 import 'package:nous/src/features/busca/controllers/busca_mapa_controller.dart';
 import 'package:nous/src/features/busca/services/mapa_geo_service.dart';
+import 'package:nous/src/features/busca/views/detalhes_produto_mercado_view.dart';
 import 'package:nous/src/features/pdv/services/imagem_service.dart';
 import 'package:nous/src/features/pdv/views/vitrine_loja_view.dart';
 import 'package:nous/src/features/timeline/views/dialogs/dialog_detalhes_publicacao.dart';
@@ -341,7 +342,7 @@ class ListaResultadosBuscaMapa extends StatelessWidget {
                   ),
                 ),
                 subtitle: Text(
-                  '${p.loja.nome} • R\$ ${p.item.preco}',
+                  '${p.loja.nome} • R\$ ${p.item.preco} • ${p.distanciaFormatada}',
                   style: theme.getTextStyle(
                     fontSize: 11,
                     color: theme.secondaryTextColor,
@@ -350,10 +351,7 @@ class ListaResultadosBuscaMapa extends StatelessWidget {
                 onTap: () {
                   Navigator.of(context).push(
                     MaterialPageRoute(
-                      builder: (_) => VitrineLojaView(
-                        lojaId: p.loja.id,
-                        lojaFallback: p.loja,
-                      ),
+                      builder: (_) => DetalhesProdutoMercadoView(produto: p),
                     ),
                   );
                 },

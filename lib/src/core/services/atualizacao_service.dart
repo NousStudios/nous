@@ -32,8 +32,8 @@ class InfoAtualizacao {
 }
 
 class AtualizacaoService {
-  static String versaoAtual = '1.1.54';
-  static int buildAtual = 156;
+  static String versaoAtual = '1.1.55';
+  static int buildAtual = 157;
 
   /// Inicializa a identificação da versão do aplicativo.
   /// No Android, consulta dinamicamente a versão real instalada no sistema operacional via MethodChannel.

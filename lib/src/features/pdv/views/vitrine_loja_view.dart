@@ -33,11 +33,13 @@ import 'package:nous/src/features/timeline/views/widgets/timeline_perfil_section
 class VitrineLojaView extends StatefulWidget {
   final String lojaId;
   final Loja? lojaFallback;
+  final bool abrirCarrinhoInicial;
 
   const VitrineLojaView({
     super.key,
     required this.lojaId,
     this.lojaFallback,
+    this.abrirCarrinhoInicial = false,
   });
 
   @override
@@ -53,7 +55,7 @@ class _VitrineLojaViewState extends State<VitrineLojaView> {
   String _termoBuscaItens = '';
   String _formaPagamento = 'PIX';
   bool _enviando = false;
-  bool _vendoCarrinho = false;
+  late bool _vendoCarrinho = widget.abrirCarrinhoInicial;
   bool _carregandoLoja = true;
   bool _exibindoTimelineSocial = false;
   Loja? _lojaResolvida;

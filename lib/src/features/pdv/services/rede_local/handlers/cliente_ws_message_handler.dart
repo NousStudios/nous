@@ -1,6 +1,8 @@
 import 'package:flutter/foundation.dart';
 import 'package:nous/src/core/utils/json_isolate_utils.dart';
 import 'package:nous/src/features/auth/providers/auth_provider.dart';
+import 'package:nous/src/features/busca/models/avaliacao_produto.dart';
+import 'package:nous/src/features/busca/services/avaliacoes_produto_service.dart';
 import 'package:nous/src/features/busca/services/mapa_espelhamento_service.dart';
 import 'package:nous/src/features/pdv/models/loja.dart';
 import 'package:nous/src/features/pdv/models/pedido_loja.dart';
@@ -63,6 +65,38 @@ class ClienteWsMessageHandler {
           dados,
           ctx.authProvider?.cpf,
         );
+        return;
+      }
+
+      if (tipo == 'avaliacao_produto_salva') {
+        final avalMap = dados['avaliacao'];
+        if (avalMap is Map<String, dynamic>) {
+          await AvaliacoesProdutoService.salvarAvaliacaoRemota(
+            AvaliacaoProduto.fromJson(avalMap),
+          );
+        }
+        return;
+      }
+
+      if (tipo == 'avaliacao_produto_reacao') {
+        final avaliacaoId = dados['avaliacaoId'] as String? ?? '';
+        final curtir = dados['curtir'] == true;
+        if (avaliacaoId.isNotEmpty) {
+          await AvaliacoesProdutoService.aplicarReacaoRemota(
+            avaliacaoId: avaliacaoId,
+            curtir: curtir,
+          );
+        }
+        return;
+      }
+
+      if (tipo == 'avaliacoes_sync_lote') {
+        final listaRaw = dados['avaliacoes'] as List<dynamic>? ?? const [];
+        final lista = listaRaw
+            .whereType<Map>()
+            .map((e) => AvaliacaoProduto.fromJson(Map<String, dynamic>.from(e)))
+            .toList();
+        await AvaliacoesProdutoService.mesclarAvaliacoesRemotas(lista);
         return;
       }
 

@@ -7,6 +7,7 @@ import 'package:nous/src/features/pdv/models/loja.dart';
 import 'package:nous/src/features/pdv/models/referencia_loja.dart';
 import 'package:nous/src/features/pdv/providers/pdv_provider.dart';
 import 'package:nous/src/features/pdv/services/lojas_service.dart';
+import 'package:nous/src/features/pdv/services/rede_local/cliente_rede_local.dart';
 import 'package:nous/src/features/timeline/services/timeline_service.dart';
 
 /// Orquestrador de tarefas assíncronas executadas logo após a conexão do cliente ao balcão.
@@ -126,6 +127,7 @@ class ClientePosConexaoOrquestrador {
         ),
       ]);
       await ChatService.drenarFilaDeSaida();
+      ClienteRedeLocal().enviarEventoWs({'tipo': 'solicitar_avaliacoes_sync'});
       unawaited(MapaEspelhamentoService.instancia.enviarPosicaoAtualSeMobile(cpfLogado));
       unawaited(
         Future.delayed(

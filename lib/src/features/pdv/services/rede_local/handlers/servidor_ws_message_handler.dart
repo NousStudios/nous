@@ -3,6 +3,8 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:nous/src/core/utils/json_isolate_utils.dart';
 import 'package:nous/src/features/auth/providers/auth_provider.dart';
+import 'package:nous/src/features/busca/models/avaliacao_produto.dart';
+import 'package:nous/src/features/busca/services/avaliacoes_produto_service.dart';
 import 'package:nous/src/features/busca/services/mapa_espelhamento_service.dart';
 import 'package:nous/src/features/pdv/models/loja.dart';
 import 'package:nous/src/features/pdv/models/terminal_conectado_info.dart';
@@ -147,6 +149,39 @@ class ServidorWsMessageHandler {
           ctx.authProvider?.cpf,
         );
         ctx.retransmitirParaOutros(msg, exceto: ws);
+        return;
+      }
+
+      if (tipo == 'avaliacao_produto_salva') {
+        final avalMap = dados['avaliacao'];
+        if (avalMap is Map<String, dynamic>) {
+          await AvaliacoesProdutoService.salvarAvaliacaoRemota(
+            AvaliacaoProduto.fromJson(avalMap),
+          );
+          ctx.retransmitirParaOutros(msg, exceto: ws);
+        }
+        return;
+      }
+
+      if (tipo == 'avaliacao_produto_reacao') {
+        final avaliacaoId = dados['avaliacaoId'] as String? ?? '';
+        final curtir = dados['curtir'] == true;
+        if (avaliacaoId.isNotEmpty) {
+          await AvaliacoesProdutoService.aplicarReacaoRemota(
+            avaliacaoId: avaliacaoId,
+            curtir: curtir,
+          );
+          ctx.retransmitirParaOutros(msg, exceto: ws);
+        }
+        return;
+      }
+
+      if (tipo == 'solicitar_avaliacoes_sync') {
+        final lista = await AvaliacoesProdutoService.exportarTodasParaSync();
+        ws.add(jsonEncode({
+          'tipo': 'avaliacoes_sync_lote',
+          'avaliacoes': lista.map((e) => e.toJson()).toList(),
+        }));
         return;
       }
 

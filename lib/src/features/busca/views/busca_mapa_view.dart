@@ -13,8 +13,11 @@ import 'package:nous/src/features/busca/controllers/busca_mapa_controller.dart';
 import 'package:nous/src/features/busca/services/mapa_espelhamento_service.dart';
 import 'package:nous/src/features/busca/services/mapa_geo_service.dart';
 import 'package:nous/src/features/busca/services/mapa_tile_cache_service.dart';
+import 'package:nous/src/features/busca/views/detalhes_produto_mercado_view.dart';
+import 'package:nous/src/features/busca/views/dialogs/dialog_adicionar_carrinho_variantes.dart';
 import 'package:nous/src/features/busca/views/dialogs/dialog_criar_projeto_mapa.dart';
 import 'package:nous/src/features/busca/views/widgets/barra_busca_universal_mapa.dart';
+import 'package:nous/src/features/busca/views/widgets/catalogo_produtos/grade_produtos_mercado_widget.dart';
 import 'package:nous/src/features/busca/views/widgets/card_resumo_entidade_mapa.dart';
 import 'package:nous/src/features/busca/views/widgets/card_resumo_rota_mapa.dart';
 import 'package:nous/src/features/busca/views/widgets/hud_navegacao_ativa.dart';
@@ -448,12 +451,57 @@ class _BuscaMapaViewState extends State<BuscaMapaView>
                     return Stack(
                       children: [
 
-                  // 2. Topo: HUD de Navegação Ativa OU Painel de Rotas / Barra Universal
+                  // 2. Topo: HUD de Navegação Ativa OU Catálogo Comercial (Produtos/Serviços) OU Painel de Rotas / Barra Universal
                   if (_controller.navegandoAoVivo)
                     Positioned.fill(
                       child: HudNavegacaoAtiva(
                         controller: _controller,
                         theme: theme,
+                      ),
+                    )
+                  else if (_controller.exibirCatalogoComercial)
+                    Positioned.fill(
+                      child: Container(
+                        color: theme.backgroundColor,
+                        child: Column(
+                          children: [
+                            Padding(
+                              padding: const EdgeInsets.fromLTRB(14, 12, 14, 4),
+                              child: BarraBuscaUniversalMapa(
+                                controller: _controller,
+                                textController: _buscaTextController,
+                                theme: theme,
+                              ),
+                            ),
+                            Expanded(
+                              child: GradeProdutosMercadoWidget(
+                                controller: _controller,
+                                theme: theme,
+                                onAbrirDetalhes: (produto) {
+                                  Navigator.of(context).push(
+                                    MaterialPageRoute(
+                                      builder: (_) => DetalhesProdutoMercadoView(
+                                        produto: produto,
+                                      ),
+                                    ),
+                                  );
+                                },
+                                onAdicionarAoCarrinho: (produto, _) {
+                                  final pdv = context.read<PdvProvider>();
+                                  showDialog<void>(
+                                    context: context,
+                                    builder: (ctx) =>
+                                        DialogAdicionarCarrinhoVariantes(
+                                      produto: produto,
+                                      theme: theme,
+                                      pdv: pdv,
+                                    ),
+                                  );
+                                },
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                     )
                   else
@@ -489,6 +537,7 @@ class _BuscaMapaViewState extends State<BuscaMapaView>
 
                   // 3. Botões de Zoom Horizontais à Esquerda
                   if (!_controller.painelBuscaExpandido &&
+                      !_controller.exibirCatalogoComercial &&
                       !_controller.navegandoAoVivo)
                     Positioned(
                       left: 14,
@@ -521,6 +570,7 @@ class _BuscaMapaViewState extends State<BuscaMapaView>
 
                   // 4. Botões Flutuantes Direitos: Rota (cima) e Centralizar (baixo)
                   if (!_controller.painelBuscaExpandido &&
+                      !_controller.exibirCatalogoComercial &&
                       !_controller.navegandoAoVivo)
                     Positioned(
                       right: 14,

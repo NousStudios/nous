@@ -243,14 +243,26 @@ class _BarraBuscaUniversalMapaState extends State<BarraBuscaUniversalMapa> {
               Expanded(
                 child: TextField(
                   controller: widget.textController,
-                  onTap: () => ctrl.definirPainelBusca(true),
+                  onTap: () {
+                    if (!ctrl.ehFiltroCatalogoComercial) {
+                      ctrl.definirPainelBusca(true);
+                    }
+                  },
                   onChanged: ctrl.atualizarBusca,
+                  onSubmitted: (_) => ctrl.confirmarBuscaComercial(),
+                  textInputAction: TextInputAction.search,
                   style: theme.getTextStyle(
                     fontSize: 14,
                     color: theme.textColor,
                   ),
                   decoration: InputDecoration(
-                    hintText: _ouvindoVoz ? 'Ouvindo...' : 'Pesquisar',
+                    hintText: _ouvindoVoz
+                        ? 'Ouvindo...'
+                        : (ctrl.filtroAtivo == FiltroBuscaMapa.produtos
+                            ? 'Pesquisar produtos...'
+                            : (ctrl.filtroAtivo == FiltroBuscaMapa.servicos
+                                ? 'Pesquisar serviços...'
+                                : 'Pesquisar')),
                     hintStyle: theme.getTextStyle(
                       fontSize: 14,
                       color: _ouvindoVoz
@@ -264,7 +276,9 @@ class _BarraBuscaUniversalMapaState extends State<BarraBuscaUniversalMapa> {
                 ),
               ),
               if (widget.textController.text.isNotEmpty ||
-                  ctrl.painelBuscaExpandido)
+                  ctrl.painelBuscaExpandido ||
+                  ctrl.exibirCatalogoComercial ||
+                  ctrl.filtroAtivo != FiltroBuscaMapa.todos)
                 IconButton(
                   icon: Icon(
                     Icons.close_rounded,

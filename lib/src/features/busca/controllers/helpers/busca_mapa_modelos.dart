@@ -14,8 +14,37 @@ enum FiltroBuscaMapa {
 class ProdutoMapaItem {
   final ItemLoja item;
   final Loja loja;
+  final double? distanciaKm;
 
-  const ProdutoMapaItem({required this.item, required this.loja});
+  const ProdutoMapaItem({
+    required this.item,
+    required this.loja,
+    this.distanciaKm,
+  });
+
+  String get distanciaFormatada {
+    if (distanciaKm == null) return 'Disponível online';
+    if (distanciaKm! < 1.0) {
+      final metros = (distanciaKm! * 1000).round();
+      return '$metros m de você';
+    }
+    if (distanciaKm! < 100) {
+      return '${distanciaKm!.toStringAsFixed(1)} km de você';
+    }
+    return '${distanciaKm!.round()} km de você';
+  }
+
+  ProdutoMapaItem copyWith({
+    ItemLoja? item,
+    Loja? loja,
+    double? distanciaKm,
+  }) {
+    return ProdutoMapaItem(
+      item: item ?? this.item,
+      loja: loja ?? this.loja,
+      distanciaKm: distanciaKm ?? this.distanciaKm,
+    );
+  }
 }
 
 class ItemHistoricoBuscaMapa {

@@ -345,10 +345,37 @@ class BuscaMapaController extends ChangeNotifier {
     _notificar();
   }
 
+  bool catalogoForcadoPorEnvio = false;
+
+  bool get ehFiltroCatalogoComercial =>
+      filtroAtivo == FiltroBuscaMapa.produtos ||
+      filtroAtivo == FiltroBuscaMapa.servicos;
+
+  /// Exibe a tela comercial estilo Shopee/Mercado Livre SOMENTE quando o filtro
+  /// Produtos ou Serviços está ligado E o usuário realizou uma busca (digitou ou confirmou Enter).
+  bool get exibirCatalogoComercial =>
+      ehFiltroCatalogoComercial &&
+      !modoRota &&
+      !navegandoAoVivo &&
+      (termoBusca.trim().isNotEmpty || catalogoForcadoPorEnvio);
+
+  void confirmarBuscaComercial() {
+    if (ehFiltroCatalogoComercial) {
+      catalogoForcadoPorEnvio = true;
+      painelBuscaExpandido = true;
+      _notificar();
+    }
+  }
+
   void definirFiltro(FiltroBuscaMapa filtro) {
     filtroAtivo = filtro;
-    painelBuscaExpandido =
-        termoBusca.trim().isNotEmpty || filtro != FiltroBuscaMapa.todos;
+    catalogoForcadoPorEnvio = false;
+    final ehComercial = filtro == FiltroBuscaMapa.produtos ||
+        filtro == FiltroBuscaMapa.servicos;
+    // Ao ligar Produtos/Serviços sem busca ainda, NÃO abre a tela cheia nem lista automática
+    painelBuscaExpandido = ehComercial
+        ? termoBusca.trim().isNotEmpty
+        : (termoBusca.trim().isNotEmpty || filtro != FiltroBuscaMapa.todos);
     if (filtro == FiltroBuscaMapa.todos ||
         filtro == FiltroBuscaMapa.enderecos) {
       if (termoBusca.trim().length >= 2) {
@@ -364,13 +391,20 @@ class BuscaMapaController extends ChangeNotifier {
 
   void definirPainelBusca(bool expandido) {
     painelBuscaExpandido = expandido;
+    if (!expandido) {
+      catalogoForcadoPorEnvio = false;
+    }
     _notificar();
   }
 
   void atualizarBusca(String texto) {
     termoBusca = texto;
-    painelBuscaExpandido =
-        texto.trim().isNotEmpty || filtroAtivo != FiltroBuscaMapa.todos;
+    if (texto.trim().isEmpty) {
+      catalogoForcadoPorEnvio = false;
+    }
+    painelBuscaExpandido = ehFiltroCatalogoComercial
+        ? (texto.trim().isNotEmpty || catalogoForcadoPorEnvio)
+        : (texto.trim().isNotEmpty || filtroAtivo != FiltroBuscaMapa.todos);
     _notificar();
 
     _debounceEnderecos?.cancel();
@@ -479,8 +513,17 @@ class BuscaMapaController extends ChangeNotifier {
   List<UsuarioNous> get perfisFiltrados =>
       BuscaMapaFiltrosHelper.filtrarPerfis(usuarios, termoBusca);
 
-  List<ProdutoMapaItem> get produtosFiltrados =>
-      BuscaMapaFiltrosHelper.filtrarProdutos(lojas, termoBusca, filtroAtivo);
+  List<ProdutoMapaItem> get produtosFiltrados {
+    final ref = posicaoUsuario ?? centroReferencia;
+    return BuscaMapaFiltrosHelper.filtrarProdutos(
+      lojas,
+      termoBusca,
+      filtroAtivo,
+      latUsuario: ref.latitude,
+      lonUsuario: ref.longitude,
+      coordenadasLojas: coordenadasLojas,
+    );
+  }
 
   List<ProjetoComunitario> get projetosFiltrados =>
       BuscaMapaFiltrosHelper.filtrarProjetos(projetos, termoBusca);

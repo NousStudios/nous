@@ -1,3 +1,5 @@
+import 'dart:math';
+import 'package:latlong2/latlong.dart';
 import 'package:nous/src/core/utils/texto_utils.dart';
 import 'package:nous/src/features/auth/models/usuario_nous.dart';
 import 'package:nous/src/features/busca/controllers/helpers/busca_mapa_modelos.dart';
@@ -8,6 +10,23 @@ import 'package:nous/src/features/timeline/models/publicacao_social.dart';
 
 class BuscaMapaFiltrosHelper {
   const BuscaMapaFiltrosHelper._();
+
+  /// Calcula a distância geográfica em km (fórmula de Haversine) entre dois pontos
+  static double? calcularDistanciaKm({
+    required double? lat1,
+    required double? lon1,
+    required double? lat2,
+    required double? lon2,
+  }) {
+    if (lat1 == null || lon1 == null || lat2 == null || lon2 == null) {
+      return null;
+    }
+    const p = 0.017453292519943295; // pi / 180
+    final a = 0.5 -
+        cos((lat2 - lat1) * p) / 2 +
+        cos(lat1 * p) * cos(lat2 * p) * (1 - cos((lon2 - lon1) * p)) / 2;
+    return 12742 * asin(sqrt(a));
+  }
 
   static double _melhorScore(List<String> campos, String termo) {
     var melhor = 0.0;
@@ -59,22 +78,57 @@ class BuscaMapaFiltrosHelper {
   static List<ProdutoMapaItem> filtrarProdutos(
     List<Loja> lojas,
     String termoBusca,
-    FiltroBuscaMapa filtroAtivo,
-  ) {
+    FiltroBuscaMapa filtroAtivo, {
+    double? latUsuario,
+    double? lonUsuario,
+    Map<String, LatLng>? coordenadasLojas,
+  }) {
     final candidatos = <ProdutoMapaItem>[];
     for (final loja in lojas) {
+      final coordMapa = coordenadasLojas?[loja.id];
+      final latLoja = loja.latitude ?? coordMapa?.latitude;
+      final lonLoja = loja.longitude ?? coordMapa?.longitude;
+      final distKm = calcularDistanciaKm(
+        lat1: latUsuario,
+        lon1: lonUsuario,
+        lat2: latLoja,
+        lon2: lonLoja,
+      );
+
       for (final item in loja.itensLoja) {
         final ehServico = item.tipo == TipoItemLoja.servico;
         if (filtroAtivo == FiltroBuscaMapa.servicos && !ehServico) continue;
         if (filtroAtivo == FiltroBuscaMapa.produtos && ehServico) continue;
-        candidatos.add(ProdutoMapaItem(item: item, loja: loja));
+        candidatos.add(
+          ProdutoMapaItem(
+            item: item,
+            loja: loja,
+            distanciaKm: distKm,
+          ),
+        );
       }
     }
-    return _filtrarEOrdenar(
+
+    final filtrados = _filtrarEOrdenar(
       candidatos,
       termoBusca,
       (p) => [p.item.nome, p.item.descricao, p.loja.nome],
     );
+
+    // Ordenação gradual por proximidade: itens mais próximos do usuário primeiro,
+    // mantendo itens distantes (ex: outro estado) abaixo caso existam.
+    if (latUsuario != null && lonUsuario != null) {
+      filtrados.sort((a, b) {
+        if (a.distanciaKm != null && b.distanciaKm != null) {
+          return a.distanciaKm!.compareTo(b.distanciaKm!);
+        }
+        if (a.distanciaKm != null) return -1;
+        if (b.distanciaKm != null) return 1;
+        return 0;
+      });
+    }
+
+    return filtrados;
   }
 
   static List<ProjetoComunitario> filtrarProjetos(
