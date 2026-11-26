@@ -316,6 +316,7 @@ class RoteadorLojaPedidos {
             servidor.notificarTodos({
               'tipo': 'loja_atualizada',
               'loja': lojaConsolidada.toJson(),
+              'ehLojaAtivaServidor': servidor.lojaAtiva?.id == lojaConsolidada.id,
             });
           } else {
             ServidorRedeLocal.responderJson(

@@ -582,6 +582,7 @@ class AuthProvider extends ChangeNotifier {
     String? estadoCivil,
     String? cepResidencial,
     String? enderecoResidencial,
+    String? numeroResidencial,
   }) async {
     final conta = _contaAtual;
     if (conta == null) return;
@@ -595,6 +596,7 @@ class AuthProvider extends ChangeNotifier {
       estadoCivil: estadoCivil,
       cepResidencial: cepResidencial,
       enderecoResidencial: enderecoResidencial,
+      numeroResidencial: numeroResidencial,
       propagarUsuarioAtualizado: _propagarUsuarioAtualizado,
     );
     notifyListeners();

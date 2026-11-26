@@ -5,8 +5,8 @@ import 'package:provider/provider.dart';
 
 import 'package:nous/src/core/theme/theme_controller.dart';
 import 'package:nous/src/core/widgets/custom_app_bar.dart';
-import 'package:nous/src/core/widgets/floating_bottom_nav_bar.dart';
 import 'package:nous/src/features/auth/providers/auth_provider.dart';
+import 'package:nous/src/features/chat/controllers/helpers/mensageria_filtros_helper.dart';
 import 'package:nous/src/features/chat/controllers/mensageria_controller.dart';
 import 'package:nous/src/features/chat/models/conversa_chat.dart';
 import 'package:nous/src/features/chat/services/chat_autoatendimento_service.dart';
@@ -23,8 +23,12 @@ import 'package:nous/src/features/chat/views/dialogs/dialog_historico_edicoes.da
 import 'package:nous/src/features/chat/views/dialogs/dialog_menu_mensagem.dart';
 import 'package:nous/src/features/chat/views/dialogs/dialog_nova_conversa.dart';
 import 'package:nous/src/features/chat/views/dialogs/dialog_renomear_conversa.dart';
+import 'package:nous/src/features/chat/views/widgets/barra_navegacao_mensageria_widget.dart';
 import 'package:nous/src/features/chat/views/widgets/lista_conversas_widget.dart';
+import 'package:nous/src/features/chat/views/widgets/painel_comunidades_widget.dart';
 import 'package:nous/src/features/chat/views/widgets/painel_conversa_ativa_widget.dart';
+import 'package:nous/src/features/chat/views/widgets/painel_ligacoes_widget.dart';
+import 'package:nous/src/features/chat/views/widgets/painel_lista_transmissao_widget.dart';
 import 'package:nous/src/features/pdv/providers/pdv_provider.dart';
 import 'package:nous/src/features/pdv/views/widgets/estado_vazio_container.dart';
 
@@ -547,11 +551,15 @@ class _MensageriaViewState extends State<MensageriaView>
             desktop && _controller.conversaSelecionada != null;
 
         return PopScope(
-          canPop: _controller.conversaSelecionada == null,
+          canPop: _controller.conversaSelecionada == null &&
+              _controller.abaAtiva == AbaNavegacaoMensageria.conversas,
           onPopInvokedWithResult: (didPop, result) {
             if (didPop) return;
             if (_controller.conversaSelecionada != null) {
               _controller.selecionarConversa(null);
+            } else if (_controller.abaAtiva !=
+                AbaNavegacaoMensageria.conversas) {
+              _controller.selecionarAba(AbaNavegacaoMensageria.conversas);
             }
           },
           child: Scaffold(
@@ -564,6 +572,9 @@ class _MensageriaViewState extends State<MensageriaView>
               onBackPressed: () {
                 if (_controller.conversaSelecionada != null) {
                   _controller.selecionarConversa(null);
+                } else if (_controller.abaAtiva !=
+                    AbaNavegacaoMensageria.conversas) {
+                  _controller.selecionarAba(AbaNavegacaoMensageria.conversas);
                 } else if (Navigator.of(context).canPop()) {
                   Navigator.of(context).pop();
                 }
@@ -595,12 +606,48 @@ class _MensageriaViewState extends State<MensageriaView>
                       ),
                     );
                   }
-                  return desktop
-                      ? Row(
+                  if (desktop) {
+                    final barraVertical = BarraNavegacaoMensageriaWidget(
+                      theme: theme,
+                      abaAtiva: _controller.abaAtiva,
+                      totalNaoLidas: _controller.totalConversasNaoLidas,
+                      onSelecionarAba: _controller.selecionarAba,
+                    );
+
+                    Widget conteudoPrincipal;
+                    if (_controller.abaAtiva ==
+                        AbaNavegacaoMensageria.ligacoes) {
+                      conteudoPrincipal = Expanded(
+                        child: PainelLigacoesWidget(
+                          controller: _controller,
+                          theme: theme,
+                        ),
+                      );
+                    } else if (_controller.abaAtiva ==
+                        AbaNavegacaoMensageria.comunidades) {
+                      conteudoPrincipal = Expanded(
+                        child: PainelComunidadesWidget(
+                          controller: _controller,
+                          theme: theme,
+                          desktop: true,
+                        ),
+                      );
+                    } else if (_controller.abaAtiva ==
+                        AbaNavegacaoMensageria.transmissao) {
+                      conteudoPrincipal = Expanded(
+                        child: PainelListaTransmissaoWidget(
+                          controller: _controller,
+                          theme: theme,
+                          desktop: true,
+                        ),
+                      );
+                    } else {
+                      conteudoPrincipal = Expanded(
+                        child: Row(
                           children: [
                             SizedBox(
-                              width: (MediaQuery.sizeOf(context).width * 0.36)
-                                  .clamp(380.0, 480.0),
+                              width: (MediaQuery.sizeOf(context).width * 0.34)
+                                  .clamp(350.0, 460.0),
                               child: Container(
                                 decoration: BoxDecoration(
                                   border: Border(
@@ -618,21 +665,59 @@ class _MensageriaViewState extends State<MensageriaView>
                               child: _buildPainelConversa(theme, desktop: true),
                             ),
                           ],
-                        )
-                      : (_controller.conversaSelecionada != null
-                          ? _buildPainelConversa(theme, desktop: false)
-                          : _buildListaConversas(theme));
+                        ),
+                      );
+                    }
+
+                    return Row(
+                      children: [
+                        barraVertical,
+                        conteudoPrincipal,
+                      ],
+                    );
+                  }
+
+                  // MODO COMPACTO / MOBILE (CELULAR):
+                  // Se houver conversa selecionada, o painel do chat ocupa a tela inteira (sem barra inferior)
+                  if (_controller.conversaSelecionada != null) {
+                    return _buildPainelConversa(theme, desktop: false);
+                  }
+
+                  // Enquanto vê a lista de chats ou outras abas no celular, exibe em tela cheia
+                  if (_controller.abaAtiva == AbaNavegacaoMensageria.ligacoes) {
+                    return PainelLigacoesWidget(
+                      controller: _controller,
+                      theme: theme,
+                    );
+                  }
+                  if (_controller.abaAtiva ==
+                      AbaNavegacaoMensageria.comunidades) {
+                    return PainelComunidadesWidget(
+                      controller: _controller,
+                      theme: theme,
+                      desktop: false,
+                    );
+                  }
+                  if (_controller.abaAtiva ==
+                      AbaNavegacaoMensageria.transmissao) {
+                    return PainelListaTransmissaoWidget(
+                      controller: _controller,
+                      theme: theme,
+                      desktop: false,
+                    );
+                  }
+
+                  return _buildListaConversas(theme);
                 },
               ),
             ),
-            bottomNavigationBar:
-                (!widget.modoLoja &&
-                    !widget.mostrarBotaoVoltar &&
+            bottomNavigationBar: (!desktop &&
                     _controller.conversaSelecionada == null)
-                ? const FloatingBottomNavBar(
-                    maxWidth: 600,
-                    slotSelecionado: 1,
-                    subIndiceSelecionado: 1,
+                ? BarraNavegacaoInferiorMensageriaWidget(
+                    theme: theme,
+                    abaAtiva: _controller.abaAtiva,
+                    totalNaoLidas: _controller.totalConversasNaoLidas,
+                    onSelecionarAba: _controller.selecionarAba,
                   )
                 : null,
           ),

@@ -305,17 +305,100 @@ class BackupMergeHelper {
       ...existente.sonsAlertas,
     };
 
+    final cidadeFinal = existente.cidade.trim().isNotEmpty
+        ? existente.cidade
+        : importada.cidade;
+    final cepFinal = existente.cep.trim().isNotEmpty
+        ? existente.cep
+        : importada.cep;
+    final biografiaFinal = existente.biografiaPublica.trim().isNotEmpty
+        ? existente.biografiaPublica
+        : importada.biografiaPublica;
+    final linksFinais =
+        <String>{...existente.linksPublicos, ...importada.linksPublicos}
+            .toList();
+    final corFundoFinal = existente.corFundoPerfilHex.trim().isNotEmpty
+        ? existente.corFundoPerfilHex
+        : importada.corFundoPerfilHex;
+    final corDestaqueFinal = existente.corDestaquePerfilHex.trim().isNotEmpty
+        ? existente.corDestaquePerfilHex
+        : importada.corDestaquePerfilHex;
+    final latFinal = existente.latitude ?? importada.latitude;
+    final lngFinal = existente.longitude ?? importada.longitude;
+
+    final programadosMesclados = [
+      ...existente.pedidosProgramados,
+      ...importada.pedidosProgramados.where(
+        (p) => !existente.pedidosProgramados.any((e) => e.id == p.id),
+      ),
+    ];
+    final gastosDiariosMesclados = [
+      ...existente.gastosDiarios,
+      ...importada.gastosDiarios.where(
+        (g) => !existente.gastosDiarios.any((e) => e.id == g.id),
+      ),
+    ];
+    final gastosFixosMesclados = [
+      ...existente.gastosFixos,
+      ...importada.gastosFixos.where(
+        (g) => !existente.gastosFixos.any((e) => e.id == g.id),
+      ),
+    ];
+    final contratosMesclados = [
+      ...existente.contratosTrabalho,
+      ...importada.contratosTrabalho.where(
+        (c) => !existente.contratosTrabalho.any((e) => e.cpf == c.cpf),
+      ),
+    ];
+    final pontosMesclados = [
+      ...existente.registrosPonto,
+      ...importada.registrosPonto.where(
+        (p) => !existente.registrosPonto.any((e) => e.id == p.id),
+      ),
+    ];
+    final escalasMescladas = [
+      ...existente.escalasTrabalho,
+      ...importada.escalasTrabalho.where(
+        (e) => !existente.escalasTrabalho.any((x) => x.cpf == e.cpf),
+      ),
+    ];
+    final cargosMesclados = [
+      ...existente.cargosPersonalizados,
+      ...importada.cargosPersonalizados.where(
+        (c) => !existente.cargosPersonalizados.any((e) => e.id == c.id),
+      ),
+    ];
+    final permissoesNativasFinais = <String, Map<String, bool>>{
+      ...importada.permissoesCargosNativos,
+      ...existente.permissoesCargosNativos,
+    };
+    final dadosAtzFinal = existente.dadosAtualizadosEm == null
+        ? importada.dadosAtualizadosEm
+        : (importada.dadosAtualizadosEm != null &&
+                importada.dadosAtualizadosEm!.isAfter(existente.dadosAtualizadosEm!)
+            ? importada.dadosAtualizadosEm
+            : existente.dadosAtualizadosEm);
+
     return existente.copyWith(
       nome: nomeFinal,
       cnpj: cnpjFinal,
       telefone: telefoneFinal,
       endereco: enderecoFinal,
       numero: numeroFinal,
+      cidade: cidadeFinal,
+      cep: cepFinal,
       email: emailFinal,
       redesSociais: redesSociaisFinal,
       categorias: categoriasFinal,
       tags: tagsFinal,
       logo: logoFinal,
+      biografiaPublica: biografiaFinal,
+      linksPublicos: linksFinais,
+      corFundoPerfilHex: corFundoFinal,
+      corDestaquePerfilHex: corDestaqueFinal,
+      latitude: latFinal,
+      longitude: lngFinal,
+      dadosAtualizadosEm: dadosAtzFinal,
       categoriasLoja: categoriasLojaMescladas,
       itensLoja: itensMesclados,
       gruposComponentesLoja: gruposMesclados,
@@ -324,10 +407,18 @@ class BackupMergeHelper {
       pedidosLoja: pedidosMesclados,
       acoes: acoesMescladas,
       membros: membrosMesclados,
+      cargosPersonalizados: cargosMesclados,
+      permissoesCargosNativos: permissoesNativasFinais,
       mesas: mesasMescladas,
       movimentosEstoque: estoqueMesclado,
       pagamentosFuncionarios: pagamentosMesclados,
       turnosCaixa: turnosMesclados,
+      pedidosProgramados: programadosMesclados,
+      gastosDiarios: gastosDiariosMesclados,
+      gastosFixos: gastosFixosMesclados,
+      contratosTrabalho: contratosMesclados,
+      registrosPonto: pontosMesclados,
+      escalasTrabalho: escalasMescladas,
       galeria: galeriaFinal,
       arquivos: arquivosFinal,
       musicas: musicasFinal,

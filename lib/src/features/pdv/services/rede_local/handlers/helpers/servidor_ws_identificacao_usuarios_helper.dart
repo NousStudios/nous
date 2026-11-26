@@ -241,6 +241,7 @@ class ServidorWsIdentificacaoUsuariosHelper {
             .copyWith(foto: fotoFinal);
       }
       await ContasNousService.salvar(usuario);
+      ctx.pdvProvider?.sincronizarDadosUsuarioEmLojas(usuario);
       ctx.authProvider?.atualizarContaNoCache(usuario);
       await ctx.authProvider?.carregarCacheContas();
       ctx.pdvProvider?.notificarMudanca();

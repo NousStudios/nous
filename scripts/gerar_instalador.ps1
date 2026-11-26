@@ -1,4 +1,4 @@
-# ═════════════════════════════════════════════════════════════════
+﻿# ═════════════════════════════════════════════════════════════════
 # NOUS — SCRIPT DE BUILD E GERAÇÃO DE INSTALADOR WINDOWS
 # ═════════════════════════════════════════════════════════════════
 
@@ -52,6 +52,31 @@ if ($LASTEXITCODE -ne 0) {
 Write-Host ""
 Write-Host "[2/3] Build Windows concluida com sucesso!" -ForegroundColor Green
 Write-Host "Arquivos binarios gerados em: build\windows\x64\runner\Release\" -ForegroundColor Gray
+Write-Host ""
+
+if (-not (Test-Path "dist")) {
+    New-Item -ItemType Directory -Path "dist" | Out-Null
+}
+
+# Gera o pacote ZIP leve para atualizacao transparente in-app (padrao Discord / VS Code)
+$nomeZipAtual = "Nous_Windows_v${versao}.zip"
+$caminhoZipAtual = "dist\$nomeZipAtual"
+Write-Host "[*] Gerando pacote ZIP para atualizacao automatica in-app ($nomeZipAtual)..." -ForegroundColor Yellow
+
+# Remove pacotes ZIP de versoes antigas em dist/
+Get-ChildItem -Path "dist" -Filter "Nous_Windows_v*.zip" -ErrorAction SilentlyContinue | Where-Object {
+    $_.Name -ne $nomeZipAtual
+} | ForEach-Object {
+    Write-Host "[*] Removendo pacote ZIP antigo: $($_.Name)" -ForegroundColor DarkGray
+    Remove-Item $_.FullName -Force
+}
+
+if (Test-Path $caminhoZipAtual) {
+    Remove-Item $caminhoZipAtual -Force
+}
+
+Compress-Archive -Path "build\windows\x64\runner\Release\*" -DestinationPath $caminhoZipAtual -Force
+Write-Host "[*] Pacote ZIP gerado com sucesso em: $caminhoZipAtual" -ForegroundColor Green
 Write-Host ""
 
 $apkDestino = "dist\Nous_Android_v${versao}_Versao_Teste.apk"

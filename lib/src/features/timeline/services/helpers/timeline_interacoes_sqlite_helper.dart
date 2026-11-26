@@ -17,7 +17,7 @@ class TimelineInteracoesSqliteHelper {
         'usuario_cpf': TimelineSqliteUtils.normalizarCpf(reacao.usuarioCpf),
         'tipo': reacao.tipo.name,
         'criada_em': reacao.criadaEm.toIso8601String(),
-        'atualizada_em': reacao.criadaEm.toIso8601String(),
+        'atualizada_em': reacao.atualizadaEfetiva.toIso8601String(),
         'dados_json': jsonEncode(reacao.toJson()),
       },
       conflictAlgorithm: ConflictAlgorithm.replace,

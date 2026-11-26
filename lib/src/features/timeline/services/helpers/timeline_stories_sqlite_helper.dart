@@ -82,4 +82,22 @@ class TimelineStoriesSqliteHelper {
         )
         .toList();
   }
+
+  /// Busca um story diretamente pelo ID (independente de expiração ou arquivamento).
+  static Future<StorySocial?> buscarStoryPorId(
+    Database db,
+    String storyId,
+  ) async {
+    if (storyId.trim().isEmpty) return null;
+    final rows = await db.query(
+      'stories_sociais',
+      where: 'id = ?',
+      whereArgs: [storyId],
+      limit: 1,
+    );
+    if (rows.isEmpty) return null;
+    return StorySocial.fromJson(
+      TimelineSqliteUtils.decodificarDadosJson(rows.first),
+    );
+  }
 }

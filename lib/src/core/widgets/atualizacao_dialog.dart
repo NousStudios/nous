@@ -45,13 +45,17 @@ class _AtualizacaoDialogState extends State<AtualizacaoDialog> {
   @override
   void initState() {
     super.initState();
-    // Se conectado ao balcão Wi-Fi, consulta prioritariamente a versão local
-    if (ClienteRedeLocal().conectado && !AtualizacaoService.baixando.value) {
-      ClienteRedeLocal().verificarAtualizacaoLocal();
-    } else if (!AtualizacaoService.baixando.value &&
+    if (!AtualizacaoService.baixando.value &&
         AtualizacaoService.ultimaVerificacao.value == null &&
         !AtualizacaoService.temAtualizacao.value) {
-      AtualizacaoService.verificarAtualizacao();
+      _verificarPriorizandoGithub();
+    }
+  }
+
+  Future<void> _verificarPriorizandoGithub() async {
+    final encontrouGithub = await AtualizacaoService.verificarAtualizacao();
+    if (!encontrouGithub && ClienteRedeLocal().conectado) {
+      await ClienteRedeLocal().verificarAtualizacaoLocal();
     }
   }
 
@@ -165,13 +169,7 @@ class _AtualizacaoDialogState extends State<AtualizacaoDialog> {
             ),
             onPressed: estaVerificando
                 ? null
-                : () async {
-                    if (ClienteRedeLocal().conectado) {
-                      await ClienteRedeLocal().verificarAtualizacaoLocal();
-                    } else {
-                      await AtualizacaoService.verificarAtualizacao();
-                    }
-                  },
+                : _verificarPriorizandoGithub,
             child: Text(
               'Verificar Agora',
               style: theme.getTextStyle(

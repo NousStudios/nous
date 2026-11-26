@@ -7,10 +7,13 @@ import 'package:nous/src/core/services/gerador_id.dart';
 import 'package:nous/src/core/services/player_audio_service.dart';
 import 'package:nous/src/core/theme/theme_controller.dart';
 import 'package:nous/src/core/widgets/custom_app_bar.dart';
+import 'package:nous/src/features/chat/models/chamada_sessao.dart';
 import 'package:nous/src/features/chat/models/conversa_chat.dart';
 import 'package:nous/src/features/chat/models/mensagem_chat.dart';
+import 'package:nous/src/features/chat/services/chamada_webrtc_service.dart';
 import 'package:nous/src/features/chat/services/chat_service.dart';
 import 'package:nous/src/features/chat/services/gravador_audio_service.dart';
+import 'package:nous/src/features/chat/views/chamada_ativa_view.dart';
 import 'package:nous/src/features/pdv/services/imagem_service.dart';
 import 'package:nous/src/features/pdv/services/rede_local/cliente_rede_local.dart';
 import 'package:nous/src/features/pdv/services/rede_local/servidor_rede_local.dart';
@@ -476,6 +479,27 @@ class _AgoraDigitalViewState extends State<AgoraDigitalView> {
     );
   }
 
+  Future<void> _iniciarChamadaAgora(TipoChamada tipo) async {
+    final topico = _topicos.cast<ConversaChat?>().firstWhere(
+          (t) => t?.id == _conversaIdAtiva,
+          orElse: () => null,
+        );
+    final sessao = await ChamadaWebRtcService.instancia.iniciarChamada(
+      conversaId: _conversaIdAtiva,
+      tipo: tipo,
+      meuCpf: widget.cpfLogado,
+      meuNome: widget.nomeLogado,
+      minhaFoto: widget.fotoLogada,
+      destinatarioId: '',
+      destinatarioNome: 'Ágora • $_tituloTopicoAtivo',
+      ehGrupo: true,
+      participantesIds: topico?.participantesIds ?? const [],
+    );
+    if (sessao != null && mounted) {
+      await ChamadaAtivaView.abrir(context, sessao);
+    }
+  }
+
   void _dialogRenomearTopicoAtivo(AppTheme theme) {
     DialogsTopicosGestao.dialogRenomearTopicoAtivo(
       context: context,
@@ -564,6 +588,10 @@ class _AgoraDigitalViewState extends State<AgoraDigitalView> {
                           onApagarTopico: () => _dialogApagarTopicoAtivo(theme),
                           onSairTopico: () => _dialogSairTopicoAtivo(theme),
                           onAlternarNotificacao: _alternarNotificacaoTopico,
+                          onIniciarChamadaVoz: () =>
+                              _iniciarChamadaAgora(TipoChamada.voz),
+                          onIniciarChamadaVideo: () =>
+                              _iniciarChamadaAgora(TipoChamada.video),
                         ),
 
                         // Lista de mensagens

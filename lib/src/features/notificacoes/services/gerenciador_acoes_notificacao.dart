@@ -10,6 +10,7 @@ import 'package:nous/src/features/pdv/models/membro_loja.dart';
 import 'package:nous/src/features/pdv/models/referencia_loja.dart';
 import 'package:nous/src/features/pdv/providers/pdv_provider.dart';
 import 'package:nous/src/features/pdv/services/lojas_service.dart';
+import 'package:nous/src/features/pdv/services/rede_local/servidor_rede_local.dart';
 
 /// Orquestrador de regras de negócio para aceitar e recusar convites e solicitações de notificação.
 class GerenciadorAcoesNotificacao {
@@ -175,6 +176,9 @@ class GerenciadorAcoesNotificacao {
           .map((l) => l.id == lojaAtualizada.id ? lojaAtualizada : l)
           .toList();
       await LojasService.salvar(cpfDonoOriginal, cofreAtualizado);
+      if (ServidorRedeLocal().ativo) {
+        ServidorRedeLocal().notificarLojaAtualizada(lojaAtualizada);
+      }
       if (!context.mounted) return;
 
       await notificacoes.aceitar(convite.id);
@@ -218,6 +222,9 @@ class GerenciadorAcoesNotificacao {
         .map((l) => l.id == lojaAtualizada.id ? lojaAtualizada : l)
         .toList();
     await LojasService.salvar(cpfDonoOriginal, cofreAtualizado);
+    if (ServidorRedeLocal().ativo) {
+      ServidorRedeLocal().notificarLojaAtualizada(lojaAtualizada);
+    }
     if (!context.mounted) return;
 
     await LojasService.adicionarReferencia(

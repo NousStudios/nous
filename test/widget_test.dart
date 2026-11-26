@@ -10,6 +10,7 @@ import 'package:nous/src/core/theme/theme_controller.dart';
 import 'package:nous/src/features/auth/providers/auth_provider.dart';
 import 'package:nous/src/features/chat/models/conversa_chat.dart';
 import 'package:nous/src/features/chat/views/mensageria_view.dart';
+import 'package:nous/src/features/chat/views/widgets/barra_navegacao_mensageria_widget.dart';
 import 'package:nous/src/features/chat/views/widgets/painel_conversa_ativa_widget.dart';
 import 'package:nous/src/features/chat/controllers/mensageria_controller.dart';
 import 'package:nous/src/features/notificacoes/providers/notificacoes_provider.dart';
@@ -69,6 +70,49 @@ void main() {
 
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pump(const Duration(seconds: 11));
+  });
+
+  testWidgets('MensageriaView no modo compacto não apresenta overflow em diferentes dimensões de tela',
+      (WidgetTester tester) async {
+    SharedPreferences.setMockInitialValues({});
+    await ThemeController.init();
+
+    final tamanhosParaTestar = [
+      const Size(320, 568), // Ultra compacto (iPhone SE / telas pequenas)
+      const Size(360, 640), // Android compacto padrão
+      const Size(390, 844), // Mobile padrão
+      const Size(500, 700), // Janela redimensionada estreita
+    ];
+
+    for (final tamanho in tamanhosParaTestar) {
+      tester.view.physicalSize = tamanho;
+      tester.view.devicePixelRatio = 1.0;
+
+      await tester.pumpWidget(
+        MultiProvider(
+          providers: [
+            ChangeNotifierProvider(create: (_) => AuthProvider()),
+            ChangeNotifierProvider(create: (_) => PdvProvider()),
+            ChangeNotifierProvider(create: (_) => NotificacoesProvider()),
+          ],
+          child: const MaterialApp(
+            home: MensageriaView(),
+          ),
+        ),
+      );
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+
+      expect(
+        find.byType(BarraNavegacaoInferiorMensageriaWidget),
+        findsOneWidget,
+      );
+
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pump(const Duration(seconds: 11));
+    }
+
+    tester.view.resetPhysicalSize();
   });
 
   testWidgets('PainelConversaAtivaWidget abre conversa de loja no Desktop sem travar',

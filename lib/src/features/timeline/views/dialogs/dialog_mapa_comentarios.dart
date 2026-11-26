@@ -147,7 +147,11 @@ class _DialogMapaComentariosState extends State<DialogMapaComentarios> {
               onAlternarFixar(alvo);
             },
             onExcluir: (alvo) {
-              Navigator.of(context).pop();
+              setState(() {
+                _comentariosLocais = _comentariosLocais
+                    .where((item) => item.id != alvo.id)
+                    .toList();
+              });
               onExcluir(alvo);
             },
           ),

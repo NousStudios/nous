@@ -4,7 +4,14 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:provider/provider.dart';
 import 'package:nous/src/core/services/changelog_service.dart';
+import 'package:nous/src/core/services/helpers/atualizador_windows_helper.dart';
+import 'package:nous/src/core/services/navigator_key_service.dart';
+import 'package:nous/src/core/services/sessao_retorno_service.dart';
+import 'package:nous/src/features/auth/providers/auth_provider.dart';
+import 'package:nous/src/features/pdv/providers/pdv_provider.dart';
+import 'package:nous/src/features/pdv/services/rede_local/servidor_rede_local.dart';
 
 class InfoAtualizacao {
   final String versao;
@@ -25,8 +32,8 @@ class InfoAtualizacao {
 }
 
 class AtualizacaoService {
-  static String versaoAtual = '1.1.50';
-  static int buildAtual = 152;
+  static String versaoAtual = '1.1.54';
+  static int buildAtual = 156;
 
   /// Inicializa a identificação da versão do aplicativo.
   /// No Android, consulta dinamicamente a versão real instalada no sistema operacional via MethodChannel.
@@ -160,10 +167,11 @@ class AtualizacaoService {
   static bool get _temAtualizacaoLocal {
     final url = infoAtualizacao.value?.urlDownload ?? '';
     return url.contains('/api/download_apk') ||
-        url.contains('/api/download_exe');
+        url.contains('/api/download_exe') ||
+        url.contains('/api/download_zip');
   }
 
-  /// Seleciona o link direto do asset (.exe ou .apk) na release do GitHub, se disponível.
+  /// Seleciona o pacote ideal (.zip transparente ou .exe/.apk tradicional) na release do GitHub.
   static String _extrairUrlDownloadRelease(
     Map<String, dynamic> json,
     String fallbackUrl,
@@ -171,16 +179,58 @@ class AtualizacaoService {
     final assets = json['assets'];
     if (assets is! List) return fallbackUrl;
 
-    final extensaoAlvo = Platform.isWindows ? '.exe' : '.apk';
-    for (final item in assets) {
-      if (item is! Map) continue;
-      final nome = (item['name'] as String? ?? '').toLowerCase();
-      final downloadUrl = item['browser_download_url'] as String? ?? '';
-      if (nome.endsWith(extensaoAlvo) && downloadUrl.isNotEmpty) {
-        return downloadUrl;
+    if (Platform.isWindows) {
+      // Prioridade 1 no Windows: pacote .zip para atualização transparente sem instalador
+      for (final item in assets) {
+        if (item is! Map) continue;
+        final nome = (item['name'] as String? ?? '').toLowerCase();
+        final downloadUrl = item['browser_download_url'] as String? ?? '';
+        if (nome.endsWith('.zip') && downloadUrl.isNotEmpty) {
+          return downloadUrl;
+        }
+      }
+      // Prioridade 2 no Windows: instalador executável .exe como fallback
+      for (final item in assets) {
+        if (item is! Map) continue;
+        final nome = (item['name'] as String? ?? '').toLowerCase();
+        final downloadUrl = item['browser_download_url'] as String? ?? '';
+        if (nome.endsWith('.exe') && downloadUrl.isNotEmpty) {
+          return downloadUrl;
+        }
+      }
+    } else {
+      // Android: busca arquivo .apk
+      for (final item in assets) {
+        if (item is! Map) continue;
+        final nome = (item['name'] as String? ?? '').toLowerCase();
+        final downloadUrl = item['browser_download_url'] as String? ?? '';
+        if (nome.endsWith('.apk') && downloadUrl.isNotEmpty) {
+          return downloadUrl;
+        }
       }
     }
     return fallbackUrl;
+  }
+
+  /// Tenta salvar o estado e tela do operador antes de reiniciar o aplicativo para atualização
+  static Future<void> _salvarEstadoSessaoAtualSePossivel() async {
+    try {
+      final context = NavigatorKeyService.navigatorKey.currentContext;
+      if (context != null) {
+        final auth = Provider.of<AuthProvider>(context, listen: false);
+        final pdv = Provider.of<PdvProvider>(context, listen: false);
+        final lojaId = ServidorRedeLocal().lojaAtiva?.id ??
+            (pdv.lojas.length == 1 ? pdv.lojas.first.id : null);
+        final sessao = SessaoRetorno(
+          cpf: auth.cpf,
+          modoVisitante: auth.modoVisitante,
+          lojaId: lojaId,
+        );
+        await SessaoRetornoService.salvarSessao(sessao);
+      }
+    } catch (e) {
+      debugPrint('[AtualizacaoService] Não foi possível salvar sessão transitória: $e');
+    }
   }
 
   /// Compara duas versões em formato semver (ex: 1.0.1 > 1.0.0)
@@ -207,10 +257,10 @@ class AtualizacaoService {
     if (baixando.value) return;
 
     final urlLower = url.toLowerCase();
-    final ehDownloadDireto = urlLower.contains('/api/download_apk') ||
-        urlLower.contains('/api/download_exe') ||
+    final ehDownloadDireto = urlLower.contains('/api/download_') ||
         urlLower.endsWith('.apk') ||
-        urlLower.endsWith('.exe');
+        urlLower.endsWith('.exe') ||
+        urlLower.endsWith('.zip');
     if (!ehDownloadDireto) {
       abrirPaginaDownload(url);
       return;
@@ -222,32 +272,83 @@ class AtualizacaoService {
 
     try {
       final dirTemp = await getTemporaryDirectory();
-      final extensao = Platform.isWindows ? 'exe' : 'apk';
+      final String extensao;
+      if (urlLower.endsWith('.zip') || urlLower.contains('/api/download_zip')) {
+        extensao = 'zip';
+      } else if (Platform.isWindows) {
+        extensao = 'exe';
+      } else {
+        extensao = 'apk';
+      }
+
       final arquivoDestino = File('${dirTemp.path}/nous_atualizacao.$extensao');
       final arquivoParcial = File('${arquivoDestino.path}.part');
 
       Object? ultimoErro;
       bool downloadConcluido = false;
+      const maxTentativas = 3;
 
-      for (var tentativa = 1; tentativa <= 2; tentativa++) {
+      for (var tentativa = 1; tentativa <= maxTentativas; tentativa++) {
         HttpClient? client;
         IOSink? sink;
         try {
           if (tentativa > 1) {
             progressoDownload.value = 0.0;
             mensagemStatus.value =
-                'Reconectando para concluir download ($tentativa/2)...';
-            await Future<void>.delayed(const Duration(milliseconds: 600));
+                'Reconectando para concluir download ($tentativa/$maxTentativas)...';
+            await Future<void>.delayed(Duration(milliseconds: 600 * tentativa));
           }
 
           client = HttpClient()
-            ..connectionTimeout = const Duration(seconds: 10)
-            ..idleTimeout = const Duration(seconds: 25);
+            ..connectionTimeout = const Duration(seconds: 12)
+            ..idleTimeout = const Duration(seconds: 30);
           final req = await client.getUrl(Uri.parse(url));
+          req.headers.set(
+            HttpHeaders.userAgentHeader,
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 NousApp/$versaoAtual',
+          );
+          req.headers.set(HttpHeaders.acceptHeader, '*/*');
+          req.headers.set(HttpHeaders.acceptEncodingHeader, 'identity');
+
           final resp = await req.close();
 
+          if (resp.statusCode == HttpStatus.tooManyRequests) {
+            final retryHeader = resp.headers.value('retry-after');
+            final esperaSegundos =
+                int.tryParse(retryHeader ?? '') ?? (tentativa * 2 + 1);
+
+            if (tentativa < maxTentativas) {
+              mensagemStatus.value =
+                  'Servidor com alto tráfego (HTTP 429). Aguardando ${esperaSegundos}s para tentar novamente...';
+              await Future<void>.delayed(Duration(seconds: esperaSegundos));
+              continue;
+            } else {
+              if (!url.contains('/api/download_apk') &&
+                  !url.contains('/api/download_exe')) {
+                mensagemStatus.value =
+                    'Limite de requisições atingido (HTTP 429). Abrindo download no navegador...';
+                abrirPaginaDownload(url);
+                return;
+              } else {
+                throw Exception(
+                  'O balcão local está ocupado com muitas requisições no momento. Aguarde alguns instantes e tente novamente.',
+                );
+              }
+            }
+          }
+
           if (resp.statusCode != HttpStatus.ok) {
-            throw Exception('Servidor retornou status HTTP ${resp.statusCode}');
+            if (resp.statusCode == HttpStatus.notFound) {
+              throw Exception(
+                'Instalador não encontrado no servidor de atualização (HTTP 404).',
+              );
+            } else if (resp.statusCode == HttpStatus.forbidden) {
+              throw Exception(
+                'Acesso ao arquivo de atualização restrito pelo servidor (HTTP 403).',
+              );
+            } else {
+              throw Exception('Servidor retornou status HTTP ${resp.statusCode}');
+            }
           }
 
           final contentLength = resp.contentLength;
@@ -308,23 +409,43 @@ class AtualizacaoService {
       }
 
       progressoDownload.value = 1.0;
-      mensagemStatus.value = 'Download concluído! Iniciando instalador...';
 
       if (Platform.isAndroid) {
+        mensagemStatus.value = 'Download concluído! Iniciando instalador...';
         await const MethodChannel('com.nous.app/instalador').invokeMethod(
           'instalarApk',
           {'caminho': arquivoDestino.path},
         );
       } else if (Platform.isWindows) {
-        Process.run(arquivoDestino.path, []);
+        if (extensao == 'zip') {
+          mensagemStatus.value = 'Instalando atualização e reiniciando o Nous...';
+          await _salvarEstadoSessaoAtualSePossivel();
+          final dirStaging = '${dirTemp.path}/nous_update_staging';
+          final extraiu = await AtualizadorWindowsHelper.extrairPacoteZip(
+            caminhoZip: arquivoDestino.path,
+            pastaDestino: dirStaging,
+          );
+          if (!extraiu) {
+            throw Exception('Não foi possível descompactar o pacote de atualização.');
+          }
+          await AtualizadorWindowsHelper.aplicarAtualizacaoEReiniciar(
+            pastaStaging: dirStaging,
+            caminhoZip: arquivoDestino.path,
+          );
+        } else {
+          // Fallback tradicional caso a fonte disponha apenas do executável .exe
+          mensagemStatus.value = 'Download concluído! Iniciando instalador...';
+          Process.run(arquivoDestino.path, []);
+        }
       }
     } on PlatformException catch (e) {
-      mensagemStatus.value =
-          e.message ?? 'Erro ao iniciar instalador no aparelho (${e.code}).';
+      final detalhe = e.message ?? 'Código ${e.code}';
+      mensagemStatus.value = 'Erro ao iniciar instalador no aparelho ($detalhe).';
       debugPrint('[AtualizacaoService] Erro nativo ao instalar: ${e.message}');
     } catch (e) {
-      mensagemStatus.value = 'Erro ao baixar atualização: $e';
-      debugPrint('[AtualizacaoService] Erro ao baixar e instalar: $e');
+      final msgLimpa = e.toString().replaceFirst('Exception: ', '').trim();
+      mensagemStatus.value = 'Erro ao baixar atualização: $msgLimpa';
+      debugPrint('[AtualizacaoService] Erro ao baixar e instalar: $msgLimpa');
     } finally {
       baixando.value = false;
       progressoDownload.value = null;

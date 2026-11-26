@@ -425,6 +425,7 @@ class ChatConversasHidratadorService {
           fixada: (r['fixada'] as int? ?? 0) == 1,
           arquivada: (r['arquivada'] as int? ?? 0) == 1,
           silenciada: (r['silenciada'] as int? ?? 0) == 1,
+          favorita: (r['favorita'] as int? ?? 0) == 1,
           atualizadaEm: DateTime.tryParse(r['atualizado_em'] as String? ?? ''),
           ultimaMensagemEnviadaPorMim:
               mapaUltimaMsgStatus[convId]?.enviadaPorMim ?? false,

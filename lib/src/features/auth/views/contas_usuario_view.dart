@@ -182,6 +182,7 @@ class _ContasUsuarioViewState extends State<ContasUsuarioView> {
   void _voltar(BuildContext context) {
     context.read<AuthProvider>().sair();
     context.read<PdvProvider>().limparSessao();
+    context.read<NotificacoesProvider>().limpar();
     Navigator.pushAndRemoveUntil(
       context,
       MaterialPageRoute(builder: (context) => const LoginView()),

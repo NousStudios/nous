@@ -23,6 +23,7 @@ class BlocoDadosPessoaisUsuario extends StatelessWidget {
   final TextEditingController estadoCivilController;
   final TextEditingController cepResidencialController;
   final TextEditingController enderecoResidencialController;
+  final TextEditingController numeroResidencialController;
   final bool buscandoCep;
   final ValueChanged<String> onAlterarCep;
   final VoidCallback onIniciarEdicao;
@@ -49,6 +50,7 @@ class BlocoDadosPessoaisUsuario extends StatelessWidget {
     required this.estadoCivilController,
     required this.cepResidencialController,
     required this.enderecoResidencialController,
+    required this.numeroResidencialController,
     this.buscandoCep = false,
     required this.onAlterarCep,
     required this.onIniciarEdicao,
@@ -187,7 +189,12 @@ class BlocoDadosPessoaisUsuario extends StatelessWidget {
                     : null,
               ),
               _campoEdicao('Endereço Residencial', enderecoResidencialController,
-                  dica: 'Rua, número, bairro, cidade - UF'),
+                  dica: 'Rua, bairro, cidade - UF'),
+              _campoEdicao(
+                'Número / Bloco / Apto',
+                numeroResidencialController,
+                dica: 'Ex: 120, Bloco B, Apto 302',
+              ),
               const SizedBox(height: 8),
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
@@ -314,7 +321,9 @@ class BlocoDadosPessoaisUsuario extends StatelessWidget {
                   theme: theme,
                   rotulo: 'Endereço residencial',
                   valor: usuario.enderecoResidencial.isNotEmpty
-                      ? usuario.enderecoResidencial
+                      ? (usuario.numeroResidencial.isNotEmpty
+                          ? '${usuario.enderecoResidencial}, ${usuario.numeroResidencial}'
+                          : usuario.enderecoResidencial)
                       : endereco!,
                   chavePrivacidade: 'endereco',
                   ehProprioUsuario: ehProprioUsuario,

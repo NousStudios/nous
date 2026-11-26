@@ -373,6 +373,7 @@ class PdvLojasCofreHelper {
   /// Salva a loja no SQLite individual com segurança e notifica a rede local se necessário
   static Future<void> salvarLojaNoCofreCorreto(Loja loja, String? cpfAtual) async {
     if (cpfAtual == null) return;
+    final suprimirEnvioCliente = ClienteRedeLocal().aplicandoAtualizacaoRemota;
     final dono = loja.cpfDonoOriginal.isEmpty ? cpfAtual : loja.cpfDonoOriginal;
 
     await LojasService.salvarLojaIndividual(loja.copyWith(cpfDonoOriginal: dono));
@@ -381,7 +382,9 @@ class PdvLojasCofreHelper {
       ServidorRedeLocal().notificarLojaAtualizada(loja);
     }
 
-    if (ClienteRedeLocal().conectado && !ClienteRedeLocal().aplicandoAtualizacaoRemota) {
+    if (ClienteRedeLocal().conectado &&
+        !suprimirEnvioCliente &&
+        !ClienteRedeLocal().aplicandoAtualizacaoRemota) {
       ClienteRedeLocal().enviarLojaAtualizada(loja);
     }
   }

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
 import 'package:nous/src/features/chat/models/chamada_sessao.dart';
 import 'package:nous/src/features/chat/services/chamada_historico_service.dart';
+import 'package:nous/src/features/chat/services/chamada_tela_helper.dart';
 import 'package:nous/src/features/chat/services/chamada_webrtc_service.dart';
 import 'package:nous/src/features/pdv/services/imagem_service.dart';
 
@@ -75,26 +76,71 @@ class _ChamadaAtivaViewState extends State<ChamadaAtivaView> {
                   builder: (context, videoRemoto, _) {
                     if ((ehVideo || videoRemoto) && estaConectada) {
                       return Positioned.fill(
-                        child: ValueListenableBuilder<bool>(
-                          valueListenable: _service.telaRemotaAtiva,
-                          builder: (context, telaRemota, _) {
-                            final videoView = RTCVideoView(
-                              _service.renderizadorRemoto,
-                              mirror: false,
-                              objectFit: telaRemota
-                                  ? RTCVideoViewObjectFit
-                                      .RTCVideoViewObjectFitContain
-                                  : RTCVideoViewObjectFit
-                                      .RTCVideoViewObjectFitCover,
-                            );
-                            if (telaRemota) {
-                              return InteractiveViewer(
-                                minScale: 1.0,
-                                maxScale: 4.0,
-                                child: videoView,
+                        child: ValueListenableBuilder<
+                            List<({String id, RTCVideoRenderer renderer})>>(
+                          valueListenable: _service.streamsVideoRemotos,
+                          builder: (context, streams, _) {
+                            if (streams.length > 1) {
+                              return Padding(
+                                padding: const EdgeInsets.fromLTRB(
+                                  12,
+                                  80,
+                                  12,
+                                  110,
+                                ),
+                                child: GridView.builder(
+                                  gridDelegate:
+                                      const SliverGridDelegateWithFixedCrossAxisCount(
+                                    crossAxisCount: 2,
+                                    crossAxisSpacing: 10,
+                                    mainAxisSpacing: 10,
+                                    childAspectRatio: 16 / 10,
+                                  ),
+                                  itemCount: streams.length,
+                                  itemBuilder: (_, idx) => ClipRRect(
+                                    borderRadius: BorderRadius.circular(12),
+                                    child: Container(
+                                      color: Colors.black,
+                                      child: InteractiveViewer(
+                                        minScale: 1.0,
+                                        maxScale: 4.0,
+                                        child: RTCVideoView(
+                                          streams[idx].renderer,
+                                          mirror: false,
+                                          objectFit: RTCVideoViewObjectFit
+                                              .RTCVideoViewObjectFitContain,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ),
                               );
                             }
-                            return videoView;
+
+                            return ValueListenableBuilder<bool>(
+                              valueListenable: _service.telaRemotaAtiva,
+                              builder: (context, telaRemota, _) {
+                                final videoView = RTCVideoView(
+                                  streams.isNotEmpty
+                                      ? streams.first.renderer
+                                      : _service.renderizadorRemoto,
+                                  mirror: false,
+                                  objectFit: telaRemota
+                                      ? RTCVideoViewObjectFit
+                                          .RTCVideoViewObjectFitContain
+                                      : RTCVideoViewObjectFit
+                                          .RTCVideoViewObjectFitCover,
+                                );
+                                if (telaRemota) {
+                                  return InteractiveViewer(
+                                    minScale: 1.0,
+                                    maxScale: 4.0,
+                                    child: videoView,
+                                  );
+                                }
+                                return videoView;
+                              },
+                            );
                           },
                         ),
                       );
@@ -254,6 +300,15 @@ class _ChamadaAtivaViewState extends State<ChamadaAtivaView> {
                               },
                             ),
                           ],
+                        ),
+                      ),
+                      IconButton(
+                        tooltip: 'Participantes e Mute',
+                        onPressed: () => _abrirPainelParticipantes(sessaoAtual),
+                        icon: const Icon(
+                          Icons.people_outline_rounded,
+                          color: Colors.white,
+                          size: 24,
                         ),
                       ),
                     ],
@@ -464,7 +519,17 @@ class _ChamadaAtivaViewState extends State<ChamadaAtivaView> {
                 : 'Transmitir Tela',
             onTap: () async {
               final estavaCompartilhando = sessao.compartilhandoTela;
-              final ativo = await _service.alternarCompartilhamentoTela();
+              String? sourceId;
+              if (!estavaCompartilhando) {
+                final fontes = await ChamadaTelaHelper.listarFontesDesktop();
+                if (fontes.length > 1 && mounted) {
+                  sourceId = await _selecionarFonteTela(fontes);
+                  if (sourceId == null) return;
+                }
+              }
+              final ativo = await _service.alternarCompartilhamentoTela(
+                sourceId: sourceId,
+              );
               if (!mounted) return;
               if (!estavaCompartilhando && !ativo) {
                 ScaffoldMessenger.of(context).showSnackBar(
@@ -523,6 +588,160 @@ class _ChamadaAtivaViewState extends State<ChamadaAtivaView> {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Future<String?> _selecionarFonteTela(
+    List<DesktopCapturerSource> fontes,
+  ) {
+    return showDialog<String>(
+      context: context,
+      builder: (ctx) => Dialog(
+        backgroundColor: const Color(0xFF1A222E),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        child: ConstrainedBox(
+          constraints: BoxConstraints(
+            maxWidth: 460,
+            maxHeight: MediaQuery.sizeOf(ctx).height * 0.80,
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                const Text(
+                  'Escolha a tela ou janela para transmitir',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Flexible(
+                  child: ListView.builder(
+                    shrinkWrap: true,
+                    itemCount: fontes.length,
+                    itemBuilder: (_, i) {
+                      final f = fontes[i];
+                      return ListTile(
+                        leading: Icon(
+                          f.type == SourceType.Screen
+                              ? Icons.desktop_windows_rounded
+                              : Icons.web_asset_rounded,
+                          color: Colors.white70,
+                        ),
+                        title: Text(
+                          f.name,
+                          style: const TextStyle(color: Colors.white),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        onTap: () => Navigator.pop(ctx, f.id),
+                      );
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _abrirPainelParticipantes(ChamadaSessao sessao) async {
+    final idsParticipantes = <String>{
+      if (sessao.destinatarioId.isNotEmpty) sessao.destinatarioId,
+      ...sessao.participantesIds,
+      ..._service.streamsVideoRemotos.value.map((s) => s.id),
+    }.toList();
+
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => ValueListenableBuilder<Set<String>>(
+        valueListenable: _service.participantesMutadosLocalmente,
+        builder: (_, mutados, _) => Dialog(
+          backgroundColor: const Color(0xFF1A222E),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              maxWidth: 420,
+              maxHeight: MediaQuery.sizeOf(ctx).height * 0.80,
+            ),
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  const Text(
+                    'Participantes na Chamada',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  if (idsParticipantes.isEmpty)
+                    const Padding(
+                      padding: EdgeInsets.all(16),
+                      child: Text(
+                        'Aguardando participantes conectarem...',
+                        style: TextStyle(color: Colors.white70),
+                      ),
+                    )
+                  else
+                    Flexible(
+                      child: ListView.builder(
+                        shrinkWrap: true,
+                        itemCount: idsParticipantes.length,
+                        itemBuilder: (_, i) {
+                          final pid = idsParticipantes[i];
+                          final mutado = mutados.contains(pid);
+                          return ListTile(
+                            leading: const CircleAvatar(
+                              backgroundColor: Colors.white12,
+                              child: Icon(
+                                Icons.person_rounded,
+                                color: Colors.white70,
+                              ),
+                            ),
+                            title: Text(
+                              pid == sessao.destinatarioId
+                                  ? sessao.destinatarioNome
+                                  : pid,
+                              style: const TextStyle(color: Colors.white),
+                            ),
+                            trailing: IconButton(
+                              tooltip: mutado
+                                  ? 'Desmutar participante para mim'
+                                  : 'Mutar participante para mim',
+                              icon: Icon(
+                                mutado
+                                    ? Icons.volume_off_rounded
+                                    : Icons.volume_up_rounded,
+                                color: mutado
+                                    ? Colors.redAccent
+                                    : Colors.greenAccent,
+                              ),
+                              onPressed: () =>
+                                  _service.alternarMuteParticipante(pid),
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ),
+        ),
       ),
     );
   }

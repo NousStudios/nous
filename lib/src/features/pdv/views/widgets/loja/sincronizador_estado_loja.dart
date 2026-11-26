@@ -59,8 +59,12 @@ class SincronizadorEstadoLoja {
     final novosMovs = lojaAtual.movimentosEstoque;
     final movsMudaram = movimentosEstoque.length != novosMovs.length ||
         !listEquals(
-          movimentosEstoque.map((m) => m.id).toList(),
-          novosMovs.map((m) => m.id).toList(),
+          movimentosEstoque
+              .map((m) => '${m.id}_${m.pago}_${m.quantidade}_${m.custoUnitario}')
+              .toList(),
+          novosMovs
+              .map((m) => '${m.id}_${m.pago}_${m.quantidade}_${m.custoUnitario}')
+              .toList(),
         );
 
     final novosPedidos = lojaAtual.pedidosLoja;
@@ -115,8 +119,12 @@ class SincronizadorEstadoLoja {
     final novasCategorias = lojaAtual.categoriasLoja;
     final categoriasMudaram = categorias.length != novasCategorias.length ||
         !listEquals(
-          categorias.map((c) => '${c.id}_${c.nome}_${c.foto}').toList(),
-          novasCategorias.map((c) => '${c.id}_${c.nome}_${c.foto}').toList(),
+          categorias
+              .map((c) => '${c.id}_${c.nome}_${c.foto}_${c.itemIds.join(",")}')
+              .toList(),
+          novasCategorias
+              .map((c) => '${c.id}_${c.nome}_${c.foto}_${c.itemIds.join(",")}')
+              .toList(),
         );
 
     final novosGrupos = lojaAtual.gruposComponentesLoja;
@@ -159,7 +167,11 @@ class SincronizadorEstadoLoja {
         controllers.endereco.text != lojaAtual.endereco ||
         controllers.numero.text != lojaAtual.numero ||
         controllers.cidade.text != lojaAtual.cidade ||
-        controllers.cep.text != lojaAtual.cep;
+        controllers.cep.text != lojaAtual.cep ||
+        controllers.email.text != lojaAtual.email ||
+        controllers.redesSociais.text != lojaAtual.redesSociais ||
+        controllers.categorias.text != lojaAtual.categorias ||
+        controllers.tags.text != lojaAtual.tags;
 
     final houveMudanca = movsMudaram ||
         pedidosMudaram ||

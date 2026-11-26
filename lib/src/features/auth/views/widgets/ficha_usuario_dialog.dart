@@ -81,6 +81,7 @@ class _FichaUsuarioConteudoState extends State<_FichaUsuarioConteudo> {
   late final TextEditingController _estadoCivilController;
   late final TextEditingController _cepResidencialController;
   late final TextEditingController _enderecoResidencialController;
+  late final TextEditingController _numeroResidencialController;
   bool _buscandoCep = false;
   String _ultimoCepConsultado = '';
 
@@ -110,6 +111,8 @@ class _FichaUsuarioConteudoState extends State<_FichaUsuarioConteudo> {
         TextEditingController(text: widget.usuarioInicial.cepResidencial);
     _enderecoResidencialController =
         TextEditingController(text: widget.usuarioInicial.enderecoResidencial);
+    _numeroResidencialController =
+        TextEditingController(text: widget.usuarioInicial.numeroResidencial);
     _ultimoCepConsultado =
         CepService.normalizarDigitos(widget.usuarioInicial.cepResidencial);
   }
@@ -126,6 +129,7 @@ class _FichaUsuarioConteudoState extends State<_FichaUsuarioConteudo> {
     _estadoCivilController.dispose();
     _cepResidencialController.dispose();
     _enderecoResidencialController.dispose();
+    _numeroResidencialController.dispose();
     super.dispose();
   }
 
@@ -154,6 +158,7 @@ class _FichaUsuarioConteudoState extends State<_FichaUsuarioConteudo> {
     _estadoCivilController.text = atual.estadoCivil;
     _cepResidencialController.text = atual.cepResidencial;
     _enderecoResidencialController.text = atual.enderecoResidencial;
+    _numeroResidencialController.text = atual.numeroResidencial;
     _ultimoCepConsultado = CepService.normalizarDigitos(atual.cepResidencial);
     setState(() => _editandoDados = true);
   }
@@ -194,6 +199,7 @@ class _FichaUsuarioConteudoState extends State<_FichaUsuarioConteudo> {
     final estadoCiv = _estadoCivilController.text.trim();
     final cepRes = _cepResidencialController.text.trim();
     final enderecoRes = _enderecoResidencialController.text.trim();
+    final numeroRes = _numeroResidencialController.text.trim();
 
     await auth.atualizarDadosPessoais(
       dataNascimento: dataNasc,
@@ -204,6 +210,7 @@ class _FichaUsuarioConteudoState extends State<_FichaUsuarioConteudo> {
       estadoCivil: estadoCiv,
       cepResidencial: cepRes,
       enderecoResidencial: enderecoRes,
+      numeroResidencial: numeroRes,
     );
 
     if (!mounted) return;
@@ -217,6 +224,7 @@ class _FichaUsuarioConteudoState extends State<_FichaUsuarioConteudo> {
         estadoCivil: estadoCiv,
         cepResidencial: cepRes,
         enderecoResidencial: enderecoRes,
+        numeroResidencial: numeroRes,
       );
       _editandoDados = false;
     });
@@ -357,6 +365,7 @@ class _FichaUsuarioConteudoState extends State<_FichaUsuarioConteudo> {
             estadoCivilController: _estadoCivilController,
             cepResidencialController: _cepResidencialController,
             enderecoResidencialController: _enderecoResidencialController,
+            numeroResidencialController: _numeroResidencialController,
             buscandoCep: _buscandoCep,
             onAlterarCep: _aoAlterarCep,
             onIniciarEdicao: () => _iniciarEdicao(contaAtualizada),

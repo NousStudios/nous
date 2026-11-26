@@ -264,8 +264,11 @@ class _DetalhesMidiaDialogState extends State<DetalhesMidiaDialog> {
     if (confirmou != true) return;
 
     final indiceParaRemover = _indiceAtual;
-    widget.onRemoverIndice?.call(indiceParaRemover);
-    widget.onRemover?.call();
+    if (widget.onRemoverIndice != null) {
+      widget.onRemoverIndice!(indiceParaRemover);
+    } else {
+      widget.onRemover?.call();
+    }
 
     if (_itens.length <= 1) {
       if (mounted) Navigator.of(context).pop();

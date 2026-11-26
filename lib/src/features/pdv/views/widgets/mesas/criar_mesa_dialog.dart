@@ -171,7 +171,6 @@ class _CriarMesaDialogState extends State<CriarMesaDialog> {
                       ),
                     ),
                     onPressed: () {
-                      Navigator.of(context).pop();
                       widget.aoExcluir?.call();
                     },
                     child: Text(

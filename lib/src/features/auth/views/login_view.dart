@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:nous/src/core/services/helpers/sessao_retorno_helper.dart';
 import 'package:nous/src/core/theme/theme_controller.dart';
 import 'package:nous/src/features/auth/services/biometria_auth_service.dart';
 import 'package:nous/src/features/auth/views/widgets/cpf_input_widget.dart';
@@ -31,8 +32,10 @@ class _LoginViewState extends State<LoginView> {
   void initState() {
     super.initState();
     ThemeController.entrarTelaLogin();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) {
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (!mounted) return;
+      final restaurou = await SessaoRetornoHelper.tentarRestaurarSessao(context);
+      if (!restaurou && mounted) {
         unawaited(BiometriaAuthService.tentarLoginAutomatico(context));
       }
     });

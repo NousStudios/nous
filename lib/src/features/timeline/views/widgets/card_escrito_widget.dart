@@ -331,7 +331,7 @@ class _CardEscritoWidgetState extends State<CardEscritoWidget> {
               ],
 
               // 2b. Publicação citada (quando for citação / quote)
-              if (_publicacaoCitada != null) ...[
+              if (_publicacaoCitada != null && !_publicacaoCitada!.excluida) ...[
                 const SizedBox(height: 8),
                 Padding(
                   padding: const EdgeInsets.only(left: 50),

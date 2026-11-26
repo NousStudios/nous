@@ -37,8 +37,12 @@ class TimelineSyncService {
   static Future<void> mesclarSnapshotSocial(
     Map<String, dynamic> snapshot, {
     VoidCallback? aoConcluir,
+    DateTime? corteReconciliacaoAtivas,
   }) async {
-    await TimelineSyncRepositorio.mesclarSnapshotSocial(snapshot);
+    await TimelineSyncRepositorio.mesclarSnapshotSocial(
+      snapshot,
+      corteReconciliacaoAtivas: corteReconciliacaoAtivas,
+    );
     aoConcluir?.call();
   }
 
@@ -100,7 +104,11 @@ class TimelineSyncService {
         final json = jsonDecode(corpo);
         if (json is Map<String, dynamic> && json['snapshot'] is Map) {
           final snapRemoto = Map<String, dynamic>.from(json['snapshot'] as Map);
-          await mesclarSnapshotSocial(snapRemoto, aoConcluir: aoConcluir);
+          await mesclarSnapshotSocial(
+            snapRemoto,
+            aoConcluir: aoConcluir,
+            corteReconciliacaoAtivas: paginas == 1 ? desde : null,
+          );
           _preAquecerMidiasSnapshotRemoto(snapRemoto);
           ultimoGeradoEm = snapRemoto['geradoEm'] as String? ??
               DateTime.now().toIso8601String();

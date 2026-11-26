@@ -241,7 +241,7 @@ class _RelatoriosConteudoState extends State<_RelatoriosConteudo> {
               )
           : null,
       onExcluir: widget.onExcluirPedido != null
-          ? () => widget.onExcluirPedido!(item.ultimoPedido.id)
+          ? () => _excluirPedido(item.ultimoPedido.id)
           : null,
     );
   }
@@ -350,6 +350,11 @@ class _RelatoriosConteudoState extends State<_RelatoriosConteudo> {
   Widget build(BuildContext context) {
     final pdv = context.watch<PdvProvider>();
     final loja = pdv.buscarPorId(widget.lojaId);
+    if (loja != null) {
+      _pedidos
+        ..clear()
+        ..addAll(loja.pedidosLoja);
+    }
     final acoes = loja?.acoes ?? const <RegistroAcao>[];
     final pendencias = PendenciaClienteAgrupada.agrupar(_pedidos);
 

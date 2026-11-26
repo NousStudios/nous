@@ -16,6 +16,8 @@ class CabecalhoChatGestaoWidget extends StatelessWidget {
   final VoidCallback onApagarTopico;
   final VoidCallback onSairTopico;
   final VoidCallback onAlternarNotificacao;
+  final VoidCallback? onIniciarChamadaVoz;
+  final VoidCallback? onIniciarChamadaVideo;
 
   const CabecalhoChatGestaoWidget({
     super.key,
@@ -29,6 +31,8 @@ class CabecalhoChatGestaoWidget extends StatelessWidget {
     required this.onApagarTopico,
     required this.onSairTopico,
     required this.onAlternarNotificacao,
+    this.onIniciarChamadaVoz,
+    this.onIniciarChamadaVideo,
   });
 
   @override
@@ -127,6 +131,26 @@ class CabecalhoChatGestaoWidget extends StatelessWidget {
             ),
           ],
 
+          if (onIniciarChamadaVoz != null)
+            IconButton(
+              tooltip: 'Chamada de voz na Ágora',
+              icon: Icon(
+                Icons.call_outlined,
+                color: theme.textColor,
+                size: 20,
+              ),
+              onPressed: onIniciarChamadaVoz,
+            ),
+          if (onIniciarChamadaVideo != null)
+            IconButton(
+              tooltip: 'Chamada de vídeo / transmissão na Ágora',
+              icon: Icon(
+                Icons.videocam_outlined,
+                color: theme.textColor,
+                size: 20,
+              ),
+              onPressed: onIniciarChamadaVideo,
+            ),
           // Ícone para ativar/desativar notificação deste tópico
           IconButton(
             tooltip: notificarTopicoAtivo

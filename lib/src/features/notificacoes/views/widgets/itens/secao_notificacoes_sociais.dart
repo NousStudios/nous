@@ -94,9 +94,11 @@ class ItemNotificacaoSocial extends StatelessWidget {
         theme: theme,
         alignment: Alignment.centerRight,
       ),
-      onDismissed: (_) async {
-        await TimelineRepositorioSqlite.marcarNotificacaoSocialLida(s.id);
+      onDismissed: (_) {
         notificacoes.dispensarNaSessao('nsoc_${s.id}');
+        TimelineRepositorioSqlite.marcarNotificacaoSocialLida(s.id).then((_) {
+          TimelineService.notificarAlteracao();
+        });
       },
       child: CardNotificacaoSocial(
         theme: theme,

@@ -257,6 +257,11 @@ class ChatMensagensService {
       whereArgs: [id],
     );
 
+    final convId = (r['conversa_id'] as String? ?? '').trim();
+    if (convId.isNotEmpty) {
+      await recalcularUltimaMensagemConversa(db, convId);
+    }
+
     aoNotificar();
 
     ChatSincronizacaoService.despacharEventoRede({
@@ -291,6 +296,7 @@ class ChatMensagensService {
 
     final conversaId = rows.first['conversa_id'] as String? ?? '';
     await db.delete('mensagens_chat', where: 'id = ?', whereArgs: [id]);
+    await recalcularUltimaMensagemConversa(db, conversaId);
 
     aoNotificar();
 
@@ -300,6 +306,48 @@ class ChatMensagensService {
       'conversaId': conversaId,
     });
     return true;
+  }
+
+  /// Recalcula `ultima_mensagem` e `data_hora_ultima_mensagem` da conversa após exclusão.
+  static Future<void> recalcularUltimaMensagemConversa(
+    dynamic db,
+    String conversaId,
+  ) async {
+    if (conversaId.isEmpty) return;
+    try {
+      final ultimas = await db.query(
+        'mensagens_chat',
+        where: 'conversa_id = ?',
+        whereArgs: [conversaId],
+        orderBy: 'data_hora DESC',
+        limit: 1,
+      );
+      if (ultimas.isNotEmpty) {
+        final m = ultimas.first;
+        final texto = (m['texto'] as String? ?? '').trim();
+        final resumo = texto.isNotEmpty
+            ? texto
+            : ((m['nome_anexo'] as String? ?? '').trim().isNotEmpty
+                ? '📎 ${m['nome_anexo']}'
+                : '');
+        await db.update(
+          'conversas_chat',
+          {
+            'ultima_mensagem': resumo,
+            'data_hora_ultima_mensagem': m['data_hora'],
+          },
+          where: 'id = ?',
+          whereArgs: [conversaId],
+        );
+      } else {
+        await db.update(
+          'conversas_chat',
+          {'ultima_mensagem': ''},
+          where: 'id = ?',
+          whereArgs: [conversaId],
+        );
+      }
+    } catch (_) {}
   }
 
   static Future<List<MensagemChat>> obterMensagensNaoLidasDaLoja(

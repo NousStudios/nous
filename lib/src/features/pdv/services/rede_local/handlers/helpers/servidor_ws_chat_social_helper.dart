@@ -4,7 +4,6 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:nous/src/core/services/assinatura_rede_service.dart';
 import 'package:nous/src/features/auth/services/contas_nous_service.dart';
-import 'package:nous/src/features/busca/services/mapa_espelhamento_service.dart';
 import 'package:nous/src/features/chat/controllers/helpers/mensageria_solicitacoes_helper.dart';
 import 'package:nous/src/features/chat/models/mensagem_chat.dart';
 import 'package:nous/src/features/chat/services/chat_service.dart';
@@ -125,15 +124,6 @@ class ServidorWsChatSocialHelper {
       await MensageriaSolicitacoesHelper.processarAceiteRemoto(
         conversaId: conversaId,
         meuCpf: cpf,
-      );
-      ctx.retransmitirParaOutros(jsonEncode(dados), exceto: ws);
-      return true;
-    }
-
-    if (tipo == 'mapa_navegacao_sync') {
-      MapaEspelhamentoService.instancia.receberEventoRede(
-        dados,
-        ctx.authProvider?.cpf,
       );
       ctx.retransmitirParaOutros(jsonEncode(dados), exceto: ws);
       return true;

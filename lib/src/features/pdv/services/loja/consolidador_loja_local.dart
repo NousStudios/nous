@@ -367,7 +367,7 @@ class ConsolidadorLojaLocal {
     // que remoções de funcionários persistam. Apenas na loja coletiva Nous (ou
     // quando manterItensAusentes == true) fazemos união com a lista local.
     final List<MembroLoja> listaMembros;
-    if (manterItensAusentes || lojaNova.id == 'loja_coletiva_nous') {
+    if (manterItensAusentes || lojaNova.id == 'loja_nous_coletiva') {
       final membrosMesclados = <String, MembroLoja>{};
       for (final m in lojaLocal.membros) {
         membrosMesclados[m.cpf.replaceAll(RegExp(r'\D'), '')] = m;

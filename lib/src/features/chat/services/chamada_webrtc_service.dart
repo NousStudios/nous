@@ -42,6 +42,11 @@ class ChamadaWebRtcService {
   final ValueNotifier<int> segundosChamada = ValueNotifier<int>(0);
   /// 'normal', 'reconectando' ou 'instavel'
   final ValueNotifier<String> statusConexao = ValueNotifier<String>('normal');
+  final ValueNotifier<Set<String>> participantesMutadosLocalmente =
+      ValueNotifier<Set<String>>({});
+  final ValueNotifier<List<({String id, RTCVideoRenderer renderer})>>
+      streamsVideoRemotos = ValueNotifier([]);
+  final Map<String, MediaStream> _streamsRemotosPorId = {};
 
   Timer? _timerTimeoutChamada;
   Timer? _timerDuracao;
@@ -308,6 +313,13 @@ class ChamadaWebRtcService {
       renderizadorLocal.srcObject = null;
       renderizadorRemoto.srcObject = null;
       _streamRemoto = null;
+      for (final item in streamsVideoRemotos.value) {
+        item.renderer.srcObject = null;
+        unawaited(item.renderer.dispose());
+      }
+      streamsVideoRemotos.value = const [];
+      _streamsRemotosPorId.clear();
+      participantesMutadosLocalmente.value = const {};
 
       if (sessao != null) {
         unawaited(
@@ -416,8 +428,31 @@ class ChamadaWebRtcService {
     await _renegociarConexao();
   }
 
+  /// Muta ou desmuta localmente um participante ou stream remoto durante a chamada.
+  void alternarMuteParticipante(String participanteId) {
+    final atual = Set<String>.from(participantesMutadosLocalmente.value);
+    final mutar = !atual.contains(participanteId);
+    if (mutar) {
+      atual.add(participanteId);
+    } else {
+      atual.remove(participanteId);
+    }
+    participantesMutadosLocalmente.value = atual;
+
+    final streamEspecifico = _streamsRemotosPorId[participanteId];
+    if (streamEspecifico != null) {
+      for (final t in streamEspecifico.getAudioTracks()) {
+        t.enabled = !mutar;
+      }
+    } else if (_streamRemoto != null) {
+      for (final t in _streamRemoto!.getAudioTracks()) {
+        t.enabled = !mutar;
+      }
+    }
+  }
+
   /// Inicia ou encerra a transmissão de tela do dispositivo durante a chamada (estilo Discord).
-  Future<bool> alternarCompartilhamentoTela() async {
+  Future<bool> alternarCompartilhamentoTela({String? sourceId}) async {
     if (_peerConnection == null) return false;
 
     if (compartilhandoTela) {
@@ -443,6 +478,7 @@ class ChamadaWebRtcService {
         peerConnection: _peerConnection!,
         renderizadorLocal: renderizadorLocal,
         videoSenderAtual: _videoSender,
+        sourceId: sourceId,
         onTelaEncerrada: () {
           if (compartilhandoTela) {
             unawaited(alternarCompartilhamentoTela());
@@ -542,12 +578,29 @@ class ChamadaWebRtcService {
       ChamadaSinalizacaoHelper.enviarCandidatoIceLocal(chamadaId, candidate);
     };
 
-    _peerConnection!.onTrack = (RTCTrackEvent event) {
+    _peerConnection!.onTrack = (RTCTrackEvent event) async {
       if (event.streams.isNotEmpty) {
-        _streamRemoto = event.streams[0];
-        renderizadorRemoto.srcObject = _streamRemoto;
+        final stream = event.streams[0];
+        _streamRemoto = stream;
+        _streamsRemotosPorId[stream.id] = stream;
+        renderizadorRemoto.srcObject = stream;
+
+        if (event.track.kind == 'audio') {
+          final mutado = participantesMutadosLocalmente.value.contains(stream.id);
+          event.track.enabled = !mutado;
+        }
+
         if (event.track.kind == 'video') {
           videoRemotoAtivo.value = true;
+          if (!streamsVideoRemotos.value.any((s) => s.id == stream.id)) {
+            final renderer = RTCVideoRenderer();
+            await renderer.initialize();
+            renderer.srcObject = stream;
+            streamsVideoRemotos.value = [
+              ...streamsVideoRemotos.value,
+              (id: stream.id, renderer: renderer),
+            ];
+          }
           if (sessaoAtiva.value != null &&
               sessaoAtiva.value!.tipo != TipoChamada.video) {
             sessaoAtiva.value = sessaoAtiva.value!.copyWith(
@@ -556,7 +609,7 @@ class ChamadaWebRtcService {
           }
         }
         debugPrint(
-          '[ChamadaWebRtcService] Stream remoto recebido com sucesso!',
+          '[ChamadaWebRtcService] Stream remoto recebido (${stream.id})!',
         );
       }
     };

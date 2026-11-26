@@ -21,6 +21,7 @@ class ConversaChat {
   final bool fixada;
   final bool arquivada;
   final bool silenciada;
+  final bool favorita;
   final DateTime? atualizadaEm;
   final bool ultimaMensagemEnviadaPorMim;
   final String statusUltimaMensagem;
@@ -44,6 +45,7 @@ class ConversaChat {
     this.fixada = false,
     this.arquivada = false,
     this.silenciada = false,
+    this.favorita = false,
     this.atualizadaEm,
     this.ultimaMensagemEnviadaPorMim = false,
     this.statusUltimaMensagem = '',
@@ -73,6 +75,7 @@ class ConversaChat {
     bool? fixada,
     bool? arquivada,
     bool? silenciada,
+    bool? favorita,
     DateTime? atualizadaEm,
     bool? ultimaMensagemEnviadaPorMim,
     String? statusUltimaMensagem,
@@ -97,6 +100,7 @@ class ConversaChat {
       fixada: fixada ?? this.fixada,
       arquivada: arquivada ?? this.arquivada,
       silenciada: silenciada ?? this.silenciada,
+      favorita: favorita ?? this.favorita,
       atualizadaEm: atualizadaEm ?? this.atualizadaEm,
       ultimaMensagemEnviadaPorMim:
           ultimaMensagemEnviadaPorMim ?? this.ultimaMensagemEnviadaPorMim,
@@ -126,6 +130,7 @@ class ConversaChat {
       'fixada': fixada,
       'arquivada': arquivada,
       'silenciada': silenciada,
+      'favorita': favorita,
       'atualizadaEm': (atualizadaEm ?? dataHoraUltimaMensagem)
           .toIso8601String(),
       'ultimaMensagemEnviadaPorMim': ultimaMensagemEnviadaPorMim,
@@ -216,6 +221,7 @@ class ConversaChat {
       fixada: json['fixada'] == true || json['fixada'] == 1,
       arquivada: json['arquivada'] == true || json['arquivada'] == 1,
       silenciada: json['silenciada'] == true || json['silenciada'] == 1,
+      favorita: json['favorita'] == true || json['favorita'] == 1,
       atualizadaEm: json['atualizadaEm'] != null
           ? DateTime.tryParse(json['atualizadaEm'] as String)?.toLocal()
           : (json['atualizado_em'] != null

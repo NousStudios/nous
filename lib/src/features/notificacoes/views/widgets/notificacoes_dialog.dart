@@ -18,6 +18,7 @@ import 'package:nous/src/features/pdv/views/widgets/estado_vazio_container.dart'
 import 'package:nous/src/features/pdv/views/widgets/movimento_estoque_dialog.dart';
 import 'package:nous/src/features/timeline/models/notificacao_social.dart';
 import 'package:nous/src/features/timeline/services/timeline_repositorio_sqlite.dart';
+import 'package:nous/src/features/timeline/services/timeline_service.dart';
 
 enum _AbaNotificacao { tudo, mensagens, convites, mencoes, atividade }
 
@@ -172,6 +173,27 @@ class _NotificacoesConteudoState extends State<_NotificacoesConteudo> {
       _futuroDados;
   String _chaveCache = '';
   _AbaNotificacao _abaSelecionada = _AbaNotificacao.tudo;
+
+  @override
+  void initState() {
+    super.initState();
+    ChatService.alteracoesChatNotifier.addListener(_invalidarCache);
+    TimelineService.alteracoesTimelineNotifier.addListener(_invalidarCache);
+  }
+
+  @override
+  void dispose() {
+    ChatService.alteracoesChatNotifier.removeListener(_invalidarCache);
+    TimelineService.alteracoesTimelineNotifier.removeListener(_invalidarCache);
+    super.dispose();
+  }
+
+  void _invalidarCache() {
+    if (!mounted) return;
+    setState(() {
+      _futuroDados = null;
+    });
+  }
 
   Future<({List<MensagemChat> msgs, List<NotificacaoSocial> sociais})>
       _obterFuturo(String cpfUsuario) {

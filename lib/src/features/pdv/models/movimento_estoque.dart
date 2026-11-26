@@ -139,7 +139,10 @@ class MovimentoEstoque {
     return MovimentoEstoque(
       id: json['id'] as String? ?? '',
       itemId: json['itemId'] as String? ?? '',
-      tipo: TipoMovimentoEstoque.values.byName(json['tipo'] as String? ?? 'entrada'),
+      tipo: TipoMovimentoEstoque.values.firstWhere(
+        (t) => t.name == (json['tipo'] as String? ?? 'entrada'),
+        orElse: () => TipoMovimentoEstoque.entrada,
+      ),
       quantidade: (json['quantidade'] as num?)?.toDouble() ?? 0,
       custoUnitario: (json['custoUnitario'] as num?)?.toDouble() ?? 0,
       dataHora: json['dataHora'] != null

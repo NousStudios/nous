@@ -51,7 +51,18 @@ class _DialogPostsContabilizadosState extends State<DialogPostsContabilizados> {
   @override
   void initState() {
     super.initState();
+    TimelineService.alteracoesTimelineNotifier.addListener(_aoAtualizarTimeline);
     _carregar();
+  }
+
+  @override
+  void dispose() {
+    TimelineService.alteracoesTimelineNotifier.removeListener(_aoAtualizarTimeline);
+    super.dispose();
+  }
+
+  void _aoAtualizarTimeline() {
+    if (mounted) _carregar();
   }
 
   Future<void> _carregar() async {

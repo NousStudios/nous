@@ -223,8 +223,7 @@ class OutboxMidiaService {
         }
       }
     } else if (tipo == 'story') {
-      final stories = await TimelineRepositorioSqlite.listarStoriesAtivosDaRede();
-      final st = stories.where((s) => s.id == entidadeId).firstOrNull;
+      final st = await TimelineRepositorioSqlite.buscarStoryPorId(entidadeId);
       if (st != null) {
         final novoMidia =
             st.caminhoMidia == caminhoAntigo ? caminhoRemoto : st.caminhoMidia;

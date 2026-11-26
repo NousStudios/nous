@@ -231,6 +231,27 @@ class _UsuariosConectadosRedeWidgetState
                                         ),
                                       ),
                                     ),
+                                    if (term.ehHost)
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(
+                                            horizontal: 4, vertical: 1),
+                                        margin:
+                                            const EdgeInsets.only(left: 6),
+                                        decoration: BoxDecoration(
+                                          color: theme.borderColor
+                                              .withValues(alpha: 0.25),
+                                          borderRadius:
+                                              BorderRadius.circular(4),
+                                        ),
+                                        child: Text(
+                                          'Host',
+                                          style: theme.getTextStyle(
+                                            fontSize: 9,
+                                            fontWeight: FontWeight.bold,
+                                            color: theme.textColor,
+                                          ),
+                                        ),
+                                      ),
                                     if (term.versaoApp != null &&
                                         term.versaoApp!.trim().isNotEmpty)
                                       Container(
@@ -249,27 +270,6 @@ class _UsuariosConectadosRedeWidgetState
                                             fontSize: 9,
                                             fontWeight: FontWeight.w600,
                                             color: theme.textColor,
-                                          ),
-                                        ),
-                                      ),
-                                    if (term.ehHost)
-                                      Container(
-                                        padding: const EdgeInsets.symmetric(
-                                            horizontal: 4, vertical: 1),
-                                        margin:
-                                            const EdgeInsets.only(left: 6),
-                                        decoration: BoxDecoration(
-                                          color: theme.buttonColor
-                                              .withValues(alpha: 0.2),
-                                          borderRadius:
-                                              BorderRadius.circular(4),
-                                        ),
-                                        child: Text(
-                                          'Host',
-                                          style: theme.getTextStyle(
-                                            fontSize: 9,
-                                            fontWeight: FontWeight.bold,
-                                            color: theme.buttonColor,
                                           ),
                                         ),
                                       ),

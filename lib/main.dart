@@ -42,6 +42,8 @@ Future<void> main() async {
     MediaKit.ensureInitialized();
   } catch (_) {}
   await AtualizacaoService.inicializar();
+  // Consulta GitHub Releases em segundo plano ao abrir o app (sem travar a inicialização)
+  AtualizacaoService.verificarAtualizacao(silencioso: true);
   await BancoDadosService.inicializar();
   await ImagemService.inicializar();
   await ThemeController.init();

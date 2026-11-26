@@ -373,10 +373,30 @@ class SincronizadorChatBalcao {
       lojaIdFinal = id.substring(5, id.indexOf('_usuario_'));
     }
 
+    final localPref = await db.query(
+      'conversas_chat',
+      columns: ['titulo_conversa', 'silenciada'],
+      where: 'id = ?',
+      whereArgs: [id],
+      limit: 1,
+    );
+    final tituloConversaFinal =
+        (c['titulo_conversa'] ?? c['tituloConversa'] ?? '').toString().trim().isNotEmpty
+            ? (c['titulo_conversa'] ?? c['tituloConversa']).toString().trim()
+            : (localPref.isNotEmpty
+                ? (localPref.first['titulo_conversa'] as String? ?? '')
+                : '');
+    final silenciadaFinal = c.containsKey('silenciada')
+        ? ((c['silenciada'] == 1 || c['silenciada'] == true) ? 1 : 0)
+        : (localPref.isNotEmpty
+            ? (localPref.first['silenciada'] as int? ?? 0)
+            : 0);
+
     await db.insert('conversas_chat', {
       'id': id,
       'titulo': tit,
       'nome_grupo': nGrupo,
+      'titulo_conversa': tituloConversaFinal,
       'subtitulo': c['subtitulo'] ?? '',
       'foto': fotoSalvar,
       'identificador': c['identificador'] ?? id,
@@ -390,6 +410,7 @@ class SincronizadorChatBalcao {
       'data_hora_ultima_mensagem': ultData,
       'arquivada': arquivadaEsperada,
       'fixada': fixadaEsperada,
+      'silenciada': silenciadaFinal,
     }, conflictAlgorithm: ConflictAlgorithm.replace);
     if (notificar) {
       ChatService.notificarAlteracao();

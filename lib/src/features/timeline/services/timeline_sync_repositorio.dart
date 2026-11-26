@@ -100,6 +100,38 @@ class TimelineSyncRepositorio {
         .where((m) => (m['id'] as String).isNotEmpty)
         .toList();
 
+    final pubsAtivasRows = offset == 0
+        ? await db.query(
+            'publicacoes_sociais',
+            columns: ['id'],
+            where: 'excluida = 0',
+          )
+        : const <Map<String, Object?>>[];
+    final idsPublicacoesAtivas = pubsAtivasRows
+        .map((r) => (r['id'] ?? '').toString())
+        .where((id) => id.isNotEmpty)
+        .toList();
+
+    Future<List<Map<String, dynamic>>> coletarExcluidos(String tabela) async {
+      if (offset != 0) return const [];
+      final rows = await db.query(
+        tabela,
+        columns: ['id', 'atualizada_em'],
+        where: 'excluido = 1',
+      );
+      return rows
+          .map((r) => <String, dynamic>{
+                'id': (r['id'] ?? '').toString(),
+                'atualizadaEm': (r['atualizada_em'] ?? '').toString(),
+              })
+          .where((m) => (m['id'] as String).isNotEmpty)
+          .toList();
+    }
+
+    final idsStoriesExcluidos = await coletarExcluidos('stories_sociais');
+    final idsComentariosExcluidos =
+        await coletarExcluidos('comentarios_sociais');
+
     return {
       'geradoEm': DateTime.now().toIso8601String(),
       'incremental': desde != null,
@@ -107,6 +139,9 @@ class TimelineSyncRepositorio {
       'proximoOffset': offset + limit,
       'temMais': temMais,
       'idsPublicacoesExcluidas': idsPublicacoesExcluidas,
+      'idsPublicacoesAtivas': idsPublicacoesAtivas,
+      'idsStoriesExcluidos': idsStoriesExcluidos,
+      'idsComentariosExcluidos': idsComentariosExcluidos,
       'publicacoes': decodificar(
         pubs,
         (d) => (d['atualizadaEm'] ?? d['criadaEm'])?.toString(),
@@ -138,8 +173,9 @@ class TimelineSyncRepositorio {
   /// Mescla um snapshot social remoto usando Last-Write-Wins (com prioridade
   /// para tombstones `excluida = true` em caso de empate de horário).
   static Future<void> mesclarSnapshotSocial(
-    Map<String, dynamic> snapshot,
-  ) async {
+    Map<String, dynamic> snapshot, {
+    DateTime? corteReconciliacaoAtivas,
+  }) async {
     final pubsBrutas = snapshot['publicacoes'] as List<dynamic>? ?? const [];
     final pubsRemotas = pubsBrutas
         .whereType<Map>()
@@ -148,6 +184,7 @@ class TimelineSyncRepositorio {
         .toList();
     final mapaLocais = await TimelineRepositorioSqlite.buscarPublicacoesPorIds(
       pubsRemotas.map((p) => p.id).toList(),
+      incluirExcluidas: true,
     );
     for (final remota in pubsRemotas) {
       final local = mapaLocais[remota.id];
@@ -189,9 +226,12 @@ class TimelineSyncRepositorio {
           final local = entry.value;
           if (local.excluida) continue;
           final dtRemoto = mapaExcluidas[entry.key];
-          final podeExcluir = dtRemoto == null ||
-              !dtRemoto.isBefore(local.atualizadaEm);
-          if (podeExcluir) {
+          // Exclusão prevalece, salvo se o local foi restaurado/editado bem depois (> 1h)
+          final restauradoBemDepois = dtRemoto != null &&
+              local.atualizadaEm.isAfter(
+                dtRemoto.add(const Duration(hours: 1)),
+              );
+          if (!restauradoBemDepois) {
             await TimelineRepositorioSqlite.salvarPublicacao(
               local.copyWith(
                 excluida: true,
@@ -203,6 +243,52 @@ class TimelineSyncRepositorio {
               ),
             );
           }
+        }
+      }
+    }
+
+    // Reconciliação de posts antigos expurgados no servidor antes do soft-delete
+    final ativasRemotasBrutas = snapshot['idsPublicacoesAtivas'];
+    if (corteReconciliacaoAtivas != null && ativasRemotasBrutas is List) {
+      final conjuntoAtivasRemotas =
+          ativasRemotasBrutas.map((e) => e.toString()).toSet();
+      final conjuntoExcluidasRemotas = excluidasBrutas
+          .map((e) => e is Map ? (e['id'] ?? '').toString() : e.toString())
+          .where((id) => id.isNotEmpty)
+          .toSet();
+      final dbLocal = await TimelineRepositorioSqlite.obterDb();
+      final rowsAtivasLocais = await dbLocal.query(
+        'publicacoes_sociais',
+        columns: ['id', 'criada_em', 'dados_json'],
+        where: 'excluida = 0',
+      );
+      final limiteSeguranca =
+          corteReconciliacaoAtivas.subtract(const Duration(minutes: 5));
+      for (final row in rowsAtivasLocais) {
+        final id = (row['id'] ?? '').toString();
+        if (id.isEmpty ||
+            conjuntoAtivasRemotas.contains(id) ||
+            conjuntoExcluidasRemotas.contains(id)) {
+          continue;
+        }
+        final criadaEm = DateTime.tryParse((row['criada_em'] ?? '').toString());
+        if (criadaEm != null && criadaEm.isBefore(limiteSeguranca)) {
+          try {
+            final pubLocal = PublicacaoSocial.fromJson(
+              jsonDecode(row['dados_json'] as String? ?? '{}')
+                  as Map<String, dynamic>,
+            );
+            await TimelineRepositorioSqlite.salvarPublicacao(
+              pubLocal.copyWith(
+                excluida: true,
+                arquivada: false,
+                fixada: false,
+                tags: const [],
+                coautoresCpfs: const [],
+                atualizadaEm: DateTime.now(),
+              ),
+            );
+          } catch (_) {}
         }
       }
     }
@@ -249,6 +335,33 @@ class TimelineSyncRepositorio {
           ),
         );
       }
+    }
+
+    final storiesExclBrutos =
+        snapshot['idsStoriesExcluidos'] as List<dynamic>? ?? const [];
+    for (final item in storiesExclBrutos) {
+      final id = item is Map ? (item['id'] ?? '').toString() : item.toString();
+      if (id.isEmpty) continue;
+      final rows = await db.query(
+        'stories_sociais',
+        where: 'id = ? AND excluido = 0',
+        whereArgs: [id],
+        limit: 1,
+      );
+      if (rows.isEmpty) continue;
+      final local = StorySocial.fromJson(
+        jsonDecode(rows.first['dados_json'] as String? ?? '{}')
+            as Map<String, dynamic>,
+      );
+      final dtRemoto = item is Map
+          ? DateTime.tryParse((item['atualizadaEm'] ?? '').toString())
+          : null;
+      await TimelineRepositorioSqlite.salvarStory(
+        local.copyWith(
+          excluido: true,
+          atualizadoEm: dtRemoto ?? DateTime.now(),
+        ),
+      );
     }
 
     final reacoesBrutas = snapshot['reacoes'] as List<dynamic>? ?? const [];
@@ -305,11 +418,56 @@ class TimelineSyncRepositorio {
       }
     }
 
+    final comExclBrutos =
+        snapshot['idsComentariosExcluidos'] as List<dynamic>? ?? const [];
+    for (final item in comExclBrutos) {
+      final id = item is Map ? (item['id'] ?? '').toString() : item.toString();
+      if (id.isEmpty) continue;
+      final rows = await db.query(
+        'comentarios_sociais',
+        where: 'id = ? AND excluido = 0',
+        whereArgs: [id],
+        limit: 1,
+      );
+      if (rows.isEmpty) continue;
+      final local = ComentarioSocial.fromJson(
+        jsonDecode(rows.first['dados_json'] as String? ?? '{}')
+            as Map<String, dynamic>,
+      );
+      final dtRemoto = item is Map
+          ? DateTime.tryParse((item['atualizadaEm'] ?? '').toString())
+          : null;
+      await TimelineRepositorioSqlite.salvarComentario(
+        local.copyWith(
+          excluido: true,
+          atualizadaEm: dtRemoto ?? DateTime.now(),
+        ),
+      );
+    }
+
     final listasBrutas = snapshot['listasSalvos'] as List<dynamic>? ?? const [];
     for (final item in listasBrutas) {
       if (item is! Map) continue;
       final l = ListaSalvosSocial.fromJson(Map<String, dynamic>.from(item));
-      if (l.id.isNotEmpty) {
+      if (l.id.isEmpty) continue;
+      final rows = await db.query(
+        'listas_salvos_sociais',
+        where: 'id = ?',
+        whereArgs: [l.id],
+        limit: 1,
+      );
+      if (rows.isEmpty) {
+        await TimelineRepositorioSqlite.salvarListaSalvos(l);
+        continue;
+      }
+      final local = ListaSalvosSocial.fromJson(
+        jsonDecode(rows.first['dados_json'] as String? ?? '{}')
+            as Map<String, dynamic>,
+      );
+      if (l.atualizadaEfetiva.isAfter(local.atualizadaEfetiva) ||
+          (!l.atualizadaEfetiva.isBefore(local.atualizadaEfetiva) &&
+              l.excluida &&
+              !local.excluida)) {
         await TimelineRepositorioSqlite.salvarListaSalvos(l);
       }
     }
@@ -318,7 +476,25 @@ class TimelineSyncRepositorio {
     for (final item in itensBrutos) {
       if (item is! Map) continue;
       final it = ItemSalvoSocial.fromJson(Map<String, dynamic>.from(item));
-      if (it.id.isNotEmpty) {
+      if (it.id.isEmpty) continue;
+      final rows = await db.query(
+        'itens_salvos_sociais',
+        where: 'id = ?',
+        whereArgs: [it.id],
+        limit: 1,
+      );
+      if (rows.isEmpty) {
+        await TimelineRepositorioSqlite.salvarItemSalvo(it);
+        continue;
+      }
+      final local = ItemSalvoSocial.fromJson(
+        jsonDecode(rows.first['dados_json'] as String? ?? '{}')
+            as Map<String, dynamic>,
+      );
+      if (it.atualizadaEfetiva.isAfter(local.atualizadaEfetiva) ||
+          (!it.atualizadaEfetiva.isBefore(local.atualizadaEfetiva) &&
+              it.excluida &&
+              !local.excluida)) {
         await TimelineRepositorioSqlite.salvarItemSalvo(it);
       }
     }

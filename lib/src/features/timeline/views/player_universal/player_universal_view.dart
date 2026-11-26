@@ -37,7 +37,18 @@ class _PlayerUniversalViewState extends State<PlayerUniversalView> {
   @override
   void initState() {
     super.initState();
+    TimelineService.alteracoesTimelineNotifier.addListener(_aoAtualizarTimeline);
     _carregarMidias();
+  }
+
+  @override
+  void dispose() {
+    TimelineService.alteracoesTimelineNotifier.removeListener(_aoAtualizarTimeline);
+    super.dispose();
+  }
+
+  void _aoAtualizarTimeline() {
+    if (mounted) _carregarMidias();
   }
 
   Future<void> _carregarMidias() async {

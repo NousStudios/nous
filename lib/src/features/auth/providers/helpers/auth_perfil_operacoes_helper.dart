@@ -188,6 +188,7 @@ class AuthPerfilOperacoesHelper {
     String? estadoCivil,
     String? cepResidencial,
     String? enderecoResidencial,
+    String? numeroResidencial,
     required void Function(UsuarioNous) propagarUsuarioAtualizado,
   }) {
     final atualizado = conta.copyWith(
@@ -199,6 +200,7 @@ class AuthPerfilOperacoesHelper {
       estadoCivil: estadoCivil,
       cepResidencial: cepResidencial,
       enderecoResidencial: enderecoResidencial,
+      numeroResidencial: numeroResidencial,
     );
     return salvarEPropagar(atualizado, propagarUsuarioAtualizado);
   }

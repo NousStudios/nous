@@ -9,6 +9,7 @@ import 'package:nous/src/features/auth/providers/auth_provider.dart';
 import 'package:nous/src/features/auth/services/contas_nous_service.dart';
 import 'package:nous/src/features/timeline/models/interacao_social.dart';
 import 'package:nous/src/features/timeline/models/publicacao_social.dart';
+import 'package:nous/src/features/timeline/services/timeline_repositorio_sqlite.dart';
 import 'package:nous/src/features/timeline/services/timeline_service.dart';
 import 'package:nous/src/features/timeline/views/dialogs/dialog_enviar_publicacao_chat.dart';
 import 'package:nous/src/features/timeline/views/dialogs/dialog_republicar_opcoes.dart';
@@ -168,7 +169,20 @@ class _DialogDetalhesPublicacaoState extends State<DialogDetalhesPublicacao> {
   }
 
   void _onTimelineAtualizada() {
-    if (mounted) _carregarInteracoes();
+    if (!mounted) return;
+    _carregarInteracoes();
+    unawaited(() async {
+      final mapa = await TimelineRepositorioSqlite.buscarPublicacoesPorIds([_pub.id]);
+      final atual = mapa[_pub.id];
+      if (!mounted) return;
+      if (atual != null && atual.excluida) {
+        if (Navigator.of(context).canPop()) {
+          Navigator.of(context).pop();
+        }
+      } else if (atual != null && atual.atualizadaEm != _pub.atualizadaEm) {
+        setState(() => _pub = atual);
+      }
+    }());
   }
 
   Future<void> _carregarCoautores() async {

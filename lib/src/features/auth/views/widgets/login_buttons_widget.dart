@@ -12,27 +12,38 @@ import 'package:nous/src/features/pdv/providers/pdv_provider.dart';
 import 'package:nous/src/features/pdv/views/perfis_pdv_view.dart';
 import 'package:nous/src/features/pdv/views/widgets/sincronizacao_rede_dialog.dart';
 
-class LoginButtonsWidget extends StatefulWidget {
+class LoginButtonsWidget extends StatelessWidget {
   const LoginButtonsWidget({super.key});
-
-  @override
-  State<LoginButtonsWidget> createState() => _LoginButtonsWidgetState();
-}
-
-class _LoginButtonsWidgetState extends State<LoginButtonsWidget> {
-  late final Future<String?> _cpfBiometriaFuture;
-
-  @override
-  void initState() {
-    super.initState();
-    _cpfBiometriaFuture = BiometriaAuthService.obterCpfVinculado();
-  }
 
   Future<void> _entrar(BuildContext context) async {
     final authProvider = context.read<AuthProvider>();
     final notificacoesProvider = context.read<NotificacoesProvider>();
     final pdvProvider = context.read<PdvProvider>();
     final theme = ThemeController.currentTheme.value;
+
+    // Trava obrigatória no celular: exige biometria ou PIN/senha do aparelho
+    // antes de prosseguir com qualquer acesso à conta via CPF.
+    var autenticouCredencial = false;
+    if (await BiometriaAuthService.suportaCredencialNativa()) {
+      autenticouCredencial = await BiometriaAuthService.autenticar(
+        motivo: 'Confirme sua biometria ou senha do aparelho para entrar',
+      );
+      if (!autenticouCredencial) {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: const Text(
+                'Autenticação obrigatória cancelada ou não reconhecida.',
+              ),
+              backgroundColor: theme.dangerColor,
+            ),
+          );
+        }
+        return;
+      }
+    }
+
+    if (!context.mounted) return;
 
     // FLUXO MANDATÓRIO:
     // 1. Login (CPF digitado)
@@ -100,7 +111,10 @@ class _LoginButtonsWidgetState extends State<LoginButtonsWidget> {
     }
 
     await authProvider.salvarUltimoCpf(authProvider.cpf);
-    await BiometriaAuthService.vincularCpfComBiometria(authProvider.cpf);
+    await BiometriaAuthService.vincularCpfComBiometria(
+      authProvider.cpf,
+      jaAutenticado: autenticouCredencial,
+    );
     await notificacoesProvider.carregarParaCpf(authProvider.cpf);
     await pdvProvider.entrarComCpf(authProvider.cpf);
 
@@ -203,37 +217,6 @@ class _LoginButtonsWidgetState extends State<LoginButtonsWidget> {
                 ),
               ),
             ),
-            if (BiometriaAuthService.ehCelular)
-              FutureBuilder<String?>(
-                future: _cpfBiometriaFuture,
-                builder: (context, snap) {
-                  final cpfSalvo = snap.data;
-                  if (cpfSalvo == null || cpfSalvo.isEmpty) {
-                    return const SizedBox.shrink();
-                  }
-                  return Padding(
-                    padding: const EdgeInsets.only(top: 14),
-                    child: TextButton.icon(
-                      onPressed: () => GuardaAcaoUi.executarUnico(
-                        'auth_biometria',
-                        () => BiometriaAuthService.tentarLoginAutomatico(context),
-                      ),
-                      icon: Icon(
-                        Icons.fingerprint_rounded,
-                        color: theme.textColor,
-                        size: 22,
-                      ),
-                      label: Text(
-                        'Entrar com biometria',
-                        style: theme.getTextStyle(
-                          fontSize: 14,
-                          color: theme.textColor,
-                        ),
-                      ),
-                    ),
-                  );
-                },
-              ),
           ],
         );
       },

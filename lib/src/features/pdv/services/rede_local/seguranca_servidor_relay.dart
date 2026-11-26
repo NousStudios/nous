@@ -14,10 +14,11 @@ class SegurancaServidorRelay {
   static const int limiteBytesMensagemWs = 2 * 1024 * 1024; // 2 MB
 
   // Parâmetros de Rate Limiting
-  static const int maxRequisicoesPorJanelaHttp = 50; // max 50 reqs em 2s por IP
+  static const int maxRequisicoesPorJanelaHttp = 50; // max 50 reqs em 2s para IPs externos/túneis
+  static const int maxRequisicoesPorJanelaHttpLocal = 250; // tolerância ampliada para rede Wi-Fi local/autocura
   static const int janelaHttpMs = 2000;
   static const int maxMensagensPorSegundoWs = 35; // max 35 msgs/s por WebSocket
-  static const int tempoBloqueioMs = 15000; // 15s de cooldown para IP abusivo
+  static const int tempoBloqueioMs = 15000; // 15s de cooldown para tráfego abusivo
 
   // Rastreamento em memória por IP
   static final Map<String, List<int>> _historicoHttpPorIp = {};
@@ -54,8 +55,22 @@ class SegurancaServidorRelay {
   /// Valida taxa de requisição e tamanho de payload HTTP.
   /// Retorna true se a requisição pode prosseguir; se for bloqueada, responde com 429 ou 413 e retorna false.
   static bool verificarRequisicaoHttpPermitida(HttpRequest request) {
+    final path = request.uri.path;
+
+    // Rotas vitais de atualização e sincronia de relógio são isentas de rate limiting
+    final ehRotaEssencialAtualizacao = path == '/api/download_apk' ||
+        path == '/api/download_exe' ||
+        path == '/api/download_zip' ||
+        path == '/api/versao' ||
+        path == '/api/relogio';
+
+    if (ehRotaEssencialAtualizacao) {
+      return true;
+    }
+
     final ip = extrairIpOrigem(request);
     final agora = DateTime.now().millisecondsSinceEpoch;
+    final ehLocal = ehIpPrivadoOuLoopback(ip);
 
     // 1. Verifica se o IP está em período de cooldown/bloqueio temporário
     final bloqueadoAte = _bloqueiosHttpPorIp[ip];
@@ -75,7 +90,6 @@ class SegurancaServidorRelay {
     }
 
     // 2. Teto de tamanho do Payload HTTP (Content-Length)
-    final path = request.uri.path;
     final ehUploadMidia = path.contains('/upload_imagem') ||
         path.contains('/upload_anexo') ||
         path.contains('/upload_midia') ||
@@ -94,12 +108,16 @@ class SegurancaServidorRelay {
       return false;
     }
 
-    // 3. Rate limiting por janela deslizante
+    // 3. Rate limiting por janela deslizante com tolerância ampliada para rede local
+    final limiteJanela = ehLocal
+        ? maxRequisicoesPorJanelaHttpLocal
+        : maxRequisicoesPorJanelaHttp;
+
     final historico = _historicoHttpPorIp.putIfAbsent(ip, () => []);
     historico.removeWhere((timestamp) => agora - timestamp > janelaHttpMs);
     historico.add(agora);
 
-    if (historico.length > maxRequisicoesPorJanelaHttp) {
+    if (historico.length > limiteJanela) {
       _bloqueiosHttpPorIp[ip] = agora + tempoBloqueioMs;
       debugPrint(
         '[SegurancaServidorRelay] IP $ip excedeu o limite de requisições HTTP (${historico.length} reqs em ${janelaHttpMs}ms). Cooldown de 15s ativado.',

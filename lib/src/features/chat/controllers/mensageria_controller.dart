@@ -5,10 +5,13 @@ import 'package:nous/src/features/auth/providers/auth_provider.dart';
 import 'package:nous/src/features/chat/controllers/helpers/mensageria_acoes_mensagem_helper.dart';
 import 'package:nous/src/features/chat/controllers/helpers/mensageria_busca_helper.dart';
 import 'package:nous/src/features/chat/controllers/helpers/mensageria_conversa_ativa_helper.dart';
+import 'package:nous/src/features/chat/controllers/helpers/mensageria_filtros_helper.dart';
 import 'package:nous/src/features/chat/controllers/helpers/mensageria_inicializacao_helper.dart';
 import 'package:nous/src/features/chat/controllers/helpers/mensageria_solicitacoes_helper.dart';
 import 'package:nous/src/features/chat/models/conversa_chat.dart';
+import 'package:nous/src/features/chat/models/filtro_chat_personalizado.dart';
 import 'package:nous/src/features/chat/models/mensagem_chat.dart';
+import 'package:nous/src/features/chat/services/chat_recursos_extras_service.dart';
 import 'package:nous/src/features/chat/services/chat_service.dart';
 import 'package:nous/src/features/chat/services/mensageria_acoes_delegate.dart';
 import 'package:nous/src/features/chat/services/montador_conversas_chat.dart';
@@ -40,6 +43,22 @@ class MensageriaController extends ChangeNotifier {
 
   bool _exibindoSolicitacoes = false;
   bool get exibindoSolicitacoes => _exibindoSolicitacoes;
+
+  AbaNavegacaoMensageria _abaAtiva = AbaNavegacaoMensageria.conversas;
+  AbaNavegacaoMensageria get abaAtiva => _abaAtiva;
+
+  TipoFiltroChat _filtroAtivo = TipoFiltroChat.tudo;
+  TipoFiltroChat get filtroAtivo => _filtroAtivo;
+
+  String? _filtroPersonalizadoId;
+  String? get filtroPersonalizadoId => _filtroPersonalizadoId;
+
+  List<FiltroChatPersonalizado> _filtrosPersonalizados = [];
+  List<FiltroChatPersonalizado> get filtrosPersonalizados =>
+      _filtrosPersonalizados;
+
+  int get totalConversasNaoLidas =>
+      _conversas.fold<int>(0, (acc, c) => acc + c.naoLidasCount);
 
   List<ConversaChat> get conversas => _conversas;
   List<ConversaChat> get todosContatosDisponiveis => _todosContatosDisponiveis;
@@ -172,6 +191,88 @@ class MensageriaController extends ChangeNotifier {
         usuariosNousPorCpf: _usuariosNousPorCpf,
       );
 
+  void selecionarAba(AbaNavegacaoMensageria aba) {
+    if (_abaAtiva == aba) return;
+    _abaAtiva = aba;
+    notifyListeners();
+  }
+
+  void selecionarFiltro(TipoFiltroChat tipo, {String? personalizadoId}) {
+    _filtroAtivo = tipo;
+    _filtroPersonalizadoId =
+        tipo == TipoFiltroChat.personalizado ? personalizadoId : null;
+    notifyListeners();
+  }
+
+  Future<void> carregarFiltrosPersonalizados() async {
+    _filtrosPersonalizados = await ChatRecursosExtrasService.listarFiltros();
+    notifyListeners();
+  }
+
+  Future<FiltroChatPersonalizado> criarFiltroPersonalizado(String nome) async {
+    final novo = FiltroChatPersonalizado(
+      id: 'filtro_${DateTime.now().millisecondsSinceEpoch}',
+      nome: nome.trim(),
+      ordem: _filtrosPersonalizados.length,
+      criadoEm: DateTime.now(),
+    );
+    await ChatRecursosExtrasService.salvarFiltro(novo);
+    _filtrosPersonalizados = [..._filtrosPersonalizados, novo];
+    notifyListeners();
+    return novo;
+  }
+
+  Future<void> renomearFiltroPersonalizado(
+    FiltroChatPersonalizado filtro,
+    String novoNome,
+  ) async {
+    final atualizado = filtro.copyWith(nome: novoNome.trim());
+    await ChatRecursosExtrasService.salvarFiltro(atualizado);
+    _filtrosPersonalizados = _filtrosPersonalizados
+        .map((f) => f.id == filtro.id ? atualizado : f)
+        .toList();
+    notifyListeners();
+  }
+
+  Future<void> excluirFiltroPersonalizado(String filtroId) async {
+    await ChatRecursosExtrasService.excluirFiltro(filtroId);
+    _filtrosPersonalizados =
+        _filtrosPersonalizados.where((f) => f.id != filtroId).toList();
+    if (_filtroAtivo == TipoFiltroChat.personalizado &&
+        _filtroPersonalizadoId == filtroId) {
+      _filtroAtivo = TipoFiltroChat.tudo;
+      _filtroPersonalizadoId = null;
+    }
+    notifyListeners();
+  }
+
+  Future<void> alternarConversaNoFiltro({
+    required String filtroId,
+    required String conversaId,
+  }) async {
+    final atualizado = await ChatRecursosExtrasService.alternarConversaNoFiltro(
+      filtroId: filtroId,
+      conversaId: conversaId,
+    );
+    if (atualizado != null) {
+      _filtrosPersonalizados = _filtrosPersonalizados
+          .map((f) => f.id == filtroId ? atualizado : f)
+          .toList();
+      notifyListeners();
+    }
+  }
+
+  Future<void> alternarFavoritaConversa(ConversaChat c) async {
+    final novo = await ChatRecursosExtrasService.alternarFavoritaConversa(c.id);
+    _conversas = _conversas
+        .map((item) => item.id == c.id ? item.copyWith(favorita: novo) : item)
+        .toList();
+    if (_conversaSelecionada?.id == c.id) {
+      _conversaSelecionada = _conversaSelecionada!.copyWith(favorita: novo);
+    }
+    notifyListeners();
+  }
+
   List<ConversaChat> obterConversasFiltradas({UsuarioNous? contaLogada}) {
     final todas = MensageriaBuscaHelper.filtrarConversas(
       conversas: _conversas,
@@ -183,12 +284,21 @@ class MensageriaController extends ChangeNotifier {
       usuariosNousPorCpf: _usuariosNousPorCpf,
     );
 
-    if (modoLoja) return todas;
-    return todas
-        .where((c) =>
-            ehSolicitacao(c, contaLogada: contaLogada) ==
-            _exibindoSolicitacoes)
-        .toList();
+    final base = modoLoja
+        ? todas
+        : todas
+            .where((c) =>
+                ehSolicitacao(c, contaLogada: contaLogada) ==
+                _exibindoSolicitacoes)
+            .toList();
+
+    if (_exibindoSolicitacoes) return base;
+    return MensageriaFiltrosHelper.aplicarFiltro(
+      conversas: base,
+      tipoFiltro: _filtroAtivo,
+      filtroPersonalizadoId: _filtroPersonalizadoId,
+      filtrosPersonalizados: _filtrosPersonalizados,
+    );
   }
 
   bool _conversaInicialConsumida = false;
@@ -222,6 +332,7 @@ class MensageriaController extends ChangeNotifier {
       if (usuarioCpf != null && usuarioCpf!.isNotEmpty) {
         await MensageriaSolicitacoesHelper.carregarAceitas(usuarioCpf!);
       }
+      await carregarFiltrosPersonalizados();
       if (_disposed) return;
       await recarregarConversas(auth: auth, pdv: pdv, manterSelecionada: false);
       if (_disposed) return;

@@ -13,6 +13,8 @@ class ItemConversaTile extends StatefulWidget {
   final VoidCallback? onAlternarFixar;
   final VoidCallback? onAlternarArquivar;
   final VoidCallback? onAlternarSilenciar;
+  final VoidCallback? onAlternarFavorita;
+  final VoidCallback? onAtribuirFiltro;
   final VoidCallback? onRenomear;
   final VoidCallback? onExcluir;
 
@@ -27,6 +29,8 @@ class ItemConversaTile extends StatefulWidget {
     this.onAlternarFixar,
     this.onAlternarArquivar,
     this.onAlternarSilenciar,
+    this.onAlternarFavorita,
+    this.onAtribuirFiltro,
     this.onRenomear,
     this.onExcluir,
   });
@@ -57,6 +61,51 @@ class _ItemConversaTileState extends State<ItemConversaTile> {
       ),
       color: widget.theme.cardBackgroundColor,
       items: [
+        PopupMenuItem(
+          value: 'favorita',
+          child: Row(
+            children: [
+              Icon(
+                widget.conversa.favorita
+                    ? Icons.star_rounded
+                    : Icons.star_outline_rounded,
+                size: 16,
+                color: widget.theme.textColor,
+              ),
+              const SizedBox(width: 10),
+              Text(
+                widget.conversa.favorita
+                    ? 'Remover dos favoritos'
+                    : 'Favoritar conversa',
+                style: widget.theme.getTextStyle(
+                  fontSize: 13,
+                  color: widget.theme.textColor,
+                ),
+              ),
+            ],
+          ),
+        ),
+        if (widget.onAtribuirFiltro != null)
+          PopupMenuItem(
+            value: 'filtro',
+            child: Row(
+              children: [
+                Icon(
+                  Icons.label_outline_rounded,
+                  size: 16,
+                  color: widget.theme.textColor,
+                ),
+                const SizedBox(width: 10),
+                Text(
+                  'Adicionar a filtro...',
+                  style: widget.theme.getTextStyle(
+                    fontSize: 13,
+                    color: widget.theme.textColor,
+                  ),
+                ),
+              ],
+            ),
+          ),
         PopupMenuItem(
           value: 'fixar',
           child: Row(
@@ -153,6 +202,10 @@ class _ItemConversaTileState extends State<ItemConversaTile> {
     ).then((valor) {
       if (valor == 'renomear') {
         widget.onRenomear?.call();
+      } else if (valor == 'favorita') {
+        widget.onAlternarFavorita?.call();
+      } else if (valor == 'filtro') {
+        widget.onAtribuirFiltro?.call();
       } else if (valor == 'fixar') {
         widget.onAlternarFixar?.call();
       } else if (valor == 'silenciar') {
@@ -317,6 +370,14 @@ class _ItemConversaTileState extends State<ItemConversaTile> {
                             ),
                           ),
                         ),
+                        if (conversa.favorita) ...[
+                          const SizedBox(width: 4),
+                          Icon(
+                            Icons.star_rounded,
+                            size: 13,
+                            color: theme.textColor.withValues(alpha: 0.8),
+                          ),
+                        ],
                         if (conversa.fixada) ...[
                           const SizedBox(width: 4),
                           Icon(

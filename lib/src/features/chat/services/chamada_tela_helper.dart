@@ -54,12 +54,47 @@ class ChamadaTelaHelper {
     } catch (_) {}
   }
 
-  /// Obtém o MediaStream da tela do dispositivo sem exibir diálogos extras no desktop.
-  static Future<MediaStream?> capturarTela() async {
+  /// Lista monitores e janelas disponíveis no desktop para compartilhamento de tela.
+  static Future<List<DesktopCapturerSource>> listarFontesDesktop() async {
+    if (kIsWeb ||
+        !(Platform.isWindows || Platform.isLinux || Platform.isMacOS)) {
+      return const [];
+    }
+    try {
+      return await desktopCapturer.getSources(
+        types: <SourceType>[SourceType.Screen, SourceType.Window],
+      );
+    } catch (e) {
+      debugPrint('[ChamadaTelaHelper] Erro ao listar fontes de tela: $e');
+      return const [];
+    }
+  }
+
+  /// Obtém o MediaStream da tela do dispositivo, tentando capturar áudio do sistema quando suportado.
+  static Future<MediaStream?> capturarTela({String? sourceId}) async {
     await iniciarServicoAndroid();
 
-    final Map<String, dynamic> constraints;
-    if (!kIsWeb && (Platform.isWindows || Platform.isLinux || Platform.isMacOS)) {
+    Map<String, dynamic> montarConstraints({required bool comAudio}) {
+      if (!kIsWeb &&
+          (Platform.isWindows || Platform.isLinux || Platform.isMacOS)) {
+        return <String, dynamic>{
+          'video': <String, dynamic>{
+            if (sourceId != null && sourceId.isNotEmpty)
+              'deviceId': <String, dynamic>{'exact': sourceId},
+            'mandatory': <String, dynamic>{'frameRate': 30.0},
+          },
+          'audio': comAudio,
+        };
+      }
+      return <String, dynamic>{
+        'video': true,
+        'audio': comAudio,
+      };
+    }
+
+    if (!kIsWeb &&
+        (Platform.isWindows || Platform.isLinux || Platform.isMacOS) &&
+        (sourceId == null || sourceId.isEmpty)) {
       final fontes = await desktopCapturer.getSources(
         types: <SourceType>[SourceType.Screen],
       );
@@ -67,20 +102,17 @@ class ChamadaTelaHelper {
         debugPrint('[ChamadaTelaHelper] Nenhuma tela disponível para captura.');
         return null;
       }
-      constraints = <String, dynamic>{
-        'video': <String, dynamic>{
-          'deviceId': <String, dynamic>{'exact': fontes.first.id},
-          'mandatory': <String, dynamic>{'frameRate': 30.0},
-        },
-        'audio': false,
-      };
-    } else {
-      constraints = <String, dynamic>{
-        'video': true,
-        'audio': false,
-      };
+      sourceId = fontes.first.id;
     }
 
-    return navigator.mediaDevices.getDisplayMedia(constraints);
+    try {
+      return await navigator.mediaDevices.getDisplayMedia(
+        montarConstraints(comAudio: true),
+      );
+    } catch (_) {
+      return navigator.mediaDevices.getDisplayMedia(
+        montarConstraints(comAudio: false),
+      );
+    }
   }
 }

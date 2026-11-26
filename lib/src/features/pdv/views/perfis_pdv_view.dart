@@ -9,6 +9,7 @@ import 'package:nous/src/core/widgets/custom_app_bar.dart';
 import 'package:nous/src/core/widgets/floating_bottom_nav_bar.dart';
 import 'package:nous/src/core/widgets/texto_rolante.dart';
 import 'package:nous/src/features/auth/views/login_view.dart';
+import 'package:nous/src/features/notificacoes/providers/notificacoes_provider.dart';
 import 'package:nous/src/features/pdv/models/loja.dart';
 import 'package:nous/src/features/pdv/providers/pdv_provider.dart';
 import 'package:nous/src/features/pdv/views/dados_perfil_view.dart';
@@ -121,6 +122,7 @@ class _PerfisPdvViewState extends State<PerfisPdvView> {
   void _handleLogout(BuildContext context) {
     context.read<AuthProvider>().sair();
     context.read<PdvProvider>().limparSessao();
+    context.read<NotificacoesProvider>().limpar();
     Navigator.of(context).pushAndRemoveUntil(
       MaterialPageRoute(builder: (context) => const LoginView()),
       (route) => false,

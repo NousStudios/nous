@@ -7,6 +7,7 @@ import 'package:nous/src/core/services/som_service.dart';
 import 'package:nous/src/features/chat/models/mensagem_chat.dart';
 import 'package:nous/src/features/chat/services/chat_e2ee_service.dart';
 import 'package:nous/src/features/chat/services/chat_media_service.dart';
+import 'package:nous/src/features/chat/services/chat_mensagens_service.dart';
 import 'package:nous/src/features/chat/services/chat_repositorio_sqlite.dart';
 import 'package:nous/src/features/chat/services/chat_sincronizacao_service.dart';
 import 'package:nous/src/features/chat/services/notificacao_android_service.dart';
@@ -49,9 +50,14 @@ class ChatProcessadorRedeService {
                   grupoMap?['nomeGrupo'] as String? ??
                   'Grupo')
               .trim();
-          final parts = grupoMap?['participantesJson'] as String? ??
+          final parts = grupoMap?['participantes_json'] as String? ??
+              grupoMap?['participantesJson'] as String? ??
               jsonEncode(grupoMap?['participantes'] ?? const []);
-          await db.insert('conversas_chat', {
+          final lojaIdGrupo = (grupoMap?['loja_id'] as String? ??
+                  grupoMap?['lojaId'] as String? ??
+                  '')
+              .trim();
+          final inseriu = await db.insert('conversas_chat', {
             'id': gid,
             'titulo': titulo,
             'nome_grupo': titulo,
@@ -61,9 +67,26 @@ class ChatProcessadorRedeService {
             'identificador': gid,
             'eh_loja': 0,
             'eh_grupo': 1,
+            if (lojaIdGrupo.isNotEmpty) 'loja_id': lojaIdGrupo,
             'participantes_json': parts,
             'criado_em': DateTime.now().toIso8601String(),
           }, conflictAlgorithm: ConflictAlgorithm.ignore);
+          if (inseriu == 0) {
+            await db.update(
+              'conversas_chat',
+              {
+                'titulo': titulo,
+                'nome_grupo': titulo,
+                if ((grupoMap?['foto'] as String? ?? '').isNotEmpty)
+                  'foto': grupoMap?['foto'],
+                if (lojaIdGrupo.isNotEmpty) 'loja_id': lojaIdGrupo,
+                if (parts.isNotEmpty && parts != '[]')
+                  'participantes_json': parts,
+              },
+              where: 'id = ?',
+              whereArgs: [gid],
+            );
+          }
           aoNotificar();
         }
         return;
@@ -95,7 +118,17 @@ class ChatProcessadorRedeService {
 
       if (tipoEvento == 'mensagem_excluida') {
         final db = await ChatRepositorioSqlite.obterDb();
+        final rows = await db.query(
+          'mensagens_chat',
+          columns: ['conversa_id'],
+          where: 'id = ?',
+          whereArgs: [msgIdBruto],
+          limit: 1,
+        );
+        final convId = (payloadMensagem['conversaId'] as String?) ??
+            (rows.isNotEmpty ? (rows.first['conversa_id'] as String? ?? '') : '');
         await db.delete('mensagens_chat', where: 'id = ?', whereArgs: [msgIdBruto]);
+        await ChatMensagensService.recalcularUltimaMensagemConversa(db, convId);
         aoNotificar();
         return;
       }
@@ -116,6 +149,22 @@ class ChatProcessadorRedeService {
           where: 'id = ?',
           whereArgs: [msgIdBruto],
         );
+        var convId = (payloadMensagem['conversaId'] as String? ?? '').trim();
+        if (convId.isEmpty) {
+          final rows = await db.query(
+            'mensagens_chat',
+            columns: ['conversa_id'],
+            where: 'id = ?',
+            whereArgs: [msgIdBruto],
+            limit: 1,
+          );
+          if (rows.isNotEmpty) {
+            convId = (rows.first['conversa_id'] as String? ?? '').trim();
+          }
+        }
+        if (convId.isNotEmpty) {
+          await ChatMensagensService.recalcularUltimaMensagemConversa(db, convId);
+        }
         aoNotificar();
         return;
       }

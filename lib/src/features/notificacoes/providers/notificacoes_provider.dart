@@ -78,6 +78,7 @@ class NotificacoesProvider extends ChangeNotifier {
       () => <String>{},
     );
     setLoja.addAll(ids);
+    notifyListeners();
 
     try {
       await PreferenciasSoberanasService.salvarLista(
@@ -98,8 +99,6 @@ class NotificacoesProvider extends ChangeNotifier {
         ClienteRedeLocal().enviarEventoWs(payload);
       }
     }
-
-    notifyListeners();
   }
 
   String get _chaveDispensadasUsuario {

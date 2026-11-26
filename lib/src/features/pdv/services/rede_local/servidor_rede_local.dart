@@ -591,6 +591,7 @@ class ServidorRedeLocal {
     notificarTodos({
       'tipo': 'loja_atualizada',
       'loja': lojaCompacta.toJson(),
+      'ehLojaAtivaServidor': _lojaAtiva != null && _lojaAtiva!.id == loja.id,
     });
     debugPrint(
       '[ServidorRedeLocal] Transmitida atualização da loja "${loja.nome}" para ${_clientesWs.length} terminais',

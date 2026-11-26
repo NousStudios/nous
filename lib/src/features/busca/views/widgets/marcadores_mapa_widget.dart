@@ -260,57 +260,64 @@ class MarcadoresMapaWidget {
         point: pontoMeu,
         width: 48,
         height: 48,
-        child: controller.navegandoAoVivo
-            ? Transform.rotate(
-                angle: controller.rumoUsuarioGraus * math.pi / 180.0,
-                child: Center(
-                  child: CustomPaint(
-                    size: const Size(30, 34),
-                    painter: _TrianguloDirecaoPainter(
-                      corPreenchimento: theme.buttonColor,
-                      corBorda: theme.borderColor,
+        child: GestureDetector(
+          onTap: () {
+            if (usuarioLogado != null) {
+              controller.selecionarPerfil(usuarioLogado);
+            }
+          },
+          child: controller.navegandoAoVivo
+              ? Transform.rotate(
+                  angle: controller.rumoUsuarioGraus * math.pi / 180.0,
+                  child: Center(
+                    child: CustomPaint(
+                      size: const Size(30, 34),
+                      painter: _TrianguloDirecaoPainter(
+                        corPreenchimento: theme.buttonColor,
+                        corBorda: theme.borderColor,
+                      ),
                     ),
                   ),
-                ),
-              )
-            : Container(
-                decoration: BoxDecoration(
-                  color: theme.buttonColor.withValues(alpha: 0.22),
-                  shape: BoxShape.circle,
-                ),
-                alignment: Alignment.center,
-                child: Container(
-                  width: 32,
-                  height: 32,
+                )
+              : Container(
                   decoration: BoxDecoration(
-                    color: theme.cardBackgroundColor,
+                    color: theme.buttonColor.withValues(alpha: 0.22),
                     shape: BoxShape.circle,
-                    border: Border.all(color: theme.buttonColor, width: 2.2),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.35),
-                        blurRadius: 6,
-                        offset: const Offset(0, 2),
-                      ),
-                    ],
                   ),
-                  child: minhaFoto != null
-                      ? ClipOval(
-                          child: Image.file(
-                            File(minhaFoto),
-                            fit: BoxFit.cover,
-                            cacheWidth: 96,
-                            cacheHeight: 96,
-                            filterQuality: FilterQuality.low,
-                          ),
-                        )
-                      : Icon(
-                          Icons.person_pin_circle_rounded,
-                          size: 20,
-                          color: theme.textColor,
+                  alignment: Alignment.center,
+                  child: Container(
+                    width: 32,
+                    height: 32,
+                    decoration: BoxDecoration(
+                      color: theme.cardBackgroundColor,
+                      shape: BoxShape.circle,
+                      border: Border.all(color: theme.buttonColor, width: 2.2),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.35),
+                          blurRadius: 6,
+                          offset: const Offset(0, 2),
                         ),
+                      ],
+                    ),
+                    child: minhaFoto != null
+                        ? ClipOval(
+                            child: Image.file(
+                              File(minhaFoto),
+                              fit: BoxFit.cover,
+                              cacheWidth: 96,
+                              cacheHeight: 96,
+                              filterQuality: FilterQuality.low,
+                            ),
+                          )
+                        : Icon(
+                            Icons.person_pin_circle_rounded,
+                            size: 20,
+                            color: theme.textColor,
+                          ),
+                  ),
                 ),
-              ),
+        ),
       ),
     );
 

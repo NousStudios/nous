@@ -152,12 +152,26 @@ class DespachanteClienteRede {
 
           final ehWindows = Platform.isWindows;
           final temBinarioLocal = ehWindows
-              ? (dados['temExe'] == true)
+              ? (dados['temZip'] == true || dados['temExe'] == true)
               : (dados['temApk'] == true);
 
           if (temNovaVersao && temBinarioLocal) {
-            final caminhoDownload =
-                ehWindows ? '/api/download_exe' : '/api/download_apk';
+            final infoAtual = AtualizacaoService.infoAtualizacao.value;
+            final jaTemGithubIgualOuMaior = AtualizacaoService.temAtualizacao.value &&
+                infoAtual != null &&
+                !infoAtual.urlDownload.contains('/api/download_') &&
+                !AtualizacaoService.versaoMaior(versaoRemota, infoAtual.versao);
+            if (jaTemGithubIgualOuMaior) {
+              return;
+            }
+            final String caminhoDownload;
+            if (ehWindows) {
+              caminhoDownload = dados['temZip'] == true
+                  ? '/api/download_zip'
+                  : '/api/download_exe';
+            } else {
+              caminhoDownload = '/api/download_apk';
+            }
             AtualizacaoService.infoAtualizacao.value = InfoAtualizacao(
               versao: versaoRemota,
               nomeVersao: 'Atualização do Servidor Wi-Fi (v$versaoRemota • Build $buildRemota)',
@@ -181,16 +195,26 @@ class DespachanteClienteRede {
             // tenta buscar automaticamente o instalador na Release do GitHub caso haja internet.
             unawaited(AtualizacaoService.verificarAtualizacao(silencioso: true));
           } else {
-            AtualizacaoService.infoAtualizacao.value = null;
-            AtualizacaoService.temAtualizacao.value = false;
-            AtualizacaoService.ultimaVerificacao.value = DateTime.now();
-            AtualizacaoService.mensagemStatus.value =
-                'O Nous já está na versão mais recente (v${AtualizacaoService.versaoAtual}).';
+            final urlAtual = AtualizacaoService.infoAtualizacao.value?.urlDownload ?? '';
+            final temGithubAtivo = AtualizacaoService.temAtualizacao.value &&
+                !urlAtual.contains('/api/download_');
+            if (!temGithubAtivo) {
+              AtualizacaoService.infoAtualizacao.value = null;
+              AtualizacaoService.temAtualizacao.value = false;
+              AtualizacaoService.ultimaVerificacao.value = DateTime.now();
+              AtualizacaoService.mensagemStatus.value =
+                  'O Nous já está na versão mais recente (v${AtualizacaoService.versaoAtual}).';
+            }
             debugPrint('[DespachanteClienteRede] O aplicativo já está na mesma versão ou mais recente que o servidor.');
           }
         } else {
-          AtualizacaoService.infoAtualizacao.value = null;
-          AtualizacaoService.temAtualizacao.value = false;
+          final urlAtual = AtualizacaoService.infoAtualizacao.value?.urlDownload ?? '';
+          final temGithubAtivo = AtualizacaoService.temAtualizacao.value &&
+              !urlAtual.contains('/api/download_');
+          if (!temGithubAtivo) {
+            AtualizacaoService.infoAtualizacao.value = null;
+            AtualizacaoService.temAtualizacao.value = false;
+          }
         }
       }
     } catch (e) {

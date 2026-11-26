@@ -228,6 +228,8 @@ class ChatConversasService {
         mensagens: const [],
         fixada: (r['fixada'] as int? ?? 0) == 1,
         arquivada: (r['arquivada'] as int? ?? 0) == 1,
+        silenciada: (r['silenciada'] as int? ?? 0) == 1,
+        favorita: (r['favorita'] as int? ?? 0) == 1,
         atualizadaEm: DateTime.tryParse(r['atualizado_em'] as String? ?? ''),
       );
     }
@@ -341,6 +343,16 @@ class ChatConversasService {
       lojaIdEfetivo =
           conversa.id.substring(5, conversa.id.indexOf('_usuario_'));
     }
+    final existente = await db.query(
+      'conversas_chat',
+      columns: ['criado_em'],
+      where: 'id = ?',
+      whereArgs: [conversa.id],
+      limit: 1,
+    );
+    final criadoEmOriginal = existente.isNotEmpty
+        ? (existente.first['criado_em'] as String? ?? agora.toIso8601String())
+        : agora.toIso8601String();
     await db.insert('conversas_chat', {
       'id': conversa.id,
       'titulo': conversa.titulo,
@@ -353,7 +365,7 @@ class ChatConversasService {
       'titulo_conversa': conversa.tituloConversa,
       'loja_id': lojaIdEfetivo,
       'participantes_json': jsonEncode(conversa.participantesIds),
-      'criado_em': agora.toIso8601String(),
+      'criado_em': criadoEmOriginal,
       'atualizado_em': agora.toIso8601String(),
       'ultima_mensagem': conversa.ultimaMensagem,
       'data_hora_ultima_mensagem': conversa.dataHoraUltimaMensagem
@@ -361,6 +373,7 @@ class ChatConversasService {
       'arquivada': conversa.arquivada ? 1 : 0,
       'fixada': conversa.fixada ? 1 : 0,
       'silenciada': conversa.silenciada ? 1 : 0,
+      'favorita': conversa.favorita ? 1 : 0,
     }, conflictAlgorithm: ConflictAlgorithm.replace);
     aoNotificar();
     ChatSincronizacaoService.despacharConversaAtualizada(conversa);

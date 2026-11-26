@@ -87,6 +87,65 @@ class ChangelogService {
     return novidades.isNotEmpty ? novidades.first : null;
   }
 
+  /// Filtra e traduz itens técnicos do CHANGELOG em linguagem humana e acessível para o usuário comum.
+  static String? sanitizarLinhaParaUsuario(String textoBruto) {
+    var texto = textoBruto.trim();
+    if (texto.isEmpty) return null;
+
+    // Desconsidera linhas com metas puramente internas ou de documentação de agentes
+    final lower = texto.toLowerCase();
+    if (lower.contains('agents.md') ||
+        lower.contains('mapa_do_app.md') ||
+        lower.contains('subagente') ||
+        lower.contains('skill ') ||
+        lower.contains('copywith') ||
+        lower.contains('fromjson') ||
+        lower.contains('tojson') ||
+        lower.contains('lww em listas') ||
+        lower.contains('handler duplicado') ||
+        lower.contains('condição de corrida de eco') ||
+        lower.contains('rate limit no segurancaservidorrelay')) {
+      return null;
+    }
+
+    // Remove referências a arquivos .dart (com ou sem link markdown ou parênteses)
+    // Ex: ([arquivo.dart](file://...)), [arquivo.dart](...), (arquivo.dart)
+    texto = texto.replaceAll(RegExp(r'\(?\s*\[?[a-zA-Z0-9_\-]+\.dart\]?(\(file:///[^)]+\)|\([^)]+\))?\s*\)?'), '');
+    texto = texto.replaceAll(RegExp(r'\(?[a-zA-Z0-9_\-]+\.dart\)?'), '');
+
+    // Remove tags de escopo técnico entre parênteses no início ou meio, ex: (`chat`, `pdv`), (`auth`), etc.
+    texto = texto.replaceAll(RegExp(r'\(\s*(`[a-zA-Z0-9_\-]+`\s*(,\s*)?)+\s*\)'), '');
+
+    // Remove crases de formatação técnica
+    texto = texto.replaceAll('`', '');
+
+    // Remove negrito residual de markdown
+    texto = texto.replaceAll('**', '');
+
+    // Se for cabeçalho de categoria (ex: "Mensageria Estilo WhatsApp + Discord:"), limpa dois-pontos se isolado
+    if (texto.endsWith(':')) {
+      texto = texto.substring(0, texto.length - 1).trim();
+    }
+
+    // Remove parênteses vazios residuais e normaliza espaços
+    texto = texto.replaceAll(RegExp(r'\(\s*\)'), '');
+    texto = texto.replaceAll(RegExp(r'\s+'), ' ');
+    texto = texto.replaceAll(' ,', ',');
+    texto = texto.replaceAll(' ;', ';');
+    texto = texto.replaceAll(' :', ':');
+    texto = texto.trim();
+
+    // Se a linha ficou vazia ou muito curta/irrelevante
+    if (texto.length < 10) return null;
+
+    // Garante pontuação final agradável
+    if (!texto.endsWith('.') && !texto.endsWith('!') && !texto.endsWith(':')) {
+      texto = '$texto.';
+    }
+
+    return texto;
+  }
+
   static List<ItemNovidadeChangelog> _parsearChangelog(String markdown) {
     final itens = <ItemNovidadeChangelog>[];
     final linhas = markdown.split('\n');
@@ -116,12 +175,10 @@ class ChangelogService {
           dataAtual = partes.length > 1 ? partes[1].trim() : '';
         }
       } else if (linha.startsWith('- ') && versaoAtual != null) {
-        var texto = linha.substring(2).trim();
-        // Remove markdown em negrito do início para leitura sintetizada limpa
-        texto = texto.replaceAll(RegExp(r'\*\*([^*]+)\*\*:\s*'), r'$1: ');
-        texto = texto.replaceAll('**', '');
-        if (texto.isNotEmpty) {
-          alteracoes.add(texto);
+        final textoBruto = linha.substring(2).trim();
+        final textoAmigavel = sanitizarLinhaParaUsuario(textoBruto);
+        if (textoAmigavel != null && textoAmigavel.isNotEmpty) {
+          alteracoes.add(textoAmigavel);
         }
       }
     }

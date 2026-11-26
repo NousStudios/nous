@@ -1,6 +1,8 @@
 import 'package:flutter/foundation.dart';
 import 'package:nous/src/features/chat/models/chamada_sessao.dart';
 import 'package:nous/src/features/chat/models/mensagem_chat.dart';
+import 'package:nous/src/features/chat/models/registro_chamada.dart';
+import 'package:nous/src/features/chat/services/chat_recursos_extras_service.dart';
 import 'package:nous/src/features/chat/services/chat_service.dart';
 
 /// Registra o resumo da chamada (duração, recusada ou perdida) no histórico da conversa.
@@ -55,6 +57,26 @@ class ChamadaHistoricoService {
 
     try {
       await ChatService.enviarMensagemInstantanea(mensagem);
+      await ChatRecursosExtrasService.registrarChamada(
+        RegistroChamada(
+          id: 'reg_${sessao.id}',
+          conversaId: sessao.conversaId,
+          tituloContato: ehChamadorLocal
+              ? sessao.destinatarioNome
+              : sessao.remetenteNome,
+          fotoContato: ehChamadorLocal
+              ? sessao.destinatarioFoto
+              : sessao.remetenteFoto,
+          participantesIds: sessao.participantesIds,
+          tipo: sessao.tipo,
+          recebida: !ehChamadorLocal,
+          atendida: foiConectada,
+          duracaoSegundos: duracaoSegundos,
+          dataHora: DateTime.now(),
+          ehGrupo: sessao.ehGrupo,
+          ehAgora: sessao.conversaId.startsWith('loja_nous_coletiva'),
+        ),
+      );
     } catch (e) {
       debugPrint('[ChamadaHistoricoService] Erro ao registrar chamada no chat: $e');
     }

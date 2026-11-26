@@ -9,7 +9,8 @@
 
 ## 2. Pasta `dist/`
 
-- Windows: `dist/Nous_Instalador_v1.0.62_Versao_Teste.exe` (Inno Setup 6, com ícone, dependências C++ e SQLite).
+- Windows (Instalador): `dist/Nous_Instalador_v1.0.62_Versao_Teste.exe` (Inno Setup 6, com ícone, dependências C++ e SQLite, para primeira instalação).
+- Windows (Atualização Transparente In-App): `dist/Nous_Windows_v1.0.62.zip` (pacote compactado da pasta Release para auto-update sem instalador, estilo Discord/VS Code).
 - Android: `dist/Nous_Android_v1.0.62_Versao_Teste.apk` (modo Release).
 - O pipeline apaga versões antigas e mantém só a mais recente.
 
@@ -17,7 +18,7 @@
 
 | Script | O que faz |
 |---|---|
-| `gerar_instalador.ps1` | Extrai versão e build do `pubspec.yaml`, sincroniza `AtualizacaoService.dart`, compila o APK Android atualizado (`gerar_apk.ps1`) para `dist/`, depois `flutter build windows --release`, empacota com Inno Setup 6 (`windows/installer.iss`, `ISCC.exe`) e entrega o `.exe` em `dist/`. Remove instaladores de versões anteriores em `dist/`. |
+| `gerar_instalador.ps1` | Extrai versão e build do `pubspec.yaml`, sincroniza `AtualizacaoService.dart`, compila o APK Android atualizado (`gerar_apk.ps1`) para `dist/`, depois `flutter build windows --release`, gera o pacote `Nous_Windows_v${versao}.zip` para atualizações silenciosas in-app, empacota com Inno Setup 6 (`windows/installer.iss`, `ISCC.exe`) e entrega o `.exe` em `dist/`. Remove instaladores e zips de versões anteriores em `dist/`. |
 | `gerar_apk.ps1` | Compila `flutter build apk --release` e copia o resultado para `dist/Nous_Android_v${versao}_Versao_Teste.apk`, excluindo APKs de versões antigas. |
 | `deploy_wifi.ps1` | Conecta ao celular por ADB sobre Wi-Fi e instala o APK atualizado. |
 | `converter_icone.ps1` | Converte `assets/images/logo.png` em `app_icon.ico` (multirresolução) e, no Android, `ic_launcher.png` com fundo preto sólido `#000000` e o Adaptive Icon oficial (`res/mipmap-anydpi-v26/ic_launcher.xml` e `ic_launcher_foreground.png` centralizado na safe zone), sem halos nos launchers. |
@@ -26,13 +27,13 @@
 
 ## 4. Atualização por Wi-Fi e GitHub Releases
 
-- O servidor local expõe `GET /api/versao`, `GET /api/download_apk` (Android) e `GET /api/download_exe` (Windows).
-- `ManipuladorMidiaServidor.obterArquivoApk()` e `obterArquivoExe()` procuram o instalador correspondente à versão atual em `dist/`, na pasta do executável e (para `.exe` no Android) em `/storage/emulated/0/Download` e `Download/Nous`.
-- O cliente compara `buildRemota > buildAtual || (buildRemota == buildAtual && versaoMaior(versaoRemota, versaoAtual))`. Se a plataforma tiver o binário disponível no servidor (`temApk` no Android / `temExe` no Windows), baixa e instala via Wi-Fi.
-- **Fallback automático para GitHub Releases:** quando o servidor local tem versão superior, mas não possui o instalador daquela plataforma em disco (ex.: celular como servidor para um notebook Windows sem o `.exe` salvo), o cliente consulta automaticamente `releases/latest` no GitHub, extraindo o `browser_download_url` direto do asset `.exe` ou `.apk`.
-- Com versão superior no Android: baixa os bytes dentro do app com barra de progresso, grava em armazenamento temporário e abre o instalador nativo via `FileProvider` (`MethodChannel("com.nous.app/instalador")`, método `instalarApk`). No Windows: baixa o `.exe` e executa automaticamente.
-- **Versão real no Android:** o método nativo `obterVersaoApp` do mesmo `MethodChannel` lê o `PackageManager` (`versionName`, `longVersionCode`) e alimenta `AtualizacaoService.inicializar()` em `main.dart`, evitando descompasso de constantes e reinstalação infinita.
-- `AtualizacaoDialog` e `AtualizacaoService` priorizam a fonte local (`/api/download_apk` e `/api/download_exe`) e protegem `temAtualizacao` e `infoAtualizacao`: buscas secundárias na internet não podem apagar o aviso do servidor local.
+- O servidor local expõe `GET /api/versao`, `GET /api/download_apk` (Android), `GET /api/download_exe` (Windows) e `GET /api/download_zip` (Windows in-app silencioso).
+- `ManipuladorMidiaServidor.obterArquivoApk()`, `obterArquivoExe()` e `obterArquivoZipWindows()` procuram o pacote correspondente à versão atual em `dist/`, na pasta do executável e (para `.exe` no Android) em `/storage/emulated/0/Download` e `Download/Nous`.
+- O cliente compara `buildRemota > buildAtual || (buildRemota == buildAtual && versaoMaior(versaoRemota, versaoAtual))`. Se a plataforma tiver o binário disponível no servidor (`temApk` no Android / `temZip` ou `temExe` no Windows), baixa e instala via Wi-Fi.
+- **Atualização Transparente (Discord / VS Code Style) e Retorno de Sessão:** No Windows, o app prioriza o download do `.zip`. Antes de atualizar, o app salva a sessão transitória do operador (`SessaoRetornoService`), extrai o pacote em staging via ferramentas nativas (`tar` ou PowerShell), dispara um script detached que aguarda a liberação dos arquivos, substitui os binários da aplicação e reabre o `nous.exe`. Ao reiniciar, `SessaoRetornoHelper` lê `sessao_retorno.json`, realiza auto-login e devolve o operador na mesma tela ou loja onde parou.
+- **Prioridade GitHub Releases + Fallback Wi-Fi Local:** ao iniciar o app (`main.dart`), `AtualizacaoService.verificarAtualizacao(silencioso: true)` consulta `releases/latest` no GitHub em segundo plano, extraindo o `browser_download_url` direto do asset `.zip` (ou `.exe` / `.apk`). Se estiver offline ou sem resposta do GitHub, a verificação via rede local (`/api/versao` + `/api/download_zip` ou `/api/download_exe`) assume automaticamente como plano B.
+- **Resiliência a HTTP 429 (Rate Limiting) e Fallback:** endpoints de atualização e relógio no `SegurancaServidorRelay` são imunes a cooldowns de navegação, com tolerância ampliada na rede local. No download in-app (`AtualizacaoService`), são enviados cabeçalhos reais de navegador com retentativa exponencial com leitura de `Retry-After`; se o rate limit externo do GitHub persistir, o app aciona fallback automático para download direto no navegador ou disponibiliza botão manual no `CardStatusAtualizacao`.
+- `AtualizacaoDialog` e `DespachanteClienteRede` preservam a atualização encontrada: nenhuma das fontes apaga o aviso válido encontrado pela outra.
 
 ## 5. Windows
 

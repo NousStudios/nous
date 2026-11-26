@@ -35,13 +35,19 @@ class _DialogExplorarSalasComunitariasState extends State<DialogExplorarSalasCom
   @override
   void initState() {
     super.initState();
+    ChatService.alteracoesChatNotifier.addListener(_aoAtualizarChat);
     _carregarSalas();
   }
 
   @override
   void dispose() {
+    ChatService.alteracoesChatNotifier.removeListener(_aoAtualizarChat);
     _buscaCtrl.dispose();
     super.dispose();
+  }
+
+  void _aoAtualizarChat() {
+    if (mounted) _carregarSalas();
   }
 
   Future<void> _carregarSalas() async {

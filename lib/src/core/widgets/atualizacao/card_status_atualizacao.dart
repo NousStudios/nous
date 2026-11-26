@@ -124,13 +124,52 @@ class CardStatusAtualizacao extends StatelessWidget {
                       }
                       return Padding(
                         padding: const EdgeInsets.only(top: 10),
-                        child: Text(
-                          texto,
-                          style: theme.getTextStyle(
-                            fontSize: 11.5,
-                            fontWeight: FontWeight.w600,
-                            color: theme.dangerColor,
-                          ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              texto,
+                              style: theme.getTextStyle(
+                                fontSize: 11.5,
+                                fontWeight: FontWeight.w600,
+                                color: theme.dangerColor,
+                              ),
+                            ),
+                            if (novaInfo.urlDownload.isNotEmpty &&
+                                !novaInfo.urlDownload
+                                    .contains('/api/download_')) ...[
+                              const SizedBox(height: 8),
+                              OutlinedButton.icon(
+                                style: OutlinedButton.styleFrom(
+                                  side: BorderSide(color: theme.borderColor),
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 10,
+                                    vertical: 6,
+                                  ),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                ),
+                                onPressed: () =>
+                                    AtualizacaoService.abrirPaginaDownload(
+                                  novaInfo.urlDownload,
+                                ),
+                                icon: Icon(
+                                  Icons.open_in_browser_rounded,
+                                  size: 16,
+                                  color: theme.textColor,
+                                ),
+                                label: Text(
+                                  'Baixar pelo Navegador',
+                                  style: theme.getTextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w600,
+                                    color: theme.textColor,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ],
                         ),
                       );
                     },
@@ -156,15 +195,21 @@ class CardStatusAtualizacao extends StatelessWidget {
                             ),
                           ),
                           const SizedBox(height: 6),
-                          Text(
-                            progresso != null && progresso < 1.0
-                                ? 'Baixando atualização in-app: $pct%...'
-                                : 'Download concluído! Iniciando instalador...',
-                            style: theme.getTextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.w600,
-                              color: theme.textColor,
-                            ),
+                          ValueListenableBuilder<String?>(
+                            valueListenable: AtualizacaoService.mensagemStatus,
+                            builder: (context, msgStatus, _) {
+                              final texto = (progresso != null && progresso < 1.0)
+                                  ? 'Baixando atualização in-app: $pct%...'
+                                  : (msgStatus ?? 'Download concluído! Atualizando...');
+                              return Text(
+                                texto,
+                                style: theme.getTextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w600,
+                                  color: theme.textColor,
+                                ),
+                              );
+                            },
                           ),
                         ],
                       ),

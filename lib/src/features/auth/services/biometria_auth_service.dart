@@ -28,6 +28,17 @@ class BiometriaAuthService {
   static String _normalizarCpf(String cpf) =>
       cpf.replaceAll(RegExp(r'\D'), '');
 
+  /// Verifica se o aparelho é celular e possui qualquer credencial nativa ativa
+  /// (biometria, PIN, padrão ou senha do aparelho).
+  static Future<bool> suportaCredencialNativa() async {
+    if (!ehCelular) return false;
+    try {
+      return await _auth.isDeviceSupported();
+    } catch (_) {
+      return false;
+    }
+  }
+
   /// Verifica se o aparelho é celular e possui biometria ativa configurada.
   static Future<bool> suportaBiometria() async {
     if (!ehCelular) return false;
@@ -71,32 +82,34 @@ class BiometriaAuthService {
     return 'biometric';
   }
 
-  /// Solicita a biometria nativa do sistema operacional.
+  /// Solicita a autenticação no aparelho (biometria ou senha/PIN direto na mesma janela).
   static Future<bool> autenticar({
     String motivo = 'Confirme sua biometria para acessar o Nous',
   }) async {
-    if (!await suportaBiometria()) return false;
+    if (!await suportaCredencialNativa()) {
+      return false;
+    }
     try {
       return await _auth.authenticate(
         localizedReason: motivo,
         authMessages: const <AuthMessages>[
           AndroidAuthMessages(
-            signInTitle: 'Autenticação biométrica',
-            biometricHint: 'Toque no sensor de digital',
+            signInTitle: 'Autenticação do aparelho',
+            biometricHint: 'Toque no sensor de digital ou use a senha',
             biometricNotRecognized: 'Biometria não reconhecida. Tente novamente.',
-            biometricRequiredTitle: 'Biometria obrigatória',
-            biometricSuccess: 'Biometria confirmada',
-            cancelButton: 'Cancelar',
+            biometricRequiredTitle: 'Autenticação necessária',
+            biometricSuccess: 'Autenticação confirmada',
+            cancelButton: 'Voltar',
             deviceCredentialsRequiredTitle: 'Credencial do aparelho obrigatória',
             deviceCredentialsSetupDescription:
-                'Configure a biometria nas configurações do aparelho.',
+                'Configure a biometria ou senha de bloqueio nas configurações do aparelho.',
             goToSettingsButton: 'Configurações',
             goToSettingsDescription:
                 'A biometria não está configurada neste aparelho. Acesse as configurações para ativá-la.',
           ),
         ],
         options: const AuthenticationOptions(
-          biometricOnly: true,
+          biometricOnly: false,
           stickyAuth: true,
         ),
       );
@@ -105,11 +118,14 @@ class BiometriaAuthService {
     }
   }
 
-  /// Associa e salva a biometria utilizada no aparelho com o CPF informado.
-  /// Caso já esteja vinculada exatamente a esse CPF, apenas atualiza o timestamp.
-  static Future<bool> vincularCpfComBiometria(String cpf) async {
+  /// Associa e salva a credencial utilizada no aparelho com o CPF informado.
+  /// Caso já esteja vinculada exatamente a esse CPF, apenas atualiza o tipo.
+  static Future<bool> vincularCpfComBiometria(
+    String cpf, {
+    bool jaAutenticado = false,
+  }) async {
     final cpfLimpo = _normalizarCpf(cpf);
-    if (cpfLimpo.length != 11 || !await suportaBiometria()) return false;
+    if (cpfLimpo.length != 11 || !await suportaCredencialNativa()) return false;
 
     final cpfAtual = await obterCpfVinculado();
     if (cpfAtual == cpfLimpo) {
@@ -118,10 +134,12 @@ class BiometriaAuthService {
       return true;
     }
 
-    final ok = await autenticar(
-      motivo: 'Use sua biometria para ativar o login automático neste CPF',
-    );
-    if (!ok) return false;
+    if (!jaAutenticado) {
+      final ok = await autenticar(
+        motivo: 'Use sua biometria ou senha para ativar o login automático neste CPF',
+      );
+      if (!ok) return false;
+    }
 
     final tipo = await _detectarTipoBiometriaPrincipal();
     await PreferenciasSoberanasService.salvarTexto(_chaveCpfVinculado, cpfLimpo);
@@ -139,7 +157,7 @@ class BiometriaAuthService {
     if (!ehCelular) return false;
     final cpfVinculado = await obterCpfVinculado();
     if (cpfVinculado == null) return false;
-    if (!await suportaBiometria()) return false;
+    if (!await suportaCredencialNativa()) return false;
 
     final autenticado = await autenticar(
       motivo: 'Use sua biometria para entrar no Nous',

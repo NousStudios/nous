@@ -93,7 +93,8 @@ class ChatSqliteSchemaHelper {
         data_hora_ultima_mensagem TEXT,
         arquivada INTEGER DEFAULT 0,
         fixada INTEGER DEFAULT 0,
-        silenciada INTEGER DEFAULT 0
+        silenciada INTEGER DEFAULT 0,
+        favorita INTEGER DEFAULT 0
       );
     ''');
 
@@ -107,6 +108,7 @@ class ChatSqliteSchemaHelper {
       'ALTER TABLE conversas_chat ADD COLUMN nome_grupo TEXT DEFAULT "";',
       'ALTER TABLE conversas_chat ADD COLUMN titulo_conversa TEXT DEFAULT "";',
       'ALTER TABLE conversas_chat ADD COLUMN silenciada INTEGER DEFAULT 0;',
+      'ALTER TABLE conversas_chat ADD COLUMN favorita INTEGER DEFAULT 0;',
     ];
     for (final sql in alteracoesConversas) {
       try {
@@ -118,6 +120,57 @@ class ChatSqliteSchemaHelper {
       CREATE TABLE IF NOT EXISTS conversas_excluidas (
         id TEXT PRIMARY KEY,
         excluida_em TEXT NOT NULL
+      );
+    ''');
+
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS filtros_chat_personalizados (
+        id TEXT PRIMARY KEY,
+        nome TEXT NOT NULL,
+        conversas_json TEXT DEFAULT '[]',
+        ordem INTEGER DEFAULT 0,
+        criado_em TEXT NOT NULL
+      );
+    ''');
+
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS listas_transmissao_chat (
+        id TEXT PRIMARY KEY,
+        nome TEXT NOT NULL,
+        destinatarios_json TEXT DEFAULT '[]',
+        criado_em TEXT NOT NULL,
+        atualizado_em TEXT
+      );
+    ''');
+
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS historico_chamadas_chat (
+        id TEXT PRIMARY KEY,
+        conversa_id TEXT NOT NULL,
+        titulo_contato TEXT NOT NULL,
+        foto_contato TEXT DEFAULT '',
+        participantes_json TEXT DEFAULT '[]',
+        tipo TEXT NOT NULL DEFAULT 'voz',
+        recebida INTEGER DEFAULT 0,
+        atendida INTEGER DEFAULT 0,
+        duracao_segundos INTEGER DEFAULT 0,
+        data_hora TEXT NOT NULL,
+        eh_grupo INTEGER DEFAULT 0,
+        eh_agora INTEGER DEFAULT 0
+      );
+    ''');
+
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS comunidades_usuario_chat (
+        id TEXT PRIMARY KEY,
+        nome TEXT NOT NULL,
+        descricao TEXT DEFAULT '',
+        foto TEXT DEFAULT '',
+        criador_cpf TEXT NOT NULL,
+        membros_json TEXT DEFAULT '[]',
+        canais_texto_json TEXT DEFAULT '[]',
+        canais_voz_json TEXT DEFAULT '[]',
+        criado_em TEXT NOT NULL
       );
     ''');
 

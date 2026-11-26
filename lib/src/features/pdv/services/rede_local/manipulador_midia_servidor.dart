@@ -63,9 +63,13 @@ class ManipuladorMidiaServidor {
       return true;
     }
 
-    // 7. Download direto do instalador Windows (.exe) pela rede Wi-Fi local
+    // 7. Download direto do instalador Windows (.exe) ou pacote silencioso (.zip) pela rede Wi-Fi local
     if (path == '/api/download_exe' && method == 'GET') {
       await _atenderDownloadExe(request);
+      return true;
+    }
+    if (path == '/api/download_zip' && method == 'GET') {
+      await _atenderDownloadZip(request);
       return true;
     }
 
@@ -423,6 +427,10 @@ class ManipuladorMidiaServidor {
     final temExe = arquivoExe != null && arquivoExe.existsSync() && arquivoExe.lengthSync() > 0;
     final tamanhoExe = temExe ? arquivoExe.lengthSync() : 0;
 
+    final arquivoZip = obterArquivoZipWindows();
+    final temZip = arquivoZip != null && arquivoZip.existsSync() && arquivoZip.lengthSync() > 0;
+    final tamanhoZip = temZip ? arquivoZip.lengthSync() : 0;
+
     final novidade = ChangelogService.obterUltimaVersao(AtualizacaoService.versaoAtual) ??
         ChangelogService.obterUltimaVersao();
 
@@ -439,6 +447,9 @@ class ManipuladorMidiaServidor {
         'temExe': temExe,
         'tamanhoExeBytes': tamanhoExe,
         'nomeArquivoExe': 'Nous_Instalador_v${AtualizacaoService.versaoAtual}_Versao_Teste.exe',
+        'temZip': temZip,
+        'tamanhoZipBytes': tamanhoZip,
+        'nomeArquivoZip': 'Nous_Windows_v${AtualizacaoService.versaoAtual}.zip',
         'alteracoes': novidade?.alteracoes ?? <String>[],
       }));
     await request.response.close();
@@ -465,6 +476,18 @@ class ManipuladorMidiaServidor {
       nomeDownload: 'Nous_Instalador_v${AtualizacaoService.versaoAtual}_Versao_Teste.exe',
       mensagemAusente: 'Instalador Windows (.exe) não encontrado para distribuição.',
       rotuloLog: 'EXE',
+    );
+  }
+
+  static Future<void> _atenderDownloadZip(HttpRequest request) async {
+    final arquivoZip = obterArquivoZipWindows();
+    await _enviarArquivoInstalador(
+      request,
+      arquivo: arquivoZip,
+      contentType: ContentType('application', 'zip'),
+      nomeDownload: 'Nous_Windows_v${AtualizacaoService.versaoAtual}.zip',
+      mensagemAusente: 'Pacote Windows (.zip) não encontrado para distribuição.',
+      rotuloLog: 'ZIP',
     );
   }
 
@@ -521,6 +544,33 @@ class ManipuladorMidiaServidor {
         prefixoNome: 'Nous_Instalador',
         buscarEmDownloadsAndroid: true,
       );
+
+  /// Localiza o pacote leve Windows (.zip) para atualização automática in-app.
+  static File? obterArquivoZipWindows() {
+    try {
+      final pastaExe = File(Platform.resolvedExecutable).parent.path;
+      final versao = AtualizacaoService.versaoAtual;
+      final nomePadrao = 'Nous_Windows_v$versao.zip';
+
+      final caminhos = [
+        '$pastaExe/dist/$nomePadrao',
+        '$pastaExe/$nomePadrao',
+        'dist/$nomePadrao',
+        '${Directory.current.path}/dist/$nomePadrao',
+        'D:/Nous/nous/dist/$nomePadrao',
+      ];
+
+      for (final c in caminhos) {
+        try {
+          final f = File(c);
+          if (f.existsSync() && f.lengthSync() > 0) {
+            return f;
+          }
+        } catch (_) {}
+      }
+    } catch (_) {}
+    return null;
+  }
 
   static File? _obterArquivoInstalador({
     required String extensao,

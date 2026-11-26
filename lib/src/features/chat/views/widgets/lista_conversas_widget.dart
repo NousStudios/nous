@@ -5,7 +5,10 @@ import 'package:nous/src/core/widgets/texto_rolante.dart';
 import 'package:nous/src/features/auth/providers/auth_provider.dart';
 import 'package:nous/src/features/chat/controllers/mensageria_controller.dart';
 import 'package:nous/src/features/chat/models/conversa_chat.dart';
+import 'package:nous/src/features/chat/models/filtro_chat_personalizado.dart';
 import 'package:nous/src/features/chat/services/resolvedor_foto_chat.dart';
+import 'package:nous/src/features/chat/views/dialogs/dialog_atribuir_filtro_chat.dart';
+import 'package:nous/src/features/chat/views/widgets/barra_filtros_chat_widget.dart';
 import 'package:nous/src/features/chat/views/widgets/barra_stories_mensageria_widget.dart';
 import 'package:nous/src/features/chat/views/widgets/item_conversa_tile.dart';
 
@@ -59,6 +62,107 @@ class _ListaConversasWidgetState extends State<ListaConversasWidget> {
     final hora = local.hour.toString().padLeft(2, '0');
     final min = local.minute.toString().padLeft(2, '0');
     return '$hora:$min';
+  }
+
+  Future<void> _abrirCriarFiltro(AppTheme theme) async {
+    final nome = await DialogAtribuirFiltroChat.mostrarCriarOuRenomear(
+      context,
+      theme: theme,
+    );
+    if (nome != null && nome.isNotEmpty) {
+      await widget.controller.criarFiltroPersonalizado(nome);
+    }
+  }
+
+  Future<void> _abrirGerenciarFiltro(
+    AppTheme theme,
+    FiltroChatPersonalizado filtro,
+  ) async {
+    final acao = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: theme.cardBackgroundColor,
+        title: Text(
+          'Filtro "${filtro.nome}"',
+          style: theme.getTextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.bold,
+            color: theme.textColor,
+          ),
+        ),
+        content: Text(
+          'Deseja renomear ou excluir este filtro personalizado?',
+          style: theme.getTextStyle(
+            fontSize: 13,
+            color: theme.secondaryTextColor,
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, 'excluir'),
+            child: Text(
+              'Excluir',
+              style: theme.getTextStyle(
+                color: theme.dangerColor,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, 'renomear'),
+            child: Text(
+              'Renomear',
+              style: theme.getTextStyle(color: theme.textColor),
+            ),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: Text(
+              'Fechar',
+              style: theme.getTextStyle(color: theme.secondaryTextColor),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    if (!mounted) return;
+    if (acao == 'excluir') {
+      await widget.controller.excluirFiltroPersonalizado(filtro.id);
+    } else if (acao == 'renomear') {
+      final novoNome = await DialogAtribuirFiltroChat.mostrarCriarOuRenomear(
+        context,
+        theme: theme,
+        nomeInicial: filtro.nome,
+      );
+      if (novoNome != null && novoNome.isNotEmpty) {
+        await widget.controller.renomearFiltroPersonalizado(filtro, novoNome);
+      }
+    }
+  }
+
+  Future<void> _abrirAtribuirFiltro(
+    AppTheme theme,
+    ConversaChat conversa,
+  ) async {
+    await DialogAtribuirFiltroChat.mostrarAtribuirConversa(
+      context,
+      theme: theme,
+      conversa: conversa,
+      filtros: widget.controller.filtrosPersonalizados,
+      onAlternarFiltro: (filtroId) => widget.controller.alternarConversaNoFiltro(
+        filtroId: filtroId,
+        conversaId: conversa.id,
+      ),
+      onCriarEAtribuir: (nome) async {
+        final novo = await widget.controller.criarFiltroPersonalizado(nome);
+        await widget.controller.alternarConversaNoFiltro(
+          filtroId: novo.id,
+          conversaId: conversa.id,
+        );
+        return novo;
+      },
+    );
   }
 
   @override
@@ -177,6 +281,25 @@ class _ListaConversasWidgetState extends State<ListaConversasWidget> {
             ],
           ),
         ),
+
+        // Filtros rápidos e personalizados acima da lista de conversas
+        if (!emSolicitacoes) ...[
+          BarraFiltrosChatWidget(
+            theme: theme,
+            filtroAtivo: widget.controller.filtroAtivo,
+            filtroPersonalizadoId: widget.controller.filtroPersonalizadoId,
+            filtrosPersonalizados: widget.controller.filtrosPersonalizados,
+            totalNaoLidas: widget.controller.totalConversasNaoLidas,
+            onSelecionarFiltro: (tipo, {personalizadoId}) =>
+                widget.controller.selecionarFiltro(
+                  tipo,
+                  personalizadoId: personalizadoId,
+                ),
+            onCriarFiltro: () => _abrirCriarFiltro(theme),
+            onGerenciarFiltro: (f) => _abrirGerenciarFiltro(theme, f),
+          ),
+          const SizedBox(height: 6),
+        ],
 
         // Cabeçalho de Navegação de Solicitações (quando dentro da aba)
         if (emSolicitacoes)
@@ -396,6 +519,10 @@ class _ListaConversasWidgetState extends State<ListaConversasWidget> {
                           widget.onAlternarArquivar(conversa),
                       onAlternarSilenciar: () =>
                           widget.onAlternarSilenciar(conversa),
+                      onAlternarFavorita: () =>
+                          widget.controller.alternarFavoritaConversa(conversa),
+                      onAtribuirFiltro: () =>
+                          _abrirAtribuirFiltro(theme, conversa),
                       onRenomear: () => widget.onRenomearConversa(conversa),
                       onExcluir: widget.onExcluirConversa != null
                           ? () => widget.onExcluirConversa!(conversa)

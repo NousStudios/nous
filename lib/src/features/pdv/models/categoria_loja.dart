@@ -73,12 +73,15 @@ class CategoriaLoja {
   factory CategoriaLoja.fromJson(Map<String, dynamic> json) {
     final tipoTexto = json['tipo'] as String?;
     return CategoriaLoja(
-      id: json['id'] as String,
-      nome: json['nome'] as String,
+      id: json['id'] as String? ?? '',
+      nome: json['nome'] as String? ?? '',
       preco: json['preco'] as String? ?? '',
       tipo: tipoTexto == null
           ? null
-          : TipoItemLoja.values.firstWhere((t) => t.name == tipoTexto),
+          : TipoItemLoja.values.firstWhere(
+              (t) => t.name == tipoTexto,
+              orElse: () => TipoItemLoja.produto,
+            ),
       foto: json['foto'] as String? ?? '',
       itemIds: (json['itemIds'] as List<dynamic>? ?? const [])
           .map((item) => item as String)

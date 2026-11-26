@@ -8,6 +8,7 @@ import 'package:nous/src/core/widgets/botao_notificacoes_app_bar.dart';
 import 'package:nous/src/core/widgets/texto_rolante.dart';
 import 'package:nous/src/features/auth/providers/auth_provider.dart';
 import 'package:nous/src/features/auth/views/login_view.dart';
+import 'package:nous/src/features/notificacoes/providers/notificacoes_provider.dart';
 import 'package:nous/src/features/pdv/providers/pdv_provider.dart';
 import 'package:nous/src/features/pdv/services/rede_local/cliente_rede_local.dart';
 import 'package:nous/src/features/pdv/services/rede_local/servidor_rede_local.dart';
@@ -146,6 +147,7 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
 
     context.read<AuthProvider>().sair();
     context.read<PdvProvider>().entrarComoVisitante();
+    context.read<NotificacoesProvider>().limpar();
 
     Navigator.of(context, rootNavigator: true).pushAndRemoveUntil(
       MaterialPageRoute(builder: (_) => const LoginView()),

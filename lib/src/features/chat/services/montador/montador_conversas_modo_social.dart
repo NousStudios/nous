@@ -93,6 +93,7 @@ class MontadorConversasModoSocial {
         fixada: fixada,
         arquivada: arquivada,
         silenciada: persistida?.silenciada ?? false,
+        favorita: persistida?.favorita ?? false,
         ultimaMensagemEnviadaPorMim: msgs.isNotEmpty
             ? msgs.last.enviadaPorMim
             : (persistida?.ultimaMensagemEnviadaPorMim ?? false),
@@ -271,6 +272,7 @@ class MontadorConversasModoSocial {
         fixada: fixada,
         arquivada: arquivada,
         silenciada: persistida?.silenciada ?? false,
+        favorita: persistida?.favorita ?? false,
         ultimaMensagemEnviadaPorMim: msgs.isNotEmpty
             ? msgs.last.enviadaPorMim
             : (persistida?.ultimaMensagemEnviadaPorMim ?? false),

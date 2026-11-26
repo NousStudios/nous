@@ -14,6 +14,7 @@ class UsuarioNous {
   final String estadoCivil;
   final String cepResidencial;
   final String enderecoResidencial;
+  final String numeroResidencial;
   final String biografia;
   final String nomePublico;
   final String apelidoPublico;
@@ -80,6 +81,7 @@ class UsuarioNous {
     this.estadoCivil = '',
     this.cepResidencial = '',
     this.enderecoResidencial = '',
+    this.numeroResidencial = '',
     this.biografia = '',
     this.nomePublico = '',
     this.apelidoPublico = '',
@@ -302,6 +304,7 @@ class UsuarioNous {
     String? estadoCivil,
     String? cepResidencial,
     String? enderecoResidencial,
+    String? numeroResidencial,
     String? biografia,
     String? nomePublico,
     String? apelidoPublico,
@@ -347,6 +350,7 @@ class UsuarioNous {
       estadoCivil: estadoCivil ?? this.estadoCivil,
       cepResidencial: cepResidencial ?? this.cepResidencial,
       enderecoResidencial: enderecoResidencial ?? this.enderecoResidencial,
+      numeroResidencial: numeroResidencial ?? this.numeroResidencial,
       biografia: biografia ?? this.biografia,
       nomePublico: nomePublico ?? this.nomePublico,
       apelidoPublico: apelidoPublico ?? this.apelidoPublico,
@@ -398,6 +402,7 @@ class UsuarioNous {
       'estadoCivil': estadoCivil,
       'cepResidencial': cepResidencial,
       'enderecoResidencial': enderecoResidencial,
+      'numeroResidencial': numeroResidencial,
       'biografia': biografia,
       'nomePublico': nomePublico,
       'apelidoPublico': apelidoPublico,
@@ -451,6 +456,7 @@ class UsuarioNous {
       estadoCivil: json['estadoCivil'] as String? ?? '',
       cepResidencial: json['cepResidencial'] as String? ?? '',
       enderecoResidencial: json['enderecoResidencial'] as String? ?? '',
+      numeroResidencial: json['numeroResidencial'] as String? ?? '',
       biografia: json['biografia'] as String? ?? '',
       nomePublico: json['nomePublico'] as String? ?? '',
       apelidoPublico: json['apelidoPublico'] as String? ?? '',
@@ -617,6 +623,11 @@ class UsuarioNous {
       enderecoResidencial: escolher(
         enderecoResidencial,
         outro.enderecoResidencial,
+        permitirVazioNoOutro: true,
+      ),
+      numeroResidencial: escolher(
+        numeroResidencial,
+        outro.numeroResidencial,
         permitirVazioNoOutro: true,
       ),
       biografia: escolher(biografia, outro.biografia, permitirVazioNoOutro: true),

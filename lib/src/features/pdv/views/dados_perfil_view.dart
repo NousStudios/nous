@@ -6,6 +6,7 @@ import 'package:nous/src/core/theme/theme_controller.dart';
 import 'package:nous/src/features/auth/providers/auth_provider.dart';
 import 'package:nous/src/features/auth/views/login_view.dart';
 import 'package:nous/src/features/chat/services/chat_service.dart';
+import 'package:nous/src/features/notificacoes/providers/notificacoes_provider.dart';
 import 'package:nous/src/features/pdv/models/loja.dart';
 import 'package:nous/src/features/pdv/models/pedido_loja.dart';
 import 'package:nous/src/features/pdv/providers/pdv_provider.dart';
@@ -131,6 +132,8 @@ class _DadosPerfilViewState extends State<DadosPerfilView> {
 
   void _handleLogout(BuildContext context) {
     context.read<AuthProvider>().sair();
+    context.read<PdvProvider>().limparSessao();
+    context.read<NotificacoesProvider>().limpar();
     Navigator.of(context).pushAndRemoveUntil(
       MaterialPageRoute(builder: (context) => const LoginView()),
       (route) => false,

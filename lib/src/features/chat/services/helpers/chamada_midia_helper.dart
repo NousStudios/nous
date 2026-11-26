@@ -97,8 +97,9 @@ class ChamadaMidiaHelper {
     required RTCVideoRenderer renderizadorLocal,
     required RTCRtpSender? videoSenderAtual,
     required VoidCallback onTelaEncerrada,
+    String? sourceId,
   }) async {
-    final telaStream = await ChamadaTelaHelper.capturarTela();
+    final telaStream = await ChamadaTelaHelper.capturarTela(sourceId: sourceId);
     if (telaStream == null) {
       await ChamadaTelaHelper.pararServicoAndroid();
       return null;
@@ -108,6 +109,13 @@ class ChamadaMidiaHelper {
     if (tracks.isEmpty) {
       await telaStream.dispose();
       return null;
+    }
+
+    // Se o sistema/aba forneceu áudio na captura de tela, envia também na chamada
+    for (final audioTrack in telaStream.getAudioTracks()) {
+      try {
+        await peerConnection.addTrack(audioTrack, telaStream);
+      } catch (_) {}
     }
 
     final screenTrack = tracks.first;

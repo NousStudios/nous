@@ -310,6 +310,9 @@ class TimelineRepositorioSqlite {
   static Future<void> salvarStory(StorySocial story) async =>
       TimelineStoriesSqliteHelper.salvarStory(await obterDb(), story);
 
+  static Future<StorySocial?> buscarStoryPorId(String storyId) async =>
+      TimelineStoriesSqliteHelper.buscarStoryPorId(await obterDb(), storyId);
+
   static Future<List<StorySocial>> listarStoriesDoUsuario(String cpf) async =>
       TimelineStoriesSqliteHelper.listarStoriesDoUsuario(await obterDb(), cpf);
 

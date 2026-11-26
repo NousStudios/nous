@@ -311,7 +311,9 @@ class BuscaMapaController extends ChangeNotifier {
     perfilSelecionado = perfil;
     if (perfil != null) {
       final cpfNorm = perfil.cpf.replaceAll(RegExp(r'\D'), '');
-      final coord = coordenadasUsuariosTempoReal[cpfNorm];
+      final meuCpfNorm = cpfAtivo.replaceAll(RegExp(r'\D'), '');
+      final coord = coordenadasUsuariosTempoReal[cpfNorm] ??
+          (cpfNorm == meuCpfNorm ? posicaoUsuario : null);
       if (coord != null) _moverCameraSuave(coord, 16.0);
     }
     _notificar();

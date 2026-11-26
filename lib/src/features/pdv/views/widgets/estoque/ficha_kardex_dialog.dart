@@ -6,7 +6,7 @@ import 'package:nous/src/features/pdv/views/widgets/estado_vazio_container.dart'
 import 'linha_movimento_widget.dart';
 
 /// Modal dialog com a Ficha Kardex do produto e seu histórico cronológico.
-class FichaKardexDialog extends StatelessWidget {
+class FichaKardexDialog extends StatefulWidget {
   final AppTheme theme;
   final ItemLoja item;
   final double saldo;
@@ -25,7 +25,49 @@ class FichaKardexDialog extends StatelessWidget {
   });
 
   @override
+  State<FichaKardexDialog> createState() => _FichaKardexDialogState();
+}
+
+class _FichaKardexDialogState extends State<FichaKardexDialog> {
+  late List<MovimentoEstoque> _movimentos;
+  late double _saldoAtual;
+
+  AppTheme get theme => widget.theme;
+  ItemLoja get item => widget.item;
+  bool get podeEditar => widget.podeEditar;
+
+  @override
+  void initState() {
+    super.initState();
+    _movimentos = List.of(widget.movimentos);
+    _saldoAtual = widget.saldo;
+  }
+
+  @override
+  void didUpdateWidget(covariant FichaKardexDialog oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.movimentos != widget.movimentos || oldWidget.saldo != widget.saldo) {
+      _movimentos = List.of(widget.movimentos);
+      _saldoAtual = widget.saldo;
+    }
+  }
+
+  void _removerMovimentoLocal(MovimentoEstoque m) {
+    widget.onRemoverMovimento(m);
+    setState(() {
+      _movimentos.removeWhere((x) => x.id == m.id);
+      if (m.tipo == TipoMovimentoEstoque.entrada) {
+        _saldoAtual = (_saldoAtual - m.quantidade).clamp(0.0, double.infinity);
+      } else {
+        _saldoAtual += m.quantidade;
+      }
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final saldo = _saldoAtual;
+    final movimentos = _movimentos;
     return Dialog(
       backgroundColor: theme.cardBackgroundColor,
       insetPadding: const EdgeInsets.all(16),
@@ -238,7 +280,7 @@ class FichaKardexDialog extends StatelessWidget {
                             unidade: item.unidadeBase,
                             podeExcluir: podeEditar,
                             onExcluir: () {
-                              onRemoverMovimento(m);
+                              _removerMovimentoLocal(m);
                             },
                           ),
                         ),

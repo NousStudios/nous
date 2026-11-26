@@ -24,6 +24,7 @@ import 'package:nous/src/features/busca/views/widgets/painel_rotas_mapa.dart';
 import 'package:nous/src/features/pdv/models/loja.dart';
 import 'package:nous/src/features/pdv/providers/pdv_provider.dart';
 import 'package:nous/src/features/pdv/services/rede_local/cliente_rede_local.dart';
+import 'package:nous/src/features/timeline/services/timeline_service.dart';
 
 /// Tela de Busca Universal & Mapa Interativo do Nous.
 class BuscaMapaView extends StatefulWidget {
@@ -76,6 +77,7 @@ class _BuscaMapaViewState extends State<BuscaMapaView>
     });
     ClienteRedeLocal().presencasAtivas.addListener(_aoMudarRede);
     ClienteRedeLocal().estaConectado.addListener(_aoMudarRede);
+    TimelineService.alteracoesTimelineNotifier.addListener(_aoMudarRede);
   }
 
   void _aoMudarEspelhamento() {
@@ -84,7 +86,8 @@ class _BuscaMapaViewState extends State<BuscaMapaView>
     final estado = esp.estadoRemoto;
     if (estado != null) {
       _controller.aplicarEstadoEspelhado(estado);
-      return;
+      if (estado.ativo) return;
+      esp.limparEstadoRemoto();
     }
     final posGpsRede = esp.ultimaPosicaoGpsRede;
     if (posGpsRede != null) {
@@ -222,6 +225,7 @@ class _BuscaMapaViewState extends State<BuscaMapaView>
     _pdvProviderRef?.removeListener(_aoMudarRede);
     ClienteRedeLocal().presencasAtivas.removeListener(_aoMudarRede);
     ClienteRedeLocal().estaConectado.removeListener(_aoMudarRede);
+    TimelineService.alteracoesTimelineNotifier.removeListener(_aoMudarRede);
     _buscaTextController.dispose();
     _controller.dispose();
     super.dispose();

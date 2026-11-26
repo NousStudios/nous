@@ -59,13 +59,19 @@ class _DialogColaboradoresPublicacaoState
   void initState() {
     super.initState();
     _pubAtual = widget.publicacao;
+    TimelineService.alteracoesTimelineNotifier.addListener(_aoAtualizarTimeline);
     _carregarParticipantes();
   }
 
   @override
   void dispose() {
+    TimelineService.alteracoesTimelineNotifier.removeListener(_aoAtualizarTimeline);
     _scrollCtrl.dispose();
     super.dispose();
+  }
+
+  void _aoAtualizarTimeline() {
+    if (mounted) _carregarParticipantes();
   }
 
   Future<void> _carregarParticipantes() async {

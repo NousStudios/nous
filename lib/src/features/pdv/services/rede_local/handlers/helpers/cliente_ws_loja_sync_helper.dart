@@ -74,9 +74,11 @@ class ClienteWsLojaSyncHelper {
         );
 
         final lojaSincAtual = ctx.obterLojaSincronizada();
+        final ehLojaAtivaServidor = dados['ehLojaAtivaServidor'] == true;
         if (dados['tipo'] == 'dados_iniciais' ||
-            lojaSincAtual == null ||
-            lojaSincAtual.id == lojaConsolidada.id) {
+            ehLojaAtivaServidor ||
+            (lojaSincAtual != null &&
+                lojaSincAtual.id == lojaConsolidada.id)) {
           ctx.definirLojaSincronizada(lojaConsolidada);
         }
         await ctx.pdvProvider!.adicionarOuAtualizarLoja(lojaConsolidada);

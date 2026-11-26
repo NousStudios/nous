@@ -367,6 +367,12 @@ class CardResumoEntidadeMapa extends StatelessWidget {
     final fotoResolvida =
         ImagemService.resolverCaminhoExistente(perfil.fotoExibicao);
     final temFoto = fotoResolvida != null;
+    final meuCpfNorm =
+        context.read<AuthProvider>().cpf.replaceAll(RegExp(r'\D'), '');
+    final ehProprioUsuario = meuCpfNorm.isNotEmpty &&
+        perfil.cpf.replaceAll(RegExp(r'\D'), '') == meuCpfNorm;
+    final tituloPerfil =
+        perfil.nome.isNotEmpty ? perfil.nome : perfil.usernameExibicao;
 
     return _containerBase(
       context,
@@ -390,9 +396,7 @@ class CardResumoEntidadeMapa extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      perfil.nome.isNotEmpty
-                          ? perfil.nome
-                          : perfil.usernameExibicao,
+                      ehProprioUsuario ? '$tituloPerfil (Você)' : tituloPerfil,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: theme.getTextStyle(
