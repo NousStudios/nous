@@ -6,11 +6,26 @@ import 'package:nous/src/features/timeline/models/publicacao_social.dart';
 import 'package:nous/src/features/timeline/models/salvos_denuncia_social.dart';
 import 'package:nous/src/features/timeline/models/story_social.dart';
 import 'package:nous/src/features/timeline/services/timeline_repositorio_sqlite.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 /// Repositório especializado em exportação incremental (Delta Sync) e mesclagem
 /// LWW (Last-Write-Wins) do estado social para sincronização na rede local.
 class TimelineSyncRepositorio {
   TimelineSyncRepositorio._();
+
+  static Future<String> obterCpfLogadoEfetivo([String? cpfExplicito]) async {
+    final normExplicito =
+        TimelineRepositorioSqlite.normalizarCpf(cpfExplicito ?? '');
+    if (normExplicito.isNotEmpty) return normExplicito;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      return TimelineRepositorioSqlite.normalizarCpf(
+        prefs.getString('ultimo_cpf_login') ?? '',
+      );
+    } catch (_) {
+      return '';
+    }
+  }
 
   static bool _ehMaisRecenteQue(String? isoData, DateTime? corte) {
     if (corte == null) return true;
@@ -25,9 +40,22 @@ class TimelineSyncRepositorio {
     DateTime? desde,
     int offset = 0,
     int limit = 400,
+    String? cpfRemetente,
   }) async {
     final db = await TimelineRepositorioSqlite.obterDb();
     final corte = desde?.subtract(const Duration(seconds: 2));
+    final remetente = await obterCpfLogadoEfetivo(cpfRemetente);
+    bool autorPossuiHistorico = false;
+    if (remetente.isNotEmpty) {
+      final hist = await db.query(
+        'publicacoes_sociais',
+        columns: ['id'],
+        where: 'autor_cpf = ?',
+        whereArgs: [remetente],
+        limit: 1,
+      );
+      autorPossuiHistorico = hist.isNotEmpty;
+    }
 
     List<Map<String, dynamic>> decodificar(
       List<Map<String, Object?>> rows,
@@ -150,6 +178,8 @@ class TimelineSyncRepositorio {
       'offset': offset,
       'proximoOffset': offset + limit,
       'temMais': temMais,
+      if (remetente.isNotEmpty) 'remetenteCpf': remetente,
+      'autorPossuiHistorico': autorPossuiHistorico,
       'idsPublicacoesExcluidas': idsPublicacoesExcluidas,
       'idsPublicacoesAtivas': idsPublicacoesAtivas,
       'idsStoriesExcluidos': idsStoriesExcluidos,
@@ -184,11 +214,29 @@ class TimelineSyncRepositorio {
   }
 
   /// Mescla um snapshot social remoto usando Last-Write-Wins (com prioridade
-  /// para tombstones `excluida = true` em caso de empate de horário).
+  /// para tombstones `excluida = true` em caso de empate de horário) e
+  /// Soberania do Autor (CPF dono do post prevalece sobre cópias defasadas).
   static Future<void> mesclarSnapshotSocial(
     Map<String, dynamic> snapshot, {
     DateTime? corteReconciliacaoAtivas,
+    String? cpfLogado,
   }) async {
+    final db = await TimelineRepositorioSqlite.obterDb();
+    final cpfLogadoNorm = await obterCpfLogadoEfetivo(cpfLogado);
+    bool autorLocalTemHistorico = false;
+    if (cpfLogadoNorm.isNotEmpty) {
+      final hist = await db.query(
+        'publicacoes_sociais',
+        columns: ['id'],
+        where: 'autor_cpf = ?',
+        whereArgs: [cpfLogadoNorm],
+        limit: 1,
+      );
+      autorLocalTemHistorico = hist.isNotEmpty;
+    }
+    final agora = DateTime.now();
+    final limiteRecente = agora.subtract(const Duration(minutes: 5));
+
     final pubsBrutas = snapshot['publicacoes'] as List<dynamic>? ?? const [];
     final pubsRemotas = pubsBrutas
         .whereType<Map>()
@@ -201,9 +249,40 @@ class TimelineSyncRepositorio {
     );
     for (final remota in pubsRemotas) {
       final local = mapaLocais[remota.id];
+      final ehAutorLocal = cpfLogadoNorm.isNotEmpty &&
+          TimelineRepositorioSqlite.normalizarCpf(remota.autorCpf) ==
+              cpfLogadoNorm;
       if (local == null) {
+        // Escudo 1: Se o autor logado já possui histórico local e não tem esta
+        // publicação antiga ativa no próprio cofre, impede ressurreição por nó
+        // terceiro e grava tombstone para propagar a exclusão de volta.
+        if (ehAutorLocal &&
+            !remota.excluida &&
+            autorLocalTemHistorico &&
+            remota.criadaEm.isBefore(limiteRecente)) {
+          await TimelineRepositorioSqlite.salvarPublicacao(
+            remota.copyWith(
+              excluida: true,
+              arquivada: false,
+              fixada: false,
+              tags: const [],
+              coautoresCpfs: const [],
+              atualizadaEm: agora,
+            ),
+          );
+          continue;
+        }
         await TimelineRepositorioSqlite.salvarPublicacao(remota);
         continue;
+      }
+
+      if (ehAutorLocal && local.excluida && !remota.excluida) {
+        // Exclusão no aparelho do próprio autor não deve ser revertida por
+        // cópia antiga de terceiros (só aceita restauração explícita > 5 min).
+        if (!remota.atualizadaEm
+            .isAfter(local.atualizadaEm.add(const Duration(minutes: 5)))) {
+          continue;
+        }
       }
 
       final remotaMaisNova = remota.atualizadaEm.isAfter(local.atualizadaEm);
@@ -260,8 +339,56 @@ class TimelineSyncRepositorio {
       }
     }
 
-    // Reconciliação de posts antigos expurgados no servidor antes do soft-delete
+    // Escudo 2: Limpeza Soberana no nó terceiro (balcão) quando o próprio autor
+    // envia sua lista completa de publicações ativas (`offset == 0`).
     final ativasRemotasBrutas = snapshot['idsPublicacoesAtivas'];
+    final remetenteCpf = TimelineRepositorioSqlite.normalizarCpf(
+      (snapshot['remetenteCpf'] ?? '').toString(),
+    );
+    final autorPossuiHistRemoto = snapshot['autorPossuiHistorico'] == true;
+    final paginaInicial =
+        snapshot['offset'] == null || (snapshot['offset'] as num?)?.toInt() == 0;
+
+    if (remetenteCpf.isNotEmpty &&
+        autorPossuiHistRemoto &&
+        paginaInicial &&
+        ativasRemotasBrutas is List &&
+        remetenteCpf != cpfLogadoNorm) {
+      final conjuntoAtivasAutor =
+          ativasRemotasBrutas.map((e) => e.toString()).toSet();
+      final rowsAutorLocais = await db.query(
+        'publicacoes_sociais',
+        columns: ['id', 'criada_em', 'dados_json'],
+        where: 'excluida = 0 AND autor_cpf = ?',
+        whereArgs: [remetenteCpf],
+      );
+      final limiteSegurancaAutor = agora.subtract(const Duration(minutes: 2));
+      for (final row in rowsAutorLocais) {
+        final id = (row['id'] ?? '').toString();
+        if (id.isEmpty || conjuntoAtivasAutor.contains(id)) continue;
+        final criadaEm = DateTime.tryParse((row['criada_em'] ?? '').toString());
+        if (criadaEm != null && criadaEm.isBefore(limiteSegurancaAutor)) {
+          try {
+            final pubLocal = PublicacaoSocial.fromJson(
+              jsonDecode(row['dados_json'] as String? ?? '{}')
+                  as Map<String, dynamic>,
+            );
+            await TimelineRepositorioSqlite.salvarPublicacao(
+              pubLocal.copyWith(
+                excluida: true,
+                arquivada: false,
+                fixada: false,
+                tags: const [],
+                coautoresCpfs: const [],
+                atualizadaEm: agora,
+              ),
+            );
+          } catch (_) {}
+        }
+      }
+    }
+
+    // Reconciliação de posts antigos expurgados no servidor antes do soft-delete
     if (corteReconciliacaoAtivas != null && ativasRemotasBrutas is List) {
       final conjuntoAtivasRemotas =
           ativasRemotasBrutas.map((e) => e.toString()).toSet();
@@ -269,8 +396,7 @@ class TimelineSyncRepositorio {
           .map((e) => e is Map ? (e['id'] ?? '').toString() : e.toString())
           .where((id) => id.isNotEmpty)
           .toSet();
-      final dbLocal = await TimelineRepositorioSqlite.obterDb();
-      final rowsAtivasLocais = await dbLocal.query(
+      final rowsAtivasLocais = await db.query(
         'publicacoes_sociais',
         columns: ['id', 'criada_em', 'dados_json'],
         where: 'excluida = 0',
@@ -305,8 +431,6 @@ class TimelineSyncRepositorio {
         }
       }
     }
-
-    final db = await TimelineRepositorioSqlite.obterDb();
 
     final storiesBrutos = snapshot['stories'] as List<dynamic>? ?? const [];
     for (final item in storiesBrutos) {

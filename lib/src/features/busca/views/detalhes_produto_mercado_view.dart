@@ -8,10 +8,11 @@ import 'package:nous/src/features/busca/models/avaliacao_produto.dart';
 import 'package:nous/src/features/busca/services/avaliacoes_produto_service.dart';
 import 'package:nous/src/features/busca/views/dialogs/dialog_adicionar_carrinho_variantes.dart';
 import 'package:nous/src/features/busca/views/dialogs/dialog_comentarios_produto.dart';
+import 'package:nous/src/features/busca/views/widgets/detalhes_produto/cabecalho_loja_e_avaliacoes_produto_widget.dart';
+import 'package:nous/src/features/busca/views/widgets/detalhes_produto/galeria_fotos_produto_widget.dart';
 import 'package:nous/src/features/compras/services/carrinho_compras_service.dart';
 import 'package:nous/src/features/pdv/models/item_loja.dart';
 import 'package:nous/src/features/pdv/providers/pdv_provider.dart';
-import 'package:nous/src/features/pdv/services/imagem_service.dart';
 import 'package:nous/src/features/pdv/views/vitrine_loja_view.dart';
 import 'package:nous/src/features/pdv/views/widgets/midia/visualizador_galeria_dialog.dart';
 
@@ -179,7 +180,6 @@ class _DetalhesProdutoMercadoViewState
         final mediaEstrelas = _resumoAvaliacoes?.mediaEstrelas ?? 0.0;
         final totalAvaliacoes = _resumoAvaliacoes?.totalAvaliacoes ?? 0;
         final precoTexto = _precoExibicaoAtual();
-        final logoProvider = ImagemService.obterImageProvider(loja.logo);
 
         return Scaffold(
           backgroundColor: theme.backgroundColor,
@@ -234,110 +234,15 @@ class _DetalhesProdutoMercadoViewState
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 // 1. Foto(s) principal(is) com clique para tela cheia
-                                ClipRRect(
-                                  borderRadius: BorderRadius.circular(16),
-                                  child: AspectRatio(
-                                    aspectRatio: 1.25,
-                                    child: fotos.isEmpty
-                                        ? _placeholderGrande(theme)
-                                        : Stack(
-                                            fit: StackFit.expand,
-                                            children: [
-                                              PageView.builder(
-                                                itemCount: fotos.length,
-                                                onPageChanged: (i) {
-                                                  setState(() => _fotoAtual = i);
-                                                },
-                                                itemBuilder: (_, index) {
-                                                  return GestureDetector(
-                                                    onTap: () =>
-                                                        _abrirImagemTelaCheia(
-                                                      theme,
-                                                      fotos,
-                                                    ),
-                                                    child: ImagemService
-                                                        .construirImagem(
-                                                      fotos[index],
-                                                      fit: BoxFit.cover,
-                                                      fallback:
-                                                          _placeholderGrande(
-                                                        theme,
-                                                      ),
-                                                    ),
-                                                  );
-                                                },
-                                              ),
-                                              if (fotos.length > 1)
-                                                Positioned(
-                                                  top: 10,
-                                                  right: 10,
-                                                  child: Container(
-                                                    padding: const EdgeInsets
-                                                        .symmetric(
-                                                      horizontal: 8,
-                                                      vertical: 4,
-                                                    ),
-                                                    decoration: BoxDecoration(
-                                                      color: theme
-                                                          .cardBackgroundColor
-                                                          .withValues(
-                                                              alpha: 0.85),
-                                                      borderRadius:
-                                                          BorderRadius.circular(
-                                                              12),
-                                                      border: Border.all(
-                                                        color: theme.borderColor
-                                                            .withValues(
-                                                                alpha: 0.6),
-                                                      ),
-                                                    ),
-                                                    child: Text(
-                                                      '${_fotoAtual + 1}/${fotos.length}',
-                                                      style: theme.getTextStyle(
-                                                        fontSize: 11,
-                                                        fontWeight:
-                                                            FontWeight.bold,
-                                                        color: theme.textColor,
-                                                      ),
-                                                    ),
-                                                  ),
-                                                ),
-                                              Positioned(
-                                                bottom: 10,
-                                                right: 10,
-                                                child: GestureDetector(
-                                                  onTap: () =>
-                                                      _abrirImagemTelaCheia(
-                                                    theme,
-                                                    fotos,
-                                                  ),
-                                                  child: Container(
-                                                    padding:
-                                                        const EdgeInsets.all(6),
-                                                    decoration: BoxDecoration(
-                                                      color: theme
-                                                          .cardBackgroundColor
-                                                          .withValues(
-                                                              alpha: 0.85),
-                                                      shape: BoxShape.circle,
-                                                      border: Border.all(
-                                                        color: theme.borderColor
-                                                            .withValues(
-                                                                alpha: 0.6),
-                                                      ),
-                                                    ),
-                                                    child: Icon(
-                                                      Icons
-                                                          .fullscreen_rounded,
-                                                      size: 18,
-                                                      color: theme.textColor,
-                                                    ),
-                                                  ),
-                                                ),
-                                              ),
-                                            ],
-                                          ),
-                                  ),
+                                GaleriaFotosProdutoWidget(
+                                  theme: theme,
+                                  fotos: fotos,
+                                  fotoAtual: _fotoAtual,
+                                  onTrocarFoto: (i) {
+                                    setState(() => _fotoAtual = i);
+                                  },
+                                  onAbrirTelaCheia: () =>
+                                      _abrirImagemTelaCheia(theme, fotos),
                                 ),
                                 const SizedBox(height: 14),
 
@@ -415,166 +320,16 @@ class _DetalhesProdutoMercadoViewState
                                 const SizedBox(height: 12),
 
                                 // 3. Linha Loja (clicável para Perfil Público) + Estrelas/Comentários (direita)
-                                Row(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Expanded(
-                                      child: InkWell(
-                                        onTap: _abrirPerfilPublicoLoja,
-                                        borderRadius: BorderRadius.circular(10),
-                                        child: Padding(
-                                          padding: const EdgeInsets.symmetric(
-                                            vertical: 4,
-                                            horizontal: 2,
-                                          ),
-                                          child: Row(
-                                            children: [
-                                              CircleAvatar(
-                                                radius: 16,
-                                                backgroundColor: theme
-                                                    .borderColor
-                                                    .withValues(alpha: 0.3),
-                                                backgroundImage: logoProvider,
-                                                child: logoProvider == null
-                                                    ? Icon(
-                                                        Icons
-                                                            .storefront_outlined,
-                                                        size: 16,
-                                                        color: theme.textColor,
-                                                      )
-                                                    : null,
-                                              ),
-                                              const SizedBox(width: 8),
-                                              Expanded(
-                                                child: Column(
-                                                  crossAxisAlignment:
-                                                      CrossAxisAlignment.start,
-                                                  children: [
-                                                    Row(
-                                                      children: [
-                                                        Flexible(
-                                                          child: Text(
-                                                            loja.nome,
-                                                            maxLines: 1,
-                                                            overflow:
-                                                                TextOverflow
-                                                                    .ellipsis,
-                                                            style: theme
-                                                                .getTextStyle(
-                                                              fontSize: 13.5,
-                                                              fontWeight:
-                                                                  FontWeight
-                                                                      .bold,
-                                                              color: theme
-                                                                  .textColor,
-                                                            ),
-                                                          ),
-                                                        ),
-                                                        const SizedBox(width: 2),
-                                                        Icon(
-                                                          Icons
-                                                              .chevron_right_rounded,
-                                                          size: 16,
-                                                          color: theme
-                                                              .secondaryTextColor,
-                                                        ),
-                                                      ],
-                                                    ),
-                                                    Text(
-                                                      widget.produto
-                                                          .distanciaFormatada,
-                                                      maxLines: 1,
-                                                      overflow:
-                                                          TextOverflow.ellipsis,
-                                                      style: theme.getTextStyle(
-                                                        fontSize: 11,
-                                                        color: theme
-                                                            .secondaryTextColor,
-                                                      ),
-                                                    ),
-                                                  ],
-                                                ),
-                                              ),
-                                            ],
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-                                    const SizedBox(width: 10),
-                                    // Estrelas acima de "Comentários" (padrão Mercado Livre pedido pelo usuário)
-                                    InkWell(
-                                      onTap: () => _abrirComentarios(theme),
-                                      borderRadius: BorderRadius.circular(10),
-                                      child: Container(
-                                        padding: const EdgeInsets.symmetric(
-                                          horizontal: 10,
-                                          vertical: 6,
-                                        ),
-                                        decoration: BoxDecoration(
-                                          color: theme.cardBackgroundColor,
-                                          borderRadius:
-                                              BorderRadius.circular(10),
-                                          border: Border.all(
-                                            color: theme.borderColor
-                                                .withValues(alpha: 0.65),
-                                          ),
-                                        ),
-                                        child: Column(
-                                          crossAxisAlignment:
-                                              CrossAxisAlignment.end,
-                                          children: [
-                                            Row(
-                                              mainAxisSize: MainAxisSize.min,
-                                              children: [
-                                                ...List.generate(5, (index) {
-                                                  final v = index + 1;
-                                                  return Icon(
-                                                    v <= mediaEstrelas.round()
-                                                        ? Icons.star_rounded
-                                                        : Icons
-                                                            .star_outline_rounded,
-                                                    size: 15,
-                                                    color: theme.textColor,
-                                                  );
-                                                }),
-                                                const SizedBox(width: 4),
-                                                Text(
-                                                  mediaEstrelas
-                                                      .toStringAsFixed(1),
-                                                  style: theme.getTextStyle(
-                                                    fontSize: 12,
-                                                    fontWeight: FontWeight.bold,
-                                                    color: theme.textColor,
-                                                  ),
-                                                ),
-                                              ],
-                                            ),
-                                            const SizedBox(height: 3),
-                                            Row(
-                                              mainAxisSize: MainAxisSize.min,
-                                              children: [
-                                                Icon(
-                                                  Icons.comment_outlined,
-                                                  size: 13,
-                                                  color:
-                                                      theme.secondaryTextColor,
-                                                ),
-                                                const SizedBox(width: 4),
-                                                Text(
-                                                  'Comentários ($totalAvaliacoes)',
-                                                  style: theme.getTextStyle(
-                                                    fontSize: 11.5,
-                                                    fontWeight: FontWeight.w600,
-                                                    color: theme.textColor,
-                                                  ),
-                                                ),
-                                              ],
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                    ),
-                                  ],
+                                CabecalhoLojaEAvaliacoesProdutoWidget(
+                                  theme: theme,
+                                  loja: loja,
+                                  distanciaFormatada:
+                                      widget.produto.distanciaFormatada,
+                                  mediaEstrelas: mediaEstrelas,
+                                  totalAvaliacoes: totalAvaliacoes,
+                                  onAbrirLoja: _abrirPerfilPublicoLoja,
+                                  onAbrirComentarios: () =>
+                                      _abrirComentarios(theme),
                                 ),
                                 const SizedBox(height: 18),
 
@@ -799,19 +554,6 @@ class _DetalhesProdutoMercadoViewState
           ),
         );
       },
-    );
-  }
-
-  Widget _placeholderGrande(AppTheme theme) {
-    return Container(
-      color: theme.cardBackgroundColor,
-      child: Center(
-        child: Icon(
-          Icons.image_outlined,
-          size: 58,
-          color: theme.secondaryTextColor.withValues(alpha: 0.45),
-        ),
-      ),
     );
   }
 }

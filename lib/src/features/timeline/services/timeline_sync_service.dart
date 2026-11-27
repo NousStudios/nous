@@ -183,9 +183,64 @@ class TimelineSyncService {
           Map<String, dynamic>.from(dados['publicacao'] as Map),
         );
         if (pub.id.isNotEmpty) {
-          await TimelineRepositorioSqlite.salvarPublicacao(pub);
-          _preAquecerMidiasPublicacao(pub);
-          aoConcluir?.call();
+          final locais =
+              await TimelineRepositorioSqlite.buscarPublicacoesPorIds(
+            [pub.id],
+            incluirExcluidas: true,
+          );
+          final local = locais[pub.id];
+          final cpfLogado =
+              await TimelineSyncRepositorio.obterCpfLogadoEfetivo();
+          final ehAutorLocal = cpfLogado.isNotEmpty &&
+              TimelineRepositorioSqlite.normalizarCpf(pub.autorCpf) ==
+                  cpfLogado;
+          bool deveSalvar = false;
+          if (local == null) {
+            if (ehAutorLocal && !pub.excluida) {
+              final db = await TimelineRepositorioSqlite.obterDb();
+              final hist = await db.query(
+                'publicacoes_sociais',
+                columns: ['id'],
+                where: 'autor_cpf = ?',
+                whereArgs: [cpfLogado],
+                limit: 1,
+              );
+              final limiteRecente =
+                  DateTime.now().subtract(const Duration(minutes: 5));
+              if (hist.isNotEmpty && pub.criadaEm.isBefore(limiteRecente)) {
+                await TimelineRepositorioSqlite.salvarPublicacao(
+                  pub.copyWith(
+                    excluida: true,
+                    arquivada: false,
+                    fixada: false,
+                    tags: const [],
+                    coautoresCpfs: const [],
+                    atualizadaEm: DateTime.now(),
+                  ),
+                );
+                return;
+              }
+            }
+            deveSalvar = true;
+          } else {
+            if (ehAutorLocal && local.excluida && !pub.excluida) {
+              deveSalvar = pub.atualizadaEm.isAfter(
+                local.atualizadaEm.add(const Duration(minutes: 5)),
+              );
+            } else {
+              final maisNova = pub.atualizadaEm.isAfter(local.atualizadaEm);
+              final empateComExclusao =
+                  !pub.atualizadaEm.isBefore(local.atualizadaEm) &&
+                      pub.excluida &&
+                      !local.excluida;
+              deveSalvar = maisNova || empateComExclusao;
+            }
+          }
+          if (deveSalvar) {
+            await TimelineRepositorioSqlite.salvarPublicacao(pub);
+            _preAquecerMidiasPublicacao(pub);
+            aoConcluir?.call();
+          }
         }
       } else if (tipo == 'timeline_reacao' && dados['reacao'] is Map) {
         final reacao = ReacaoSocial.fromJson(
@@ -210,22 +265,81 @@ class TimelineSyncService {
           Map<String, dynamic>.from(dados['comentario'] as Map),
         );
         if (com.id.isNotEmpty) {
-          await TimelineRepositorioSqlite.salvarComentario(com);
-          aoConcluir?.call();
+          final db = await TimelineRepositorioSqlite.obterDb();
+          final rows = await db.query(
+            'comentarios_sociais',
+            where: 'id = ?',
+            whereArgs: [com.id],
+            limit: 1,
+          );
+          bool deveSalvar = rows.isEmpty;
+          if (rows.isNotEmpty) {
+            final local = ComentarioSocial.fromJson(
+              jsonDecode(rows.first['dados_json'] as String? ?? '{}')
+                  as Map<String, dynamic>,
+            );
+            final maisNovo = com.atualizadaEfetiva.isAfter(
+              local.atualizadaEfetiva,
+            );
+            final empateExcl =
+                !com.atualizadaEfetiva.isBefore(local.atualizadaEfetiva) &&
+                    com.excluido &&
+                    !local.excluido;
+            deveSalvar = maisNovo || empateExcl;
+          }
+          if (deveSalvar) {
+            await TimelineRepositorioSqlite.salvarComentario(com);
+            aoConcluir?.call();
+          }
         }
       } else if (tipo == 'timeline_story' && dados['story'] is Map) {
         final story = StorySocial.fromJson(
           Map<String, dynamic>.from(dados['story'] as Map),
         );
         if (story.id.isNotEmpty) {
-          await TimelineRepositorioSqlite.salvarStory(story);
-          if (story.caminhoMidia.isNotEmpty) {
-            unawaited(TimelineMidiaService.resolverCaminhoMidia(story.caminhoMidia));
+          final local = await TimelineRepositorioSqlite.buscarStoryPorId(
+            story.id,
+          );
+          StorySocial storyFinal = story;
+          bool deveSalvar = local == null;
+          if (local != null) {
+            final maisNovo = story.atualizadoEfetivo.isAfter(
+              local.atualizadoEfetivo,
+            );
+            final empateExcl =
+                !story.atualizadoEfetivo.isBefore(local.atualizadoEfetivo) &&
+                    story.excluido &&
+                    !local.excluido;
+            deveSalvar = maisNovo || empateExcl;
+            if (deveSalvar) {
+              storyFinal = story.copyWith(
+                visualizadoPorCpfs: {
+                  ...local.visualizadoPorCpfs,
+                  ...story.visualizadoPorCpfs,
+                }.toList(),
+                votosEnquete: {
+                  ...local.votosEnquete,
+                  ...story.votosEnquete,
+                },
+              );
+            }
           }
-          if (story.autorFoto.isNotEmpty) {
-            unawaited(TimelineMidiaService.resolverCaminhoMidia(story.autorFoto));
+          if (deveSalvar) {
+            await TimelineRepositorioSqlite.salvarStory(storyFinal);
+            if (storyFinal.caminhoMidia.isNotEmpty) {
+              unawaited(
+                TimelineMidiaService.resolverCaminhoMidia(
+                  storyFinal.caminhoMidia,
+                ),
+              );
+            }
+            if (storyFinal.autorFoto.isNotEmpty) {
+              unawaited(
+                TimelineMidiaService.resolverCaminhoMidia(storyFinal.autorFoto),
+              );
+            }
+            aoConcluir?.call();
           }
-          aoConcluir?.call();
         }
       } else if (tipo == 'timeline_lista_salvos' && dados['lista'] is Map) {
         final lista = ListaSalvosSocial.fromJson(

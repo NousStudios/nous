@@ -6,6 +6,8 @@ import 'package:nous/src/features/timeline/models/salvos_denuncia_social.dart';
 import 'package:nous/src/features/timeline/models/story_social.dart';
 import 'package:nous/src/features/timeline/services/timeline_repositorio_sqlite.dart';
 import 'package:nous/src/features/timeline/services/timeline_service.dart';
+import 'package:nous/src/features/timeline/services/timeline_sync_repositorio.dart';
+import 'package:nous/src/features/timeline/services/timeline_sync_service.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -414,6 +416,102 @@ void main() {
       expect(descoberta.length, 1);
       expect(descoberta.first.id, original.id);
       expect(descoberta.first.tipo, TipoFeedSocial.fotos);
+    });
+
+    test('Escudo 1: autor logado não ressuscita postagem antiga ausente enviada por outro nó', () async {
+      const cpfAutor = '55566677700';
+      await TimelineService.criarPublicacao(
+        autorCpf: cpfAutor,
+        autorNome: 'Leonardo',
+        tipo: TipoFeedSocial.fotos,
+        texto: 'Postagem atual ativa',
+      );
+
+      final zumbiAntigo = PublicacaoSocial(
+        id: 'pub_zumbi_antiga_1',
+        autorCpf: cpfAutor,
+        autorNome: 'Leonardo',
+        tipo: TipoFeedSocial.fotos,
+        texto: 'Post excluído há dias',
+        criadaEm: DateTime.now().subtract(const Duration(days: 3)),
+        atualizadaEm: DateTime.now().subtract(const Duration(days: 3)),
+        excluida: false,
+      );
+
+      await TimelineSyncRepositorio.mesclarSnapshotSocial(
+        {
+          'remetenteCpf': '99988877711',
+          'publicacoes': [zumbiAntigo.toJson()],
+        },
+        cpfLogado: cpfAutor,
+      );
+
+      final mapa = await TimelineRepositorioSqlite.buscarPublicacoesPorIds(
+        ['pub_zumbi_antiga_1'],
+        incluirExcluidas: true,
+      );
+      expect(mapa['pub_zumbi_antiga_1']?.excluida, isTrue);
+      final total = await TimelineService.contarPublicacoesDoUsuario(cpfAutor);
+      expect(total, 1);
+    });
+
+    test('Escudo 2: balcão limpa posts antigos de um autor que enviou sua lista ativa completa', () async {
+      const cpfAutor = '44433322211';
+      const cpfBalcao = '11122233399';
+      final antiga = PublicacaoSocial(
+        id: 'pub_balcao_antiga_1',
+        autorCpf: cpfAutor,
+        autorNome: 'Autor',
+        tipo: TipoFeedSocial.fotos,
+        texto: 'Post antigo no balcão',
+        criadaEm: DateTime.now().subtract(const Duration(days: 2)),
+        atualizadaEm: DateTime.now().subtract(const Duration(days: 2)),
+        excluida: false,
+      );
+      await TimelineRepositorioSqlite.salvarPublicacao(antiga);
+
+      await TimelineSyncRepositorio.mesclarSnapshotSocial(
+        {
+          'remetenteCpf': cpfAutor,
+          'autorPossuiHistorico': true,
+          'offset': 0,
+          'idsPublicacoesAtivas': ['pub_autor_real_1'],
+          'publicacoes': [],
+        },
+        cpfLogado: cpfBalcao,
+      );
+
+      final mapa = await TimelineRepositorioSqlite.buscarPublicacoesPorIds(
+        ['pub_balcao_antiga_1'],
+        incluirExcluidas: true,
+      );
+      expect(mapa['pub_balcao_antiga_1']?.excluida, isTrue);
+    });
+
+    test('WebSocket processarEventoRemoto respeita LWW e não ressuscita post excluído localmente', () async {
+      final pub = await TimelineService.criarPublicacao(
+        autorCpf: '77788899900',
+        autorNome: 'Autor WS',
+        tipo: TipoFeedSocial.escritos,
+        texto: 'Texto antes de excluir',
+      );
+      await TimelineService.excluirPublicacao(pub);
+
+      final eventoAntigo = pub.copyWith(
+        excluida: false,
+        atualizadaEm: pub.criadaEm,
+      );
+
+      await TimelineSyncService.processarEventoRemoto({
+        'tipo': 'timeline_publicacao',
+        'publicacao': eventoAntigo.toJson(),
+      });
+
+      final mapa = await TimelineRepositorioSqlite.buscarPublicacoesPorIds(
+        [pub.id],
+        incluirExcluidas: true,
+      );
+      expect(mapa[pub.id]?.excluida, isTrue);
     });
   });
 }

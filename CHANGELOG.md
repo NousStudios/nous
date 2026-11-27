@@ -2,6 +2,14 @@
 
 Uma linha por mudança, da mais recente para a mais antiga. O agente deve acrescentar aqui o que fez em cada ciclo (versão do `pubspec.yaml` + o que mudou). Este arquivo guarda **histórico**; a descrição atual do app fica em `MAPA_DO_APP.md`.
 
+## v1.1.62 (build 164) — 27/11/2026
+
+- **Soberania do Autor na Timeline e Preparação para Servidor Mãe (`timeline`, `busca`, `docs`):**
+  - Implementados **Escudo 1 (Rejeição Soberana no Autor)** e **Escudo 2 (Limpeza Automática por `remetenteCpf`)** em [timeline_sync_repositorio.dart](file:///d:/Nous/nous/lib/src/features/timeline/services/timeline_sync_repositorio.dart), impedindo ressurreição de postagens excluídas mesmo em redes com versões mistas.
+  - Adicionada verificação temporal LWW e proteção de Soberania do Autor em `processarEventoRemoto` ([timeline_sync_service.dart](file:///d:/Nous/nous/lib/src/features/timeline/services/timeline_sync_service.dart)) para `timeline_publicacao`, `timeline_comentario` e `timeline_story`.
+  - Documentado o plano futuro de 3 modos (Rede Local, Servidor Particular e Servidor Mãe) e os 5 hábitos obrigatórios de base em [arquitetura-servidor-mae.md](file:///d:/Nous/nous/docs/arquitetura-servidor-mae.md) com regra permanente em [AGENTS.md](file:///d:/Nous/nous/AGENTS.md).
+  - Modularizado [detalhes_produto_mercado_view.dart](file:///d:/Nous/nous/lib/src/features/busca/views/detalhes_produto_mercado_view.dart) (extraindo `GaleriaFotosProdutoWidget` e `CabecalhoLojaEAvaliacoesProdutoWidget`) e atualizado [catalogo_comercial_e_carrinho_test.dart](file:///d:/Nous/nous/test/catalogo_comercial_e_carrinho_test.dart) para múltiplos filtros simultâneos.
+
 ## v1.1.61 (build 163) — 27/11/2026
 
 - **Sincronização Plena do Ecossistema (`auth`, `core`, `pdv`, `notificacoes`, `chat`, `timeline`, `busca`):**

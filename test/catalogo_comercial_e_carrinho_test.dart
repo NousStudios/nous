@@ -67,7 +67,7 @@ void main() {
       final resultados = BuscaMapaFiltrosHelper.filtrarProdutos(
         [lojaBA, lojaSP],
         'Café',
-        FiltroBuscaMapa.produtos,
+        {FiltroBuscaMapa.produtos},
         latUsuario: -23.5505,
         lonUsuario: -46.6333,
       );
@@ -83,7 +83,7 @@ void main() {
       final resultados = BuscaMapaFiltrosHelper.filtrarProdutos(
         [lojaSP, lojaBA],
         'Acarajé',
-        FiltroBuscaMapa.produtos,
+        {FiltroBuscaMapa.produtos},
         latUsuario: -23.5505,
         lonUsuario: -46.6333,
       );
@@ -118,7 +118,7 @@ void main() {
       final resultados = BuscaMapaFiltrosHelper.filtrarProdutos(
         [lojaSemLatLon],
         'Elétrica',
-        FiltroBuscaMapa.servicos,
+        {FiltroBuscaMapa.servicos},
         latUsuario: -23.5505,
         lonUsuario: -46.6333,
         coordenadasLojas: {
@@ -138,7 +138,7 @@ void main() {
       final ctrl = BuscaMapaController();
       addTearDown(ctrl.dispose);
 
-      ctrl.definirFiltro(FiltroBuscaMapa.produtos);
+      ctrl.alternarFiltro(FiltroBuscaMapa.produtos);
       expect(ctrl.exibirCatalogoComercial, isFalse);
       expect(ctrl.painelBuscaExpandido, isFalse);
 
@@ -151,7 +151,8 @@ void main() {
       ctrl.confirmarBuscaComercial();
       expect(ctrl.exibirCatalogoComercial, isTrue);
 
-      ctrl.definirFiltro(FiltroBuscaMapa.lojas);
+      ctrl.alternarFiltro(FiltroBuscaMapa.produtos);
+      ctrl.alternarFiltro(FiltroBuscaMapa.lojas);
       expect(ctrl.exibirCatalogoComercial, isFalse);
     });
   });
@@ -223,7 +224,7 @@ void main() {
         final resultadosAcai = BuscaMapaFiltrosHelper.filtrarProdutos(
           [lojaLaricas],
           'açaí',
-          FiltroBuscaMapa.produtos,
+          {FiltroBuscaMapa.produtos},
         );
         expect(resultadosAcai, isNotEmpty);
         expect(resultadosAcai.first.nomeExibicao, 'Açaí - Copo 300ml');
@@ -234,7 +235,7 @@ void main() {
         final resultadosCopo = BuscaMapaFiltrosHelper.filtrarProdutos(
           [lojaLaricas],
           'copo 300ml',
-          FiltroBuscaMapa.produtos,
+          {FiltroBuscaMapa.produtos},
         );
         expect(resultadosCopo.length, 2);
         expect(resultadosCopo.first.nomeExibicao, 'Açaí - Copo 300ml');

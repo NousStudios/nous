@@ -92,6 +92,8 @@ SuperApp brasileiro, livre e de código aberto, de **Autogestão Comercial e Soc
      - Menu contextual na bolha (long press / clique direito): copiar texto, editar (apenas autor; histórico e badge `(editada)`), excluir para todos (apenas autor; até 1 minuto pós-envio).
      - Confirmação visual de status nas mensagens enviadas (1 check cinza: enviada; 2 checks cinzas: entregue na rede; 2 checks azuis `0xFF34B7F1`: lida).
      - Detalhes ao tocar no cabeçalho: foto editável (se grupo), contagem e lista de participantes, e galeria de mídias/documentos compartilhados.
+7. **Preparação Contínua para o Servidor Mãe (`docs/arquitetura-servidor-mae.md`):**
+   - Toda nova entidade ou tela deve nascer pronta para operar nos 3 modos (Local-First, Servidor Particular, Servidor Mãe): **ID único + `atualizadaEm`**, **exclusão lógica (`excluido = true`, sem `DELETE` cego)**, **mídias por caminho relativo**, **consultas/sync paginadas** e **separação clara entre dado público e dado privado**.
 
 ## 6. Design (resumo; completo em `docs/design-system.md`)
 
@@ -110,6 +112,7 @@ SuperApp brasileiro, livre e de código aberto, de **Autogestão Comercial e Soc
 | Modularidade, teto de linhas (500-800) e separação de arquivos | `.agents/rules/modularidade_e_tamanho_arquivos.md` |
 | Termos técnicos explicados / como pedir uma mudança | `GLOSSARIO.md` |
 | Rede Wi-Fi, sincronização, malha de autocura, endpoints | `docs/rede-local.md` |
+| Plano futuro: Servidor Mãe, Servidores Particulares e os 5 hábitos de base | `docs/arquitetura-servidor-mae.md` |
 | Regras de venda, estoque, caixa, financeiro, pedidos | `docs/regras-de-negocio-pdv.md` |
 | Cores, componentes visuais, imagens, mídia | `docs/design-system.md` |
 | Scripts, instalador, APK, atualização, versão | `docs/build-e-distribuicao.md` |
