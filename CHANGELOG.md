@@ -2,6 +2,15 @@
 
 Uma linha por mudança, da mais recente para a mais antiga. O agente deve acrescentar aqui o que fez em cada ciclo (versão do `pubspec.yaml` + o que mudou). Este arquivo guarda **histórico**; a descrição atual do app fica em `MAPA_DO_APP.md`.
 
+## v1.1.56 (build 158) — 26/11/2026
+
+- **Busca por Categorias, Cards no Computador, Mensagens e Auto-Update (`busca`, `chat`, `core`):**
+  - A busca universal de Produtos e Serviços agora considera as categorias da loja e soma automaticamente o preço da categoria ao item vinculado (ex: Açaí + Copo 300ml = R$ 22,00), carregando também os adicionais da categoria ao adicionar ao carrinho.
+  - Ajustado o tamanho dos cards de produtos e serviços no computador para grade responsiva e proporcional.
+  - Restaurado o botão de voltar no canto superior esquerdo ao abrir **Mensagens** pela barra de navegação universal.
+  - Corrigida a atualização automática no Windows para solicitar permissão de administrador (UAC) quando necessário, ocultando a janela de comando e usando robocopy.
+  - Aumentado o tempo limite de verificação de atualizações no celular e adicionada checagem automática ao abrir a janela de atualização.
+
 ## v1.1.55 (build 157) — 26/11/2026
 
 - **Bases do Comércio Online, Busca Universal de Produtos/Serviços e Animação de Empacotamento (`busca`, `compras`, `pdv`, `core`):**
