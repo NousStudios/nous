@@ -8,7 +8,6 @@ import 'package:nous/src/features/busca/models/avaliacao_produto.dart';
 import 'package:nous/src/features/busca/services/avaliacoes_produto_service.dart';
 import 'package:nous/src/features/busca/views/dialogs/dialog_adicionar_carrinho_variantes.dart';
 import 'package:nous/src/features/busca/views/dialogs/dialog_comentarios_produto.dart';
-import 'package:nous/src/features/compras/services/carrinho_compras_service.dart';
 import 'package:nous/src/features/pdv/providers/pdv_provider.dart';
 import 'package:nous/src/features/pdv/services/imagem_service.dart';
 
@@ -77,9 +76,9 @@ class _DetalhesProdutoMercadoViewState
   }
 
   Future<void> _compartilharResumo(AppTheme theme) async {
-    final item = widget.produto.item;
     final loja = widget.produto.loja;
-    final texto = '${item.nome} — ${loja.nome} (R\$ ${item.preco})';
+    final texto =
+        '${widget.produto.nomeExibicao} — ${loja.nome} (${widget.produto.precoTexto})';
     await Clipboard.setData(ClipboardData(text: texto));
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
@@ -100,13 +99,10 @@ class _DetalhesProdutoMercadoViewState
       builder: (context, theme, _) {
         final item = widget.produto.item;
         final loja = widget.produto.loja;
-        final fotoUrl = item.imagens.isNotEmpty ? item.imagens.first : '';
+        final fotoUrl = widget.produto.fotoDestaque;
         final mediaEstrelas = _resumoAvaliacoes?.mediaEstrelas ?? 5.0;
         final totalAvaliacoes = _resumoAvaliacoes?.totalAvaliacoes ?? 0;
-        final precoNum = CarrinhoComprasService.parsePreco(item.preco);
-        final precoTexto = precoNum > 0
-            ? 'R\$ ${precoNum.toStringAsFixed(2).replaceAll('.', ',')}'
-            : (item.preco.trim().isNotEmpty ? item.preco : 'Sob consulta');
+        final precoTexto = widget.produto.precoTexto;
         final logoProvider = ImagemService.obterImageProvider(loja.logo);
 
         return Scaffold(
@@ -173,7 +169,7 @@ class _DetalhesProdutoMercadoViewState
 
                                 // 2. Nome e curta descrição / especificações
                                 Text(
-                                  item.nome,
+                                  widget.produto.nomeExibicao,
                                   style: theme.getTextStyle(
                                     fontSize: 20,
                                     fontWeight: FontWeight.bold,

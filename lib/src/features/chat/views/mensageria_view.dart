@@ -6,6 +6,7 @@ import 'package:provider/provider.dart';
 import 'package:nous/src/core/theme/theme_controller.dart';
 import 'package:nous/src/core/widgets/custom_app_bar.dart';
 import 'package:nous/src/features/auth/providers/auth_provider.dart';
+import 'package:nous/src/features/auth/views/perfil_social_view.dart';
 import 'package:nous/src/features/chat/controllers/helpers/mensageria_filtros_helper.dart';
 import 'package:nous/src/features/chat/controllers/mensageria_controller.dart';
 import 'package:nous/src/features/chat/models/conversa_chat.dart';
@@ -577,6 +578,14 @@ class _MensageriaViewState extends State<MensageriaView>
                   _controller.selecionarAba(AbaNavegacaoMensageria.conversas);
                 } else if (Navigator.of(context).canPop()) {
                   Navigator.of(context).pop();
+                } else {
+                  Navigator.of(context).pushAndRemoveUntil(
+                    MaterialPageRoute(
+                      builder: (_) =>
+                          const PerfilSocialView(mostrarBotaoVoltar: false),
+                    ),
+                    (route) => false,
+                  );
                 }
               },
             ),

@@ -80,7 +80,7 @@ class FloatingBottomNavBar extends StatefulWidget {
           ? const PerfilSocialView(mostrarBotaoVoltar: false)
           : const MensageriaView(
               modoLoja: false,
-              mostrarBotaoVoltar: false,
+              mostrarBotaoVoltar: true,
             );
     } else if (slot == 2) {
       return subIndice == 0
@@ -269,7 +269,10 @@ class _FloatingBottomNavBarState extends State<FloatingBottomNavBar> {
 
   void _executarNavegacao(int slot, int subIndice, {bool? paraCima}) {
     final cpf = context.read<AuthProvider>().cpf;
-    unawaited(FloatingBottomNavBar.salvarUltimaAba(cpf, slot, subIndice));
+    final ehMensageria = slot == 1 && subIndice == 1;
+    if (!ehMensageria) {
+      unawaited(FloatingBottomNavBar.salvarUltimaAba(cpf, slot, subIndice));
+    }
     final pagina = FloatingBottomNavBar.construirPaginaPorSlot(slot, subIndice);
 
     // Transição suave vertical simulando o arrasto de descida/subida da tela
@@ -277,30 +280,35 @@ class _FloatingBottomNavBarState extends State<FloatingBottomNavBar> {
         ? const Offset(0.0, 0.05)
         : (paraCima ? const Offset(0.0, -0.06) : const Offset(0.0, 0.06));
 
-    Navigator.of(context).pushAndRemoveUntil(
-      PageRouteBuilder(
-        pageBuilder: (context, anim, secAnim) => pagina,
-        transitionDuration: const Duration(milliseconds: 230),
-        reverseTransitionDuration: const Duration(milliseconds: 200),
-        transitionsBuilder: (context, animation, secondaryAnimation, child) {
-          final curvo = CurvedAnimation(
-            parent: animation,
-            curve: Curves.easeOutCubic,
-          );
-          return FadeTransition(
-            opacity: curvo,
-            child: SlideTransition(
-              position: Tween<Offset>(
-                begin: offsetInicio,
-                end: Offset.zero,
-              ).animate(curvo),
-              child: child,
-            ),
-          );
-        },
-      ),
-      (route) => route.isFirst,
+    final rota = PageRouteBuilder<void>(
+      pageBuilder: (context, anim, secAnim) => pagina,
+      transitionDuration: const Duration(milliseconds: 230),
+      reverseTransitionDuration: const Duration(milliseconds: 200),
+      transitionsBuilder: (context, animation, secondaryAnimation, child) {
+        final curvo = CurvedAnimation(
+          parent: animation,
+          curve: Curves.easeOutCubic,
+        );
+        return FadeTransition(
+          opacity: curvo,
+          child: SlideTransition(
+            position: Tween<Offset>(
+              begin: offsetInicio,
+              end: Offset.zero,
+            ).animate(curvo),
+            child: child,
+          ),
+        );
+      },
     );
+
+    if (ehMensageria) {
+      Navigator.of(context).push(rota).then((_) {
+        _memoriaSubIndices[1] = 0;
+      });
+    } else {
+      Navigator.of(context).pushAndRemoveUntil(rota, (route) => route.isFirst);
+    }
   }
 
   @override

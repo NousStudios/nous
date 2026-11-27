@@ -95,24 +95,65 @@ class BuscaMapaFiltrosHelper {
         lon2: lonLoja,
       );
 
+      final itensPorId = {for (final i in loja.itensLoja) i.id: i};
+      final idsEmCategorias = <String>{};
+
+      // 1. Produtos e Serviços combinados com Categorias (ex: Açaí + Copo de 300ml = R$ 22,00)
+      for (final categoria in loja.categoriasLoja) {
+        for (final itemId in categoria.itemIds) {
+          final item = itensPorId[itemId];
+          if (item == null) continue;
+
+          final ehServico = item.tipo == TipoItemLoja.servico ||
+              categoria.tipo == TipoItemLoja.servico;
+          if (filtroAtivo == FiltroBuscaMapa.servicos && !ehServico) continue;
+          if (filtroAtivo == FiltroBuscaMapa.produtos && ehServico) continue;
+
+          idsEmCategorias.add(item.id);
+          candidatos.add(
+            ProdutoMapaItem(
+              item: item,
+              loja: loja,
+              distanciaKm: distKm,
+              categoria: categoria,
+            ),
+          );
+        }
+      }
+
+      // 2. Itens avulsos ou não vinculados a categorias
       for (final item in loja.itensLoja) {
         final ehServico = item.tipo == TipoItemLoja.servico;
         if (filtroAtivo == FiltroBuscaMapa.servicos && !ehServico) continue;
         if (filtroAtivo == FiltroBuscaMapa.produtos && ehServico) continue;
-        candidatos.add(
-          ProdutoMapaItem(
-            item: item,
-            loja: loja,
-            distanciaKm: distKm,
-          ),
-        );
+
+        // Se o item não está em nenhuma categoria, ou se foi cadastrado com preço próprio para venda avulsa
+        final jaInseridoComCategoria = idsEmCategorias.contains(item.id);
+        if (!jaInseridoComCategoria || item.preco.trim().isNotEmpty) {
+          candidatos.add(
+            ProdutoMapaItem(
+              item: item,
+              loja: loja,
+              distanciaKm: distKm,
+              categoria: null,
+            ),
+          );
+        }
       }
     }
 
     final filtrados = _filtrarEOrdenar(
       candidatos,
       termoBusca,
-      (p) => [p.item.nome, p.item.descricao, p.loja.nome],
+      (p) => [
+        p.nomeExibicao,
+        p.item.nome,
+        p.categoria?.nome ?? '',
+        p.item.descricao,
+        p.loja.nome,
+        p.loja.categorias,
+        p.loja.tags,
+      ],
     );
 
     // Ordenação gradual por proximidade: itens mais próximos do usuário primeiro,

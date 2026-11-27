@@ -41,8 +41,6 @@ class GradeProdutosMercadoWidget extends StatelessWidget {
     }
 
     final largura = MediaQuery.sizeOf(context).width;
-    final int crossAxisCount =
-        largura > 960 ? 4 : (largura > 620 ? 3 : 2);
 
     return CustomScrollView(
       slivers: [
@@ -95,11 +93,11 @@ class GradeProdutosMercadoWidget extends StatelessWidget {
         SliverPadding(
           padding: const EdgeInsets.fromLTRB(14, 0, 14, 96),
           sliver: SliverGrid(
-            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: crossAxisCount,
+            gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+              maxCrossAxisExtent: 225,
               mainAxisSpacing: 12,
               crossAxisSpacing: 12,
-              childAspectRatio: 0.66,
+              childAspectRatio: 0.70,
             ),
             delegate: SliverChildBuilderDelegate(
               (context, index) {

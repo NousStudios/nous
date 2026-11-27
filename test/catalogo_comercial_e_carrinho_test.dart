@@ -4,6 +4,7 @@ import 'package:nous/src/features/busca/controllers/busca_mapa_controller.dart';
 import 'package:nous/src/features/busca/controllers/helpers/busca_mapa_filtros_helper.dart';
 import 'package:nous/src/features/busca/models/avaliacao_produto.dart';
 import 'package:nous/src/features/compras/services/carrinho_compras_service.dart';
+import 'package:nous/src/features/pdv/models/categoria_loja.dart';
 import 'package:nous/src/features/pdv/models/item_loja.dart';
 import 'package:nous/src/features/pdv/models/loja.dart';
 
@@ -184,5 +185,62 @@ void main() {
       expect(restaurada.comentario, 'Não gostei do acabamento.');
       expect(restaurada.curtidas, 3);
     });
+  });
+
+  group('BuscaMapaFiltrosHelper - Categorias Compostas', () {
+    test(
+      'combina categoria (ex: Açaí R\$ 20) com item (ex: Copo 300ml R\$ 2) formando R\$ 22 e permite busca pela categoria',
+      () {
+        const copo300 = ItemLoja(
+          id: 'copo_300',
+          nome: 'Copo 300ml',
+          preco: '2,00',
+          tipo: TipoItemLoja.produto,
+        );
+        const catAcai = CategoriaLoja(
+          id: 'cat_acai',
+          nome: 'Açaí',
+          preco: '20,00',
+          tipo: TipoItemLoja.produto,
+          itemIds: ['copo_300'],
+          grupoIds: ['grp_doces'],
+        );
+        final lojaLaricas = Loja(
+          id: 'laricas',
+          nome: 'Laricas',
+          cnpj: '',
+          telefone: '',
+          email: '',
+          categorias: 'Doces e Açaí',
+          tags: '',
+          endereco: 'Centro',
+          numero: '100',
+          cidade: 'São José do Rio Preto',
+          itensLoja: const [copo300],
+          categoriasLoja: const [catAcai],
+        );
+
+        final resultadosAcai = BuscaMapaFiltrosHelper.filtrarProdutos(
+          [lojaLaricas],
+          'açaí',
+          FiltroBuscaMapa.produtos,
+        );
+        expect(resultadosAcai, isNotEmpty);
+        expect(resultadosAcai.first.nomeExibicao, 'Açaí - Copo 300ml');
+        expect(resultadosAcai.first.precoTotal, 22.0);
+        expect(resultadosAcai.first.precoTexto, 'R\$ 22,00');
+        expect(resultadosAcai.first.grupoIdsAcompanhamentos, ['grp_doces']);
+
+        final resultadosCopo = BuscaMapaFiltrosHelper.filtrarProdutos(
+          [lojaLaricas],
+          'copo 300ml',
+          FiltroBuscaMapa.produtos,
+        );
+        expect(resultadosCopo.length, 2);
+        expect(resultadosCopo.first.nomeExibicao, 'Açaí - Copo 300ml');
+        expect(resultadosCopo.last.nomeExibicao, 'Copo 300ml');
+        expect(resultadosCopo.last.precoTotal, 2.0);
+      },
+    );
   });
 }

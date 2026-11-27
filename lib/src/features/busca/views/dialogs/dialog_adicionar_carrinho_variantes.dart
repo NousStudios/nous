@@ -47,23 +47,21 @@ class _DialogAdicionarCarrinhoVariantesState
     }
 
     // Descobre os grupos de componentes/acompanhamentos vinculados à categoria do item
-    final grupoIds = <String>{};
-    for (final cat in loja.categoriasLoja) {
-      if (cat.itemIds.contains(item.id)) {
-        grupoIds.addAll(cat.grupoIds);
-      }
-    }
+    final grupoIds = widget.produto.grupoIdsAcompanhamentos.toSet();
     _gruposDoItem = loja.gruposComponentesLoja
         .where((g) => grupoIds.contains(g.id))
         .toList();
   }
 
   double get _precoBaseUnitario {
+    final precoCategoria = widget.produto.categoria != null
+        ? CarrinhoComprasService.parsePreco(widget.produto.categoria!.preco)
+        : 0.0;
     if (_varianteSelecionada != null) {
       final pv = CarrinhoComprasService.parsePreco(_varianteSelecionada!.preco);
-      if (pv > 0) return pv;
+      if (pv > 0) return pv + precoCategoria;
     }
-    return CarrinhoComprasService.parsePreco(widget.produto.item.preco);
+    return widget.produto.precoTotal;
   }
 
   double get _somaAcompanhamentos {
@@ -111,19 +109,25 @@ class _DialogAdicionarCarrinhoVariantesState
         ? box.localToGlobal(Offset(box.size.width / 2, box.size.height / 2))
         : Offset(media.width / 2, media.height / 2);
 
+    final itemComposto = widget.produto.item.copyWith(
+      nome: widget.produto.nomeExibicao,
+      preco: widget.produto.precoTotal.toStringAsFixed(2),
+    );
+    final varianteComposta = _varianteSelecionada?.copyWith(
+      preco: _precoBaseUnitario.toStringAsFixed(2),
+    );
+
     final ok = await CarrinhoComprasService.adicionarProduto(
       pdv: widget.pdv,
       loja: widget.produto.loja,
-      item: widget.produto.item,
-      variante: _varianteSelecionada,
+      item: itemComposto,
+      variante: varianteComposta,
       acompanhamentos: _montarListaAcompanhamentos(),
       quantidade: _quantidade,
     );
 
     if (!mounted) return;
-    final fotoUrl = widget.produto.item.imagens.isNotEmpty
-        ? widget.produto.item.imagens.first
-        : '';
+    final fotoUrl = widget.produto.fotoDestaque;
 
     Navigator.of(context).pop();
 
@@ -133,7 +137,7 @@ class _DialogAdicionarCarrinhoVariantesState
         origemGlobal: origem,
         theme: widget.theme,
         fotoUrl: fotoUrl,
-        nomeItem: widget.produto.item.nome,
+        nomeItem: widget.produto.nomeExibicao,
       );
     }
   }
@@ -143,7 +147,7 @@ class _DialogAdicionarCarrinhoVariantesState
     final theme = widget.theme;
     final item = widget.produto.item;
     final loja = widget.produto.loja;
-    final fotoUrl = item.imagens.isNotEmpty ? item.imagens.first : '';
+    final fotoUrl = widget.produto.fotoDestaque;
     final variantes = item.variantes;
 
     return Dialog(
@@ -189,7 +193,7 @@ class _DialogAdicionarCarrinhoVariantesState
 
               // Nome e curta descrição
               Text(
-                item.nome,
+                widget.produto.nomeExibicao,
                 textAlign: TextAlign.center,
                 style: theme.getTextStyle(
                   fontSize: 16,

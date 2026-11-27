@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:nous/src/core/theme/theme_controller.dart';
 import 'package:nous/src/features/busca/controllers/helpers/busca_mapa_modelos.dart';
-import 'package:nous/src/features/compras/services/carrinho_compras_service.dart';
 import 'package:nous/src/features/pdv/services/imagem_service.dart';
 
 class CardProdutoMercadoWidget extends StatelessWidget {
@@ -22,11 +21,9 @@ class CardProdutoMercadoWidget extends StatelessWidget {
   Widget build(BuildContext context) {
     final item = produto.item;
     final loja = produto.loja;
-    final fotoUrl = item.imagens.isNotEmpty ? item.imagens.first : '';
-    final precoNum = CarrinhoComprasService.parsePreco(item.preco);
-    final precoTexto = precoNum > 0
-        ? 'R\$ ${precoNum.toStringAsFixed(2).replaceAll('.', ',')}'
-        : (item.preco.trim().isNotEmpty ? item.preco : 'Sob consulta');
+    final fotoUrl = produto.fotoDestaque;
+    final precoTexto = produto.precoTexto;
+    final nomeExibicao = produto.nomeExibicao;
 
     return GestureDetector(
       onTap: onTap,
@@ -111,7 +108,7 @@ class CardProdutoMercadoWidget extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      item.nome,
+                      nomeExibicao,
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                       style: theme.getTextStyle(
