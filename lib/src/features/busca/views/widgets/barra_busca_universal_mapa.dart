@@ -11,12 +11,14 @@ import 'package:nous/src/features/busca/views/dialogs/dialog_escuta_voz_mapa.dar
 class BarraBuscaUniversalMapa extends StatefulWidget {
   final BuscaMapaController controller;
   final TextEditingController textController;
+  final FocusNode? focusNode;
   final AppTheme theme;
 
   const BarraBuscaUniversalMapa({
     super.key,
     required this.controller,
     required this.textController,
+    this.focusNode,
     required this.theme,
   });
 
@@ -243,6 +245,7 @@ class _BarraBuscaUniversalMapaState extends State<BarraBuscaUniversalMapa> {
               Expanded(
                 child: TextField(
                   controller: widget.textController,
+                  focusNode: widget.focusNode,
                   onTap: () {
                     if (!ctrl.ehFiltroCatalogoComercial) {
                       ctrl.definirPainelBusca(true);
@@ -258,11 +261,14 @@ class _BarraBuscaUniversalMapaState extends State<BarraBuscaUniversalMapa> {
                   decoration: InputDecoration(
                     hintText: _ouvindoVoz
                         ? 'Ouvindo...'
-                        : (ctrl.filtroAtivo == FiltroBuscaMapa.produtos
-                            ? 'Pesquisar produtos...'
-                            : (ctrl.filtroAtivo == FiltroBuscaMapa.servicos
-                                ? 'Pesquisar serviços...'
-                                : 'Pesquisar')),
+                        : (ctrl.filtrosAtivos.contains(FiltroBuscaMapa.produtos) &&
+                                ctrl.filtrosAtivos.contains(FiltroBuscaMapa.servicos)
+                            ? 'Pesquisar produtos e serviços...'
+                            : (ctrl.filtrosAtivos.contains(FiltroBuscaMapa.produtos)
+                                ? 'Pesquisar produtos...'
+                                : (ctrl.filtrosAtivos.contains(FiltroBuscaMapa.servicos)
+                                    ? 'Pesquisar serviços...'
+                                    : 'Pesquisar'))),
                     hintStyle: theme.getTextStyle(
                       fontSize: 14,
                       color: _ouvindoVoz
@@ -277,20 +283,20 @@ class _BarraBuscaUniversalMapaState extends State<BarraBuscaUniversalMapa> {
               ),
               if (widget.textController.text.isNotEmpty ||
                   ctrl.painelBuscaExpandido ||
-                  ctrl.exibirCatalogoComercial ||
-                  ctrl.filtroAtivo != FiltroBuscaMapa.todos)
+                  ctrl.exibirCatalogoComercial)
                 IconButton(
                   icon: Icon(
                     Icons.close_rounded,
                     size: 19,
                     color: theme.secondaryTextColor,
                   ),
-                  tooltip: 'Fechar pesquisa',
+                  tooltip: 'Limpar pesquisa',
                   onPressed: () {
                     widget.textController.clear();
                     ctrl.atualizarBusca('');
-                    ctrl.definirFiltro(FiltroBuscaMapa.todos);
-                    ctrl.definirPainelBusca(false);
+                    if (ctrl.ehFiltroCatalogoComercial) {
+                      ctrl.definirPainelBusca(false);
+                    }
                     FocusScope.of(context).unfocus();
                   },
                 ),
@@ -298,8 +304,7 @@ class _BarraBuscaUniversalMapaState extends State<BarraBuscaUniversalMapa> {
                 icon: Icon(
                   Icons.filter_alt_outlined,
                   size: 20,
-                  color: _mostrarFiltros ||
-                          ctrl.filtroAtivo != FiltroBuscaMapa.todos
+                  color: _mostrarFiltros || !ctrl.semFiltroEspecifico
                       ? theme.textColor
                       : theme.secondaryTextColor,
                 ),
@@ -341,11 +346,13 @@ class _BarraBuscaUniversalMapaState extends State<BarraBuscaUniversalMapa> {
         ],
         if (_mostrarFiltros) ...[
           const SizedBox(height: 8),
-          SizedBox(
-            height: 32,
-            child: ListView(
+          Align(
+            alignment: Alignment.centerLeft,
+            child: SingleChildScrollView(
               scrollDirection: Axis.horizontal,
-              children: [
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
                 Padding(
                   padding: const EdgeInsets.only(right: 6),
                   child: InkWell(
@@ -449,12 +456,12 @@ class _BarraBuscaUniversalMapaState extends State<BarraBuscaUniversalMapa> {
                   ),
                 ),
                 ...FiltroBuscaMapa.values.map((filtro) {
-                final ativo = ctrl.filtroAtivo == filtro;
+                final ativo = ctrl.filtrosAtivos.contains(filtro);
                 return Padding(
                   padding: const EdgeInsets.only(right: 6),
                   child: InkWell(
                     borderRadius: BorderRadius.circular(16),
-                    onTap: () => ctrl.definirFiltro(filtro),
+                    onTap: () => ctrl.alternarFiltro(filtro),
                     child: Container(
                       padding: const EdgeInsets.symmetric(
                         horizontal: 12,
@@ -487,6 +494,7 @@ class _BarraBuscaUniversalMapaState extends State<BarraBuscaUniversalMapa> {
                 );
               }),
               ],
+            ),
             ),
           ),
         ],

@@ -2,8 +2,21 @@
 
 Uma linha por mudança, da mais recente para a mais antiga. O agente deve acrescentar aqui o que fez em cada ciclo (versão do `pubspec.yaml` + o que mudou). Este arquivo guarda **histórico**; a descrição atual do app fica em `MAPA_DO_APP.md`.
 
+## v1.1.57 (build 159) — 26/11/2026
+
+- **Refinamento da Busca Universal, Limpeza de Termo e Miniaturas (`busca`):**
+  - O botão de limpar (`X`) na barra de busca agora limpa o termo pesquisado sem desmarcar os filtros selecionados pelo usuário, permitindo nova pesquisa imediata.
+  - A lista de resultados sobre o mapa agora exibe a foto do produto/categoria em miniatura no lugar do ícone cinza de sacola.
+  - O card de resumo de rotas foi otimizado para evitar estouro de texto ou encavalamento de botões quando o dispositivo utiliza fontes ampliadas.
+
 ## v1.1.56 (build 158) — 26/11/2026
 
+- **Ajustes na Busca Universal, Filtros Combináveis e Regra de Releases (`busca`, `docs`):**
+  - Corrigida a altura da barra de filtros abaixo do campo de pesquisa em [barra_busca_universal_mapa.dart](file:///d:/Nous/nous/lib/src/features/busca/views/widgets/barra_busca_universal_mapa.dart) usando `SingleChildScrollView` + `Row` para adaptar automaticamente ao tamanho da fonte sem cortar palavras.
+  - Preservado o foco do campo de pesquisa ao digitar a primeira letra com **Produtos** ou **Serviços** ligado ([busca_mapa_view.dart](file:///d:/Nous/nous/lib/src/features/busca/views/busca_mapa_view.dart) com `GlobalKey` e `FocusNode` persistente).
+  - Permitido ligar e desligar todos os botões de filtro abaixo da busca universal, incluindo seleção simultânea de **Produtos** e **Serviços** ([busca_mapa_controller.dart](file:///d:/Nous/nous/lib/src/features/busca/controllers/busca_mapa_controller.dart), [busca_mapa_filtros_helper.dart](file:///d:/Nous/nous/lib/src/features/busca/controllers/helpers/busca_mapa_filtros_helper.dart), [grade_produtos_mercado_widget.dart](file:///d:/Nous/nous/lib/src/features/busca/views/widgets/catalogo_produtos/grade_produtos_mercado_widget.dart)).
+  - Atualizada a seção **Produtos & Serviços** na busca padrão ([lista_resultados_busca_mapa.dart](file:///d:/Nous/nous/lib/src/features/busca/views/widgets/lista_resultados_busca_mapa.dart)) para exibir nome composto com categoria (`nomeExibicao`) e preço somado (`precoTexto`).
+  - Documentada a regra obrigatória de formatação estruturada dos Releases no GitHub em [build-e-distribuicao.md](file:///d:/Nous/nous/docs/build-e-distribuicao.md) e [AGENTS.md](file:///d:/Nous/nous/AGENTS.md).
 - **Busca por Categorias, Cards no Computador, Mensagens e Auto-Update (`busca`, `chat`, `core`):**
   - A busca universal de Produtos e Serviços agora considera as categorias da loja e soma automaticamente o preço da categoria ao item vinculado (ex: Açaí + Copo 300ml = R$ 22,00), carregando também os adicionais da categoria ao adicionar ao carrinho.
   - Ajustado o tamanho dos cards de produtos e serviços no computador para grade responsiva e proporcional.

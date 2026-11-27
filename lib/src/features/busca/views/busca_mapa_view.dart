@@ -44,6 +44,8 @@ class _BuscaMapaViewState extends State<BuscaMapaView>
     with TickerProviderStateMixin {
   final BuscaMapaController _controller = BuscaMapaController();
   final TextEditingController _buscaTextController = TextEditingController();
+  final FocusNode _buscaFocusNode = FocusNode();
+  final GlobalKey _barraBuscaKey = GlobalKey();
   final ValueNotifier<bool> _navegandoAoVivoNotifier = ValueNotifier<bool>(false);
   final NousCachedTileProvider _tileProvider = NousCachedTileProvider();
   Timer? _debounceRede;
@@ -230,6 +232,7 @@ class _BuscaMapaViewState extends State<BuscaMapaView>
     ClienteRedeLocal().estaConectado.removeListener(_aoMudarRede);
     TimelineService.alteracoesTimelineNotifier.removeListener(_aoMudarRede);
     _buscaTextController.dispose();
+    _buscaFocusNode.dispose();
     _controller.dispose();
     super.dispose();
   }
@@ -468,8 +471,10 @@ class _BuscaMapaViewState extends State<BuscaMapaView>
                             Padding(
                               padding: const EdgeInsets.fromLTRB(14, 12, 14, 4),
                               child: BarraBuscaUniversalMapa(
+                                key: _barraBuscaKey,
                                 controller: _controller,
                                 textController: _buscaTextController,
+                                focusNode: _buscaFocusNode,
                                 theme: theme,
                               ),
                             ),
@@ -519,8 +524,10 @@ class _BuscaMapaViewState extends State<BuscaMapaView>
                             )
                           else
                             BarraBuscaUniversalMapa(
+                              key: _barraBuscaKey,
                               controller: _controller,
                               textController: _buscaTextController,
+                              focusNode: _buscaFocusNode,
                               theme: theme,
                             ),
                           if (_controller.painelBuscaExpandido &&

@@ -26,19 +26,20 @@ class ListaResultadosBuscaMapa extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final auth = context.watch<AuthProvider>();
-    final filtro = controller.filtroAtivo;
+    final filtros = controller.filtrosAtivos;
+    final semFiltro = controller.semFiltroEspecifico;
 
-    final mostrarEnderecos = filtro == FiltroBuscaMapa.todos ||
-        filtro == FiltroBuscaMapa.enderecos;
+    final mostrarEnderecos =
+        semFiltro || filtros.contains(FiltroBuscaMapa.enderecos);
     final mostrarLojas =
-        filtro == FiltroBuscaMapa.todos || filtro == FiltroBuscaMapa.lojas;
-    final mostrarProdutos = filtro == FiltroBuscaMapa.todos ||
-        filtro == FiltroBuscaMapa.produtos ||
-        filtro == FiltroBuscaMapa.servicos;
+        semFiltro || filtros.contains(FiltroBuscaMapa.lojas);
+    final mostrarProdutos = semFiltro ||
+        filtros.contains(FiltroBuscaMapa.produtos) ||
+        filtros.contains(FiltroBuscaMapa.servicos);
     final mostrarPerfis =
-        filtro == FiltroBuscaMapa.todos || filtro == FiltroBuscaMapa.perfis;
+        semFiltro || filtros.contains(FiltroBuscaMapa.perfis);
     final mostrarProjetos =
-        filtro == FiltroBuscaMapa.todos || filtro == FiltroBuscaMapa.projetos;
+        semFiltro || filtros.contains(FiltroBuscaMapa.projetos);
 
     final enderecos = mostrarEnderecos
         ? controller.enderecosEncontrados
@@ -49,9 +50,8 @@ class ListaResultadosBuscaMapa extends StatelessWidget {
     final perfis = mostrarPerfis ? controller.perfisFiltrados : const [];
     final projetos =
         mostrarProjetos ? controller.projetosFiltrados : const [];
-    final publicacoes = filtro == FiltroBuscaMapa.todos
-        ? controller.publicacoesFiltradas
-        : const [];
+    final publicacoes =
+        semFiltro ? controller.publicacoesFiltradas : const [];
 
     final termoLimpo = controller.termoBusca.trim().toLowerCase();
     final temResultadosLocais = lojas.isNotEmpty ||
@@ -329,12 +329,34 @@ class ListaResultadosBuscaMapa extends StatelessWidget {
           if (produtos.isNotEmpty) ...[
             _tituloSecao('Produtos & Serviços (${produtos.length})'),
             ...produtos.take(8).map((p) {
+              final foto = ImagemService.resolverCaminhoExistente(p.fotoDestaque);
               return ListTile(
                 dense: true,
-                leading: Icon(Icons.shopping_bag_outlined,
-                    size: 18, color: theme.textColor),
+                leading: ClipRRect(
+                  borderRadius: BorderRadius.circular(6),
+                  child: Container(
+                    width: 36,
+                    height: 36,
+                    color: theme.borderColor.withValues(alpha: 0.25),
+                    child: foto != null
+                        ? Image.file(
+                            File(foto),
+                            fit: BoxFit.cover,
+                            errorBuilder: (_, _, _) => Icon(
+                              Icons.shopping_bag_outlined,
+                              size: 18,
+                              color: theme.textColor,
+                            ),
+                          )
+                        : Icon(
+                            Icons.shopping_bag_outlined,
+                            size: 18,
+                            color: theme.textColor,
+                          ),
+                  ),
+                ),
                 title: Text(
-                  p.item.nome,
+                  p.nomeExibicao,
                   style: theme.getTextStyle(
                     fontSize: 12.5,
                     fontWeight: FontWeight.w600,
@@ -342,7 +364,7 @@ class ListaResultadosBuscaMapa extends StatelessWidget {
                   ),
                 ),
                 subtitle: Text(
-                  '${p.loja.nome} • R\$ ${p.item.preco} • ${p.distanciaFormatada}',
+                  '${p.loja.nome} • ${p.precoTexto} • ${p.distanciaFormatada}',
                   style: theme.getTextStyle(
                     fontSize: 11,
                     color: theme.secondaryTextColor,

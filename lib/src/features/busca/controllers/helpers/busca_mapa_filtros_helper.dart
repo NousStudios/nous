@@ -78,11 +78,16 @@ class BuscaMapaFiltrosHelper {
   static List<ProdutoMapaItem> filtrarProdutos(
     List<Loja> lojas,
     String termoBusca,
-    FiltroBuscaMapa filtroAtivo, {
+    Set<FiltroBuscaMapa> filtrosAtivos, {
     double? latUsuario,
     double? lonUsuario,
     Map<String, LatLng>? coordenadasLojas,
   }) {
+    final filtraProd = filtrosAtivos.contains(FiltroBuscaMapa.produtos);
+    final filtraServ = filtrosAtivos.contains(FiltroBuscaMapa.servicos);
+    final restringirTipo = !filtrosAtivos.contains(FiltroBuscaMapa.todos) &&
+        (filtraProd != filtraServ);
+
     final candidatos = <ProdutoMapaItem>[];
     for (final loja in lojas) {
       final coordMapa = coordenadasLojas?[loja.id];
@@ -106,8 +111,10 @@ class BuscaMapaFiltrosHelper {
 
           final ehServico = item.tipo == TipoItemLoja.servico ||
               categoria.tipo == TipoItemLoja.servico;
-          if (filtroAtivo == FiltroBuscaMapa.servicos && !ehServico) continue;
-          if (filtroAtivo == FiltroBuscaMapa.produtos && ehServico) continue;
+          if (restringirTipo) {
+            if (filtraServ && !ehServico) continue;
+            if (filtraProd && ehServico) continue;
+          }
 
           idsEmCategorias.add(item.id);
           candidatos.add(
@@ -124,8 +131,10 @@ class BuscaMapaFiltrosHelper {
       // 2. Itens avulsos ou não vinculados a categorias
       for (final item in loja.itensLoja) {
         final ehServico = item.tipo == TipoItemLoja.servico;
-        if (filtroAtivo == FiltroBuscaMapa.servicos && !ehServico) continue;
-        if (filtroAtivo == FiltroBuscaMapa.produtos && ehServico) continue;
+        if (restringirTipo) {
+          if (filtraServ && !ehServico) continue;
+          if (filtraProd && ehServico) continue;
+        }
 
         // Se o item não está em nenhuma categoria, ou se foi cadastrado com preço próprio para venda avulsa
         final jaInseridoComCategoria = idsEmCategorias.contains(item.id);

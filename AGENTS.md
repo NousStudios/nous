@@ -40,7 +40,7 @@ Este arquivo deve continuar curto (meta: menos de 200 linhas). Funcionalidade no
 
 ### Build e instaladores (regra do desenvolvedor)
 
-Após cada ciclo concluído e validado (testes e `flutter analyze`), compile os instaladores com `scripts/gerar_instalador.ps1`. O pipeline apaga versões antigas em `dist/` e mantém só a mais recente. **Regra de versionamento:** cada casa decimal vai de `0` até `99`; ao atingir `99`, o próximo ciclo avança a casa anterior e zera a atual (ex.: `1.0.99` → `1.1.0`, `1.1.1` ... `1.1.99` → `1.2.0`), incrementando sempre o `+build`. Detalhes em `docs/build-e-distribuicao.md`.
+Após cada ciclo concluído e validado (testes e `flutter analyze`), compile os instaladores com `scripts/gerar_instalador.ps1` (salvo quando o usuário pedir explicitamente para não atualizar os instaladores). O pipeline apaga versões antigas em `dist/` e mantém só a mais recente. **Regra de versionamento:** cada casa decimal vai de `0` até `99`; ao atingir `99`, o próximo ciclo avança a casa anterior e zera a atual (ex.: `1.0.99` → `1.1.0`, `1.1.1` ... `1.1.99` → `1.2.0`), incrementando sempre o `+build`. **Regra de GitHub Releases:** toda release publicada deve seguir o padrão estruturado da `v1.1.55` (`## Novidades da versão vX.Y.Z`, seções `###` com emoji e tópicos `- **Título:** descrição`). Detalhes em `docs/build-e-distribuicao.md`.
 
 ## 2. O que é o Nous
 

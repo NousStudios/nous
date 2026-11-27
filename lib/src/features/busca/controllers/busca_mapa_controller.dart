@@ -48,7 +48,7 @@ class BuscaMapaController extends ChangeNotifier {
   List<ItemHistoricoBuscaMapa> historicoBusca = [];
 
   String termoBusca = '';
-  FiltroBuscaMapa filtroAtivo = FiltroBuscaMapa.todos;
+  final Set<FiltroBuscaMapa> filtrosAtivos = {FiltroBuscaMapa.todos};
   bool painelBuscaExpandido = false;
   bool buscandoEnderecos = false;
 
@@ -347,12 +347,18 @@ class BuscaMapaController extends ChangeNotifier {
 
   bool catalogoForcadoPorEnvio = false;
 
-  bool get ehFiltroCatalogoComercial =>
-      filtroAtivo == FiltroBuscaMapa.produtos ||
-      filtroAtivo == FiltroBuscaMapa.servicos;
+  bool get semFiltroEspecifico =>
+      filtrosAtivos.isEmpty || filtrosAtivos.contains(FiltroBuscaMapa.todos);
 
-  /// Exibe a tela comercial estilo Shopee/Mercado Livre SOMENTE quando o filtro
-  /// Produtos ou Serviços está ligado E o usuário realizou uma busca (digitou ou confirmou Enter).
+  bool get ehFiltroCatalogoComercial {
+    if (semFiltroEspecifico) return false;
+    return filtrosAtivos.every(
+      (f) => f == FiltroBuscaMapa.produtos || f == FiltroBuscaMapa.servicos,
+    );
+  }
+
+  /// Exibe a tela comercial estilo Shopee/Mercado Livre SOMENTE quando apenas
+  /// Produtos e/ou Serviços estão ligados E o usuário realizou uma busca (digitou ou confirmou Enter).
   bool get exibirCatalogoComercial =>
       ehFiltroCatalogoComercial &&
       !modoRota &&
@@ -367,17 +373,40 @@ class BuscaMapaController extends ChangeNotifier {
     }
   }
 
-  void definirFiltro(FiltroBuscaMapa filtro) {
-    filtroAtivo = filtro;
+  void alternarFiltro(FiltroBuscaMapa filtro) {
+    if (filtro == FiltroBuscaMapa.todos) {
+      if (filtrosAtivos.contains(FiltroBuscaMapa.todos)) {
+        filtrosAtivos.clear();
+      } else {
+        filtrosAtivos
+          ..clear()
+          ..add(FiltroBuscaMapa.todos);
+      }
+    } else {
+      filtrosAtivos.remove(FiltroBuscaMapa.todos);
+      if (filtrosAtivos.contains(filtro)) {
+        filtrosAtivos.remove(filtro);
+      } else {
+        filtrosAtivos.add(filtro);
+      }
+    }
+    _sincronizarAposMudancaFiltro();
+  }
+
+  void limparFiltros() {
+    filtrosAtivos.clear();
+    _sincronizarAposMudancaFiltro();
+  }
+
+  void _sincronizarAposMudancaFiltro() {
     catalogoForcadoPorEnvio = false;
-    final ehComercial = filtro == FiltroBuscaMapa.produtos ||
-        filtro == FiltroBuscaMapa.servicos;
+    final ehComercial = ehFiltroCatalogoComercial;
     // Ao ligar Produtos/Serviços sem busca ainda, NÃO abre a tela cheia nem lista automática
     painelBuscaExpandido = ehComercial
         ? termoBusca.trim().isNotEmpty
-        : (termoBusca.trim().isNotEmpty || filtro != FiltroBuscaMapa.todos);
-    if (filtro == FiltroBuscaMapa.todos ||
-        filtro == FiltroBuscaMapa.enderecos) {
+        : (termoBusca.trim().isNotEmpty || !semFiltroEspecifico);
+    if (semFiltroEspecifico ||
+        filtrosAtivos.contains(FiltroBuscaMapa.enderecos)) {
       if (termoBusca.trim().length >= 2) {
         atualizarBusca(termoBusca);
         return;
@@ -404,7 +433,7 @@ class BuscaMapaController extends ChangeNotifier {
     }
     painelBuscaExpandido = ehFiltroCatalogoComercial
         ? (texto.trim().isNotEmpty || catalogoForcadoPorEnvio)
-        : (texto.trim().isNotEmpty || filtroAtivo != FiltroBuscaMapa.todos);
+        : (texto.trim().isNotEmpty || !semFiltroEspecifico);
     _notificar();
 
     _debounceEnderecos?.cancel();
@@ -416,8 +445,8 @@ class BuscaMapaController extends ChangeNotifier {
       return;
     }
 
-    if (filtroAtivo == FiltroBuscaMapa.todos ||
-        filtroAtivo == FiltroBuscaMapa.enderecos) {
+    if (semFiltroEspecifico ||
+        filtrosAtivos.contains(FiltroBuscaMapa.enderecos)) {
       buscandoEnderecos = true;
       _notificar();
       _debounceEnderecos = Timer(const Duration(milliseconds: 380), () async {
@@ -518,7 +547,7 @@ class BuscaMapaController extends ChangeNotifier {
     return BuscaMapaFiltrosHelper.filtrarProdutos(
       lojas,
       termoBusca,
-      filtroAtivo,
+      filtrosAtivos,
       latUsuario: ref.latitude,
       lonUsuario: ref.longitude,
       coordenadasLojas: coordenadasLojas,

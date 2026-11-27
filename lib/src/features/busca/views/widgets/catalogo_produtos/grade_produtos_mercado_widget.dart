@@ -22,8 +22,16 @@ class GradeProdutosMercadoWidget extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final produtos = controller.produtosFiltrados;
-    final ehServico = controller.filtroAtivo == FiltroBuscaMapa.servicos;
-    final tipoRotulo = ehServico ? 'Serviços' : 'Produtos';
+    final temProd = controller.filtrosAtivos.contains(FiltroBuscaMapa.produtos);
+    final temServ = controller.filtrosAtivos.contains(FiltroBuscaMapa.servicos);
+    final String tipoRotulo;
+    if (temProd && temServ) {
+      tipoRotulo = 'Produtos e Serviços';
+    } else if (temServ) {
+      tipoRotulo = 'Serviços';
+    } else {
+      tipoRotulo = 'Produtos';
+    }
     final temGps = controller.posicaoUsuario != null;
 
     if (produtos.isEmpty) {
