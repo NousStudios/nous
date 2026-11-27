@@ -67,15 +67,10 @@ class AvaliacoesProdutoService {
       );
 
       final lista = rows.map((r) => AvaliacaoProduto.fromJson(r)).toList();
-
-      if (lista.isEmpty) {
-        return _gerarAvaliacoesDemonstracao(itemId, filtroEstrelas: filtroEstrelas);
-      }
-
       return lista;
     } catch (e) {
       debugPrint('[AvaliacoesProdutoService] Erro ao buscar avaliações: $e');
-      return _gerarAvaliacoesDemonstracao(itemId, filtroEstrelas: filtroEstrelas);
+      return const [];
     }
   }
 
@@ -251,84 +246,5 @@ class AvaliacoesProdutoService {
     } catch (e) {
       debugPrint('[AvaliacoesProdutoService] Erro ao mesclar avaliações: $e');
     }
-  }
-
-  /// Gera avaliações de demonstração com compradores reais caso o item ainda não tenha reviews no banco.
-  static List<AvaliacaoProduto> _gerarAvaliacoesDemonstracao(
-    String itemId, {
-    int? filtroEstrelas,
-  }) {
-    final base = [
-      AvaliacaoProduto(
-        id: 'mock_1_$itemId',
-        itemId: itemId,
-        lojaId: '',
-        autorCpf: '11122233344',
-        autorNome: 'Mariana Silva',
-        autorFoto: '',
-        estrelas: 5,
-        comentario:
-            'Produto excelente! Chegou muito rápido e muito bem embalado. A qualidade superou minhas expectativas.',
-        criadoEm: DateTime.now().subtract(const Duration(days: 2)),
-        curtidas: 12,
-      ),
-      AvaliacaoProduto(
-        id: 'mock_2_$itemId',
-        itemId: itemId,
-        lojaId: '',
-        autorCpf: '22233344455',
-        autorNome: 'Carlos Eduardo',
-        autorFoto: '',
-        estrelas: 5,
-        comentario:
-            'Atendimento nota 10 da loja. O produto corresponde exatamente à descrição e especificações.',
-        criadoEm: DateTime.now().subtract(const Duration(days: 5)),
-        curtidas: 7,
-      ),
-      AvaliacaoProduto(
-        id: 'mock_3_$itemId',
-        itemId: itemId,
-        lojaId: '',
-        autorCpf: '33344455566',
-        autorNome: 'Ana Paula Rocha',
-        autorFoto: '',
-        estrelas: 4,
-        comentario:
-            'Gostei muito. Funciona perfeitamente. Só a entrega que demorou um pouquinho mais que o previsto, mas valeu a pena.',
-        criadoEm: DateTime.now().subtract(const Duration(days: 8)),
-        curtidas: 4,
-      ),
-      AvaliacaoProduto(
-        id: 'mock_4_$itemId',
-        itemId: itemId,
-        lojaId: '',
-        autorCpf: '44455566677',
-        autorNome: 'Roberto Santos',
-        autorFoto: '',
-        estrelas: 3,
-        comentario:
-            'Produto razoável pelo valor pago. Atende para o uso básico do dia a dia.',
-        criadoEm: DateTime.now().subtract(const Duration(days: 12)),
-        curtidas: 2,
-      ),
-      AvaliacaoProduto(
-        id: 'mock_5_$itemId',
-        itemId: itemId,
-        lojaId: '',
-        autorCpf: '55566677788',
-        autorNome: 'Juliana Mendes',
-        autorFoto: '',
-        estrelas: 1,
-        comentario:
-            'Não era exatamente o que eu esperava para minha necessidade específica, acabei solicitando a troca.',
-        criadoEm: DateTime.now().subtract(const Duration(days: 15)),
-        curtidas: 5,
-      ),
-    ];
-
-    if (filtroEstrelas != null) {
-      return base.where((a) => a.estrelas == filtroEstrelas).toList();
-    }
-    return base;
   }
 }

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:latlong2/latlong.dart';
 import 'package:provider/provider.dart';
 import 'package:nous/src/core/theme/theme_controller.dart';
 import 'package:nous/src/core/widgets/custom_app_bar.dart';
@@ -6,6 +7,11 @@ import 'package:nous/src/core/widgets/floating_bottom_nav_bar.dart';
 import 'package:nous/src/features/auth/models/usuario_nous.dart';
 import 'package:nous/src/features/auth/providers/auth_provider.dart';
 import 'package:nous/src/features/auth/services/contas_nous_service.dart';
+import 'package:nous/src/features/busca/controllers/helpers/busca_mapa_coordenadas_helper.dart';
+import 'package:nous/src/features/busca/controllers/helpers/busca_mapa_filtros_helper.dart';
+import 'package:nous/src/features/busca/controllers/helpers/busca_mapa_modelos.dart';
+import 'package:nous/src/features/busca/services/mapa_geo_service.dart';
+import 'package:nous/src/features/pdv/providers/pdv_provider.dart';
 import 'package:nous/src/features/pdv/services/rede_local/cliente_rede_local.dart';
 import 'package:nous/src/features/timeline/models/publicacao_social.dart';
 import 'package:nous/src/features/timeline/models/story_social.dart';
@@ -34,6 +40,8 @@ class _FeedDescobertaViewState extends State<FeedDescobertaView> {
   int _abaSelecionada = 0;
   String? _tagFiltroAtiva;
   List<PublicacaoSocial> _publicacoes = [];
+  List<ProdutoMapaItem> _produtosComercio = [];
+  LatLng? _posicaoUsuario;
   List<UsuarioNous> _perfisEncontrados = [];
   Map<String, List<StorySocial>> _storiesPorAutor = {};
   bool _carregando = true;
@@ -147,6 +155,32 @@ class _FeedDescobertaViewState extends State<FeedDescobertaView> {
         .toLowerCase()
         .replaceAll('#', '')
         .replaceAll('@', '');
+
+    final ehAbaComercio = !_modoApenasAmigos &&
+        _tagFiltroAtiva == null &&
+        abas.isNotEmpty &&
+        (abas[_abaSelecionada]['id'] == 'desc_comercio' ||
+            (abas[_abaSelecionada]['titulo']?.toString().toLowerCase() ==
+                'comércio'));
+
+    List<ProdutoMapaItem> produtosComercio = const [];
+    if (ehAbaComercio) {
+      _posicaoUsuario ??= await MapaGeoService.obterPosicaoAtual()
+          .timeout(const Duration(seconds: 2), onTimeout: () => null);
+      if (mounted) {
+        final lojas = BuscaMapaCoordenadasHelper.coletarLojasDisponiveis(
+          context.read<PdvProvider>(),
+        );
+        produtosComercio = BuscaMapaFiltrosHelper.filtrarProdutos(
+          lojas,
+          termo,
+          const {FiltroBuscaMapa.todos},
+          latUsuario: _posicaoUsuario?.latitude,
+          lonUsuario: _posicaoUsuario?.longitude,
+        ).where((p) => p.item.ativo).toList();
+      }
+    }
+
     var perfisEncontrados = <UsuarioNous>[];
     if (termo.isNotEmpty) {
       final todasContas = await ContasNousService.carregarTodas();
@@ -193,6 +227,7 @@ class _FeedDescobertaViewState extends State<FeedDescobertaView> {
     setState(() {
       _abas = abas;
       _publicacoes = pubs;
+      _produtosComercio = produtosComercio;
       _perfisEncontrados = perfisEncontrados;
       _storiesPorAutor = agrupados;
       _temMais = temMaisInicial;
@@ -373,6 +408,7 @@ class _FeedDescobertaViewState extends State<FeedDescobertaView> {
                     carregandoMais: _carregandoMais,
                     modoApenasAmigos: _modoApenasAmigos,
                     publicacoes: _publicacoes,
+                    produtosComercio: _produtosComercio,
                     usuarioLogado: auth.contaAtual,
                     onTapTag: (tag) {
                       setState(() => _tagFiltroAtiva = tag);

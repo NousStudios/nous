@@ -15,12 +15,14 @@ class DialogAdicionarCarrinhoVariantes extends StatefulWidget {
   final ProdutoMapaItem produto;
   final AppTheme theme;
   final PdvProvider pdv;
+  final VarianteItem? varianteInicial;
 
   const DialogAdicionarCarrinhoVariantes({
     super.key,
     required this.produto,
     required this.theme,
     required this.pdv,
+    this.varianteInicial,
   });
 
   @override
@@ -42,7 +44,10 @@ class _DialogAdicionarCarrinhoVariantesState
     super.initState();
     final item = widget.produto.item;
     final loja = widget.produto.loja;
-    if (item.variantes.isNotEmpty) {
+    if (widget.varianteInicial != null &&
+        item.variantes.any((v) => v.nome == widget.varianteInicial!.nome)) {
+      _varianteSelecionada = widget.varianteInicial;
+    } else if (item.variantes.isNotEmpty) {
       _varianteSelecionada = item.variantes.first;
     }
 

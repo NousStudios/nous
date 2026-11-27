@@ -96,7 +96,7 @@ class ResumoAvaliacoesProduto {
   });
 
   static const vazio = ResumoAvaliacoesProduto(
-    mediaEstrelas: 5.0,
+    mediaEstrelas: 0.0,
     totalAvaliacoes: 0,
     contagemPorEstrela: {1: 0, 2: 0, 3: 0, 4: 0, 5: 0},
   );

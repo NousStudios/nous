@@ -194,17 +194,17 @@ class _DialogComentariosProdutoState extends State<DialogComentariosProduto> {
                 ),
                 child: Column(
                   children: [
-                    Text(
-                      _filtroEstrela == null
-                          ? 'Filtrar comentários por estrelas (toque em uma nota):'
-                          : 'Exibindo apenas avaliações de $_filtroEstrela ${_filtroEstrela == 1 ? 'estrela' : 'estrelas'} (toque novamente para ver todas)',
-                      textAlign: TextAlign.center,
-                      style: theme.getTextStyle(
-                        fontSize: 11,
-                        color: theme.secondaryTextColor,
+                    if (_filtroEstrela == null) ...[
+                      Text(
+                        'Filtrar comentários por estrelas (toque em uma nota):',
+                        textAlign: TextAlign.center,
+                        style: theme.getTextStyle(
+                          fontSize: 11,
+                          color: theme.secondaryTextColor,
+                        ),
                       ),
-                    ),
-                    const SizedBox(height: 8),
+                      const SizedBox(height: 8),
+                    ],
                     Wrap(
                       spacing: 6,
                       runSpacing: 6,

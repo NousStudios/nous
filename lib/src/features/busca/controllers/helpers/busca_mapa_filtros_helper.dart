@@ -102,6 +102,9 @@ class BuscaMapaFiltrosHelper {
 
       final itensPorId = {for (final i in loja.itensLoja) i.id: i};
       final idsEmCategorias = <String>{};
+      final idsEmGrupos = <String>{
+        for (final g in loja.gruposComponentesLoja) ...g.itemIds,
+      };
 
       // 1. Produtos e Serviços combinados com Categorias (ex: Açaí + Copo de 300ml = R$ 22,00)
       for (final categoria in loja.categoriasLoja) {
@@ -128,8 +131,12 @@ class BuscaMapaFiltrosHelper {
         }
       }
 
-      // 2. Itens avulsos ou não vinculados a categorias
+      // 2. Itens avulsos ou não vinculados a categorias (oculta o que existe APENAS em Grupos de Componentes)
       for (final item in loja.itensLoja) {
+        final apenasGrupoComponentes =
+            idsEmGrupos.contains(item.id) && !idsEmCategorias.contains(item.id);
+        if (apenasGrupoComponentes) continue;
+
         final ehServico = item.tipo == TipoItemLoja.servico;
         if (restringirTipo) {
           if (filtraServ && !ehServico) continue;

@@ -101,6 +101,7 @@ class ItemLoja {
   final String estoqueMinimo;
   final UnidadeItemLoja unidadeBase;
   final double consumoPorVenda;
+  final bool ativo;
 
   const ItemLoja({
     required this.id,
@@ -118,6 +119,7 @@ class ItemLoja {
     this.estoqueMinimo = '',
     this.unidadeBase = UnidadeItemLoja.un,
     this.consumoPorVenda = 1.0,
+    this.ativo = true,
   });
 
   factory ItemLoja.novo({
@@ -135,6 +137,7 @@ class ItemLoja {
     String estoqueMinimo = '',
     UnidadeItemLoja unidadeBase = UnidadeItemLoja.un,
     double consumoPorVenda = 1.0,
+    bool ativo = true,
   }) {
     return ItemLoja(
       id: gerarIdUnico(),
@@ -152,6 +155,7 @@ class ItemLoja {
       estoqueMinimo: estoqueMinimo,
       unidadeBase: unidadeBase,
       consumoPorVenda: consumoPorVenda,
+      ativo: ativo,
     );
   }
 
@@ -170,6 +174,7 @@ class ItemLoja {
     String? estoqueMinimo,
     UnidadeItemLoja? unidadeBase,
     double? consumoPorVenda,
+    bool? ativo,
   }) {
     return ItemLoja(
       id: id,
@@ -187,6 +192,7 @@ class ItemLoja {
       estoqueMinimo: estoqueMinimo ?? this.estoqueMinimo,
       unidadeBase: unidadeBase ?? this.unidadeBase,
       consumoPorVenda: consumoPorVenda ?? this.consumoPorVenda,
+      ativo: ativo ?? this.ativo,
     );
   }
 
@@ -207,6 +213,7 @@ class ItemLoja {
       'estoqueMinimo': estoqueMinimo,
       'unidadeBase': unidadeBase.name,
       'consumoPorVenda': consumoPorVenda,
+      'ativo': ativo,
     };
   }
 
@@ -245,6 +252,7 @@ class ItemLoja {
       unidadeBase: unidade,
       consumoPorVenda:
           (json['consumoPorVenda'] as num?)?.toDouble() ?? 1.0,
+      ativo: json['ativo'] as bool? ?? true,
     );
   }
 

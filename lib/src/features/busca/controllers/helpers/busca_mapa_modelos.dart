@@ -40,35 +40,71 @@ class ProdutoMapaItem {
     return item.nome.trim();
   }
 
-  /// Preço unitário total: soma o preço base do item com o preço base da categoria associada
-  /// (ex: R$ 2,00 do copo + R$ 20,00 da categoria Açaí = R$ 22,00).
+  /// Preço unitário total: soma o preço base do item (ou a menor variante se o preço base for vazio)
+  /// com o preço base da categoria associada (ex: R$ 2,00 do copo + R$ 20,00 da categoria Açaí = R$ 22,00).
   double get precoTotal {
-    final pItem = CarrinhoComprasService.parsePreco(item.preco);
     final pCat = categoria != null
         ? CarrinhoComprasService.parsePreco(categoria!.preco)
         : 0.0;
-    return pItem + pCat;
+    final pItem = CarrinhoComprasService.parsePreco(item.preco);
+    if (pItem > 0) {
+      return pItem + pCat;
+    }
+    final menorVar = _menorPrecoVariante();
+    if (menorVar > 0) {
+      return menorVar + pCat;
+    }
+    return pCat;
+  }
+
+  double _menorPrecoVariante() {
+    double? menor;
+    for (final v in item.variantes) {
+      final pv = CarrinhoComprasService.parsePreco(v.preco);
+      if (pv > 0 && (menor == null || pv < menor)) {
+        menor = pv;
+      }
+    }
+    return menor ?? 0.0;
+  }
+
+  bool get precoEhAPartir {
+    final pItem = CarrinhoComprasService.parsePreco(item.preco);
+    if (pItem > 0) return false;
+    final precosValidos = item.variantes
+        .map((v) => CarrinhoComprasService.parsePreco(v.preco))
+        .where((p) => p > 0)
+        .toSet();
+    return precosValidos.length > 1;
   }
 
   /// Texto do preço formatado em Real (R$) ou 'Sob consulta'
   String get precoTexto {
     final total = precoTotal;
     if (total > 0) {
-      return 'R\$ ${total.toStringAsFixed(2).replaceAll('.', ',')}';
+      final valorFmt = 'R\$ ${total.toStringAsFixed(2).replaceAll('.', ',')}';
+      return precoEhAPartir ? 'A partir de $valorFmt' : valorFmt;
     }
     if (item.preco.trim().isNotEmpty) return item.preco;
     return 'Sob consulta';
   }
 
+  /// Lista completa de fotos do item (com fallback para a foto da categoria)
+  List<String> get todasFotos {
+    final fotos = item.imagens
+        .where((img) => img.trim().isNotEmpty)
+        .toList();
+    if (fotos.isNotEmpty) return fotos;
+    if (categoria != null && categoria!.foto.trim().isNotEmpty) {
+      return [categoria!.foto];
+    }
+    return const [];
+  }
+
   /// Foto em destaque: prioriza foto do item, fallback para foto da categoria
   String get fotoDestaque {
-    if (item.imagens.isNotEmpty && item.imagens.first.trim().isNotEmpty) {
-      return item.imagens.first;
-    }
-    if (categoria != null && categoria!.foto.trim().isNotEmpty) {
-      return categoria!.foto;
-    }
-    return '';
+    final fotos = todasFotos;
+    return fotos.isNotEmpty ? fotos.first : '';
   }
 
   /// Grupos de acompanhamentos/adicionais associados a esta oferta comercial

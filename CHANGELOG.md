@@ -2,6 +2,16 @@
 
 Uma linha por mudança, da mais recente para a mais antiga. O agente deve acrescentar aqui o que fez em cada ciclo (versão do `pubspec.yaml` + o que mudou). Este arquivo guarda **histórico**; a descrição atual do app fica em `MAPA_DO_APP.md`.
 
+## v1.1.59 (build 161) — 27/11/2026
+
+- **Detalhes do Produto Reais, Variantes, Busca e Feed de Comércio (`busca`, `pdv`, `timeline`):**
+  - Removidas todas as avaliações e comentários fictícios em [avaliacoes_produto_service.dart](file:///d:/Nous/nous/lib/src/features/busca/services/avaliacoes_produto_service.dart) e ajustado o resumo sem avaliações para `0.0` estrelas em [avaliacao_produto.dart](file:///d:/Nous/nous/lib/src/features/busca/models/avaliacao_produto.dart).
+  - Removido o texto redundante `"Exibindo apenas avaliações de..."` em [dialog_comentarios_produto.dart](file:///d:/Nous/nous/lib/src/features/busca/views/dialogs/dialog_comentarios_produto.dart).
+  - Atualizada a tela [detalhes_produto_mercado_view.dart](file:///d:/Nous/nous/lib/src/features/busca/views/detalhes_produto_mercado_view.dart): seta para voltar à esquerda ao lado do título, carrossel de fotos com abertura em tela cheia via `VisualizadorGaleriaDialog`, loja clicável abrindo `VitrineLojaView`, selos visuais de **Ativo/Indisponível** e **Loja aberta/fechada**, seleção direta de variantes com preço dinâmico (pré-selecionada em [dialog_adicionar_carrinho_variantes.dart](file:///d:/Nous/nous/lib/src/features/busca/views/dialogs/dialog_adicionar_carrinho_variantes.dart)) e exibição da taxa por km.
+  - Adicionado o campo persistido `ativo` em [item_loja.dart](file:///d:/Nous/nous/lib/src/features/pdv/models/item_loja.dart) e conectada a persistência do interruptor em [produto_loja_row.dart](file:///d:/Nous/nous/lib/src/features/pdv/views/widgets/produto_loja_row.dart).
+  - Corrigido o cálculo de preço mínimo com variantes (`"A partir de R$ ..."`) em [busca_mapa_modelos.dart](file:///d:/Nous/nous/lib/src/features/busca/controllers/helpers/busca_mapa_modelos.dart) e ocultados da busca pública itens que pertencem apenas a **Grupos de Componentes** em [busca_mapa_filtros_helper.dart](file:///d:/Nous/nous/lib/src/features/busca/controllers/helpers/busca_mapa_filtros_helper.dart).
+  - Integrados os produtos próximos na aba **Comércio** de [feed_descoberta_view.dart](file:///d:/Nous/nous/lib/src/features/timeline/views/feed_descoberta_view.dart) com o novo [card_produto_feed_comercio_widget.dart](file:///d:/Nous/nous/lib/src/features/timeline/views/widgets/feed/card_produto_feed_comercio_widget.dart) no padrão visual da rede social.
+
 ## v1.1.58 (build 160) — 26/11/2026
 
 - **Correção Definitiva da Atualização In-App no Windows (`core`):**

@@ -1,10 +1,12 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'package:nous/src/core/theme/theme_controller.dart';
 import 'package:nous/src/core/widgets/texto_rolante.dart';
 import 'package:nous/src/core/widgets/themed_switch.dart';
 import 'package:nous/src/features/pdv/models/item_loja.dart';
+import 'package:nous/src/features/pdv/providers/pdv_provider.dart';
 import 'package:nous/src/features/pdv/services/imagem_service.dart';
 
 class ProdutoLojaRow extends StatefulWidget {
@@ -14,6 +16,7 @@ class ProdutoLojaRow extends StatefulWidget {
   final VoidCallback onEditar;
   final ValueChanged<String> onNomeAlterado;
   final ValueChanged<String> onPrecoAlterado;
+  final ValueChanged<bool>? onAtivoAlterado;
   final bool podeEditar;
 
   const ProdutoLojaRow({
@@ -24,6 +27,7 @@ class ProdutoLojaRow extends StatefulWidget {
     required this.onEditar,
     required this.onNomeAlterado,
     required this.onPrecoAlterado,
+    this.onAtivoAlterado,
     this.podeEditar = true,
   });
 
@@ -32,7 +36,7 @@ class ProdutoLojaRow extends StatefulWidget {
 }
 
 class _ProdutoLojaRowState extends State<ProdutoLojaRow> {
-  bool _ativo = true;
+  late bool _ativo = widget.item.ativo;
   bool _expandido = false;
   bool _editandoNome = false;
 
@@ -59,6 +63,10 @@ class _ProdutoLojaRowState extends State<ProdutoLojaRow> {
   void didUpdateWidget(covariant ProdutoLojaRow oldWidget) {
     super.didUpdateWidget(oldWidget);
 
+    if (widget.item.ativo != oldWidget.item.ativo &&
+        widget.item.ativo != _ativo) {
+      _ativo = widget.item.ativo;
+    }
     if (widget.item.nome != oldWidget.item.nome &&
         widget.item.nome != _nomeController.text) {
       _nomeController.text = widget.item.nome;
@@ -240,7 +248,34 @@ class _ProdutoLojaRowState extends State<ProdutoLojaRow> {
                     theme: theme,
                     value: _ativo,
                     onChanged: podeEditar
-                        ? (valor) => setState(() => _ativo = valor)
+                        ? (valor) {
+                            setState(() => _ativo = valor);
+                            if (widget.onAtivoAlterado != null) {
+                              widget.onAtivoAlterado!(valor);
+                            } else {
+                              final pdv = context.read<PdvProvider>();
+                              final loja = pdv.lojas
+                                  .where(
+                                    (l) => l.itensLoja.any(
+                                      (i) => i.id == widget.item.id,
+                                    ),
+                                  )
+                                  .firstOrNull;
+                              if (loja != null) {
+                                final atualizados = loja.itensLoja
+                                    .map(
+                                      (i) => i.id == widget.item.id
+                                          ? i.copyWith(ativo: valor)
+                                          : i,
+                                    )
+                                    .toList();
+                                pdv.atualizarListasLoja(
+                                  loja.id,
+                                  itens: atualizados,
+                                );
+                              }
+                            }
+                          }
                         : null,
                   ),
                 ),

@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:nous/src/core/theme/theme_controller.dart';
 import 'package:nous/src/features/auth/models/usuario_nous.dart';
+import 'package:nous/src/features/busca/controllers/helpers/busca_mapa_modelos.dart';
 import 'package:nous/src/features/pdv/views/widgets/estado_vazio_container.dart';
 import 'package:nous/src/features/timeline/models/publicacao_social.dart';
 import 'package:nous/src/features/timeline/views/widgets/card_escrito_widget.dart';
 import 'package:nous/src/features/timeline/views/widgets/card_publicacao_completo_widget.dart';
+import 'package:nous/src/features/timeline/views/widgets/feed/card_produto_feed_comercio_widget.dart';
 
 class FeedDescobertaSliverLista extends StatelessWidget {
   final AppTheme theme;
@@ -12,6 +14,7 @@ class FeedDescobertaSliverLista extends StatelessWidget {
   final bool carregandoMais;
   final bool modoApenasAmigos;
   final List<PublicacaoSocial> publicacoes;
+  final List<ProdutoMapaItem> produtosComercio;
   final UsuarioNous? usuarioLogado;
   final ValueChanged<String> onTapTag;
 
@@ -22,6 +25,7 @@ class FeedDescobertaSliverLista extends StatelessWidget {
     required this.carregandoMais,
     required this.modoApenasAmigos,
     required this.publicacoes,
+    this.produtosComercio = const [],
     required this.usuarioLogado,
     required this.onTapTag,
   });
@@ -37,7 +41,7 @@ class FeedDescobertaSliverLista extends StatelessWidget {
       );
     }
 
-    if (publicacoes.isEmpty) {
+    if (publicacoes.isEmpty && produtosComercio.isEmpty) {
       return SliverToBoxAdapter(
         child: Center(
           child: ConstrainedBox(
@@ -56,12 +60,33 @@ class FeedDescobertaSliverLista extends StatelessWidget {
       );
     }
 
+    final totalItens = produtosComercio.length +
+        publicacoes.length +
+        (carregandoMais ? 1 : 0);
+
     return SliverPadding(
       padding: const EdgeInsets.fromLTRB(12, 4, 12, 90),
       sliver: SliverList.builder(
-        itemCount: publicacoes.length + (carregandoMais ? 1 : 0),
+        itemCount: totalItens,
         itemBuilder: (context, index) {
-          if (index >= publicacoes.length) {
+          if (index < produtosComercio.length) {
+            final prod = produtosComercio[index];
+            return Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 620),
+                child: CardProdutoFeedComercioWidget(
+                  key: ValueKey(
+                    'prod_desc_${prod.loja.id}_${prod.item.id}_${prod.categoria?.id ?? ''}',
+                  ),
+                  theme: theme,
+                  produto: prod,
+                ),
+              ),
+            );
+          }
+
+          final idxPub = index - produtosComercio.length;
+          if (idxPub >= publicacoes.length) {
             return const Padding(
               padding: EdgeInsets.all(16),
               child: Center(
@@ -70,7 +95,7 @@ class FeedDescobertaSliverLista extends StatelessWidget {
             );
           }
 
-          final pub = publicacoes[index];
+          final pub = publicacoes[idxPub];
           return Center(
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 620),
@@ -81,7 +106,7 @@ class FeedDescobertaSliverLista extends StatelessWidget {
                       publicacao: pub,
                       usuarioLogado: usuarioLogado,
                       listaPublicacoes: publicacoes,
-                      indiceInicial: index,
+                      indiceInicial: idxPub,
                       abrirDetalhesAoTocarCabecalho: true,
                       onTapTag: onTapTag,
                     )
@@ -91,7 +116,7 @@ class FeedDescobertaSliverLista extends StatelessWidget {
                       publicacao: pub,
                       usuarioLogado: usuarioLogado,
                       listaPublicacoes: publicacoes,
-                      indiceInicial: index,
+                      indiceInicial: idxPub,
                       abrirDetalhesAoTocarCabecalho: true,
                       onTapTag: onTapTag,
                     ),
