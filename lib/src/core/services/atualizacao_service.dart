@@ -32,8 +32,8 @@ class InfoAtualizacao {
 }
 
 class AtualizacaoService {
-  static String versaoAtual = '1.1.57';
-  static int buildAtual = 159;
+  static String versaoAtual = '1.1.58';
+  static int buildAtual = 160;
 
   /// Inicializa a identificação da versão do aplicativo.
   /// No Android, consulta dinamicamente a versão real instalada no sistema operacional via MethodChannel.
@@ -180,22 +180,48 @@ class AtualizacaoService {
     if (assets is! List) return fallbackUrl;
 
     if (Platform.isWindows) {
-      // Prioridade 1 no Windows: pacote .zip para atualização transparente sem instalador
-      for (final item in assets) {
-        if (item is! Map) continue;
-        final nome = (item['name'] as String? ?? '').toLowerCase();
-        final downloadUrl = item['browser_download_url'] as String? ?? '';
-        if (nome.endsWith('.zip') && downloadUrl.isNotEmpty) {
-          return downloadUrl;
+      // Verifica se o aplicativo está instalado em diretório protegido (ex: C:\Program Files)
+      // Se estiver em diretório protegido, prioriza o instalador oficial .exe com elevação nativa (UAC)
+      // Se estiver em pasta gravável (ex: AppData, Desktop ou portátil), prioriza o .zip transparente
+      final exeAtual = Platform.resolvedExecutable;
+      final dirApp = File(exeAtual).parent.path;
+      final estaEmPastaProtegida = AtualizadorWindowsHelper.estaEmPastaProtegida(dirApp);
+
+      if (estaEmPastaProtegida) {
+        // Prioridade 1 para Program Files: Instalador .exe (UAC nativo garantido)
+        for (final item in assets) {
+          if (item is! Map) continue;
+          final nome = (item['name'] as String? ?? '').toLowerCase();
+          final downloadUrl = item['browser_download_url'] as String? ?? '';
+          if (nome.endsWith('.exe') && downloadUrl.isNotEmpty) {
+            return downloadUrl;
+          }
         }
-      }
-      // Prioridade 2 no Windows: instalador executável .exe como fallback
-      for (final item in assets) {
-        if (item is! Map) continue;
-        final nome = (item['name'] as String? ?? '').toLowerCase();
-        final downloadUrl = item['browser_download_url'] as String? ?? '';
-        if (nome.endsWith('.exe') && downloadUrl.isNotEmpty) {
-          return downloadUrl;
+        for (final item in assets) {
+          if (item is! Map) continue;
+          final nome = (item['name'] as String? ?? '').toLowerCase();
+          final downloadUrl = item['browser_download_url'] as String? ?? '';
+          if (nome.endsWith('.zip') && downloadUrl.isNotEmpty) {
+            return downloadUrl;
+          }
+        }
+      } else {
+        // Prioridade 1 para pastas livres: pacote .zip transparente
+        for (final item in assets) {
+          if (item is! Map) continue;
+          final nome = (item['name'] as String? ?? '').toLowerCase();
+          final downloadUrl = item['browser_download_url'] as String? ?? '';
+          if (nome.endsWith('.zip') && downloadUrl.isNotEmpty) {
+            return downloadUrl;
+          }
+        }
+        for (final item in assets) {
+          if (item is! Map) continue;
+          final nome = (item['name'] as String? ?? '').toLowerCase();
+          final downloadUrl = item['browser_download_url'] as String? ?? '';
+          if (nome.endsWith('.exe') && downloadUrl.isNotEmpty) {
+            return downloadUrl;
+          }
         }
       }
     } else {
@@ -433,9 +459,10 @@ class AtualizacaoService {
             caminhoZip: arquivoDestino.path,
           );
         } else {
-          // Fallback tradicional caso a fonte disponha apenas do executável .exe
-          mensagemStatus.value = 'Download concluído! Iniciando instalador...';
-          Process.run(arquivoDestino.path, []);
+          // Executa o instalador executável .exe salvando a sessão e fechando para aplicar
+          mensagemStatus.value = 'Iniciando instalador da atualização...';
+          await _salvarEstadoSessaoAtualSePossivel();
+          await AtualizadorWindowsHelper.executarInstaladorExe(arquivoDestino.path);
         }
       }
     } on PlatformException catch (e) {

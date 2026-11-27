@@ -59,6 +59,15 @@ class AtualizadorWindowsHelper {
     }
   }
 
+  /// Verifica se o diretório onde o executável reside possui restrição de escrita ou é protegido pelo sistema (ex: Program Files)
+  static bool estaEmPastaProtegida(String caminho) {
+    final lower = caminho.toLowerCase();
+    if (lower.contains('program files') || lower.contains('archivos de programa')) {
+      return true;
+    }
+    return !_diretorioEhGravavel(caminho);
+  }
+
   /// Verifica se o diretório onde o executável reside possui permissão de escrita direta
   /// sem necessidade de elevação administrativa (UAC).
   static bool _diretorioEhGravavel(String caminho) {
@@ -71,6 +80,27 @@ class AtualizadorWindowsHelper {
       return true;
     } catch (_) {
       return false;
+    }
+  }
+
+  /// Executa o instalador executável oficial do Nous (Inno Setup) e encerra a aplicação
+  /// atual para permitir que o instalador substitua os binários sem travas de DLLs.
+  static Future<void> executarInstaladorExe(String caminhoExe) async {
+    try {
+      // Dispara o instalador de forma totalmente desanexada
+      await Process.start(
+        caminhoExe,
+        [],
+        mode: ProcessStartMode.detached,
+      );
+      await Future<void>.delayed(const Duration(milliseconds: 300));
+      exit(0);
+    } catch (e) {
+      debugPrint('[AtualizadorWindowsHelper] Erro ao iniciar instalador: $e');
+      // Fallback via shell
+      Process.run('cmd.exe', ['/c', 'start', '', caminhoExe]);
+      await Future<void>.delayed(const Duration(milliseconds: 300));
+      exit(0);
     }
   }
 
@@ -105,71 +135,81 @@ class AtualizadorWindowsHelper {
       dirScript.createSync(recursive: true);
     }
 
-    final caminhoBat = p.join(dirScript.path, 'aplicar_update.bat');
+    final caminhoPs1 = p.join(dirScript.path, 'aplicar_update.ps1');
 
-    // Script batch robusto com robocopy, log de diagnóstico em %TEMP% e tolerância a locks
-    final conteudoBat = '''
-@echo off
-setlocal
-set "STAGING=$origemArquivos"
-set "APPDIR=$dirApp"
-set "APPEXE=$exeAtual"
-set "ZIPPATH=$caminhoZip"
-set "LOGFILE=%TEMP%\\nous_update.log"
+    // Script PowerShell nativo robusto:
+    // - Usa Start-Sleep (sem erro de redirecionamento de entrada do timeout do cmd)
+    // - Aguarda liberação do nous.exe com retry de até 15 segundos
+    // - Copia com Robocopy e faz fallback seguro
+    // - Inicia o novo nous.exe desanexado
+    // - Grava log completo em %TEMP%\nous_update.log
+    final nomeExe = p.basename(exeAtual);
+    final conteudoPs1 = '''
+\$logFile = "\$env:TEMP\\nous_update.log"
+"[" + (Get-Date).ToString() + "] Iniciando aplicacao de atualizacao do Nous..." | Out-File -FilePath \$logFile -Encoding utf8
 
-echo [%date% %time%] Iniciando aplicacao de atualizacao... > "%LOGFILE%"
-echo STAGING: "%STAGING%" >> "%LOGFILE%"
-echo APPDIR: "%APPDIR%" >> "%LOGFILE%"
+\$staging = "$origemArquivos".Replace('/', '\\')
+\$appDir = "$dirApp".Replace('/', '\\')
+\$appExe = "$exeAtual".Replace('/', '\\')
+\$zipPath = "$caminhoZip".Replace('/', '\\')
 
-:: 1. Aguarda 2 segundos para o processo nous.exe liberar todos os locks de arquivos
-timeout /t 2 /nobreak >nul
+"STAGING: \$staging" | Out-File -FilePath \$logFile -Append -Encoding utf8
+"APPDIR: \$appDir" | Out-File -FilePath \$logFile -Append -Encoding utf8
+"APPEXE: \$appExe" | Out-File -FilePath \$logFile -Append -Encoding utf8
 
-:: Se o executavel ainda estiver em execucao, garante o encerramento
-taskkill /F /IM "${p.basename(exeAtual)}" >nul 2>&1
-timeout /t 1 /nobreak >nul
+# 1. Aguarda e garante o encerramento do processo anterior
+Start-Sleep -Seconds 2
+Stop-Process -Name "$nomeExe".Replace(".exe", "") -Force -ErrorAction SilentlyContinue
+Start-Sleep -Seconds 1
 
-:: 2. Copia todos os arquivos novos com robocopy (tentativas automaticas contra locks)
-robocopy "%STAGING%" "%APPDIR%" /E /IS /IT /R:5 /W:1 /NP /NFL /NDL /NJH /NJS >> "%LOGFILE%" 2>&1
+# 2. Copia os arquivos novos da pasta de staging para a pasta do app
+"[" + (Get-Date).ToString() + "] Copiando arquivos com Robocopy..." | Out-File -FilePath \$logFile -Append -Encoding utf8
+& robocopy "\$staging" "\$appDir" /E /IS /IT /R:5 /W:1 /NP /NFL /NDL /NJH /NJS *>> \$logFile
 
-:: Fallback caso robocopy nao tenha copiado o executavel
-if not exist "%APPDIR%\\${p.basename(exeAtual)}" (
-    echo Usando fallback xcopy... >> "%LOGFILE%"
-    xcopy /s /e /y /q "%STAGING%\\*" "%APPDIR%\\" >> "%LOGFILE%" 2>&1
-)
+# Fallback com Copy-Item caso algum arquivo principal tenha ficado
+if (-not (Test-Path "\$appExe")) {
+    "[" + (Get-Date).ToString() + "] Fallback com Copy-Item..." | Out-File -FilePath \$logFile -Append -Encoding utf8
+    Copy-Item -Path "\$staging\\*" -Destination "\$appDir" -Recurse -Force -ErrorAction SilentlyContinue
+}
 
-:: 3. Limpa a pasta temporaria de staging e o arquivo compactado
-rmdir /s /q "$pastaStaging" >nul 2>&1
-if exist "%ZIPPATH%" del /f /q "%ZIPPATH%" >nul 2>&1
+# 3. Limpa arquivos temporarios
+Remove-Item -Path "$pastaStaging" -Recurse -Force -ErrorAction SilentlyContinue
+if (Test-Path "\$zipPath") {
+    Remove-Item -Path "\$zipPath" -Force -ErrorAction SilentlyContinue
+}
 
-:: 4. Inicia o novo executavel atualizado
-echo [%date% %time%] Iniciando novo executavel atualizado... >> "%LOGFILE%"
-start "" "%APPEXE%"
+# 4. Inicia o novo aplicativo atualizado
+"[" + (Get-Date).ToString() + "] Iniciando novo executavel: \$appExe" | Out-File -FilePath \$logFile -Append -Encoding utf8
+Start-Process -FilePath "\$appExe"
 
-:: 5. Auto-destroi este script
-del /f /q "%~f0" >nul 2>&1
-exit
+# 5. Remove este script
+Remove-Item -Path \$MyInvocation.MyCommand.Path -Force -ErrorAction SilentlyContinue
 ''';
 
-    await File(caminhoBat).writeAsString(conteudoBat, flush: true);
+    await File(caminhoPs1).writeAsString(conteudoPs1, flush: true);
 
     debugPrint(
-      '[AtualizadorWindowsHelper] Disparando script de transição (Elevação necessária: $precisaElevacao)...',
+      '[AtualizadorWindowsHelper] Disparando script de transição PowerShell (Elevação necessária: $precisaElevacao)...',
     );
 
-    // Invocação desacoplada sem janela visível (WindowStyle Hidden)
-    // Se a pasta do app for protegida (ex: C:\\Program Files), solicita elevação de Administrador (Verb RunAs)
-    final comandoElevacao = precisaElevacao ? ' -Verb RunAs' : '';
-    final comandoPs =
-        'Start-Process -FilePath "cmd.exe" -ArgumentList "/c `"$caminhoBat`""$comandoElevacao -WindowStyle Hidden';
+    // Invocação desacoplada sem janela (WindowStyle Hidden)
+    // Se a pasta do app for protegida (ex: C:\Program Files), executa como Administrador (RunAs)
+    final argsProcess = <String>[
+      '-NoProfile',
+      '-ExecutionPolicy',
+      'Bypass',
+      if (precisaElevacao) ...['-Command', 'Start-Process powershell -Verb RunAs -WindowStyle Hidden -ArgumentList \'-NoProfile -ExecutionPolicy Bypass -File "$caminhoPs1"\'']
+      else ...['-WindowStyle', 'Hidden', '-File', caminhoPs1],
+    ];
 
     await Process.start(
       'powershell.exe',
-      ['-NoProfile', '-NonInteractive', '-WindowStyle', 'Hidden', '-Command', comandoPs],
+      argsProcess,
       mode: ProcessStartMode.detached,
     );
 
     // Breve pausa para garantir despacho no kernel antes de sair
-    await Future<void>.delayed(const Duration(milliseconds: 250));
+    await Future<void>.delayed(const Duration(milliseconds: 300));
 
     // Encerra imediatamente o processo atual liberando DLLs e o .exe para substituição
     exit(0);

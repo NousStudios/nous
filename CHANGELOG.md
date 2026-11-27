@@ -2,6 +2,12 @@
 
 Uma linha por mudança, da mais recente para a mais antiga. O agente deve acrescentar aqui o que fez em cada ciclo (versão do `pubspec.yaml` + o que mudou). Este arquivo guarda **histórico**; a descrição atual do app fica em `MAPA_DO_APP.md`.
 
+## v1.1.58 (build 160) — 26/11/2026
+
+- **Correção Definitiva da Atualização In-App no Windows (`core`):**
+  - Identificado e resolvido o bloqueio de permissão de escrita em pastas do sistema como `C:\Program Files\Nous`: agora, quando o app roda a partir de pasta protegida, ele prioriza automaticamente o instalador executável oficial do Nous (`.exe`), solicitando elevação nativa do Windows (UAC) e fechando o processo anterior para substituir os binários com 100% de sucesso.
+  - Quando instalado em diretórios livres de usuário (`AppData`, portátil ou área de trabalho), o app continua aproveitando a transição ultrarrápida transparente.
+
 ## v1.1.57 (build 159) — 26/11/2026
 
 - **Refinamento da Busca Universal, Limpeza de Termo e Miniaturas (`busca`):**
