@@ -107,6 +107,25 @@ class ChatProcessadorRedeService {
             where: 'id = ?',
             whereArgs: [gid],
           );
+          if (foto.isNotEmpty &&
+              ClienteRedeLocal().conectado &&
+              ImagemService.resolverCaminhoExistente(foto) == null) {
+            unawaited(() async {
+              try {
+                final baixada = await ClienteRedeLocal().baixarImagemRemota(foto);
+                if (baixada.isNotEmpty) {
+                  final d = await ChatRepositorioSqlite.obterDb();
+                  await d.update(
+                    'conversas_chat',
+                    {'foto': baixada},
+                    where: 'id = ?',
+                    whereArgs: [gid],
+                  );
+                  aoNotificar();
+                }
+              } catch (_) {}
+            }());
+          }
           aoNotificar();
         }
         return;

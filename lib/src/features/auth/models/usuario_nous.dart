@@ -29,6 +29,7 @@ class UsuarioNous {
   final String chaveTrocaPublica;
   final String quemPodeEnviarMensagens;
   final String criadoEm;
+  final String atualizadoEm;
   final String validadoPorCpf;
   final String validadoPorNome;
   final String validadoEm;
@@ -44,9 +45,11 @@ class UsuarioNous {
   final String notaPensamentoCriadaEm;
   final String notaPensamentoMusica;
 
-  /// Chaves ocultas por padrão ao criar/carregar uma Conta Nous (tudo privado exceto o nome).
+  /// Chaves ocultas por padrão ao criar/carregar uma Conta Nous:
+  /// apenas Dados Pessoais da Identidade do Usuário, CPF, Nome Próprio e dados trabalhistas.
+  /// Na rede social (bio, apelido, foto, etc.) tudo é público por padrão.
   static const List<String> dadosPrivadosPadrao = [
-    'apelido',
+    'nome',
     'cpf',
     'dataNascimento',
     'nomeMae',
@@ -57,7 +60,6 @@ class UsuarioNous {
     'estadoCivil',
     'telefone',
     'endereco',
-    'biografia',
     'emails',
     'pagamentosTrabalhador',
     'escalaTrabalho',
@@ -96,6 +98,7 @@ class UsuarioNous {
     this.chaveTrocaPublica = '',
     this.quemPodeEnviarMensagens = 'todos',
     this.criadoEm = '',
+    this.atualizadoEm = '',
     this.validadoPorCpf = '',
     this.validadoPorNome = '',
     this.validadoEm = '',
@@ -319,6 +322,7 @@ class UsuarioNous {
     String? chaveTrocaPublica,
     String? quemPodeEnviarMensagens,
     String? criadoEm,
+    String? atualizadoEm,
     String? validadoPorCpf,
     String? validadoPorNome,
     String? validadoEm,
@@ -367,6 +371,7 @@ class UsuarioNous {
       quemPodeEnviarMensagens:
           quemPodeEnviarMensagens ?? this.quemPodeEnviarMensagens,
       criadoEm: criadoEm ?? this.criadoEm,
+      atualizadoEm: atualizadoEm ?? this.atualizadoEm,
       validadoPorCpf: validadoPorCpf ?? this.validadoPorCpf,
       validadoPorNome: validadoPorNome ?? this.validadoPorNome,
       validadoEm: validadoEm ?? this.validadoEm,
@@ -417,6 +422,7 @@ class UsuarioNous {
       'chaveTrocaPublica': chaveTrocaPublica,
       'quemPodeEnviarMensagens': quemPodeEnviarMensagens,
       'criadoEm': criadoEm,
+      'atualizadoEm': atualizadoEm,
       'validadoPorCpf': validadoPorCpf,
       'validadoPorNome': validadoPorNome,
       'validadoEm': validadoEm,
@@ -490,6 +496,9 @@ class UsuarioNous {
       quemPodeEnviarMensagens:
           json['quemPodeEnviarMensagens'] as String? ?? 'todos',
       criadoEm: json['criadoEm'] as String? ?? json['criado_em'] as String? ?? '',
+      atualizadoEm: json['atualizadoEm'] as String? ??
+          json['atualizado_em'] as String? ??
+          '',
       validadoPorCpf: json['validadoPorCpf'] as String? ??
           json['validado_por_cpf'] as String? ??
           '',
@@ -536,8 +545,27 @@ class UsuarioNous {
   /// atualização explícita), edições feitas em [outro] prevalecem nos campos
   /// mutáveis (bio, links, cores, privacidade, seguindo/seguidores).
   UsuarioNous mesclarCom(UsuarioNous outro, {bool priorizarOutro = false}) {
+    final dtLocal = DateTime.tryParse(atualizadoEm);
+    final dtOutro = DateTime.tryParse(outro.atualizadoEm);
+    final bool usarOutro;
+    if (dtOutro != null && dtLocal != null) {
+      if (dtOutro.isAfter(dtLocal)) {
+        usarOutro = true;
+      } else if (dtLocal.isAfter(dtOutro)) {
+        usarOutro = false;
+      } else {
+        usarOutro = priorizarOutro;
+      }
+    } else if (dtOutro != null && dtLocal == null) {
+      usarOutro = true;
+    } else if (dtLocal != null && dtOutro == null) {
+      usarOutro = false;
+    } else {
+      usarOutro = priorizarOutro;
+    }
+
     String escolher(String localVal, String outroVal, {bool permitirVazioNoOutro = false}) {
-      if (priorizarOutro) {
+      if (usarOutro) {
         if (permitirVazioNoOutro) return outroVal;
         return outroVal.isNotEmpty ? outroVal : localVal;
       }
@@ -560,7 +588,7 @@ class UsuarioNous {
     final verificadoFinal =
         verificado || outro.verificado || validacoesMescladas.isNotEmpty;
 
-    final nomeFinal = priorizarOutro
+    final nomeFinal = usarOutro
         ? ((outro.nome.isNotEmpty && outro.nome.toLowerCase() != 'blackview')
             ? outro.nome
             : nome)
@@ -592,11 +620,15 @@ class UsuarioNous {
 
     final dtNotaLocal = DateTime.tryParse(notaPensamentoCriadaEm);
     final dtNotaOutro = DateTime.tryParse(outro.notaPensamentoCriadaEm);
-    final usarNotaOutro = priorizarOutro
-        ? (outro.notaPensamentoCriadaEm.isNotEmpty ||
-            (dtNotaLocal == null && dtNotaOutro != null))
-        : (dtNotaOutro != null &&
-            (dtNotaLocal == null || dtNotaOutro.isAfter(dtNotaLocal)));
+    final outroLimpouNotaMaisRecente = usarOutro &&
+        outro.notaPensamento.isEmpty &&
+        outro.notaPensamentoCriadaEm.isEmpty;
+    final usarNotaOutro = outroLimpouNotaMaisRecente ||
+        (usarOutro
+            ? (outro.notaPensamentoCriadaEm.isNotEmpty ||
+                (dtNotaLocal == null && dtNotaOutro != null))
+            : (dtNotaOutro != null &&
+                (dtNotaLocal == null || dtNotaOutro.isAfter(dtNotaLocal))));
 
     return UsuarioNous(
       cpf: cpf.isNotEmpty ? cpf : outro.cpf,
@@ -604,7 +636,7 @@ class UsuarioNous {
       apelido: escolher(apelido, outro.apelido, permitirVazioNoOutro: true),
       nomeDeUsuario: escolher(nomeDeUsuario, outro.nomeDeUsuario, permitirVazioNoOutro: true),
       dataNascimento: escolher(dataNascimento, outro.dataNascimento),
-      emails: priorizarOutro
+      emails: usarOutro
           ? (outro.emails.isNotEmpty ? outro.emails : emails)
           : {...emails, ...outro.emails}.toList(),
       emailsVerificados:
@@ -634,20 +666,20 @@ class UsuarioNous {
       nomePublico: escolher(nomePublico, outro.nomePublico, permitirVazioNoOutro: true),
       apelidoPublico: escolher(apelidoPublico, outro.apelidoPublico, permitirVazioNoOutro: true),
       fotoPublica: escolher(fotoPublica, outro.fotoPublica, permitirVazioNoOutro: true),
-      dadosPrivados: priorizarOutro ? outro.dadosPrivados : dadosPrivados,
-      dadosAutorizadosPorCpf: priorizarOutro
+      dadosPrivados: usarOutro ? outro.dadosPrivados : dadosPrivados,
+      dadosAutorizadosPorCpf: usarOutro
           ? outro.dadosAutorizadosPorCpf
           : {...dadosAutorizadosPorCpf, ...outro.dadosAutorizadosPorCpf}.toList(),
-      seguindo: priorizarOutro
+      seguindo: usarOutro
           ? outro.seguindo
           : {...seguindo, ...outro.seguindo}.toList(),
-      seguidores: priorizarOutro
+      seguidores: usarOutro
           ? outro.seguidores
           : {...seguidores, ...outro.seguidores}.toList(),
-      contasBloqueadas: priorizarOutro
+      contasBloqueadas: usarOutro
           ? outro.contasBloqueadas
           : {...contasBloqueadas, ...outro.contasBloqueadas}.toList(),
-      contasSilenciadas: priorizarOutro
+      contasSilenciadas: usarOutro
           ? outro.contasSilenciadas
           : {...contasSilenciadas, ...outro.contasSilenciadas}.toList(),
       chavePublica: escolher(chavePublica, outro.chavePublica),
@@ -657,25 +689,28 @@ class UsuarioNous {
         outro.quemPodeEnviarMensagens,
       ),
       criadoEm: criadoEm.isNotEmpty ? criadoEm : outro.criadoEm,
+      atualizadoEm: usarOutro
+          ? (outro.atualizadoEm.isNotEmpty ? outro.atualizadoEm : atualizadoEm)
+          : (atualizadoEm.isNotEmpty ? atualizadoEm : outro.atualizadoEm),
       validadoPorCpf: validadoPorCpfFinal,
       validadoPorNome: validadoPorNomeFinal,
       validadoEm: validadoEmFinal,
       verificado: verificadoFinal,
       validacoes: validacoesMescladas,
-      links: priorizarOutro
+      links: usarOutro
           ? outro.links
           : {...links, ...outro.links}.toList(),
-      coresPerfil: priorizarOutro
+      coresPerfil: usarOutro
           ? outro.coresPerfil
           : {...outro.coresPerfil, ...coresPerfil},
-      timelinesVisiveis: priorizarOutro
+      timelinesVisiveis: usarOutro
           ? (outro.timelinesVisiveis.isNotEmpty
               ? outro.timelinesVisiveis
               : timelinesVisiveis)
           : (timelinesVisiveis.isNotEmpty
               ? timelinesVisiveis
               : outro.timelinesVisiveis),
-      modoFotosGaleria: priorizarOutro
+      modoFotosGaleria: usarOutro
           ? outro.modoFotosGaleria
           : modoFotosGaleria,
       termosAceitosVersao: escolher(termosAceitosVersao, outro.termosAceitosVersao),

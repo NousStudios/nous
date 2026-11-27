@@ -89,7 +89,10 @@ class ChatSincronizacaoService {
       if (servidor.ativo) {
         if (mensagem.caminhoAnexo.isNotEmpty) {
           final nomeBase = p.basename(caminhoAnexoParaEnvio);
-          dadosEnvio['caminhoAnexo'] = 'imagens/$nomeBase';
+          final pasta = mensagem.tipo == 'imagem'
+              ? 'imagens'
+              : (mensagem.tipo == 'audio' ? 'audios' : 'anexos');
+          dadosEnvio['caminhoAnexo'] = '$pasta/$nomeBase';
         }
         servidor.notificarTodos({
           'tipo': 'mensagem_chat',

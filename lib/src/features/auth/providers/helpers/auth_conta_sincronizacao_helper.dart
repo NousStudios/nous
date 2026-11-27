@@ -151,6 +151,8 @@ class AuthContaSincronizacaoHelper {
     if (ClienteRedeLocal().conectado) {
       ClienteRedeLocal().enviarUsuario(usuario);
     } else if (ServidorRedeLocal().ativo) {
+      ServidorRedeLocal().atualizarOperadorBalcao(usuario);
+      ServidorRedeLocal().pdvProvider?.sincronizarDadosUsuarioEmLojas(usuario);
       ServidorRedeLocal().notificarTodos({
         'tipo': 'usuario_atualizado',
         'usuario': usuario.toJson(),

@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:nous/src/core/services/preferencias_soberanas_service.dart';
+import 'package:nous/src/core/services/relogio_rede_service.dart';
 import 'package:nous/src/features/auth/models/usuario_nous.dart';
 import 'package:nous/src/features/auth/services/contas_nous_service.dart';
 import 'package:nous/src/features/auth/services/cpf_validator.dart';
@@ -16,9 +17,12 @@ class AuthPerfilOperacoesHelper {
     UsuarioNous atualizado,
     void Function(UsuarioNous) propagarUsuarioAtualizado,
   ) async {
-    await ContasNousService.salvar(atualizado);
-    propagarUsuarioAtualizado(atualizado);
-    return atualizado;
+    final comTimestamp = atualizado.copyWith(
+      atualizadoEm: RelogioRedeService.agora().toIso8601String(),
+    );
+    await ContasNousService.salvar(comTimestamp);
+    propagarUsuarioAtualizado(comTimestamp);
+    return comTimestamp;
   }
 
   static Future<UsuarioNous> atualizarPerfilSocial({
@@ -29,6 +33,7 @@ class AuthPerfilOperacoesHelper {
     String? foto,
     List<String>? links,
     Map<String, String>? coresPerfil,
+    List<String>? dadosPrivados,
     required void Function(UsuarioNous) propagarUsuarioAtualizado,
   }) {
     final atualizado = conta.copyWith(
@@ -38,6 +43,7 @@ class AuthPerfilOperacoesHelper {
       fotoPublica: foto != null ? foto.trim() : conta.fotoPublica,
       links: links ?? conta.links,
       coresPerfil: coresPerfil ?? conta.coresPerfil,
+      dadosPrivados: dadosPrivados ?? conta.dadosPrivados,
     );
     return salvarEPropagar(atualizado, propagarUsuarioAtualizado);
   }
@@ -115,9 +121,10 @@ class AuthPerfilOperacoesHelper {
     required void Function(UsuarioNous) propagarUsuarioAtualizado,
   }) async {
     final caminho = ehFotoPublica ? novaFoto.trim() : novaFoto;
+    final agoraIso = RelogioRedeService.agora().toIso8601String();
     final atualizado = ehFotoPublica
-        ? conta.copyWith(fotoPublica: caminho)
-        : conta.copyWith(foto: caminho);
+        ? conta.copyWith(fotoPublica: caminho, atualizadoEm: agoraIso)
+        : conta.copyWith(foto: caminho, atualizadoEm: agoraIso);
     await ContasNousService.salvar(atualizado);
 
     if (caminho.isNotEmpty &&

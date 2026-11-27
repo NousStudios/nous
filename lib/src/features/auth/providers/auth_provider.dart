@@ -72,9 +72,10 @@ class AuthProvider extends ChangeNotifier {
     final digitos = CpfValidator.onlyDigits(conta.cpf);
     _contasPorCpf[digitos] = conta;
     _contasPorCpf[conta.cpf] = conta;
-    if (conta.foto.isNotEmpty) {
-      _fotosPorCpf[conta.cpf] = conta.foto;
-      _fotosPorCpf[digitos] = conta.foto;
+    final fotoCache = conta.fotoExibicao.trim();
+    if (fotoCache.isNotEmpty) {
+      _fotosPorCpf[conta.cpf] = fotoCache;
+      _fotosPorCpf[digitos] = fotoCache;
     }
     if (_contaAtual != null &&
         CpfValidator.onlyDigits(_contaAtual!.cpf) == digitos) {
@@ -308,6 +309,7 @@ class AuthProvider extends ChangeNotifier {
     String? foto,
     List<String>? links,
     Map<String, String>? coresPerfil,
+    List<String>? dadosPrivados,
   }) async {
     final conta = _contaAtual;
     if (conta == null) return;
@@ -319,6 +321,7 @@ class AuthProvider extends ChangeNotifier {
       foto: foto,
       links: links,
       coresPerfil: coresPerfil,
+      dadosPrivados: dadosPrivados,
       propagarUsuarioAtualizado: _propagarUsuarioAtualizado,
     );
     if (foto != null && foto.trim().isNotEmpty) {
@@ -612,8 +615,8 @@ class AuthProvider extends ChangeNotifier {
     if (_cpf.isEmpty) return;
     final conta = await ContasNousService.buscarPorCpf(_cpf);
     _contaAtual = conta;
-    if (conta != null && conta.foto.isNotEmpty) {
-      _fotosPorCpf[conta.cpf] = conta.foto;
+    if (conta != null && conta.fotoExibicao.trim().isNotEmpty) {
+      _fotosPorCpf[conta.cpf] = conta.fotoExibicao.trim();
     }
     if (conta != null) {
       await carregarDadosReveladosDono(conta.cpf);

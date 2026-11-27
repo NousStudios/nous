@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import 'package:nous/src/core/services/banco_dados_service.dart';
+import 'package:nous/src/core/services/preferencias_soberanas_service.dart';
 import 'package:nous/src/features/auth/services/cpf_validator.dart';
 import 'package:nous/src/features/notificacoes/models/convite_loja.dart';
 import 'package:nous/src/features/pdv/models/loja.dart';
@@ -111,6 +112,17 @@ class ConvitesService {
         debugPrint(
           '[ConvitesService] Convite para ${convite.cpfConvidado} transmitido pelo cliente ao balcão.',
         );
+      } else {
+        final pend = await PreferenciasSoberanasService.obterLista(
+          'convites_pendentes_envio',
+        );
+        final jsonStr = jsonEncode(payload);
+        if (!pend.contains(jsonStr)) {
+          await PreferenciasSoberanasService.salvarLista(
+            'convites_pendentes_envio',
+            [...pend, jsonStr],
+          );
+        }
       }
     } catch (e) {
       debugPrint('[ConvitesService] Erro ao despachar convite pela rede: $e');
@@ -133,9 +145,62 @@ class ConvitesService {
         ServidorRedeLocal().notificarTodos(payload);
       } else if (ClienteRedeLocal().conectado) {
         ClienteRedeLocal().enviarMensagemRaw(payload);
+      } else {
+        final pend = await PreferenciasSoberanasService.obterLista(
+          'convites_pendentes_remocao',
+        );
+        final chave = '$cpf|$conviteId';
+        if (!pend.contains(chave)) {
+          await PreferenciasSoberanasService.salvarLista(
+            'convites_pendentes_remocao',
+            [...pend, chave],
+          );
+        }
       }
     } catch (e) {
       debugPrint('[ConvitesService] Erro ao despachar remoção de convite pela rede: $e');
     }
+  }
+
+  /// Drena convites e remoções de convites realizados offline assim que o terminal conecta.
+  static Future<void> drenarPendenciasOffline() async {
+    if (!ClienteRedeLocal().conectado) return;
+    try {
+      final envios = await PreferenciasSoberanasService.obterLista(
+        'convites_pendentes_envio',
+      );
+      if (envios.isNotEmpty) {
+        for (final raw in envios) {
+          try {
+            final payload = jsonDecode(raw) as Map<String, dynamic>;
+            ClienteRedeLocal().enviarMensagemRaw(payload);
+          } catch (_) {}
+        }
+        await PreferenciasSoberanasService.salvarLista(
+          'convites_pendentes_envio',
+          const [],
+        );
+      }
+
+      final remocoes = await PreferenciasSoberanasService.obterLista(
+        'convites_pendentes_remocao',
+      );
+      if (remocoes.isNotEmpty) {
+        for (final item in remocoes) {
+          final partes = item.split('|');
+          if (partes.length == 2) {
+            ClienteRedeLocal().enviarMensagemRaw({
+              'tipo': 'convite_loja_removido',
+              'cpf': partes[0],
+              'conviteId': partes[1],
+            });
+          }
+        }
+        await PreferenciasSoberanasService.salvarLista(
+          'convites_pendentes_remocao',
+          const [],
+        );
+      }
+    } catch (_) {}
   }
 }

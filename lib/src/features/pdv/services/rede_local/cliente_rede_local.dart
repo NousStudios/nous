@@ -363,17 +363,20 @@ class ClienteRedeLocal {
   void enviarEventoWs(Map<String, dynamic> payload) => enviarMensagemRaw(payload);
 
   /// Envia um pedido (novo ou atualizado) realizado no celular para o servidor central da loja.
+  /// Usa o canal REST (que persiste e retransmite via WS); se offline/falhar REST, usa WS como fallback.
   Future<bool> enviarPedido(PedidoLoja pedido) async {
-    enviarMensagemRaw({
-      'tipo': 'pedido_atualizado',
-      'pedido': pedido.toJson(),
-    });
-
-    return _despachante.enviarPedido(
+    final enviadoRest = await _despachante.enviarPedido(
       ipServidor: _ipServidor,
       portaServidor: _portaServidor,
       pedido: pedido,
     );
+    if (!enviadoRest && estaConectado.value) {
+      enviarMensagemRaw({
+        'tipo': 'pedido_atualizado',
+        'pedido': pedido.toJson(),
+      });
+    }
+    return enviadoRest;
   }
 
   /// Envia uma movimentação de estoque realizada no celular para o servidor.

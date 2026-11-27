@@ -569,14 +569,21 @@ class ServidorRedeLocal {
     );
   }
 
-  /// Envia mensagem para todos os terminais conectados
+  /// Envia mensagem para todos os terminais conectados, aplicando o filtro
+  /// de privacidade soberana para não vazar dados internos a clientes externos.
   void notificarTodos(Map<String, dynamic> dados) {
-    final payload = jsonEncode(dados);
-    for (final ws in List<WebSocket>.from(_clientesWs)) {
-      try {
-        ws.add(payload);
-      } catch (_) {}
-    }
+    final ctx = ServidorWsContext(
+      terminaisWs: _terminaisWs,
+      clientesWs: _clientesWs,
+      pdvProvider: _pdvProvider,
+      authProvider: _authProvider,
+      obterLojaAtiva: () => _lojaAtiva,
+      atualizarListasTerminais: _atualizarListasTerminais,
+      notificarPresencas: notificarPresencas,
+      consolidarContaTerminal: _consolidarContaTerminal,
+      processarSinalChamadaLocal: _processarSinalChamadaLocal,
+    );
+    ctx.retransmitirParaOutros(jsonEncode(dados));
   }
 
   /// Notifica todos os terminais conectados que a loja foi alterada.

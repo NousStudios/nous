@@ -2,6 +2,8 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:nous/src/core/services/criptografia_service.dart';
+import 'package:nous/src/core/services/preferencias_soberanas_service.dart';
+import 'package:nous/src/core/services/relogio_rede_service.dart';
 import 'package:nous/src/features/auth/models/usuario_nous.dart';
 import 'package:nous/src/features/auth/services/contas_excluidas_service.dart';
 import 'package:nous/src/features/auth/services/contas_nous_service.dart';
@@ -37,6 +39,18 @@ class ServidorWsIdentificacaoUsuariosHelper {
 
     if (tipo == 'usuario_nous_excluido') {
       await processarUsuarioNousExcluido(ws, dados, ctx);
+      return true;
+    }
+
+    if (tipo == 'usuario_seguir_atualizado') {
+      await processarSeguirAtualizado(ws, dados, ctx);
+      return true;
+    }
+
+    if (tipo == 'preferencias_cpf_sync') {
+      final itens = dados['itens'] as List<dynamic>? ?? const [];
+      await PreferenciasSoberanasService.mesclarRemotas(itens);
+      ctx.retransmitirParaOutros(jsonEncode(dados), exceto: ws);
       return true;
     }
 
@@ -173,9 +187,17 @@ class ServidorWsIdentificacaoUsuariosHelper {
       try {
         final convitesPendentes = await ConvitesService.carregar(cpfLimpoTerm);
         if (convitesPendentes.isNotEmpty) {
+          final lojasAnexas = <String, dynamic>{};
+          for (final c in convitesPendentes) {
+            final lojaConv = ctx.pdvProvider?.buscarPorId(c.lojaId);
+            if (lojaConv != null) {
+              lojasAnexas[c.lojaId] = lojaConv.toJson();
+            }
+          }
           ws.add(jsonEncode({
             'tipo': 'sincronizacao_convites',
             'convites': convitesPendentes.map((c) => c.toJson()).toList(),
+            if (lojasAnexas.isNotEmpty) 'lojas': lojasAnexas,
           }));
           debugPrint(
             '[ServidorRedeLocal] Sincronizados ${convitesPendentes.length} convite(s) pendente(s) com terminal $cpfLimpoTerm',
@@ -201,6 +223,16 @@ class ServidorWsIdentificacaoUsuariosHelper {
               'tipo': 'chaves_proprias_cpf',
               'cpf': cpfLimpoTerm,
               'pacote': pacoteChaves,
+            }));
+          }
+          final prefsCpf = await PreferenciasSoberanasService.exportarDoCpf(
+            cpfLimpoTerm,
+          );
+          if (prefsCpf.isNotEmpty) {
+            ws.add(jsonEncode({
+              'tipo': 'preferencias_cpf_sync',
+              'cpf': cpfLimpoTerm,
+              'itens': prefsCpf,
             }));
           }
         } catch (e) {
@@ -297,5 +329,36 @@ class ServidorWsIdentificacaoUsuariosHelper {
         '[ServidorRedeLocal] Erro ao processar usuario_nous_excluido: $e',
       );
     }
+  }
+
+  static Future<void> processarSeguirAtualizado(
+    WebSocket ws,
+    Map<String, dynamic> dados,
+    ServidorWsContext ctx,
+  ) async {
+    final autorCpf = (dados['autorCpf'] ?? '').toString().replaceAll(RegExp(r'\D'), '');
+    final alvoCpf = (dados['alvoCpf'] ?? '').toString().replaceAll(RegExp(r'\D'), '');
+    final seguindo = dados['seguindo'] == true;
+    if (autorCpf.isEmpty || alvoCpf.isEmpty) return;
+
+    final alvo = await ContasNousService.buscarPorCpf(alvoCpf);
+    if (alvo != null) {
+      final seguidores = List<String>.from(alvo.seguidores);
+      if (seguindo) {
+        if (!seguidores.any((s) => s.replaceAll(RegExp(r'\D'), '') == autorCpf)) {
+          seguidores.add(autorCpf);
+        }
+      } else {
+        seguidores.removeWhere((s) => s.replaceAll(RegExp(r'\D'), '') == autorCpf);
+      }
+      final atualizado = alvo.copyWith(
+        seguidores: seguidores,
+        atualizadoEm: RelogioRedeService.agora().toIso8601String(),
+      );
+      await ContasNousService.salvar(atualizado);
+      ctx.authProvider?.atualizarContaNoCache(atualizado);
+      await ctx.authProvider?.carregarCacheContas();
+    }
+    ctx.retransmitirParaOutros(jsonEncode(dados), exceto: ws);
   }
 }

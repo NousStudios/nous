@@ -135,31 +135,34 @@ class MescladorEntidadesRede {
     final pedidosMesclados = mapaPedidos.values.toList()
       ..sort((a, b) => b.dataHora.compareTo(a.dataHora));
 
-    final movimentosMesclados =
-        List<MovimentoEstoque>.from(lojaMesclada.movimentosEstoque);
-    final idsMovimentos = movimentosMesclados.map((m) => m.id).toSet();
+    final mapaMovimentos = <String, MovimentoEstoque>{
+      for (final m in lojaMesclada.movimentosEstoque) m.id: m,
+    };
     for (final mLocal in lojaLocal.movimentosEstoque) {
-      if (idsMovimentos.add(mLocal.id)) {
-        movimentosMesclados.add(mLocal);
+      final existente = mapaMovimentos[mLocal.id];
+      if (existente == null || (mLocal.pago && !existente.pago)) {
+        mapaMovimentos[mLocal.id] = mLocal;
         houveCura = true;
       }
     }
-    movimentosMesclados.sort((a, b) => b.dataHora.compareTo(a.dataHora));
+    final movimentosMesclados = mapaMovimentos.values.toList()
+      ..sort((a, b) => b.dataHora.compareTo(a.dataHora));
     final movimentosLimitados = movimentosMesclados.length > 2000
         ? movimentosMesclados.sublist(0, 2000)
         : movimentosMesclados;
 
-    final pagamentosMesclados = List<PagamentoFuncionario>.from(
-      lojaMesclada.pagamentosFuncionarios,
-    );
-    final idsPagamentos = pagamentosMesclados.map((pg) => pg.id).toSet();
+    final mapaPagamentos = <String, PagamentoFuncionario>{
+      for (final pg in lojaMesclada.pagamentosFuncionarios) pg.id: pg,
+    };
     for (final pgLocal in lojaLocal.pagamentosFuncionarios) {
-      if (idsPagamentos.add(pgLocal.id)) {
-        pagamentosMesclados.add(pgLocal);
+      final existente = mapaPagamentos[pgLocal.id];
+      if (existente == null || (pgLocal.pago && !existente.pago)) {
+        mapaPagamentos[pgLocal.id] = pgLocal;
         houveCura = true;
       }
     }
-    pagamentosMesclados.sort((a, b) => b.dataHora.compareTo(a.dataHora));
+    final pagamentosMesclados = mapaPagamentos.values.toList()
+      ..sort((a, b) => b.dataHora.compareTo(a.dataHora));
     final pagamentosLimitados = pagamentosMesclados.length > 1000
         ? pagamentosMesclados.sublist(0, 1000)
         : pagamentosMesclados;
@@ -186,22 +189,24 @@ class MescladorEntidadesRede {
     final turnosMesclados = mapaTurnos.values.toList()
       ..sort((a, b) => b.dataAbertura.compareTo(a.dataAbertura));
 
-    // 5. Pedidos Programados - Soberania balcão preservando última execução mais recente
-    final mapaProgramadosLocal = <String, PedidoProgramado>{
-      for (final pp in lojaLocal.pedidosProgramados) pp.id: pp,
+    // 5. Pedidos Programados - União por ID preservando última execução mais recente
+    final mapaProgramados = <String, PedidoProgramado>{
+      for (final pp in lojaMesclada.pedidosProgramados) pp.id: pp,
     };
-    final programadosMesclados =
-        lojaMesclada.pedidosProgramados.map((ppRemoto) {
-      final ppLocal = mapaProgramadosLocal[ppRemoto.id];
-      if (ppLocal != null && ppLocal.ultimaDataGerado != null) {
-        if (ppRemoto.ultimaDataGerado == null ||
-            ppLocal.ultimaDataGerado!.isAfter(ppRemoto.ultimaDataGerado!)) {
-          houveCura = true;
-          return ppRemoto.copyWith(ultimaDataGerado: ppLocal.ultimaDataGerado);
-        }
+    for (final ppLocal in lojaLocal.pedidosProgramados) {
+      final ppRemoto = mapaProgramados[ppLocal.id];
+      if (ppRemoto == null) {
+        mapaProgramados[ppLocal.id] = ppLocal;
+        houveCura = true;
+      } else if (ppLocal.ultimaDataGerado != null &&
+          (ppRemoto.ultimaDataGerado == null ||
+              ppLocal.ultimaDataGerado!.isAfter(ppRemoto.ultimaDataGerado!))) {
+        mapaProgramados[ppLocal.id] =
+            ppRemoto.copyWith(ultimaDataGerado: ppLocal.ultimaDataGerado);
+        houveCura = true;
       }
-      return ppRemoto;
-    }).toList();
+    }
+    final programadosMesclados = mapaProgramados.values.toList();
 
     // 6. Cargos Personalizados - Set O(1)
     final cargosMesclados =
@@ -247,16 +252,19 @@ class MescladorEntidadesRede {
       }
     }
 
-    // 10. Registros de Ponto
-    final pontosMesclados =
-        List<RegistroPontoMembro>.from(lojaMesclada.registrosPonto);
-    final idsPontos = pontosMesclados.map((p) => p.id).toSet();
+    // 10. Registros de Ponto (preserva saída finalizada offline)
+    final mapaPontos = <String, RegistroPontoMembro>{
+      for (final p in lojaMesclada.registrosPonto) p.id: p,
+    };
     for (final pLocal in lojaLocal.registrosPonto) {
-      if (idsPontos.add(pLocal.id)) {
-        pontosMesclados.add(pLocal);
+      final existente = mapaPontos[pLocal.id];
+      if (existente == null ||
+          (pLocal.dataHoraSaida != null && existente.dataHoraSaida == null)) {
+        mapaPontos[pLocal.id] = pLocal;
         houveCura = true;
       }
     }
+    final pontosMesclados = mapaPontos.values.toList();
 
     // 11. Escalas de Trabalho
     final escalasMescladas =

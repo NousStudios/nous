@@ -212,11 +212,15 @@ class OutboxMidiaService {
         final novaFotoAutor =
             pub.autorFoto == caminhoAntigo ? caminhoRemoto : pub.autorFoto;
         if (novaFotoAutor != pub.autorFoto) alterou = true;
+        final novaCapa =
+            pub.capaCaminho == caminhoAntigo ? caminhoRemoto : pub.capaCaminho;
+        if (novaCapa != pub.capaCaminho) alterou = true;
         if (alterou) {
           await TimelineRepositorioSqlite.salvarPublicacao(
             pub.copyWith(
               midias: novasMidias,
               autorFoto: novaFotoAutor,
+              capaCaminho: novaCapa,
               atualizadaEm: DateTime.now(),
             ),
           );

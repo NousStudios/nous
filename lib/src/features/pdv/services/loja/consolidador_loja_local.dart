@@ -321,46 +321,57 @@ class ConsolidadorLojaLocal {
     final listaTurnos = turnosMesclados.values.toList()
       ..sort((a, b) => a.dataAbertura.compareTo(b.dataAbertura));
 
-    // 12. Movimentos de Estoque
+    // 12. Movimentos de Estoque (preserva quitação mais recente)
     final estoqueMesclado = <String, MovimentoEstoque>{};
     for (final m in lojaLocal.movimentosEstoque) {
       estoqueMesclado[m.id] = m;
     }
     for (final m in lojaNova.movimentosEstoque) {
-      if (!estoqueMesclado.containsKey(m.id)) {
+      final existente = estoqueMesclado[m.id];
+      if (existente == null || (m.pago && !existente.pago)) {
         estoqueMesclado[m.id] = m;
       }
     }
     final listaEstoque = estoqueMesclado.values.toList()
       ..sort((a, b) => b.dataHora.compareTo(a.dataHora));
 
-    // 13. Pagamentos de Funcionários
+    // 13. Pagamentos de Funcionários (preserva quitação mais recente)
     final pagamentosMesclados = <String, PagamentoFuncionario>{};
     for (final pg in lojaLocal.pagamentosFuncionarios) {
       pagamentosMesclados[pg.id] = pg;
     }
     for (final pg in lojaNova.pagamentosFuncionarios) {
-      if (!pagamentosMesclados.containsKey(pg.id)) {
+      final existente = pagamentosMesclados[pg.id];
+      if (existente == null || (pg.pago && !existente.pago)) {
         pagamentosMesclados[pg.id] = pg;
       }
     }
     final listaPagamentos = pagamentosMesclados.values.toList()
       ..sort((a, b) => b.dataHora.compareTo(a.dataHora));
 
-    // 14. Pedidos Programados (lojaNova é soberana para refletir exclusões, pausas e edições)
+    // 14. Pedidos Programados
+    // Quando manterItensAusentes == true (ex.: dados_iniciais público), preserva os locais ausentes
     final mapaProgramadosLocais = <String, PedidoProgramado>{
       for (final pp in lojaLocal.pedidosProgramados) pp.id: pp,
     };
-    final listaProgramados = lojaNova.pedidosProgramados.map((ppNovo) {
+    final mapaProgramados = <String, PedidoProgramado>{};
+    if (manterItensAusentes) {
+      mapaProgramados.addAll(mapaProgramadosLocais);
+    }
+    for (final ppNovo in lojaNova.pedidosProgramados) {
       final ppLocal = mapaProgramadosLocais[ppNovo.id];
       if (ppLocal != null && ppLocal.ultimaDataGerado != null) {
         if (ppNovo.ultimaDataGerado == null ||
             ppLocal.ultimaDataGerado!.isAfter(ppNovo.ultimaDataGerado!)) {
-          return ppNovo.copyWith(ultimaDataGerado: ppLocal.ultimaDataGerado);
+          mapaProgramados[ppNovo.id] = ppNovo.copyWith(
+            ultimaDataGerado: ppLocal.ultimaDataGerado,
+          );
+          continue;
         }
       }
-      return ppNovo;
-    }).toList();
+      mapaProgramados[ppNovo.id] = ppNovo;
+    }
+    final listaProgramados = mapaProgramados.values.toList();
 
     // 15. Membros da Loja
     // Em lojas comerciais, a lista de membros da lojaNova é autoritativa para
@@ -422,13 +433,18 @@ class ConsolidadorLojaLocal {
     }
     final listaContratos = contratosMesclados.values.toList();
 
-    // 20. Registros de Ponto
+    // 20. Registros de Ponto (preserva registro com saída já finalizada)
     final pontosMesclados = <String, RegistroPontoMembro>{};
     for (final p in lojaLocal.registrosPonto) {
       pontosMesclados[p.id] = p;
     }
     for (final p in lojaNova.registrosPonto) {
-      pontosMesclados[p.id] = p;
+      final existente = pontosMesclados[p.id];
+      if (existente == null ||
+          p.dataHoraSaida != null ||
+          existente.dataHoraSaida == null) {
+        pontosMesclados[p.id] = p;
+      }
     }
     final listaPontos = pontosMesclados.values.toList()
       ..sort((a, b) => b.dataHoraEntrada.compareTo(a.dataHoraEntrada));

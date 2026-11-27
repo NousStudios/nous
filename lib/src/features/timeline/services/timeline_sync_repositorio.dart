@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:nous/src/features/timeline/models/interacao_social.dart';
+import 'package:nous/src/features/timeline/models/notificacao_social.dart';
 import 'package:nous/src/features/timeline/models/publicacao_social.dart';
 import 'package:nous/src/features/timeline/models/salvos_denuncia_social.dart';
 import 'package:nous/src/features/timeline/models/story_social.dart';
@@ -76,6 +77,17 @@ class TimelineSyncRepositorio {
     final listas = resultados[4];
     final itens = resultados[5];
     final denuncias = resultados[6];
+
+    final notifs = offset == 0
+        ? (corteIso == null
+            ? await db.query('notificacoes_sociais', limit: limit)
+            : await db.query(
+                'notificacoes_sociais',
+                where: 'criada_em >= ?',
+                whereArgs: [corteIso],
+                limit: limit,
+              ))
+        : const <Map<String, Object?>>[];
 
     final temMais = pubs.length >= limit ||
         stories.length >= limit ||
@@ -167,6 +179,7 @@ class TimelineSyncRepositorio {
         (d) => (d['atualizadaEm'] ?? d['salvoEm'])?.toString(),
       ),
       'denuncias': decodificar(denuncias, (d) => d['criadaEm']?.toString()),
+      'notificacoes': decodificar(notifs, (d) => d['criadaEm']?.toString()),
     };
   }
 
@@ -506,6 +519,25 @@ class TimelineSyncRepositorio {
       if (d.id.isNotEmpty) {
         await TimelineRepositorioSqlite.salvarDenuncia(d);
       }
+    }
+
+    final notifsBrutas = snapshot['notificacoes'] as List<dynamic>? ?? const [];
+    for (final item in notifsBrutas) {
+      if (item is! Map) continue;
+      final n = NotificacaoSocial.fromJson(Map<String, dynamic>.from(item));
+      if (n.id.isEmpty) continue;
+      final rows = await db.query(
+        'notificacoes_sociais',
+        columns: ['lida'],
+        where: 'id = ?',
+        whereArgs: [n.id],
+        limit: 1,
+      );
+      final jaLidaLocal =
+          rows.isNotEmpty && ((rows.first['lida'] as int? ?? 0) == 1);
+      await TimelineRepositorioSqlite.salvarNotificacaoSocial(
+        jaLidaLocal && !n.lida ? n.copyWith(lida: true) : n,
+      );
     }
   }
 }

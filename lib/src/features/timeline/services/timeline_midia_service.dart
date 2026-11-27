@@ -158,31 +158,33 @@ class TimelineMidiaService {
       '.avi',
       '.3gp',
     };
-    const extensoesAudioOuDoc = {
-      '.mp3',
-      '.wav',
-      '.m4a',
-      '.aac',
-      '.ogg',
-      '.flac',
-      '.pdf',
+    const extensoesImagem = {
+      '.jpg',
+      '.jpeg',
+      '.png',
+      '.webp',
+      '.gif',
+      '.bmp',
     };
     if (ClienteRedeLocal().conectado) {
-      if (extensoesAudioOuDoc.contains(ext)) {
+      if (extensoesImagem.contains(ext)) {
         try {
           final baixado = await ClienteRedeLocal()
-              .baixarAudioRemoto(caminho)
-              .timeout(const Duration(seconds: 8));
+              .baixarImagemRemota(caminho)
+              .timeout(const Duration(seconds: 5));
           if (baixado.isNotEmpty && File(baixado).existsSync()) {
             _cacheCaminhosMidia[caminho] = baixado;
             return baixado;
           }
         } catch (_) {}
-      } else if (!extensoesVideo.contains(ext)) {
+      } else {
         try {
+          final timeout = extensoesVideo.contains(ext)
+              ? const Duration(seconds: 20)
+              : const Duration(seconds: 8);
           final baixado = await ClienteRedeLocal()
-              .baixarImagemRemota(caminho)
-              .timeout(const Duration(seconds: 5));
+              .baixarAudioRemoto(caminho)
+              .timeout(timeout);
           if (baixado.isNotEmpty && File(baixado).existsSync()) {
             _cacheCaminhosMidia[caminho] = baixado;
             return baixado;

@@ -130,6 +130,9 @@ class TimelinePublicacaoFeedHelper {
     );
     await TimelineRepositorioSqlite.salvarFeedPersonalizado(feed);
     onNotificar?.call();
+    TimelineSyncService.despacharEventoRede('timeline_feed_personalizado', {
+      'feed': feed.toJson(),
+    });
     return feed;
   }
 

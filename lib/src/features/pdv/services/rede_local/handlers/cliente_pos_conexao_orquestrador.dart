@@ -1,7 +1,12 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
+import 'package:nous/src/core/services/preferencias_soberanas_service.dart';
 import 'package:nous/src/core/services/relogio_rede_service.dart';
+import 'package:nous/src/features/busca/services/avaliacoes_produto_service.dart';
 import 'package:nous/src/features/busca/services/mapa_espelhamento_service.dart';
+import 'package:nous/src/features/busca/services/projetos_comunitarios_service.dart';
+import 'package:nous/src/features/notificacoes/providers/notificacoes_provider.dart';
+import 'package:nous/src/features/notificacoes/services/convites_service.dart';
 import 'package:nous/src/features/chat/services/chat_service.dart';
 import 'package:nous/src/features/pdv/models/loja.dart';
 import 'package:nous/src/features/pdv/models/referencia_loja.dart';
@@ -106,8 +111,10 @@ class ClientePosConexaoOrquestrador {
               debugPrint('[ClientePosConexaoOrquestrador] Reconciliação mútua assíncrona de mídia: $e');
             }
           }(),
-        sincronizarIdentidadeUsuario(),
-        reconciliarContasComServidor(),
+        () async {
+          await sincronizarIdentidadeUsuario();
+          await reconciliarContasComServidor();
+        }(),
         sincronizarPerfisLojasComServidor(),
         ChatService.sincronizarMensagensComBalcao(
           ipServidor: ipServidor,
@@ -127,7 +134,34 @@ class ClientePosConexaoOrquestrador {
         ),
       ]);
       await ChatService.drenarFilaDeSaida();
+      await ConvitesService.drenarPendenciasOffline();
+      await NotificacoesProvider.instanciaAtiva?.drenarDispensasOffline();
       ClienteRedeLocal().enviarEventoWs({'tipo': 'solicitar_avaliacoes_sync'});
+      final avalLocais = await AvaliacoesProdutoService.exportarTodasParaSync();
+      if (avalLocais.isNotEmpty) {
+        ClienteRedeLocal().enviarEventoWs({
+          'tipo': 'avaliacoes_sync_enviar',
+          'avaliacoes': avalLocais.map((e) => e.toJson()).toList(),
+        });
+      }
+      ClienteRedeLocal().enviarEventoWs({'tipo': 'solicitar_projetos_sync'});
+      final projLocais = await ProjetosComunitariosService.listarTodos();
+      if (projLocais.isNotEmpty) {
+        ClienteRedeLocal().enviarEventoWs({
+          'tipo': 'projetos_sync_enviar',
+          'projetos': projLocais.map((e) => e.toJson()).toList(),
+        });
+      }
+      if (cpfLogado.isNotEmpty) {
+        final prefsCpf = await PreferenciasSoberanasService.exportarDoCpf(cpfLogado);
+        if (prefsCpf.isNotEmpty) {
+          ClienteRedeLocal().enviarEventoWs({
+            'tipo': 'preferencias_cpf_sync',
+            'cpf': cpfLogado,
+            'itens': prefsCpf,
+          });
+        }
+      }
       unawaited(MapaEspelhamentoService.instancia.enviarPosicaoAtualSeMobile(cpfLogado));
       unawaited(
         Future.delayed(

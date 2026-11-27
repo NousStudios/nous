@@ -261,6 +261,31 @@ class SincronizadorMidiasRede {
         }
       }
 
+      // 9. Vídeos e arquivos da loja (download assíncrono para acesso offline)
+      for (final v in [...lojaRemota.videos, ...lojaRemota.arquivos]) {
+        if (v.trim().isEmpty || ImagemService.ehAsset(v)) continue;
+        final local = ImagemService.resolverCaminhoExistente(v);
+        if (local == null) {
+          _transferencia.baixarAudioRemoto(
+            caminhoRemoto: v,
+            ipServidor: ipServidor,
+            portaServidor: portaServidor,
+          );
+        }
+      }
+      for (final ct in lojaRemota.contratosTrabalho) {
+        for (final arq in ct.caminhosArquivos) {
+          if (arq.trim().isEmpty || ImagemService.ehAsset(arq)) continue;
+          if (ImagemService.resolverCaminhoExistente(arq) == null) {
+            _transferencia.baixarAudioRemoto(
+              caminhoRemoto: arq,
+              ipServidor: ipServidor,
+              portaServidor: portaServidor,
+            );
+          }
+        }
+      }
+
       return lojaRemota.copyWith(
         logo: novaLogo,
         itensLoja: novosItens,

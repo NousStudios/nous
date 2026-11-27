@@ -547,7 +547,7 @@ class CriptografiaService {
         await db.insert(
           'cofre_chaves_seguras',
           Map<String, dynamic>.from(chavesSeguras),
-          conflictAlgorithm: ConflictAlgorithm.replace,
+          conflictAlgorithm: ConflictAlgorithm.ignore,
         );
       }
 
@@ -556,7 +556,7 @@ class CriptografiaService {
         await db.insert(
           'cofre_chaves_troca',
           Map<String, dynamic>.from(chavesTroca),
-          conflictAlgorithm: ConflictAlgorithm.replace,
+          conflictAlgorithm: ConflictAlgorithm.ignore,
         );
       }
 

@@ -223,6 +223,10 @@ class TimelineSalvosDenunciasService {
     if (cpf.trim().isEmpty) return;
     await TimelineRepositorioSqlite.salvarAbasDescoberta(cpf, abas);
     onNotificar?.call();
+    TimelineSyncService.despacharEventoRede('timeline_descoberta_tags', {
+      'cpf': TimelineRepositorioSqlite.normalizarCpf(cpf),
+      'abas': abas,
+    });
   }
 
   static Future<List<PublicacaoSocial>> listarPublicacoesDescoberta({

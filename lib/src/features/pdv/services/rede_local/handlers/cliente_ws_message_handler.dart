@@ -2,8 +2,10 @@ import 'package:flutter/foundation.dart';
 import 'package:nous/src/core/utils/json_isolate_utils.dart';
 import 'package:nous/src/features/auth/providers/auth_provider.dart';
 import 'package:nous/src/features/busca/models/avaliacao_produto.dart';
+import 'package:nous/src/features/busca/models/projeto_comunitario.dart';
 import 'package:nous/src/features/busca/services/avaliacoes_produto_service.dart';
 import 'package:nous/src/features/busca/services/mapa_espelhamento_service.dart';
+import 'package:nous/src/features/busca/services/projetos_comunitarios_service.dart';
 import 'package:nous/src/features/pdv/models/loja.dart';
 import 'package:nous/src/features/pdv/models/pedido_loja.dart';
 import 'package:nous/src/features/pdv/models/terminal_conectado_info.dart';
@@ -81,10 +83,12 @@ class ClienteWsMessageHandler {
       if (tipo == 'avaliacao_produto_reacao') {
         final avaliacaoId = dados['avaliacaoId'] as String? ?? '';
         final curtir = dados['curtir'] == true;
+        final cpf = dados['cpf'] as String? ?? '';
         if (avaliacaoId.isNotEmpty) {
           await AvaliacoesProdutoService.aplicarReacaoRemota(
             avaliacaoId: avaliacaoId,
             curtir: curtir,
+            cpf: cpf,
           );
         }
         return;
@@ -97,6 +101,27 @@ class ClienteWsMessageHandler {
             .map((e) => AvaliacaoProduto.fromJson(Map<String, dynamic>.from(e)))
             .toList();
         await AvaliacoesProdutoService.mesclarAvaliacoesRemotas(lista);
+        return;
+      }
+
+      if (tipo == 'projeto_comunitario_salvo') {
+        final projMap = dados['projeto'];
+        if (projMap is Map<String, dynamic>) {
+          await ProjetosComunitariosService.salvar(
+            ProjetoComunitario.fromJson(projMap),
+            originadoDaRede: true,
+          );
+        }
+        return;
+      }
+
+      if (tipo == 'projetos_sync_lote') {
+        final listaRaw = dados['projetos'] as List<dynamic>? ?? const [];
+        final lista = listaRaw
+            .whereType<Map>()
+            .map((e) => ProjetoComunitario.fromJson(Map<String, dynamic>.from(e)))
+            .toList();
+        await ProjetosComunitariosService.mesclarRemotos(lista);
         return;
       }
 

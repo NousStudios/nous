@@ -67,7 +67,12 @@ class TimelineStoriesService {
               caminhoFinal,
             );
             if (local != null) {
-              final remoto = await ClienteRedeLocal().enviarUploadImagem(local);
+              final remoto = tipoMidia == 'imagem'
+                  ? await ClienteRedeLocal().enviarUploadImagem(local)
+                  : await ClienteRedeLocal().enviarUploadAnexo(
+                      local,
+                      subpasta: 'timeline_midias',
+                    );
               if (remoto.isNotEmpty) caminhoFinal = remoto;
             }
           } else if (!ServidorRedeLocal().ativo) {

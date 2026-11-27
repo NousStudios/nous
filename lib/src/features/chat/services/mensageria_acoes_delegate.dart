@@ -560,6 +560,7 @@ class MensageriaAcoesDelegate {
       entregue: true,
     );
     ChatService.salvarMensagem(msgSaida);
+    ChatService.despacharMensagemParaRede(msgSaida);
 
     final novosParticipantes = List<String>.from(conversa.participantesIds);
     novosParticipantes.removeWhere(
@@ -572,7 +573,7 @@ class MensageriaAcoesDelegate {
       dataHoraUltimaMensagem: DateTime.now(),
     );
     ChatService.despacharConversaAtualizada(grupoAtualizado);
-    ChatService.excluirConversaLocal(conversa.id).then((_) {
+    ChatService.excluirConversaLocal(conversa.id, originadoDaRede: true).then((_) {
       if (context.mounted) {
         if (controller.conversaSelecionada?.id == conversa.id) {
           controller.selecionarConversa(null);

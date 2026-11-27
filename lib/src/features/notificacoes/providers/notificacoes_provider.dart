@@ -97,8 +97,44 @@ class NotificacoesProvider extends ChangeNotifier {
         ServidorRedeLocal().notificarTodos(payload);
       } else if (ClienteRedeLocal().conectado) {
         ClienteRedeLocal().enviarEventoWs(payload);
+      } else {
+        final pend = await PreferenciasSoberanasService.obterLista(
+          'nous_dispensas_pendentes_envio',
+        );
+        if (!pend.contains(lojaId)) {
+          await PreferenciasSoberanasService.salvarLista(
+            'nous_dispensas_pendentes_envio',
+            [...pend, lojaId],
+          );
+        }
       }
     }
+  }
+
+  /// Drena dispensas de notificações de loja feitas offline ao reconectar no balcão.
+  Future<void> drenarDispensasOffline() async {
+    if (!ClienteRedeLocal().conectado) return;
+    try {
+      final pendentes = await PreferenciasSoberanasService.obterLista(
+        'nous_dispensas_pendentes_envio',
+      );
+      if (pendentes.isEmpty) return;
+      for (final lojaId in pendentes) {
+        await carregarDispensadasLoja(lojaId);
+        final ids = obterDispensadasPorLoja(lojaId).toList();
+        if (ids.isNotEmpty) {
+          ClienteRedeLocal().enviarEventoWs({
+            'tipo': 'notificacoes_loja_limpas',
+            'lojaId': lojaId,
+            'ids': ids,
+          });
+        }
+      }
+      await PreferenciasSoberanasService.salvarLista(
+        'nous_dispensas_pendentes_envio',
+        const [],
+      );
+    } catch (_) {}
   }
 
   String get _chaveDispensadasUsuario {

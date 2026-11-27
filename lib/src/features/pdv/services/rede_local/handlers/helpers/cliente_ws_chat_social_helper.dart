@@ -1,5 +1,4 @@
 import 'package:nous/src/core/services/criptografia_service.dart';
-import 'package:nous/src/features/busca/services/mapa_espelhamento_service.dart';
 import 'package:nous/src/features/chat/controllers/helpers/mensageria_solicitacoes_helper.dart';
 import 'package:nous/src/features/chat/services/chat_service.dart';
 import 'package:nous/src/features/notificacoes/providers/notificacoes_provider.dart';
@@ -127,14 +126,6 @@ class ClienteWsChatSocialHelper {
           Map<String, dynamic>.from(pacote),
         );
       }
-      return true;
-    }
-
-    if (tipo == 'mapa_navegacao_sync') {
-      MapaEspelhamentoService.instancia.receberEventoRede(
-        dados,
-        ctx.authProvider?.cpf,
-      );
       return true;
     }
 

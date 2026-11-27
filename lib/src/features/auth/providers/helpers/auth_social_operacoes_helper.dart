@@ -1,9 +1,12 @@
 import 'package:nous/src/core/services/criptografia_service.dart';
+import 'package:nous/src/core/services/relogio_rede_service.dart';
 import 'package:nous/src/features/auth/models/usuario_nous.dart';
 import 'package:nous/src/features/auth/services/contas_nous_service.dart';
+import 'package:nous/src/features/auth/services/cpf_validator.dart';
+import 'package:nous/src/features/pdv/services/rede_local/cliente_rede_local.dart';
+import 'package:nous/src/features/pdv/services/rede_local/servidor_rede_local.dart';
 import 'package:nous/src/features/timeline/models/notificacao_social.dart';
 import 'package:nous/src/features/timeline/services/timeline_service.dart';
-import 'package:nous/src/features/auth/services/cpf_validator.dart';
 
 /// Helper com operações sociais da conta Nous (validação de identidade e seguir/deixar de seguir).
 class AuthSocialOperacoesHelper {
@@ -61,6 +64,7 @@ class AuthSocialOperacoesHelper {
       validadoEm: alvoVivo.validadoEm.isNotEmpty
           ? alvoVivo.validadoEm
           : (primeiro['dataHora'] ?? agoraIso),
+      atualizadoEm: RelogioRedeService.agora().toIso8601String(),
     );
 
     await ContasNousService.salvar(alvoAtualizado);
@@ -85,12 +89,27 @@ class AuthSocialOperacoesHelper {
       novaListaSeguindo.add(alvoLimpo);
     }
 
-    final atualizado = conta.copyWith(seguindo: novaListaSeguindo);
+    final atualizado = conta.copyWith(
+      seguindo: novaListaSeguindo,
+      atualizadoEm: RelogioRedeService.agora().toIso8601String(),
+    );
     await ContasNousService.salvar(atualizado);
+
+    final meuCpfLimpo = conta.cpf.replaceAll(RegExp(r'\D'), '');
+    final eventoSeguir = {
+      'tipo': 'usuario_seguir_atualizado',
+      'autorCpf': meuCpfLimpo,
+      'alvoCpf': alvoLimpo,
+      'seguindo': !jaSegue,
+    };
+    if (ServidorRedeLocal().ativo) {
+      ServidorRedeLocal().notificarTodos(eventoSeguir);
+    } else if (ClienteRedeLocal().conectado) {
+      ClienteRedeLocal().enviarEventoWs(eventoSeguir);
+    }
 
     final contaAlvo = await ContasNousService.buscarPorCpf(alvoLimpo);
     if (contaAlvo != null) {
-      final meuCpfLimpo = conta.cpf.replaceAll(RegExp(r'\D'), '');
       final seguidoresAlvo = List<String>.from(contaAlvo.seguidores);
       if (jaSegue) {
         seguidoresAlvo
@@ -100,9 +119,11 @@ class AuthSocialOperacoesHelper {
           seguidoresAlvo.add(meuCpfLimpo);
         }
       }
-      final alvoAtualizado = contaAlvo.copyWith(seguidores: seguidoresAlvo);
+      final alvoAtualizado = contaAlvo.copyWith(
+        seguidores: seguidoresAlvo,
+        atualizadoEm: RelogioRedeService.agora().toIso8601String(),
+      );
       await ContasNousService.salvar(alvoAtualizado);
-      propagarUsuarioAtualizado(alvoAtualizado);
       if (!jaSegue) {
         await TimelineService.emitirNotificacaoSocial(
           destinatarioCpf: alvoLimpo,

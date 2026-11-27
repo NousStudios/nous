@@ -477,7 +477,10 @@ class PdvProvider extends ChangeNotifier {
       _mutarLoja(id, (l) => l.copyWith(mesas: mesas));
 
   Future<void> alternarLojaAberta(String id, bool aberta) =>
-      _mutarLojaAsync(id, (l) => l.copyWith(aberta: aberta));
+      _mutarLojaAsync(
+        id,
+        (l) => l.copyWith(aberta: aberta, dadosAtualizadosEm: DateTime.now()),
+      );
 
   void atualizarAcoes(String id, List<RegistroAcao> acoes) =>
       _mutarLoja(id, (l) => l.copyWith(acoes: acoes));

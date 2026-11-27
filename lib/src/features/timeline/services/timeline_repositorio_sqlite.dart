@@ -14,6 +14,7 @@ import 'package:nous/src/features/timeline/services/helpers/timeline_salvos_denu
 import 'package:nous/src/features/timeline/services/helpers/timeline_sqlite_utils.dart';
 import 'package:nous/src/features/timeline/services/helpers/timeline_stories_sqlite_helper.dart';
 import 'package:nous/src/features/timeline/services/timeline_schema_sqlite.dart';
+import 'package:nous/src/features/timeline/services/timeline_sync_service.dart';
 
 /// Repositório SQLite indexado para publicações, coautorias ilimitadas,
 /// reações (Like/Deslike), comentários, stories e feeds personalizados.
@@ -91,14 +92,42 @@ class TimelineRepositorioSqlite {
         .toList();
   }
 
-  static Future<void> marcarNotificacaoSocialLida(String id) async {
+  static Future<void> marcarNotificacaoSocialLida(
+    String id, {
+    bool originadaDaRede = false,
+  }) async {
     final db = await obterDb();
+    final rows = await db.query(
+      'notificacoes_sociais',
+      columns: ['dados_json'],
+      where: 'id = ?',
+      whereArgs: [id],
+      limit: 1,
+    );
+    Map<String, dynamic>? dadosAtualizados;
+    if (rows.isNotEmpty) {
+      try {
+        final dec = jsonDecode(rows.first['dados_json'] as String? ?? '{}');
+        if (dec is Map<String, dynamic>) {
+          dec['lida'] = true;
+          dadosAtualizados = dec;
+        }
+      } catch (_) {}
+    }
     await db.update(
       'notificacoes_sociais',
-      {'lida': 1},
+      {
+        'lida': 1,
+        if (dadosAtualizados != null) 'dados_json': jsonEncode(dadosAtualizados),
+      },
       where: 'id = ?',
       whereArgs: [id],
     );
+    if (!originadaDaRede) {
+      TimelineSyncService.despacharEventoRede('timeline_notificacao_lida', {
+        'id': id,
+      });
+    }
   }
 
   static String normalizarCpf(String cpf) =>

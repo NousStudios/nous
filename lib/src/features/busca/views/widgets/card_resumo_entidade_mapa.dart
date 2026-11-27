@@ -413,9 +413,13 @@ class CardResumoEntidadeMapa extends StatelessWidget {
                           color: theme.secondaryTextColor,
                         ),
                       ),
-                    if (perfil.biografia.trim().isNotEmpty)
+                    if (perfil.biografiaPara(
+                      context.read<AuthProvider>().contaAtual?.cpf ?? '',
+                    ).trim().isNotEmpty)
                       Text(
-                        perfil.biografia.trim(),
+                        perfil.biografiaPara(
+                          context.read<AuthProvider>().contaAtual?.cpf ?? '',
+                        ).trim(),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: theme.getTextStyle(

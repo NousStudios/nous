@@ -1,3 +1,4 @@
+import 'package:nous/src/core/services/relogio_rede_service.dart';
 import 'package:nous/src/features/auth/models/usuario_nous.dart';
 import 'package:nous/src/features/auth/services/contas_nous_service.dart';
 
@@ -45,6 +46,7 @@ class AuthEmailsHelper {
     final atualizado = conta.copyWith(
       emails: novosEmails,
       emailsVerificados: novosVerificados,
+      atualizadoEm: RelogioRedeService.agora().toIso8601String(),
     );
     await ContasNousService.salvar(atualizado);
     propagarUsuarioAtualizado(atualizado);
@@ -68,6 +70,7 @@ class AuthEmailsHelper {
     final atualizado = conta.copyWith(
       emails: novosEmails,
       emailsVerificados: [...conta.emailsVerificados, emailLimpo],
+      atualizadoEm: RelogioRedeService.agora().toIso8601String(),
     );
     await ContasNousService.salvar(atualizado);
     propagarUsuarioAtualizado(atualizado);
@@ -91,6 +94,7 @@ class AuthEmailsHelper {
     final atualizado = conta.copyWith(
       emails: novosEmails,
       emailsVerificados: novosVerificados,
+      atualizadoEm: RelogioRedeService.agora().toIso8601String(),
     );
     await ContasNousService.salvar(atualizado);
 

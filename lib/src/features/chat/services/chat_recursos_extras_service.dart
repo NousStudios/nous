@@ -5,6 +5,7 @@ import 'package:nous/src/features/chat/models/filtro_chat_personalizado.dart';
 import 'package:nous/src/features/chat/models/lista_transmissao.dart';
 import 'package:nous/src/features/chat/models/registro_chamada.dart';
 import 'package:nous/src/features/chat/services/chat_repositorio_sqlite.dart';
+import 'package:nous/src/features/chat/services/chat_sincronizacao_service.dart';
 
 /// Serviço persistente para recursos extras da Mensageria:
 /// - Conversas favoritas
@@ -39,6 +40,18 @@ class ChatRecursosExtrasService {
         where: 'id = ?',
         whereArgs: [conversaId],
       );
+      final atualizada = await db.query(
+        'conversas_chat',
+        where: 'id = ?',
+        whereArgs: [conversaId],
+        limit: 1,
+      );
+      if (atualizada.isNotEmpty) {
+        ChatSincronizacaoService.despacharEventoRede({
+          'tipo': 'conversa_atualizada',
+          'conversa': Map<String, dynamic>.from(atualizada.first),
+        });
+      }
     }
     return novoValor;
   }

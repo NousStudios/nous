@@ -109,6 +109,13 @@ class RoteadorUsuarios {
             usuario = usuario.copyWith(foto: fotoResolvida);
           }
         }
+        if (usuario.fotoPublica.isNotEmpty) {
+          final fotoPubResolvida =
+              ImagemService.resolverCaminhoExistente(usuario.fotoPublica);
+          if (fotoPubResolvida != null) {
+            usuario = usuario.copyWith(fotoPublica: fotoPubResolvida);
+          }
+        }
 
         final contaExistente =
             await ContasNousService.buscarPorCpf(usuario.cpf);
@@ -117,9 +124,16 @@ class RoteadorUsuarios {
               ImagemService.existe(contaExistente.foto);
           final fotoRemotaValida =
               usuario.foto.isNotEmpty && ImagemService.existe(usuario.foto);
+          final fotoPubLocalValida = contaExistente.fotoPublica.isNotEmpty &&
+              ImagemService.existe(contaExistente.fotoPublica);
+          final fotoPubRemotaValida = usuario.fotoPublica.isNotEmpty &&
+              ImagemService.existe(usuario.fotoPublica);
           usuario = contaExistente.mesclarCom(usuario, priorizarOutro: true);
           if (!fotoRemotaValida && fotoLocalValida) {
             usuario = usuario.copyWith(foto: contaExistente.foto);
+          }
+          if (!fotoPubRemotaValida && fotoPubLocalValida) {
+            usuario = usuario.copyWith(fotoPublica: contaExistente.fotoPublica);
           }
         }
 
@@ -186,6 +200,11 @@ class RoteadorUsuarios {
             await ContasExcluidasService.salvarRegistro(
               ContaExcluidaNous.fromMap(ex),
             );
+            servidor.notificarTodos({
+              'tipo': 'usuario_nous_excluido',
+              'cpf': ex['cpf']?.toString() ?? '',
+              'registro': ex,
+            });
             houveExclusao = true;
           }
         }
@@ -400,6 +419,27 @@ class RoteadorUsuarios {
           }
           offset = (snapshotCliente['offset'] as num?)?.toInt() ?? 0;
           await TimelineService.mesclarSnapshotSocial(snapshotCliente);
+          final temNovidades =
+              (snapshotCliente['publicacoes'] as List?)?.isNotEmpty == true ||
+                  (snapshotCliente['stories'] as List?)?.isNotEmpty == true ||
+                  (snapshotCliente['reacoes'] as List?)?.isNotEmpty == true ||
+                  (snapshotCliente['comentarios'] as List?)?.isNotEmpty ==
+                      true ||
+                  (snapshotCliente['idsPublicacoesExcluidas'] as List?)
+                          ?.isNotEmpty ==
+                      true ||
+                  (snapshotCliente['idsStoriesExcluidos'] as List?)
+                          ?.isNotEmpty ==
+                      true ||
+                  (snapshotCliente['idsComentariosExcluidos'] as List?)
+                          ?.isNotEmpty ==
+                      true;
+          if (temNovidades) {
+            servidor.notificarTodos({
+              'tipo': 'timeline_snapshot_atualizado',
+              'snapshot': snapshotCliente,
+            });
+          }
         }
         final snapshotServidor = await TimelineService.exportarSnapshotSocial(
           desde: desde,

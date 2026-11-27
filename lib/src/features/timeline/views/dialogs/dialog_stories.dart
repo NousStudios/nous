@@ -5,6 +5,7 @@ import 'package:nous/src/features/pdv/services/imagem_service.dart';
 import 'package:nous/src/features/timeline/models/story_social.dart';
 import 'package:nous/src/features/timeline/services/timeline_repositorio_sqlite.dart';
 import 'package:nous/src/features/timeline/services/timeline_service.dart';
+import 'package:nous/src/features/timeline/services/timeline_sync_service.dart';
 import 'package:nous/src/features/timeline/views/dialogs/widgets/stories/story_conteudo_midia_widget.dart';
 import 'package:nous/src/features/timeline/views/dialogs/widgets/stories/story_modais_helper.dart';
 import 'package:nous/src/features/timeline/views/dialogs/widgets/stories/story_topo_e_resposta_widget.dart';
@@ -268,6 +269,9 @@ class _DialogVisualizarStoryState extends State<DialogVisualizarStory>
     );
     await TimelineRepositorioSqlite.salvarStory(arquivado);
     TimelineService.notificarAlteracao();
+    TimelineSyncService.despacharEventoRede('timeline_story', {
+      'story': arquivado.toJson(),
+    });
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(

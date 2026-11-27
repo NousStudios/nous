@@ -1,4 +1,6 @@
 import 'package:flutter/foundation.dart';
+import 'package:nous/src/core/services/preferencias_soberanas_service.dart';
+import 'package:nous/src/core/services/relogio_rede_service.dart';
 import 'package:nous/src/features/auth/models/usuario_nous.dart';
 import 'package:nous/src/features/auth/services/contas_excluidas_service.dart';
 import 'package:nous/src/features/auth/services/contas_nous_service.dart';
@@ -54,6 +56,38 @@ class ClienteWsUsuariosConvitesHelper {
       return true;
     }
 
+    if (tipo == 'usuario_seguir_atualizado') {
+      final autorCpf = (dados['autorCpf'] ?? '').toString().replaceAll(RegExp(r'\D'), '');
+      final alvoCpf = (dados['alvoCpf'] ?? '').toString().replaceAll(RegExp(r'\D'), '');
+      final seguindo = dados['seguindo'] == true;
+      if (autorCpf.isNotEmpty && alvoCpf.isNotEmpty) {
+        final alvo = await ContasNousService.buscarPorCpf(alvoCpf);
+        if (alvo != null) {
+          final seguidores = List<String>.from(alvo.seguidores);
+          if (seguindo) {
+            if (!seguidores.any((s) => s.replaceAll(RegExp(r'\D'), '') == autorCpf)) {
+              seguidores.add(autorCpf);
+            }
+          } else {
+            seguidores.removeWhere((s) => s.replaceAll(RegExp(r'\D'), '') == autorCpf);
+          }
+          final atualizado = alvo.copyWith(
+            seguidores: seguidores,
+            atualizadoEm: RelogioRedeService.agora().toIso8601String(),
+          );
+          await ContasNousService.salvar(atualizado);
+          ctx.authProvider?.atualizarContaNoCache(atualizado);
+        }
+      }
+      return true;
+    }
+
+    if (tipo == 'preferencias_cpf_sync') {
+      final itens = dados['itens'] as List<dynamic>? ?? const [];
+      await PreferenciasSoberanasService.mesclarRemotas(itens);
+      return true;
+    }
+
     return false;
   }
 
@@ -69,6 +103,13 @@ class ClienteWsUsuariosConvitesHelper {
           final novaFotoLocal = await ctx.baixarImagemRemota(usuarioRemoto.foto);
           usuarioRemoto = usuarioRemoto.copyWith(foto: novaFotoLocal);
         }
+        if (usuarioRemoto.fotoPublica.isNotEmpty) {
+          final novaFotoPubLocal =
+              await ctx.baixarImagemRemota(usuarioRemoto.fotoPublica);
+          if (novaFotoPubLocal.isNotEmpty) {
+            usuarioRemoto = usuarioRemoto.copyWith(fotoPublica: novaFotoPubLocal);
+          }
+        }
 
         final local = await ContasNousService.buscarPorCpf(usuarioRemoto.cpf);
         if (local != null) {
@@ -76,9 +117,16 @@ class ClienteWsUsuariosConvitesHelper {
               local.foto.isNotEmpty && ImagemService.existe(local.foto);
           final fotoRemotaValida = usuarioRemoto.foto.isNotEmpty &&
               ImagemService.existe(usuarioRemoto.foto);
+          final fotoPubLocalValida = local.fotoPublica.isNotEmpty &&
+              ImagemService.existe(local.fotoPublica);
+          final fotoPubRemotaValida = usuarioRemoto.fotoPublica.isNotEmpty &&
+              ImagemService.existe(usuarioRemoto.fotoPublica);
           usuarioRemoto = local.mesclarCom(usuarioRemoto, priorizarOutro: true);
           if (!fotoRemotaValida && fotoLocalValida) {
             usuarioRemoto = usuarioRemoto.copyWith(foto: local.foto);
+          }
+          if (!fotoPubRemotaValida && fotoPubLocalValida) {
+            usuarioRemoto = usuarioRemoto.copyWith(fotoPublica: local.fotoPublica);
           }
         }
 
@@ -203,6 +251,17 @@ class ClienteWsUsuariosConvitesHelper {
   static Future<void> _processarSincronizacaoConvites(
     Map<String, dynamic> dados,
   ) async {
+    final lojasAnexas = dados['lojas'];
+    if (lojasAnexas is Map) {
+      for (final entry in lojasAnexas.entries) {
+        if (entry.value is Map<String, dynamic>) {
+          try {
+            final lojaAnexa = Loja.fromJson(entry.value as Map<String, dynamic>);
+            await LojasService.salvarLojaIndividual(lojaAnexa);
+          } catch (_) {}
+        }
+      }
+    }
     final listaConvites = dados['convites'] as List<dynamic>? ?? [];
     for (final cJson in listaConvites) {
       if (cJson is Map<String, dynamic>) {

@@ -180,6 +180,7 @@ class PdvLayoutImpressoraHelper {
       videos: videos ?? loja.videos,
       arquivosAudio: arquivosAudio ?? loja.arquivosAudio,
       descricoesAnexos: descricoesAnexos ?? loja.descricoesAnexos,
+      dadosAtualizadosEm: DateTime.now(),
     );
   }
 

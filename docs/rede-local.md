@@ -40,7 +40,11 @@ Arquivos principais: `pdv/services/rede_local/servidor_rede_local.dart`, `pdv/se
 Mensagens WebSocket:
 - `dados_iniciais`: snapshot de handshake contendo loja, pedidos, contatos e lacunas de imagens ausentes.
 - `loja_atualizada`: catálogo, membros, turnos, configurações.
-- `usuario_atualizado`: ficha do usuário sincronizada.
+- `usuario_atualizado`: ficha do usuário sincronizada (com carimbo `atualizadoEm` e download mútuo de `foto` e `fotoPublica`).
+- `usuario_seguir_atualizado` e `preferencias_cpf_sync`: delta leve de seguidores e sincronização LWW de preferências pessoais do CPF (temas, dados revelados, mapa, carrinho pendente).
+- `timeline_snapshot_atualizado`, `timeline_feed_personalizado`, `timeline_descoberta_tags`, `timeline_notificacao_lida`: sincronização em tempo real de novidades via `/api/timeline/sincronizar`, feeds personalizados, tags e leitura de notificações sociais.
+- `projeto_comunitario_salvo` e `projetos_sync_lote`: sincronização em tempo real e em lote dos Projetos Comunitários no Mapa.
+- `avaliacoes_sync_enviar` e `avaliacoes_sync_lote`: sincronização bidirecional de avaliações de produtos na conexão.
 - `pedido_adicionado` e `pedido_atualizado`: propagação imediata de novos pedidos e mudanças de status (Novo → Aceito → Concluído/Cancelado), quitado, valores ou cancelamento.
 - `mensagem_chat`: troca de mensagens em tempo real entre atendentes e clientes com foto resolvida do remetente e autocura mútua.
 - `mensagem_entregue`: confirmação imediata quando o terminal receptor grava a mensagem, atualizando o remetente para 2 checks cinzas em tempo real.

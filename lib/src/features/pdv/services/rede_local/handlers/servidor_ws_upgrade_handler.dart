@@ -113,7 +113,7 @@ class ServidorWsUpgradeHandler {
         ws.add(
           jsonEncode({
             'tipo': 'dados_iniciais',
-            'loja': lojaParaEnvio.toJson(),
+            'loja': lojaParaEnvio.toVisaoPublica().toJson(),
             if (lojaNous != null) 'lojaNousColetiva': lojaNous.toJson(),
             'presencas':
                 obterTodasPresencas().map((p) => p.toJson()).toList(),

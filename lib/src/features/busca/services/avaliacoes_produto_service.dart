@@ -35,6 +35,14 @@ class AvaliacoesProdutoService {
     await db.execute('''
       CREATE INDEX IF NOT EXISTS idx_avaliacoes_item ON avaliacoes_produtos (item_id)
     ''');
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS avaliacoes_votos_cpf (
+        avaliacao_id TEXT NOT NULL,
+        cpf TEXT NOT NULL,
+        curtir INTEGER NOT NULL,
+        PRIMARY KEY (avaliacao_id, cpf)
+      )
+    ''');
     _tabelaCriada = true;
   }
 
@@ -150,19 +158,25 @@ class AvaliacoesProdutoService {
     }
   }
 
-  /// Incrementa curtida ou descurtida de uma avaliação e propaga pela rede Wi-Fi local.
+  /// Incrementa curtida ou descurtida de uma avaliação (com idempotência por CPF quando informado) e propaga pela rede Wi-Fi local.
   static Future<void> reagirAvaliacao({
     required String avaliacaoId,
     required bool curtir,
+    String cpf = '',
   }) async {
     if (avaliacaoId.startsWith('mock_')) return;
     try {
-      await aplicarReacaoRemota(avaliacaoId: avaliacaoId, curtir: curtir);
+      await aplicarReacaoRemota(
+        avaliacaoId: avaliacaoId,
+        curtir: curtir,
+        cpf: cpf,
+      );
 
       final evento = {
         'tipo': 'avaliacao_produto_reacao',
         'avaliacaoId': avaliacaoId,
         'curtir': curtir,
+        if (cpf.trim().isNotEmpty) 'cpf': cpf.replaceAll(RegExp(r'\D'), ''),
       };
       if (ServidorRedeLocal().ativo) {
         ServidorRedeLocal().notificarTodos(evento);
@@ -190,19 +204,62 @@ class AvaliacoesProdutoService {
     }
   }
 
-  /// Aplica incremento de curtida/descurtida recebido da rede ou localmente.
+  /// Aplica incremento de curtida/descurtida recebido da rede ou localmente,
+  /// respeitando unicidade por CPF quando [cpf] for informado.
   static Future<void> aplicarReacaoRemota({
     required String avaliacaoId,
     required bool curtir,
+    String cpf = '',
   }) async {
     try {
       final db = await BancoDadosService.db;
       await _garantirTabela(db);
-      final coluna = curtir ? 'curtidas' : 'descurtidas';
-      await db.rawUpdate(
-        'UPDATE avaliacoes_produtos SET $coluna = $coluna + 1 WHERE id = ?',
-        [avaliacaoId],
-      );
+      final cpfLimpo = cpf.replaceAll(RegExp(r'\D'), '');
+      if (cpfLimpo.isNotEmpty) {
+        final existentes = await db.query(
+          'avaliacoes_votos_cpf',
+          columns: ['curtir'],
+          where: 'avaliacao_id = ? AND cpf = ?',
+          whereArgs: [avaliacaoId, cpfLimpo],
+          limit: 1,
+        );
+        final novoVal = curtir ? 1 : 0;
+        if (existentes.isNotEmpty) {
+          final antigoVal = (existentes.first['curtir'] as num?)?.toInt() ?? -1;
+          if (antigoVal == novoVal) {
+            return; // Mesmo CPF repetindo o mesmo voto: ignora
+          }
+          await db.update(
+            'avaliacoes_votos_cpf',
+            {'curtir': novoVal},
+            where: 'avaliacao_id = ? AND cpf = ?',
+            whereArgs: [avaliacaoId, cpfLimpo],
+          );
+          final colAdd = curtir ? 'curtidas' : 'descurtidas';
+          final colSub = curtir ? 'descurtidas' : 'curtidas';
+          await db.rawUpdate(
+            'UPDATE avaliacoes_produtos SET $colAdd = $colAdd + 1, $colSub = MAX(0, $colSub - 1) WHERE id = ?',
+            [avaliacaoId],
+          );
+        } else {
+          await db.insert('avaliacoes_votos_cpf', {
+            'avaliacao_id': avaliacaoId,
+            'cpf': cpfLimpo,
+            'curtir': novoVal,
+          });
+          final coluna = curtir ? 'curtidas' : 'descurtidas';
+          await db.rawUpdate(
+            'UPDATE avaliacoes_produtos SET $coluna = $coluna + 1 WHERE id = ?',
+            [avaliacaoId],
+          );
+        }
+      } else {
+        final coluna = curtir ? 'curtidas' : 'descurtidas';
+        await db.rawUpdate(
+          'UPDATE avaliacoes_produtos SET $coluna = $coluna + 1 WHERE id = ?',
+          [avaliacaoId],
+        );
+      }
       _notificarAlteracao();
     } catch (e) {
       debugPrint('[AvaliacoesProdutoService] Erro ao aplicar reação remota: $e');
@@ -225,7 +282,8 @@ class AvaliacoesProdutoService {
     }
   }
 
-  /// Mescla avaliações recebidas em lote do servidor balcão.
+  /// Mescla avaliações recebidas em lote do servidor balcão ou terminal,
+  /// preservando o maior contador de curtidas/descurtidas.
   static Future<void> mesclarAvaliacoesRemotas(
     List<AvaliacaoProduto> lista,
   ) async {
@@ -235,11 +293,31 @@ class AvaliacoesProdutoService {
       await _garantirTabela(db);
       await db.transaction((txn) async {
         for (final a in lista) {
-          await txn.insert(
+          final existentes = await txn.query(
             'avaliacoes_produtos',
-            a.toJson(),
-            conflictAlgorithm: ConflictAlgorithm.replace,
+            columns: ['curtidas', 'descurtidas'],
+            where: 'id = ?',
+            whereArgs: [a.id],
+            limit: 1,
           );
+          if (existentes.isEmpty) {
+            await txn.insert(
+              'avaliacoes_produtos',
+              a.toJson(),
+              conflictAlgorithm: ConflictAlgorithm.replace,
+            );
+          } else {
+            final curtLocal = (existentes.first['curtidas'] as num?)?.toInt() ?? 0;
+            final descLocal = (existentes.first['descurtidas'] as num?)?.toInt() ?? 0;
+            final map = Map<String, dynamic>.from(a.toJson());
+            map['curtidas'] = max(curtLocal, a.curtidas);
+            map['descurtidas'] = max(descLocal, a.descurtidas);
+            await txn.insert(
+              'avaliacoes_produtos',
+              map,
+              conflictAlgorithm: ConflictAlgorithm.replace,
+            );
+          }
         }
       });
       _notificarAlteracao();

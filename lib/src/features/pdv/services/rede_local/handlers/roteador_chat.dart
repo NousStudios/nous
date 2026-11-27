@@ -114,6 +114,8 @@ class RoteadorChat {
         }
 
         int alteracoes = 0;
+        final conversasAlteradas = <Map<String, dynamic>>[];
+        final mensagensAlteradas = <Map<String, dynamic>>[];
         if (dados['conversas'] is List) {
           final excluidasLocais = await ChatService.obterIdsConversasExcluidas();
           for (final c in dados['conversas'] as List<dynamic>) {
@@ -121,7 +123,10 @@ class RoteadorChat {
               final id = c['id'] as String? ?? '';
               if (!excluidasLocais.contains(id)) {
                 final alterou = await ChatService.salvarConversaLocal(c, notificar: false);
-                if (alterou) alteracoes++;
+                if (alterou) {
+                  alteracoes++;
+                  conversasAlteradas.add(c);
+                }
               }
             }
           }
@@ -135,12 +140,27 @@ class RoteadorChat {
                 originadaDaRede: true,
                 notificar: false,
               );
-              if (alterou) alteracoes++;
+              if (alterou) {
+                alteracoes++;
+                mensagensAlteradas.add(m);
+              }
             }
           }
         }
         if (alteracoes > 0) {
           ChatService.notificarAlteracao();
+          for (final c in conversasAlteradas) {
+            servidor.notificarTodos({
+              'tipo': 'conversa_atualizada',
+              'conversa': c,
+            });
+          }
+          for (final m in mensagensAlteradas) {
+            servidor.notificarTodos({
+              'tipo': 'mensagem_chat',
+              'mensagem': m,
+            });
+          }
         }
         ServidorRedeLocal.responderJson(request, {'sucesso': true});
         return true;

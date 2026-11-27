@@ -361,6 +361,7 @@ class SincronizadorUsuariosRede {
     if (ipServidor == null || portaServidor == null) return;
     try {
       final cpfsServidor = <String>{};
+      final usuariosServidorPorCpf = <String, UsuarioNous>{};
 
       // 0. Consulta todos os usuários disponíveis no servidor balcão
       try {
@@ -428,6 +429,7 @@ class SincronizadorUsuariosRede {
               if (cpfLimpo.length == 11 &&
                   u.nome.toLowerCase() != 'blackview') {
                 cpfsServidor.add(cpfLimpo);
+                usuariosServidorPorCpf[cpfLimpo] = u;
                 final existente = await ContasNousService.buscarPorCpf(u.cpf);
                 var mesclada =
                     existente == null ? u : mesclarUsuarios(existente, u);
@@ -486,13 +488,27 @@ class SincronizadorUsuariosRede {
         );
       }
 
-      // 1. Envia contas locais ao balcão
+      // 1. Envia contas locais ao balcão (novas, com mídia local ou com alterações mais recentes)
       final contasLocais = await ContasNousService.carregarTodas();
       for (final conta in contasLocais) {
         final cpfLimpo = conta.cpf.replaceAll(RegExp(r'\D'), '');
         if (cpfLimpo.isEmpty) continue;
-        if (!cpfsServidor.contains(cpfLimpo) ||
-            (conta.foto.isNotEmpty && ImagemService.existe(conta.foto))) {
+        final srv = usuariosServidorPorCpf[cpfLimpo];
+        final precisaEnviar = srv == null ||
+            (conta.foto.isNotEmpty && ImagemService.existe(conta.foto)) ||
+            (conta.fotoPublica.isNotEmpty &&
+                ImagemService.existe(conta.fotoPublica) &&
+                srv.fotoPublica.isEmpty) ||
+            conta.biografia != srv.biografia ||
+            conta.apelidoPublico != srv.apelidoPublico ||
+            conta.nomePublico != srv.nomePublico ||
+            conta.links.length != srv.links.length ||
+            conta.emails.length != srv.emails.length ||
+            conta.seguindo.length != srv.seguindo.length ||
+            conta.validacoes.length != srv.validacoes.length ||
+            (conta.atualizadoEm.isNotEmpty &&
+                conta.atualizadoEm != srv.atualizadoEm);
+        if (precisaEnviar) {
           await enviarUsuario(
             ipServidor: ipServidor,
             portaServidor: portaServidor,

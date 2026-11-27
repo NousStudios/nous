@@ -81,6 +81,16 @@ class SincronizadorChatBalcao {
               ChatService.notificarAlteracao();
             }
           }
+          if (dadosConv['excluidas'] is List) {
+            for (final exId in dadosConv['excluidas'] as List<dynamic>) {
+              if (exId is String && exId.isNotEmpty) {
+                await ChatService.excluirConversaLocal(
+                  exId,
+                  originadoDaRede: true,
+                );
+              }
+            }
+          }
         }
       } catch (e) {
         debugPrint(
@@ -218,7 +228,24 @@ class SincronizadorChatBalcao {
     final db = await ChatService.obterDb();
     final excluidas = await ChatService.obterIdsConversasExcluidas();
     List<Map<String, dynamic>> lista;
-    if (lojaId != null && lojaId.isNotEmpty) {
+    if (cpf != null && cpf.isNotEmpty && lojaId != null && lojaId.isNotEmpty) {
+      final cpfNorm = ChatService.normalizarCpf(cpf);
+      lista = await db.query(
+        'conversas_chat',
+        where:
+            'loja_id = ? OR participantes_json LIKE ? OR id LIKE ? OR id LIKE ? OR identificador = ? OR identificador = ? OR loja_id = ? OR id LIKE ?',
+        whereArgs: [
+          lojaId,
+          '%$cpfNorm%',
+          '%$cpfNorm%',
+          '%$cpf%',
+          cpfNorm,
+          cpf,
+          PdvProvider.idLojaColetivaNous,
+          'loja_nous_coletiva_%',
+        ],
+      );
+    } else if (lojaId != null && lojaId.isNotEmpty) {
       lista = await db.query(
         'conversas_chat',
         where: 'loja_id = ?',
@@ -229,7 +256,7 @@ class SincronizadorChatBalcao {
       lista = await db.query(
         'conversas_chat',
         where:
-            'participantes_json LIKE ? OR id LIKE ? OR id LIKE ? OR identificador = ? OR identificador = ? OR eh_grupo = 1 OR loja_id = ? OR id LIKE ?',
+            'participantes_json LIKE ? OR id LIKE ? OR id LIKE ? OR identificador = ? OR identificador = ? OR loja_id = ? OR id LIKE ?',
         whereArgs: [
           '%$cpfNorm%',
           '%$cpfNorm%',
@@ -342,6 +369,9 @@ class SincronizadorChatBalcao {
         'foto',
         'fixada',
         'arquivada',
+        'silenciada',
+        'favorita',
+        'participantes_json',
       ],
       where: 'id = ?',
       whereArgs: [id],
@@ -351,6 +381,10 @@ class SincronizadorChatBalcao {
         (c['fixada'] as int?) ?? ((c['fixada'] == true) ? 1 : 0);
     final arquivadaEsperada =
         (c['arquivada'] as int?) ?? ((c['arquivada'] == true) ? 1 : 0);
+    final silenciadaEsperada =
+        (c['silenciada'] as int?) ?? ((c['silenciada'] == true) ? 1 : 0);
+    final favoritaEsperada =
+        (c['favorita'] as int?) ?? ((c['favorita'] == true) ? 1 : 0);
     if (existentes.isNotEmpty) {
       final ex = existentes.first;
       if (ex['titulo'] == tit &&
@@ -358,7 +392,10 @@ class SincronizadorChatBalcao {
           ex['data_hora_ultima_mensagem'] == ultData &&
           ex['foto'] == fotoSalvar &&
           ex['fixada'] == fixadaEsperada &&
-          ex['arquivada'] == arquivadaEsperada) {
+          ex['arquivada'] == arquivadaEsperada &&
+          (!c.containsKey('silenciada') || ex['silenciada'] == silenciadaEsperada) &&
+          (!c.containsKey('favorita') || ex['favorita'] == favoritaEsperada) &&
+          ex['participantes_json'] == participantesJson) {
         return false;
       }
     }
@@ -375,7 +412,7 @@ class SincronizadorChatBalcao {
 
     final localPref = await db.query(
       'conversas_chat',
-      columns: ['titulo_conversa', 'silenciada'],
+      columns: ['titulo_conversa', 'silenciada', 'favorita'],
       where: 'id = ?',
       whereArgs: [id],
       limit: 1,
@@ -390,6 +427,11 @@ class SincronizadorChatBalcao {
         ? ((c['silenciada'] == 1 || c['silenciada'] == true) ? 1 : 0)
         : (localPref.isNotEmpty
             ? (localPref.first['silenciada'] as int? ?? 0)
+            : 0);
+    final favoritaFinal = c.containsKey('favorita')
+        ? ((c['favorita'] == 1 || c['favorita'] == true) ? 1 : 0)
+        : (localPref.isNotEmpty
+            ? (localPref.first['favorita'] as int? ?? 0)
             : 0);
 
     await db.insert('conversas_chat', {
@@ -411,6 +453,7 @@ class SincronizadorChatBalcao {
       'arquivada': arquivadaEsperada,
       'fixada': fixadaEsperada,
       'silenciada': silenciadaFinal,
+      'favorita': favoritaFinal,
     }, conflictAlgorithm: ConflictAlgorithm.replace);
     if (notificar) {
       ChatService.notificarAlteracao();
@@ -424,12 +467,12 @@ class SincronizadorChatBalcao {
     String? lojaId,
   }) async {
     final db = await ChatService.obterDb();
-    if (cpf != null && cpf.isNotEmpty) {
+    if (cpf != null && cpf.isNotEmpty && lojaId != null && lojaId.isNotEmpty) {
       final cpfNorm = ChatService.normalizarCpf(cpf);
       return await db.query(
         'mensagens_chat',
         where:
-            'remetente_id = ? OR destinatario_id = ? OR remetente_id = ? OR destinatario_id = ? OR conversa_id LIKE ? OR conversa_id LIKE ? OR conversa_id LIKE ? OR conversa_id LIKE ?',
+            'remetente_id = ? OR destinatario_id = ? OR remetente_id = ? OR destinatario_id = ? OR conversa_id LIKE ? OR conversa_id LIKE ? OR conversa_id LIKE ? OR remetente_id = ? OR destinatario_id = ? OR conversa_id LIKE ?',
         whereArgs: [
           cpf,
           cpf,
@@ -437,8 +480,28 @@ class SincronizadorChatBalcao {
           cpfNorm,
           '%$cpfNorm%',
           '%$cpf%',
-          'grupo_%',
           'loja_nous_coletiva_%',
+          lojaId,
+          lojaId,
+          '%$lojaId%',
+        ],
+        orderBy: 'data_hora ASC',
+      );
+    } else if (cpf != null && cpf.isNotEmpty) {
+      final cpfNorm = ChatService.normalizarCpf(cpf);
+      return await db.query(
+        'mensagens_chat',
+        where:
+            "remetente_id = ? OR destinatario_id = ? OR remetente_id = ? OR destinatario_id = ? OR conversa_id LIKE ? OR conversa_id LIKE ? OR conversa_id LIKE ? OR conversa_id IN (SELECT id FROM conversas_chat WHERE eh_grupo = 1 AND participantes_json LIKE ?)",
+        whereArgs: [
+          cpf,
+          cpf,
+          cpfNorm,
+          cpfNorm,
+          '%$cpfNorm%',
+          '%$cpf%',
+          'loja_nous_coletiva_%',
+          '%$cpfNorm%',
         ],
         orderBy: 'data_hora ASC',
       );

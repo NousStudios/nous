@@ -175,4 +175,75 @@ class PreferenciasSoberanasService {
       }
     } catch (_) {}
   }
+
+  /// Exporta preferências pessoais associadas ao [cpf] (e carrinhos/histórico) para sync na rede.
+  static Future<List<Map<String, dynamic>>> exportarDoCpf(String cpf) async {
+    final cpfLimpo = cpf.replaceAll(RegExp(r'\D'), '');
+    if (cpfLimpo.isEmpty) return const [];
+    try {
+      final todas = await exportarTodas();
+      return todas.where((item) {
+        final chave = item['chave']?.toString() ?? '';
+        return chave.contains(cpfLimpo) ||
+            chave.startsWith('vitrine_carrinho_pendente_') ||
+            chave.startsWith('mapa_');
+      }).map((e) => Map<String, dynamic>.from(e)).toList();
+    } catch (_) {
+      return const [];
+    }
+  }
+
+  /// Mescla preferências remotas usando LWW por `atualizado_em`.
+  static Future<void> mesclarRemotas(List<dynamic> itens) async {
+    if (itens.isEmpty) return;
+    try {
+      final db = await _obterDb();
+      for (final item in itens) {
+        if (item is! Map) continue;
+        final chave = item['chave']?.toString() ?? '';
+        final valor = item['valor']?.toString() ?? '';
+        final atualizadoRemoto = DateTime.tryParse(
+          item['atualizado_em']?.toString() ?? '',
+        );
+        if (chave.isEmpty) continue;
+
+        final existentes = await db.query(
+          'preferencias_usuario',
+          columns: ['valor', 'atualizado_em'],
+          where: 'chave = ?',
+          whereArgs: [chave],
+          limit: 1,
+        );
+        if (existentes.isEmpty) {
+          await db.insert(
+            'preferencias_usuario',
+            {
+              'chave': chave,
+              'valor': valor,
+              'atualizado_em': item['atualizado_em']?.toString() ??
+                  DateTime.now().toIso8601String(),
+            },
+            conflictAlgorithm: ConflictAlgorithm.replace,
+          );
+        } else {
+          final atualizadoLocal = DateTime.tryParse(
+            existentes.first['atualizado_em']?.toString() ?? '',
+          );
+          if (atualizadoRemoto != null &&
+              (atualizadoLocal == null ||
+                  atualizadoRemoto.isAfter(atualizadoLocal))) {
+            await db.insert(
+              'preferencias_usuario',
+              {
+                'chave': chave,
+                'valor': valor,
+                'atualizado_em': atualizadoRemoto.toIso8601String(),
+              },
+              conflictAlgorithm: ConflictAlgorithm.replace,
+            );
+          }
+        }
+      }
+    } catch (_) {}
+  }
 }

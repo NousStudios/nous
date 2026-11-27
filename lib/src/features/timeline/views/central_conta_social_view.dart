@@ -7,6 +7,7 @@ import 'package:nous/src/features/timeline/models/publicacao_social.dart';
 import 'package:nous/src/features/timeline/models/story_social.dart';
 import 'package:nous/src/features/timeline/services/timeline_repositorio_sqlite.dart';
 import 'package:nous/src/features/timeline/services/timeline_service.dart';
+import 'package:nous/src/features/timeline/services/timeline_sync_service.dart';
 import 'package:nous/src/features/timeline/views/widgets/abas_arquivos_conta_widget.dart';
 import 'package:nous/src/features/timeline/views/widgets/central_conta/aba_calendario_conta_widget.dart';
 import 'package:nous/src/features/timeline/views/widgets/central_conta/aba_config_conta_widget.dart';
@@ -208,14 +209,17 @@ class _CentralContaSocialViewState extends State<CentralContaSocialView> {
                                         await _recarregar();
                                       },
                                       onRestaurarStory: (story) async {
-                                        await TimelineRepositorioSqlite
-                                            .salvarStory(
-                                          story.copyWith(
-                                            arquivado: false,
-                                            atualizadoEm: DateTime.now(),
-                                          ),
+                                        final restaurado = story.copyWith(
+                                          arquivado: false,
+                                          atualizadoEm: DateTime.now(),
                                         );
+                                        await TimelineRepositorioSqlite
+                                            .salvarStory(restaurado);
                                         TimelineService.notificarAlteracao();
+                                        TimelineSyncService.despacharEventoRede(
+                                          'timeline_story',
+                                          {'story': restaurado.toJson()},
+                                        );
                                         await _recarregar();
                                       },
                                     )

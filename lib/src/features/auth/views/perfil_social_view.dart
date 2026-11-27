@@ -157,6 +157,7 @@ class _PerfilSocialViewState extends State<PerfilSocialView> {
         final contaDb = await ContasNousService.buscarPorCpf(cpfLimpo);
         if (contaDb != null && mounted) {
           _contaAlvoAtualizada = contaDb;
+          context.read<AuthProvider>().atualizarContaNoCache(contaDb);
           if (_fotoLocalResolvida == null && contaDb.fotoExibicao.isNotEmpty) {
             final res = ImagemService.resolverCaminhoExistente(contaDb.fotoExibicao);
             if (res != null && File(res).existsSync()) {
@@ -168,17 +169,20 @@ class _PerfilSocialViewState extends State<PerfilSocialView> {
         }
       } catch (_) {}
 
-      // Se ainda não temos a foto física resolvida, baixa do balcão pela rede
-      if (_fotoLocalResolvida == null && !_baixandoFoto && ClienteRedeLocal().conectado) {
+      // Se conectado na rede local, revalida perfil remoto para garantir bio/links/foto atualizados
+      if (!_baixandoFoto && ClienteRedeLocal().conectado) {
         _baixandoFoto = true;
         try {
           final usuarioBalcao = await ClienteRedeLocal().buscarUsuarioRemoto(cpfLimpo);
           if (usuarioBalcao != null && mounted) {
             _contaAlvoAtualizada = usuarioBalcao;
+            context.read<AuthProvider>().atualizarContaNoCache(usuarioBalcao);
+            setState(() {});
           }
 
           final fotoParaBaixar = _contaAlvoAtualizada?.fotoExibicao ?? alvo.fotoExibicao;
-          if (fotoParaBaixar.isNotEmpty || cpfLimpo.length == 11) {
+          if (_fotoLocalResolvida == null &&
+              (fotoParaBaixar.isNotEmpty || cpfLimpo.length == 11)) {
             final baixado = await ClienteRedeLocal().baixarImagemRemota(
               fotoParaBaixar,
               cpf: cpfLimpo,

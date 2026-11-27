@@ -6,6 +6,8 @@ import 'package:nous/src/features/chat/models/mensagem_chat.dart';
 import 'package:nous/src/features/chat/services/chat_conversas_service.dart';
 import 'package:nous/src/features/chat/services/chat_repositorio_sqlite.dart';
 import 'package:nous/src/features/chat/services/chat_sincronizacao_service.dart';
+import 'package:nous/src/features/pdv/services/imagem_service.dart';
+import 'package:nous/src/features/pdv/services/rede_local/cliente_rede_local.dart';
 
 class ChatGruposService {
   static Future<ConversaChat> criarGrupo({
@@ -203,10 +205,21 @@ class ChatGruposService {
       whereArgs: [grupoId],
     );
 
+    var fotoParaRede = caminhoFoto;
+    if (fotoParaRede.isNotEmpty &&
+        !ImagemService.ehAsset(fotoParaRede) &&
+        ClienteRedeLocal().conectado) {
+      final resolvido = ImagemService.resolverCaminhoExistente(fotoParaRede);
+      if (resolvido != null) {
+        final remoto = await ClienteRedeLocal().enviarUploadImagem(resolvido);
+        if (remoto.isNotEmpty) fotoParaRede = remoto;
+      }
+    }
+
     ChatSincronizacaoService.despacharEventoRede({
       'tipo': 'grupo_atualizado',
       'grupoId': grupoId,
-      'foto': caminhoFoto,
+      'foto': fotoParaRede,
     });
 
     aoNotificar();

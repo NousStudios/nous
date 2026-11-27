@@ -291,6 +291,11 @@ class DespachanteClienteRede {
             msgParaEnvio = msgParaEnvio.copyWith(caminhoAnexo: anexoNoServidor);
           }
         } else {
+          final nomeBase = arquivoParaUpload.split(RegExp(r'[/\\]')).last;
+          final pasta = msg.tipo == 'imagem'
+              ? 'imagens'
+              : (msg.tipo == 'audio' ? 'audios' : 'anexos');
+          msgParaEnvio = msgParaEnvio.copyWith(caminhoAnexo: '$pasta/$nomeBase');
           if (msg.tipo == 'imagem') {
             unawaited(uploadImagem(arquivoParaUpload));
           } else {

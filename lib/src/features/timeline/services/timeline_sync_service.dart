@@ -268,6 +268,40 @@ class TimelineSyncService {
           await TimelineRepositorioSqlite.salvarTimelinesVisiveis(cpf, tipos);
           aoConcluir?.call();
         }
+      } else if (tipo == 'timeline_snapshot_atualizado' &&
+          dados['snapshot'] is Map) {
+        final snap = Map<String, dynamic>.from(dados['snapshot'] as Map);
+        await TimelineSyncRepositorio.mesclarSnapshotSocial(snap);
+        _preAquecerMidiasSnapshotRemoto(snap);
+        aoConcluir?.call();
+      } else if (tipo == 'timeline_feed_personalizado' &&
+          dados['feed'] is Map) {
+        final feed = FeedPersonalizado.fromJson(
+          Map<String, dynamic>.from(dados['feed'] as Map),
+        );
+        if (feed.id.isNotEmpty) {
+          await TimelineRepositorioSqlite.salvarFeedPersonalizado(feed);
+          aoConcluir?.call();
+        }
+      } else if (tipo == 'timeline_descoberta_tags') {
+        final cpf = dados['cpf'] as String? ?? '';
+        final abas = (dados['abas'] as List<dynamic>? ?? const [])
+            .whereType<Map>()
+            .map((e) => Map<String, dynamic>.from(e))
+            .toList();
+        if (cpf.isNotEmpty) {
+          await TimelineRepositorioSqlite.salvarAbasDescoberta(cpf, abas);
+          aoConcluir?.call();
+        }
+      } else if (tipo == 'timeline_notificacao_lida') {
+        final id = dados['id'] as String? ?? '';
+        if (id.isNotEmpty) {
+          await TimelineRepositorioSqlite.marcarNotificacaoSocialLida(
+            id,
+            originadaDaRede: true,
+          );
+          aoConcluir?.call();
+        }
       }
     } catch (e) {
       debugPrint(
@@ -439,6 +473,9 @@ class TimelineSyncService {
     }
     if (pub.autorFoto.isNotEmpty) {
       unawaited(TimelineMidiaService.resolverCaminhoMidia(pub.autorFoto));
+    }
+    if (pub.capaCaminho.isNotEmpty) {
+      unawaited(TimelineMidiaService.resolverCaminhoMidia(pub.capaCaminho));
     }
   }
 

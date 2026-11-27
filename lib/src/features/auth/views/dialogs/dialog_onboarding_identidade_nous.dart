@@ -75,7 +75,7 @@ class _DialogOnboardingIdentidadeNousState
   String? _erro;
 
   // Regras de Transparência (quais dados são privados)
-  bool _nomePublico = true;
+  bool _nomePublico = false;
   bool _fotoPublica = true;
   bool _emailsPublicos = false;
   bool _dataNascimentoPublica = false;
@@ -129,7 +129,9 @@ class _DialogOnboardingIdentidadeNousState
     }
 
     final dadosPrivados = List<String>.from(UsuarioNous.dadosPrivadosPadrao);
-    if (!_nomePublico && !dadosPrivados.contains('nome')) {
+    if (_nomePublico) {
+      dadosPrivados.remove('nome');
+    } else if (!dadosPrivados.contains('nome')) {
       dadosPrivados.add('nome');
     }
     if (!_fotoPublica && !dadosPrivados.contains('foto')) {
@@ -381,7 +383,7 @@ class _DialogOnboardingIdentidadeNousState
                       const SizedBox(height: 8),
                       _itemInterruptor(
                         rotulo: 'Nome Completo público',
-                        descricao: 'Se desativado, exibe apenas seu Apelido ou @username',
+                        descricao: 'Se desativado (padrão), exibe apenas seu Apelido ou @username',
                         valor: _nomePublico,
                         onChanged: (v) => setState(() => _nomePublico = v),
                       ),

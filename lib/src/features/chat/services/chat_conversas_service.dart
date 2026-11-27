@@ -400,12 +400,25 @@ class ChatConversasService {
         novoValor = true;
       }
     }
+    final agoraIso = DateTime.now().toIso8601String();
     await db.update(
       'conversas_chat',
-      {'fixada': novoValor ? 1 : 0},
+      {'fixada': novoValor ? 1 : 0, 'atualizado_em': agoraIso},
       where: 'id = ?',
       whereArgs: [conversaId],
     );
+    final atualizada = await db.query(
+      'conversas_chat',
+      where: 'id = ?',
+      whereArgs: [conversaId],
+      limit: 1,
+    );
+    if (atualizada.isNotEmpty) {
+      ChatSincronizacaoService.despacharEventoRede({
+        'tipo': 'conversa_atualizada',
+        'conversa': Map<String, dynamic>.from(atualizada.first),
+      });
+    }
     aoNotificar?.call();
   }
 
@@ -430,12 +443,25 @@ class ChatConversasService {
         novoValor = true;
       }
     }
+    final agoraIso = DateTime.now().toIso8601String();
     await db.update(
       'conversas_chat',
-      {'arquivada': novoValor ? 1 : 0},
+      {'arquivada': novoValor ? 1 : 0, 'atualizado_em': agoraIso},
       where: 'id = ?',
       whereArgs: [conversaId],
     );
+    final atualizada = await db.query(
+      'conversas_chat',
+      where: 'id = ?',
+      whereArgs: [conversaId],
+      limit: 1,
+    );
+    if (atualizada.isNotEmpty) {
+      ChatSincronizacaoService.despacharEventoRede({
+        'tipo': 'conversa_atualizada',
+        'conversa': Map<String, dynamic>.from(atualizada.first),
+      });
+    }
     aoNotificar?.call();
   }
 

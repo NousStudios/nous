@@ -4,8 +4,10 @@ import 'package:flutter/foundation.dart';
 import 'package:nous/src/core/utils/json_isolate_utils.dart';
 import 'package:nous/src/features/auth/providers/auth_provider.dart';
 import 'package:nous/src/features/busca/models/avaliacao_produto.dart';
+import 'package:nous/src/features/busca/models/projeto_comunitario.dart';
 import 'package:nous/src/features/busca/services/avaliacoes_produto_service.dart';
 import 'package:nous/src/features/busca/services/mapa_espelhamento_service.dart';
+import 'package:nous/src/features/busca/services/projetos_comunitarios_service.dart';
 import 'package:nous/src/features/pdv/models/loja.dart';
 import 'package:nous/src/features/pdv/models/terminal_conectado_info.dart';
 import 'package:nous/src/features/pdv/providers/pdv_provider.dart';
@@ -69,9 +71,11 @@ class ServidorWsContext {
       final ehCliente = terminal?.tipoConexao == 'cliente';
 
       if (ehCliente && dados != null) {
-        // Clientes externos não devem receber dados de clientes, estoque interno ou caixa
+        // Clientes externos não devem receber dados de clientes, estoque interno, mesas ou caixa
         if (tipo == 'cliente_atualizado' ||
             tipo == 'movimento_estoque' ||
+            tipo == 'estoque_atualizado' ||
+            tipo == 'mesa_atualizada' ||
             tipo == 'caixa_atualizado') {
           continue;
         }
@@ -166,10 +170,12 @@ class ServidorWsMessageHandler {
       if (tipo == 'avaliacao_produto_reacao') {
         final avaliacaoId = dados['avaliacaoId'] as String? ?? '';
         final curtir = dados['curtir'] == true;
+        final cpf = dados['cpf'] as String? ?? '';
         if (avaliacaoId.isNotEmpty) {
           await AvaliacoesProdutoService.aplicarReacaoRemota(
             avaliacaoId: avaliacaoId,
             curtir: curtir,
+            cpf: cpf,
           );
           ctx.retransmitirParaOutros(msg, exceto: ws);
         }
@@ -182,6 +188,59 @@ class ServidorWsMessageHandler {
           'tipo': 'avaliacoes_sync_lote',
           'avaliacoes': lista.map((e) => e.toJson()).toList(),
         }));
+        return;
+      }
+
+      if (tipo == 'avaliacoes_sync_enviar') {
+        final listaRaw = dados['avaliacoes'] as List<dynamic>? ?? const [];
+        final lista = listaRaw
+            .whereType<Map>()
+            .map((e) => AvaliacaoProduto.fromJson(Map<String, dynamic>.from(e)))
+            .toList();
+        if (lista.isNotEmpty) {
+          await AvaliacoesProdutoService.mesclarAvaliacoesRemotas(lista);
+          ctx.retransmitirParaOutros(
+            jsonEncode({'tipo': 'avaliacoes_sync_lote', 'avaliacoes': listaRaw}),
+            exceto: ws,
+          );
+        }
+        return;
+      }
+
+      if (tipo == 'projeto_comunitario_salvo') {
+        final projMap = dados['projeto'];
+        if (projMap is Map<String, dynamic>) {
+          await ProjetosComunitariosService.salvar(
+            ProjetoComunitario.fromJson(projMap),
+            originadoDaRede: true,
+          );
+          ctx.retransmitirParaOutros(msg, exceto: ws);
+        }
+        return;
+      }
+
+      if (tipo == 'solicitar_projetos_sync') {
+        final lista = await ProjetosComunitariosService.listarTodos();
+        ws.add(jsonEncode({
+          'tipo': 'projetos_sync_lote',
+          'projetos': lista.map((e) => e.toJson()).toList(),
+        }));
+        return;
+      }
+
+      if (tipo == 'projetos_sync_enviar') {
+        final listaRaw = dados['projetos'] as List<dynamic>? ?? const [];
+        final lista = listaRaw
+            .whereType<Map>()
+            .map((e) => ProjetoComunitario.fromJson(Map<String, dynamic>.from(e)))
+            .toList();
+        if (lista.isNotEmpty) {
+          await ProjetosComunitariosService.mesclarRemotos(lista);
+          ctx.retransmitirParaOutros(
+            jsonEncode({'tipo': 'projetos_sync_lote', 'projetos': listaRaw}),
+            exceto: ws,
+          );
+        }
         return;
       }
 

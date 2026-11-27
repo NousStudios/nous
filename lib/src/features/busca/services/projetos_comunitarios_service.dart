@@ -1,14 +1,18 @@
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import 'package:nous/src/core/services/banco_dados_service.dart';
 import 'package:nous/src/features/busca/models/projeto_comunitario.dart';
+import 'package:nous/src/features/pdv/services/rede_local/cliente_rede_local.dart';
+import 'package:nous/src/features/pdv/services/rede_local/servidor_rede_local.dart';
 
 /// Persistência soberana local dos Projetos Comunitários no Mapa (Autogestão Social).
 class ProjetosComunitariosService {
   ProjetosComunitariosService._();
 
   static bool _tabelaGarantida = false;
+  static final ValueNotifier<int> versaoAtualizacao = ValueNotifier<int>(0);
 
   static Future<Database> _db() async {
     final db = await BancoDadosService.db;
@@ -42,7 +46,10 @@ class ProjetosComunitariosService {
     return lista;
   }
 
-  static Future<void> salvar(ProjetoComunitario projeto) async {
+  static Future<void> salvar(
+    ProjetoComunitario projeto, {
+    bool originadoDaRede = false,
+  }) async {
     final db = await _db();
     await db.insert(
       'projetos_comunitarios',
@@ -53,6 +60,48 @@ class ProjetosComunitariosService {
       },
       conflictAlgorithm: ConflictAlgorithm.replace,
     );
+    versaoAtualizacao.value++;
+    if (!originadoDaRede) {
+      final evento = {
+        'tipo': 'projeto_comunitario_salvo',
+        'projeto': projeto.toJson(),
+      };
+      if (ServidorRedeLocal().ativo) {
+        ServidorRedeLocal().notificarTodos(evento);
+      } else if (ClienteRedeLocal().conectado) {
+        ClienteRedeLocal().enviarEventoWs(evento);
+      }
+    }
+  }
+
+  static Future<void> mesclarRemotos(List<ProjetoComunitario> remotos) async {
+    if (remotos.isEmpty) return;
+    final locais = {for (final p in await listarTodos()) p.id: p};
+    var alterou = false;
+    for (final r in remotos) {
+      final local = locais[r.id];
+      if (local == null) {
+        await salvar(r, originadoDaRede: true);
+        alterou = true;
+      } else {
+        final base = r.atualizadoEm.isAfter(local.atualizadoEm) ? r : local;
+        final apoiosUnidos = {
+          ...local.apoiadoresCpfs,
+          ...r.apoiadoresCpfs,
+        }.toList();
+        if (r.atualizadoEm.isAfter(local.atualizadoEm) ||
+            apoiosUnidos.length != local.apoiadoresCpfs.length) {
+          await salvar(
+            base.copyWith(apoiadoresCpfs: apoiosUnidos),
+            originadoDaRede: true,
+          );
+          alterou = true;
+        }
+      }
+    }
+    if (alterou) {
+      versaoAtualizacao.value++;
+    }
   }
 
   static Future<ProjetoComunitario> alternarApoio({

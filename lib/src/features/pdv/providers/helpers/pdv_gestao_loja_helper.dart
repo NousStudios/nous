@@ -120,6 +120,7 @@ class PdvGestaoLojaHelper {
       mesas: mesas,
       movimentosEstoque: movimentosEstoque,
       pagamentosFuncionarios: pagamentosFuncionarios,
+      dadosAtualizadosEm: DateTime.now(),
     );
   }
 
