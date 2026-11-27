@@ -418,21 +418,21 @@ void main() {
       expect(descoberta.first.tipo, TipoFeedSocial.fotos);
     });
 
-    test('Escudo 1: autor logado não ressuscita postagem antiga ausente enviada por outro nó', () async {
+    test('Mesmo usuário em dois dispositivos (celular e PC) preserva e soma posts antigos sem excluir', () async {
       const cpfAutor = '55566677700';
       await TimelineService.criarPublicacao(
         autorCpf: cpfAutor,
         autorNome: 'Leonardo',
         tipo: TipoFeedSocial.fotos,
-        texto: 'Postagem atual ativa',
+        texto: 'Postagem feita no PC',
       );
 
-      final zumbiAntigo = PublicacaoSocial(
-        id: 'pub_zumbi_antiga_1',
+      final postDoCelular = PublicacaoSocial(
+        id: 'pub_celular_antiga_1',
         autorCpf: cpfAutor,
         autorNome: 'Leonardo',
         tipo: TipoFeedSocial.fotos,
-        texto: 'Post excluído há dias',
+        texto: 'Postagem feita no celular há dias',
         criadaEm: DateTime.now().subtract(const Duration(days: 3)),
         atualizadaEm: DateTime.now().subtract(const Duration(days: 3)),
         excluida: false,
@@ -440,30 +440,29 @@ void main() {
 
       await TimelineSyncRepositorio.mesclarSnapshotSocial(
         {
-          'remetenteCpf': '99988877711',
-          'publicacoes': [zumbiAntigo.toJson()],
+          'remetenteCpf': cpfAutor,
+          'publicacoes': [postDoCelular.toJson()],
         },
         cpfLogado: cpfAutor,
       );
 
       final mapa = await TimelineRepositorioSqlite.buscarPublicacoesPorIds(
-        ['pub_zumbi_antiga_1'],
+        ['pub_celular_antiga_1'],
         incluirExcluidas: true,
       );
-      expect(mapa['pub_zumbi_antiga_1']?.excluida, isTrue);
+      expect(mapa['pub_celular_antiga_1']?.excluida, isFalse);
       final total = await TimelineService.contarPublicacoesDoUsuario(cpfAutor);
-      expect(total, 1);
+      expect(total, 2);
     });
 
-    test('Escudo 2: balcão limpa posts antigos de um autor que enviou sua lista ativa completa', () async {
+    test('Tombstone explícito (idsPublicacoesExcluidas) propaga exclusão entre dispositivos', () async {
       const cpfAutor = '44433322211';
-      const cpfBalcao = '11122233399';
       final antiga = PublicacaoSocial(
-        id: 'pub_balcao_antiga_1',
+        id: 'pub_para_excluir_1',
         autorCpf: cpfAutor,
         autorNome: 'Autor',
         tipo: TipoFeedSocial.fotos,
-        texto: 'Post antigo no balcão',
+        texto: 'Post que foi excluído no outro aparelho',
         criadaEm: DateTime.now().subtract(const Duration(days: 2)),
         atualizadaEm: DateTime.now().subtract(const Duration(days: 2)),
         excluida: false,
@@ -473,19 +472,41 @@ void main() {
       await TimelineSyncRepositorio.mesclarSnapshotSocial(
         {
           'remetenteCpf': cpfAutor,
-          'autorPossuiHistorico': true,
           'offset': 0,
-          'idsPublicacoesAtivas': ['pub_autor_real_1'],
+          'idsPublicacoesExcluidas': [
+            {
+              'id': 'pub_para_excluir_1',
+              'atualizadaEm': DateTime.now().toIso8601String(),
+            }
+          ],
           'publicacoes': [],
         },
-        cpfLogado: cpfBalcao,
+        cpfLogado: cpfAutor,
       );
 
       final mapa = await TimelineRepositorioSqlite.buscarPublicacoesPorIds(
-        ['pub_balcao_antiga_1'],
+        ['pub_para_excluir_1'],
         incluirExcluidas: true,
       );
-      expect(mapa['pub_balcao_antiga_1']?.excluida, isTrue);
+      expect(mapa['pub_para_excluir_1']?.excluida, isTrue);
+    });
+
+    test('verificarDivergenciasPublicacoes detecta posts faltantes nos dois sentidos', () async {
+      const cpfAutor = '33322211100';
+      final local = await TimelineService.criarPublicacao(
+        autorCpf: cpfAutor,
+        autorNome: 'Autor Sync',
+        tipo: TipoFeedSocial.escritos,
+        texto: 'Post local fora do delta',
+      );
+
+      final div = await TimelineSyncRepositorio.verificarDivergenciasPublicacoes(
+        idsAtivasRemotasBrutas: ['pub_remota_faltante_1'],
+        idsExcluidasRemotasBrutas: const [],
+      );
+
+      expect(div.faltamLocais, isTrue);
+      expect(div.faltamNoServidor.any((m) => m['id'] == local.id), isTrue);
     });
 
     test('WebSocket processarEventoRemoto respeita LWW e não ressuscita post excluído localmente', () async {

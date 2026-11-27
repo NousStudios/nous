@@ -38,9 +38,9 @@ Ao final de cada ciclo de trabalho:
 
 Este arquivo deve continuar curto (meta: menos de 200 linhas). Funcionalidade nova **não** entra aqui.
 
-### Build e instaladores (regra do desenvolvedor)
+### Build, instaladores e releases (regra do desenvolvedor)
 
-Após cada ciclo concluído e validado (testes e `flutter analyze`), compile os instaladores com `scripts/gerar_instalador.ps1` (salvo quando o usuário pedir explicitamente para não atualizar os instaladores). O pipeline apaga versões antigas em `dist/` e mantém só a mais recente. **Regra de versionamento:** cada casa decimal vai de `0` até `99`; ao atingir `99`, o próximo ciclo avança a casa anterior e zera a atual (ex.: `1.0.99` → `1.1.0`, `1.1.1` ... `1.1.99` → `1.2.0`), incrementando sempre o `+build`. **Regra de GitHub Releases:** toda release publicada deve seguir o padrão estruturado da `v1.1.55` (`## Novidades da versão vX.Y.Z`, seções `###` com emoji e tópicos `- **Título:** descrição`). Detalhes em `docs/build-e-distribuicao.md`.
+Compilar os instaladores (`scripts/gerar_instalador.ps1`) **SOMENTE quando o usuário pedir explicitamente**. Sempre que os instaladores forem compilados, publique a **GitHub Release** correspondente junto no mesmo ciclo (`gh release create` com os 3 arquivos de `dist/`). O pipeline apaga versões antigas em `dist/` e mantém só a mais recente. **Regra de versionamento:** cada casa decimal vai de `0` até `99`; ao atingir `99`, o próximo ciclo avança a casa anterior e zera a atual (ex.: `1.0.99` → `1.1.0`, `1.1.1` ... `1.1.99` → `1.2.0`), incrementando sempre o `+build`. **Regra de GitHub Releases:** toda release publicada deve seguir o padrão estruturado da `v1.1.55` (`Nous vX.Y.Z (Build N)`, `## Novidades da versão vX.Y.Z`, seções `###` com emoji e tópicos `- **Título:** descrição`). Detalhes em `docs/build-e-distribuicao.md`.
 
 ## 2. O que é o Nous
 

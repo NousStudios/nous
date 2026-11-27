@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -169,9 +170,10 @@ class _PerfilSocialViewState extends State<PerfilSocialView> {
         }
       } catch (_) {}
 
-      // Se conectado na rede local, revalida perfil remoto para garantir bio/links/foto atualizados
+      // Se conectado na rede local, revalida perfil remoto e sincroniza timeline
       if (!_baixandoFoto && ClienteRedeLocal().conectado) {
         _baixandoFoto = true;
+        unawaited(ClienteRedeLocal().sincronizarTimelineComServidor());
         try {
           final usuarioBalcao = await ClienteRedeLocal().buscarUsuarioRemoto(cpfLimpo);
           if (usuarioBalcao != null && mounted) {

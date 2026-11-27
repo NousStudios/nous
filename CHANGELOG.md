@@ -2,6 +2,13 @@
 
 Uma linha por mudança, da mais recente para a mais antiga. O agente deve acrescentar aqui o que fez em cada ciclo (versão do `pubspec.yaml` + o que mudou). Este arquivo guarda **histórico**; a descrição atual do app fica em `MAPA_DO_APP.md`.
 
+## v1.1.63 (build 165) — 27/11/2026
+
+- **Sincronização Multi-Dispositivo da Timeline e Perfil Público (`timeline`, `auth`):**
+  - Removidos os bloqueios legados (`Escudo 1`, `Escudo 2` e exclusão cega por `corteReconciliacaoAtivas`) em [timeline_sync_repositorio.dart](file:///d:/Nous/nous/lib/src/features/timeline/services/timeline_sync_repositorio.dart) e [timeline_sync_service.dart](file:///d:/Nous/nous/lib/src/features/timeline/services/timeline_sync_service.dart), preservando todas as publicações quando a mesma conta é usada simultaneamente no celular e no computador e mantendo a exclusão via tombstones explícitos (`excluida = true` / `idsPublicacoesExcluidas`).
+  - Adicionada reconciliação bidirecional por IDs (`verificarDivergenciasPublicacoes`) em `sincronizarComServidorHttp` com paginação ordenada por `id`, garantindo convergência idêntica de posts mesmo com desvios de relógio ou edições offline.
+  - Adicionada sincronização silenciosa da timeline em `_inicializarEAutocurarPerfil` ([perfil_social_view.dart](file:///d:/Nous/nous/lib/src/features/auth/views/perfil_social_view.dart)) e atualizados os testes em [timeline_social_test.dart](file:///d:/Nous/nous/test/timeline_social_test.dart).
+
 ## v1.1.62 (build 164) — 27/11/2026
 
 - **Soberania do Autor na Timeline e Preparação para Servidor Mãe (`timeline`, `busca`, `docs`):**

@@ -37,17 +37,13 @@ class TimelineSyncService {
   static Future<void> mesclarSnapshotSocial(
     Map<String, dynamic> snapshot, {
     VoidCallback? aoConcluir,
-    DateTime? corteReconciliacaoAtivas,
   }) async {
-    await TimelineSyncRepositorio.mesclarSnapshotSocial(
-      snapshot,
-      corteReconciliacaoAtivas: corteReconciliacaoAtivas,
-    );
+    await TimelineSyncRepositorio.mesclarSnapshotSocial(snapshot);
     aoConcluir?.call();
   }
 
   /// Sincroniza bidirecionalmente com o servidor usando Delta Sync por timestamp (`desde`),
-  /// reduzindo drasticamente o tráfego conforme o histórico cresce.
+  /// com reconciliação automática de IDs faltantes para imunidade a desvios de relógio.
   static Future<bool> sincronizarComServidorHttp({
     required String ip,
     required int porta,
@@ -70,6 +66,8 @@ class TimelineSyncService {
       bool temMais = true;
       String? ultimoGeradoEm;
       int paginas = 0;
+      bool jaFezFullFallback = false;
+      final publicacoesExtrasParaEnviar = <Map<String, dynamic>>[];
 
       while (temMais && paginas < 25) {
         paginas++;
@@ -80,6 +78,23 @@ class TimelineSyncService {
         final snapshotLocal = offset == 0
             ? await exportarSnapshotSocial(desde: desde, offset: 0)
             : <String, dynamic>{};
+        if (offset == 0 && publicacoesExtrasParaEnviar.isNotEmpty) {
+          final atuais = List<Map<String, dynamic>>.from(
+            (snapshotLocal['publicacoes'] as List<dynamic>? ?? const [])
+                .whereType<Map>()
+                .map((m) => Map<String, dynamic>.from(m)),
+          );
+          final idsAtuais = atuais.map((p) => p['id']?.toString() ?? '').toSet();
+          for (final extra in publicacoesExtrasParaEnviar) {
+            final id = extra['id']?.toString() ?? '';
+            if (id.isNotEmpty && !idsAtuais.contains(id)) {
+              atuais.add(extra);
+              idsAtuais.add(id);
+            }
+          }
+          snapshotLocal['publicacoes'] = atuais;
+          publicacoesExtrasParaEnviar.clear();
+        }
         final payload = <String, dynamic>{
           ...snapshotLocal,
           if (desde != null) 'desde': desde.toIso8601String(),
@@ -107,11 +122,36 @@ class TimelineSyncService {
           await mesclarSnapshotSocial(
             snapRemoto,
             aoConcluir: aoConcluir,
-            corteReconciliacaoAtivas: paginas == 1 ? desde : null,
           );
           _preAquecerMidiasSnapshotRemoto(snapRemoto);
           ultimoGeradoEm = snapRemoto['geradoEm'] as String? ??
               DateTime.now().toIso8601String();
+
+          if (offset == 0 && !jaFezFullFallback) {
+            final ativasRemotas =
+                snapRemoto['idsPublicacoesAtivas'] as List<dynamic>? ?? const [];
+            final excluidasRemotas =
+                snapRemoto['idsPublicacoesExcluidas'] as List<dynamic>? ?? const [];
+            final div =
+                await TimelineSyncRepositorio.verificarDivergenciasPublicacoes(
+              idsAtivasRemotasBrutas: ativasRemotas,
+              idsExcluidasRemotasBrutas: excluidasRemotas,
+            );
+            if ((desde != null && div.faltamLocais) ||
+                div.faltamNoServidor.isNotEmpty) {
+              jaFezFullFallback = true;
+              if (desde != null && div.faltamLocais) {
+                desde = null;
+              }
+              if (div.faltamNoServidor.isNotEmpty) {
+                publicacoesExtrasParaEnviar.addAll(div.faltamNoServidor);
+              }
+              offset = 0;
+              temMais = true;
+              continue;
+            }
+          }
+
           temMais = snapRemoto['temMais'] == true;
           offset = (snapRemoto['proximoOffset'] as num?)?.toInt() ??
               (offset + 400);
@@ -189,52 +229,16 @@ class TimelineSyncService {
             incluirExcluidas: true,
           );
           final local = locais[pub.id];
-          final cpfLogado =
-              await TimelineSyncRepositorio.obterCpfLogadoEfetivo();
-          final ehAutorLocal = cpfLogado.isNotEmpty &&
-              TimelineRepositorioSqlite.normalizarCpf(pub.autorCpf) ==
-                  cpfLogado;
           bool deveSalvar = false;
           if (local == null) {
-            if (ehAutorLocal && !pub.excluida) {
-              final db = await TimelineRepositorioSqlite.obterDb();
-              final hist = await db.query(
-                'publicacoes_sociais',
-                columns: ['id'],
-                where: 'autor_cpf = ?',
-                whereArgs: [cpfLogado],
-                limit: 1,
-              );
-              final limiteRecente =
-                  DateTime.now().subtract(const Duration(minutes: 5));
-              if (hist.isNotEmpty && pub.criadaEm.isBefore(limiteRecente)) {
-                await TimelineRepositorioSqlite.salvarPublicacao(
-                  pub.copyWith(
-                    excluida: true,
-                    arquivada: false,
-                    fixada: false,
-                    tags: const [],
-                    coautoresCpfs: const [],
-                    atualizadaEm: DateTime.now(),
-                  ),
-                );
-                return;
-              }
-            }
             deveSalvar = true;
           } else {
-            if (ehAutorLocal && local.excluida && !pub.excluida) {
-              deveSalvar = pub.atualizadaEm.isAfter(
-                local.atualizadaEm.add(const Duration(minutes: 5)),
-              );
-            } else {
-              final maisNova = pub.atualizadaEm.isAfter(local.atualizadaEm);
-              final empateComExclusao =
-                  !pub.atualizadaEm.isBefore(local.atualizadaEm) &&
-                      pub.excluida &&
-                      !local.excluida;
-              deveSalvar = maisNova || empateComExclusao;
-            }
+            final maisNova = pub.atualizadaEm.isAfter(local.atualizadaEm);
+            final empateComExclusao =
+                !pub.atualizadaEm.isBefore(local.atualizadaEm) &&
+                    pub.excluida &&
+                    !local.excluida;
+            deveSalvar = maisNova || empateComExclusao;
           }
           if (deveSalvar) {
             await TimelineRepositorioSqlite.salvarPublicacao(pub);
