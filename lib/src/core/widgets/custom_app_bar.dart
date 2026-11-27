@@ -47,32 +47,63 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
       builder: (context, temAtualizacao, child) {
         if (!temAtualizacao) return const SizedBox.shrink();
 
-        return Stack(
-          clipBehavior: Clip.none,
-          alignment: Alignment.center,
-          children: [
-            IconButton(
-              tooltip: 'Nova Atualização Disponível!',
-              icon: Icon(
-                Icons.system_update_alt_rounded,
-                color: theme.textColor,
-                size: 22,
-              ),
-              onPressed: () => AtualizacaoDialog.mostrar(context),
-            ),
-            Positioned(
-              top: 8,
-              right: 8,
-              child: Container(
-                width: 8,
-                height: 8,
+        final versaoNova = AtualizacaoService.infoAtualizacao.value?.versao;
+        final tooltipTexto = (versaoNova != null && versaoNova.isNotEmpty)
+            ? 'Nova Versão v$versaoNova Disponível! Toque para atualizar.'
+            : 'Nova Atualização Disponível! Toque para atualizar.';
+
+        return Padding(
+          padding: const EdgeInsets.only(right: 4),
+          child: Stack(
+            clipBehavior: Clip.none,
+            alignment: Alignment.center,
+            children: [
+              Container(
                 decoration: BoxDecoration(
-                  color: theme.dangerColor,
-                  shape: BoxShape.circle,
+                  color: theme.dangerColor.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(
+                    color: theme.dangerColor.withValues(alpha: 0.35),
+                  ),
+                ),
+                child: IconButton(
+                  tooltip: tooltipTexto,
+                  icon: Icon(
+                    Icons.system_update_alt_rounded,
+                    color: theme.dangerColor,
+                    size: 22,
+                  ),
+                  onPressed: () => AtualizacaoDialog.mostrar(context),
                 ),
               ),
-            ),
-          ],
+              Positioned(
+                top: -3,
+                right: -3,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
+                  decoration: BoxDecoration(
+                    color: theme.dangerColor,
+                    borderRadius: BorderRadius.circular(8),
+                    boxShadow: [
+                      BoxShadow(
+                        color: theme.dangerColor.withValues(alpha: 0.45),
+                        blurRadius: 4,
+                        offset: const Offset(0, 1),
+                      ),
+                    ],
+                  ),
+                  child: Text(
+                    'NOVO',
+                    style: theme.getTextStyle(
+                      fontSize: 8,
+                      fontWeight: FontWeight.w900,
+                      color: Colors.white,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
         );
       },
     );

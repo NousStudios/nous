@@ -1,8 +1,9 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter/widgets.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:provider/provider.dart';
 import 'package:nous/src/core/services/changelog_service.dart';
@@ -77,6 +78,75 @@ class AtualizacaoService {
   static final ValueNotifier<String?> mensagemStatus =
       ValueNotifier<String?>(null);
 
+  static Timer? _timerMonitoramento;
+  static AppLifecycleListener? _cicloVidaListener;
+
+  /// Inicia o monitoramento ativo de atualizações:
+  /// 1. Consulta periódica leve (a cada 3 minutos) enquanto o app estiver aberto.
+  /// 2. Verificação imediata sempre que o usuário retornar ao app (onResume / foco).
+  static void iniciarMonitoramentoContinuo({
+    Duration intervalo = const Duration(minutes: 3),
+  }) {
+    _timerMonitoramento?.cancel();
+    _timerMonitoramento = Timer.periodic(intervalo, (_) {
+      verificarAtualizacao(silencioso: true);
+    });
+
+    _cicloVidaListener?.dispose();
+    try {
+      _cicloVidaListener = AppLifecycleListener(
+        onResume: () {
+          debugPrint(
+            '[AtualizacaoService] App retornou a primeiro plano. Checando se há novas releases...',
+          );
+          verificarAtualizacao(silencioso: true);
+        },
+      );
+    } catch (_) {}
+  }
+
+  /// Cancela o monitoramento periódico de atualizações.
+  static void pararMonitoramentoContinuo() {
+    _timerMonitoramento?.cancel();
+    _timerMonitoramento = null;
+    _cicloVidaListener?.dispose();
+    _cicloVidaListener = null;
+  }
+
+  /// Extrai o número do build a partir do nome da release (ex: "Nous v1.1.63 (Build 165)")
+  /// ou do corpo da release. Retorna null se não encontrar.
+  static int? extrairBuildRelease(String nome, String corpo) {
+    final regBuild = RegExp(r'build\s*(\d+)', caseSensitive: false);
+    final matchNome = regBuild.firstMatch(nome);
+    if (matchNome != null) {
+      return int.tryParse(matchNome.group(1) ?? '');
+    }
+    final matchCorpo = regBuild.firstMatch(corpo);
+    if (matchCorpo != null) {
+      return int.tryParse(matchCorpo.group(1) ?? '');
+    }
+    return null;
+  }
+
+  /// Verifica se uma versão ou build remota é estritamente mais recente que a local.
+  static bool ehMaisRecente({
+    required String versaoRemota,
+    required String versaoLocal,
+    int? buildRemoto,
+    int? buildLocal,
+  }) {
+    final vMaior = versaoMaior(versaoRemota, versaoLocal);
+    if (vMaior) return true;
+
+    // Se as versões semver forem iguais (ou a remota não for menor), confere o build
+    final vMenor = versaoMaior(versaoLocal, versaoRemota);
+    if (!vMenor && buildRemoto != null && buildLocal != null) {
+      return buildRemoto > buildLocal;
+    }
+
+    return false;
+  }
+
   /// Verifica se há atualizações disponíveis no repositório oficial do Nous.
   /// Operação segura, assíncrona e tolerante a falta de conexão com a internet.
   static Future<bool> verificarAtualizacao({bool silencioso = false}) async {
@@ -109,8 +179,16 @@ class AtualizacaoService {
         final urlDownload = _extrairUrlDownloadRelease(json, htmlUrl);
         final dataStr = json['published_at'] as String?;
         final dataPub = dataStr != null ? DateTime.tryParse(dataStr) : null;
+        final buildRemoto = extrairBuildRelease(nome, corpoDesc);
 
-        if (tagName.isNotEmpty && versaoMaior(tagName, versaoAtual)) {
+        final novaVersaoDisponivel = ehMaisRecente(
+          versaoRemota: tagName,
+          versaoLocal: versaoAtual,
+          buildRemoto: buildRemoto,
+          buildLocal: buildAtual,
+        );
+
+        if (tagName.isNotEmpty && novaVersaoDisponivel) {
           final novidade = ChangelogService.obterUltimaVersao(tagName);
           final alteracoes = (novidade != null && novidade.alteracoes.isNotEmpty)
               ? novidade.alteracoes

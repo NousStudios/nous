@@ -4,6 +4,7 @@ import 'package:nous/src/core/services/changelog_service.dart';
 import 'package:nous/src/core/services/sessao_retorno_service.dart';
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
   group('ChangelogService - Sanitização Amigável para o Usuário', () {
     test('remove referências a arquivos .dart e links de código', () {
       const linhaBruta =
@@ -70,13 +71,81 @@ void main() {
     });
   });
 
-  group('AtualizacaoService - Comparação de Versões Semver', () {
+  group('AtualizacaoService - Comparação de Versões Semver e Detecção de Releases', () {
     test('compara versões corretamente', () {
       expect(AtualizacaoService.versaoMaior('1.1.55', '1.1.54'), isTrue);
       expect(AtualizacaoService.versaoMaior('1.2.0', '1.1.99'), isTrue);
       expect(AtualizacaoService.versaoMaior('2.0.0', '1.99.99'), isTrue);
       expect(AtualizacaoService.versaoMaior('1.1.54', '1.1.54'), isFalse);
       expect(AtualizacaoService.versaoMaior('1.1.53', '1.1.54'), isFalse);
+    });
+
+    test('extrai número de build de títulos e corpo da release GitHub', () {
+      expect(
+        AtualizacaoService.extrairBuildRelease('Nous v1.1.63 (Build 165)', ''),
+        165,
+      );
+      expect(
+        AtualizacaoService.extrairBuildRelease('Nous v1.2.0', 'Versão compilada no build 170 com melhorias'),
+        170,
+      );
+      expect(
+        AtualizacaoService.extrairBuildRelease('Release sem build', 'Sem menção'),
+        isNull,
+      );
+    });
+
+    test('ehMaisRecente detecta versões maiores e builds superiores', () {
+      // Caso 1: Versão semver estritamente maior
+      expect(
+        AtualizacaoService.ehMaisRecente(
+          versaoRemota: '1.1.64',
+          versaoLocal: '1.1.63',
+          buildRemoto: 165,
+          buildLocal: 165,
+        ),
+        isTrue,
+      );
+
+      // Caso 2: Mesma versão semver mas build superior (hotfix ou re-release)
+      expect(
+        AtualizacaoService.ehMaisRecente(
+          versaoRemota: '1.1.63',
+          versaoLocal: '1.1.63',
+          buildRemoto: 166,
+          buildLocal: 165,
+        ),
+        isTrue,
+      );
+
+      // Caso 3: Mesma versão e mesmo build (já atualizado)
+      expect(
+        AtualizacaoService.ehMaisRecente(
+          versaoRemota: '1.1.63',
+          versaoLocal: '1.1.63',
+          buildRemoto: 165,
+          buildLocal: 165,
+        ),
+        isFalse,
+      );
+
+      // Caso 4: Versão remota inferior
+      expect(
+        AtualizacaoService.ehMaisRecente(
+          versaoRemota: '1.1.62',
+          versaoLocal: '1.1.63',
+          buildRemoto: 164,
+          buildLocal: 165,
+        ),
+        isFalse,
+      );
+    });
+
+    test('monitoramento contínuo pode ser iniciado e parado sem erros', () {
+      AtualizacaoService.iniciarMonitoramentoContinuo(
+        intervalo: const Duration(seconds: 1),
+      );
+      AtualizacaoService.pararMonitoramentoContinuo();
     });
   });
 }
