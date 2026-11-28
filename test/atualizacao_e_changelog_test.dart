@@ -39,6 +39,23 @@ void main() {
       expect(ChangelogService.sanitizarLinhaParaUsuario(linha2), isNull);
       expect(ChangelogService.sanitizarLinhaParaUsuario(linha3), isNull);
     });
+
+    test('remove preposições órfãs e links .md/.ps1 sem quebrar a frase', () {
+      const linha1 =
+          'Corrigido em [timeline_sync_repositorio.dart](file:///a.dart) e [timeline_sync_service.dart](file:///b.dart), preservando as postagens.';
+      const linha2 =
+          'Botão de atualização da [custom_app_bar.dart](file:///c.dart) aprimorado.';
+      const linha3 =
+          'Script atualizado via [gerar_instalador.ps1](file:///d.ps1).';
+
+      final r1 = ChangelogService.sanitizarLinhaParaUsuario(linha1);
+      final r2 = ChangelogService.sanitizarLinhaParaUsuario(linha2);
+      final r3 = ChangelogService.sanitizarLinhaParaUsuario(linha3);
+
+      expect(r1, 'Corrigido preservando as postagens.');
+      expect(r2, 'Botão de atualização aprimorado.');
+      expect(r3, 'Script atualizado.');
+    });
   });
 
   group('SessaoRetorno - Serialização e Desserialização', () {

@@ -11,6 +11,7 @@ import 'package:nous/src/features/chat/models/mensagem_chat.dart';
 import 'package:nous/src/features/chat/services/chat_media_service.dart';
 import 'package:nous/src/features/chat/services/chat_recursos_extras_service.dart';
 import 'package:nous/src/features/chat/services/chat_service.dart';
+import 'package:nous/src/features/chat/views/widgets/cabecalho_aba_chat_widget.dart';
 import 'package:nous/src/features/pdv/views/widgets/estado_vazio_container.dart';
 
 /// Painel completo de Listas de Transmissão para envio simultâneo de imagem para vários contatos Nous.
@@ -587,53 +588,14 @@ class _PainelListaTransmissaoWidgetState
     final theme = widget.theme;
     return Column(
       children: [
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-          decoration: BoxDecoration(
-            color: theme.cardBackgroundColor.withValues(alpha: 0.6),
-            border: Border(
-              bottom: BorderSide(
-                color: theme.borderColor.withValues(alpha: 0.4),
-              ),
-            ),
-          ),
-          child: Row(
-            children: [
-              Icon(Icons.campaign_rounded, size: 22, color: theme.textColor),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Listas de Transmissão',
-                      style: theme.getTextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                        color: theme.textColor,
-                      ),
-                    ),
-                    Text(
-                      'Envie a mesma imagem ou aviso para vários contatos Nous',
-                      style: theme.getTextStyle(
-                        fontSize: 12,
-                        color: theme.secondaryTextColor,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              ElevatedButton.icon(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: theme.textColor,
-                  foregroundColor: theme.backgroundColor,
-                ),
-                onPressed: () => _criarOuEditarLista(),
-                icon: const Icon(Icons.add_rounded, size: 18),
-                label: const Text('Nova Lista'),
-              ),
-            ],
-          ),
+        CabecalhoAbaChatWidget(
+          theme: theme,
+          icone: Icons.campaign_rounded,
+          titulo: 'Listas de Transmissão',
+          subtitulo: 'Envie a mesma imagem ou aviso para vários contatos Nous',
+          iconeBotao: Icons.add_rounded,
+          rotuloBotao: 'Nova Lista',
+          onPressionarBotao: () => _criarOuEditarLista(),
         ),
         Expanded(
           child: _carregando

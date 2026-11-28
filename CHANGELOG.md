@@ -2,6 +2,14 @@
 
 Uma linha por mudança, da mais recente para a mais antiga. O agente deve acrescentar aqui o que fez em cada ciclo (versão do `pubspec.yaml` + o que mudou). Este arquivo guarda **histórico**; a descrição atual do app fica em `MAPA_DO_APP.md`.
 
+## v1.1.64 (build 166) — 27/11/2026
+
+- **Sincronização de Foto Pública, Layout Mobile e Atualizações Legíveis (`auth`, `chat`, `busca`, `core`):**
+  - Corrigida a sincronização de `fotoPublica` e `fotoExibicao` em [sincronizador_usuarios_rede.dart](file:///d:/Nous/nous/lib/src/features/pdv/services/rede_local/sincronizador_usuarios_rede.dart), [cliente_ws_usuarios_convites_helper.dart](file:///d:/Nous/nous/lib/src/features/pdv/services/rede_local/handlers/helpers/cliente_ws_usuarios_convites_helper.dart), [envio_http_cliente_helper.dart](file:///d:/Nous/nous/lib/src/features/pdv/services/rede_local/helpers/envio_http_cliente_helper.dart), [manipulador_midia_servidor.dart](file:///d:/Nous/nous/lib/src/features/pdv/services/rede_local/manipulador_midia_servidor.dart), [resolvedor_foto_chat.dart](file:///d:/Nous/nous/lib/src/features/chat/services/resolvedor_foto_chat.dart), [chat_conversas_hidratador_service.dart](file:///d:/Nous/nous/lib/src/features/chat/services/chat_conversas_hidratador_service.dart), [curador_conversas_chat.dart](file:///d:/Nous/nous/lib/src/features/chat/services/montador/curador_conversas_chat.dart) e [perfil_social_view.dart](file:///d:/Nous/nous/lib/src/features/auth/views/perfil_social_view.dart).
+  - Extraído [cabecalho_aba_chat_widget.dart](file:///d:/Nous/nous/lib/src/features/chat/views/widgets/cabecalho_aba_chat_widget.dart) para posicionar os botões abaixo do subtítulo no celular nas abas Ligações, Comunidades e Transmissão ([painel_ligacoes_widget.dart](file:///d:/Nous/nous/lib/src/features/chat/views/widgets/painel_ligacoes_widget.dart), [painel_comunidades_widget.dart](file:///d:/Nous/nous/lib/src/features/chat/views/widgets/painel_comunidades_widget.dart) e [painel_lista_transmissao_widget.dart](file:///d:/Nous/nous/lib/src/features/chat/views/widgets/painel_lista_transmissao_widget.dart)).
+  - Padronizada a largura máxima de `600px` para a barra de pesquisa universal e `FloatingBottomNavBar` em [busca_mapa_view.dart](file:///d:/Nous/nous/lib/src/features/busca/views/busca_mapa_view.dart), e ocultada a [floating_bottom_nav_bar.dart](file:///d:/Nous/nous/lib/src/core/widgets/floating_bottom_nav_bar.dart) quando o teclado virtual está aberto.
+  - Priorizadas as notas da release no GitHub em [bloco_novidades_atualizacao.dart](file:///d:/Nous/nous/lib/src/core/widgets/atualizacao/bloco_novidades_atualizacao.dart) e corrigida a remoção de preposições órfãs e links em [changelog_service.dart](file:///d:/Nous/nous/lib/src/core/services/changelog_service.dart).
+
 ## v1.1.63 (build 165) — 27/11/2026
 
 - **Sincronização Multi-Dispositivo da Timeline e Monitoramento Contínuo de Releases (`timeline`, `core`):**

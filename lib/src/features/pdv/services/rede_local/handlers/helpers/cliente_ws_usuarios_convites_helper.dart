@@ -4,6 +4,8 @@ import 'package:nous/src/core/services/relogio_rede_service.dart';
 import 'package:nous/src/features/auth/models/usuario_nous.dart';
 import 'package:nous/src/features/auth/services/contas_excluidas_service.dart';
 import 'package:nous/src/features/auth/services/contas_nous_service.dart';
+import 'package:nous/src/features/chat/services/chat_service.dart';
+import 'package:nous/src/features/chat/services/resolvedor_foto_chat.dart';
 import 'package:nous/src/features/notificacoes/models/convite_loja.dart';
 import 'package:nous/src/features/notificacoes/providers/notificacoes_provider.dart';
 import 'package:nous/src/features/notificacoes/services/convites_service.dart';
@@ -122,10 +124,14 @@ class ClienteWsUsuariosConvitesHelper {
           final fotoPubRemotaValida = usuarioRemoto.fotoPublica.isNotEmpty &&
               ImagemService.existe(usuarioRemoto.fotoPublica);
           usuarioRemoto = local.mesclarCom(usuarioRemoto, priorizarOutro: true);
-          if (!fotoRemotaValida && fotoLocalValida) {
+          final dtRem = DateTime.tryParse(usuarioRemoto.atualizadoEm);
+          final dtLoc = DateTime.tryParse(local.atualizadoEm);
+          final remotoMaisRecente =
+              dtRem != null && (dtLoc == null || dtRem.isAfter(dtLoc));
+          if (!fotoRemotaValida && fotoLocalValida && !remotoMaisRecente) {
             usuarioRemoto = usuarioRemoto.copyWith(foto: local.foto);
           }
-          if (!fotoPubRemotaValida && fotoPubLocalValida) {
+          if (!fotoPubRemotaValida && fotoPubLocalValida && !remotoMaisRecente) {
             usuarioRemoto = usuarioRemoto.copyWith(fotoPublica: local.fotoPublica);
           }
         }
@@ -134,13 +140,23 @@ class ClienteWsUsuariosConvitesHelper {
           return;
         }
         await ContasNousService.salvar(usuarioRemoto);
+        if (usuarioRemoto.fotoExibicao.isNotEmpty &&
+            ImagemService.existe(usuarioRemoto.fotoExibicao)) {
+          ResolvedorFotoChat.instancia.registrarFoto(
+            usuarioRemoto.cpf,
+            usuarioRemoto.fotoExibicao,
+          );
+        } else {
+          ResolvedorFotoChat.instancia.registrarFoto(usuarioRemoto.cpf, '');
+        }
         ctx.authProvider?.atualizarContaNoCache(usuarioRemoto);
         ctx.pdvProvider?.notificarMudanca();
         ctx.pdvProvider?.sincronizarFotoUsuarioEmClientes(
           usuarioRemoto.cpf,
-          usuarioRemoto.foto,
+          usuarioRemoto.fotoExibicao,
         );
         ctx.pdvProvider?.sincronizarDadosUsuarioEmLojas(usuarioRemoto);
+        ChatService.notificarAlteracao();
 
         final cpfAtivo = ctx.pdvProvider?.cpfAtual ??
             ctx.authProvider?.contaAtual?.cpf ??

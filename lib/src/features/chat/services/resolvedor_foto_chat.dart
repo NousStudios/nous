@@ -22,8 +22,14 @@ class ResolvedorFotoChat {
   final Map<String, String> _cacheFotos = {};
 
   void registrarFoto(String cpfOuIdentificador, String caminhoFoto) {
-    if (caminhoFoto.trim().isEmpty) return;
     final limpo = ChatService.normalizarCpf(cpfOuIdentificador);
+    if (caminhoFoto.trim().isEmpty) {
+      if (limpo.isNotEmpty) {
+        _cacheFotos.remove(limpo);
+      }
+      _cacheFotos.remove(cpfOuIdentificador);
+      return;
+    }
     if (limpo.isNotEmpty) {
       _cacheFotos[limpo] = caminhoFoto;
     }

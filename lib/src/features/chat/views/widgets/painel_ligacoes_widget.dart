@@ -10,6 +10,7 @@ import 'package:nous/src/features/chat/services/chamada_webrtc_service.dart';
 import 'package:nous/src/features/chat/services/chat_recursos_extras_service.dart';
 import 'package:nous/src/features/chat/services/chat_service.dart';
 import 'package:nous/src/features/chat/views/chamada_ativa_view.dart';
+import 'package:nous/src/features/chat/views/widgets/cabecalho_aba_chat_widget.dart';
 import 'package:nous/src/features/pdv/views/widgets/estado_vazio_container.dart';
 
 /// Painel dedicado de Ligações (histórico, chamada ativa estilo Discord e discagem rápida).
@@ -205,54 +206,15 @@ class _PainelLigacoesWidgetState extends State<PainelLigacoesWidget> {
     final theme = widget.theme;
     return Column(
       children: [
-        Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            decoration: BoxDecoration(
-              color: theme.cardBackgroundColor.withValues(alpha: 0.6),
-              border: Border(
-                bottom: BorderSide(
-                  color: theme.borderColor.withValues(alpha: 0.4),
-                ),
-              ),
-            ),
-            child: Row(
-              children: [
-                Icon(Icons.call_rounded, size: 22, color: theme.textColor),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Ligações',
-                        style: theme.getTextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                          color: theme.textColor,
-                        ),
-                      ),
-                      Text(
-                        'Chamadas de voz, vídeo e transmissão de tela estilo Discord',
-                        style: theme.getTextStyle(
-                          fontSize: 12,
-                          color: theme.secondaryTextColor,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                ElevatedButton.icon(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: theme.textColor,
-                    foregroundColor: theme.backgroundColor,
-                  ),
-                  onPressed: _abrirNovaLigacao,
-                  icon: const Icon(Icons.add_call, size: 18),
-                  label: const Text('Nova Ligação'),
-                ),
-              ],
-            ),
-          ),
+        CabecalhoAbaChatWidget(
+          theme: theme,
+          icone: Icons.call_rounded,
+          titulo: 'Ligações',
+          subtitulo: 'Chamadas de voz, vídeo e transmissão de tela estilo Discord',
+          iconeBotao: Icons.add_call,
+          rotuloBotao: 'Nova Ligação',
+          onPressionarBotao: _abrirNovaLigacao,
+        ),
           ValueListenableBuilder<ChamadaSessao?>(
             valueListenable: ChamadaWebRtcService.instancia.sessaoAtiva,
             builder: (_, sessao, _) {
@@ -279,6 +241,7 @@ class _PainelLigacoesWidgetState extends State<PainelLigacoesWidget> {
                         ),
                       ),
                     ),
+                    const SizedBox(width: 10),
                     ElevatedButton(
                       style: ElevatedButton.styleFrom(
                         backgroundColor: theme.textColor,

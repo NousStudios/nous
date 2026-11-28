@@ -383,6 +383,7 @@ class _BuscaMapaViewState extends State<BuscaMapaView>
 
         return Scaffold(
           backgroundColor: theme.backgroundColor,
+          resizeToAvoidBottomInset: false,
           appBar: const CustomAppBar(
             title: 'Busca e Mapa',
             showBackButton: false,
@@ -470,12 +471,17 @@ class _BuscaMapaViewState extends State<BuscaMapaView>
                           children: [
                             Padding(
                               padding: const EdgeInsets.fromLTRB(14, 12, 14, 4),
-                              child: BarraBuscaUniversalMapa(
-                                key: _barraBuscaKey,
-                                controller: _controller,
-                                textController: _buscaTextController,
-                                focusNode: _buscaFocusNode,
-                                theme: theme,
+                              child: Center(
+                                child: ConstrainedBox(
+                                  constraints: const BoxConstraints(maxWidth: 600),
+                                  child: BarraBuscaUniversalMapa(
+                                    key: _barraBuscaKey,
+                                    controller: _controller,
+                                    textController: _buscaTextController,
+                                    focusNode: _buscaFocusNode,
+                                    theme: theme,
+                                  ),
+                                ),
                               ),
                             ),
                             Expanded(
@@ -514,31 +520,36 @@ class _BuscaMapaViewState extends State<BuscaMapaView>
                       top: 12,
                       left: 14,
                       right: 14,
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          if (_controller.modoRota)
-                            PainelRotasMapa(
-                              controller: _controller,
-                              theme: theme,
-                            )
-                          else
-                            BarraBuscaUniversalMapa(
-                              key: _barraBuscaKey,
-                              controller: _controller,
-                              textController: _buscaTextController,
-                              focusNode: _buscaFocusNode,
-                              theme: theme,
-                            ),
-                          if (_controller.painelBuscaExpandido &&
-                              !_controller.modoRota) ...[
-                            const SizedBox(height: 8),
-                            ListaResultadosBuscaMapa(
-                              controller: _controller,
-                              theme: theme,
-                            ),
-                          ],
-                        ],
+                      child: Center(
+                        child: ConstrainedBox(
+                          constraints: const BoxConstraints(maxWidth: 600),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              if (_controller.modoRota)
+                                PainelRotasMapa(
+                                  controller: _controller,
+                                  theme: theme,
+                                )
+                              else
+                                BarraBuscaUniversalMapa(
+                                  key: _barraBuscaKey,
+                                  controller: _controller,
+                                  textController: _buscaTextController,
+                                  focusNode: _buscaFocusNode,
+                                  theme: theme,
+                                ),
+                              if (_controller.painelBuscaExpandido &&
+                                  !_controller.modoRota) ...[
+                                const SizedBox(height: 8),
+                                ListaResultadosBuscaMapa(
+                                  controller: _controller,
+                                  theme: theme,
+                                ),
+                              ],
+                            ],
+                          ),
+                        ),
                       ),
                     ),
 
@@ -649,7 +660,7 @@ class _BuscaMapaViewState extends State<BuscaMapaView>
                       bottom: 0,
                       child: Center(
                         child: FloatingBottomNavBar(
-                          maxWidth: MediaQuery.sizeOf(context).width,
+                          maxWidth: 600,
                           slotSelecionado: 2,
                           subIndiceSelecionado: 0,
                         ),

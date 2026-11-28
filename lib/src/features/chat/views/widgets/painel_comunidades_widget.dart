@@ -9,6 +9,7 @@ import 'package:nous/src/features/chat/models/comunidade_usuario.dart';
 import 'package:nous/src/features/chat/services/chamada_webrtc_service.dart';
 import 'package:nous/src/features/chat/services/chat_recursos_extras_service.dart';
 import 'package:nous/src/features/chat/services/chat_service.dart';
+import 'package:nous/src/features/chat/views/widgets/cabecalho_aba_chat_widget.dart';
 import 'package:nous/src/features/chat/views/chamada_ativa_view.dart';
 import 'package:nous/src/features/pdv/views/widgets/estado_vazio_container.dart';
 
@@ -465,53 +466,14 @@ class _PainelComunidadesWidgetState extends State<PainelComunidadesWidget> {
     final theme = widget.theme;
     return Column(
       children: [
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-          decoration: BoxDecoration(
-            color: theme.cardBackgroundColor.withValues(alpha: 0.6),
-            border: Border(
-              bottom: BorderSide(
-                color: theme.borderColor.withValues(alpha: 0.4),
-              ),
-            ),
-          ),
-          child: Row(
-            children: [
-              Icon(Icons.groups_rounded, size: 22, color: theme.textColor),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Comunidades da Mensageria',
-                      style: theme.getTextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                        color: theme.textColor,
-                      ),
-                    ),
-                    Text(
-                      'Canais de texto e voz da sua rede pessoal',
-                      style: theme.getTextStyle(
-                        fontSize: 12,
-                        color: theme.secondaryTextColor,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              ElevatedButton.icon(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: theme.textColor,
-                  foregroundColor: theme.backgroundColor,
-                ),
-                onPressed: _criarComunidade,
-                icon: const Icon(Icons.add_rounded, size: 18),
-                label: const Text('Nova Comunidade'),
-              ),
-            ],
-          ),
+        CabecalhoAbaChatWidget(
+          theme: theme,
+          icone: Icons.groups_rounded,
+          titulo: 'Comunidades da Mensageria',
+          subtitulo: 'Canais de texto e voz da sua rede pessoal',
+          iconeBotao: Icons.add_rounded,
+          rotuloBotao: 'Nova Comunidade',
+          onPressionarBotao: _criarComunidade,
         ),
         Expanded(
           child: _carregando

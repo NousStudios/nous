@@ -69,7 +69,11 @@ class CuradorConversasChat {
             ehNomeDoUsuarioLogado(tituloRem)) {
           tituloRem = uConta.nomeExibicao;
         }
-        if (fotoRem.isEmpty || !ImagemService.existe(fotoRem) || ehFotoDoUsuarioLogado(fotoRem)) {
+        if ((uConta.fotoExibicao.isNotEmpty &&
+                ImagemService.existe(uConta.fotoExibicao)) ||
+            fotoRem.isEmpty ||
+            !ImagemService.existe(fotoRem) ||
+            ehFotoDoUsuarioLogado(fotoRem)) {
           fotoRem = uConta.fotoExibicao;
         }
         if (subtituloRem.isEmpty ||

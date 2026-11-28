@@ -80,8 +80,9 @@ class ChangelogService {
     final novidades = obterNovidadesSintetizadas();
     if (versaoAlvo != null && versaoAlvo.trim().isNotEmpty) {
       final limpa = versaoAlvo.replaceAll('v', '').trim();
+      final padrao = RegExp('(?:^|\\b)v?${RegExp.escape(limpa)}(?:\\b|\\s|\\(|\\\$)');
       for (final item in novidades) {
-        if (item.versao.contains(limpa)) return item;
+        if (padrao.hasMatch(item.versao)) return item;
       }
     }
     return novidades.isNotEmpty ? novidades.first : null;
@@ -108,37 +109,74 @@ class ChangelogService {
       return null;
     }
 
-    // Remove referências a arquivos .dart (com ou sem link markdown ou parênteses)
-    // Ex: ([arquivo.dart](file://...)), [arquivo.dart](...), (arquivo.dart)
-    texto = texto.replaceAll(RegExp(r'\(?\s*\[?[a-zA-Z0-9_\-]+\.dart\]?(\(file:///[^)]+\)|\([^)]+\))?\s*\)?'), '');
-    texto = texto.replaceAll(RegExp(r'\(?[a-zA-Z0-9_\-]+\.dart\)?'), '');
+    // Remove listas entre parênteses contendo apenas links/nomes de arquivos técnicos
+    texto = texto.replaceAll(
+      RegExp(
+        r'\(\s*(?:\[?[a-zA-Z0-9_\-]+\.(?:dart|md|ps1|json|yaml|xml|sql)\]?(?:\([^)]+\))?\s*(?:,|e)?\s*)+\)',
+        caseSensitive: false,
+      ),
+      '',
+    );
 
-    // Remove tags de escopo técnico entre parênteses no início ou meio, ex: (`chat`, `pdv`), (`auth`), etc.
-    texto = texto.replaceAll(RegExp(r'\(\s*(`[a-zA-Z0-9_\-]+`\s*(,\s*)?)+\s*\)'), '');
+    // Remove preposição órfã seguida de link ou nome de arquivo técnico
+    // Ex: "em [arquivo.dart](...) e [outro.dart](...)" -> ""
+    texto = texto.replaceAll(
+      RegExp(
+        r'\b(?:em|no|na|nos|nas|de|do|da|dos|das|via|pelo|pela|com|para)\s+(?:\[?[a-zA-Z0-9_\-]+\.(?:dart|md|ps1|json|yaml|xml|sql)\]?(?:\([^)]+\))?(?:\s*(?:,|e)\s*)?)+',
+        caseSensitive: false,
+      ),
+      ' ',
+    );
 
-    // Remove crases de formatação técnica
+    // Remove referências avulsas a arquivos técnicos (.dart, .md, .ps1, etc.)
+    texto = texto.replaceAll(
+      RegExp(
+        r'\[?[a-zA-Z0-9_\-]+\.(?:dart|md|ps1|json|yaml|xml|sql)\]?(?:\([^)]+\))?',
+        caseSensitive: false,
+      ),
+      '',
+    );
+
+    // Converte demais links markdown [texto](url) mantendo apenas o texto legível
+    texto = texto.replaceAllMapped(
+      RegExp(r'\[([^\]]+)\]\([^)]+\)'),
+      (m) => m.group(1) ?? '',
+    );
+
+    // Remove tags de escopo técnico entre parênteses, ex: (`chat`, `pdv`)
+    texto = texto.replaceAll(
+      RegExp(r'\(\s*(`[a-zA-Z0-9_\-]+`\s*(?:,\s*)?)+\s*\)'),
+      '',
+    );
+
+    // Remove formatação markdown residual
     texto = texto.replaceAll('`', '');
-
-    // Remove negrito residual de markdown
     texto = texto.replaceAll('**', '');
+    texto = texto.replaceAll('__', '');
 
-    // Se for cabeçalho de categoria (ex: "Mensageria Estilo WhatsApp + Discord:"), limpa dois-pontos se isolado
+    // Limpa preposições ou conectivos que ficaram pendurados antes de pontuação
+    texto = texto.replaceAll(
+      RegExp(r'\s+\b(?:em|no|na|de|do|da|via|pelo|pela|e)\s*(?=[.,;:]|$)'),
+      '',
+    );
+
+    // Se for cabeçalho de categoria (ex: "Mensageria Estilo WhatsApp + Discord:"), limpa dois-pontos isolado
     if (texto.endsWith(':')) {
       texto = texto.substring(0, texto.length - 1).trim();
     }
 
-    // Remove parênteses vazios residuais e normaliza espaços
+    // Remove parênteses vazios residuais e normaliza espaços e pontuação
     texto = texto.replaceAll(RegExp(r'\(\s*\)'), '');
     texto = texto.replaceAll(RegExp(r'\s+'), ' ');
     texto = texto.replaceAll(' ,', ',');
     texto = texto.replaceAll(' ;', ';');
     texto = texto.replaceAll(' :', ':');
+    texto = texto.replaceAll(' .', '.');
+    texto = texto.replaceAll(',.', '.');
     texto = texto.trim();
 
-    // Se a linha ficou vazia ou muito curta/irrelevante
     if (texto.length < 10) return null;
 
-    // Garante pontuação final agradável
     if (!texto.endsWith('.') && !texto.endsWith('!') && !texto.endsWith(':')) {
       texto = '$texto.';
     }

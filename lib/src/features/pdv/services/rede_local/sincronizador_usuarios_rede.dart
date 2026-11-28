@@ -186,6 +186,14 @@ class SincronizadorUsuariosRede {
   }
 
   /// Consulta um usuário no servidor central por CPF
+  static bool _remotoEhMaisRecente(String remotoIso, String localIso) {
+    final dtR = DateTime.tryParse(remotoIso);
+    if (dtR == null) return false;
+    final dtL = DateTime.tryParse(localIso);
+    if (dtL == null) return true;
+    return dtR.isAfter(dtL);
+  }
+
   Future<UsuarioNous?> buscarUsuarioRemoto({
     required String? ipServidor,
     required int? portaServidor,
@@ -217,8 +225,17 @@ class SincronizadorUsuariosRede {
           final usuarioRemoto =
               UsuarioNous.fromJson(dados['usuario'] as Map<String, dynamic>);
 
+          final local = await ContasNousService.buscarPorCpf(cpfLimpo);
+          var contaFinal = local != null
+              ? mesclarUsuarios(local, usuarioRemoto)
+              : usuarioRemoto;
+
           if (usuarioRemoto.foto.isNotEmpty &&
-              !ImagemService.existe(usuarioRemoto.foto)) {
+              (!ImagemService.existe(contaFinal.foto) ||
+                  (local != null &&
+                      usuarioRemoto.foto != local.foto &&
+                      _remotoEhMaisRecente(
+                          usuarioRemoto.atualizadoEm, local.atualizadoEm)))) {
             final novaFotoLocal = await _transferencia.baixarImagemRemota(
               caminhoRemoto: usuarioRemoto.foto,
               ipServidor: ipServidor,
@@ -227,26 +244,16 @@ class SincronizadorUsuariosRede {
             );
             if (novaFotoLocal.isNotEmpty &&
                 ImagemService.existe(novaFotoLocal)) {
-              ResolvedorFotoChat.instancia
-                  .registrarFoto(usuarioRemoto.cpf, novaFotoLocal);
-              final uFinal = usuarioRemoto.copyWith(foto: novaFotoLocal);
-              await ContasNousService.salvar(uFinal);
-              authProvider?.atualizarContaNoCache(uFinal);
-              pdvProvider?.sincronizarFotoUsuarioEmClientes(
-                uFinal.cpf,
-                uFinal.foto,
-              );
-              return uFinal;
+              contaFinal = contaFinal.copyWith(foto: novaFotoLocal);
             }
           }
 
-          final local = await ContasNousService.buscarPorCpf(cpfLimpo);
-          var contaFinal = local != null
-              ? mesclarUsuarios(local, usuarioRemoto)
-              : usuarioRemoto;
-
           if (usuarioRemoto.fotoPublica.isNotEmpty &&
-              !ImagemService.existe(contaFinal.fotoPublica)) {
+              (!ImagemService.existe(contaFinal.fotoPublica) ||
+                  (local != null &&
+                      usuarioRemoto.fotoPublica != local.fotoPublica &&
+                      _remotoEhMaisRecente(
+                          usuarioRemoto.atualizadoEm, local.atualizadoEm)))) {
             final fotoPubLocal = await _transferencia.baixarImagemRemota(
               caminhoRemoto: usuarioRemoto.fotoPublica,
               ipServidor: ipServidor,
@@ -259,11 +266,21 @@ class SincronizadorUsuariosRede {
             }
           }
 
+          if (contaFinal.fotoExibicao.isNotEmpty &&
+              ImagemService.existe(contaFinal.fotoExibicao)) {
+            ResolvedorFotoChat.instancia.registrarFoto(
+              contaFinal.cpf,
+              contaFinal.fotoExibicao,
+            );
+          } else {
+            ResolvedorFotoChat.instancia.registrarFoto(contaFinal.cpf, '');
+          }
+
           await ContasNousService.salvar(contaFinal);
           authProvider?.atualizarContaNoCache(contaFinal);
           pdvProvider?.sincronizarFotoUsuarioEmClientes(
             contaFinal.cpf,
-            contaFinal.foto,
+            contaFinal.fotoExibicao,
           );
           return contaFinal;
         }
@@ -309,10 +326,16 @@ class SincronizadorUsuariosRede {
               UsuarioNous.fromJson(dados['usuario'] as Map<String, dynamic>);
           final contaLocal = await ContasNousService.buscarPorCpf(cpf);
 
+          var contaFinal = contaLocal != null
+              ? mesclarUsuarios(contaLocal, usuarioRemoto)
+              : usuarioRemoto;
+
           if (usuarioRemoto.foto.isNotEmpty &&
-              (contaLocal == null ||
-                  contaLocal.foto.isEmpty ||
-                  !ImagemService.existe(contaLocal.foto))) {
+              (!ImagemService.existe(contaFinal.foto) ||
+                  (contaLocal != null &&
+                      usuarioRemoto.foto != contaLocal.foto &&
+                      _remotoEhMaisRecente(usuarioRemoto.atualizadoEm,
+                          contaLocal.atualizadoEm)))) {
             final novaFotoLocal = await _transferencia.baixarImagemRemota(
               caminhoRemoto: usuarioRemoto.foto,
               ipServidor: ipServidor,
@@ -321,22 +344,43 @@ class SincronizadorUsuariosRede {
             );
             if (novaFotoLocal.isNotEmpty &&
                 ImagemService.existe(novaFotoLocal)) {
-              ResolvedorFotoChat.instancia.registrarFoto(cpf, novaFotoLocal);
+              contaFinal = contaFinal.copyWith(foto: novaFotoLocal);
             }
           }
 
-          UsuarioNous contaFinal;
-          if (contaLocal != null) {
-            contaFinal = mesclarUsuarios(contaLocal, usuarioRemoto);
+          if (usuarioRemoto.fotoPublica.isNotEmpty &&
+              (!ImagemService.existe(contaFinal.fotoPublica) ||
+                  (contaLocal != null &&
+                      usuarioRemoto.fotoPublica != contaLocal.fotoPublica &&
+                      _remotoEhMaisRecente(usuarioRemoto.atualizadoEm,
+                          contaLocal.atualizadoEm)))) {
+            final novaFotoPubLocal = await _transferencia.baixarImagemRemota(
+              caminhoRemoto: usuarioRemoto.fotoPublica,
+              ipServidor: ipServidor,
+              portaServidor: portaServidor,
+              cpf: cpf,
+            );
+            if (novaFotoPubLocal.isNotEmpty &&
+                ImagemService.existe(novaFotoPubLocal)) {
+              contaFinal = contaFinal.copyWith(fotoPublica: novaFotoPubLocal);
+            }
+          }
+
+          if (contaFinal.fotoExibicao.isNotEmpty &&
+              ImagemService.existe(contaFinal.fotoExibicao)) {
+            ResolvedorFotoChat.instancia.registrarFoto(
+              cpf,
+              contaFinal.fotoExibicao,
+            );
           } else {
-            contaFinal = usuarioRemoto;
+            ResolvedorFotoChat.instancia.registrarFoto(cpf, '');
           }
 
           await ContasNousService.salvar(contaFinal);
           auth?.atualizarContaNoCache(contaFinal);
           pdvProvider?.sincronizarFotoUsuarioEmClientes(
             contaFinal.cpf,
-            contaFinal.foto,
+            contaFinal.fotoExibicao,
           );
           await auth?.recarregarConta();
           debugPrint(
@@ -434,7 +478,12 @@ class SincronizadorUsuariosRede {
                 var mesclada =
                     existente == null ? u : mesclarUsuarios(existente, u);
 
-                if (u.foto.isNotEmpty && !ImagemService.existe(mesclada.foto)) {
+                if (u.foto.isNotEmpty &&
+                    (!ImagemService.existe(mesclada.foto) ||
+                        (existente != null &&
+                            u.foto != existente.foto &&
+                            _remotoEhMaisRecente(
+                                u.atualizadoEm, existente.atualizadoEm)))) {
                   final fotoBaixada = await _transferencia.baixarImagemRemota(
                     caminhoRemoto: u.foto,
                     ipServidor: ipServidor,
@@ -444,12 +493,14 @@ class SincronizadorUsuariosRede {
                   if (fotoBaixada.isNotEmpty &&
                       ImagemService.existe(fotoBaixada)) {
                     mesclada = mesclada.copyWith(foto: fotoBaixada);
-                    ResolvedorFotoChat.instancia
-                        .registrarFoto(u.cpf, fotoBaixada);
                   }
                 }
                 if (u.fotoPublica.isNotEmpty &&
-                    !ImagemService.existe(mesclada.fotoPublica)) {
+                    (!ImagemService.existe(mesclada.fotoPublica) ||
+                        (existente != null &&
+                            u.fotoPublica != existente.fotoPublica &&
+                            _remotoEhMaisRecente(
+                                u.atualizadoEm, existente.atualizadoEm)))) {
                   final fotoPubBaixada =
                       await _transferencia.baixarImagemRemota(
                     caminhoRemoto: u.fotoPublica,
@@ -463,11 +514,21 @@ class SincronizadorUsuariosRede {
                   }
                 }
 
+                if (mesclada.fotoExibicao.isNotEmpty &&
+                    ImagemService.existe(mesclada.fotoExibicao)) {
+                  ResolvedorFotoChat.instancia.registrarFoto(
+                    u.cpf,
+                    mesclada.fotoExibicao,
+                  );
+                } else {
+                  ResolvedorFotoChat.instancia.registrarFoto(u.cpf, '');
+                }
+
                 await ContasNousService.salvar(mesclada);
                 authProvider?.atualizarContaNoCache(mesclada);
                 pdvProvider?.sincronizarFotoUsuarioEmClientes(
                   mesclada.cpf,
-                  mesclada.foto,
+                  mesclada.fotoExibicao,
                 );
                 pdvProvider?.sincronizarDadosUsuarioEmLojas(mesclada);
 

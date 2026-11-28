@@ -313,6 +313,9 @@ class _FloatingBottomNavBarState extends State<FloatingBottomNavBar> {
 
   @override
   Widget build(BuildContext context) {
+    if (MediaQuery.viewInsetsOf(context).bottom > 50) {
+      return const SizedBox.shrink();
+    }
     final larguraDaTela = MediaQuery.sizeOf(context).width;
     final sobra = larguraDaTela - widget.maxWidth;
     final margemLateral = (sobra / 2).clamp(0.0, larguraDaTela / 2);

@@ -26,29 +26,42 @@ class _BlocoNovidadesAtualizacaoState extends State<BlocoNovidadesAtualizacao> {
   bool _expandido = false;
 
   List<String> _resolverItens() {
+    if (widget.alteracoesRemotas.isNotEmpty) {
+      return widget.alteracoesRemotas;
+    }
+
+    if (widget.descricao != null && widget.descricao!.trim().isNotEmpty) {
+      final linhas = widget.descricao!
+          .split('\n')
+          .map((l) => l.trim())
+          .where((l) => l.isNotEmpty && !l.startsWith('## '))
+          .map((l) {
+            if (l.startsWith('### ')) {
+              return l.replaceFirst(RegExp(r'^#{1,6}\s*'), '').trim();
+            }
+            var limpa = l.replaceAll(RegExp(r'^[-*•]\s*'), '');
+            limpa = limpa.replaceAll('**', '').replaceAll('__', '').replaceAll('`', '');
+            limpa = limpa.replaceAllMapped(
+              RegExp(r'\[([^\]]+)\]\([^)]+\)'),
+              (m) => m.group(1) ?? '',
+            );
+            return limpa.trim();
+          })
+          .where((l) => l.isNotEmpty && !l.startsWith('#'))
+          .toList();
+      if (linhas.isNotEmpty) return linhas;
+    }
+
     final novidade = widget.versao.isNotEmpty
         ? (ChangelogService.obterUltimaVersao(widget.versao) ??
             ChangelogService.obterUltimaVersao())
         : ChangelogService.obterUltimaVersao();
 
-    List<String> itens = [];
-    if (widget.alteracoesRemotas.isNotEmpty) {
-      itens = widget.alteracoesRemotas;
-    } else if (novidade != null && novidade.alteracoes.isNotEmpty) {
-      itens = novidade.alteracoes;
-    } else if (widget.descricao != null && widget.descricao!.trim().isNotEmpty) {
-      itens = widget.descricao!
-          .split('\n')
-          .map((l) => l.trim().replaceAll(RegExp(r'^[-*•]\s*'), ''))
-          .where((l) => l.isNotEmpty && !l.startsWith('#'))
-          .toList();
+    if (novidade != null && novidade.alteracoes.isNotEmpty) {
+      return novidade.alteracoes;
     }
 
-    if (itens.isEmpty && novidade != null && novidade.alteracoes.isNotEmpty) {
-      itens = novidade.alteracoes;
-    }
-
-    return itens;
+    return const [];
   }
 
   @override

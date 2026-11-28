@@ -287,7 +287,8 @@ class ChatConversasHidratadorService {
 
           tituloFinal = u.nomeExibicao;
 
-          if (fotoFinal.isEmpty ||
+          if ((u.fotoExibicao.isNotEmpty && ImagemService.existe(u.fotoExibicao)) ||
+              fotoFinal.isEmpty ||
               !ImagemService.existe(fotoFinal) ||
               ehFotoPropriaUsuario) {
             fotoFinal = u.fotoExibicao;

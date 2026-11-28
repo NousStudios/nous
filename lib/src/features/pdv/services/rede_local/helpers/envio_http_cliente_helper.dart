@@ -181,10 +181,21 @@ class EnvioHttpClienteHelper {
     try {
       final c = await ContasNousService.buscarPorCpf(cpfLimpo);
       if (c != null) {
-        final atualizada = c.copyWith(foto: pathFinal);
+        final nomeArquivo = pathFinal.replaceAll('\\', '/').split('/').last;
+        final ehFotoPublica = c.fotoPublica.isNotEmpty &&
+            c.fotoPublica.replaceAll('\\', '/').split('/').last == nomeArquivo;
+        final atualizada = ehFotoPublica
+            ? c.copyWith(fotoPublica: pathFinal)
+            : (c.foto.isEmpty ||
+                    c.foto.replaceAll('\\', '/').split('/').last == nomeArquivo
+                ? c.copyWith(foto: pathFinal)
+                : c);
         await ContasNousService.salvar(atualizada);
         authProvider?.atualizarContaNoCache(atualizada);
-        pdvProvider?.sincronizarFotoUsuarioEmClientes(cpfLimpo, pathFinal);
+        pdvProvider?.sincronizarFotoUsuarioEmClientes(
+          cpfLimpo,
+          atualizada.fotoExibicao,
+        );
       }
     } catch (_) {}
   }

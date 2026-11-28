@@ -125,8 +125,9 @@ class ManipuladorMidiaServidor {
       final cpfLimpo = cpf.replaceAll(RegExp(r'\D'), '');
       try {
         final conta = await ContasNousService.buscarPorCpf(cpfLimpo);
-        if (conta != null && conta.foto.isNotEmpty) {
-          caminhoResolvido = ImagemService.resolverCaminhoExistente(conta.foto);
+        if (conta != null && conta.fotoExibicao.isNotEmpty) {
+          caminhoResolvido =
+              ImagemService.resolverCaminhoExistente(conta.fotoExibicao);
         }
       } catch (_) {}
       if (caminhoResolvido == null && pdvProvider != null) {

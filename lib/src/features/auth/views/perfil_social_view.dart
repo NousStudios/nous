@@ -183,8 +183,19 @@ class _PerfilSocialViewState extends State<PerfilSocialView> {
           }
 
           final fotoParaBaixar = _contaAlvoAtualizada?.fotoExibicao ?? alvo.fotoExibicao;
-          if (_fotoLocalResolvida == null &&
-              (fotoParaBaixar.isNotEmpty || cpfLimpo.length == 11)) {
+          final resolvidoAtual = fotoParaBaixar.isNotEmpty
+              ? ImagemService.resolverCaminhoExistente(fotoParaBaixar)
+              : null;
+          if (resolvidoAtual != null && File(resolvidoAtual).existsSync()) {
+            if (mounted && _fotoLocalResolvida != resolvidoAtual) {
+              setState(() {
+                _fotoLocalResolvida = resolvidoAtual;
+              });
+            }
+            if (cpfLimpo.isNotEmpty) {
+              ResolvedorFotoChat.instancia.registrarFoto(cpfLimpo, resolvidoAtual);
+            }
+          } else if (fotoParaBaixar.isNotEmpty || cpfLimpo.length == 11) {
             final baixado = await ClienteRedeLocal().baixarImagemRemota(
               fotoParaBaixar,
               cpf: cpfLimpo,
@@ -195,6 +206,10 @@ class _PerfilSocialViewState extends State<PerfilSocialView> {
               ResolvedorFotoChat.instancia.registrarFoto(cpfLimpo, baixado);
               setState(() {});
             }
+          } else if (fotoParaBaixar.isEmpty && _fotoLocalResolvida != null && mounted) {
+            setState(() {
+              _fotoLocalResolvida = null;
+            });
           }
         } catch (_) {} finally {
           _baixandoFoto = false;
@@ -235,8 +250,13 @@ class _PerfilSocialViewState extends State<PerfilSocialView> {
             contaPropria.cpf.replaceAll(RegExp(r'\D'), '') ==
                 conta.cpf.replaceAll(RegExp(r'\D'), ''));
 
-    final fotoResolvida = _fotoLocalResolvida ??
-        ImagemService.resolverCaminhoExistente(conta.fotoExibicao);
+    final fotoContaResolvida = conta.fotoExibicao.isNotEmpty
+        ? ImagemService.resolverCaminhoExistente(conta.fotoExibicao)
+        : null;
+    final fotoResolvida = (fotoContaResolvida != null &&
+            File(fotoContaResolvida).existsSync())
+        ? fotoContaResolvida
+        : _fotoLocalResolvida;
     final temFoto = fotoResolvida != null && File(fotoResolvida).existsSync();
     final providerFoto = temFoto
         ? ImagemService.obterImageProvider(fotoResolvida)
